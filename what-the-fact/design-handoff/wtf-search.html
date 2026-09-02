@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search · What The Fact</title>
+<meta name="description" content="Search articles, story clusters, outlets, fact-checked claims and ridings across the What The Fact corpus."><meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Search — What The Fact"><meta property="og:description" content="Search articles, story clusters, outlets, fact-checked claims and ridings across the What The Fact corpus.">
+<meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;animation:rise .3s ease-out both}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+
+  .sbox{display:flex;gap:9px;align-items:center;margin-bottom:12px}
+  .sbox input{flex:1;min-width:0;font-size:16px;padding:13px 15px;border-radius:var(--r-md)}
+  .facets{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px}
+  .fc{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.08em;padding:7px 13px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease);display:inline-flex;gap:7px;align-items:center}
+  .fc:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .fc.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .fc b{font-weight:500;color:#5d6875}
+  .fc.on b{color:#f0a3a3}
+  .grp{margin-bottom:20px}
+  .grph{display:flex;align-items:baseline;gap:9px;margin-bottom:9px}
+  .grpl{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted)}
+  .res{display:block;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--wtf-border);border-radius:var(--r-md);padding:11px 13px;margin-bottom:7px;text-decoration:none;transition:border-color .16s var(--ease),transform .16s var(--ease)}
+  .res:hover{transform:translateY(-1px);border-color:#2a3547}
+  .res-t{font-family:var(--wtf-font-serif);font-size:15px;line-height:1.35;color:var(--wtf-text);display:block}
+  .res-m{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.05em;color:var(--wtf-text-muted);margin-top:4px}
+  .res-n{font-size:12px;line-height:1.6;color:var(--wtf-text-2);margin-top:5px}
+  mark{background:rgba(20,190,240,.22);color:var(--wtf-text);border-radius:2px;padding:0 2px}
+  .pill{font-family:var(--wtf-font-mono);font-size:9px;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .empty{background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:var(--r-lg);padding:34px 20px;text-align:center}
+  .sug{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:13px}
+  kbd{font-family:var(--wtf-font-mono);font-size:9px;border:1px solid var(--wtf-border);border-bottom-width:2px;border-radius:4px;padding:2px 5px;color:var(--wtf-text-muted)}\n</style></head><body>
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+<main class="wrap"><header class="phead"><div class="eyebrow">One index, every kind of record</div>
+<h1>Search</h1>
+<p class="lede">Articles, story clusters, outlets, fact-checked claims, ridings and the site&rsquo;s own reference pages, in one index. Results say what kind of record they are, because a claim check and a news article carry very different weight.</p></header>
+
+<div class="sbox">
+  <input type="search" id="q" placeholder="Try procurement, Bank of Canada, wildfire, CBC&hellip;" aria-label="Search" autocomplete="off" spellcheck="false">
+  <span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;white-space:nowrap"><kbd>/</kbd> to focus</span>
+</div>
+<div class="facets" id="facets"></div>
+<div id="results"></div>
+<p class="foot-note" style="border:0;text-align:center;max-width:74ch;margin:22px auto 0">Search runs against the corpus in the browser, so it works offline and sends nothing anywhere. Claim rows are checks on a statement, never a standing judgement on the person or outlet that made it.</p></main>
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>\n<script src="wtf-corpus.js"></script>
+<script>
+/* Ridings are public facts; the coverage counts beside them are sample corpus
+   figures, and nothing here attributes a statement to a named member. */
+const RIDINGS = [
+  ['Papineau','QC'],['Carleton','ON'],['Toronto Centre','ON'],['Vancouver Granville','BC'],
+  ['Calgary Heritage','AB'],['Regina—Lewvan','SK'],['Winnipeg Centre','MB'],['Halifax','NS'],
+  ['Fredericton—Oromocto','NB'],['Charlottetown','PE'],['St. John’s East','NL'],
+  ['Yukon','YT'],['Northwest Territories','NT'],['Nunavut','NU'],
+  ['Timmins—James Bay','ON'],['Abitibi—Baie-James—Nunavik—Eeyou','QC'],
+  ['Skeena—Bulkley Valley','BC'],['Fort McMurray—Cold Lake','AB'],
+  ['Desnethé—Missinippi—Churchill River','SK'],['Churchill—Keewatinook Aski','MB']
+];
+const PAGES = [
+  ['Methodology','wtf-methodology.html','How bias is scored, and what the score is not'],
+  ['C.R.E.E.D.','wtf-creed.html','The standard every agent is held to'],
+  ['Blindspot','wtf-blindspot.html','Stories one side of the spectrum is not covering'],
+  ['Divergence','wtf-divergence.html','Where outlets disagree most on the same event'],
+  ['Forecast accuracy','wtf-accuracy.html','Every forecast scored against what happened'],
+  ['A.U.R.O.R.A. weather','wtf-weather.html','Wildfire, fire weather and city conditions'],
+  ['City forecast','wtf-city.html','Hourly and long-range by city'],
+  ['Ownership','wtf-owners.html','Who owns which masthead'],
+  ['Journalists','wtf-journalists.html','Bylines and what they cover'],
+  ['CRTC decisions','wtf-crtc.html','The regulator’s public record'],
+  ['Cost of Parliament','wtf-cost.html','What the House spends'],
+  ['Lobbying','wtf-lobbying.html','Registered contacts and files'],
+  ['Bank of Canada rates','wtf-rates.html','The rate path and who covers it how'],
+  ['Media literacy','wtf-literacy.html','How to read a spectrum honestly'],
+  ['API','wtf-api.html','Every number on this site, as data'],
+  ['Agent activity','wtf-activity.html','What the agents did, live'],
+  ['Ethics','wtf-ethics.html','Corrections, funding and conflicts'],
+  ['The team','wtf-team.html','Who builds this']
+];
+
+/* A.U.R.O.R.A. and C.R.E.E.D. are how these names are written, and "aurora"
+   and "creed" are how they are typed. Both forms have to hit, so the haystack
+   carries a de-dotted alias and incoming terms are de-dotted too. */
+const flat = s => String(s).toLowerCase().replace(/[.\u2019']/g, '');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hl(text, terms) {
+  let out = esc(text);
+  terms.forEach(t => {
+    if (t.length < 2) return;
+    const lit = t.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&');
+    // Allow an optional dot between letters so "creed" also lights C.R.E.E.D.
+    const spaced = t.split('').map(ch => ch.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&')).join('\\.?');
+    out = out.replace(new RegExp('(' + lit + '|' + spaced + ')', 'gi'), '<mark>$1</mark>');
+  });
+  return out;
+}
+
+/* Score: a hit in a title outranks a hit in a note, and every term must appear
+   somewhere or the row is not a result at all. */
+function score(hay, title, terms) {
+  if (!hay || !title) return 0;
+  const T = String(title).toLowerCase(), Tf = flat(title), Hf = flat(hay);
+  let s = 0;
+  for (const t of terms) {
+    const tf = flat(t);
+    const inT = T.includes(t) || (tf && Tf.includes(tf));
+    const inH = hay.includes(t) || (tf && Hf.includes(tf));
+    if (!inT && !inH) return 0;
+    s += inT ? 10 : 3;
+    if (T.startsWith(t) || (tf && Tf.startsWith(tf))) s += 6;
+  }
+  return s;
+}
+
+const GROUPS = [
+  { k:'article', l:'Articles', col:'var(--wtf-accent)' },
+  { k:'cluster', l:'Story clusters', col:'#a78bfa' },
+  { k:'outlet',  l:'Outlets', col:'#7fa3cf' },
+  { k:'claim',   l:'Claim checks', col:'#10b981' },
+  { k:'riding',  l:'Ridings', col:'#f59e0b' },
+  { k:'page',    l:'Reference pages', col:'#929aa5' }
+];
+
+function build(q) {
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  const out = [];
+  const stories = ARTICLES.filter(a => a.first);
+
+  ARTICLES.forEach(a => {
+    const t = titleOf(a);
+    const hay = (t + ' ' + a.src + ' ' + a.beat + ' ' + a.prov + ' ' + (a.note || '')).toLowerCase();
+    const s = score(hay, t, terms);
+    if (s) out.push({ g:'article', s, title:t,
+      meta: a.src.toUpperCase() + ' &middot; ' + a.prov + ' &middot; ' + a.beat + ' &middot; ' + ago(a.min),
+      note: a.note || '', lean:a.lean, verdict:a.verdict, href:'wtf-article.html?a=' + encodeURIComponent(a.id) });
+  });
+
+  CLUSTERS.forEach(c => {
+    const hay = (c.t + ' ' + c.beat + ' ' + c.prov + ' ' + (c.note || '')).toLowerCase();
+    const s = score(hay, c.t, terms);
+    if (s) out.push({ g:'cluster', s:s + 2, title:c.t,
+      meta: c.outlets + ' outlets &middot; ' + c.beat + ' &middot; ' + c.prov,
+      note: c.note || '', lean:c.lean, verdict:c.verdict, href:'wtf-clusters.html' });
+  });
+
+  Object.keys(OUTLET_STATS).forEach(src => {
+    const st = OUTLET_STATS[src], own = OWNER_OF[src];
+    const hay = (src + ' ' + (own ? own[0] : '')).toLowerCase();
+    const s = score(hay, src, terms);
+    if (s) out.push({ g:'outlet', s:s + 1, title:src,
+      meta: st.n + ' articles in corpus' + (own ? ' &middot; ' + own[0] : ''),
+      note: 'Mean lean across its own coverage, not a masthead label.', href:'wtf-outlet.html?o=' + encodeURIComponent(src) });
+  });
+
+  stories.forEach(a => {
+    CLAIMS_FOR(a).forEach(c => {
+      const hay = (c.text + ' ' + c.src + ' ' + titleOf(a)).toLowerCase();
+      const sc = score(hay, c.text, terms);
+      if (sc) out.push({ g:'claim', s:sc, title:c.text,
+        meta: (VERDICTS[c.verdict] ? VERDICTS[c.verdict].l : c.verdict) + ' &middot; ' + c.src,
+        note: 'Checked on: ' + titleOf(a), verdict:c.verdict, href:'wtf-claims.html' });
+    });
+  });
+
+  RIDINGS.forEach(r => {
+    const hay = (r[0] + ' ' + r[1] + ' ' + (PROV_NAMES[r[1]] || '')).toLowerCase();
+    const s = score(hay, r[0], terms);
+    if (s) out.push({ g:'riding', s, title:r[0],
+      meta: (PROV_NAMES[r[1]] || r[1]) + ' &middot; federal riding',
+      note: 'Seat record and coverage of the file, not of the member personally.', href:'wtf-mps.html' });
+  });
+
+  PAGES.forEach(p => {
+    const hay = (p[0] + ' ' + p[2]).toLowerCase();
+    const s = score(hay, p[0], terms);
+    if (s) out.push({ g:'page', s:s + 4, title:p[0], meta:'Reference page', note:p[2], href:p[1] });
+  });
+
+  return out.sort((a, b) => b.s - a.s);
+}
+
+let facet = 'all', all = [];
+function render() {
+  const q = document.getElementById('q').value.trim();
+  all = build(q);
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+
+  const counts = {};
+  GROUPS.forEach(g => counts[g.k] = all.filter(r => r.g === g.k).length);
+  document.getElementById('facets').innerHTML = q
+    ? ['<button class="fc' + (facet === 'all' ? ' on' : '') + '" data-f="all">All <b>' + all.length + '</b></button>']
+        .concat(GROUPS.filter(g => counts[g.k]).map(g =>
+          '<button class="fc' + (facet === g.k ? ' on' : '') + '" data-f="' + g.k + '">' + g.l + ' <b>' + counts[g.k] + '</b></button>')).join('')
+    : '';
+
+  const box = document.getElementById('results');
+  if (!q) {
+    box.innerHTML = '<div class="empty"><div style="font-family:var(--wtf-font-serif);font-size:19px;margin-bottom:5px">Search the corpus</div>' +
+      '<div style="font-size:13px;color:var(--wtf-text-muted);max-width:52ch;margin:0 auto">Six kinds of record, one field. Nothing is sent anywhere &mdash; the index is already in your browser.</div>' +
+      '<div class="sug">' + ['procurement','Bank of Canada','wildfire','CBC','C.R.E.E.D.','aurora','emissions cap','Nunavut']
+        .map(t => '<button class="chip" data-s="' + t + '">' + t + '</button>').join('') + '</div></div>';
+    return;
+  }
+  const rows = facet === 'all' ? all : all.filter(r => r.g === facet);
+  if (!rows.length) {
+    box.innerHTML = '<div class="empty"><div style="font-family:var(--wtf-font-serif);font-size:19px;margin-bottom:5px">Nothing matches &ldquo;' + esc(q) + '&rdquo;</div>' +
+      '<div style="font-size:13px;color:var(--wtf-text-muted)">The corpus is a sample, not the whole of Canadian news. An empty result here does not mean nothing was published.</div></div>';
+    return;
+  }
+  const shown = facet === 'all' ? GROUPS : GROUPS.filter(g => g.k === facet);
+  box.innerHTML = shown.map(g => {
+    const list = rows.filter(r => r.g === g.k).slice(0, facet === 'all' ? 5 : 60);
+    if (!list.length) return '';
+    const total = counts[g.k];
+    return '<div class="grp"><div class="grph"><span class="grpl" style="color:' + g.col + '">' + g.l + '</span>' +
+      '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">' + total + '</span>' +
+      (facet === 'all' && total > list.length ? '<button class="chip" style="margin-left:auto" data-f="' + g.k + '">See all ' + total + '</button>' : '') +
+      '</div>' + list.map(r => {
+        const lean = r.lean ? bandOf(r.lean) : null;
+        const v = r.verdict ? VERDICTS[r.verdict] : null;
+        return '<a class="res" href="' + r.href + '" style="border-left-color:' + g.col + '">' +
+          '<span class="res-t">' + hl(r.title, terms) + '</span>' +
+          '<div class="res-m">' + r.meta + '</div>' +
+          (r.note ? '<div class="res-n">' + hl(r.note, terms) + '</div>' : '') +
+          ((lean || v) ? '<div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">' +
+            (lean ? '<span class="pill" style="background:' + lean.hex + '22;color:' + lean.hex + '">' + lean.l + '</span>' : '') +
+            (v ? '<span class="pill" style="background:' + v.c + '1f;color:' + v.c + '">' + v.g + ' ' + v.l + '</span>' : '') +
+          '</div>' : '') +
+        '</a>';
+      }).join('') + '</div>';
+  }).join('');
+}
+
+const input = document.getElementById('q');
+input.addEventListener('input', () => { facet = 'all'; render(); if (window.writeQ) writeQ(); });
+document.addEventListener('click', e => {
+  const f = e.target.closest('[data-f]');
+  if (f) { facet = f.dataset.f; render(); return; }
+  const s = e.target.closest('[data-s]');
+  if (s) { input.value = s.dataset.s; facet = 'all'; render(); input.focus(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== input) { e.preventDefault(); input.focus(); }
+  if (e.key === 'Escape' && document.activeElement === input) { input.value = ''; render(); }
+});
+const p = new URLSearchParams(location.search);
+if (p.get('q')) input.value = p.get('q');
+window.writeQ = () => {
+  const u = new URL(location.href);
+  if (input.value) u.searchParams.set('q', input.value); else u.searchParams.delete('q');
+  history.replaceState(null, '', u);
+};
+render();
+if (!input.value) input.focus();
+</script>
+<script src="wtf-nav.js"></script>
+</body></html>

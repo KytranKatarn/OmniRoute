@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What The Fact — Canadian AI Newsroom</title>
+<meta name="description" content="Canadian news scored for bias story by story, with fact-check verdicts, coverage maps and wildfire intelligence.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="What The Fact — Canadian AI Newsroom">
+<meta property="og:description" content="Canadian news scored for bias story by story, with fact-check verdicts, coverage maps and wildfire intelligence.">
+<meta property="og:image" content="assets/wtf-logo.png">
+<meta property="og:locale" content="en_CA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="What The Fact — Canadian AI Newsroom">
+<meta name="twitter:description" content="Canadian news scored for bias story by story, with fact-check verdicts, coverage maps and wildfire intelligence.">
+<meta name="twitter:image" content="assets/wtf-logo.png">
+<link rel="icon" href="assets/wtf-logo.png">
+
+<script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --wtf-bg:#0d1117; --wtf-bg-card:#11161f; --wtf-bg-panel:#171e2a; --wtf-border:#222b39;
+    --wtf-text:#f2f1ed; --wtf-text-2:#b9bdc5; --wtf-text-muted:#7d8590; --wtf-accent:#dc2626;
+    --wtf-left:#d84b47; --wtf-center-left:#cf8b80; --wtf-center:#929aa5;
+    --wtf-center-right:#7fa3cf; --wtf-right:#4a72d8;
+    --wtf-established:#10b981; --wtf-developing:#f59e0b; --wtf-contested:#e05252;
+    /* Brand identity, sampled from the logo. Cyan is an IDENTITY colour only —
+       it never encodes data, because blue already means right-of-centre. */
+    --wtf-brand:#14bef0; --wtf-brand-deep:#1e7fd0;
+    --wtf-font-serif:'Newsreader',Georgia,serif; --wtf-font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --wtf-font-mono:'IBM Plex Mono',monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--wtf-bg); color:var(--wtf-text); font-family:var(--wtf-font-body); -webkit-font-smoothing:antialiased; }
+  a { color:var(--wtf-accent); text-decoration:none; } a:hover { color:var(--wtf-text); }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#222b39; border-radius:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  @keyframes rise { from{opacity:0;transform:translateY(9px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+
+  /* ── shell ─────────────────────────────────────────────────────── */
+  .nav { display:flex; align-items:center; gap:13px; padding:0 16px; height:54px;
+         background:var(--wtf-bg-card); border-bottom:1px solid var(--wtf-border);
+         position:sticky; top:0; z-index:500; }
+  .brand { display:flex; align-items:center; gap:11px; flex-shrink:0; }
+  .brand img { width:36px; height:36px; border-radius:50%; display:block; flex-shrink:0; border:1px solid #1d2b3a; }
+  .brand-txt { display:flex; flex-direction:column; gap:1px; }
+  .wordmark { font-family:var(--wtf-font-serif); font-size:19px; font-weight:700; letter-spacing:.01em; color:var(--wtf-text); }
+  .wordmark b { color:var(--wtf-brand); font-weight:700; }
+  .subbrand { font-family:var(--wtf-font-mono); font-size:8px; letter-spacing:.22em; text-transform:uppercase; color:var(--wtf-brand); }
+  .navgrp { position:relative; }
+  .navgrp > span, .navgrp > .grp { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.13em;
+                   text-transform:uppercase; color:var(--wtf-text-2); cursor:pointer; padding:6px 2px;
+                   display:inline-flex; align-items:center; gap:6px; white-space:nowrap; transition:color .18s; }
+  .wtf-nav-ico { width:17px; height:17px; flex-shrink:0; opacity:.72; transition:opacity .18s, color .18s; }
+  .navgrp:hover .wtf-nav-ico { opacity:1; color:var(--wtf-brand); }
+  @media (max-width:820px) { .wtf-nav-ico { display:none; } }
+  @media (max-width:700px)  { .brand-txt { display:none; } }
+  .navgrp:hover > span, .navgrp:hover > .grp { color:var(--wtf-text); }
+  .navgrp-menu { display:none; position:absolute; left:-12px; top:100%; min-width:190px; padding:6px;
+                 background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:4px;
+                 box-shadow:0 14px 34px rgba(0,0,0,.6); z-index:600; }
+  .navgrp.open .navgrp-menu { display:block; }
+  .navgrp > .grp { cursor:pointer; }
+  .navgrp:hover .navgrp-menu { display:block; animation:rise .16s ease-out both; }
+  .navgrp-menu a { display:block; padding:7px 10px; border-radius:3px; font-size:12.5px; color:var(--wtf-text-2); }
+  .navgrp-menu a:hover { background:#1f2836; color:var(--wtf-text); }
+  .nav-right { margin-left:auto; display:flex; align-items:center; gap:9px; flex-shrink:0; }
+  @media (max-width:1010px) { .nav-right .icon-btn { display:none; } }
+  .btn-sub { background:var(--wtf-accent); color:#fff; font-family:var(--wtf-font-mono); font-size:10px; font-weight:600;
+             letter-spacing:.1em; text-transform:uppercase; padding:8px 14px; border-radius:3px; }
+  .btn-sub:hover { background:#b91c1c; color:#fff; }
+  .btn-ghost { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+               color:var(--wtf-text-muted); padding:8px 6px; white-space:nowrap; }
+  @media (max-width:1060px) { .btn-ghost { display:none; } }
+  .icon-btn { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:3px;
+              border:1px solid var(--wtf-border); color:var(--wtf-text-muted); transition:all .18s; }
+  .icon-btn:hover { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+
+  /* ── beat strip ────────────────────────────────────────────────── */
+  .beat-strip { display:flex; gap:6px; flex-wrap:wrap; padding:9px 18px;
+                background:var(--wtf-bg-card); border-bottom:1px solid var(--wtf-border); }
+  .beat { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase;
+          padding:5px 11px; border-radius:3px; border:1px solid var(--wtf-border); background:var(--wtf-bg-panel);
+          color:var(--wtf-text-muted); cursor:pointer; transition:all .2s; }
+  .beat:hover { color:var(--wtf-text-2); border-color:#2e3a4d; }
+  .beat.active { background:rgba(220,38,38,.12); color:var(--wtf-accent); border-color:var(--wtf-accent); }
+
+  .banner { display:none; align-items:center; justify-content:space-between; gap:12px; padding:8px 18px;
+            font-family:var(--wtf-font-mono); font-size:10px; border-bottom:1px solid var(--wtf-border);
+            animation:rise .22s ease-out both; }
+  .banner.show { display:flex; }
+  .banner-x { background:none; border:1px solid currentColor; color:inherit; font-family:inherit; font-size:9px;
+              padding:2px 8px; border-radius:3px; cursor:pointer; }
+
+  /* ── featured ──────────────────────────────────────────────────── */
+  .featured { display:flex; align-items:flex-start; gap:14px; padding:11px 18px; background:var(--wtf-bg-card);
+              border-bottom:1px solid var(--wtf-border); border-left:3px solid var(--wtf-accent); }
+
+  /* ── map zone ──────────────────────────────────────────────────── */
+  #map-zone { background:var(--wtf-bg-card); padding:13px 18px; border-bottom:1px solid var(--wtf-border); }
+  #map-row { display:grid; grid-template-columns:216px minmax(0,1fr); gap:12px; align-items:start; }
+  @media (max-width:860px) { #map-row { grid-template-columns:minmax(0,1fr); } }
+  #map-index { height:352px; display:flex; flex-direction:column; background:var(--wtf-bg);
+               border:1px solid var(--wtf-border); border-radius:5px; overflow:hidden; }
+  #ix-head { padding:9px 11px; border-bottom:1px solid var(--wtf-border); font-family:var(--wtf-font-mono);
+             font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--wtf-text-muted); }
+  #ix-list { flex:1; overflow-y:auto; overflow-x:hidden; padding:5px; }
+  .ix { display:grid; grid-template-columns:9px 26px minmax(0,1fr) auto; gap:8px; align-items:center;
+        padding:6px 7px; border-radius:3px; cursor:pointer; transition:background .15s; }
+  .ix:hover { background:var(--wtf-bg-panel); }
+  .ix.on { background:rgba(220,38,38,.1); }
+  .ix i { width:9px; height:9px; border-radius:2px; display:inline-block; }
+  .ix b { font-family:var(--wtf-font-mono); font-size:10px; font-weight:500; color:var(--wtf-text); }
+  .ix .nm { font-size:11.5px; color:var(--wtf-text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ix .qt { font-family:var(--wtf-font-mono); font-size:10.5px; color:var(--wtf-text); }
+  #map-shell { position:relative; height:352px; border:1px solid var(--wtf-border); border-radius:5px;
+               background:#0b1017; overflow:hidden; }
+  #map-shell svg { display:block; width:100%; height:100%; }
+  .map-btn { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase;
+             padding:5px 11px; border-radius:3px; border:1px solid var(--wtf-border); background:var(--wtf-bg-panel);
+             color:var(--wtf-text-muted); cursor:pointer; transition:all .2s; }
+  .map-btn:hover { color:var(--wtf-text-2); }
+  .map-btn.active { background:rgba(220,38,38,.12); color:var(--wtf-accent); border-color:var(--wtf-accent); }
+  #map-shell { cursor:grab; } #map-shell:active { cursor:grabbing; }
+  .zoomctl { position:absolute; right:11px; top:11px; z-index:20; display:flex; flex-direction:column; gap:4px; }
+  .zoomctl button { width:28px; height:28px; border-radius:4px; border:1px solid var(--wtf-border);
+                    background:rgba(13,17,23,.86); color:var(--wtf-text-2); cursor:pointer; font-size:14px;
+                    line-height:1; display:flex; align-items:center; justify-content:center; transition:all .15s; }
+  .zoomctl button:hover { border-color:var(--wtf-brand); color:var(--wtf-brand); }
+  .pin-circle { cursor:pointer; }
+  .pin-num, .pin-lab { pointer-events:none; font-family:var(--wtf-font-mono); text-anchor:middle; }
+  .pin-num { fill:var(--wtf-text); dominant-baseline:central; font-weight:500; }
+  .pin-lab { fill:var(--wtf-text-2); font-size:9px; letter-spacing:.09em; }
+  #map-tip { position:absolute; width:232px; padding:13px 15px; background:var(--wtf-bg-panel);
+             border:1px solid var(--wtf-border); border-radius:5px; box-shadow:0 14px 36px rgba(0,0,0,.62);
+             pointer-events:none; z-index:40; display:none; animation:rise .16s ease-out both; }
+  #map-legend { display:flex; flex-wrap:wrap; gap:5px 14px; margin-top:10px; padding:9px 12px;
+                background:var(--wtf-bg); border:1px solid var(--wtf-border); border-radius:4px; }
+  .lg { display:flex; align-items:center; gap:6px; font-family:var(--wtf-font-mono); font-size:9px;
+        letter-spacing:.06em; color:var(--wtf-text-2); }
+  .lg i { width:9px; height:9px; border-radius:2px; display:inline-block; flex-shrink:0; }
+
+  .wxf-head { display:flex; align-items:baseline; gap:10px; margin:14px 0 8px; flex-wrap:wrap; }
+  .wxf-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+  .wxf { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-left:3px solid var(--wtf-border);
+         border-radius:5px; padding:10px 12px; display:flex; flex-direction:column; gap:3px;
+         transition:border-color .16s, transform .16s; }
+  .wxf:hover { transform:translateY(-1px); }
+  .wxf-k { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--wtf-text-muted); }
+  .wxf-v { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:21px; font-weight:600; line-height:1.1; }
+  .wxf-n { font-size:11px; line-height:1.5; color:var(--wtf-text-muted); }
+
+  /* ── main ──────────────────────────────────────────────────────── */
+  #main { display:grid; grid-template-columns:37% minmax(0,1fr); align-items:start; }
+  @media (max-width:960px) { #main { grid-template-columns:minmax(0,1fr); } }
+  #editorial { background:var(--wtf-bg-card); padding:16px 18px; border-right:1px solid var(--wtf-border); }
+  #feed { padding:16px 18px; }
+  .slabel { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.15em; text-transform:uppercase;
+            color:var(--wtf-text-muted); margin:0; }
+  .top-story { display:flex; gap:9px; align-items:baseline; padding:8px 0; border-bottom:1px solid var(--wtf-border); }
+  .top-story a { font-family:var(--wtf-font-serif); font-size:14.5px; line-height:1.35; color:var(--wtf-text-2); flex:1; }
+  .top-story a:hover { color:var(--wtf-text); }
+  .rank { font-family:var(--wtf-font-mono); font-size:10px; color:#3a4657; flex-shrink:0; width:14px; }
+
+  .act { display:flex; gap:9px; align-items:flex-start; padding:8px 9px; border-radius:3px;
+         background:var(--wtf-bg-panel); margin-bottom:5px; animation:slideIn .3s ease-out both; }
+  .act-ico { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+             font-family:var(--wtf-font-mono); font-size:8px; font-weight:600; flex-shrink:0; }
+  .act-txt { font-size:11.5px; line-height:1.45; color:var(--wtf-text-2); }
+  .act-time { font-family:var(--wtf-font-mono); font-size:9px; color:#5d6875; margin-top:2px; }
+
+  .card { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-left:3px solid #333;
+          border-radius:4px; padding:11px 13px; margin-bottom:8px; animation:rise .3s ease-out both;
+          transition:border-color .2s, background .2s; }
+  .card:hover { background:#141b26; }
+  .card--left { border-left-color:var(--wtf-left); }
+  .card--center-left { border-left-color:var(--wtf-center-left); }
+  .card--center { border-left-color:var(--wtf-center); }
+  .card--center-right { border-left-color:var(--wtf-center-right); }
+  .card--right { border-left-color:var(--wtf-right); }
+  .card-meta { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:5px;
+               font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.05em; color:var(--wtf-text-muted); }
+  .card-title { font-family:var(--wtf-font-serif); font-size:15px; line-height:1.35; color:var(--wtf-text); display:block; }
+  .card-title:hover { color:var(--wtf-accent); }
+  .pill { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.05em; padding:2px 7px; border-radius:2px; white-space:nowrap; }
+  .p-left { background:rgba(216,75,71,.14); color:var(--wtf-left); }
+  .p-center-left { background:rgba(207,139,128,.14); color:var(--wtf-center-left); }
+  .p-center { background:rgba(146,154,165,.14); color:var(--wtf-center); }
+  .p-center-right { background:rgba(127,163,207,.14); color:var(--wtf-center-right); }
+  .p-right { background:rgba(74,114,216,.14); color:var(--wtf-right); }
+  .badge { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.05em; padding:2px 7px; border-radius:2px; }
+  .b-ai { background:rgba(16,185,129,.12); color:var(--wtf-established); }
+  .b-cluster { background:rgba(146,154,165,.12); color:var(--wtf-text-2); }
+
+  .footer { padding:26px 18px 40px; border-top:1px solid var(--wtf-border); background:var(--wtf-bg-card);
+            display:flex; flex-wrap:wrap; gap:14px 26px; align-items:center; }
+
+  /* ══ centring ═══════════════════════════════════════════════════════
+     Bands stay full-bleed so the rules and surfaces run edge to edge, but
+     their CONTENT is capped and centred to match every other page (1180px).
+     Done with padding rather than an inner wrapper, so no markup moves. */
+  :root { --gut: max(18px, calc((100vw - 1180px) / 2)); }
+  .nav, .beat-strip, .banner, .featured, #map-zone, #wx-home, .footer {
+    padding-left:var(--gut); padding-right:var(--gut);
+  }
+  #editorial { padding-left:var(--gut); }
+  #feed { padding-right:var(--gut); }
+  #main { max-width:none; }
+
+  /* ══ refresh layer ══════════════════════════════════════════════════
+     Matches the weather page: depth, radius, motion. No colour meaning
+     changes — lean spectrum, verdict greens and the fire ramp stand. */
+  :root {
+    --r-lg:14px; --r-md:10px; --r-sm:7px;
+    --lift:0 1px 0 rgba(255,255,255,.045) inset, 0 8px 22px -12px rgba(0,0,0,.85);
+    --lift-hi:0 1px 0 rgba(255,255,255,.07) inset, 0 16px 38px -14px rgba(0,0,0,.9);
+    --ease:cubic-bezier(.32,.72,0,1);
+  }
+  html { font-optical-sizing:auto; text-rendering:optimizeLegibility; }
+  body { letter-spacing:-.006em; }
+  .card, .wtf-panel, #map-index, #map-shell, #map-legend, .act {
+    border-radius:var(--r-lg) !important;
+    box-shadow:var(--lift);
+    transition:box-shadow .26s var(--ease), border-color .26s var(--ease), transform .26s var(--ease);
+  }
+  .card:hover { transform:translateY(-2px); box-shadow:var(--lift-hi); border-color:#2f3d52; }
+  .beat, .map-btn, .btn-sub, .icon-btn { border-radius:999px !important; transition:all .18s var(--ease); }
+  .beat:hover, .map-btn:hover { transform:translateY(-1px); }
+  .ix { border-radius:var(--r-sm); transition:background .18s var(--ease), padding-left .18s var(--ease); }
+  .ix:hover { padding-left:11px; }
+  #map-shell { overflow:hidden; }
+  .card-title, .top-story a { letter-spacing:-.008em; text-wrap:pretty; }
+  .rank, .qt, .ix b, .card-meta, .stat-n { font-variant-numeric:tabular-nums lining-nums; }
+  a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+    outline:2px solid var(--wtf-brand); outline-offset:2px; border-radius:var(--r-sm);
+  }
+  ::-webkit-scrollbar { width:9px; height:9px; }
+  ::-webkit-scrollbar-thumb { background:#26313f; border-radius:99px; border:2px solid var(--wtf-bg); }
+  ::-webkit-scrollbar-track { background:transparent; }
+  @media (prefers-reduced-motion:reduce) {
+    .card, .beat, .map-btn, .ix { transition:none !important; }
+    .card:hover, .beat:hover, .map-btn:hover { transform:none !important; }
+    .ix:hover { padding-left:7px; }
+  }
+
+  /* ── local weather strip ───────────────────────────────────────── */
+  #wx-home { background:var(--wtf-bg-card); border-bottom:1px solid var(--wtf-border);
+             padding-top:12px; padding-bottom:12px; }
+  .wxstrip { display:flex; gap:9px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+  .wxc { flex:0 0 auto; min-width:152px; background:var(--wtf-bg-panel); border:1px solid var(--wtf-border);
+         border-left:3px solid var(--wtf-local); border-radius:var(--r-md); padding:11px 13px;
+         box-shadow:var(--lift); transition:transform .22s var(--ease), border-color .22s var(--ease); }
+  .wxc:hover { transform:translateY(-2px); border-color:#2f3d52; }
+  .wxc.is-alert { border-left-color:var(--wtf-developing); }
+  .wxc-n { font-size:12.5px; color:var(--wtf-text); font-weight:500; }
+  .wxc-t { font-family:var(--wtf-font-mono); font-size:22px; font-weight:600; letter-spacing:-.02em;
+           color:var(--wtf-text); margin:5px 0 2px; font-variant-numeric:tabular-nums; }
+  .wxc-c { font-family:var(--wtf-font-mono); font-size:9.5px; color:var(--wtf-text-muted); }
+
+@media(max-width:1180px){.nav .live-label{display:none}}
+@media(max-width:1090px){.nav .btn-ghost{display:none}}
+@media(max-width:1010px){.nav{gap:10px}}
+@media(max-width:940px){.nav{gap:8px}.wtf-nav-ico{display:none}}
+@media(max-width:820px){.nav{flex-wrap:wrap;height:auto;padding-top:8px;padding-bottom:8px;row-gap:4px}}
+.nav,.navgrp{overflow:visible}
+</style>
+</head>
+<body>
+
+<!-- ══ NAV ══ -->
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+
+<!-- ══ BEAT STRIP ══ -->
+<div class="beat-strip" id="beats"></div>
+
+<div class="banner" id="beat-banner" style="background:rgba(220,38,38,.07);border-left:3px solid var(--wtf-accent)">
+  <span id="beat-banner-label" style="font-weight:600;letter-spacing:.08em;color:var(--wtf-text)"></span>
+  <span style="color:var(--wtf-text-muted);font-size:9px;margin-right:auto">Map and feed filtered to this beat</span>
+  <button class="banner-x" style="color:var(--wtf-accent)" onclick="setBeat('all')">&times; Clear</button>
+</div>
+
+<div class="banner" id="prov-banner" style="background:rgba(146,154,165,.07);border-left:3px solid var(--wtf-center)">
+  <span id="prov-banner-label" style="font-weight:600;letter-spacing:.08em;color:var(--wtf-text)"></span>
+  <span style="color:var(--wtf-text-muted);font-size:9px;margin-right:auto">Feed filtered to this province</span>
+  <button class="banner-x" style="color:var(--wtf-text-2)" onclick="setProvince(null)">&times; Clear</button>
+</div>
+
+<!-- ══ FEATURED ══ -->
+<div class="featured">
+  <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.16em;color:var(--wtf-accent);white-space:nowrap;padding-top:4px">TODAY'S TOP STORY</span>
+  <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+    <a href="wtf-news.html" style="font-family:var(--wtf-font-serif);font-size:19px;font-weight:600;line-height:1.25;color:var(--wtf-text)">Auditor general's procurement report clears committee without a dissenting vote</a>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+      <span style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted)">16 outlets covering this</span>
+      <span style="font-size:12px;color:var(--wtf-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:56ch">Coverage split sharply on whether the findings implicate the current government or the previous one.</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOCAL WEATHER ══ -->
+<div id="wx-home">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;flex-wrap:wrap">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <span class="slabel">Your local weather</span>
+      <span id="wx-note" style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875"></span>
+    </div>
+    <a href="wtf-weather.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted)">A.U.R.O.R.A. &rarr;</a>
+  </div>
+  <div class="wxstrip" id="wxstrip"></div>
+
+  <div class="wxf-head">
+    <span class="slabel" style="color:#a78bfa">Wildfire and alerts</span>
+    <span id="wxf-sub" style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875"></span>
+    <a href="wtf-weather.html" style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted)">Full map &rarr;</a>
+  </div>
+  <div class="wxf-grid" id="wxf-grid"></div>
+</div>
+
+<!-- ══ MAP ZONE ══ -->
+<div id="map-zone">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:9px;flex-wrap:wrap">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <h2 class="slabel" id="map-label">Live — Canada news map</h2>
+      <span id="map-sub" style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875"></span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <div style="position:relative" id="prov-select">
+        <button class="map-btn" id="prov-btn" onclick="toggleProvMenu(event)">&#128205; Province &#9662;</button>
+        <div id="prov-menu" style="display:none;position:absolute;right:0;top:calc(100% + 5px);min-width:190px;max-height:240px;overflow-y:auto;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:4px;box-shadow:0 14px 34px rgba(0,0,0,.6);z-index:60;padding:5px"></div>
+      </div>
+      <button class="map-btn active" id="mode-lean" onclick="setMode('lean')">Dominant lean</button>
+      <button class="map-btn" id="mode-volume" onclick="setMode('volume')">Volume</button>
+      <span style="width:1px;background:var(--wtf-border);margin:0 3px"></span>
+      <button class="map-btn active" id="scope-canada" onclick="setScope('canada')">Canada</button>
+      <button class="map-btn" id="scope-world" onclick="setScope('world')">World</button>
+    </div>
+  </div>
+  <div id="map-row">
+    <div id="map-index">
+      <div id="ix-head">Index</div>
+      <div id="ix-list"></div>
+    </div>
+    <div id="map-shell">
+      <div id="map-tip"></div>
+      <div class="zoomctl">
+        <button id="mz-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <button id="mz-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+        <button id="mz-reset" title="Reset view" aria-label="Reset view">&#8634;</button>
+      </div>
+    </div>
+  </div>
+  <div id="map-legend"></div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div id="main">
+  <div id="editorial">
+    <div class="slabel" style="color:var(--wtf-accent);margin-bottom:9px">F.A.C.T. top stories</div>
+    <div id="top-stories"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 9px">
+      <div class="slabel">Live agent activity</div>
+      <a href="wtf-activity.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted)">View all &rarr;</a>
+    </div>
+    <div id="activity" style="max-height:420px;overflow-y:auto"></div>
+  </div>
+
+  <div id="feed">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:11px;flex-wrap:wrap">
+      <div class="slabel">Latest news <span id="feed-count" style="color:#5d6875"></span></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <a href="wtf-archive.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted)">View all &rarr;</a>
+        <a href="wtf-blindspot.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-accent);border:1px solid rgba(220,38,38,.3);padding:3px 8px;border-radius:3px">Blindspot</a>
+        <a href="wtf-divergence.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-center-right);border:1px solid rgba(127,163,207,.3);padding:3px 8px;border-radius:3px">FR / EN</a>
+      </div>
+    </div>
+    <div id="cards"></div>
+    <div style="margin-top:14px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--wtf-developing);border-radius:5px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-developing)">Unlock AI analysis</div>
+        <div style="font-size:13px;color:var(--wtf-text-2)">Bias rationale · fact-check verdicts · MP mentions · source deep-dive</div>
+      </div>
+      <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Start with Starter &rarr;</a>
+    </div>
+  </div>
+</div>
+
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+
+<script>
+/* ═══ data ═══════════════════════════════════════════════════════════ */
+const BANDS = [
+  { key:'left',         label:'Left',         hex:'#d84b47' },
+  { key:'center-left',  label:'Center-Left',  hex:'#cf8b80' },
+  { key:'center',       label:'Center',       hex:'#929aa5' },
+  { key:'center-right', label:'Center-Right', hex:'#7fa3cf' },
+  { key:'right',        label:'Right',        hex:'#4a72d8' }
+];
+const MIN_ARTICLES = 20;
+
+// dist = share of this province's coverage in each band, L→R, sums to 100.
+const PROV = [
+  { code:'YT', name:'Yukon',                    lat:63.4, lon:-135.0, n: 11, dist:[15,27,33,16, 9] },
+  { code:'NT', name:'Northwest Territories',    lat:64.4, lon:-119.0, n: 14, dist:[13,25,35,18, 9] },
+  { code:'NU', name:'Nunavut',                  lat:66.2, lon: -91.0, n:  9, dist:[12,23,37,19, 9] },
+  { code:'BC', name:'British Columbia',         lat:53.9, lon:-125.0, n:312, dist:[18,34,24,16, 8] },
+  { code:'AB', name:'Alberta',                  lat:54.7, lon:-114.8, n:148, dist:[ 6,13,21,26,34] },
+  { code:'SK', name:'Saskatchewan',             lat:54.2, lon:-105.9, n: 17, dist:[ 7,14,24,28,27] },
+  { code:'MB', name:'Manitoba',                 lat:54.4, lon: -97.2, n: 71, dist:[12,24,31,20,13] },
+  { code:'ON', name:'Ontario',                  lat:49.9, lon: -85.5, n:547, dist:[16,33,26,16, 9] },
+  { code:'QC', name:'Québec',                   lat:52.4, lon: -71.8, n:263, dist:[27,38,20,10, 5] },
+  { code:'NL', name:'Newfoundland & Labrador',  lat:53.6, lon: -60.5, n: 34, dist:[17,29,31,15, 8] },
+  { code:'NB', name:'New Brunswick',            lat:46.6, lon: -66.2, n: 28, dist:[11,21,29,23,16] },
+  { code:'PE', name:'Prince Edward Island',     lat:46.4, lon: -63.2, n:  8, dist:[14,26,34,17, 9] },
+  { code:'NS', name:'Nova Scotia',              lat:45.1, lon: -63.0, n: 46, dist:[19,32,27,14, 8] }
+];
+
+// International coverage — where Canadian outlets are reporting from.
+const WORLD = [
+  { code:'US', name:'United States',  lat:39.8, lon: -98.6, n:412, dist:[14,29,25,19,13] },
+  { code:'UK', name:'United Kingdom', lat:54.0, lon:  -2.5, n:138, dist:[16,31,28,16, 9] },
+  { code:'UA', name:'Ukraine',        lat:48.4, lon:  31.2, n: 96, dist:[12,26,34,19, 9] },
+  { code:'IL', name:'Israel',         lat:31.4, lon:  35.0, n: 88, dist:[24,22,18,17,19] },
+  { code:'CN', name:'China',          lat:35.9, lon: 104.2, n:121, dist:[ 8,18,29,25,20] },
+  { code:'RU', name:'Russia',         lat:61.5, lon: 105.3, n: 79, dist:[10,21,31,22,16] },
+  { code:'FR', name:'France',         lat:46.6, lon:   2.4, n: 74, dist:[18,33,27,14, 8] },
+  { code:'DE', name:'Germany',        lat:51.2, lon:  10.4, n: 61, dist:[15,30,30,16, 9] },
+  { code:'IN', name:'India',          lat:22.4, lon:  79.0, n: 47, dist:[11,24,33,20,12] },
+  { code:'JP', name:'Japan',          lat:36.2, lon: 138.3, n: 33, dist:[13,27,34,18, 8] },
+  { code:'MX', name:'Mexico',         lat:23.6, lon:-102.5, n: 29, dist:[17,28,31,15, 9] },
+  { code:'AU', name:'Australia',      lat:-25.3,lon: 133.8, n: 24, dist:[14,29,32,17, 8] },
+  { code:'BR', name:'Brazil',         lat:-10.3,lon: -52.5, n: 21, dist:[19,28,29,15, 9] },
+  { code:'ZA', name:'South Africa',   lat:-29.0,lon:  25.0, n: 14, dist:[16,27,33,16, 8] }
+];
+
+const BEATS = ['all','parliament','economy','climate','health','crime','business','sports'];
+const BEAT_LABEL = { all:'All', parliament:'Parliament', economy:'Economy', climate:'Climate',
+                     health:'Health', crime:'Crime', business:'Business', sports:'Sports' };
+
+const ARTICLES = [
+  { t:'Auditor general tables procurement findings; committee vote unanimous', s:'CBC News',            band:'center-left',  beat:'parliament', prov:'ON', min:14,  ai:true,  cl:16 },
+  { t:'Bank of Canada holds overnight rate, signals data-dependent path',      s:'The Globe and Mail',  band:'center',       beat:'economy',    prov:'ON', min:31,  ai:true,  cl:22 },
+  { t:'Alberta files judicial review over federal emissions cap',              s:'Calgary Herald',      band:'right',        beat:'climate',    prov:'AB', min:44,  ai:true,  cl:11 },
+  { t:'Wildfire evacuation order lifted for two northern communities',         s:'CTV News',            band:'center',       beat:'climate',    prov:'BC', min:52,  ai:false, cl:7  },
+  { t:'Québec tables bill on private clinic billing caps',                     s:'Le Devoir',           band:'left',         beat:'health',     prov:'QC', min:68,  ai:true,  cl:9  },
+  { t:'Grocery price index cools for third consecutive month',                 s:'Financial Post',      band:'center-right', beat:'economy',    prov:'ON', min:77,  ai:true,  cl:14 },
+  { t:'Halifax council approves rezoning for 1,400 rental units',              s:'Halifax Examiner',    band:'center-left',  beat:'business',   prov:'NS', min:95,  ai:false, cl:4  },
+  { t:'RCMP release annual firearms enforcement statistics',                   s:'National Post',       band:'right',        beat:'crime',      prov:'ON', min:112, ai:true,  cl:12 },
+  { t:'Manitoba signs bilateral health transfer agreement',                    s:'Winnipeg Free Press', band:'center',       beat:'health',     prov:'MB', min:126, ai:true,  cl:6  },
+  { t:'Ontario teachers reach tentative agreement, averting job action',       s:'Toronto Star',        band:'center-left',  beat:'parliament', prov:'ON', min:140, ai:true,  cl:18 },
+  { t:'Port of Vancouver container volumes hit quarterly record',              s:'Business in Vancouver',band:'center-right',beat:'business',   prov:'BC', min:158, ai:false, cl:5  },
+  { t:'Saskatchewan potash royalties revised upward in fiscal update',         s:'Regina Leader-Post',  band:'center-right', beat:'economy',    prov:'SK', min:171, ai:true,  cl:8  },
+  { t:'Federal court rules on Indigenous consultation in pipeline review',     s:'APTN News',           band:'left',         beat:'parliament', prov:'BC', min:189, ai:true,  cl:13 },
+  { t:'Blue Jays clinch wild-card berth in extra innings',                     s:'Sportsnet',           band:'center',       beat:'sports',     prov:'ON', min:203, ai:false, cl:9  },
+  { t:'New Brunswick announces emergency room staffing plan',                  s:'CBC New Brunswick',   band:'center',       beat:'health',     prov:'NB', min:224, ai:true,  cl:5  },
+  { t:'Auto sector tariff exposure reviewed ahead of trade talks',             s:'Reuters Canada',      band:'center',       beat:'business',   prov:'ON', min:241, ai:true,  cl:17 }
+];
+
+const AGENTS = [
+  { n:'F.A.C.T.',    c:'#dc2626', a:'Assigned 31 new articles to the parliament beat' },
+  { n:'I.N.K.',      c:'#a78bfa', a:'Clustered 16 articles into “procurement report”' },
+  { n:'B.I.A.S.',    c:'#f59e0b', a:'Scored 24 articles on the diverging lean scale' },
+  { n:'V.E.R.I.F.Y.',c:'#10b981', a:'Checked 9 claims against primary documents' },
+  { n:'L.O.C.A.L.',  c:'#4a72d8', a:'Geolocated 47 articles to province centroids' },
+  { n:'D.R.A.F.T.',  c:'#7fa3cf', a:'Wrote cluster summaries for 6 stories' }
+];
+
+/* ═══ state ══════════════════════════════════════════════════════════ */
+let beat = 'all', province = null, mode = 'lean', scope = 'canada', projection = null;
+let allFeatures = null, canadaFeature = null;
+const dataset = () => scope === 'canada' ? PROV : WORLD;
+
+const dominant = p => { const i = p.dist.indexOf(Math.max(...p.dist)); return { band: BANDS[i], pct: p.dist[i] }; };
+const measurable = p => p.n >= MIN_ARTICLES;
+const beatScale = p => beat === 'all' ? 1 : (0.24 + (p.code.charCodeAt(0) % 7) / 9);
+const provN = p => Math.max(1, Math.round(p.n * beatScale(p)));
+
+/* ═══ map ════════════════════════════════════════════════════════════ */
+let W = 1000, H = 352;
+const svg = d3.select('#map-shell').insert('svg', '#map-tip')
+  .attr('viewBox', '0 0 ' + W + ' ' + H).attr('preserveAspectRatio', 'xMidYMid meet');
+const gLand = svg.append('g'), gProv = svg.append('g'), gPins = svg.append('g');
+let provShapes = null;
+
+// Canadian admin-1 geometry (Natural Earth 50m, filtered to Canada).
+d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/ne_50m_admin_1_states_provinces.geojson')
+  .then(fc => {
+    const keep = { AB:1,BC:1,MB:1,NB:1,NL:1,NT:1,NS:1,NU:1,ON:1,PE:1,QC:1,SK:1,YT:1 };
+    const feats = (fc.features || []).filter(f => f.properties.admin === 'Canada' && keep[f.properties.postal]);
+    feats.forEach(f => { f.__code = f.properties.postal; });
+    provShapes = feats.length ? feats : null;
+    drawLand(); drawPins();
+  })
+  .catch(() => { provShapes = null; });
+
+// Country outlines for the world view, matched out of the 110m country set.
+const WORLD_NAME = {
+  'United States of America':'US', 'United States':'US', 'United Kingdom':'UK', 'Ukraine':'UA',
+  'Israel':'IL', 'China':'CN', 'Russia':'RU', 'France':'FR', 'Germany':'DE', 'India':'IN',
+  'Japan':'JP', 'Mexico':'MX', 'Australia':'AU', 'Brazil':'BR', 'South Africa':'ZA'
+};
+function shapeSource() {
+  if (scope === 'canada') return provShapes;
+  if (!allFeatures) return null;
+  const f = allFeatures.features.filter(x => WORLD_NAME[x.properties && x.properties.name]);
+  return f.length ? f : null;
+}
+
+d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json').then(topo => {
+  allFeatures = topojson.feature(topo, topo.objects.countries);
+  canadaFeature = allFeatures.features.find(f => f.id === '124');
+  drawLand();
+  drawPins();
+}).catch(() => {
+  document.getElementById('map-shell').insertAdjacentHTML('afterbegin',
+    '<div style="padding:46px;text-align:center;color:var(--wtf-text-muted);font-size:13px">Base geometry could not be loaded.</div>');
+});
+
+function drawLand() {
+  if (!allFeatures) return;
+  projection = scope === 'canada'
+    ? d3.geoConicConformal().parallels([49, 77]).rotate([96, 0])
+        .fitExtent([[30, 18], [W - 30, H - 40]], canadaFeature)
+    : d3.geoNaturalEarth1().fitExtent([[16, 14], [W - 16, H - 26]], { type: 'Sphere' });
+  const path = d3.geoPath(projection);
+  gLand.selectAll('*').remove();
+  gProv.selectAll('*').remove();
+  gLand.append('g').selectAll('path').data(allFeatures.features.filter(f => f.id !== '124'))
+    .join('path').attr('d', path)
+    .attr('fill', scope === 'canada' ? '#0f151e' : '#141b26')
+    .attr('stroke', '#1d2634').attr('stroke-width', .6);
+  gLand.append('path').datum(canadaFeature).attr('d', path)
+    .attr('fill', '#161f2d').attr('stroke', '#31405a').attr('stroke-width', 1);
+}
+
+function styleFor(p, max) {
+  const d = dominant(p), n = provN(p), ok = measurable(p);
+  const out = { dom:d, n, ok };
+  if (mode === 'lean') {
+    out.stroke = ok ? d.band.hex : '#7d8590';
+    out.fill = ok ? d.band.hex : '#929aa5';
+    out.op = ok ? .17 + (d.pct / 45) * .5 : .07;
+    out.dash = ok ? null : '4 3';
+  } else {
+    const top = n === max;
+    out.stroke = top ? '#dc2626' : '#8a94a3';
+    out.fill = top ? '#dc2626' : '#929aa5';
+    out.op = top ? .58 : .11 + .38 * (n / max);
+    out.dash = null;
+  }
+  if (province && province !== p.code) { out.op *= .3; out.dimmed = true; }
+  return out;
+}
+
+function drawProvinces() {
+  const path = d3.geoPath(projection);
+  const data = dataset();
+  const byCode = {}; data.forEach(p => byCode[p.code] = p);
+  const max = Math.max(...data.map(provN));
+  const T = d3.transition().duration(500).ease(d3.easeCubicInOut);
+
+  const shapes = (shapeSource() || []).map(f => {
+    const code = scope === 'canada' ? f.__code : WORLD_NAME[f.properties.name];
+    const p = byCode[code];
+    return p ? { f, p, st: styleFor(p, max) } : null;
+  }).filter(Boolean);
+
+  gProv.selectAll('path.prov').data(shapes, d => scope + ':' + d.p.code)
+    .join(enter => enter.append('path').attr('class', 'prov')
+      .attr('d', d => path(d.f)).attr('fill-opacity', 0).style('cursor', 'pointer')
+      .on('mouseenter', (e, d) => showTip({ p: d.p, n: d.st.n, ok: d.st.ok, dom: d.st.dom,
+                                           x: projection([d.p.lon, d.p.lat])[0],
+                                           y: projection([d.p.lon, d.p.lat])[1] }))
+      .on('mouseleave', () => { document.getElementById('map-tip').style.display = 'none'; })
+      .on('click', (e, d) => setProvince(province === d.p.code ? null : d.p.code)))
+    .attr('d', d => path(d.f))
+    .attr('stroke-dasharray', d => d.st.dash)
+    .transition(T)
+    .attr('fill', d => d.st.fill).attr('fill-opacity', d => d.st.op)
+    .attr('stroke', d => d.st.stroke)
+    .attr('stroke-width', d => province === d.p.code ? 2 : 1)
+    .attr('stroke-opacity', d => d.st.dimmed ? .35 : .95);
+
+  gPins.selectAll('g.pin').remove();
+  // Small polygons cannot hold a two-line label at this projection scale.
+  // They keep their row in the left index, which carries every value.
+  const areaOf = f => { try { return path.area(f); } catch (e) { return 0; } };
+  const labelled = shapes.filter(d => areaOf(d.f) > 240);
+  const withQty = shapes.filter(d => areaOf(d.f) > 760);
+
+  gPins.selectAll('text.prov-lab').data(labelled, d => scope + ':' + d.p.code)
+    .join('text').attr('class', 'prov-lab pin-lab')
+    .attr('x', d => projection([d.p.lon, d.p.lat])[0])
+    .attr('y', d => projection([d.p.lon, d.p.lat])[1] + (areaOf(d.f) > 760 ? -4 : 3))
+    .attr('font-size', 10)
+    .attr('fill', d => d.st.dimmed ? '#5d6875' : 'var(--wtf-text)')
+    .attr('paint-order', 'stroke').attr('stroke', '#0d1117').attr('stroke-width', 2.5)
+    .text(d => d.p.code);
+
+  gPins.selectAll('text.prov-qty').data(withQty, d => scope + ':' + d.p.code)
+    .join('text').attr('class', 'prov-qty pin-lab')
+    .attr('x', d => projection([d.p.lon, d.p.lat])[0])
+    .attr('y', d => projection([d.p.lon, d.p.lat])[1] + 8)
+    .attr('font-size', 9.5)
+    .attr('fill', d => d.st.dimmed ? '#4d5766' : 'var(--wtf-text-2)')
+    .attr('paint-order', 'stroke').attr('stroke', '#0d1117').attr('stroke-width', 2.5)
+    .text(d => d.st.n);
+
+  drawLegend();
+  const unit = scope === 'canada' ? 'province' : 'country';
+  document.getElementById('map-sub').textContent =
+    (mode === 'lean' ? 'Dominant band share per ' + unit : 'Article volume per ' + unit) +
+    (beat === 'all' ? '' : ' · ' + BEAT_LABEL[beat]);
+}
+
+function drawPins() {
+  if (!projection) return;
+  if (shapeSource()) { drawProvinces(); return; }
+  gProv.selectAll('path.prov').remove();
+  gPins.selectAll('text.prov-lab').remove();
+  gPins.selectAll('text.prov-qty').remove();
+  const rows = dataset().map(p => {
+    const [x, y] = projection([p.lon, p.lat]);
+    const d = dominant(p), n = provN(p), ok = measurable(p);
+    // Radius encodes the DOMINANT SHARE — how concentrated the province's
+    // coverage is in one band — not raw article volume.
+    const val = mode === 'lean' ? d.pct : n;
+    return { p, x, y, dom: d, n, ok, val };
+  });
+  const max = Math.max(...rows.map(r => r.val));
+  rows.forEach(r => {
+    r.rad = mode === 'lean'
+      ? (r.ok ? 11 + (r.dom.pct / 45) * 26 : 10)
+      : Math.max(8, 8 + Math.sqrt(r.val / max) * 32);
+    if (mode === 'lean') {
+      r.stroke = r.ok ? r.dom.band.hex : '#7d8590';
+      r.fill = r.ok ? r.dom.band.hex : '#929aa5';
+      r.op = r.ok ? .36 : .1;
+      r.dash = r.ok ? null : '4 3';
+      r.text = '';
+    } else {
+      const top = r.val === max;
+      r.stroke = top ? '#dc2626' : '#929aa5';
+      r.fill = top ? '#dc2626' : '#929aa5';
+      r.op = top ? .3 : .1 + .22 * (r.val / max);
+      r.dash = null;
+      r.text = String(r.n);
+    }
+    if (province && province !== r.p.code) { r.op *= .3; r.dimmed = true; }
+  });
+
+  const T = d3.transition().duration(500).ease(d3.easeCubicInOut);
+  const g = gPins.selectAll('g.pin').data(rows, d => scope + ':' + d.p.code)
+    .join(enter => {
+      const s = enter.append('g').attr('class', 'pin').style('cursor', 'pointer');
+      s.append('circle').attr('class', 'pin-circle').attr('stroke-width', 1.5).attr('r', 0);
+      s.append('text').attr('class', 'pin-num');
+      s.append('text').attr('class', 'pin-lab');
+      s.on('mouseenter', (e, d) => showTip(d))
+       .on('mouseleave', () => { document.getElementById('map-tip').style.display = 'none'; })
+       .on('click', (e, d) => setProvince(province === d.p.code ? null : d.p.code));
+      return s;
+    })
+    .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+
+  g.select('circle.pin-circle').transition(T)
+    .attr('r', d => d.rad).attr('fill', d => d.fill).attr('fill-opacity', d => d.op)
+    .attr('stroke', d => d.stroke).attr('stroke-opacity', d => d.dimmed ? .35 : 1)
+    .attr('stroke-dasharray', d => d.dash);
+  g.select('text.pin-num').transition(T)
+    .attr('font-size', d => Math.max(9, Math.min(14, Math.round(d.rad / 2.4))))
+    .attr('fill-opacity', d => d.dimmed ? .4 : 1)
+    .tween('t', function (d) {
+      const self = d3.select(this), prev = parseInt(self.attr('data-v') || '0', 10);
+      const target = parseInt(d.text, 10);
+      if (isNaN(target)) { self.attr('data-v', 0); return () => self.text(''); }
+      const iv = d3.interpolateRound(prev, target);
+      self.attr('data-v', target);
+      const suffix = mode === 'lean' ? '%' : '';
+      return t => self.text(iv(t) + suffix);
+    });
+  g.select('text.pin-lab').transition(T)
+    .attr('y', d => d.rad + 12).attr('fill-opacity', d => d.dimmed ? .4 : 1).text(d => d.p.code);
+
+  drawLegend();
+  const unit = scope === 'canada' ? 'province' : 'country';
+  document.getElementById('map-sub').textContent =
+    (mode === 'lean' ? 'Dominant band share per ' + unit : 'Article volume per ' + unit) +
+    (beat === 'all' ? '' : ' · ' + BEAT_LABEL[beat]);
+}
+
+function drawLegend() {
+  const el = document.getElementById('map-legend');
+  const shaded = !!shapeSource();
+  const items = mode === 'lean'
+    ? BANDS.map(b => '<span class="lg"><i style="background:' + b.hex + '"></i>' + b.label + '</span>')
+        .concat(['<span class="lg"><i style="border:1px dashed var(--wtf-text-muted)"></i>Under ' + MIN_ARTICLES + ' articles — not measured</span>',
+                 '<span class="lg" style="flex-basis:100%;color:#5d6875">' + (shaded ? 'Fill' : 'Circle') + ' shows the band with the largest share, and how large that lead is. A dominant band is not a verdict.</span>'])
+    : ['<span class="lg"><i style="background:var(--wtf-accent)"></i>Highest volume</span>',
+       '<span class="lg"><i style="background:var(--wtf-center)"></i>Measured volume</span>',
+       '<span class="lg" style="flex-basis:100%;color:#5d6875">Volume is not importance — a ' + (scope === 'canada' ? 'province' : 'country') + ' with more articles has more outlets covering it.</span>'];
+  el.innerHTML = items.join('');
+  renderIndex();
+}
+
+function renderIndex() {
+  const data = dataset();
+  const max = Math.max(...data.map(provN));
+  const rows = data.map(p => ({ p, st: styleFor(p, max) })).sort((a, b) => b.st.n - a.st.n);
+  document.getElementById('ix-head').textContent =
+    (scope === 'canada' ? 'Provinces' : 'Countries') + ' · ' + rows.length +
+    (mode === 'lean' ? ' · by volume' : '');
+  document.getElementById('ix-list').innerHTML = rows.map(r =>
+    '<div class="ix' + (province === r.p.code ? ' on' : '') + '" data-p="' + r.p.code + '">' +
+    '<i style="' + (r.st.ok ? 'background:' + r.st.dom.band.hex : 'border:1px dashed var(--wtf-text-muted)') + '"></i>' +
+    '<b>' + r.p.code + '</b><span class="nm">' + r.p.name + '</span>' +
+    '<span class="qt">' + r.st.n + '</span></div>').join('');
+}
+document.getElementById('ix-list').addEventListener('click', e => {
+  const row = e.target.closest('.ix');
+  if (row) setProvince(province === row.dataset.p ? null : row.dataset.p);
+});
+
+function showTip(d) {
+  const el = document.getElementById('map-tip');
+  const rect = document.querySelector('#map-shell svg').getBoundingClientRect();
+  const k = rect.width / W;
+  el.innerHTML =
+    '<div style="font-family:var(--wtf-font-serif);font-size:16px;font-weight:600;margin-bottom:2px">' + d.p.name + '</div>' +
+    '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px">' +
+      d.n + ' articles' + (d.ok ? ' · ' + d.dom.band.label + ' leads at ' + d.dom.pct + '%' : ' · below the measurement floor') + '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:6px">' +
+    BANDS.map((b, i) => {
+      const w = d.p.dist[i], lead = d.ok && b.key === d.dom.band.key;
+      return '<div style="display:grid;grid-template-columns:70px minmax(0,1fr) 30px;gap:8px;align-items:center">' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:' + (lead ? 'var(--wtf-text)' : 'var(--wtf-text-2)') + '">' + b.label + '</span>' +
+        '<span style="height:4px;border-radius:2px;background:var(--wtf-border);overflow:hidden;display:block">' +
+        '<span style="display:block;height:100%;width:' + w + '%;border-radius:2px;background:' + b.hex + ';opacity:' + (d.ok ? (lead ? 1 : .5) : .3) + '"></span></span>' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:' + (lead ? 'var(--wtf-text)' : 'var(--wtf-text-muted)') + ';text-align:right">' + w + '%</span></div>';
+    }).join('') + '</div>' +
+    '<div style="margin-top:9px;font-size:11px;color:var(--wtf-text-muted);line-height:1.5">Click to filter the feed.</div>';
+  el.style.display = 'block';
+  const flip = d.x > W * .6;
+  el.style.left = Math.max(6, Math.min(rect.width - 240, flip ? d.x * k - 244 : d.x * k + 20)) + 'px';
+  el.style.top = Math.max(6, Math.min(rect.height - 210, d.y * k - 70)) + 'px';
+}
+
+function toggleProvMenu(e) {
+  e.stopPropagation();
+  const m = document.getElementById('prov-menu');
+  m.style.display = m.style.display === 'block' ? 'none' : 'block';
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#prov-select')) document.getElementById('prov-menu').style.display = 'none';
+});
+function renderProvMenu() {
+  const m = document.getElementById('prov-menu');
+  const rowStyle = 'display:block;width:100%;text-align:left;padding:7px 10px;border:none;border-radius:3px;background:none;' +
+    'font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;';
+  const items = ['<button style="' + rowStyle + 'color:' + (province ? 'var(--wtf-text-muted)' : 'var(--wtf-accent)') +
+    '" data-p="">All ' + (scope === 'canada' ? 'provinces' : 'countries') + '</button>'];
+  dataset().slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(p => {
+    items.push('<button style="' + rowStyle + 'color:' + (province === p.code ? 'var(--wtf-accent)' : 'var(--wtf-text-2)') +
+      '" data-p="' + p.code + '">' + p.code + ' &middot; ' + p.name + '</button>');
+  });
+  m.innerHTML = items.join('');
+  m.querySelectorAll('button').forEach(b => {
+    b.onmouseenter = () => b.style.background = '#1f2836';
+    b.onmouseleave = () => b.style.background = 'none';
+    b.onclick = ev => { ev.stopPropagation(); m.style.display = 'none'; setProvince(b.dataset.p || null); };
+  });
+  document.getElementById('prov-btn').innerHTML = province
+    ? '&#128205; ' + province + ' &#9662;'
+    : '&#128205; ' + (scope === 'canada' ? 'Province' : 'Country') + ' &#9662;';
+  document.getElementById('prov-btn').classList.toggle('active', !!province);
+}
+
+function setScope(s) {
+  if (s === scope) return;
+  scope = s;
+  province = null;
+  document.getElementById('prov-banner').classList.remove('show');
+  document.getElementById('scope-canada').classList.toggle('active', s === 'canada');
+  document.getElementById('scope-world').classList.toggle('active', s === 'world');
+  document.getElementById('map-label').textContent =
+    s === 'canada' ? 'Live — Canada news map' : 'Live — world coverage map';
+  document.getElementById('map-tip').style.display = 'none';
+  gPins.selectAll('g.pin').remove();
+  drawLand(); drawPins(); renderFeed(); renderProvMenu();
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('mode-lean').classList.toggle('active', m === 'lean');
+  document.getElementById('mode-volume').classList.toggle('active', m === 'volume');
+  document.getElementById('map-tip').style.display = 'none';
+  drawPins();
+}
+
+/* ═══ feed ═══════════════════════════════════════════════════════════ */
+function ago(m) { return m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ago'; }
+
+function visible() {
+  if (scope === 'world') return [];
+  return ARTICLES.filter(a =>
+    (beat === 'all' || a.beat === beat) && (!province || a.prov === province));
+}
+
+const HOME_FREE = 8;
+
+/* The eight free rows are chosen for SPREAD, not recency alone: distinct lean
+   bands, beats and provinces, so the sample shows the range of the feed rather
+   than eight versions of the same story. */
+function diverse(list, n) {
+  const out = [], bandsSeen = new Set(), beatsSeen = new Set(), provSeen = new Set();
+  for (const pass of [0, 1, 2]) {
+    for (const a of list) {
+      if (out.length >= n) break;
+      if (out.includes(a)) continue;
+      if (pass === 0 && (bandsSeen.has(a.band) || beatsSeen.has(a.beat) || provSeen.has(a.prov))) continue;
+      if (pass === 1 && beatsSeen.has(a.beat)) continue;
+      out.push(a); bandsSeen.add(a.band); beatsSeen.add(a.beat); provSeen.add(a.prov);
+    }
+    if (out.length >= n) break;
+  }
+  return out.sort((x, y) => x.min - y.min);
+}
+
+function renderFeed() {
+  const all = visible();
+  const list = diverse(all, HOME_FREE);
+  const held = all.length - list.length;
+  document.getElementById('cards').innerHTML = (list.length ? list.map((a, i) =>
+    '<div class="card card--' + a.band + '" style="animation-delay:' + (i * 26) + 'ms">' +
+      '<div class="card-meta"><span>' + a.s.toUpperCase() + ' · ' + a.prov + ' · ' + ago(a.min) + '</span>' +
+        '<span class="pill p-' + a.band + '">' + BANDS.find(b => b.key === a.band).label + '</span></div>' +
+      '<a class="card-title" href="wtf-news.html">' + a.t + '</a>' +
+      '<div style="display:flex;gap:5px;margin-top:7px;flex-wrap:wrap">' +
+        (a.ai ? '<span class="badge b-ai">AI analyzed</span>' : '') +
+        '<span class="badge b-cluster">' + a.cl + ' outlets</span></div>' +
+    '</div>').join('')
+    : '<div style="padding:26px;text-align:center;color:var(--wtf-text-muted);font-size:13px;border:1px dashed var(--wtf-border);border-radius:5px">' +
+      (scope === 'world'
+        ? 'International coverage is shown on the map. Switch back to Canada for the domestic feed.'
+        : 'No stories match this filter in the current window.') + '</div>') +
+
+    /* Eight is the free sample. What is withheld is stated as a number. */
+    (list.length ?
+    '<div style="margin-top:14px;background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:var(--r-lg);' +
+         'padding:20px;text-align:center;box-shadow:var(--lift)">' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--wtf-accent)">Continue reading</div>' +
+      '<div style="font-family:var(--wtf-font-serif);font-size:22px;font-weight:600;letter-spacing:-.02em;margin:8px 0 6px;text-wrap:balance">' +
+        (held > 0 ? held + ' more stories in the live feed' : 'The full feed and the archive') + '</div>' +
+      '<div style="font-size:13px;line-height:1.65;color:var(--wtf-text-muted);max-width:52ch;margin:0 auto 6px;text-wrap:pretty">' +
+        'These eight are chosen to show the spread — different lean bands, beats and provinces. ' +
+        'The complete record is in the archive.</div>' +
+      '<div style="height:4px;border-radius:2px;background:var(--wtf-border);overflow:hidden;max-width:230px;margin:12px auto 6px">' +
+        '<div style="height:100%;width:' + Math.round(list.length / Math.max(all.length, 1) * 100) + '%;background:var(--wtf-accent);border-radius:2px"></div></div>' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;color:#5d6875">' +
+        list.length + ' of ' + all.length + ' shown</div>' +
+      '<div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:15px">' +
+        '<a href="wtf-news.html" class="btn-sub" style="padding:10px 20px">Open the live feed &rarr;</a>' +
+        '<a href="wtf-archive.html" style="display:inline-block;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;' +
+          'text-transform:uppercase;padding:10px 20px;border-radius:999px;border:1px solid var(--wtf-border);color:var(--wtf-text-2)">Full archive</a>' +
+      '</div></div>' : '');
+
+  document.getElementById('feed-count').textContent = '· ' + list.length + ' of ' + all.length;
+}
+
+function renderTop() {
+  document.getElementById('top-stories').innerHTML = ARTICLES.slice(0, 5).map((a, i) =>
+    '<div class="top-story"><span class="rank">' + String(i + 1).padStart(2, '0') + '</span>' +
+    '<a href="wtf-news.html">' + a.t + '</a>' +
+    '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;white-space:nowrap">' + ago(a.min) + '</span></div>').join('');
+}
+
+/* ═══ agent ticker ═══════════════════════════════════════════════════ */
+let tick = 0;
+function pushActivity() {
+  const a = AGENTS[tick % AGENTS.length]; tick++;
+  const el = document.getElementById('activity');
+  const row = document.createElement('div');
+  row.className = 'act';
+  row.innerHTML = '<span class="act-ico" style="background:' + a.c + '22;color:' + a.c + '">' + a.n.charAt(0) + '</span>' +
+    '<span><span class="act-txt"><b style="color:' + a.c + ';font-family:var(--wtf-font-mono);font-size:10px">' + a.n + '</b> ' + a.a + '</span>' +
+    '<div class="act-time">just now</div></span>';
+  el.prepend(row);
+  [...el.children].forEach((c, i) => { if (i > 0) { const t = c.querySelector('.act-time'); if (t) t.textContent = (i * 12) + 's ago'; } });
+  while (el.children.length > 9) el.removeChild(el.lastChild);
+}
+
+/* ═══ filters ════════════════════════════════════════════════════════ */
+function setBeat(b) {
+  beat = b;
+  document.querySelectorAll('#beats .beat').forEach(x => x.classList.toggle('active', x.dataset.b === b));
+  const bn = document.getElementById('beat-banner');
+  bn.classList.toggle('show', b !== 'all');
+  document.getElementById('beat-banner-label').textContent = BEAT_LABEL[b] + ' beat';
+  drawPins(); renderFeed();
+}
+function setProvince(code) {
+  province = code;
+  const bn = document.getElementById('prov-banner');
+  bn.classList.toggle('show', !!code);
+  if (code) document.getElementById('prov-banner-label').textContent = (dataset().find(p => p.code === code) || {}).name;
+  document.getElementById('map-tip').style.display = 'none';
+  drawPins(); renderFeed(); renderProvMenu();
+}
+
+document.getElementById('beats').innerHTML = BEATS.map(b =>
+  '<button class="beat' + (b === 'all' ? ' active' : '') + '" data-b="' + b + '">' + BEAT_LABEL[b] + '</button>').join('');
+document.getElementById('beats').addEventListener('click', e => {
+  const b = e.target.closest('.beat'); if (b) setBeat(b.dataset.b);
+});
+
+/* ═══ local weather strip ═══════════════════════════════════════════════
+   Reads the default city the weather page stores, so the two pages agree.
+   Alert-flagged cities sort to the front — a warning is the reason someone
+   glances at this strip at all. */
+const WXI = {
+  sun:'<circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/>',
+  part:'<circle cx="9" cy="9" r="3.2"/><path d="M9 3.2v1.6M3.2 9h1.6M5 5l1.1 1.1"/><path d="M17.5 19.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.4 1.6A3 3 0 0 0 8.6 19.5z"/>',
+  cloud:'<path d="M17.5 18.5a4 4 0 0 0 0-8 6 6 0 0 0-11.3 2.6A3.5 3.5 0 0 0 6.7 18.5z"/>',
+  rain:'<path d="M17 15.5a3.6 3.6 0 0 0 0-7.2 5.6 5.6 0 0 0-10.5 2.4A3.3 3.3 0 0 0 7 15.5z"/><path d="M8.5 18l-1 2.5M12 18l-1 2.5M15.5 18l-1 2.5"/>',
+  fog:'<path d="M17 12.5a3.6 3.6 0 0 0 0-7.2A5.6 5.6 0 0 0 6.5 7.7 3.3 3.3 0 0 0 7 12.5z"/><path d="M4 16h16M6 19.5h12"/>',
+  wind:'<path d="M3 9h11a3 3 0 1 0-3-3"/><path d="M3 14h14a3 3 0 1 1-3 3"/>',
+  smoke:'<path d="M17 12.5a3.6 3.6 0 0 0 0-7.2A5.6 5.6 0 0 0 6.5 7.7 3.3 3.3 0 0 0 7 12.5z"/><path d="M4 16.5c2-1.4 4-1.4 6 0s4 1.4 6 0 3-.9 4 0M4 20c2-1.4 4-1.4 6 0s4 1.4 6 0"/>'
+};
+function wxIcon(kind, color, size) {
+  return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="' + color +
+    '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (WXI[kind] || WXI.cloud) + '</svg>';
+}
+
+const WX_HOME = [
+  { n:'Toronto',   p:'ON', t:21, c:'Partly cloudy', a:false, i:'part' },
+  { n:'Montréal',  p:'QC', t:19, c:'Light rain',    a:false, i:'rain' },
+  { n:'Vancouver', p:'BC', t:18, c:'Overcast',      a:false, i:'cloud' },
+  { n:'Calgary',   p:'AB', t:16, c:'Wind advisory', a:true,  i:'wind' },
+  { n:'Ottawa',    p:'ON', t:20, c:'Clear',         a:false, i:'sun' },
+  { n:'Halifax',   p:'NS', t:17, c:'Fog patches',   a:false, i:'fog' },
+  { n:'Winnipeg',  p:'MB', t:22, c:'Clear',         a:false, i:'sun' },
+  { n:'Edmonton',  p:'AB', t:15, c:'Smoke haze',    a:true,  i:'smoke' }
+];
+function renderWxHome() {
+  let home = null;
+  try { home = localStorage.getItem('wtf-default-city'); } catch (e) {}
+  const rows = WX_HOME.slice().sort((x, y) =>
+    (y.n === home) - (x.n === home) || y.a - x.a);
+  document.getElementById('wxstrip').innerHTML = rows.map(c =>
+    '<a class="wxc' + (c.a ? ' is-alert' : '') + '" href="wtf-city.html">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">' +
+        '<span class="wxc-n">' + c.n + '</span>' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.12em;color:#5d6875">' +
+          (c.n === home ? 'DEFAULT' : c.p) + '</span></div>' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 2px">' +
+        '<span class="wxc-t" style="margin:0">' + c.t + '&deg;</span>' +
+        wxIcon(c.i, c.a ? 'var(--wtf-developing)' : 'var(--wtf-brand)', 26) + '</div>' +
+      '<div class="wxc-c" style="display:flex;align-items:center;gap:5px;color:' + (c.a ? 'var(--wtf-developing)' : 'var(--wtf-text-muted)') + '">' +
+        (c.a ? '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1.6s ease-in-out infinite"></span>' : '') +
+        c.c + '</div>' +
+    '</a>').join('');
+  document.getElementById('wx-note').textContent =
+    home ? 'Default city set to ' + home : 'Set a default city on the weather page';
+}
+renderWxHome();
+
+/* Leaving for a story and coming back should land where you were, not at the
+   top of the page. */
+try {
+  const back = sessionStorage.getItem('wtf-home-y');
+  if (back) { addEventListener('load', () => scrollTo(0, +back)); sessionStorage.removeItem('wtf-home-y'); }
+} catch (e) {}
+addEventListener('click', e => {
+  if (e.target.closest('a[href^="wtf-article.html"], a[href^="wtf-news.html"], a[href^="wtf-archive.html"], a[href^="wtf-city.html"]')) {
+    try { sessionStorage.setItem('wtf-home-y', String(scrollY)); } catch (err) {}
+  }
+});
+
+renderTop(); renderFeed(); renderProvMenu();
+
+// Fit the projection to the real container box so the map fills the panel
+// instead of letterboxing inside a fixed viewBox.
+const shellEl = document.getElementById('map-shell');
+let hzt = d3.zoomIdentity;
+const hzoom = d3.zoom().scaleExtent([1, 8]).on('zoom', ev => {
+  hzt = ev.transform;
+  const t = 'translate(' + hzt.x + ',' + hzt.y + ') scale(' + hzt.k + ')';
+  [gLand, gProv, gPins].forEach(g => g.attr('transform', t));
+  gProv.selectAll('path.prov').attr('stroke-width', d => (province === d.p.code ? 2 : 1) / hzt.k);
+  gPins.selectAll('text.prov-lab, text.prov-qty, text.pin-lab, text.pin-num')
+    .attr('stroke-width', 2.5 / hzt.k);
+  document.getElementById('map-tip').style.display = 'none';
+});
+d3.select(shellEl).call(hzoom).on('dblclick.zoom', null);
+document.getElementById('mz-in').onclick = () => d3.select(shellEl).transition().duration(240).call(hzoom.scaleBy, 1.6);
+document.getElementById('mz-out').onclick = () => d3.select(shellEl).transition().duration(240).call(hzoom.scaleBy, 1 / 1.6);
+document.getElementById('mz-reset').onclick = () => d3.select(shellEl).transition().duration(300).call(hzoom.transform, d3.zoomIdentity);
+function fitMap() {
+  const w = shellEl.clientWidth, h = shellEl.clientHeight;
+  if (!w || !h || (Math.abs(w - W) < 2 && Math.abs(h - H) < 2)) return;
+  W = w; H = h;
+  svg.attr('viewBox', '0 0 ' + W + ' ' + H);
+  if (allFeatures) { drawLand(); drawPins(); }
+}
+new ResizeObserver(fitMap).observe(shellEl);
+fitMap();
+pushActivity(); pushActivity(); pushActivity();
+setInterval(pushActivity, 4200);
+
+/* Wildfire summary. Same figures as the weather page; a province with no
+   detections says so rather than reading as a quiet zero. */
+const WXF = [
+  { k:'Hotspots, 72h',    v:'6,971',   n:'Across 11 of 13 provinces',    col:'#ea580c' },
+  { k:'Worst province',   v:'AB',      n:'2,180 detections · FWI 31.2',  col:'#dc2626' },
+  { k:'Alerts in effect', v:'18',      n:'5 at warning level',           col:'#f59e0b' },
+  { k:'Under evacuation', v:'7',       n:'About 14,200 people',          col:'#e05252' },
+  { k:'Spread pressure',  v:'84',      n:'Alberta · Extreme, next 48h',  col:'#dc2626' },
+  { k:'Cities reporting', v:'65 / 66', n:'Cambridge Bay silent',         col:'#10b981' }
+];
+document.getElementById('wxf-grid').innerHTML = WXF.map((d, i) =>
+  '<a class="wxf" href="wtf-weather.html" style="border-left-color:' + d.col + ';animation:rise .3s ease-out ' + (i * 30) + 'ms both">' +
+  '<span class="wxf-k">' + d.k + '</span>' +
+  '<span class="wxf-v" style="color:' + d.col + '">' + d.v + '</span>' +
+  '<span class="wxf-n">' + d.n + '</span></a>').join('');
+document.getElementById('wxf-sub').textContent = 'CWFIS hotspots pulled 14:20 UTC · perimeters 14:38 UTC';
+</script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

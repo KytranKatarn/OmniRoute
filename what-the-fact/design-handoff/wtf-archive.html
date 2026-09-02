@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Full archive — What The Fact</title>
+<meta name="description" content="Every article the newsroom has scored, sortable by outlet, lean, verdict and beat.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Full archive — What The Fact">
+<meta property="og:description" content="Every article the newsroom has scored, sortable by outlet, lean, verdict and beat.">
+<meta property="og:image" content="assets/wtf-logo.png">
+<meta property="og:locale" content="en_CA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Full archive — What The Fact">
+<meta name="twitter:description" content="Every article the newsroom has scored, sortable by outlet, lean, verdict and beat.">
+<meta name="twitter:image" content="assets/wtf-logo.png">
+<link rel="icon" href="assets/wtf-logo.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root { --r-lg:14px; --r-md:10px; --r-sm:7px;
+    --lift:0 1px 0 rgba(255,255,255,.045) inset, 0 8px 22px -12px rgba(0,0,0,.85);
+    --ease:cubic-bezier(.32,.72,0,1); }
+  html { font-optical-sizing:auto; text-rendering:optimizeLegibility; }
+  body { letter-spacing:-.006em; }
+  @keyframes rise { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+  .phead { text-align:center; margin-bottom:22px; }
+  .eyebrow { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.2em; text-transform:uppercase;
+             color:var(--wtf-accent); }
+  h1 { font-family:var(--wtf-font-serif); font-size:42px; font-weight:600; letter-spacing:-.028em;
+       line-height:1.04; margin:7px 0 10px; text-wrap:balance; }
+  .lede { font-size:14.5px; line-height:1.7; color:var(--wtf-text-muted); max-width:70ch;
+          margin:0 auto; text-wrap:pretty; }
+
+  .statrow { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:11px; margin:22px 0; }
+  .stat { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:var(--r-lg);
+          padding:15px; box-shadow:var(--lift); text-align:center;
+          display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .stat-n { font-family:var(--wtf-font-mono); font-size:24px; font-weight:600; color:var(--wtf-text);
+            font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .stat-l { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.13em; text-transform:uppercase;
+            color:var(--wtf-text-muted); }
+
+  .ctrl { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:var(--r-lg);
+          padding:15px 16px; box-shadow:var(--lift); display:flex; flex-direction:column; gap:11px; }
+  .crow { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+  .flab { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
+          color:#5d6875; margin-right:3px; }
+  .chip { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.07em; padding:5px 11px;
+          border-radius:999px; border:1px solid var(--wtf-border); background:transparent;
+          color:var(--wtf-text-muted); cursor:pointer; transition:all .16s var(--ease); }
+  .chip:hover { color:var(--wtf-text-2); border-color:#2f3d52; }
+  .chip.on { background:rgba(220,38,38,.13); border-color:var(--wtf-accent); color:#f0a3a3; }
+  input[type=search], select { background:var(--wtf-bg); border:1px solid var(--wtf-border); border-radius:var(--r-sm);
+    color:var(--wtf-text); font-family:var(--wtf-font-body); font-size:13px; padding:9px 12px; }
+  input[type=search] { flex:1; min-width:220px; }
+
+  table { width:100%; border-collapse:collapse; margin-top:16px; }
+  thead th { position:sticky; top:54px; background:var(--wtf-bg); z-index:5; }
+  .cnt { opacity:.5; font-size:9px; }
+  .chip.empty { opacity:.4; }
+  .flab { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:#5d6875; margin-right:3px; }
+  tr.r:focus-visible { outline:2px solid var(--wtf-brand); outline-offset:-2px; }
+  .mixbar { display:flex; align-items:center; gap:13px; flex-wrap:wrap; margin:-4px 0 16px;
+             padding:11px 15px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
+             border-radius:var(--r-lg); box-shadow:var(--lift);
+             font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-2); }
+  .mix-sep { width:1px; height:15px; background:var(--wtf-border); }
+  .mix-lab { color:#5d6875; letter-spacing:.06em; }
+  .mix-track { flex:1; min-width:140px; }
+  .spec { display:flex; height:7px; border-radius:4px; overflow:hidden; background:var(--wtf-bg); }
+  .spec i { display:block; height:100%; }
+  .mix-key { display:flex; gap:11px; flex-wrap:wrap; }
+  .mix-key i { display:inline-flex; align-items:center; gap:5px; font-style:normal;
+               font-size:9.5px; color:var(--wtf-text-muted); font-variant-numeric:tabular-nums; }
+  .mix-key i::before { content:''; width:8px; height:8px; border-radius:2px; background:var(--c); }
+  @media (max-width:720px) { .mix-sep, .mix-lab { display:none; } }
+  .star { cursor:pointer; background:none; border:0; padding:0; font-size:13px; line-height:1;
+          color:#3a4657; transition:color .15s var(--ease); }
+  .star:hover { color:var(--wtf-developing); }
+  .star.on { color:var(--wtf-developing); }
+  .roll { display:grid; grid-template-columns:130px minmax(0,1fr) 54px; gap:10px; align-items:center;
+          padding:6px 0; font-family:var(--wtf-font-mono); font-size:10.5px; }
+  .roll .rb { height:6px; border-radius:3px; background:var(--wtf-bg); overflow:hidden; display:flex; }
+  .roll .rb i { display:block; height:100%; }
+  #previewbar { display:none; }
+  #previewbar.on { display:flex; flex-wrap:wrap; gap:11px; align-items:center; margin-bottom:11px;
+    padding:10px 15px; background:rgba(245,158,11,.08); border:1px solid var(--wtf-developing);
+    border-radius:var(--r-lg); }
+  input[type=date] { background:var(--wtf-bg); border:1px solid var(--wtf-border); border-radius:var(--r-sm);
+    color:var(--wtf-text); font-family:var(--wtf-font-mono); font-size:11px; padding:7px 9px; color-scheme:dark; }
+  tr.is-read { opacity:.55; }
+  tr.is-read .c-t { color:var(--wtf-text-muted); }
+  tr.is-read:hover { opacity:1; }
+  mark { background:rgba(245,158,11,.26); color:var(--wtf-text); border-radius:2px; padding:0 2px; }
+  .empty-state { padding:44px 20px; text-align:center; }
+  th { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
+       color:#5d6875; text-align:left; padding:0 10px 9px; border-bottom:1px solid var(--wtf-border);
+       cursor:pointer; white-space:nowrap; user-select:none; }
+  th:hover { color:var(--wtf-text-2); }
+  th.sorted { color:var(--wtf-text); }
+  th[aria-sort]:not([aria-sort="none"]) { border-bottom-color:var(--wtf-accent); }
+  td { padding:11px 10px; border-bottom:1px solid var(--wtf-border); vertical-align:middle; }
+  tr.r { cursor:pointer; transition:background .14s var(--ease); }
+  tr.r:hover { background:var(--wtf-bg-card); }
+  .c-date { font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-muted); white-space:nowrap; }
+  .c-src  { font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-2); white-space:nowrap;
+            max-width:150px; overflow:hidden; text-overflow:ellipsis; }
+  .c-t    { font-family:var(--wtf-font-serif); font-size:14.5px; line-height:1.35; color:var(--wtf-text);
+            text-wrap:pretty; }
+  .swatch { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:-1px; }
+  .lean-l { font-family:var(--wtf-font-mono); font-size:9.5px; white-space:nowrap; }
+  .num { font-family:var(--wtf-font-mono); font-size:10.5px; color:var(--wtf-text-2);
+         font-variant-numeric:tabular-nums; text-align:right; }
+  @media (max-width:820px) { .hide-s { display:none; } }
+
+  .gate { position:relative; margin-top:-120px; padding-top:120px;
+          background:linear-gradient(180deg,transparent,var(--wtf-bg) 46%); }
+  .gatebox { background:var(--wtf-bg-card); border:1px solid var(--wtf-accent); border-radius:var(--r-lg);
+             padding:26px 24px; text-align:center; box-shadow:0 22px 54px -18px rgba(0,0,0,.9);
+             max-width:620px; margin:0 auto; animation:rise .3s ease-out both; }
+  .gate-h { font-family:var(--wtf-font-serif); font-size:25px; font-weight:600; letter-spacing:-.02em;
+            margin:9px 0 9px; text-wrap:balance; }
+  .tiers { display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:11px; margin:19px 0 15px;
+           text-align:left; }
+  .tier { background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:var(--r-md); padding:14px; }
+  .tier.hi { border-color:var(--wtf-accent); }
+  .tier-n { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.13em; text-transform:uppercase;
+            color:var(--wtf-text-muted); }
+  .tier-p { font-family:var(--wtf-font-mono); font-size:19px; color:var(--wtf-text); margin:5px 0 8px;
+            font-variant-numeric:tabular-nums; }
+  .tier ul { margin:0; padding-left:16px; }
+  .tier li { font-size:12px; line-height:1.7; color:var(--wtf-text-2); }
+  .btn { display:inline-block; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.1em;
+         text-transform:uppercase; padding:11px 22px; border-radius:999px; border:1px solid var(--wtf-border);
+         color:var(--wtf-text-2); cursor:pointer; transition:all .18s var(--ease); }
+  .btn:hover { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+  .btn-p { background:var(--wtf-accent); border-color:var(--wtf-accent); color:#fff; }
+  .btn-p:hover { background:#b91c1c; color:#fff; }
+  .meter { height:4px; border-radius:2px; background:var(--wtf-border); overflow:hidden; margin:11px 0 6px; }
+  .meter i { display:block; height:100%; background:var(--wtf-accent); border-radius:2px; transition:width .4s var(--ease); }
+  .pg { min-width:32px; height:32px; padding:0 9px; border-radius:var(--r-sm); cursor:pointer;
+        border:1px solid var(--wtf-border); background:var(--wtf-bg-card); color:var(--wtf-text-2);
+        font-family:var(--wtf-font-mono); font-size:11px; }
+  .pg.on { background:var(--wtf-accent); border-color:var(--wtf-accent); color:#fff; }
+  .pg:disabled { opacity:.32; cursor:default; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--wtf-brand); outline-offset:2px; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <header class="phead">
+    <div class="eyebrow">Complete record</div>
+    <h1>The full archive</h1>
+    <p class="lede">Every article the newsroom has scored, with its lean band, verdict and cluster.
+      Latest shows what is happening now; the archive is what you cite.</p>
+  </header>
+
+  <div class="statrow" id="stats"></div>
+
+  <div class="mixbar">
+    <span id="rcount">—</span>
+    <span class="mix-sep"></span>
+    <span class="mix-lab">Lean mix of what is showing</span>
+    <span class="mix-track"><span class="spec" id="rspec"></span></span>
+    <span class="mix-key" id="rkey"></span>
+  </div>
+
+  <div id="previewbar"></div>
+
+  <div class="ctrl">
+    <div class="crow">
+      <span class="flab">View</span>
+      <button class="chip on" data-view="story">By story</button>
+      <button class="chip" data-view="article">Every article</button>
+      <span style="width:1px;height:16px;background:var(--wtf-border);margin:0 3px"></span>
+      <button class="chip" id="summary">Summary</button>
+      <span class="mono" id="viewnote" style="font-size:10.5px;color:#5d6875"></span>
+    </div>
+    <div class="crow">
+      <input type="search" id="q" placeholder="Search headlines, outlets, topics…" aria-label="Search the archive">
+      <select id="range" aria-label="Date range">
+        <option value="0">All time</option><option value="1440">Last 24 hours</option>
+        <option value="10080">Last 7 days</option><option value="43200">Last 30 days</option>
+      </select>
+    </div>
+    <div class="crow"><span class="flab">Lean</span><span id="f-lean"></span></div>
+    <div class="crow"><span class="flab">Verdict</span><span id="f-verdict"></span></div>
+    <div class="crow"><span class="flab">Beat</span><span id="f-beat"></span></div>
+    <div class="crow"><span class="flab">Province</span><span id="f-prov"></span></div>
+    <div class="crow"><span class="flab">Language</span><span id="f-lang"></span></div>
+    <div class="crow"><span class="flab">Outlet</span><span id="f-src"></span>
+      <button class="chip" id="srcmore" hidden></button></div>
+    <div class="crow">
+      <span class="flab">Between</span>
+      <input type="date" id="d1" aria-label="From date">
+      <span style="color:#5d6875">→</span>
+      <input type="date" id="d2" aria-label="To date">
+      <button class="chip" id="dclear" hidden>Clear dates</button>
+      <span class="mono" id="dnote" style="font-size:10px;color:#5d6875"></span>
+    </div>
+    <div class="crow" style="justify-content:space-between">
+      <span id="count" style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted)"></span>
+      <span style="display:flex;gap:8px">
+        <button class="chip" id="saved">☆ Saved</button>
+        <button class="chip" id="unread">Unread</button>
+        <button class="chip" id="clear">Clear</button>
+        <button class="chip" id="copy">Copy link</button>
+        <button class="chip" id="csv">Export CSV</button>
+      </span>
+    </div>
+  </div>
+
+  <div id="rollup" hidden></div>
+
+  <div id="tablewrap">
+    <table>
+      <thead><tr>
+        <th style="width:26px;cursor:default" aria-label="Saved"></th>
+        <th data-k="min">Filed</th>
+        <th data-k="src" class="hide-s">Outlet</th>
+        <th data-k="t">Headline</th>
+        <th data-k="lean" class="hide-s">Lean</th>
+        <th data-k="verdict" class="hide-s">Verdict</th>
+        <th data-k="outlets" style="text-align:right">Outlets</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <div id="gate"></div>
+
+  <div id="pager" style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:20px"></div>
+
+  <p style="font-size:12px;line-height:1.7;color:#5d6875;margin:26px auto 0;max-width:78ch;text-align:center">
+    Lean bands are scored per article against the same story elsewhere. A band is never a standing label on an
+    outlet, and an absent verdict is not a pass — it means V.E.R.I.F.Y. has not run that story.
+  </p>
+</main>
+
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+
+<script src="wtf-corpus.js"></script>
+<script>
+/* The archive reads the same corpus as Latest and the article page. What
+   differs is scope: no clustering, no editorial ordering — every scored row,
+   sortable, and metered. */
+const PER = 25;
+const FREE_PAGES = 2;              // article-level: two pages
+const FREE_STORY_ROWS = 10;        // story-level: the first ten stories
+const S = { q:'', win:0, lean:new Set(), verdict:new Set(), beat:new Set(), prov:new Set(),
+            lang:new Set(), src:new Set(), d1:'', d2:'', saved:false, unread:false,
+            sort:'min', dir:1, page:1, view:'story' };
+
+/* Read and saved state are written by the feed; the archive reads the same
+   keys so a story you have already opened does not look new here. */
+let READ = new Set(), SAVED = new Set();
+try { READ = new Set(JSON.parse(localStorage.getItem('wtf-read') || '[]')); } catch (e) {}
+try { SAVED = new Set(JSON.parse(localStorage.getItem('wtf-saved') || '[]')); } catch (e) {}
+
+const dayOf = a => dateOf(a.min).toISOString().slice(0, 10);
+function esc(x) { return String(x).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+/* Highlight why a row matched — on a long table the match is otherwise invisible. */
+function hl(text, q) {
+  const safe = esc(text);
+  if (!q) return safe;
+  const needle = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return safe.replace(new RegExp('(' + needle + ')', 'ig'), '<mark>$1</mark>');
+}
+const langOf = a => a.lang === 'fr' ? 'fr' : 'en';
+
+/* URL state — an archive nobody can link into is not much of a record. */
+function readURL() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (!p.toString()) return;
+  S.q = p.get('q') || ''; S.win = +(p.get('win') || 0);
+  S.sort = p.get('sort') || 'min'; S.dir = +(p.get('dir') || 1);
+  S.view = p.get('view') === 'article' ? 'article' : 'story';
+  S.d1 = p.get('d1') || ''; S.d2 = p.get('d2') || '';
+  S.saved = p.get('saved') === '1'; S.unread = p.get('unread') === '1';
+  S.page = +(p.get('page') || 1);
+  ['lean','verdict','beat','prov','lang','src'].forEach(k =>
+    (p.get(k) || '').split(',').filter(Boolean).forEach(v => S[k].add(v)));
+}
+function syncURL() {
+  const p = new URLSearchParams();
+  if (S.q) p.set('q', S.q);
+  if (S.win) p.set('win', S.win);
+  if (S.sort !== 'min') p.set('sort', S.sort);
+  if (S.dir !== 1) p.set('dir', S.dir);
+  if (S.view !== 'story') p.set('view', S.view);
+  if (S.page > 1) p.set('page', S.page);
+  if (S.d1) p.set('d1', S.d1);
+  if (S.d2) p.set('d2', S.d2);
+  if (S.saved) p.set('saved', '1');
+  if (S.unread) p.set('unread', '1');
+  ['lean','verdict','beat','prov','lang','src'].forEach(k => { if (S[k].size) p.set(k, [...S[k]].join(',')); });
+  history.replaceState(null, '', p.toString() ? '#' + p : location.pathname);
+}
+readURL();
+let SUBSCRIBED = false, PREVIEW = false;
+try {
+  const flag = localStorage.getItem('wtf-sub');
+  if (flag === '1') { localStorage.removeItem('wtf-sub'); }   // retire the old one-way flag
+  PREVIEW = localStorage.getItem('wtf-preview') === '1';
+  SUBSCRIBED = PREVIEW;
+} catch (e) {}
+
+const $ = id => document.getElementById(id);
+
+function rows() {
+  const q = S.q.trim().toLowerCase();
+  const base = S.view === 'story' ? ARTICLES.filter(a => a.first) : ARTICLES;
+  let out = base.filter(a =>
+    (!S.win || a.min <= S.win) &&
+    (!S.lean.size || S.lean.has(a.lean)) &&
+    (!S.verdict.size || (a.verdict && S.verdict.has(a.verdict))) &&
+    (!S.beat.size || S.beat.has(a.beat)) &&
+    (!S.prov.size || S.prov.has(a.prov)) &&
+    (!S.lang.size || S.lang.has(langOf(a))) &&
+    (!S.src.size  || S.src.has(a.src)) &&
+    (!S.d1        || dayOf(a) >= S.d1) &&
+    (!S.d2        || dayOf(a) <= S.d2) &&
+    (!S.saved     || SAVED.has(a.id)) &&
+    (!S.unread    || !READ.has(a.id)) &&
+    (!q || (a.t + ' ' + a.src + ' ' + a.beat + ' ' + a.prov).toLowerCase().includes(q)));
+  const k = S.sort;
+  out.sort((x, y) => {
+    const a = x[k], b = y[k];
+    if (k === 'lean') { const i = BANDS.findIndex(z => z.k === a), j = BANDS.findIndex(z => z.k === b); return (i - j) * S.dir; }
+    if (typeof a === 'number') return (a - b) * S.dir;
+    return String(a || '').localeCompare(String(b || '')) * S.dir;
+  });
+  return out;
+}
+
+function countFor(axis, val) {
+  const q = S.q.trim().toLowerCase();
+  const base = S.view === 'story' ? ARTICLES.filter(a => a.first) : ARTICLES;
+  return base.filter(a =>
+    (!S.win || a.min <= S.win) &&
+    (axis === 'lean'    || !S.lean.size    || S.lean.has(a.lean)) &&
+    (axis === 'verdict' || !S.verdict.size || (a.verdict && S.verdict.has(a.verdict))) &&
+    (axis === 'beat'    || !S.beat.size    || S.beat.has(a.beat)) &&
+    (axis === 'prov'    || !S.prov.size    || S.prov.has(a.prov)) &&
+    (axis === 'lang'    || !S.lang.size    || S.lang.has(langOf(a))) &&
+    (axis === 'src'     || !S.src.size     || S.src.has(a.src)) &&
+    (!S.d1 || dayOf(a) >= S.d1) && (!S.d2 || dayOf(a) <= S.d2) &&
+    (!S.saved || SAVED.has(a.id)) && (!S.unread || !READ.has(a.id)) &&
+    (!q || (a.t + ' ' + a.src + ' ' + a.beat + ' ' + a.prov).toLowerCase().includes(q)) &&
+    (axis === 'lean' ? a.lean === val : axis === 'verdict' ? a.verdict === val :
+     axis === 'beat' ? a.beat === val : axis === 'prov' ? a.prov === val :
+     axis === 'lang' ? langOf(a) === val :
+     axis === 'src' ? a.src === val : true)).length;
+}
+function chips(host, items, set) {
+  const axis = host.replace('f-','');
+  $(host).innerHTML = items.map(it => {
+    const k = typeof it === 'string' ? it : it.k, l = typeof it === 'string' ? it : it.l;
+    const n = countFor(axis, k);
+    return '<button class="chip' + (set.has(k) ? ' on' : '') + (n === 0 && !set.has(k) ? ' empty' : '') +
+      '" data-k="' + k + '">' + l + ' <span class="cnt">' + n + '</span></button>';
+  }).join('');
+  $(host).onclick = e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    const k = b.dataset.k;
+    set.has(k) ? set.delete(k) : set.add(k);
+    S.page = 1; refreshChips(); render();
+  };
+}
+
+function drawPager(total, cap) {
+  const pages = Math.min(Math.ceil(total / PER) || 1, cap);
+  const el = $('pager');
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  const cur = Math.min(S.page, pages);
+  const want = new Set([1, pages, cur, cur - 1, cur + 1].filter(n => n >= 1 && n <= pages));
+  let out = '<button class="pg" data-p="' + Math.max(1, cur - 1) + '"' + (cur === 1 ? ' disabled' : '') + '>&larr;</button>';
+  let last = 0;
+  [...want].sort((a, b) => a - b).forEach(n => {
+    if (n - last > 1) out += '<span style="color:#4d5766;font-family:var(--wtf-font-mono);font-size:11px">…</span>';
+    out += '<button class="pg' + (n === cur ? ' on' : '') + '" data-p="' + n + '">' + n + '</button>';
+    last = n;
+  });
+  out += '<button class="pg" data-p="' + Math.min(pages, cur + 1) + '"' + (cur === pages ? ' disabled' : '') + '>&rarr;</button>';
+  el.innerHTML = out;
+}
+$('pager').onclick = e => {
+  const b = e.target.closest('.pg'); if (!b || b.disabled) return;
+  S.page = +b.dataset.p; render();
+  scrollTo({ top: $('tablewrap').offsetTop - 70, behavior:'smooth' });
+};
+
+let ROLLUP = false;
+$('summary').onclick = () => {
+  ROLLUP = !ROLLUP;
+  $('summary').classList.toggle('on', ROLLUP);
+  $('rollup').hidden = !ROLLUP;
+  render();
+};
+function drawRollup(list) {
+  if (!ROLLUP) return;
+  const days = new Set(list.map(a => dateOf(a.min).toISOString().slice(0, 10)));
+  const byMonths = days.size > 45, byDays = days.size > 1;
+  const timeLabel = byMonths ? 'By month' : byDays ? 'By day' : 'By hour filed';
+  const bucketOf = a => {
+    const d = dateOf(a.min);
+    if (byMonths) return d.toLocaleDateString('en-CA', { year:'numeric', month:'short' });
+    if (byDays)   return d.toLocaleDateString('en-CA', { month:'short', day:'numeric' });
+    const h = d.getHours();
+    return String(h).padStart(2, '0') + ':00';
+  };
+  const byTime = {}, bySrc = {}, byBeat = {};
+  list.forEach(a => {
+    (byTime[bucketOf(a)] = byTime[bucketOf(a)] || []).push(a);
+    (bySrc[a.src] = bySrc[a.src] || []).push(a);
+    (byBeat[a.beat] = byBeat[a.beat] || []).push(a);
+  });
+  const bar = set => {
+    const t = set.length || 1;
+    return BANDS.map(b => {
+      const n = set.filter(x => x.lean === b.k).length;
+      return n ? '<i style="width:' + (n / t * 100) + '%;background:' + b.hex + '"></i>' : '';
+    }).join('');
+  };
+  const block = (title, groups, order) =>
+    '<div class="panel" style="margin:0"><div class="psec">' + title + '</div>' +
+    order.map(k => '<div class="roll"><span style="color:var(--wtf-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(k) + '</span>' +
+      '<span class="rb">' + bar(groups[k]) + '</span>' +
+      '<span class="num" style="color:var(--wtf-text)">' + groups[k].length + '</span></div>').join('') +
+    '</div>';
+  const times = Object.keys(byTime).sort((a, b) =>
+    byMonths || byDays ? new Date(b) - new Date(a) : b.localeCompare(a));
+  const srcs = Object.keys(bySrc).sort((a, b) => bySrc[b].length - bySrc[a].length).slice(0, 12);
+  const beats = Object.keys(byBeat).sort((a, b) => byBeat[b].length - byBeat[a].length);
+  $('rollup').innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-bottom:16px">' +
+      block(timeLabel + ' · lean mix', byTime, times) +
+      block('By beat · lean mix', byBeat, beats) +
+      block('By outlet · lean mix, top 12', bySrc, srcs) +
+    '</div>' +
+    '<div class="foot-note" style="margin:-6px 0 16px">Bars show the lean mix within each row, not across rows. ' +
+      'The time axis buckets by ' + (byMonths ? 'month' : byDays ? 'day' : 'hour') +
+      ' because that is the resolution this window actually spans.</div>';
+}
+
+function markSort() {
+  document.querySelectorAll('th[data-k]').forEach(th => {
+    const on = th.dataset.k === S.sort;
+    th.classList.toggle('sorted', on);
+    th.setAttribute('aria-sort', on ? (S.dir === 1 ? 'ascending' : 'descending') : 'none');
+    const base = th.dataset.label || (th.dataset.label = th.textContent.trim());
+    if (!on) { th.textContent = base; return; }
+    const word = th.dataset.k === 'min' ? (S.dir === 1 ? 'newest' : 'oldest')
+      : th.dataset.k === 'outlets' ? (S.dir === 1 ? 'fewest' : 'most')
+      : (S.dir === 1 ? 'A–Z' : 'Z–A');
+    th.textContent = base + ' · ' + word;
+  });
+}
+
+function render() {
+  const list = rows();
+  const freeRows = S.view === 'story' ? FREE_STORY_ROWS : FREE_PAGES * PER;
+  const capPages = SUBSCRIBED ? Infinity : Math.ceil(freeRows / PER);
+  const gated = !SUBSCRIBED && list.length > freeRows;
+  const page = Math.min(S.page, SUBSCRIBED ? Math.ceil(list.length / PER) || 1 : capPages);
+  S.page = page;
+  let slice = list.slice((page - 1) * PER, page * PER);
+  if (gated) slice = slice.slice(0, Math.max(0, freeRows - (page - 1) * PER));
+
+  if (!list.length) {
+    $('rows').innerHTML = '<tr><td colspan="7"><div class="empty-state">' +
+      '<div style="font-family:var(--wtf-font-serif);font-size:19px;color:var(--wtf-text);margin-bottom:6px">Nothing matches these filters</div>' +
+      '<div style="font-size:13px;color:var(--wtf-text-muted);margin-bottom:14px">' +
+        (S.view === 'story' ? 'Try the article-level view, or widen the window.' : 'Try widening the window or clearing an axis.') + '</div>' +
+      '<button class="btn" onclick="document.getElementById(\'clear\').click()">Clear all filters</button>' +
+      '</div></td></tr>';
+    $('count').textContent = '0 results';
+    $('rcount').textContent = '0 results';
+    $('rspec').innerHTML = ''; $('rkey').innerHTML = '';
+    $('gate').innerHTML = ''; $('pager').innerHTML = '';
+    $('rollup').innerHTML = '';
+    markSort(); syncURL();
+    return;
+  }
+
+  $('rows').innerHTML = slice.map(a => {
+    const b = bandOf(a.lean), v = a.verdict ? VERDICTS[a.verdict] : null;
+    return '<tr class="r' + (READ.has(a.id) ? ' is-read' : '') + '" tabindex="0" data-id="' + a.id + '">' +
+      '<td><button class="star' + (SAVED.has(a.id) ? ' on' : '') + '" data-save="' + a.id +
+        '" aria-label="' + (SAVED.has(a.id) ? 'Remove from saved' : 'Save this story') + '">' +
+        (SAVED.has(a.id) ? '★' : '☆') + '</button></td>' +
+      '<td class="c-date">' + dateOf(a.min).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) + '</td>' +
+      '<td class="c-src hide-s">' + hl(a.src, S.q.trim()) + '</td>' +
+      '<td class="c-t">' + hl(a.t, S.q.trim()) + (a.blind ? ' <span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.1em;color:var(--wtf-accent);border:1px solid rgba(220,38,38,.3);border-radius:2px;padding:1px 5px;margin-left:6px">BLINDSPOT</span>' : '') + '</td>' +
+      '<td class="hide-s"><span class="lean-l" style="color:' + b.hex + '"><span class="swatch" style="background:' + b.hex + '"></span>' + b.l + '</span></td>' +
+      '<td class="hide-s">' + (v ? '<span class="lean-l" style="color:' + v.c + '">' + v.g + ' ' + v.l + '</span>'
+                                 : '<span class="lean-l" style="color:#4d5766">—</span>') + '</td>' +
+      '<td class="num">' + a.outlets + '</td></tr>';
+  }).join('');
+
+  const total = (S.view === 'story' ? ARTICLES.filter(a => a.first) : ARTICLES).length;
+  const unit = S.view === 'story' ? 'stor' + (list.length === 1 ? 'y' : 'ies') : 'articles';
+  const txt = list.length.toLocaleString() + ' of ' + total.toLocaleString() + ' ' + unit +
+    ' · showing ' + slice.length + (gated ? ' · ' + freeRows + ' free' : '');
+  $('count').textContent = txt;
+  $('rcount').textContent = txt;
+
+  /* Lean mix of what is on screen, with its bands named rather than five
+     bare percentages. */
+  const t = list.length || 1;
+  const mix = BANDS.map(b => ({ b, n: list.filter(x => x.lean === b.k).length }));
+  $('rspec').innerHTML = mix.map(m =>
+    '<i style="width:' + (m.n / t * 100) + '%;background:' + m.b.hex + '"></i>').join('');
+  $('rkey').innerHTML = mix.map(m =>
+    '<i style="--c:' + m.b.hex + '">' + m.b.l + ' ' + Math.round(m.n / t * 100) + '%</i>').join('');
+  $('viewnote').textContent = S.view === 'story'
+    ? 'one row per story'
+    : 'one row per outlet article — clusters repeat';
+  markSort();
+  syncURL();
+
+  /* The meter is honest about what is being withheld: a count, not a tease. */
+  $('gate').innerHTML = gated ?
+    '<div class="gate"><div class="gatebox">' +
+      '<div class="eyebrow">Archive access</div>' +
+      '<div class="gate-h">' + (list.length - freeRows).toLocaleString() + ' more ' +
+        (S.view === 'story' ? 'stories' : 'articles') + ' in this view</div>' +
+      '<div class="meter"><i style="width:' + Math.round(freeRows / list.length * 100) + '%"></i></div>' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;color:var(--wtf-text-muted)">' +
+        freeRows + ' of ' + list.length.toLocaleString() + ' shown</div>' +
+      '<div class="tiers">' +
+        '<div class="tier"><div class="tier-n">Free</div><div class="tier-p">$0</div>' +
+          '<ul><li>Latest feed in full</li><li>Lean band on every story</li><li>First ' + freeRows + ' archive rows</li></ul></div>' +
+        '<div class="tier hi"><div class="tier-n">Starter</div><div class="tier-p">$4.99<span style="font-size:11px;color:var(--wtf-text-muted)">/mo</span></div>' +
+          '<ul><li>Complete archive</li><li>Fact-check reasoning</li><li>CSV export</li><li>Saved searches</li></ul></div>' +
+        '<div class="tier"><div class="tier-n">Research</div><div class="tier-p">$19<span style="font-size:11px;color:var(--wtf-text-muted)">/mo</span></div>' +
+          '<ul><li>Everything in Starter</li><li>API access</li><li>Bulk download</li></ul></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap">' +
+        '<a href="wtf-home.html" class="btn btn-p">Subscribe</a>' +
+        '<button class="btn" onclick="preview()">Preview full access</button>' +
+        '<a href="wtf-news.html" class="btn">Back to Latest</a></div>' +
+      '<div style="font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:14px">' +
+        'Lean bands and blindspot flags stay free on every story. The subscription covers the archive, ' +
+        'the reasoning behind each score, and bulk access.</div>' +
+    '</div></div>' : '';
+
+  drawPager(list.length, capPages);
+  $('csv').textContent = SUBSCRIBED ? 'Export CSV' : 'Export CSV 🔒';
+  $('csv').title = SUBSCRIBED ? 'Download the current view' : 'CSV export is part of Starter';
+  $('csv').style.opacity = SUBSCRIBED ? 1 : .6;
+  drawRollup(list);
+}
+
+/* A demo unlock so the full-access experience can be reviewed without a login. */
+function preview() {
+  SUBSCRIBED = true; PREVIEW = true;
+  try { localStorage.setItem('wtf-preview','1'); } catch (e) {}
+  syncPreviewBar(); render();
+}
+function exitPreview() {
+  SUBSCRIBED = false; PREVIEW = false;
+  try { localStorage.removeItem('wtf-preview'); } catch (e) {}
+  S.page = 1; syncPreviewBar(); render();
+}
+window.preview = preview;
+window.exitPreview = exitPreview;
+
+/* A persistent, visible marker — otherwise an unlocked page looks like the
+   product rather than a demo of it. */
+function syncPreviewBar() {
+  const bar = $('previewbar');
+  bar.classList.toggle('on', PREVIEW);
+  bar.innerHTML = PREVIEW ?
+    '<span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-developing)">Preview mode</span>' +
+    '<span style="font-size:12.5px;color:var(--wtf-text-2)">Showing the full archive as a subscriber would see it.</span>' +
+    '<button class="chip" onclick="exitPreview()" style="margin-left:auto">Exit preview</button>' : '';
+}
+
+try {
+  const back = sessionStorage.getItem('wtf-archive-y');
+  if (back) { addEventListener('load', () => scrollTo(0, +back)); sessionStorage.removeItem('wtf-archive-y'); }
+} catch (e) {}
+
+function openRow(tr) {
+  try { sessionStorage.setItem('wtf-archive-y', String(scrollY)); } catch (e) {}
+  const id = tr.dataset.id;
+  if (!READ.has(id)) { READ.add(id); try { localStorage.setItem('wtf-read', JSON.stringify([...READ])); } catch (e) {} }
+  location.href = 'wtf-article.html?id=' + encodeURIComponent(id);
+}
+$('rows').onclick = e => {
+  const st = e.target.closest('.star');
+  if (st) {
+    e.stopPropagation();
+    const id = st.dataset.save;
+    SAVED.has(id) ? SAVED.delete(id) : SAVED.add(id);
+    try { localStorage.setItem('wtf-saved', JSON.stringify([...SAVED])); } catch (err) {}
+    const on = SAVED.has(id);
+    st.classList.toggle('on', on);
+    st.textContent = on ? '★' : '☆';
+    st.setAttribute('aria-label', on ? 'Remove from saved' : 'Save this story');
+    syncToggles();
+    if (S.saved) render();
+    return;
+  }
+  const tr = e.target.closest('tr.r'); if (tr) openRow(tr);
+};
+$('rows').onkeydown = e => {
+  const tr = e.target.closest('tr.r'); if (!tr) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRow(tr); }
+  if (e.key === 'ArrowDown' && tr.nextElementSibling) { e.preventDefault(); tr.nextElementSibling.focus(); }
+  if (e.key === 'ArrowUp' && tr.previousElementSibling) { e.preventDefault(); tr.previousElementSibling.focus(); }
+};
+
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  const k = th.dataset.k;
+  if (S.sort === k) S.dir *= -1; else { S.sort = k; S.dir = 1; }
+  S.page = 1; render();
+});
+
+$('q').oninput = e => { S.q = e.target.value; S.page = 1; render(); };
+$('range').onchange = e => { S.win = +e.target.value; S.page = 1; render(); };
+$('clear').onclick = () => {
+  S.q = ''; $('q').value = ''; S.win = 0; $('range').value = '0'; S.page = 1;
+  [S.lean, S.verdict, S.beat, S.prov, S.lang, S.src].forEach(x => x.clear());
+  S.d1 = S.d2 = ''; $('d1').value = ''; $('d2').value = '';
+  S.saved = false; S.unread = false;
+  syncDates(); refreshChips(); render();
+};
+/* The archive exists to be cited, so the current query needs to be grabbable. */
+$('copy').onclick = async () => {
+  const url = location.origin + location.pathname + location.hash;
+  try { await navigator.clipboard.writeText(url); } catch (e) {
+    const t = document.createElement('textarea');
+    t.value = url; document.body.appendChild(t); t.select();
+    document.execCommand('copy'); t.remove();
+  }
+  const b = $('copy'), was = b.textContent;
+  b.textContent = '✓ Copied'; b.classList.add('on');
+  setTimeout(() => { b.textContent = was; b.classList.remove('on'); }, 1600);
+};
+
+$('csv').onclick = () => {
+  if (!SUBSCRIBED) {
+    /* A disabled button that says nothing is worse than a locked one that does. */
+    const b = $('csv'), was = b.textContent;
+    b.textContent = '🔒 Starter feature';
+    setTimeout(() => { b.textContent = was; }, 1900);
+    return;
+  }
+  const head = ['date','outlet','headline','lean','verdict','outlets','province','beat'];
+  const body = rows().map(a => [dateOf(a.min).toISOString().slice(0,10), a.src, a.t, a.lean,
+    a.verdict || '', a.outlets, a.prov, a.beat]
+    .map(x => '"' + String(x).replace(/"/g,'""') + '"').join(','));
+  const blob = new Blob([head.join(',') + '\n' + body.join('\n')], { type:'text/csv' });
+  const url = URL.createObjectURL(blob), link = document.createElement('a');
+  link.href = url; link.download = 'wtf-archive.csv'; link.click();
+  URL.revokeObjectURL(url);
+};
+
+/* A verdict belongs to the STORY; copying it onto all 16 sibling rows and
+   counting those made "fact-checked" read 232 of 241. Count stories. */
+function drawStats() {
+  const stories = ARTICLES.filter(a => a.first);
+  $('stats').innerHTML = [
+    [ARTICLES.length.toLocaleString(), 'Articles scored'],
+    [String(stories.length), 'Distinct stories'],
+    [String(new Set(ARTICLES.map(a => a.src)).size), 'Outlets tracked'],
+    [String(stories.filter(a => a.verdict).length) + ' / ' + stories.length, 'Stories fact-checked'],
+    [String(stories.filter(a => a.blind).length), 'Blindspot flags']
+  ].map(([n, l]) => '<div class="stat"><div class="stat-n">' + n + '</div><div class="stat-l">' + l + '</div></div>').join('');
+}
+drawStats();
+
+let srcOpen = false;
+function renderSrc() {
+  const all = [...new Set(ARTICLES.map(a => a.src))]
+    .map(n => ({ n, c: countFor('src', n) }))
+    .sort((a, b) => b.c - a.c || a.n.localeCompare(b.n));
+  const show = srcOpen ? all : all.slice(0, 10);
+  $('f-src').innerHTML = show.map(o =>
+    '<button class="chip' + (S.src.has(o.n) ? ' on' : '') + (o.c === 0 && !S.src.has(o.n) ? ' empty' : '') +
+    '" data-k="' + esc(o.n) + '">' + esc(o.n) + ' <span class="cnt">' + o.c + '</span></button>').join('');
+  const more = $('srcmore');
+  more.hidden = all.length <= 10;
+  more.textContent = srcOpen ? 'Show fewer' : 'All ' + all.length + ' outlets';
+}
+$('f-src').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const k = b.dataset.k;
+  S.src.has(k) ? S.src.delete(k) : S.src.add(k);
+  S.page = 1; refreshChips(); render();
+};
+$('srcmore').onclick = () => { srcOpen = !srcOpen; renderSrc(); };
+
+function syncDates() {
+  const on = !!(S.d1 || S.d2);
+  $('dclear').hidden = !on;
+  $('dnote').textContent = on ? '' : 'any date';
+}
+['d1','d2'].forEach(k => { $(k).onchange = e => { S[k] = e.target.value; S.page = 1; syncDates(); refreshChips(); render(); }; });
+$('dclear').onclick = () => { S.d1 = S.d2 = ''; $('d1').value = ''; $('d2').value = ''; syncDates(); refreshChips(); render(); };
+
+function syncToggles() {
+  $('saved').classList.toggle('on', S.saved);
+  $('saved').textContent = '☆ Saved (' + SAVED.size + ')';
+  $('unread').classList.toggle('on', S.unread);
+}
+$('saved').onclick = () => { S.saved = !S.saved; S.page = 1; syncToggles(); refreshChips(); render(); };
+$('unread').onclick = () => { S.unread = !S.unread; S.page = 1; syncToggles(); refreshChips(); render(); };
+
+function refreshChips() {
+  renderSrc(); syncToggles();
+  chips('f-lean', BANDS, S.lean);
+  chips('f-verdict', Object.keys(VERDICTS).map(k => ({k, l:VERDICTS[k].l})), S.verdict);
+  chips('f-beat', [...new Set(ARTICLES.map(a => a.beat))].sort(), S.beat);
+  chips('f-prov', PROVS.filter(p => ARTICLES.some(a => a.prov === p)), S.prov);
+  chips('f-lang', [{k:'en',l:'English'},{k:'fr',l:'Français'}], S.lang);
+}
+document.querySelector('[data-view]').parentElement.addEventListener('click', e => {
+  const b = e.target.closest('[data-view]'); if (!b) return;
+  S.view = b.dataset.view; S.page = 1;
+  document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x === b));
+  refreshChips(); render();
+});
+$('q').value = S.q;
+$('range').value = String(S.win);
+$('d1').value = S.d1; $('d2').value = S.d2;
+syncDates();
+syncPreviewBar();
+document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('on', x.dataset.view === S.view));
+refreshChips();
+render();
+</script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latest news · What The Fact</title>
+<meta name="description" content="The full Canadian news feed with a lean band on every story. Lean is scored per article, never assigned to the outlet.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Latest news — What The Fact">
+<meta property="og:description" content="The full Canadian news feed with a lean band on every story. Lean is scored per article, never assigned to the outlet.">
+<meta property="og:image" content="assets/wtf-logo.png">
+<meta property="og:locale" content="en_CA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Latest news — What The Fact">
+<meta name="twitter:description" content="The full Canadian news feed with a lean band on every story. Lean is scored per article, never assigned to the outlet.">
+<meta name="twitter:image" content="assets/wtf-logo.png">
+<link rel="icon" href="assets/wtf-logo.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root { --r-lg:14px; --r-md:10px; --r-sm:7px;
+    --lift:0 1px 0 rgba(255,255,255,.045) inset, 0 8px 22px -12px rgba(0,0,0,.85);
+    --lift-hi:0 1px 0 rgba(255,255,255,.07) inset, 0 16px 38px -14px rgba(0,0,0,.9);
+    --ease:cubic-bezier(.32,.72,0,1); }
+  html { font-optical-sizing:auto; text-rendering:optimizeLegibility; }
+  body { letter-spacing:-.006em; }
+  h1 { letter-spacing:-.028em; line-height:1.03; text-wrap:balance; }
+  p { text-wrap:pretty; }
+  .mono, .stat-n, .fnum { font-variant-numeric:tabular-nums lining-nums; }
+  a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline:2px solid var(--wtf-brand); outline-offset:2px; border-radius:var(--r-sm); }
+
+  /* ── control bar ─────────────────────────────────────────────── */
+  .ctrl { position:sticky; top:54px; z-index:200; background:rgba(13,17,23,.93);
+          backdrop-filter:blur(12px); border-bottom:1px solid var(--wtf-border);
+          padding:11px 0; margin-bottom:18px; }
+  .ctrl-in { display:flex; flex-direction:column; gap:9px; }
+  .ctrl-row { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+  .fgroup { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+  .flab { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.15em;
+          text-transform:uppercase; color:#5d6875; margin-right:3px; }
+  .chip { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.07em;
+          padding:5px 12px; border-radius:999px; border:1px solid var(--wtf-border);
+          background:var(--wtf-bg-card); color:var(--wtf-text-muted); cursor:pointer;
+          transition:all .18s var(--ease); white-space:nowrap; }
+  .chip:hover { color:var(--wtf-text-2); border-color:#2e3a4d; transform:translateY(-1px); }
+  .chip.on { background:rgba(255,255,255,.06); color:var(--wtf-text); border-color:var(--wtf-text-muted); }
+  .chip.on[data-k='left']         { background:rgba(216,75,71,.15);  color:#d84b47; border-color:#d84b47; }
+  .chip.on[data-k='center-left']  { background:rgba(207,139,128,.15); color:#cf8b80; border-color:#cf8b80; }
+  .chip.on[data-k='center']       { background:rgba(146,154,165,.15); color:#b9bdc5; border-color:#929aa5; }
+  .chip.on[data-k='center-right'] { background:rgba(127,163,207,.15); color:#7fa3cf; border-color:#7fa3cf; }
+  .chip.on[data-k='right']        { background:rgba(74,114,216,.15);  color:#6f92e0; border-color:#4a72d8; }
+  .chip.on[data-k='established']  { background:rgba(16,185,129,.14); color:#10b981; border-color:#10b981; }
+  .chip.on[data-k='developing']   { background:rgba(245,158,11,.14); color:#f59e0b; border-color:#f59e0b; }
+  .chip.on[data-k='contested']    { background:rgba(224,82,82,.14);  color:#e05252; border-color:#e05252; }
+  .search { flex:1; min-width:190px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
+            border-radius:999px; padding:7px 15px; color:var(--wtf-text);
+            font-family:var(--wtf-font-body); font-size:12.5px; }
+  .search::placeholder { color:#5d6875; }
+  .search:focus { outline:none; border-color:var(--wtf-text-muted); }
+  .sel { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:999px;
+         padding:6px 12px; color:var(--wtf-text-2); font-family:var(--wtf-font-mono);
+         font-size:9.5px; letter-spacing:.07em; cursor:pointer; }
+  .clearall { margin-left:auto; font-family:var(--wtf-font-mono); font-size:9.5px;
+              letter-spacing:.1em; text-transform:uppercase; color:var(--wtf-accent);
+              background:none; border:1px solid rgba(220,38,38,.35); border-radius:999px;
+              padding:5px 12px; cursor:pointer; }
+  .resultline { font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-muted);
+                display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+
+  /* ── spectrum bar ────────────────────────────────────────────── */
+  .spec { display:flex; height:26px; border-radius:var(--r-sm); overflow:hidden;
+          border:1px solid var(--wtf-border); }
+  .spec div { display:flex; align-items:center; justify-content:center;
+              font-family:var(--wtf-font-mono); font-size:9px; color:#0d1117;
+              font-weight:600; transition:flex-grow .5s var(--ease); min-width:0; }
+
+  /* ── cards ───────────────────────────────────────────────────── */
+  .feed { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:11px; }
+  .art { background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
+         border-left:3px solid var(--wtf-center); border-radius:var(--r-lg);
+         padding:15px 17px; box-shadow:var(--lift); cursor:pointer;
+         transition:transform .26s var(--ease), box-shadow .26s var(--ease), border-color .26s var(--ease);
+         display:flex; flex-direction:column; gap:8px; animation:rise .34s var(--ease) both; }
+  .art:hover { transform:translateY(-3px); box-shadow:var(--lift-hi); border-color:#2f3d52; }
+  .art.lean-left{border-left-color:var(--wtf-left)} .art.lean-center-left{border-left-color:var(--wtf-center-left)}
+  .art.lean-center{border-left-color:var(--wtf-center)} .art.lean-center-right{border-left-color:var(--wtf-center-right)}
+  .art.lean-right{border-left-color:var(--wtf-right)}
+  .art.is-blind { border-top:1px solid rgba(220,38,38,.4); }
+  @keyframes rise { from{opacity:0;transform:translateY(9px)} to{opacity:1;transform:translateY(0)} }
+  .ameta { display:flex; justify-content:space-between; gap:10px; align-items:center;
+           font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.05em;
+           color:var(--wtf-text-muted); }
+  .atitle { font-family:var(--wtf-font-serif); font-size:16.5px; line-height:1.33;
+            color:var(--wtf-text); letter-spacing:-.008em; text-wrap:pretty; }
+  .art:hover .atitle { color:#fff; }
+  .adek { font-size:12.5px; line-height:1.58; color:var(--wtf-text-muted); text-wrap:pretty; }
+  .atags { display:flex; flex-wrap:wrap; gap:5px; margin-top:auto; padding-top:3px; }
+  .pill { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.05em;
+          padding:2px 8px; border-radius:999px; white-space:nowrap; }
+  .p-left{background:rgba(216,75,71,.14);color:#d84b47} .p-center-left{background:rgba(207,139,128,.14);color:#cf8b80}
+  .p-center{background:rgba(146,154,165,.14);color:#b9bdc5} .p-center-right{background:rgba(127,163,207,.14);color:#7fa3cf}
+  .p-right{background:rgba(74,114,216,.14);color:#6f92e0}
+  .p-est{background:rgba(16,185,129,.13);color:#10b981} .p-dev{background:rgba(245,158,11,.13);color:#f59e0b}
+  .p-con{background:rgba(224,82,82,.13);color:#e05252}
+  .p-out{background:rgba(146,154,165,.1);color:var(--wtf-text-muted)}
+  .p-blind{background:rgba(220,38,38,.14);color:#f87171;border:1px solid rgba(220,38,38,.3)}
+  .minispec { display:flex; height:3px; border-radius:2px; overflow:hidden; background:#0f1620; }
+  .minispec i { display:block; height:100%; }
+
+  /* ── drawer ──────────────────────────────────────────────────── */
+  .scrim { position:fixed; inset:0; background:rgba(5,8,12,.72); backdrop-filter:blur(3px);
+           z-index:900; opacity:0; pointer-events:none; transition:opacity .3s var(--ease); }
+  .scrim.on { opacity:1; pointer-events:auto; }
+  .drawer { position:fixed; top:0; right:0; bottom:0; width:min(560px,94vw); z-index:901;
+            background:var(--wtf-bg); border-left:1px solid var(--wtf-border);
+            transform:translateX(100%); transition:transform .38s var(--ease);
+            overflow-y:auto; box-shadow:-24px 0 60px -20px rgba(0,0,0,.9); }
+  .drawer.on { transform:translateX(0); }
+  .dhead { position:sticky; top:0; background:var(--wtf-bg-card); border-bottom:1px solid var(--wtf-border);
+           padding:15px 20px; display:flex; gap:12px; align-items:flex-start; z-index:2; }
+  .dclose { background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); color:var(--wtf-text-muted);
+            border-radius:var(--r-sm); width:28px; height:28px; cursor:pointer; flex-shrink:0; font-size:15px; }
+  .dclose:hover { color:var(--wtf-text); }
+  .dbody { padding:18px 20px 40px; display:flex; flex-direction:column; gap:18px; }
+  .dsec { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.15em;
+          text-transform:uppercase; color:var(--wtf-text-muted); margin-bottom:9px; }
+  .dbox { background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
+          border-radius:var(--r-md); padding:14px 16px; }
+  .cov { display:grid; grid-template-columns:132px minmax(0,1fr) 34px; gap:9px; align-items:center;
+         padding:5px 0; font-family:var(--wtf-font-mono); font-size:10px; }
+  .cov b { font-weight:400; color:var(--wtf-text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .covbar { height:5px; border-radius:3px; background:#0f1620; overflow:hidden; }
+  .covbar i { display:block; height:100%; border-radius:3px; }
+
+  @media (max-width:720px) {
+    .ctrl { position:static; }
+    .feed { grid-template-columns:minmax(0,1fr); }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    .art, .drawer, .scrim { transition:none !important; animation:none !important; }
+    .art:hover { transform:none !important; }
+  }
+  .rail { display:flex; align-items:center; gap:12px; grid-column:1/-1; margin:16px 0 2px; }
+  .rail-d { font-family:var(--wtf-font-serif); font-size:16px; font-weight:600; color:var(--wtf-text);
+            letter-spacing:-.01em; white-space:nowrap; }
+  .rail-r { flex:1; height:1px; background:var(--wtf-border); }
+  .rail-n { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
+            color:#5d6875; white-space:nowrap; }
+  .rail:first-child { margin-top:0; }
+  .phead .lede { text-wrap:pretty; }
+  .art .atitle { text-align:center; text-wrap:balance; }
+  .art .ameta, .art .atags { justify-content:center; }
+  .art .adek { text-align:center; text-wrap:pretty; }
+  /* compact rows */
+  .feed-rows { display:block; }
+  .art.row { display:grid; grid-template-columns:66px 132px minmax(0,1fr) auto; gap:12px; align-items:center;
+             padding:9px 13px; margin:0 0 2px; border-radius:var(--r-sm); border:1px solid transparent;
+             border-left:3px solid; background:var(--wtf-bg-card); animation:none; }
+  .art.row:hover { border-color:#2f3d52; border-left-color:inherit; }
+  .row-time, .row-src { font-family:var(--wtf-font-mono); font-size:9.5px; color:var(--wtf-text-muted);
+                        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row-t { font-family:var(--wtf-font-serif); font-size:14px; line-height:1.3; color:var(--wtf-text);
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row-tags { display:flex; align-items:center; gap:8px; }
+  @media (max-width:760px) { .art.row { grid-template-columns:minmax(0,1fr) auto; }
+    .row-time, .row-src { display:none; } .row-t { white-space:normal; } }
+
+  /* save */
+  .savebtn { background:none; border:1px solid var(--wtf-border); border-radius:999px; cursor:pointer;
+             font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.06em; padding:2px 8px;
+             color:var(--wtf-text-muted); transition:all .16s var(--ease); }
+  .savebtn:hover { color:var(--wtf-text); border-color:var(--wtf-text-muted); }
+  .savebtn.on { color:var(--wtf-developing); border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.1); }
+
+  /* pager */
+  .pg { min-width:32px; height:32px; padding:0 9px; border-radius:var(--r-sm); cursor:pointer;
+        border:1px solid var(--wtf-border); background:var(--wtf-bg-card); color:var(--wtf-text-2);
+        font-family:var(--wtf-font-mono); font-size:11px; transition:all .16s var(--ease); }
+  .pg:hover:not(:disabled) { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+  .pg.on { background:var(--wtf-accent); border-color:var(--wtf-accent); color:#fff; }
+  .pg:disabled { opacity:.32; cursor:default; }
+  .pg-gap { color:#4d5766; font-family:var(--wtf-font-mono); font-size:11px; padding:0 2px; }
+
+  /* stat cells centre their own content */
+  .statrow .stat { text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
+  .cnt { opacity:.5; font-size:9px; }
+  .chip.empty { opacity:.4; }
+  .art.is-read { opacity:.6; }
+  .art.is-read .atitle, .art.is-read .row-t { color:var(--wtf-text-muted); }
+  .art.is-read:hover { opacity:1; }
+  .lang { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.1em; color:var(--wtf-center-right);
+          border:1px solid rgba(127,163,207,.35); border-radius:2px; padding:1px 5px; vertical-align:2px; }
+  .mixbar { display:flex; align-items:center; gap:13px; flex-wrap:wrap; margin:-6px 0 22px;
+             padding:11px 15px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
+             border-radius:var(--r-lg); box-shadow:var(--lift);
+             font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-2); }
+  .mix-sep { width:1px; height:15px; background:var(--wtf-border); }
+  .mix-lab { color:#5d6875; letter-spacing:.06em; }
+  .mix-track { flex:1; min-width:140px; }
+  .mix-key { display:flex; gap:11px; flex-wrap:wrap; }
+  .mix-key i { display:inline-flex; align-items:center; gap:5px; font-style:normal;
+               font-size:9.5px; color:var(--wtf-text-muted); font-variant-numeric:tabular-nums; }
+  .mix-key i::before { content:''; width:8px; height:8px; border-radius:2px; background:var(--c); }
+  @media (max-width:720px) { .mix-sep, .mix-lab { display:none; } }
+  #ftoggle { display:none; align-items:center; gap:9px; width:100%; padding:11px 14px; cursor:pointer;
+             background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:var(--r-md);
+             color:var(--wtf-text); font-family:var(--wtf-font-mono); font-size:10px;
+             letter-spacing:.13em; text-transform:uppercase; }
+  #ftoggle svg { margin-left:auto; transition:transform .22s var(--ease); }
+  #ftoggle[aria-expanded="true"] svg { transform:rotate(180deg); }
+  .fbadge { background:var(--wtf-accent); color:#fff; border-radius:999px; padding:1px 7px; font-size:9px; }
+  @media (max-width:760px) {
+    #ftoggle { display:flex; }
+    #fstack { display:none; margin-top:11px; }
+    #fstack.open { display:block; }
+    .ctrl-row { gap:7px; }
+    .fgroup { flex-direction:column; align-items:flex-start; gap:5px; }
+  }
+  .dtabs { display:flex; gap:4px; padding:0 20px; border-bottom:1px solid var(--wtf-border);
+           background:var(--wtf-bg-card); position:sticky; top:0; z-index:5; }
+  .dtab { background:none; border:0; border-bottom:2px solid transparent; cursor:pointer;
+          font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.13em; text-transform:uppercase;
+          color:var(--wtf-text-muted); padding:12px 12px 10px; transition:color .16s var(--ease), border-color .16s var(--ease); }
+  .dtab:hover { color:var(--wtf-text-2); }
+  .dtab.on { color:var(--wtf-text); border-bottom-color:var(--wtf-accent); }
+  .dpane { display:none; flex-direction:column; gap:16px; }
+  .dpane.on { display:flex; animation:rise .2s ease-out both; }
+  /* eight rows tall, then it scrolls */
+  .siblist { max-height:346px; overflow-y:auto; scrollbar-width:thin; }
+  .siblist.expanded { max-height:min(58vh,520px); }
+  .siblist > a:last-child { border-bottom:0 !important; }
+  .sibmore { width:100%; margin-top:8px; padding:9px; cursor:pointer; border-radius:var(--r-sm);
+             border:1px solid var(--wtf-border); background:var(--wtf-bg-panel); color:var(--wtf-text-2);
+             font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.11em; text-transform:uppercase;
+             transition:all .16s var(--ease); }
+  .sibmore:hover { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+  .puplist { max-height:230px; overflow-y:auto; scrollbar-width:thin; }
+  .puplist.expanded { max-height:min(52vh,460px); }
+  /* one colour per agent, reused everywhere that agent appears */
+  .agentrow { display:grid; grid-template-columns:26px minmax(0,1fr) auto; gap:10px; align-items:center;
+              padding:7px 9px; border-radius:var(--r-sm); background:var(--wtf-bg);
+              border-left:3px solid var(--ac); transition:background .16s var(--ease); }
+  .agentrow:hover { background:var(--wtf-bg-panel); }
+  .agentdot { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+              font-family:var(--wtf-font-mono); font-size:11px; font-weight:600; color:var(--ac);
+              background:color-mix(in srgb, var(--ac) 16%, transparent);
+              border:1px solid color-mix(in srgb, var(--ac) 42%, transparent); }
+  .agentname { display:block; font-family:var(--wtf-font-mono); font-size:10.5px; letter-spacing:.06em; color:var(--ac); }
+  .agentwhat { display:block; font-size:11.5px; color:var(--wtf-text-muted); margin-top:2px;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .agentstate { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; }
+</style></head><body>
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+<div class="wrap">
+  <header class="phead" style="text-align:center">
+    <div class="eyebrow">Every story, every lean</div>
+    <h1>Latest news</h1>
+    <p class="lede" style="margin-left:auto;margin-right:auto">The full feed across <span id="lede-src">—</span> Canadian sources. Lean is scored per story, not assigned to the outlet — the same masthead can appear in different bands on different days.</p>
+  </header>
+
+  <div class="statrow">
+    <div class="stat"><div class="stat-n" id="s-24h">—</div><div class="stat-l">Articles, last 24h</div></div>
+    <div class="stat"><div class="stat-n" id="s-src">—</div><div class="stat-l">Sources in feed</div></div>
+    <div class="stat"><div class="stat-n" id="s-clu">—</div><div class="stat-l">Clustered stories</div></div>
+    <div class="stat"><div class="stat-n" id="s-blind">—</div><div class="stat-l">Blindspot flags</div></div>
+  </div>
+
+  <div class="mixbar">
+    <span id="rcount">—</span>
+    <span class="mix-sep"></span>
+    <span class="mix-lab">Lean mix of what is showing</span>
+    <span class="mix-track"><span class="spec" id="rspec"></span></span>
+    <span class="mix-key" id="rkey"></span>
+  </div>
+</div>
+
+<div class="ctrl"><div class="wrap ctrl-in">
+  <button id="ftoggle" aria-expanded="false" aria-controls="fstack">
+    <span>Filters</span><span class="fbadge" id="fbadge" hidden>0</span>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <div id="fstack">
+  <div class="ctrl-row">
+    <input class="search" id="q" type="search" placeholder="Search headlines, outlets, topics…" autocomplete="off">
+    <select class="sel" id="sort">
+      <option value="new">Newest first</option>
+      <option value="old">Oldest first</option>
+      <option value="outlets">Most covered</option>
+      <option value="lonely">Least covered</option>
+      <option value="diverge">Most divergent</option>
+      <option value="blind">Blindspot first</option>
+    </select>
+    <button class="clearall" id="clear" hidden>Clear filters</button>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Window</span><span id="f-win"></span></span>
+    <span class="fgroup"><span class="flab">Show</span><span id="f-group"></span></span>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Lean</span><span id="f-lean"></span></span>
+    <span class="fgroup"><span class="flab">Verdict</span><span id="f-verdict"></span></span>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Beat</span><span id="f-beat"></span></span>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Province</span><span id="f-prov"></span></span>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Outlet</span><span id="f-src"></span></span>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Quick</span><span id="f-quick"></span></span>
+  </div>
+  <div class="ctrl-row">
+    <span class="fgroup"><span class="flab">Density</span><span id="f-dens"></span></span>
+    <span class="fgroup"><span class="flab">Saved</span><span id="f-saved"></span></span>
+  </div>
+  <div id="livepill" hidden style="position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:700">
+  <button onclick="pullNew()" style="display:flex;align-items:center;gap:8px;background:var(--wtf-accent);color:#fff;border:0;
+    border-radius:999px;padding:9px 18px;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+    cursor:pointer;box-shadow:0 10px 30px -8px rgba(0,0,0,.8)">
+    <span style="width:6px;height:6px;border-radius:50%;background:#fff;animation:blink 1.6s ease-in-out infinite"></span>
+    <span id="livepill-n"></span></button>
+</div>
+<div id="protip" hidden></div>
+  </div>
+</div></div>
+
+<div class="wrap">
+  <div class="feed" id="feed"></div>
+  <div id="empty" hidden style="padding:44px 20px;text-align:center;border:1px dashed var(--wtf-border);border-radius:var(--r-lg);color:var(--wtf-text-muted)">
+    <div style="font-family:var(--wtf-font-serif);font-size:19px;color:var(--wtf-text-2);margin-bottom:6px">Nothing matches those filters</div>
+    <div id="empty-why" style="font-size:13px;line-height:1.7;max-width:56ch;margin:0 auto"></div>
+    <div id="empty-fix" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px"></div>
+  </div>
+  <div style="margin-top:18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--wtf-accent);border-radius:var(--r-lg);padding:15px 17px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
+  <div>
+    <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-accent)">Looking for something older?</div>
+    <div style="font-size:13px;line-height:1.6;color:var(--wtf-text-2);margin-top:4px">Latest is the live feed. The full archive is sortable, exportable and covers every article scored to date.</div>
+  </div>
+  <a href="wtf-archive.html" class="chip" style="padding:10px 20px;background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Open full archive &rarr;</a>
+</div>
+<div id="pager" style="display:flex;justify-content:center;align-items:center;gap:6px;flex-wrap:wrap;margin-top:22px"></div>
+  <div style="display:flex;justify-content:center;margin-top:12px">
+    <button id="more" class="chip" style="padding:9px 22px;font-size:10px;letter-spacing:.13em;text-transform:uppercase">Load more</button>
+  </div>
+  <p class="note">Lean bands follow the Canadian convention, left in red through right in blue. A band is a reading of one article's framing against the same story elsewhere — it is not a permanent label on the outlet.</p>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Story detail" tabindex="-1"></aside>
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+<script src="wtf-corpus.js"></script>
+<script>
+/* ═══ state ═════════════════════════════════════════════════════════════ */
+const S = { q:'', lean:new Set(), verdict:new Set(), beat:new Set(), prov:new Set(),
+            src:new Set(), sort:'new', page:1, win:0, group:true,
+            dens:'card', saved:false, paged:false, lang:'', blind:false, unread:false };
+
+/* Read state is free — it costs nothing to store and it is the difference
+   between a feed you can return to and one you re-scan. */
+let READ = new Set();
+try { READ = new Set(JSON.parse(localStorage.getItem('wtf-read') || '[]')); } catch (e) {}
+const markRead = id => { if (!READ.has(id)) { READ.add(id); try { localStorage.setItem('wtf-read', JSON.stringify([...READ])); } catch (e) {} } };
+
+/* Tier gate. Preview flips it so the subscriber view can be reviewed. */
+let PRO = false;
+try { PRO = localStorage.getItem('wtf-sub') === '1'; } catch (e) {}
+function requirePro(label) {
+  const box = document.getElementById('protip');
+  box.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;' +
+    'background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:var(--r-lg);padding:13px 16px;margin-bottom:11px">' +
+    '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-accent)">Starter feature</span>' +
+    '<span style="font-size:13px;color:var(--wtf-text-2)">' + label + ' is part of Starter.</span>' +
+    '<a href="wtf-home.html" class="chip" style="padding:8px 16px;background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Subscribe &mdash; $4.99/mo</a>' +
+    '<button class="chip" style="padding:8px 16px;cursor:pointer" onclick="goPro()">Preview</button></div>';
+  box.hidden = false;
+}
+function goPro() { PRO = true; try { localStorage.setItem('wtf-sub','1'); } catch (e) {} document.getElementById('protip').hidden = true; renderQuick(); renderAll(); }
+window.goPro = goPro;
+let PER = 15;
+
+/* Saved rows persist so a reading list survives a reload. */
+let SAVED = new Set();
+try { SAVED = new Set(JSON.parse(localStorage.getItem('wtf-saved') || '[]')); } catch (e) {}
+const persistSaved = () => { try { localStorage.setItem('wtf-saved', JSON.stringify([...SAVED])); } catch (e) {} };
+function toggleSave(id, ev) {
+  ev.stopPropagation();
+  SAVED.has(id) ? SAVED.delete(id) : SAVED.add(id);
+  persistSaved(); renderAll();
+}
+window.toggleSave = toggleSave;
+const DAY_FMT = { weekday:'long', month:'long', day:'numeric' };
+function dayKey(m) { const d = dateOf(m); return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); }
+function dayLabel(m) {
+  const d = dateOf(m), t = new Date(NOW);
+  const same = (a,b) => a.toDateString() === b.toDateString();
+  if (same(d,t)) return 'Today';
+  const y = new Date(t.getTime() - 864e5);
+  if (same(d,y)) return 'Yesterday';
+  return d.toLocaleDateString('en-CA', DAY_FMT);
+}
+
+function visible() {
+  const q = S.q.trim().toLowerCase();
+  const src = S.group ? ARTICLES.filter(a => a.first) : ARTICLES;
+  let out = src.filter(a =>
+    (!S.win || a.min <= S.win) &&
+    (!S.lean.size    || S.lean.has(a.lean)) &&
+    (!S.verdict.size || (a.verdict && S.verdict.has(a.verdict))) &&
+    (!S.beat.size    || S.beat.has(a.beat)) &&
+    (!S.prov.size    || S.prov.has(a.prov)) &&
+    (!S.src.size     || S.src.has(a.src)) &&
+    (!S.saved        || SAVED.has(a.id)) &&
+    (!S.lang         || a.lang === S.lang) &&
+    (!S.blind        || a.blind) &&
+    (!S.unread       || !READ.has(a.id)) &&
+    (!q || (a.t+' '+(a.tFr||'')+' '+a.src+' '+a.beat+' '+a.prov).toLowerCase().includes(q)));
+  const spreadOf = a => { const m = Math.max(...a.spread); return 100 - m; };
+  const by = { new:(a,b)=>a.min-b.min, old:(a,b)=>b.min-a.min,
+               outlets:(a,b)=>b.outlets-a.outlets, lonely:(a,b)=>a.outlets-b.outlets,
+               diverge:(a,b)=>spreadOf(b)-spreadOf(a),
+               blind:(a,b)=>(b.blind?1:0)-(a.blind?1:0) || a.min-b.min };
+  return out.sort(by[S.sort]);
+}
+
+/* ═══ filter chips ══════════════════════════════════════════════════════ */
+function chips(host, items, set, keyed) {
+  const axis = host.replace('f-','');
+  document.getElementById(host).innerHTML = items.map(it => {
+    const k = typeof it === 'string' ? it : it.k;
+    const n = countFor(axis, k);
+    const l = typeof it === 'string' ? it : it.l;
+    return '<button class="chip'+(set.has(k)?' on':'')+(n===0&&!set.has(k)?' empty':'')+'"'+(keyed?' data-k="'+k+'"':'')+
+      ' data-v="'+k+'">'+l+' <span class="cnt">'+n+'</span></button>';
+  }).join('');
+  document.getElementById(host).onclick = e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    set.has(b.dataset.v) ? set.delete(b.dataset.v) : set.add(b.dataset.v);
+    S.page = 1; refreshChips(); renderAll();
+  };
+}
+
+/* ═══ cards ═════════════════════════════════════════════════════════════ */
+function row(a) {
+  const b = bandOf(a.lean), v = a.verdict ? VERDICTS[a.verdict] : null;
+  return '<article class="art row lean-'+a.lean+(READ.has(a.id)?' is-read':'')+'" data-id="'+a.id+'" tabindex="0">'+
+    '<span class="row-time">'+(a.min > 2880 ? dateOf(a.min).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : ago(a.min))+'</span>'+
+    '<span class="row-src">'+a.src+'</span>'+
+    '<span class="row-t">'+titleOf(a)+(a.lang==='fr'?' <span class="lang">FR</span>':'')+'</span>'+
+    '<span class="row-tags">'+
+      (v ? '<span style="color:'+v.c+'">'+v.g+'</span>' : '')+
+      (a.blind ? '<span style="color:var(--wtf-accent);font-family:var(--wtf-font-mono);font-size:9px">BS</span>' : '')+
+      '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">'+a.outlets+'</span>'+
+      '<span style="width:8px;height:8px;border-radius:2px;background:'+b.hex+'"></span>'+
+      '<button class="savebtn'+(SAVED.has(a.id)?' on':'')+'" onclick="toggleSave(\''+a.id+'\',event)" aria-label="Save">'+(SAVED.has(a.id)?'★':'☆')+'</button>'+
+    '</span></article>';
+}
+
+function card(a, i) {
+  const b = bandOf(a.lean), v = a.verdict ? VERDICTS[a.verdict] : null;
+  return '<article class="art lean-'+a.lean+(a.blind?' is-blind':'')+(READ.has(a.id)?' is-read':'')+'" data-id="'+a.id+'" tabindex="0" style="animation-delay:'+Math.min(i*22,340)+'ms">'+
+    '<div class="ameta"><span>'+a.src.toUpperCase()+' · '+a.prov+'</span><span title="'+dateOf(a.min).toLocaleString('en-CA')+'">'+
+      (a.min > 2880 ? dateOf(a.min).toLocaleDateString('en-CA',{month:'short',day:'numeric'}) : ago(a.min))+'</span></div>'+
+    '<div class="atitle">'+titleOf(a)+(a.lang==='fr'?' <span class="lang">FR</span>':'')+'</div>'+
+    (a.note ? '<div class="adek">'+a.note+'</div>' : '')+
+    '<div class="minispec">'+a.spread.map((w,j)=>'<i style="width:'+w+'%;background:'+BANDS[j].hex+';opacity:'+(BANDS[j].k===a.lean?1:.34)+'"></i>').join('')+'</div>'+
+    '<div class="atags">'+
+      (v ? '<span class="pill p-'+(a.verdict==='established'?'est':a.verdict==='developing'?'dev':'con')+'">'+v.g+' '+v.l+'</span>' : '')+
+      '<span class="pill p-'+a.lean+'">'+b.l+'</span>'+
+      '<span class="pill p-out">'+(S.group ? a.outlets+' outlet'+(a.outlets===1?'':'s') : 'in a '+a.outlets+'-outlet story')+'</span>'+
+      '<button class="savebtn'+(SAVED.has(a.id)?' on':'')+'" onclick="toggleSave(\''+a.id+'\',event)" aria-label="Save">'+(SAVED.has(a.id)?'★ Saved':'☆ Save')+'</button>'+
+      (a.blind ? '<span class="pill p-blind">Blindspot</span>' : '')+
+    '</div></article>';
+}
+
+function renderAll() {
+  const list = visible();
+  const shown = S.paged ? list.slice((S.page-1) * PER, S.page * PER) : list.slice(0, S.page * PER);
+
+  /* Date rails. A database sorted by time needs them; without a rail the
+     reader cannot tell where today ends. Only drawn on time sorts, since
+     under "most covered" the dates are interleaved and a rail would lie. */
+  const railed = S.sort === 'new' || S.sort === 'old';
+  let html = '', lastKey = null;
+  shown.forEach((a, i) => {
+    if (railed) {
+      const k = dayKey(a.min);
+      if (k !== lastKey) {
+        lastKey = k;
+        const n = list.filter(x => dayKey(x.min) === k).length;
+        html += '<div class="rail"><span class="rail-d">' + dayLabel(a.min) + '</span>' +
+                '<span class="rail-r"></span>' +
+                '<span class="rail-n">' + n + ' ' + (S.group ? 'stor' + (n===1?'y':'ies') : 'article' + (n===1?'':'s')) + '</span></div>';
+      }
+    }
+    html += S.dens === 'row' ? row(a) : card(a, i);
+  });
+  document.getElementById('feed').innerHTML = html;
+  document.getElementById('feed').className = S.dens === 'row' ? 'feed feed-rows' : 'feed';
+  drawPager(list.length);
+  renderSavedBtn();
+  document.getElementById('f-quick') && renderQuick();
+  const none = list.length === 0;
+  document.getElementById('empty').hidden = !none;
+  if (none) explainEmpty();
+  badge();
+  document.getElementById('empty').hidden = list.length > 0;
+  document.getElementById('more').hidden = shown.length >= list.length;
+  const unit = S.group ? 'stor' + (list.length === 1 ? 'y' : 'ies') : 'article' + (list.length === 1 ? '' : 's');
+  const total = S.group ? CLUSTERS.length : ARTICLES.length;
+  document.getElementById('rcount').textContent =
+    list.length.toLocaleString() + ' of ' + total.toLocaleString() + ' ' + unit +
+    (shown.length < list.length ? ' · showing ' + shown.length : '');
+  const rest = list.length - shown.length;
+  const moreBtn = document.getElementById('more');
+  moreBtn.textContent = rest > 0 ? 'Load ' + Math.min(PER, rest) + ' more · ' + rest.toLocaleString() + ' left' : 'Load more';
+
+  const tot = list.reduce((s,a)=>s+a.outlets,0) || 1;
+  const mix = BANDS.map(b => list.filter(a=>a.lean===b.k).reduce((s,a)=>s+a.outlets,0));
+  document.getElementById('rspec').innerHTML = BANDS.map((b,j) => {
+    const pct = Math.round(mix[j]/tot*100);
+    return '<div style="flex:'+Math.max(mix[j],0.0001)+';background:'+b.hex+'">'+(pct>=8?pct+'%':'')+'</div>';
+  }).join('');
+
+  const active = S.q || S.lean.size || S.verdict.size || S.beat.size || S.prov.size || S.src.size || S.win || S.saved || S.lang || S.blind || S.unread;
+  document.getElementById('clear').hidden = !active;
+
+  document.getElementById('s-24h').textContent = ARTICLES.filter(a=>a.min<=1440).length.toLocaleString();
+  document.getElementById('s-src').textContent = new Set(ARTICLES.map(a=>a.src)).size;
+  document.getElementById('s-clu').textContent = CLUSTERS.filter(a=>a.outlets>=10).length;
+  document.getElementById('s-blind').textContent = CLUSTERS.filter(a=>a.blind).length;
+  /* Percentages need their band names; five bare numbers are not an index. */
+  const keyMix = BANDS.map(bd => ({ bd, n: list.filter(x => x.lean === bd.k).length }));
+  const keyTot = list.length || 1;
+  document.getElementById('rkey').innerHTML = keyMix.map(m =>
+    '<i style="--c:' + m.bd.hex + '">' + m.bd.l + ' ' + Math.round(m.n / keyTot * 100) + '%</i>').join('');
+  const nSrc = new Set(ARTICLES.map(x => x.src)).size;
+  const ls = document.getElementById('lede-src'); if (ls) ls.textContent = nSrc;
+  const fs = document.getElementById('foot-src'); if (fs) fs.textContent = nSrc;
+  syncURL();
+}
+
+/* ═══ drawer ════════════════════════════════════════════════════════════ */
+let openId = null;
+/* Coming back from the full article page should land where you left the feed,
+   not at the top of it. */
+try {
+  const back = sessionStorage.getItem('wtf-feed-y');
+  if (back) { addEventListener('load', () => scrollTo(0, +back)); sessionStorage.removeItem('wtf-feed-y'); }
+} catch (e) {}
+addEventListener('click', e => {
+  const link = e.target.closest('a[href^="wtf-article.html"]');
+  if (link) { try { sessionStorage.setItem('wtf-feed-y', String(scrollY)); } catch (err) {} }
+});
+
+function openStory(id) {
+  const a = ARTICLES.find(x => x.id === id); if (!a) return;
+  openId = id;
+  markRead(id);
+  document.getElementById('drawer').scrollTop = 0;
+  const b = bandOf(a.lean), v = a.verdict ? VERDICTS[a.verdict] : null;
+  const tot = a.spread.reduce((s,x)=>s+x,0) || 1;
+  const lead = a.spread.indexOf(Math.max(...a.spread));
+
+  document.getElementById('drawer').innerHTML =
+    '<div class="dhead">'+
+      '<div style="min-width:0;flex:1">'+
+        '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;color:var(--wtf-text-muted);margin-bottom:5px">'+
+          a.src.toUpperCase()+' · '+a.prov+' · '+ago(a.min)+'</div>'+
+        '<div style="font-family:var(--wtf-font-serif);font-size:21px;line-height:1.24;letter-spacing:-.015em;text-wrap:pretty">'+titleOf(a)+'</div>'+
+        (a.lang==='fr'&&a.tFr ? '<div style="font-size:12.5px;line-height:1.5;color:var(--wtf-text-muted);margin-top:5px">'+a.t+' <span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">(English rendering)</span></div>' : '')+
+        '<div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:9px">'+
+          '<span class="pill p-'+a.lean+'">'+b.l+'</span>'+
+          (v ? '<span class="pill p-'+(a.verdict==='established'?'est':a.verdict==='developing'?'dev':'con')+'">'+v.g+' '+v.l+'</span>' : '')+
+          '<span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-established);border:1px solid rgba(16,185,129,.32);border-radius:2px;padding:2px 7px">C.R.E.E.D. audited</span>'+
+          '<a href="wtf-creed.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.08em;color:var(--wtf-aurora)">Full audit trail &#x2197;</a>'+
+        '</div>'+
+      '</div><button class="dclose" onclick="closeStory()" aria-label="Close">×</button></div>'+
+    '<div class="dtabs" role="tablist">'+
+      ['analysis|Analysis','coverage|Coverage · '+a.outlets,'sources|Sources'].map((t,i) => {
+        const [k,l] = t.split('|');
+        return '<button class="dtab'+(i===0?' on':'')+'" role="tab" data-pane="'+k+'">'+l+'</button>';
+      }).join('')+
+    '</div>'+
+
+    '<div class="dbody">'+
+    '<div class="dpane on" data-pane="analysis">'+
+
+      /* Shown only when there is a real analyst note. A generic sentence under
+         a "quoted, not summarised" label would make the label false. */
+      (a.note ?
+      '<div class="dbox" style="border-left:3px solid var(--wtf-border)">'+
+        '<div class="dsec" style="margin-bottom:7px">Analyst note</div>'+
+        '<p style="font-family:var(--wtf-font-serif);font-size:15.5px;line-height:1.64;color:var(--wtf-text-2);margin:0;text-wrap:pretty">'+a.note+'</p>'+
+        '<div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--wtf-border);display:flex;flex-wrap:wrap;gap:8px;align-items:center">'+
+          '<a href="wtf-article.html?id='+encodeURIComponent(a.id)+'" style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--wtf-accent)">Read the excerpt &rarr;</a>'+
+          '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">Filed by the desk, not generated</span></div>'+
+      '</div>' :
+      '<div class="dbox" style="border-left:3px solid var(--wtf-border)">'+
+        '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-muted)">No analyst note on this story. '+
+        'The scores below come from the text of the article itself.</div>'+
+        '<a href="wtf-article.html?id='+encodeURIComponent(a.id)+'" style="display:inline-block;margin-top:9px;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--wtf-accent)">Read the excerpt &rarr;</a>'+
+      '</div>')+
+
+      '<div style="display:none"><div class="dsec">Reading</div>'+
+        '<div class="dbox" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px">'+
+          [['Lean band', b.l, b.hex],
+           ['Verdict', v ? v.l : 'Not fact-checked', v ? v.c : 'var(--wtf-text-muted)'],
+           ['Outlets', String(a.outlets), 'var(--wtf-text)'],
+           ['Beat', a.beat, 'var(--wtf-text)']].map(([k,val,c]) =>
+            '<div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;margin-bottom:4px">'+k+'</div>'+
+            '<div style="font-family:var(--wtf-font-mono);font-size:13px;color:'+c+'">'+val+'</div></div>').join('')+
+        '</div></div>'+
+
+      (a.blind ? '<div class="dbox" style="border-left:3px solid var(--wtf-accent)">'+
+        '<div class="dsec" style="color:var(--wtf-accent);margin-bottom:6px">Blindspot</div>'+
+        '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-2)">Carried by '+a.outlets+' outlet'+(a.outlets===1?'':'s')+
+        ', concentrated in one region or one language. A story can be well reported and still reach almost nobody.</div></div>' : '')+
+
+      (!v ? '<div class="dbox" style="border-left:3px solid var(--wtf-text-muted)">'+
+        '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-muted)">No fact-check verdict on this story. '+
+        'Absence of a verdict is not a pass — it means V.E.R.I.F.Y. has not run it.</div></div>' : '')+
+
+      /* B.I.A.S. panel — the article page plots the score on a -1..+1 axis
+         with a marker, so the drawer does the same off the same numbers. */
+      (function () {
+        const idx = BANDS.findIndex(x => x.k === a.lean);
+        const score = (idx - 2) / 2;                       // -1 .. +1
+        const pct = Math.round((score + 1) / 2 * 100);
+        return '<div><div class="dsec" style="color:var(--wtf-bias)">B.I.A.S. analysis</div>'+
+          '<div class="dbox">'+
+            '<div style="display:inline-block;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:'+b.hex+';border:1px solid '+b.hex+'55;border-radius:2px;padding:3px 9px;margin-bottom:11px">'+b.l+'</div>'+
+            '<div style="position:relative;height:7px;border-radius:4px;margin-bottom:6px;background:linear-gradient(90deg,'+BANDS.map(x=>x.hex).join(',')+')">'+
+              '<div style="position:absolute;top:-4px;left:'+pct+'%;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-panel);transform:translateX(-50%)"></div></div>'+
+            '<div style="display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-bottom:13px"><span>Left</span><span>Centre</span><span>Right</span></div>'+
+            '<div class="dsec" style="margin-bottom:8px">Where the '+a.outlets+' outlets covering this sit</div>'+
+            BANDS.map((bd,j) => {
+              const p2 = Math.round(a.spread[j]/tot*100), on = j===lead;
+              return '<div class="cov"><b style="color:'+(on?'var(--wtf-text)':'var(--wtf-text-2)')+'">'+bd.l+'</b>'+
+                '<span class="covbar"><i style="width:'+p2+'%;background:'+bd.hex+';opacity:'+(on?1:.55)+'"></i></span>'+
+                '<span style="text-align:right;color:'+(on?'var(--wtf-text)':'var(--wtf-text-muted)')+'">'+p2+'%</span></div>';
+            }).join('')+
+            '<div style="font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:9px;border-top:1px solid var(--wtf-border)">Scored on this article&rsquo;s framing against the same story elsewhere, not on the outlet&rsquo;s history. '+
+            'A different piece from '+a.src+' can land in a different band tomorrow.</div>'+
+            '<div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--wtf-border);font-size:11.5px;line-height:1.65;color:var(--wtf-text-2)">'+
+              '&#128274; <a href="wtf-home.html">Sign in</a> or <a href="wtf-home.html">subscribe</a> for the rationale and the trigger phrases B.I.A.S. matched.</div>'+
+          '</div></div>';
+      })()+
+
+      '<div><div class="dsec" style="color:var(--wtf-verify)">V.E.R.I.F.Y. fact-check</div>'+
+        '<div class="dbox">'+
+          (v ? '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">'+
+                 '<span style="font-size:15px;color:'+v.c+'">'+v.g+'</span>'+
+                 '<span style="font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:'+v.c+'">'+v.l+'</span></div>'
+             : '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-muted);margin-bottom:10px">No verdict yet. Absence of a verdict is not a pass &mdash; it means V.E.R.I.F.Y. has not run this story.</div>')+
+          '<div style="background:var(--wtf-bg);border:1px dashed var(--wtf-border);border-radius:var(--r-sm);padding:14px;text-align:center">'+
+            '<div style="font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);margin-bottom:9px">Claim-by-claim verdicts and reasoning are part of Starter.</div>'+
+            '<a href="wtf-home.html" class="chip" style="padding:8px 16px">Subscribe &mdash; $4.99/mo</a></div>'+
+        '</div></div>'+
+
+      '<div style="display:none">'+
+        '<div class="dbox" style="display:flex;flex-direction:column;gap:6px">'+
+          [['B.I.A.S.','Bias analyst','var(--wtf-bias)'],
+           ['V.E.R.I.F.Y.','Fact-checker','var(--wtf-verify)'],
+           ['L.O.C.A.L.','Geo analyst','var(--wtf-local)'],
+           ['I.N.K.','Clustering','var(--wtf-aurora)']].map(r =>
+            '<div style="display:flex;align-items:center;gap:9px;border-left:2px solid '+r[2]+';padding:5px 0 5px 10px">'+
+              '<span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:'+r[2]+'">'+r[0]+'</span>'+
+              '<span style="font-size:12px;color:var(--wtf-text-muted)">'+r[1]+'</span></div>').join('')+
+        '</div></div>'+
+
+    '</div>'+
+    '<div class="dpane" data-pane="coverage">'+
+
+      /* Same story, other outlets. The premise of the site is that these
+         differ; until you can see them side by side it stays an assertion. */
+      (function () {
+        const sibs = siblingsOf(a).filter(x => x.id !== a.id);
+        if (!sibs.length) return '';
+        return '<div><div class="dsec">Same story, '+sibs.length+' other outlet'+(sibs.length===1?'':'s')+'</div>'+
+          '<div class="dbox siblist" id="siblist" style="padding:0;overflow:hidden">'+
+            sibs.map(x => {
+              const xb = bandOf(x.lean);
+              return '<a href="wtf-article.html?id='+encodeURIComponent(x.id)+'" style="display:grid;grid-template-columns:3px minmax(0,1fr) auto;gap:11px;align-items:center;padding:10px 13px;border-bottom:1px solid var(--wtf-border)">'+
+                '<span style="width:3px;height:26px;border-radius:2px;background:'+xb.hex+'"></span>'+
+                '<span style="min-width:0">'+
+                  '<span style="display:block;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;color:var(--wtf-text-muted)">'+x.src.toUpperCase()+'</span>'+
+                  '<span style="display:block;font-family:var(--wtf-font-serif);font-size:13.5px;line-height:1.35;color:var(--wtf-text-2);margin-top:2px;text-wrap:pretty">'+headlineFor(x)+'</span></span>'+
+                '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:'+xb.hex+';white-space:nowrap">'+xb.l+'</span></a>';
+            }).join('')+
+          '</div>'+
+          (sibs.length > 8 ? '<button class="sibmore" onclick="expandSibs(this)">Show all '+sibs.length+' outlets</button>' : '')+
+          '<div style="font-size:11.5px;line-height:1.6;color:#5d6875;margin-top:9px">Same event, different framing. The band is scored on the wording, not the masthead.</div></div>';
+      })()+
+
+      /* Pickup order — who filed first and who followed. */
+      (function () {
+        const sibs = siblingsOf(a);
+        if (sibs.length < 2) return '';
+        const span = sibs[sibs.length-1].min - sibs[0].min || 1;
+        return '<div><div class="dsec">Pickup order</div><div class="dbox puplist" id="puplist">'+
+          sibs.map((x,i) => {
+            const off = x.min - sibs[0].min;
+            const pct = Math.round(off / span * 100);
+            const here = x.id === a.id;
+            return '<div style="display:grid;grid-template-columns:118px minmax(0,1fr) 52px;gap:9px;align-items:center;margin-bottom:6px">'+
+              '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:'+(here?'var(--wtf-text)':'var(--wtf-text-muted)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x.src+'</span>'+
+              '<span style="position:relative;height:4px;border-radius:2px;background:var(--wtf-bg)">'+
+                '<span style="position:absolute;left:'+pct+'%;top:-3px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);background:'+(here?'var(--wtf-accent)':bandOf(x.lean).hex)+'"></span></span>'+
+              '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;text-align:right">'+(i===0?'first':'+'+Math.round(off/60)+'h')+'</span></div>';
+          }).join('')+
+          '</div>'+
+          (sibs.length > 7 ? '<button class="sibmore" onclick="expandPup(this)">Show all '+sibs.length+' filings</button>' : '')+
+          '<div style="font-size:11.5px;line-height:1.6;color:var(--wtf-text-muted);margin-top:9px;padding-top:9px;border-top:1px solid var(--wtf-border)">'+
+            sibs[0].src+' filed first over '+Math.round((sibs[sibs.length-1].min - sibs[0].min)/60)+' hours of pickup. '+
+            'Order distinguishes original reporting from aggregation.</div></div>';
+      })()+
+    '</div>'+
+    '<div class="dpane" data-pane="sources">'+
+
+      '<div><div class="dsec">Agents on this story</div>'+
+        '<div class="dbox" style="display:flex;flex-direction:column;gap:7px">'+
+          [['B','B.I.A.S.','Bias analyst','#f59e0b','Scored this article '+b.l,true],
+           ['V','V.E.R.I.F.Y.','Fact-checker','#10b981', v ? 'Verdict: '+v.l : 'Not yet run on this story', !!v],
+           ['L','L.O.C.A.L.','Geo analyst','#4a72d8','Placed in '+a.prov,true],
+           ['I','I.N.K.','Clustering','#a78bfa','Grouped '+a.outlets+' outlets',true],
+           ['D','D.R.A.F.T.','Summaries','#7fa3cf', a.note ? 'Note filed by the desk' : 'No summary filed', !!a.note],
+           ['F','F.A.C.T.','Beat routing','#dc2626','Routed to '+a.beat,true]].map(r =>
+            '<div class="agentrow" style="--ac:'+r[3]+'">'+
+              '<span class="agentdot">'+r[0]+'</span>'+
+              '<span style="min-width:0">'+
+                '<span class="agentname">'+r[1]+'</span>'+
+                '<span class="agentwhat">'+r[4]+'</span></span>'+
+              '<span class="agentstate" style="color:'+(r[5]?'var(--wtf-established)':'var(--wtf-text-muted)')+'">'+
+                (r[5]?'done':'pending')+'</span></div>').join('')+
+          '<div style="font-size:11.5px;line-height:1.6;color:#5d6875;margin-top:6px;padding-top:9px;border-top:1px solid var(--wtf-border)">'+
+            'Each agent keeps its own colour across the site, so a mark in a chart or a badge on a card is always the same analyst.</div>'+
+        '</div></div>'+
+
+      '<div><div class="dsec">At a glance</div>'+
+        '<div class="dbox" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px">'+
+          [['Outlet', a.src, 'var(--wtf-text)'],
+           ['Lean band', b.l, b.hex],
+           ['Verdict', v ? v.l : 'Not fact-checked', v ? v.c : 'var(--wtf-text-muted)'],
+           ['Outlets', String(a.outlets), 'var(--wtf-text)'],
+           ['Beat', a.beat, 'var(--wtf-text)'],
+           ['Province', a.prov, 'var(--wtf-text)'],
+           ['Language', a.lang === 'fr' ? 'Français' : 'English', 'var(--wtf-text)'],
+           ['Filed', ago(a.min), 'var(--wtf-text)']].map(([k,val,c]) =>
+            '<div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;margin-bottom:4px">'+k+'</div>'+
+            '<div style="font-family:var(--wtf-font-mono);font-size:12.5px;color:'+c+'">'+val+'</div></div>').join('')+
+        '</div></div>'+
+
+    '</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<a href="wtf-article.html?id='+encodeURIComponent(a.id)+'&back='+encodeURIComponent(location.hash.slice(1))+'" class="chip" style="padding:9px 16px;background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Open full article page →</a>'+
+        '<a href="'+(a.url || 'wtf-news.html?src='+encodeURIComponent(a.src))+'" class="chip" style="padding:9px 16px">Read at '+a.src+' &#x2197;</a>'+
+        '<button class="chip" style="padding:9px 16px;cursor:pointer" onclick="showPane(\'coverage\')">Compare coverage</button>'+
+        '<a href="wtf-outlet.html?src='+encodeURIComponent(a.src)+'" class="chip" style="padding:9px 16px">'+a.src+' profile</a>'+
+        '<button class="chip" style="padding:9px 16px;cursor:pointer" onclick="copyLink(\''+a.id+'\',this)">Copy link</button>'+
+      '</div>'+
+      '<div style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;color:#4d5766;text-align:center;margin-top:4px">J / K to move between stories &middot; Esc to close</div>'+
+    '</div>';
+  const dr = document.getElementById('drawer');
+  dr.classList.add('on');
+  dr.onclick = e => {
+    const t = e.target.closest('.dtab'); if (!t) return;
+    dr.querySelectorAll('.dtab').forEach(x => x.classList.toggle('on', x === t));
+    dr.querySelectorAll('.dpane').forEach(p => p.classList.toggle('on', p.dataset.pane === t.dataset.pane));
+    dr.querySelector('.dbody').scrollTop = 0;
+  };
+  document.getElementById('scrim').classList.add('on');
+  trapFocus(dr);
+}
+/* Tab must stay inside an open dialog; without this the reader tabs into the
+   feed behind it and loses the drawer entirely. */
+let lastFocus = null, trapHandler = null;
+function trapFocus(box) {
+  lastFocus = document.activeElement;
+  const sel = 'a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])';
+  const first = () => [...box.querySelectorAll(sel)].filter(el => el.offsetParent !== null);
+  const nodes = first();
+  (nodes[0] || box).focus({ preventScroll:true });
+  trapHandler = e => {
+    if (e.key !== 'Tab') return;
+    const f = first(); if (!f.length) return;
+    const a = f[0], z = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+    else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+  };
+  box.addEventListener('keydown', trapHandler);
+}
+function releaseFocus(box) {
+  if (trapHandler) box.removeEventListener('keydown', trapHandler);
+  trapHandler = null;
+  if (lastFocus && lastFocus.isConnected) lastFocus.focus({ preventScroll:true });
+  lastFocus = null;
+}
+
+function closeStory() {
+  releaseFocus(document.getElementById('drawer'));
+  openId = null;
+  document.getElementById('drawer').classList.remove('on');
+  document.getElementById('scrim').classList.remove('on');
+}
+window.closeStory = closeStory;
+
+/* Step through the CURRENT filtered list without closing the drawer, so a
+   reader can work down a filtered feed the way they'd work down an inbox. */
+function step(dir) {
+  const list = visible();
+  const i = list.findIndex(x => x.id === openId);
+  if (i < 0) return;
+  const next = list[i + dir];
+  if (next) openStory(next.id);
+}
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+  if (typing) return;
+  if (e.key === 'Escape' && openId) { closeStory(); return; }
+  if (!openId) return;
+  if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); step(1); }
+  if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); step(-1); }
+});
+
+function copyLink(id, btn) {
+  const url = location.origin + location.pathname.replace(/[^/]*$/, '') + 'wtf-article.html?id=' + encodeURIComponent(id);
+  const done = () => { const t = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => btn.textContent = t, 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done); else done();
+}
+window.copyLink = copyLink;
+
+/* Expanding scrolls within the list rather than stretching the drawer, so a
+   22-outlet cluster does not push everything below it off the screen. */
+function expandSibs(btn) {
+  const box = document.getElementById('siblist');
+  const open = box.classList.toggle('expanded');
+  btn.textContent = open ? 'Collapse list' : 'Show all ' + box.children.length + ' outlets';
+}
+window.expandSibs = expandSibs;
+function showPane(k) {
+  const dr = document.getElementById('drawer');
+  const tab = dr.querySelector('.dtab[data-pane="' + k + '"]');
+  if (tab) tab.click();
+  dr.querySelector('.dbody').scrollTo({ top:0, behavior:'smooth' });
+}
+window.showPane = showPane;
+function expandPup(btn) {
+  const box = document.getElementById('puplist');
+  const open = box.classList.toggle('expanded');
+  btn.textContent = open ? 'Collapse list' : 'Show all ' + box.children.length + ' filings';
+}
+window.expandPup = expandPup;
+
+/* Page numbers, because a 241-row archive behind one button is a wall.
+   Load more still works for readers who prefer to keep scrolling. */
+function drawPager(total) {
+  const pages = Math.ceil(total / PER) || 1;
+  const el = document.getElementById('pager');
+  if (pages <= 1) { el.innerHTML = ''; return; }
+  const cur = Math.min(S.page, pages);
+  const nums = new Set([1, pages, cur, cur-1, cur+1, cur-2, cur+2].filter(n => n >= 1 && n <= pages));
+  const list = [...nums].sort((a,b) => a-b);
+  let out = '<button class="pg" data-p="' + Math.max(1, cur-1) + '"' + (cur===1?' disabled':'') + '>&larr;</button>';
+  let last = 0;
+  list.forEach(n => {
+    if (n - last > 1) out += '<span class="pg-gap">…</span>';
+    out += '<button class="pg' + (n===cur?' on':'') + '" data-p="' + n + '">' + n + '</button>';
+    last = n;
+  });
+  out += '<button class="pg" data-p="' + Math.min(pages, cur+1) + '"' + (cur===pages?' disabled':'') + '>&rarr;</button>';
+  el.innerHTML = out;
+}
+document.getElementById('pager').onclick = e => {
+  const b = e.target.closest('.pg'); if (!b || b.disabled) return;
+  S.paged = true; S.page = +b.dataset.p;
+  renderAll();
+  window.scrollTo({ top: document.querySelector('.ctrl').offsetTop - 8, behavior:'smooth' });
+};
+
+/* ═══ mobile filters ════════════════════════════════════════════════════ */
+const ftog = document.getElementById('ftoggle'), fstack = document.getElementById('fstack');
+ftog.onclick = () => {
+  const open = fstack.classList.toggle('open');
+  ftog.setAttribute('aria-expanded', open ? 'true' : 'false');
+};
+function badge() {
+  const n = (S.q ? 1 : 0) + S.lean.size + S.verdict.size + S.beat.size + S.prov.size + S.src.size +
+            (S.win ? 1 : 0) + (S.saved ? 1 : 0) + (S.lang ? 1 : 0) + (S.blind ? 1 : 0) + (S.unread ? 1 : 0);
+  const el = document.getElementById('fbadge');
+  el.hidden = n === 0; el.textContent = n;
+}
+
+/* ═══ empty state ═══════════════════════════════════════════════════════
+   A dead end is a bug. When nothing matches, name the filter responsible and
+   offer to drop just that one. */
+function explainEmpty() {
+  const probes = [
+    ['search',   () => { const t = S.q; S.q = ''; return () => S.q = t; },                 S.q ? 'the search “' + S.q + '”' : null],
+    ['lean',     () => { const t = new Set(S.lean); S.lean.clear(); return () => S.lean = t; },       S.lean.size ? 'the lean filter' : null],
+    ['verdict',  () => { const t = new Set(S.verdict); S.verdict.clear(); return () => S.verdict = t; }, S.verdict.size ? 'the verdict filter' : null],
+    ['beat',     () => { const t = new Set(S.beat); S.beat.clear(); return () => S.beat = t; },       S.beat.size ? 'the beat filter' : null],
+    ['province', () => { const t = new Set(S.prov); S.prov.clear(); return () => S.prov = t; },       S.prov.size ? 'the province filter' : null],
+    ['outlet',   () => { const t = new Set(S.src); S.src.clear(); return () => S.src = t; },          S.src.size ? 'the outlet filter' : null],
+    ['window',   () => { const t = S.win; S.win = 0; return () => S.win = t; },            S.win ? 'the time window' : null],
+    ['saved',    () => { const t = S.saved; S.saved = false; return () => S.saved = t; },  S.saved ? 'saved-only' : null],
+    ['language', () => { const t = S.lang; S.lang = ''; return () => S.lang = t; },        S.lang ? 'the language filter' : null],
+    ['unread',   () => { const t = S.unread; S.unread = false; return () => S.unread = t; }, S.unread ? 'unread-only' : null],
+    ['blindspot',() => { const t = S.blind; S.blind = false; return () => S.blind = t; },  S.blind ? 'the blindspot filter' : null]
+  ].filter(p => p[2]);
+
+  const culprits = [];
+  probes.forEach(([key, lift, label]) => {
+    const restore = lift();
+    const n = visible().length;
+    restore();
+    if (n > 0) culprits.push({ key, label, n });
+  });
+
+  const why = document.getElementById('empty-why');
+  const fix = document.getElementById('empty-fix');
+  if (!probes.length) {
+    why.textContent = 'No stories in the feed yet.';
+    fix.innerHTML = '';
+    return;
+  }
+  if (culprits.length) {
+    culprits.sort((a, b) => b.n - a.n);
+    why.innerHTML = 'Dropping <b style="color:var(--wtf-text)">' + culprits[0].label + '</b> would show ' +
+      culprits[0].n + ' stor' + (culprits[0].n === 1 ? 'y' : 'ies') + '.';
+    fix.innerHTML = culprits.slice(0, 3).map(c =>
+      '<button class="chip" data-drop="' + c.key + '">Drop ' + c.label + ' (' + c.n + ')</button>').join('') +
+      '<button class="chip" data-drop="all" style="background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Clear everything</button>';
+  } else {
+    why.textContent = 'Several filters are narrowing this at once. No single one is responsible.';
+    fix.innerHTML = '<button class="chip" data-drop="all" style="background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Clear everything</button>';
+  }
+}
+document.getElementById('empty-fix').onclick = e => {
+  const b = e.target.closest('[data-drop]'); if (!b) return;
+  const k = b.dataset.drop;
+  if (k === 'all') { document.getElementById('clear').click(); return; }
+  if (k === 'search') { S.q = ''; document.getElementById('q').value = ''; }
+  if (k === 'lean') S.lean.clear();
+  if (k === 'verdict') S.verdict.clear();
+  if (k === 'beat') S.beat.clear();
+  if (k === 'province') S.prov.clear();
+  if (k === 'outlet') S.src.clear();
+  if (k === 'window') S.win = 0;
+  if (k === 'saved') S.saved = false;
+  if (k === 'language') S.lang = '';
+  if (k === 'unread') S.unread = false;
+  if (k === 'blindspot') S.blind = false;
+  S.page = 1; renderWindow(); refreshChips(); renderAll();
+};
+
+/* ═══ url state ═════════════════════════════════════════════════════════
+   Every view here is citable, which matters for a site people are meant to
+   link to as evidence. State lives in the hash so a filtered feed can be
+   pasted into a story. */
+function syncURL() {
+  const p = new URLSearchParams();
+  if (S.q) p.set('q', S.q);
+  if (S.sort !== 'new') p.set('sort', S.sort);
+  if (S.win) p.set('win', S.win);
+  if (!S.group) p.set('view', 'articles');
+  ['lean','verdict','beat','prov'].forEach(k => { if (S[k].size) p.set(k, [...S[k]].join(',')); });
+  const q = p.toString();
+  history.replaceState(null, '', q ? '#' + q : location.pathname);
+}
+function restoreURL() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (!p.toString()) return;
+  S.q = p.get('q') || '';
+  if (S.q) document.getElementById('q').value = S.q;
+  if (p.get('sort')) { S.sort = p.get('sort'); document.getElementById('sort').value = S.sort; }
+  if (p.get('win')) S.win = +p.get('win');
+  if (p.get('view') === 'articles') S.group = false;
+  ['lean','verdict','beat','prov'].forEach(k => {
+    const v = p.get(k); if (v) v.split(',').forEach(x => S[k].add(x));
+  });
+}
+
+const WINDOWS = [{k:'0',l:'All time'},{k:'1440',l:'24 hours'},{k:'10080',l:'7 days'},{k:'43200',l:'30 days'}];
+function renderWindow() {
+  document.getElementById('f-win').innerHTML = WINDOWS.map(w =>
+    '<button class="chip' + (String(S.win) === w.k ? ' on' : '') + '" data-w="' + w.k + '">' + w.l + '</button>').join('');
+}
+document.getElementById('f-win').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  S.win = +b.dataset.w; S.page = 1; renderWindow(); renderAll();
+};
+function renderGroup() {
+  document.getElementById('f-group').innerHTML =
+    '<button class="chip' + (S.group ? ' on' : '') + '" data-g="1">By story</button>' +
+    '<button class="chip' + (!S.group ? ' on' : '') + '" data-g="0">Every article</button>';
+}
+document.getElementById('f-group').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  S.group = b.dataset.g === '1'; S.page = 1; renderGroup(); renderAll();
+};
+
+restoreURL();
+renderWindow(); renderGroup();
+
+/* Counts on every chip, computed against the OTHER active filters, so a chip
+   never promises rows it cannot deliver. */
+function countFor(key, val) {
+  const q = S.q.trim().toLowerCase();
+  const src = S.group ? ARTICLES.filter(a => a.first) : ARTICLES;
+  return src.filter(a =>
+    (key==='win'  || !S.win  || a.min <= S.win) &&
+    (key==='lean' || !S.lean.size    || S.lean.has(a.lean)) &&
+    (key==='verdict'|| !S.verdict.size || (a.verdict && S.verdict.has(a.verdict))) &&
+    (key==='beat' || !S.beat.size    || S.beat.has(a.beat)) &&
+    (key==='prov' || !S.prov.size    || S.prov.has(a.prov)) &&
+    (key==='src'  || !S.src.size     || S.src.has(a.src)) &&
+    (!S.lang || a.lang === S.lang) && (!S.blind || a.blind) &&
+    (!S.saved || SAVED.has(a.id)) && (!S.unread || !READ.has(a.id)) &&
+    (!q || (a.t+' '+a.src+' '+a.beat+' '+a.prov).toLowerCase().includes(q)) &&
+    (key==='lean' ? a.lean===val : key==='verdict' ? a.verdict===val :
+     key==='beat' ? a.beat===val : key==='prov' ? a.prov===val :
+     key==='src' ? a.src===val : true)).length;
+}
+
+/* Quick filters. Read-state and language are Starter; blindspot is free
+   because the flag itself is the public-interest part. */
+function renderQuick() {
+  const frN = (S.group ? ARTICLES.filter(a=>a.first) : ARTICLES).filter(a=>a.lang==='fr').length;
+  const bsN = (S.group ? ARTICLES.filter(a=>a.first) : ARTICLES).filter(a=>a.blind).length;
+  const unN = (S.group ? ARTICLES.filter(a=>a.first) : ARTICLES).filter(a=>!READ.has(a.id)).length;
+  document.getElementById('f-quick').innerHTML =
+    '<button class="chip' + (S.blind?' on':'') + '" data-q="blind">Blindspot (' + bsN + ')</button>' +
+    '<button class="chip' + (S.lang==='fr'?' on':'') + '" data-q="fr">Français (' + frN + ')' + (PRO?'':' 🔒') + '</button>' +
+    '<button class="chip' + (S.lang==='en'?' on':'') + '" data-q="en">English' + (PRO?'':' 🔒') + '</button>' +
+    '<button class="chip' + (S.unread?' on':'') + '" data-q="unread">Unread (' + unN + ')' + (PRO?'':' 🔒') + '</button>' +
+    '<button class="chip" data-q="allread">Mark page read</button>';
+}
+document.getElementById('f-quick').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const k = b.dataset.q;
+  if (k === 'blind') { S.blind = !S.blind; }
+  else if (k === 'allread') { visible().slice(0, PER).forEach(a => markRead(a.id)); }
+  else {
+    if (!PRO) { requirePro(k === 'unread' ? 'Filtering by what you have read' : 'Filtering by language'); return; }
+    if (k === 'unread') S.unread = !S.unread;
+    else S.lang = S.lang === k ? '' : k;
+  }
+  S.page = 1; renderQuick(); renderAll();
+};
+
+/* Outlet filter — the axis readers reach for first. */
+const SRCS = [...new Set(ARTICLES.map(a => a.src))].sort();
+function renderSrc() {
+  document.getElementById('f-src').innerHTML = SRCS.map(k =>
+    '<button class="chip' + (S.src.has(k) ? ' on' : '') + '" data-s="' + k.replace(/"/g,'&quot;') + '">' + k + '</button>').join('');
+}
+document.getElementById('f-src').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const k = b.dataset.s;
+  S.src.has(k) ? S.src.delete(k) : S.src.add(k);
+  S.page = 1; renderSrc(); renderAll();
+};
+function renderDens() {
+  document.getElementById('f-dens').innerHTML =
+    '<button class="chip' + (S.dens==='card'?' on':'') + '" data-d="card">Cards</button>' +
+    '<button class="chip' + (S.dens==='row'?' on':'') + '" data-d="row">Compact</button>';
+}
+document.getElementById('f-dens').onclick = e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  S.dens = b.dataset.d; PER = S.dens === 'row' ? 40 : 15; S.page = 1;
+  try { localStorage.setItem('wtf-dens', S.dens); } catch (err) {}
+  renderDens(); renderAll();
+};
+function renderSavedBtn() {
+  document.getElementById('f-saved').innerHTML =
+    '<button class="chip' + (S.saved?' on':'') + '" data-v="1">★ Saved only (' + SAVED.size + ')</button>';
+}
+document.getElementById('f-saved').onclick = e => {
+  if (!e.target.closest('.chip')) return;
+  S.saved = !S.saved; S.page = 1; renderSavedBtn(); renderAll();
+};
+try { const d = localStorage.getItem('wtf-dens'); if (d) { S.dens = d; PER = d === 'row' ? 40 : 15; } } catch (e) {}
+function refreshChips() {
+  chips('f-lean', BANDS, S.lean, true);
+  chips('f-verdict', Object.keys(VERDICTS).map(k=>({k,l:VERDICTS[k].l})), S.verdict, true);
+  chips('f-beat', [...new Set(ARTICLES.map(a=>a.beat))].sort(), S.beat, false);
+  chips('f-prov', PROVS.filter(p => ARTICLES.some(a=>a.prov===p)), S.prov, false);
+  renderSrc(); renderQuick(); renderSavedBtn();
+}
+renderSrc(); renderDens(); renderSavedBtn(); renderQuick();
+
+chips('f-lean', BANDS, S.lean, true);
+chips('f-verdict', Object.keys(VERDICTS).map(k=>({k,l:VERDICTS[k].l})), S.verdict, true);
+chips('f-beat', [...new Set(ARTICLES.map(a=>a.beat))].sort(), S.beat, false);
+chips('f-prov', PROVS.filter(p => ARTICLES.some(a=>a.prov===p)), S.prov, false);
+
+document.getElementById('q').oninput = e => { S.q = e.target.value; S.page = 1; renderAll(); };
+document.getElementById('sort').onchange = e => { S.sort = e.target.value; renderAll(); };
+document.getElementById('more').dataset.k = '1';
+document.getElementById('more').onclick = () => { S.page++; renderAll(); };
+document.getElementById('clear').onclick = () => {
+  S.q=''; document.getElementById('q').value='';
+  [S.lean,S.verdict,S.beat,S.prov,S.src].forEach(s=>s.clear());
+  S.page=1; S.win=0; S.saved=false; S.paged=false; S.lang=''; S.blind=false; S.unread=false;
+  renderWindow(); renderSrc(); renderSavedBtn(); renderQuick();
+  chips('f-lean',BANDS,S.lean,true);
+  chips('f-verdict',Object.keys(VERDICTS).map(k=>({k,l:VERDICTS[k].l})),S.verdict,true);
+  chips('f-beat',[...new Set(ARTICLES.map(a=>a.beat))].sort(),S.beat,false);
+  chips('f-prov',PROVS.filter(p=>ARTICLES.some(a=>a.prov===p)),S.prov,false);
+  renderAll();
+};
+document.getElementById('feed').addEventListener('click', e => {
+  const c = e.target.closest('.art'); if (c) openStory(c.dataset.id);
+});
+document.getElementById('feed').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    const c = e.target.closest('.art'); if (c) { e.preventDefault(); openStory(c.dataset.id); }
+  }
+});
+document.getElementById('scrim').onclick = closeStory;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStory(); });
+
+renderAll();
+</script>
+<script src="wtf-nav.js">
+/* ═══ live updates ══════════════════════════════════════════════════════
+   New rows are held back rather than injected under the reader's cursor;
+   a pill offers them and the reader decides when the list moves. */
+let PENDING = [];
+const LIVE_SRC = ['CBC News','CTV News','Global News','The Canadian Press','Reuters Canada','Toronto Star'];
+const LIVE_T = [
+  'Committee schedules additional witness testimony',
+  'Provincial fiscal update moved up two weeks',
+  'Regulator confirms review of proposed merger',
+  'Statement issued following overnight developments',
+  'Court sets date for expedited hearing'
+];
+let liveN = 0;
+function mintStory() {
+  const c = CLUSTERS[Math.floor(Math.random() * CLUSTERS.length)];
+  const src = LIVE_SRC[Math.floor(Math.random() * LIVE_SRC.length)];
+  const band = BANDS[Math.floor(Math.random() * BANDS.length)].k;
+  liveN++;
+  return { id:'live'+liveN, cid:'live'+liveN, first:true,
+    t:LIVE_T[Math.floor(Math.random() * LIVE_T.length)], src, prov:c.prov, beat:c.beat,
+    lean:band, verdict:null, outlets:1 + Math.floor(Math.random()*5), min:1,
+    spread:c.spread, note:null, blind:false };
+}
+function showPill() {
+  const el = document.getElementById('livepill');
+  el.hidden = PENDING.length === 0;
+  document.getElementById('livepill-n').textContent =
+    PENDING.length + ' new stor' + (PENDING.length === 1 ? 'y' : 'ies');
+}
+function pullNew() {
+  // Everything already in the feed ages by the gap since the newest arrival.
+  ARTICLES.forEach(a => a.min += 3);
+  PENDING.forEach(a => ARTICLES.unshift(a));
+  PENDING = [];
+  S.page = 1; S.paged = false;
+  showPill(); renderAll();
+  window.scrollTo({ top: 0, behavior:'smooth' });
+}
+window.pullNew = pullNew;
+setInterval(() => {
+  if (document.hidden) return;
+  PENDING.push(mintStory());
+  showPill();
+}, 45000);
+</script>
+</body></html>

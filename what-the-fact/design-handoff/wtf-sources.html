@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canadian news sources · What The Fact</title>
+<meta name="description" content="Bias profiles for every Canadian outlet What The Fact tracks: average score, range across bands, fact-check rate and ownership."><meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Canadian news sources — What The Fact"><meta property="og:description" content="Bias profiles for every Canadian outlet What The Fact tracks: average score, range across bands, fact-check rate and ownership.">
+<meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;text-align:center;animation:rise .3s ease-out both}
+  .phead .lede{margin-left:auto;margin-right:auto}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+  .flab{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#5d6875;margin-right:3px}
+  .stat{cursor:pointer}
+  .stat.on{border-color:var(--wtf-accent);background:rgba(220,38,38,.08)}
+  .stat[data-f]:hover{border-color:#2f3d52}
+  .pickbox{position:absolute;top:12px;right:12px;width:19px;height:19px;border-radius:5px;border:1px solid var(--wtf-border);
+           background:var(--wtf-bg);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+  .panel.picked .pickbox{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  .panel.picked{border-color:var(--wtf-accent)}
+  .cmpgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .lowN{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;
+        color:var(--wtf-developing);border:1px solid rgba(245,158,11,.35);border-radius:2px;padding:2px 7px}
+</style></head><body>
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+<main class="wrap"><header class="phead"><div class="eyebrow">Every masthead we score</div>
+<h1>Canadian news sources</h1>
+<p class="lede">Each outlet's average is the mean of its own scored articles — a description of what it has published, not a label attached to the masthead. Outlets publishing across several bands are the normal case, not the exception.</p></header>
+<div class="statrow" id="stats"></div>
+<div class="ctrl">
+  <input type="search" id="q" placeholder="Search outlets…" aria-label="Search outlets">
+  <select id="sort" aria-label="Sort">
+    <option value="n">Most articles</option><option value="name">Name</option>
+    <option value="lean">Lean, left to right</option><option value="checked">Most fact-checked</option>
+    <option value="first">Most filed first</option><option value="span">Most bands published in</option>
+  </select>
+  <span id="chips"></span>
+</div>
+<div class="ctrl" style="margin-top:-6px">
+  <span class="flab">Language</span><span id="lang"></span>
+  <span class="flab" style="margin-left:8px">Region</span><span id="region"></span>
+  <button class="chip" id="clear" style="margin-left:auto">Clear filters</button>
+</div>
+<div id="tray" hidden></div>
+<div id="cmp" hidden></div>
+<div id="list"></div>
+<p class="foot-note" style="border:0;text-align:center;max-width:74ch;margin:20px auto 0">Outlets with fewer than 5 scored articles show their range but no average — a mean over two articles is noise, not a finding. A range spanning several bands means the outlet's articles were scored differently from one another. That is the expected result of scoring text rather than mastheads.</p></main>
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+<script src="wtf-corpus.js"></script>
+<script>
+const NAMES = Object.keys(OUTLET_STATS);
+/* Below this many scored articles an average is noise, not a finding. The
+   weather map holds the same line; the sources page must too. */
+const MIN_N = 5;
+const S = { q:'', sort:'n', type:'', lang:'', region:'', flag:'' };
+const PICK = new Set();
+const rowsOf = n => ARTICLES.filter(a => a.src === n);
+const bandsOf = n => new Set(rowsOf(n).map(a => a.lean)).size;
+const langOf = n => (rowsOf(n)[0] || {}).lang === 'fr' ? 'fr' : 'en';
+const bandBar = 'linear-gradient(90deg,' + BANDS.map(b => b.hex).join(',') + ')';
+const measurable = n => OUTLET_STATS[n].n >= MIN_N;
+
+/* Headline stats double as filters — the most interesting number on the page
+   should be reachable, not just readable. */
+const STATS = [
+  ['', String(NAMES.length), 'Outlets tracked'],
+  ['', String(ARTICLES.length), 'Articles scored'],
+  ['', String(OWNERS.length), 'Owners'],
+  ['span', String(NAMES.filter(n => bandsOf(n) >= 3).length), 'Publish in 3+ bands'],
+  ['fr', String(NAMES.filter(n => langOf(n) === 'fr').length), 'French outlets'],
+  ['low', String(NAMES.filter(n => !measurable(n)).length), 'Below ' + MIN_N + ' articles']
+];
+document.getElementById('stats').innerHTML = STATS.map(([f,n,l]) =>
+  '<div class="stat"' + (f ? ' data-f="'+f+'" role="button" tabindex="0"' : ' style="cursor:default"') +
+  '><div class="stat-n">'+n+'</div><div class="stat-l">'+l+'</div></div>').join('');
+document.getElementById('stats').onclick = e => {
+  const el = e.target.closest('.stat[data-f]'); if (!el) return;
+  S.flag = S.flag === el.dataset.f ? '' : el.dataset.f;
+  document.querySelectorAll('.stat[data-f]').forEach(x => x.classList.toggle('on', x.dataset.f === S.flag));
+  draw();
+};
+
+function chipRow(host, items, key) {
+  document.getElementById(host).innerHTML = items.map(([k,l]) =>
+    '<button class="chip" data-k="'+k+'">'+l+'</button>').join('');
+  document.getElementById(host).onclick = e => {
+    const b = e.target.closest('.chip'); if (!b) return;
+    S[key] = S[key] === b.dataset.k ? '' : b.dataset.k;
+    document.querySelectorAll('#'+host+' .chip').forEach(x => x.classList.toggle('on', x.dataset.k === S[key]));
+    draw();
+  };
+}
+chipRow('chips', [...new Set(Object.values(OWNER_OF).map(o => o[1]))].map(t => [t, OWNER_TYPE_LABEL[t]||t]), 'type');
+chipRow('lang', [['en','English'],['fr','Français']], 'lang');
+chipRow('region', [...new Set(NAMES.map(n => OUTLET_STATS[n].topProv))].sort().map(p => [p,p]), 'region');
+document.getElementById('clear').onclick = () => {
+  Object.assign(S, { q:'', type:'', lang:'', region:'', flag:'' });
+  document.getElementById('q').value = '';
+  document.querySelectorAll('.chip.on, .stat.on').forEach(x => x.classList.remove('on'));
+  draw();
+};
+
+/* Compare tray: pick up to three outlets and read their distributions
+   against each other rather than scrolling between cards. */
+function drawCompare() {
+  const tray = document.getElementById('tray'), box = document.getElementById('cmp');
+  tray.hidden = PICK.size === 0; box.hidden = PICK.size < 2;
+  if (!PICK.size) return;
+  tray.innerHTML = '<div class="panel" style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px">' +
+    '<span class="flab">Comparing</span>' +
+    [...PICK].map(n => '<button class="chip on" data-drop="'+n+'">'+n+' &times;</button>').join('') +
+    (PICK.size < 3 ? '<span style="font-size:11.5px;color:#5d6875">pick up to 3</span>' : '') +
+    '<button class="btn" id="cclear" style="margin-left:auto">Clear</button></div>';
+  tray.onclick = e => {
+    if (e.target.id === 'cclear') { PICK.clear(); draw(); return; }
+    const b = e.target.closest('[data-drop]'); if (b) { PICK.delete(b.dataset.drop); draw(); }
+  };
+  if (PICK.size < 2) return;
+  box.innerHTML = '<div class="panel" style="margin-bottom:14px"><div class="psec">Side by side</div>' +
+    '<div class="cmpgrid">' + [...PICK].map(n => {
+      const o = OUTLET_STATS[n], rows = rowsOf(n);
+      const dist = BANDS.map(b => rows.filter(r => r.lean === b.k).length);
+      const peak = Math.max(...dist);
+      return '<div>' +
+        '<div style="font-family:var(--wtf-font-serif);font-size:16px;font-weight:600;letter-spacing:-.014em">'+n+'</div>' +
+        '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:'+o.band.hex+';margin:3px 0 9px">' +
+          (measurable(n) ? o.band.l+' &middot; '+(o.avg>0?'+':'')+o.avg.toFixed(2) : 'below the '+MIN_N+'-article floor')+'</div>' +
+        BANDS.map((b,i) => '<div style="display:grid;grid-template-columns:66px minmax(0,1fr) 26px;gap:7px;align-items:center;margin-bottom:5px">' +
+          '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:'+(dist[i]===peak&&peak?'var(--wtf-text)':'var(--wtf-text-muted)')+'">'+b.l+'</span>' +
+          '<span style="height:5px;border-radius:3px;background:var(--wtf-bg);overflow:hidden;display:block">' +
+          '<span style="display:block;height:100%;border-radius:3px;width:'+(o.n?dist[i]/o.n*100:0)+'%;background:'+b.hex+'"></span></span>' +
+          '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;text-align:right">'+dist[i]+'</span></div>').join('') +
+        '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:7px">'+o.n+' articles &middot; '+o.checked+' checked &middot; '+o.first+' first</div>' +
+      '</div>';
+    }).join('') + '</div>' +
+    '<div class="foot-note">Counts, not rates &mdash; outlets with different article totals are not directly comparable band for band.</div></div>';
+}
+
+function draw() {
+  const q = S.q.trim().toLowerCase();
+  let list = NAMES.filter(n =>
+    (!q || n.toLowerCase().includes(q)) &&
+    (!S.type || (OWNER_OF[n] ? OWNER_OF[n][1] : 'independent') === S.type) &&
+    (!S.lang || langOf(n) === S.lang) &&
+    (!S.region || OUTLET_STATS[n].topProv === S.region) &&
+    (!S.flag || (S.flag === 'span' ? bandsOf(n) >= 3 : S.flag === 'fr' ? langOf(n) === 'fr' : !measurable(n))));
+  const by = { n:(a,b)=>OUTLET_STATS[b].n-OUTLET_STATS[a].n, name:(a,b)=>a.localeCompare(b),
+    lean:(a,b)=>OUTLET_STATS[a].avg-OUTLET_STATS[b].avg,
+    checked:(a,b)=>OUTLET_STATS[b].checked-OUTLET_STATS[a].checked,
+    first:(a,b)=>OUTLET_STATS[b].first-OUTLET_STATS[a].first,
+    span:(a,b)=>bandsOf(b)-bandsOf(a) };
+  list.sort(by[S.sort]);
+
+  document.getElementById('list').innerHTML = list.length ? list.map(n => {
+    const o = OUTLET_STATS[n], own = OWNER_OF[n] || [n,'independent'];
+    const idxs = rowsOf(n).map(a => BANDS.findIndex(b => b.k === a.lean));
+    const lo = Math.min(...idxs), hi = Math.max(...idxs);
+    const width = hi - lo + 1;        // extent, for the bar
+    const bands = bandsOf(n);         // occupancy, for the claim
+    const ok = measurable(n), pos = Math.round((o.avg + 1) / 2 * 100);
+    return '<div class="panel'+(PICK.has(n)?' picked':'')+'" style="position:relative">' +
+      '<button class="pickbox" data-pick="'+n+'" aria-label="Compare '+n+'">&#10003;</button>' +
+      '<a href="wtf-outlet.html?src='+encodeURIComponent(n)+'" style="display:block;padding-right:26px">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between">' +
+        '<span style="font-family:var(--wtf-font-serif);font-size:19px;font-weight:600;letter-spacing:-.015em;color:var(--wtf-text)">'+n+'</span>' +
+        (ok ? '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.08em;color:'+o.band.hex+'">'+o.band.l+' &middot; '+(o.avg>0?'+':'')+o.avg.toFixed(2)+'</span>'
+            : '<span class="lowN">'+o.n+' article'+(o.n===1?'':'s')+' &mdash; not enough to average</span>') + '</div>' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin:4px 0 11px">' +
+        own[0]+' &middot; '+(OWNER_TYPE_LABEL[own[1]]||own[1])+' &middot; '+o.topProv+' &middot; '+(langOf(n)==='fr'?'Français':'English')+' &middot; mainly '+o.topBeat+'</div>' +
+      '<div class="scale" style="background:'+bandBar+';opacity:'+(ok?1:.4)+'">' +
+        '<b style="left:'+(lo/5*100)+'%;width:'+(width/5*100)+'%"></b>' +
+        (ok ? '<i style="left:'+pos+'%"></i>' : '') + '</div>' +
+      '<div class="scale-l"><span>'+o.n+' articles</span>' +
+        '<span>'+(bands>1 ? 'articles in '+bands+' bands, '+BANDS[lo].l+' to '+BANDS[hi].l : 'all articles in '+BANDS[lo].l)+'</span>' +
+        '<span>'+o.checked+' fact-checked &middot; '+o.first+' filed first</span></div></a></div>';
+  }).join('') :
+  '<div class="panel" style="text-align:center;color:var(--wtf-text-muted);font-size:13px">No outlets match those filters.</div>';
+
+  document.getElementById('list').onclick = e => {
+    const b = e.target.closest('[data-pick]'); if (!b) return;
+    e.preventDefault();
+    const n = b.dataset.pick;
+    if (PICK.has(n)) PICK.delete(n); else if (PICK.size < 3) PICK.add(n);
+    draw();
+  };
+  drawCompare();
+}
+document.getElementById('q').oninput = e => { S.q = e.target.value; draw(); };
+document.getElementById('sort').onchange = e => { S.sort = e.target.value; draw(); };
+draw();
+</script>
+<script src="wtf-nav.js"></script>
+</body></html>

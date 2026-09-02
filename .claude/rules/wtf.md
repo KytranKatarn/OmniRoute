@@ -24,8 +24,29 @@ a write token, and the full merge pipeline, which the standalone watch repos do 
 🔴 **`KytranKatarn/what-the-fact-site` is NOT the app.** It is the pre-app static marketing
 page (`website/what-the-fact.com/`, 5 files, last touched 2026-04-14), per the `*-site` naming
 convention. `what-the-fact.com` resolves to Citadel and is served by the **Flask app**, so that
-repo serves nothing. Pointing a coding agent at it means editing a dead repo — this nearly
-happened with Claude Design on 2026-09-01. Retire-or-keep is task **#6255**.
+repo serves nothing. Pointing a coding agent at it means editing a dead repo.
+
+🔴 **CORRECTION 2026-09-02: this did NOT "nearly" happen — it HAPPENED.** A Claude Design
+session was connected to `what-the-fact-site` for the whole WTF newsroom review. Design caught
+it themselves ("this repo is the April 2026 'Coming Soon' landing page, NOT the live product")
+and worked off the live site by hand instead — so the 39-page handoff is sound, but it cost
+them the codebase and they could not push. **The bait is the README**: that repo's first line
+calls itself the *"Official website for What The Fact"*. The repo is actively misleading, not
+merely stale. Retire-or-repoint is task **#6255**.
+
+**Point a design/coding agent at `KytranKatarn/archie-platform`, path `what-the-fact/`.**
+Now also stated in `what-the-fact/.design-sync/conventions.md`, which ships as the design-sync
+bundle's `readmeHeader` — so the answer travels WITH the bundle instead of living only here.
+
+📦 **The Design handoff is committed at `what-the-fact/design-handoff/`** (39 pages + shell CSS
++ nav + 5 JS + logo + 3 reference docs). They are **design references in HTML, not production
+code** — recreate as Jinja templates reading Postgres, replacing `wtf-corpus.js` (241 sample
+rows). Its README carries a 10-item corrections table of real live-site defects (Senate 96 vs
+93 rendered; "232 fact-checked" counts outlet rows not stories → 23/24; verdict-green used for
+geography on the map; lean shown for provinces with <20 articles; the LIVE pill was a dead span).
+⚠️ **MP ridings/provinces are deliberately blank for 338 of 343** — an earlier draft derived them
+from a slug hash and produced confident false claims about named MPs (Elizabeth May in Alberta).
+Fill from the DB; **never re-derive**. Same principle as `shared/city_identity.py` (#6174).
 
 ⚠️ `deploy_drift_check.py` already handles the in-tree placement (`repo=_ARCHIE`,
 `path="what-the-fact"`, path-aware like media_hub). Do not "fix" it to point at a WTF repo.

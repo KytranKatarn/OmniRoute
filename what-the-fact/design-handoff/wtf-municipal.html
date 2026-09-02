@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Municipal Intelligence — L.O.C.A.L. · What The Fact</title>
+<meta name="description" content="Local government coverage across Canadian cities, from What The Fact."><meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="CRTC decisions — What The Fact"><meta property="og:description" content="Rulings from the Canadian Radio-television and Telecommunications Commission affecting the outlets What The Fact tracks.">
+<meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;animation:rise .3s ease-out both}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+</style></head><body>
+<style>
+  .wtf-pg-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 13px}
+  .wtf-pg-ctrl input[type=search],.wtf-pg-ctrl select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 11px}
+  .wtf-pg-ctrl input[type=search]{flex:1;min-width:200px}
+  .wtf-pg-rec{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--sp,var(--wtf-border));border-radius:10px;padding:13px 15px;margin-bottom:8px;transition:border-color .16s}
+  .wtf-pg-rec:hover{border-color:#2a3547}
+  .wtf-pg-rt{font-family:var(--wtf-font-serif);font-size:15.5px;line-height:1.35;color:var(--wtf-text)}
+  .wtf-pg-rm{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.05em;color:var(--wtf-text-muted);margin-top:4px}
+  .wtf-pg-rb{font-size:13px;line-height:1.65;color:var(--wtf-text-2);margin:7px 0 0}
+  .wtf-pg-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .wtf-pg-chip{font-family:var(--wtf-font-mono);font-size:9px;padding:3px 8px;border-radius:3px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);color:var(--wtf-text-2)}
+  .wtf-pg-tbl{width:100%;border-collapse:collapse}
+  .wtf-pg-tbl th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--wtf-border)}
+  .wtf-pg-tbl td{padding:10px;border-bottom:1px solid var(--wtf-border);font-size:12.5px;color:var(--wtf-text-2)}
+  .wtf-pg-tbl tr:hover{background:var(--wtf-bg-card)}
+  .wtf-pg-num{font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums;text-align:right}
+  .wtf-pg-bars{display:grid;grid-template-columns:minmax(0,1fr) 90px 52px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid #161d29}
+  .wtf-pg-track{height:6px;border-radius:3px;background:#0f1620;overflow:hidden}
+  .wtf-pg-track i{display:block;height:100%;border-radius:3px}
+  .wtf-pg-gate{background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:12px;padding:26px 24px;text-align:center;margin:18px 0}
+  .wtf-pg-none{padding:30px;text-align:center;background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:12px;color:var(--wtf-text-muted);font-size:13px}
+
+.wtf-pg-tbl th.wtf-pg-num,.wtf-pg-tbl td.wtf-pg-num{text-align:right}
+</style>
+<style>
+  /* wtf-mu-* : municipal. City pill uses --wtf-local, the product accent for
+     L.O.C.A.L., and never a bias colour. */
+  .wtf-mu-chips{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 20px}
+  .wtf-mu-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;background:var(--wtf-bg-card);
+    border:1px solid var(--wtf-border);border-radius:999px;font-family:var(--wtf-font-mono);font-size:9.5px;
+    letter-spacing:.05em;color:var(--wtf-text-muted);cursor:pointer;transition:all .15s}
+  .wtf-mu-chip:hover{color:var(--wtf-local);border-color:var(--wtf-local)}
+  .wtf-mu-chip.on{background:rgba(74,114,216,.14);color:#9dc0f5;border-color:var(--wtf-local)}
+  .wtf-mu-chip b{color:#3a4657;font-weight:400}
+  .wtf-mu-chip.on b{color:#7ea6e8}
+  .wtf-mu-card{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--wtf-local);
+    border-radius:10px;padding:13px 15px;margin-bottom:8px;transition:border-color .16s}
+  .wtf-mu-card:hover{border-color:#2f3d52}
+  .wtf-mu-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-family:var(--wtf-font-mono);
+    font-size:9.5px;color:var(--wtf-text-muted);margin-bottom:6px}
+  .wtf-mu-pill{padding:2px 8px;border-radius:999px;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
+    background:rgba(74,114,216,.14);color:#9dc0f5;border:1px solid rgba(74,114,216,.3)}
+  .wtf-mu-tag{padding:1px 6px;border-radius:3px;border:1px solid var(--wtf-border);color:var(--wtf-text-muted);font-size:9px}
+  .wtf-mu-title{font-family:var(--wtf-font-serif);font-size:15.5px;line-height:1.38;color:var(--wtf-text);display:block}
+  .wtf-mu-title:hover{color:var(--wtf-accent)}
+  .wtf-mu-foot{margin-top:8px;font-family:var(--wtf-font-mono);font-size:9.5px}
+  .wtf-mu-foot a{color:var(--wtf-local)}
+</style>
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+<div class="wrap">
+<header class="phead" style="text-align:center;max-width:80ch;margin-left:auto;margin-right:auto">
+  <div class="eyebrow" style="color:var(--wtf-local)">L.O.C.A.L. &middot; Local Observation, Coverage &amp; Accountability Layer</div>
+  <h1>Municipal &amp; local government</h1>
+  <p class="lede" style="margin-left:auto;margin-right:auto">City hall, council decisions and local-government coverage &mdash; bias-scored and fact-checked. Coverage is growing as municipal geo-tagging expands.</p>
+</header>
+<div class="statrow" id="m-stats"></div>
+
+<div class="wtf-mu-chips" id="m-chips"></div>
+
+<div class="panel" style="margin:0">
+  <div class="psec" id="m-shead">Recent municipal &amp; local-government stories</div>
+  <div id="m-list"></div>
+  <div style="text-align:center;margin-top:16px">
+    <a href="wtf-news.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-local)">All municipal coverage &rarr;</a>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:12px;border-left:3px solid var(--wtf-developing)">
+  <div class="psec" style="color:var(--wtf-developing)">Why municipal coverage is thin</div>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0 0 10px;max-width:74ch;text-wrap:pretty">Council meetings run long, produce no press release, and generate stories only when something goes wrong. Newsroom cuts hit local desks first. The result is that a rezoning affecting thousands of residents is often reported by nobody, while a federal statement affecting no one immediately is reported by everybody.</p>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0;max-width:74ch;text-wrap:pretty">Municipal government also spends the money closest to people and is revisited least once a decision is made, which is what makes a local blindspot more consequential than a national one.</p>
+</div>
+</div>
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+<script src="wtf-corpus.js"></script>
+<script>
+/* Cities are read from the headline text, not assigned. A story only carries a
+   city pill when it actually names one, so a chip count is a real count. */
+const CITY_NAMES = ['Toronto','Montr\u00e9al','Vancouver','Calgary','Edmonton','Ottawa','Winnipeg',
+  'Halifax','Qu\u00e9bec City','Hamilton','London','Saskatoon','Regina','Victoria','Mississauga',
+  'Brampton','Surrey','Gatineau','Sherbrooke','Sudbury','Thunder Bay','Kelowna','St. John\u2019s',
+  'Moncton','Fredericton','Charlottetown','Whitehorse','Yellowknife','Iqaluit'];
+const $ = id => document.getElementById(id);
+
+const cityOf = a => {
+  const hay = a.t + ' ' + (a.note || '');
+  return CITY_NAMES.find(c => hay.includes(c)) || null;
+};
+
+/* Municipal beat, plus any story that names a city — which is how a council
+   item filed under another beat still surfaces here. */
+const MUNI = ARTICLES.filter(a => a.first && (a.beat === 'municipal' || cityOf(a)))
+  .map(a => ({ a, city: cityOf(a) }))
+  .sort((x, y) => x.a.min - y.a.min);
+
+const counts = {};
+MUNI.forEach(m => { if (m.city) counts[m.city] = (counts[m.city] || 0) + 1; });
+const cities = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
+
+let active = '';
+
+$('m-stats').innerHTML = [
+  [String(MUNI.length), 'Municipal stories'],
+  [String(cities.length), 'Cities covered'],
+  [String(new Set(MUNI.map(m => m.a.src)).size), 'Outlets in feed'],
+  [String(MUNI.filter(m => m.a.blind).length), 'Blindspot flags']
+].map(([n, l]) => '<div class="stat"><div class="stat-n">' + n + '</div><div class="stat-l">' + l + '</div></div>').join('');
+
+function drawChips() {
+  $('m-chips').innerHTML =
+    '<button class="wtf-mu-chip' + (active ? '' : ' on') + '" data-c="">All <b>' + MUNI.length + '</b></button>' +
+    cities.map(c => '<button class="wtf-mu-chip' + (active === c ? ' on' : '') + '" data-c="' + c + '">' +
+      c + ' <b>' + counts[c] + '</b></button>').join('');
+}
+$('m-chips').addEventListener('click', e => {
+  const b = e.target.closest('.wtf-mu-chip'); if (!b) return;
+  active = b.dataset.c === active ? '' : b.dataset.c;
+  drawChips(); render();
+});
+
+function render() {
+  const list = active ? MUNI.filter(m => m.city === active) : MUNI;
+  $('m-shead').textContent = active
+    ? 'Recent municipal coverage \u2014 ' + active
+    : 'Recent municipal & local-government stories';
+  if (!list.length) {
+    $('m-list').innerHTML = '<div class="wtf-pg-none">No municipal stories for ' + (active || 'this window') +
+      ' yet.<br><span style="color:var(--wtf-local);cursor:pointer" onclick="document.querySelector(\'.wtf-mu-chip\').click()">&larr; All municipal coverage</span></div>';
+    return;
+  }
+  $('m-list').innerHTML = list.map(m => {
+    const a = m.a, b = bandOf(a.lean);
+    return '<div class="wtf-mu-card">' +
+      '<div class="wtf-mu-meta">' +
+        (m.city ? '<span class="wtf-mu-pill">' + m.city + '</span>' : '') +
+        '<span>' + a.src.toUpperCase() + '</span>' +
+        '<span class="wtf-mu-tag">' + a.prov + '</span>' +
+        '<span>' + ago(a.min) + '</span>' +
+        '<span style="color:' + b.hex + '">' + b.l.toUpperCase() + '</span>' +
+      '</div>' +
+      '<a class="wtf-mu-title" href="wtf-article.html?id=' + encodeURIComponent(a.id) + '">' + titleOf(a) + '</a>' +
+      (a.outlets > 1 ? '<div class="wtf-mu-foot"><a href="wtf-article.html?id=' + encodeURIComponent(a.id) + '">' +
+        a.outlets + ' outlets covering this &rarr;</a></div>' : '') +
+      '</div>';
+  }).join('');
+}
+
+drawChips(); render();
+</script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

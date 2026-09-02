@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WTF — News Map</title>
+<meta name="description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="WTF — News Map">
+<meta property="og:description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
+<meta property="og:image" content="assets/wtf-logo.png">
+<meta property="og:locale" content="en_CA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="WTF — News Map">
+<meta name="twitter:description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
+<meta name="twitter:image" content="assets/wtf-logo.png">
+<link rel="icon" href="assets/wtf-logo.png">
+
+<script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js" integrity="sha384-Ukv1p/xTma6P4/2bY5KzWBw+ydSpXmhCMtyciIQVDJ1RmOxtCYNMF1uXT9T63H67" crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root {
+    --wtf-bg:#0d1117; --wtf-bg-card:#11161f; --wtf-bg-panel:#171e2a; --wtf-border:#222b39;
+    --wtf-text:#f2f1ed; --wtf-text-2:#b9bdc5; --wtf-text-muted:#7d8590; --wtf-accent:#dc2626;
+    --wtf-left:#d84b47; --wtf-center-left:#cf8b80; --wtf-center:#929aa5;
+    --wtf-center-right:#7fa3cf; --wtf-right:#4a72d8;
+    --wtf-established:#10b981; --wtf-developing:#f59e0b;
+    --wtf-font-serif:'Newsreader',Georgia,serif; --wtf-font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --wtf-font-mono:'IBM Plex Mono',monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--wtf-bg); color:var(--wtf-text); font-family:var(--wtf-font-body); -webkit-font-smoothing:antialiased; }
+  a { color:var(--wtf-accent); text-decoration:none; } a:hover { color:var(--wtf-text); }
+  @keyframes wtfBlink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  @keyframes wtfRise { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes wtfRing { 0%{r:var(--r0);opacity:.55} 70%{r:var(--r1);opacity:0} 100%{opacity:0} }
+
+  .wtf-nav { display:flex; align-items:center; justify-content:space-between; gap:24px;
+             padding:16px 34px; border-bottom:1px solid var(--wtf-border); background:var(--wtf-bg-card); }
+  .wtf-wrap { max-width:1240px; margin:0 auto; padding:34px 34px 60px; display:flex; flex-direction:column; gap:22px; }
+  .wtf-seg { padding:8px 16px; border:1px solid var(--wtf-border); border-radius:3px; background:transparent;
+             font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+             color:var(--wtf-text-muted); cursor:pointer; transition:background .25s,border-color .25s,color .25s; }
+  .wtf-seg:hover { color:var(--wtf-text-2); border-color:#2e3a4d; }
+  .wtf-seg.is-active { background:var(--wtf-bg-panel); border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+  .wtf-panel { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:5px; padding:18px;
+               display:flex; flex-direction:column; gap:12px; }
+  .wtf-plabel { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--wtf-text-muted); }
+  .wtf-main { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:22px; align-items:start; }
+  @media (max-width:900px) { .wtf-main { grid-template-columns:minmax(0,1fr); } }
+
+  #stage { position:relative; }
+  #stage svg { display:block; width:100%; height:auto; }
+  .pin-circle { cursor:pointer; transition:filter .2s; }
+  .pin-num, .pin-lab { pointer-events:none; font-family:var(--wtf-font-mono); }
+  .pin-num { fill:var(--wtf-text); text-anchor:middle; dominant-baseline:central; }
+  .pin-lab { fill:var(--wtf-text-2); text-anchor:middle; font-size:10px; letter-spacing:1px; }
+
+  #tip { position:absolute; width:230px; padding:14px 16px; background:var(--wtf-bg-panel);
+         border:1px solid var(--wtf-border); border-radius:5px; box-shadow:0 12px 34px rgba(0,0,0,.55);
+         pointer-events:none; z-index:20; display:none; animation:wtfRise .18s ease-out both; }
+  .bar-track { height:4px; border-radius:2px; background:var(--wtf-border); overflow:hidden; display:block; }
+  .bar-fill { display:block; height:100%; border-radius:2px; transition:width .45s cubic-bezier(.4,0,.2,1),background .3s; }
+
+  .scrub-track { position:relative; height:22px; cursor:pointer; display:flex; align-items:center; }
+  .scrub-rail { position:absolute; left:0; right:0; height:3px; border-radius:2px; background:var(--wtf-border); }
+  .scrub-fill { position:absolute; left:0; height:3px; border-radius:2px; background:var(--wtf-accent); }
+  .scrub-knob { position:absolute; width:11px; height:11px; border-radius:50%; background:var(--wtf-text);
+                border:2px solid var(--wtf-accent); transform:translateX(-50%); box-shadow:0 0 0 4px rgba(220,38,38,.14); }
+  #play { display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%;
+          border:1px solid var(--wtf-border); background:var(--wtf-bg-card); color:var(--wtf-text-2);
+          cursor:pointer; flex-shrink:0; font-size:11px; transition:all .25s; }
+  #play.is-playing { border-color:var(--wtf-accent); background:rgba(220,38,38,.12); color:var(--wtf-accent); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+
+<div class="wtf-wrap">
+
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:28px; flex-wrap:wrap; animation:wtfRise .5s ease-out both">
+    <div style="display:flex; flex-direction:column; gap:8px">
+      <div style="font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--wtf-accent)">Coverage across Canada</div>
+      <h1 style="font-family:var(--wtf-font-serif); font-size:44px; font-weight:600; line-height:1.05; margin:0; letter-spacing:-.015em">Where the news happens</h1>
+    </div>
+    <div style="display:flex; align-items:center; gap:9px">
+      <span id="fresh" style="padding:5px 11px; border:1px solid var(--wtf-border); border-radius:3px; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.06em; color:var(--wtf-text-2); transition:all .3s">Updated 14 min ago</span>
+      <span style="padding:5px 11px; border:1px solid var(--wtf-border); border-radius:3px; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.06em; color:var(--wtf-text-muted)">40 sources</span>
+    </div>
+  </div>
+
+  <div id="layers" style="display:flex; flex-wrap:wrap; gap:7px"></div>
+
+  <div class="wtf-main">
+    <div style="border:1px solid var(--wtf-border); border-radius:6px; background:var(--wtf-bg-card); overflow:hidden">
+      <div id="stage"><div id="tip"></div></div>
+      <div style="display:flex; align-items:center; gap:16px; padding:14px 20px; border-top:1px solid var(--wtf-border); background:var(--wtf-bg)">
+        <div id="play">&#9654;</div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:7px; min-width:0">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+            <span class="wtf-plabel">90-day history</span>
+            <span id="dayLabel" style="font-family:var(--wtf-font-mono); font-size:11px; letter-spacing:.06em; color:var(--wtf-text)">Today</span>
+          </div>
+          <div class="scrub-track" id="scrub">
+            <div class="scrub-rail"></div>
+            <div class="scrub-fill" id="scrubFill"></div>
+            <div class="scrub-knob" id="scrubKnob"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div class="wtf-panel">
+        <div class="wtf-plabel" id="legendTitle">Reading the map</div>
+        <div id="legend" style="display:flex; flex-direction:column; gap:9px"></div>
+        <p id="legendNote" style="font-size:12px; line-height:1.6; color:var(--wtf-text-muted); margin:3px 0 0"></p>
+      </div>
+      <div class="wtf-panel">
+        <div class="wtf-plabel" id="rankTitle">Top six</div>
+        <div id="ranks" style="display:flex; flex-direction:column; gap:9px"></div>
+      </div>
+      <div class="wtf-panel" style="border-left:3px solid var(--wtf-developing)">
+        <div class="wtf-plabel" style="color:var(--wtf-developing)">Starter unlocks</div>
+        <div style="font-size:13px; line-height:1.65; color:var(--wtf-text-2)">City-level pins, the full 90-day scrub, and per-outlet breakdown on every province.</div>
+        <a href="#" style="display:inline-flex; align-self:flex-start; align-items:center; height:34px; padding:0 17px; margin-top:4px; background:var(--wtf-accent); border-radius:4px; font-family:var(--wtf-font-mono); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#fff">Unlock with Starter &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px; line-height:1.7; color:var(--wtf-text-muted); margin:0; max-width:78ch">
+    Geometry is Natural Earth (public domain), projected Lambert conformal conic. Circles sit at real province
+    centroids. In production this base is <code>/static/canada-provinces.geojson</code>, which also carries the
+    per-province polygons the Lean layer fills as a choropleth.
+  </p>
+</div>
+
+<script>
+const W = 900, H = 520;
+const MIN_MEASURABLE = 20;
+
+const PROV = [
+  { code:'YT', name:'Yukon',                 lat:63.4, lon:-135.0, cov: 11, lean:-0.10, fires: 6,  seats: 1  },
+  { code:'NT', name:'Northwest Territories', lat:64.4, lon:-119.0, cov: 14, lean:-0.05, fires: 22, seats: 1  },
+  { code:'NU', name:'Nunavut',               lat:66.0, lon:-91.0, cov: 9, lean: 0.02, fires: 0, seats: 1 },
+  { code:'BC', name:'British Columbia',      lat:53.9, lon:-125.0, cov:312, lean:-0.31, fires: 41, seats: 43 },
+  { code:'AB', name:'Alberta',               lat:54.7, lon:-114.8, cov:148, lean: 0.58, fires: 63, seats: 37 },
+  { code:'SK', name:'Saskatchewan',          lat:54.2, lon:-105.9, cov: 17, lean: 0.44, fires: 28, seats: 14 },
+  { code:'MB', name:'Manitoba',              lat:54.4, lon:-97.2,  cov: 71, lean: 0.06, fires: 19, seats: 14 },
+  { code:'ON', name:'Ontario',               lat:49.9, lon:-85.5,  cov:547, lean:-0.19, fires: 12, seats:122 },
+  { code:'QC', name:'Québec',                lat:52.4, lon:-71.8,  cov:263, lean:-0.52, fires: 31, seats: 78 },
+  { code:'NL', name:'Newfoundland & Lab.',   lat:53.6, lon:-60.5,  cov: 34, lean:-0.14, fires: 2,  seats: 7  },
+  { code:'NB', name:'New Brunswick',         lat:46.6, lon:-66.2,  cov: 28, lean: 0.21, fires: 4,  seats: 10 },
+  { code:'PE', name:'Prince Edward Island',  lat:46.4, lon:-63.2,  cov:  8, lean:-0.08, fires: 0,  seats: 4  },
+  { code:'NS', name:'Nova Scotia',           lat:45.1, lon:-63.0,  cov: 46, lean:-0.22, fires: 3,  seats: 11 }
+];
+
+const LEAN_STOPS = [
+  { max:-0.45, c:'var(--wtf-left)',         hex:'#d84b47', label:'Left' },
+  { max:-0.15, c:'var(--wtf-center-left)',  hex:'#cf8b80', label:'Center-Left' },
+  { max: 0.15, c:'var(--wtf-center)',       hex:'#929aa5', label:'Center' },
+  { max: 0.45, c:'var(--wtf-center-right)', hex:'#7fa3cf', label:'Center-Right' },
+  { max: 99,   c:'var(--wtf-right)',        hex:'#4a72d8', label:'Right' }
+];
+const LAYERS = [
+  { key:'coverage',  label:'Coverage',  field:'cov',   locked:false, fresh:'Updated 14 min ago', stale:false, noun:'articles' },
+  { key:'lean',      label:'Lean',      field:'cov',   locked:false, fresh:'Updated 14 min ago', stale:false, noun:'articles' },
+  { key:'wildfires', label:'Wildfires', field:'fires', locked:true,  fresh:'Fire data 41h old',  stale:true,  noun:'active fires' },
+  { key:'ridings',   label:'Ridings',   field:'seats', locked:true,  fresh:'Boundaries 2023',    stale:false, noun:'seats' }
+];
+
+let layerKey = 'coverage', day = 89, playing = false, hover = null, projection = null;
+
+const leanHex = v => (LEAN_STOPS.find(s => v < s.max) || LEAN_STOPS[2]).hex;
+const factor = (i, d) => Math.max(0.22, 0.62 + 0.38 * Math.sin((d / 89) * Math.PI * 1.5 + i * 0.9));
+const cfg = () => LAYERS.find(l => l.key === layerKey);
+
+function rows() {
+  const f = cfg().field;
+  return PROV.map((p, i) => {
+    const v = f === 'seats' ? p.seats : Math.round(p[f] * factor(i, day));
+    return { p, i, v, measurable: layerKey === 'lean' ? v >= MIN_MEASURABLE : true };
+  });
+}
+
+/* ── base geometry ─────────────────────────────────────────────────────── */
+const svg = d3.select('#stage').insert('svg', '#tip')
+  .attr('viewBox', '0 0 ' + W + ' ' + H)
+  .attr('preserveAspectRatio', 'xMidYMid meet');
+const gLand = svg.append('g');
+const gPins = svg.append('g');
+
+d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json').then(topo => {
+  const countries = topojson.feature(topo, topo.objects.countries);
+  const canada = countries.features.find(f => f.id === '124');
+
+  projection = d3.geoConicConformal().parallels([49, 77]).rotate([96, 0])
+    .fitExtent([[26, 26], [W - 26, H - 34]], canada);
+  const path = d3.geoPath(projection);
+
+  gLand.append('g').selectAll('path')
+    .data(countries.features.filter(f => f.id !== '124'))
+    .join('path').attr('d', path)
+    .attr('fill', '#101620').attr('stroke', '#1a2230').attr('stroke-width', 0.6);
+
+  gLand.append('path').datum(canada).attr('d', path)
+    .attr('fill', '#182130').attr('stroke', '#33405a').attr('stroke-width', 1);
+
+  render();
+}).catch(() => {
+  d3.select('#stage').insert('div', '#tip')
+    .attr('style', 'padding:40px;text-align:center;color:var(--wtf-text-muted);font-size:13px')
+    .text('Base geometry could not be loaded.');
+});
+
+/* ── pins ──────────────────────────────────────────────────────────────── */
+function render() {
+  if (!projection) return;
+  const data = rows();
+  const max = Math.max(1, ...data.map(r => r.v));
+  const T = d3.transition().duration(520).ease(d3.easeCubicInOut);
+
+  data.forEach(r => {
+    const [x, y] = projection([r.p.lon, r.p.lat]);
+    r.x = x; r.y = y;
+    r.rad = Math.max(9, Math.min(52, 9 + Math.sqrt(r.v / max) * 43));
+    r.top = r.v === max && r.v > 0;
+    if (layerKey === 'lean') {
+      r.stroke = r.measurable ? leanHex(r.p.lean) : '#7d8590';
+      r.fill = r.measurable ? leanHex(r.p.lean) : '#929aa5';
+      r.op = r.measurable ? 0.34 : 0.12;
+      r.dash = r.measurable ? null : '4 3';
+    } else {
+      // Magnitude stays neutral slate; the accent marks only the top value so
+      // chart colour can never be read as lean colour.
+      r.stroke = r.top ? '#dc2626' : '#929aa5';
+      r.fill = r.top ? '#dc2626' : '#929aa5';
+      r.op = r.top ? 0.3 : 0.1 + 0.24 * (r.v / max);
+      r.dash = null;
+    }
+  });
+
+  const g = gPins.selectAll('g.pin').data(data, d => d.p.code)
+    .join(enter => {
+      const s = enter.append('g').attr('class', 'pin');
+      s.append('circle').attr('class', 'ring').attr('fill', 'none').attr('opacity', 0);
+      s.append('circle').attr('class', 'pin-circle').attr('stroke-width', 1.5).attr('r', 0)
+        .on('mouseenter', (e, d) => { hover = d.p.code; showTip(d); })
+        .on('mouseleave', () => { hover = null; document.getElementById('tip').style.display = 'none'; });
+      s.append('text').attr('class', 'pin-num');
+      s.append('text').attr('class', 'pin-lab');
+      return s;
+    })
+    .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+
+  g.select('circle.pin-circle').transition(T)
+    .attr('r', d => d.rad).attr('fill', d => d.fill).attr('fill-opacity', d => d.op)
+    .attr('stroke', d => d.stroke).attr('stroke-dasharray', d => d.dash);
+
+  g.select('text.pin-num').transition(T)
+    .attr('font-size', d => Math.max(9, Math.min(15, Math.round(d.rad / 2.6))))
+    .tween('t', function (d) {
+      const self = d3.select(this), prev = +self.attr('data-v') || 0;
+      const iv = d3.interpolateRound(prev, d.v);
+      self.attr('data-v', d.v);
+      return t => self.text(d.measurable ? iv(t) : '');
+    });
+
+  g.select('text.pin-lab').transition(T)
+    .attr('y', d => d.rad + 13).text(d => d.p.code);
+
+  // Pulse ring on the single highest value.
+  g.select('circle.ring')
+    .attr('stroke', d => d.stroke)
+    .attr('stroke-width', 1.5)
+    .interrupt()
+    .attr('opacity', 0)
+    .filter(d => d.top)
+    .call(sel => pulse(sel));
+
+  paintSidebar(data, max);
+}
+
+function pulse(sel) {
+  sel.attr('r', d => d.rad).attr('opacity', 0.5)
+    .transition().duration(2200).ease(d3.easeCubicOut)
+    .attr('r', d => d.rad * 2.1).attr('opacity', 0)
+    .on('end', function () { d3.select(this).call(pulse); });
+}
+
+/* ── tooltip ───────────────────────────────────────────────────────────── */
+function showTip(d) {
+  const el = document.getElementById('tip');
+  const rect = document.querySelector('#stage svg').getBoundingClientRect();
+  const k = rect.width / W;
+  const bands = [22, 34, 21, 14, 9];
+  const total = rows().reduce((a, r) => a + r.v, 0) || 1;
+  el.innerHTML =
+    '<div style="font-family:var(--wtf-font-serif);font-size:17px;font-weight:600;margin-bottom:3px">' + d.p.name + '</div>' +
+    '<div style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px">' +
+      d.v + ' ' + cfg().noun + ' · ' + Math.round((d.v / total) * 100) + '% of national</div>' +
+    '<div style="display:flex;flex-direction:column;gap:7px">' +
+      bands.map((w, i) =>
+        '<div style="display:grid;grid-template-columns:74px minmax(0,1fr) 32px;gap:8px;align-items:center">' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-2)">' + LEAN_STOPS[i].label + '</span>' +
+        '<span class="bar-track"><span class="bar-fill" style="width:' + w + '%;background:' + LEAN_STOPS[i].hex + '"></span></span>' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-align:right">' + w + '%</span></div>'
+      ).join('') +
+    '</div>';
+  const flip = d.x > W * 0.62;
+  el.style.display = 'block';
+  el.style.left = Math.max(4, (flip ? d.x * k - 244 : d.x * k + 22)) + 'px';
+  el.style.top = Math.max(4, d.y * k - 74) + 'px';
+}
+
+/* ── sidebar ───────────────────────────────────────────────────────────── */
+function paintSidebar(data, max) {
+  const isLean = layerKey === 'lean';
+  document.getElementById('legendTitle').textContent = isLean ? 'Mean lean, this window' : 'Reading the map';
+  document.getElementById('legendNote').textContent = isLean
+    ? 'A province under the article floor is drawn dashed and left uncoloured — never shown as centre.'
+    : 'Volume is not importance. A province with more articles has more outlets in it.';
+
+  const items = isLean
+    ? LEAN_STOPS.map(s => ({ label: s.label, sw: 'background:' + s.hex }))
+        .concat([{ label: 'Not measured — under ' + MIN_MEASURABLE + ' articles', sw: 'border:1px dashed var(--wtf-text-muted)' }])
+    : [
+        { label: 'Highest this window', sw: 'background:var(--wtf-accent)' },
+        { label: 'Measured volume', sw: 'background:var(--wtf-center)' },
+        { label: 'Circle area is count', sw: 'border:1px solid var(--wtf-center);border-radius:50%' }
+      ];
+  document.getElementById('legend').innerHTML = items.map(i =>
+    '<div style="display:flex;align-items:center;gap:9px">' +
+    '<span style="width:11px;height:11px;border-radius:2px;flex-shrink:0;' + i.sw + '"></span>' +
+    '<span style="font-size:13px;color:var(--wtf-text-2)">' + i.label + '</span></div>').join('');
+
+  document.getElementById('rankTitle').textContent = cfg().label + ' — top six';
+  document.getElementById('ranks').innerHTML = data.slice().sort((a, b) => b.v - a.v).slice(0, 6).map(r =>
+    '<div style="display:grid;grid-template-columns:30px minmax(0,1fr) 44px;gap:9px;align-items:center">' +
+    '<span style="font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text-2)">' + r.p.code + '</span>' +
+    '<span class="bar-track" style="height:5px;background:var(--wtf-bg-panel)"><span class="bar-fill" style="width:' +
+      Math.round((r.v / max) * 100) + '%;background:' + (r.v === max ? 'var(--wtf-accent)' : 'var(--wtf-center)') + '"></span></span>' +
+    '<span style="font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text);text-align:right">' + r.v + '</span></div>').join('');
+
+  const f = document.getElementById('fresh');
+  f.textContent = cfg().fresh;
+  f.style.border = '1px solid ' + (cfg().stale ? '#3a2d12' : 'var(--wtf-border)');
+  f.style.background = cfg().stale ? 'rgba(245,158,11,.1)' : 'transparent';
+  f.style.color = cfg().stale ? 'var(--wtf-developing)' : 'var(--wtf-text-2)';
+}
+
+/* ── controls ──────────────────────────────────────────────────────────── */
+document.getElementById('layers').innerHTML = LAYERS.map(l =>
+  '<button class="wtf-seg' + (l.key === layerKey ? ' is-active' : '') + '" data-k="' + l.key + '">' +
+  l.label + (l.locked ? ' &#128274;' : '') + '</button>').join('');
+document.getElementById('layers').addEventListener('click', e => {
+  const b = e.target.closest('.wtf-seg'); if (!b) return;
+  layerKey = b.dataset.k;
+  document.querySelectorAll('#layers .wtf-seg').forEach(x => x.classList.toggle('is-active', x === b));
+  document.getElementById('tip').style.display = 'none';
+  render();
+});
+
+function setDay(d) {
+  day = Math.max(0, Math.min(89, d));
+  const pct = (day / 89) * 100;
+  document.getElementById('scrubFill').style.width = pct + '%';
+  document.getElementById('scrubKnob').style.left = pct + '%';
+  const ago = 89 - day;
+  document.getElementById('dayLabel').textContent = ago === 0 ? 'Today' : ago + ' days ago';
+  render();
+}
+document.getElementById('scrub').addEventListener('click', e => {
+  const r = e.currentTarget.getBoundingClientRect();
+  setPlaying(false);
+  setDay(Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * 89));
+});
+function setPlaying(v) {
+  playing = v;
+  const b = document.getElementById('play');
+  b.classList.toggle('is-playing', playing);
+  b.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+}
+document.getElementById('play').addEventListener('click', () => setPlaying(!playing));
+setInterval(() => { if (playing) setDay(day >= 89 ? 0 : day + 1); }, 140);
+setDay(89);
+</script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

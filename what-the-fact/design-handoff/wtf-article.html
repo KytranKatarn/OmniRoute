@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Article — What The Fact</title>
+<meta name="description" content="Bias analysis, fact-check verdict and full coverage comparison for a single Canadian news story.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Article — What The Fact">
+<meta property="og:description" content="Bias analysis, fact-check verdict and full coverage comparison for a single Canadian news story.">
+<meta property="og:image" content="assets/wtf-logo.png">
+<meta property="og:locale" content="en_CA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Article — What The Fact">
+<meta name="twitter:description" content="Bias analysis, fact-check verdict and full coverage comparison for a single Canadian news story.">
+<meta name="twitter:image" content="assets/wtf-logo.png">
+<link rel="icon" href="assets/wtf-logo.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root { --r-lg:14px; --r-md:10px; --r-sm:7px;
+    --lift:0 1px 0 rgba(255,255,255,.045) inset, 0 8px 22px -12px rgba(0,0,0,.85);
+    --ease:cubic-bezier(.32,.72,0,1); }
+  html { font-optical-sizing:auto; text-rendering:optimizeLegibility; }
+  body { letter-spacing:-.006em; }
+
+  .art-grid { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:26px; align-items:start; }
+  @media (max-width:980px) { .art-grid { grid-template-columns:minmax(0,1fr); } }
+
+  .kicker { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-bottom:14px; }
+  .tag { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
+         padding:3px 9px; border-radius:2px; border:1px solid var(--wtf-border); color:var(--wtf-text-muted); }
+  .tag-ai { color:var(--wtf-established); border-color:rgba(16,185,129,.32); }
+  .tag-creed { color:var(--wtf-established); border-color:rgba(16,185,129,.32); }
+  h1.head { font-family:var(--wtf-font-serif); font-size:38px; font-weight:600; line-height:1.1;
+            letter-spacing:-.026em; margin:0 0 14px; text-wrap:balance; }
+  .byline { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding-bottom:16px;
+            border-bottom:1px solid var(--wtf-border); font-family:var(--wtf-font-mono); font-size:10.5px;
+            letter-spacing:.06em; color:var(--wtf-text-muted); }
+  .byline b { color:var(--wtf-text); font-weight:500; }
+
+  .panel { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:var(--r-lg);
+           padding:17px 18px; box-shadow:var(--lift); margin-top:16px; }
+  .psec { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.15em; text-transform:uppercase;
+          color:var(--wtf-text-muted); margin-bottom:11px; }
+  .quote { border-left:2px solid var(--wtf-border); padding:2px 0 2px 13px; margin:0 0 11px;
+           font-family:var(--wtf-font-serif); font-size:15px; line-height:1.6; color:var(--wtf-text-2);
+           text-wrap:pretty; }
+  .quote:last-of-type { margin-bottom:0; }
+  .foot-note { font-size:11.5px; line-height:1.6; color:#5d6875; margin-top:11px;
+               padding-top:10px; border-top:1px solid var(--wtf-border); }
+
+  .scale { position:relative; height:8px; border-radius:4px; margin:7px 0 6px; }
+  .scale i { position:absolute; top:-4px; width:3px; height:16px; border-radius:2px; background:var(--wtf-text);
+             box-shadow:0 0 0 2px var(--wtf-bg-card); transform:translateX(-50%); }
+  .scale-l { display:flex; justify-content:space-between; font-family:var(--wtf-font-mono);
+             font-size:9px; letter-spacing:.1em; color:#5d6875; }
+  .sig { display:inline-block; font-family:var(--wtf-font-mono); font-size:10.5px; color:var(--wtf-text-2);
+         background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:2px;
+         padding:3px 9px; margin:0 5px 5px 0; }
+
+  .kv { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:12px; }
+  .kv-k { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.13em; text-transform:uppercase;
+          color:#5d6875; margin-bottom:4px; }
+  .kv-v { font-family:var(--wtf-font-mono); font-size:14px; color:var(--wtf-text);
+          font-variant-numeric:tabular-nums; }
+
+  .cov { display:grid; grid-template-columns:88px minmax(0,1fr) 40px; gap:9px; align-items:center;
+         font-family:var(--wtf-font-mono); font-size:10px; margin-bottom:6px; }
+  .covbar { height:5px; border-radius:3px; background:var(--wtf-bg); overflow:hidden; display:block; }
+  .covbar i { display:block; height:100%; border-radius:3px; }
+
+  .ent { display:flex; align-items:center; justify-content:space-between; gap:9px; padding:8px 10px;
+         background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:var(--r-sm);
+         margin-bottom:6px; transition:border-color .18s var(--ease); }
+  .ent:hover { border-color:#2f3d52; }
+  .ent-n { font-size:12.5px; color:var(--wtf-text); }
+  .ent-t { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.12em; text-transform:uppercase;
+           color:var(--wtf-text-muted); }
+
+  .excerpt p { font-family:var(--wtf-font-serif); font-size:16px; line-height:1.7; color:var(--wtf-text-2);
+               letter-spacing:-.003em; text-wrap:pretty; max-width:70ch; margin:0 0 15px; }
+  .excerpt h3 { font-family:var(--wtf-font-serif); font-size:19px; font-weight:600; letter-spacing:-.016em;
+                color:var(--wtf-text); margin:22px 0 10px; }
+  .fade { position:relative; max-height:520px; overflow:hidden; }
+  .fade::after { content:''; position:absolute; inset:auto 0 0 0; height:150px;
+                 background:linear-gradient(180deg,transparent,var(--wtf-bg-card)); }
+
+  .rail { position:sticky; top:70px; display:flex; flex-direction:column; gap:14px; }
+  .rail .panel { margin-top:0; }
+  .agent { display:flex; align-items:center; gap:9px; padding:6px 0 6px 10px; border-left:2px solid; }
+  .agent b { font-family:var(--wtf-font-mono); font-size:10.5px; font-weight:500; }
+  .agent span { font-size:12px; color:var(--wtf-text-muted); }
+
+  .spark { display:flex; align-items:flex-end; gap:3px; height:34px; margin:9px 0 5px; }
+  .spark i { flex:1; border-radius:1px; display:block; }
+
+  .cta { background:var(--wtf-bg); border:1px dashed var(--wtf-border); border-radius:var(--r-sm);
+         padding:14px; text-align:center; }
+  .btn { display:inline-block; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.1em;
+         text-transform:uppercase; padding:9px 17px; border-radius:999px; border:1px solid var(--wtf-border);
+         color:var(--wtf-text-2); transition:all .18s var(--ease); }
+  .btn:hover { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+  .btn-p { background:var(--wtf-accent); border-color:var(--wtf-accent); color:#fff; }
+  .btn-p:hover { background:#b91c1c; color:#fff; }
+  a:focus-visible, button:focus-visible { outline:2px solid var(--wtf-brand); outline-offset:2px; }
+
+  #prog { position:fixed; inset:54px 0 auto 0; height:2px; background:transparent; z-index:400; }
+  #prog i { display:block; height:100%; width:0; background:var(--wtf-accent); transition:width .1s linear; }
+
+  .secnav { position:sticky; top:56px; z-index:60; display:flex; gap:3px; overflow-x:auto; scrollbar-width:none;
+            margin:0 0 20px; padding:8px 0; background:var(--wtf-bg);
+            border-bottom:1px solid var(--wtf-border); }
+  .secnav::-webkit-scrollbar { display:none; }
+  .secnav a { flex:0 0 auto; font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.12em;
+              text-transform:uppercase; color:var(--wtf-text-muted); padding:7px 13px; border-radius:999px;
+              border:1px solid transparent; transition:all .16s var(--ease); }
+  .secnav a:hover { color:var(--wtf-text-2); }
+  .secnav a.on { color:var(--wtf-text); background:var(--wtf-bg-card); border-color:var(--wtf-border); }
+
+  /* On narrow screens the rail must not be dumped below the provenance block —
+     source intelligence is context for reading, so it comes first. */
+  @media (max-width:980px) {
+    .art-grid { display:flex; flex-direction:column; }
+    /* Source intelligence is context for reading, so it leads on narrow
+       screens instead of landing after the provenance block. */
+    .rail .panel:first-child { order:-1; }
+    .rail { position:static; }
+    h1.head { font-size:30px; }
+  }
+  .agentrow { display:grid; grid-template-columns:26px minmax(0,1fr) auto; gap:10px; align-items:center;
+              padding:7px 9px; border-radius:var(--r-sm); background:var(--wtf-bg); margin-bottom:6px;
+              border-left:3px solid var(--ac); }
+  .agentdot { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+              font-family:var(--wtf-font-mono); font-size:11px; font-weight:600; color:var(--ac);
+              background:color-mix(in srgb, var(--ac) 16%, transparent);
+              border:1px solid color-mix(in srgb, var(--ac) 42%, transparent); }
+  .agentname { display:block; font-family:var(--wtf-font-mono); font-size:10.5px; letter-spacing:.06em; color:var(--ac); }
+  .agentwhat { display:block; font-size:11.5px; color:var(--wtf-text-muted); margin-top:2px;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .agentstate { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; }
+  .topbar { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-bottom:18px; }
+  .nextbar { display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-top:22px; }
+  @media (max-width:640px) { .nextbar { grid-template-columns:1fr; } }
+  .nextcard { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:var(--r-lg);
+              padding:13px 15px; box-shadow:var(--lift); transition:border-color .18s var(--ease), transform .18s var(--ease); }
+  .nextcard:hover { border-color:#2f3d52; transform:translateY(-2px); }
+  .nextcard.dim { opacity:.38; pointer-events:none; }
+  .nextcard small { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase;
+                    color:var(--wtf-text-muted); display:block; margin-bottom:5px; }
+  .nextcard span { font-family:var(--wtf-font-serif); font-size:14px; line-height:1.35; color:var(--wtf-text);
+                   display:block; text-wrap:pretty; }
+  .outrow { display:grid; grid-template-columns:3px minmax(0,1fr) auto; gap:11px; align-items:center;
+            padding:10px 0; border-bottom:1px solid var(--wtf-border); }
+  .outrow:last-child { border-bottom:0; }
+
+  .claim { display:grid; grid-template-columns:20px minmax(0,1fr); gap:10px; align-items:start;
+           padding:10px 0; border-bottom:1px solid var(--wtf-border); }
+  .claim:last-of-type { border-bottom:0; }
+  .claim-g { font-size:14px; line-height:1.4; }
+  .claim-t { display:block; font-size:13.5px; line-height:1.6; color:var(--wtf-text-2); text-wrap:pretty; }
+  .claim-s { display:block; font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.06em;
+             color:#5d6875; margin-top:4px; }
+  /* Locked claims stay visible in shape so the reader can see what is behind
+     the paywall rather than being told about it. */
+  .claim.locked { filter:blur(4.5px); opacity:.55; user-select:none; pointer-events:none; }
+
+  /* ══ print ══════════════════════════════════════════════════════════
+     A page with citation formats will be printed. Drop the furniture, put
+     ink on white, and keep the URL visible on every link. */
+  @media print {
+    @page { margin:16mm; }
+    :root { --wtf-text:#000; --wtf-text-2:#1a1a1a; --wtf-text-muted:#555; --wtf-border:#ccc; }
+    html, body { background:#fff !important; color:#000 !important; }
+    nav, .footer, .secnav, #prog, .nextbar, .topbar, .btn, .cta, .morebtn,
+    .rail .panel:nth-child(n+2) { display:none !important; }
+    .art-grid { display:block !important; }
+    .rail { position:static !important; margin-top:14px; }
+    .panel, .dbox, .ent, .rail .panel {
+      background:#fff !important; border:1px solid #ccc !important; box-shadow:none !important;
+      break-inside:avoid; page-break-inside:avoid; }
+    h1.head { font-size:24pt; color:#000 !important; }
+    .psec { color:#444 !important; }
+    .quote { border-left:2px solid #999 !important; color:#1a1a1a !important; }
+    .claim.locked { filter:none; opacity:1; }
+    .scrolllist { max-height:none !important; overflow:visible !important; }
+    .excerpt .fade::after { display:none !important; }
+    #citebox { background:#fff !important; border:1px solid #999 !important; }
+    a { color:#000 !important; text-decoration:underline; }
+    a[href^="http"]::after { content:" (" attr(href) ")"; font-size:8pt; color:#555; }
+    .foot-note { color:#555 !important; }
+  }
+  .scrolllist { max-height:352px; overflow-y:auto; scrollbar-width:thin; }
+  .scrolllist.expanded { max-height:min(58vh,540px); }
+  .morebtn { width:100%; margin-top:10px; padding:9px; cursor:pointer; border-radius:var(--r-sm);
+             border:1px solid var(--wtf-border); background:var(--wtf-bg-panel); color:var(--wtf-text-2);
+             font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.11em; text-transform:uppercase;
+             transition:all .16s var(--ease); }
+  .morebtn:hover { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+
+<div id="prog"><i></i></div>
+<main class="wrap" id="page"></main>
+
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+
+<script src="wtf-corpus.js"></script>
+<script>
+/* The article page reads the SAME row the feed and the drawer read. Nothing
+   here is re-derived: id in, one record out, every panel a view of it. */
+let PRO = false;
+try { PRO = localStorage.getItem('wtf-sub') === '1'; } catch (e) {}
+function unlock() { PRO = true; try { localStorage.setItem('wtf-sub','1'); } catch (e) {} location.reload(); }
+window.unlock = unlock;
+
+const P = new URLSearchParams(location.search);
+const id = P.get('id');
+const a = byId(id) || ARTICLES[0];
+
+/* The feed's filter state travels in ?back=. Replaying it here means prev /
+   next walk the SAME list the reader was looking at, not the whole archive. */
+const backRaw = P.get('back') || '';
+const F = new URLSearchParams(backRaw);
+function feedList() {
+  const q = (F.get('q') || '').trim().toLowerCase();
+  const win = +(F.get('win') || 0);
+  const group = F.get('view') !== 'articles';
+  const setOf = k => new Set((F.get(k) || '').split(',').filter(Boolean));
+  const lean = setOf('lean'), verdict = setOf('verdict'), beat = setOf('beat'), prov = setOf('prov');
+  const src = group ? ARTICLES.filter(x => x.first) : ARTICLES;
+  let out = src.filter(x =>
+    (!win || x.min <= win) &&
+    (!lean.size || lean.has(x.lean)) &&
+    (!verdict.size || (x.verdict && verdict.has(x.verdict))) &&
+    (!beat.size || beat.has(x.beat)) &&
+    (!prov.size || prov.has(x.prov)) &&
+    (!q || (x.t+' '+x.src+' '+x.beat+' '+x.prov).toLowerCase().includes(q)));
+  const spreadOf = x => 100 - Math.max(...x.spread);
+  const by = { new:(p,q2)=>p.min-q2.min, old:(p,q2)=>q2.min-p.min,
+               outlets:(p,q2)=>q2.outlets-p.outlets, lonely:(p,q2)=>p.outlets-q2.outlets,
+               diverge:(p,q2)=>spreadOf(q2)-spreadOf(p),
+               blind:(p,q2)=>(q2.blind?1:0)-(p.blind?1:0)||p.min-q2.min };
+  return out.sort(by[F.get('sort') || 'new'] || by.new);
+}
+const LIST = feedList();
+const AT = LIST.findIndex(x => x.id === a.id);
+const PREV = AT > 0 ? LIST[AT - 1] : null;
+const NEXT = AT >= 0 && AT < LIST.length - 1 ? LIST[AT + 1] : null;
+const backHref = 'wtf-news.html' + (backRaw ? '#' + backRaw : '');
+const filtered = !!backRaw;
+const SIBS = siblingsOf(a);
+const b = bandOf(a.lean);
+const v = a.verdict ? VERDICTS[a.verdict] : null;
+const tot = a.spread.reduce((x, y) => x + y, 0);
+const lead = a.spread.indexOf(Math.max(...a.spread));
+const idx = BANDS.findIndex(x => x.k === a.lean);
+const score = (idx - 2) / 2;
+const pos = Math.round((score + 1) / 2 * 100);
+const d = dateOf(a.min);
+
+/* Deterministic per-article detail, seeded off the id so the page is stable
+   and matches whatever the feed showed. */
+function seed(str) { let h = 0; for (const c of str) h = (h * 31 + c.charCodeAt(0)) % 233280; return () => ((h = (h * 9301 + 49297) % 233280) / 233280); }
+const r = seed(a.id);
+const readMin = 3 + Math.floor(r() * 6);
+const O = OUTLET_STATS[a.src];
+const outletAvg = O.avg, outletBand = O.band;
+
+/* Seven-day trend is the outlet's own recent articles, bucketed by day. */
+const trend = Array.from({length:7}, (_, i) => {
+  const lo = (6 - i) * 1440, hi = lo + 1440;
+  const rows = ARTICLES.filter(x => x.src === a.src && x.min >= lo && x.min < hi);
+  if (!rows.length) return null;
+  return rows.reduce((t, x) => t + (BANDS.findIndex(z => z.k === x.lean) - 2) / 2, 0) / rows.length;
+});
+const ENT = entitiesFor(a);
+
+document.title = a.t + ' — What The Fact';
+
+const bandBar = 'linear-gradient(90deg,' + BANDS.map(x => x.hex).join(',') + ')';
+
+document.getElementById('page').innerHTML =
+'<nav class="secnav" id="secnav" aria-label="Sections"></nav>' +
+'<div class="art-grid">' +
+
+  /* ── main column ─────────────────────────────────────────────────── */
+  '<div>' +
+    '<div class="topbar">' +
+      '<a href="' + backHref + '" class="btn">&larr; ' + (filtered ? 'Back to your filtered feed' : 'Back to latest') + '</a>' +
+      (AT >= 0 ? '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#5d6875">' +
+        (AT + 1) + ' of ' + LIST.length + (filtered ? ' in this view' : '') + '</span>' : '') +
+      '<button class="btn" style="margin-left:auto;cursor:pointer" onclick="share(this)">Copy link</button>' +
+    '</div>' +
+    '<div class="kicker">' +
+      '<a href="wtf-outlet.html?src=' + encodeURIComponent(a.src) + '" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text)">' + a.src + '</a>' +
+      '<span class="tag">' + d.toLocaleDateString('en-CA',{month:'short',day:'numeric',year:'numeric'}) + '</span>' +
+      '<span class="tag" id="rtime">' + readMin + ' min read</span>' +
+      '<span class="tag tag-ai">AI analyzed</span>' +
+      (v ? '<span class="tag" style="color:' + v.c + ';border-color:' + v.c + '55">' + v.g + ' ' + v.l + '</span>'
+         : '<span class="tag">&#9675; Unverified</span>') +
+      '<span class="tag tag-creed">C.R.E.E.D. audited</span>' +
+      '<a href="wtf-creed.html" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.08em;color:var(--wtf-aurora)">View full audit trail &rarr;</a>' +
+    '</div>' +
+
+    '<h1 class="head">' + a.t + '</h1>' +
+
+    '<div class="byline">' +
+      '<span>' + a.beat.toUpperCase() + ' &middot; ' + a.prov + '</span>' +
+      '<span><b>' + a.outlets + '</b> outlets covering</span>' +
+      '<span>Filed ' + ago(a.min) + '</span>' +
+      '<a href="' + (a.url || 'wtf-news.html?src=' + encodeURIComponent(a.src)) + '" style="margin-left:auto;color:var(--wtf-accent)">Original article &#x2197;</a>' +
+    '</div>' +
+
+    /* What we hold on this story. Measurements are labelled as measurements;
+       the only quoted text is the desk's own note. */
+    (a.note ?
+    '<div class="panel">' +
+      '<div class="psec">Analyst note</div>' +
+      '<p class="quote">' + a.note + '</p>' +
+      '<div class="foot-note">Filed by the desk on reading the article. Not generated, and not the article&rsquo;s own words.</div>' +
+    '</div>' : '') +
+
+    '<div class="panel" id="measured">' +
+      '<div class="psec">What we measured</div>' +
+      '<div class="kv">' +
+        [['Outlets covering', String(a.outlets)],
+         ['Lean bands spanned', String(BANDS.filter((x,i) => a.spread[i] >= 10).length) + ' of 5'],
+         ['Widest band', BANDS[lead].l + ' ' + Math.round(a.spread[lead]/tot*100) + '%'],
+         ['Verdict', v ? v.l : 'None yet']]
+          .map(([k, val]) => '<div><div class="kv-k">' + k + '</div><div class="kv-v">' + val + '</div></div>').join('') +
+      '</div>' +
+      '<div class="foot-note">These are measurements of coverage, not statements from the article.</div>' +
+    '</div>' +
+
+    /* B.I.A.S. */
+    '<div class="panel" id="bias">' +
+      '<div class="psec" style="color:var(--wtf-bias)">B.I.A.S. analysis</div>' +
+      '<div style="display:inline-block;font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:' + b.hex + ';border:1px solid ' + b.hex + '55;border-radius:2px;padding:4px 11px;margin-bottom:12px">' + b.l + '</div>' +
+      '<div class="scale" style="background:' + bandBar + '"><i style="left:' + pos + '%"></i></div>' +
+      '<div class="scale-l"><span>Left &minus;1.0</span>' +
+        '<span style="color:var(--wtf-text);font-variant-numeric:tabular-nums">' +
+          (score > 0 ? '+' : '') + score.toFixed(2) + '</span>' +
+        '<span>Right +1.0</span></div>' +
+      '<div class="psec" style="margin:18px 0 9px">Where the ' + a.outlets + ' outlets covering this sit</div>' +
+      BANDS.map((bd, j) => {
+        const pct = Math.round(a.spread[j] / tot * 100), on = j === lead;
+        return '<div class="cov"><b style="color:' + (on ? 'var(--wtf-text)' : 'var(--wtf-text-2)') + '">' + bd.l + '</b>' +
+          '<span class="covbar"><i style="width:' + pct + '%;background:' + bd.hex + ';opacity:' + (on ? 1 : .55) + '"></i></span>' +
+          '<span style="text-align:right;color:' + (on ? 'var(--wtf-text)' : 'var(--wtf-text-muted)') + '">' + pct + '%</span></div>';
+      }).join('') +
+      '<div class="psec" style="margin:18px 0 8px">Signal breakdown</div>' +
+      '<div style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);text-wrap:pretty">' +
+        'Scored on this article&rsquo;s framing against the same story elsewhere, not on the outlet&rsquo;s history. ' +
+        (a.note ? a.note + ' ' : '') +
+        'A different piece from ' + a.src + ' can land in a different band tomorrow.</div>' +
+      '<div style="margin-top:12px">' +
+        [a.beat.toLowerCase() + ' framing', BANDS[lead].l.toLowerCase() + ' majority', a.outlets + '-outlet cluster',
+         a.blind ? 'limited reach' : 'broad pickup'].map(t => '<span class="sig">' + t + '</span>').join('') +
+      '</div>' +
+      '<div class="foot-note">&#128274; <a href="wtf-home.html">Sign in</a> for the trigger phrases B.I.A.S. matched.</div>' +
+    '</div>' +
+
+    /* The comparison the whole premise rests on. */
+    (SIBS.length > 1 ?
+    '<div class="panel" id="compare">' +
+      '<div class="psec">Same story, ' + (SIBS.length - 1) + ' other outlet' + (SIBS.length === 2 ? '' : 's') + '</div>' +
+      '<div class="scrolllist" id="siblist">' +
+      SIBS.filter(x => x.id !== a.id).map(x => {
+        const xb = bandOf(x.lean);
+        return '<a class="outrow" href="wtf-article.html?id=' + encodeURIComponent(x.id) + (backRaw ? '&back=' + encodeURIComponent(backRaw) : '') + '">' +
+          '<span style="width:3px;height:30px;border-radius:2px;background:' + xb.hex + '"></span>' +
+          '<span style="min-width:0">' +
+            '<span style="display:block;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;color:var(--wtf-text-muted)">' + x.src.toUpperCase() + '</span>' +
+            '<span style="display:block;font-family:var(--wtf-font-serif);font-size:14.5px;line-height:1.35;color:var(--wtf-text-2);margin-top:3px;text-wrap:pretty">' + headlineFor(x) + '</span></span>' +
+          '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:' + xb.hex + ';white-space:nowrap">' + xb.l + '</span></a>';
+      }).join('') + '</div>' +
+      (SIBS.length > 9 ? '<button class="morebtn" onclick="grow(\'siblist\',this,\'outlets\')">Show all ' + (SIBS.length - 1) + ' outlets</button>' : '') +
+      '<div class="foot-note">Same event, ' + SIBS.length + ' framings. The band is scored on the wording of each piece, not on the masthead that ran it.</div>' +
+    '</div>' : '') +
+
+    /* Who filed first. */
+    (SIBS.length > 1 ? (function () {
+      const span = SIBS[SIBS.length - 1].min - SIBS[0].min || 1;
+      return '<div class="panel">' +
+        '<div class="psec">Pickup order</div>' +
+        '<div class="scrolllist" id="puplist" style="padding-right:4px">' +
+        SIBS.map((x, i) => {
+          const off = x.min - SIBS[0].min, pct = Math.round(off / span * 100), here = x.id === a.id;
+          return '<div style="display:grid;grid-template-columns:150px minmax(0,1fr) 58px;gap:11px;align-items:center;margin-bottom:7px">' +
+            '<span style="font-family:var(--wtf-font-mono);font-size:10px;color:' + (here ? 'var(--wtf-text)' : 'var(--wtf-text-muted)') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + x.src + '</span>' +
+            '<span style="position:relative;height:4px;border-radius:2px;background:var(--wtf-bg)">' +
+              '<span style="position:absolute;left:' + pct + '%;top:-4px;width:11px;height:11px;border-radius:50%;transform:translateX(-50%);background:' + (here ? 'var(--wtf-accent)' : bandOf(x.lean).hex) + '"></span></span>' +
+            '<span style="font-family:var(--wtf-font-mono);font-size:10px;color:#5d6875;text-align:right">' + (i === 0 ? 'first' : '+' + Math.round(off / 60) + 'h') + '</span></div>';
+        }).join('') + '</div>' +
+        (SIBS.length > 9 ? '<button class="morebtn" onclick="grow(\'puplist\',this,\'filings\')">Show all ' + SIBS.length + ' filings</button>' : '') +
+        '<div class="foot-note">' + SIBS[0].src + ' filed first; the rest followed over ' + Math.round(span / 60) + ' hours. Order distinguishes original reporting from pickup.</div>' +
+      '</div>';
+    })() : '') +
+
+    /* V.E.R.I.F.Y. */
+    '<div class="panel" id="verify">' +
+      '<div class="psec" style="color:var(--wtf-verify)">V.E.R.I.F.Y. fact-check</div>' +
+      (v ? '<div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">' +
+             '<span style="font-size:16px;color:' + v.c + '">' + v.g + '</span>' +
+             '<span style="font-family:var(--wtf-font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:' + v.c + '">Overall: ' + v.l + '</span></div>' +
+           '<div style="font-size:13px;line-height:1.7;color:var(--wtf-text-2)">The claims in this story were checked against primary documents where those exist. A verdict describes the evidence available now, not the outlet.</div>'
+         : '<div style="font-size:13px;line-height:1.7;color:var(--wtf-text-muted)">No verdict on this story. V.E.R.I.F.Y. found claims but has not independently verified them. Absence of a verdict is not a pass, and does not mean the article is inaccurate.</div>') +
+      (function () {
+        const CL = CLAIMS_FOR(a);
+        return '<div class="psec" style="margin:17px 0 9px">' + CL.length + ' claims checked</div>' +
+          CL.map((c, i) => {
+            const cv = VERDICTS[c.verdict], lock = i > 0 && !PRO;
+            return '<div class="claim' + (lock ? ' locked' : '') + '">' +
+              '<span class="claim-g" style="color:' + cv.c + '">' + cv.g + '</span>' +
+              '<span style="min-width:0">' +
+                '<span class="claim-t">' + c.text + '</span>' +
+                '<span class="claim-s">' + cv.l + ' &middot; ' + c.src + '</span></span></div>';
+          }).join('') +
+          (PRO ? '' :
+          '<div class="cta" style="margin-top:13px">' +
+            '<div style="font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);margin-bottom:10px">' +
+              (CL.length - 1) + ' more claim' + (CL.length === 2 ? '' : 's') + ' on this story, each with its verdict and source.</div>' +
+            '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">' +
+              '<a href="wtf-home.html" class="btn btn-p">Subscribe &mdash; $4.99/mo</a>' +
+              '<button class="btn" onclick="unlock()">Preview</button></div></div>');
+      })() +
+    '</div>' +
+
+    /* We link, we do not republish. Saying so plainly is better than a
+       plausible-looking excerpt a reader might mistake for the article. */
+    '<div class="panel" id="read">' +
+      '<div class="psec">Reading the original</div>' +
+      '<div style="font-size:13.5px;line-height:1.75;color:var(--wtf-text-2);max-width:66ch;text-wrap:pretty">' +
+        'What The Fact analyses coverage. It does not republish it. The article stays with ' + a.src +
+        ', which reported and owns it &mdash; everything on this page describes that article rather than reproducing it.</div>' +
+      '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:14px">' +
+        '<a href="' + (a.url || 'wtf-news.html?src=' + encodeURIComponent(a.src)) + '" class="btn btn-p">Read at ' + a.src + ' &#x2197;</a>' +
+        '<a href="wtf-news.html?src=' + encodeURIComponent(a.src) + '" class="btn">All ' + a.src + ' coverage</a>' +
+      '</div>' +
+    '</div>' +
+
+    /* How to cite. A site that wants to be a source should make citing it
+       mechanical rather than leaving the reader to improvise a URL. */
+    '<div class="panel" id="cite">' +
+      '<div class="psec">Cite this analysis</div>' +
+      '<div id="citebox" style="font-family:var(--wtf-font-mono);font-size:11.5px;line-height:1.75;color:var(--wtf-text-2);' +
+        'background:var(--wtf-bg);border:1px solid var(--wtf-border);border-radius:var(--r-sm);padding:12px 13px;' +
+        'white-space:pre-wrap;word-break:break-word"></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:11px">' +
+        '<button class="btn" onclick="setCite(\'apa\',this)">APA</button>' +
+        '<button class="btn" onclick="setCite(\'chicago\',this)">Chicago</button>' +
+        '<button class="btn" onclick="setCite(\'link\',this)">Permalink</button>' +
+        '<button class="btn btn-p" onclick="copyCite(this)">Copy</button>' +
+        '<button class="btn" onclick="print()">Print / PDF</button>' +
+      '</div>' +
+      '<div class="foot-note">Cite the analysis for the bias score and verdict. Cite ' + a.src +
+        ' for the reporting itself &mdash; the two are different claims.</div>' +
+    '</div>' +
+
+    /* Provenance */
+    '<div class="panel" id="method">' +
+      '<div class="psec">How we scored this article</div>' +
+      '<div class="kv">' +
+        [['Lean band', b.l], ['Verdict', v ? v.l : 'None yet'], ['Outlets', String(a.outlets)],
+         ['Beat', a.beat], ['Province', a.prov], ['Scored', d.toLocaleDateString('en-CA',{month:'short',day:'numeric'})]]
+          .map(([k, val]) => '<div><div class="kv-k">' + k + '</div><div class="kv-v">' + val + '</div></div>').join('') +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">' +
+        '<a href="wtf-methodology.html" class="btn">Methodology</a>' +
+        (SIBS.length > 1 ? '<a href="#compare" class="btn" data-jump="compare">Compare coverage</a>' : '') +
+        '<a href="wtf-home.html" class="btn">Report incorrect analysis</a>' +
+      '</div>' +
+    '</div>' +
+  '</div>' +
+
+  /* ── rail ────────────────────────────────────────────────────────── */
+  '<aside class="rail">' +
+    '<div class="panel">' +
+      '<div class="psec">&#127974; Source intelligence</div>' +
+      '<div style="font-family:var(--wtf-font-serif);font-size:19px;font-weight:600;letter-spacing:-.014em">' + a.src + '</div>' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);margin:3px 0 13px">' + a.prov + ' &middot; Canada</div>' +
+      '<div class="psec" style="margin-bottom:6px">Rolling outlet bias</div>' +
+      '<div style="display:flex;align-items:baseline;gap:9px;margin-bottom:10px;flex-wrap:wrap">' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:' + outletBand.hex + '">' + outletBand.l + '</span>' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text-muted);font-variant-numeric:tabular-nums">avg ' + (outletAvg >= 0 ? '+' : '') + outletAvg + '</span></div>' +
+      '<div class="scale" style="background:' + bandBar + '"><i style="left:' + Math.round((outletAvg + 1) / 2 * 100) + '%"></i></div>' +
+      '<div class="foot-note" style="border:0;padding:0;margin-top:8px">From ' + O.n + ' scored article' + (O.n===1?'':'s') +
+        ' in the corpus &middot; ' + O.checked + ' fact-checked &middot; ' + O.first + ' filed first on a cluster.</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px">' +
+        [['Main beat', O.topBeat], ['Main region', O.topProv],
+         ['Blindspot stories', String(O.blind)], ['Language', a.lang === 'fr' ? 'Français' : 'English']]
+        .map(([k, val]) => '<div><div class="kv-k">' + k + '</div><div class="kv-v" style="font-size:12px">' + val + '</div></div>').join('') +
+      '</div>' +
+      '<div class="psec" style="margin:15px 0 0">7-day bias trend</div>' +
+      '<div class="spark">' + trend.map(t => {
+        if (t === null) return '<i style="height:3px;background:var(--wtf-border)" title="No articles that day"></i>';
+        const h = Math.max(5, Math.abs(t) * 30);
+        const c = BANDS[Math.max(0, Math.min(4, Math.round(t * 2) + 2))].hex;
+        return '<i style="height:' + h + 'px;background:' + c + '"></i>';
+      }).join('') + '</div>' +
+      '<div class="foot-note" style="border:0;padding:0;margin:-2px 0 0;font-size:10.5px">Grey days: nothing published.</div>' +
+      '<div class="scale-l"><span>L</span><span>centre</span><span>R</span></div>' +
+      '<a href="wtf-outlet.html?src=' + encodeURIComponent(a.src) + '" class="btn" style="margin-top:13px">' + a.src + ' profile &rarr;</a>' +
+    '</div>' +
+
+    '<div class="panel">' +
+      '<div class="psec">Agents on this story</div>' +
+      [['B','B.I.A.S.','Bias analyst','#f59e0b', 'Scored ' + b.l, true],
+       ['V','V.E.R.I.F.Y.','Fact-checker','#10b981', v ? 'Verdict: ' + v.l : 'Not yet run', !!v],
+       ['L','L.O.C.A.L.','Geo analyst','#4a72d8', 'Placed in ' + a.prov, true],
+       ['I','I.N.K.','Clustering','#a78bfa', 'Grouped ' + a.outlets + ' outlets', true],
+       ['D','D.R.A.F.T.','Summaries','#7fa3cf', a.note ? 'Note filed' : 'No summary', !!a.note],
+       ['F','F.A.C.T.','Beat routing','#dc2626', 'Routed to ' + a.beat, true]].map(r =>
+        '<div class="agentrow" style="--ac:' + r[3] + '">' +
+          '<span class="agentdot">' + r[0] + '</span>' +
+          '<span style="min-width:0"><span class="agentname">' + r[1] + '</span>' +
+          '<span class="agentwhat">' + r[4] + '</span></span>' +
+          '<span class="agentstate" style="color:' + (r[5] ? 'var(--wtf-established)' : 'var(--wtf-text-muted)') + '">' +
+            (r[5] ? 'done' : 'pending') + '</span></div>').join('') +
+    '</div>' +
+
+    '<div class="panel">' +
+      '<div class="psec">&#128279; Cross-Watch</div>' +
+      '<div style="font-size:12px;line-height:1.6;color:var(--wtf-text-muted);margin-bottom:10px">Read out of this story&rsquo;s text and tracked across the Watch series.</div>' +
+      ENT.map(e => {
+        const n = entityCount(e.name);
+        return '<a class="ent" href="' + e.href + '"><span style="min-width:0">' +
+          '<span class="ent-n">' + e.name + '</span>' +
+          '<span style="display:block;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:2px">' +
+            e.kind + '</span></span>' +
+          '<span class="ent-t" style="color:var(--wtf-text-2);white-space:nowrap">' + n + ' stor' + (n === 1 ? 'y' : 'ies') + '</span></a>';
+      }).join('') +
+    '</div>' +
+
+    (a.blind ? '<div class="panel" style="border-left:3px solid var(--wtf-accent)">' +
+      '<div class="psec" style="color:var(--wtf-accent)">Blindspot</div>' +
+      '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-2)">Carried by ' + a.outlets +
+      ' outlet' + (a.outlets === 1 ? '' : 's') + ', concentrated in one region or one language. ' +
+      'A story can be well reported and still reach almost nobody.</div>' +
+      '<a href="wtf-blindspot.html" class="btn" style="margin-top:11px">All blindspots &rarr;</a></div>' : '') +
+
+    '<div class="panel">' +
+      '<div class="psec">&#128238; Weekly bias digest</div>' +
+      '<div style="font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);margin-bottom:10px">Top stories and outlet bias averages, Mondays.</div>' +
+      '<a href="wtf-home.html" class="btn btn-p">Subscribe</a>' +
+    '</div>' +
+  '</aside>' +
+'</div>' +
+
+'<div class="nextbar">' +
+  (PREV ? '<a class="nextcard" href="wtf-article.html?id=' + encodeURIComponent(PREV.id) + (backRaw ? '&back=' + encodeURIComponent(backRaw) : '') + '">' +
+    '<small>&larr; Previous</small><span>' + PREV.t + '</span></a>'
+        : '<div class="nextcard dim"><small>&larr; Previous</small><span>Start of this view</span></div>') +
+  (NEXT ? '<a class="nextcard" href="wtf-article.html?id=' + encodeURIComponent(NEXT.id) + (backRaw ? '&back=' + encodeURIComponent(backRaw) : '') + '" style="text-align:right">' +
+    '<small>Next &rarr;</small><span>' + NEXT.t + '</span></a>'
+        : '<div class="nextcard dim" style="text-align:right"><small>Next &rarr;</small><span>End of this view</span></div>') +
+'</div>' +
+'<div style="text-align:center;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;color:#4d5766;margin-top:12px">J / K to move between articles</div>';
+
+/* progress, keyboard, share */
+
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if ((e.key === 'j' || e.key === 'J') && NEXT) location.href = 'wtf-article.html?id=' + encodeURIComponent(NEXT.id) + (backRaw ? '&back=' + encodeURIComponent(backRaw) : '');
+  if ((e.key === 'k' || e.key === 'K') && PREV) location.href = 'wtf-article.html?id=' + encodeURIComponent(PREV.id) + (backRaw ? '&back=' + encodeURIComponent(backRaw) : '');
+  if (e.key === 'Escape') location.href = backHref;
+});
+
+function share(btn) {
+  const url = location.origin + location.pathname + '?id=' + encodeURIComponent(a.id);
+  const done = () => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy link', 1400); };
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, done); else done();
+}
+window.share = share;
+</script>
+<script src="wtf-nav.js"></script>
+<script>
+/* Citation formats. The date shown is when the article was scored. */
+const CITE_DATE = d.toLocaleDateString('en-CA', { year:'numeric', month:'long', day:'numeric' });
+const CITE_URL = location.origin + location.pathname + '?id=' + encodeURIComponent(a.id);
+const CITES = {
+  apa: 'What The Fact. (' + d.getFullYear() + ', ' + d.toLocaleDateString('en-CA',{month:'long',day:'numeric'}) +
+       '). Bias and fact-check analysis of \u201c' + a.t + '\u201d (' + a.src + '). ' + CITE_URL,
+  chicago: 'What The Fact. \u201cBias and fact-check analysis of \u2018' + a.t + '\u2019 (' + a.src + ').\u201d ' +
+       CITE_DATE + '. ' + CITE_URL + '.',
+  link: CITE_URL
+};
+let citeMode = 'apa';
+function setCite(m, btn) {
+  citeMode = m;
+  document.getElementById('citebox').textContent = CITES[m];
+  if (btn) [...btn.parentElement.querySelectorAll('.btn')].slice(0, 3)
+    .forEach(x => x.classList.toggle('btn-p', x === btn));
+}
+function copyCite(btn) {
+  navigator.clipboard.writeText(CITES[citeMode]).then(() => {
+    const t = btn.textContent; btn.textContent = 'Copied';
+    setTimeout(() => btn.textContent = t, 1400);
+  });
+}
+window.setCite = setCite; window.copyCite = copyCite;
+setCite('apa');
+
+/* Long lists cap their height and scroll, so one 22-outlet cluster cannot
+   push the rest of the page out of reach. */
+function grow(id, btn, noun) {
+  const box = document.getElementById(id);
+  const open = box.classList.toggle('expanded');
+  btn.textContent = open ? 'Collapse list' : 'Show all ' + box.children.length + ' ' + noun;
+}
+window.grow = grow;
+
+/* Section nav tracks the scroll so the reader always knows where they are in
+   a long page, and can jump to the fact-check without hunting. */
+const SECS = [['measured','Measured'],['bias','B.I.A.S.'],['compare','Compare'],['verify','V.E.R.I.F.Y.'],
+              ['read','Original'],['cite','Cite'],['method','Method']]
+  .filter(([id]) => document.getElementById(id));
+document.getElementById('secnav').innerHTML = SECS.map(([id, l]) =>
+  '<a href="#' + id + '" data-s="' + id + '">' + l + '</a>').join('');
+addEventListener('click', e => {
+  const j = e.target.closest('a[data-jump]'); if (!j) return;
+  e.preventDefault();
+  const el = document.getElementById(j.dataset.jump);
+  if (el) scrollTo({ top: el.getBoundingClientRect().top + scrollY - 108, behavior:'smooth' });
+});
+document.getElementById('secnav').onclick = e => {
+  const link = e.target.closest('a[data-s]'); if (!link) return;
+  e.preventDefault();
+  const el = document.getElementById(link.dataset.s);
+  scrollTo({ top: el.getBoundingClientRect().top + scrollY - 108, behavior:'smooth' });
+};
+const bar = document.querySelector('#prog i');
+const links = [...document.querySelectorAll('#secnav a')];
+addEventListener('scroll', () => {
+  const h = document.documentElement.scrollHeight - innerHeight;
+  bar.style.width = (h > 0 ? Math.min(100, scrollY / h * 100) : 0) + '%';
+  let cur = SECS[0] && SECS[0][0];
+  SECS.forEach(([id]) => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 160) cur = id;
+  });
+  links.forEach(l => l.classList.toggle('on', l.dataset.s === cur));
+  const rt = document.getElementById('rtime');
+  if (rt) {
+    const left = Math.max(0, Math.ceil(readMin * (1 - (h > 0 ? scrollY / h : 1))));
+    rt.textContent = left === 0 ? 'Finished' : left + ' min left';
+  }
+}, { passive:true });
+dispatchEvent(new Event('scroll'));
+</script>
+</body>
+</html>

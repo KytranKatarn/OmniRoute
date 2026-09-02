@@ -1,5 +1,30 @@
 # What The Fact — design conventions
 
+## 🔴 WHERE THIS CODE LIVES — read before connecting a repo
+
+**Repo:** `KytranKatarn/archie-platform` · **Path:** `what-the-fact/`
+Live site: `what-the-fact.com` — Flask + Jinja2 + Postgres, ~30 consumer routes.
+
+| | |
+|---|---|
+| Consumer pages/routes | `what-the-fact/consumer/routes.py` (one large file) |
+| Templates | `what-the-fact/consumer/templates/*.html` |
+| The shared shell (`css/style.css`) | `what-the-fact/consumer/static/` |
+| Ingest / clustering / scoring | `what-the-fact/ingest/` |
+| Migrations | `what-the-fact/migrations/` |
+
+🔴 **DO NOT connect `KytranKatarn/what-the-fact-site`.** It is the April 2026
+"Coming Soon" landing page — 5 static files, untouched since 2026-04-14, serving
+nothing. Its README calls itself the "Official website", which is why a Design
+session connected to it on 2026-09-01, found no app, and had to review the live
+site by hand instead. The name is the trap; believe this file, not that one.
+
+⚠️ **WTF is the only watch product that is NOT its own repo.** gov / legal /
+market / civic each have one under `/mnt/standalone/`; WTF was folded in from
+`kytran_news` on 2026-04-18 and never extracted. That is deliberate today — in-tree
+it gets F.O.R.G.E. auto-review, a write token and the full merge pipeline, none of
+which the standalone watch repos have. Split decision tracked as task #6254.
+
 ## Setup
 No provider or wrapper. Dark editorial ground: `css/style.css` puts `--wtf-bg`
 (#0d1117) and `--wtf-text` (#f2f1ed) on `body` — never paint your own page background.

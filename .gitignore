@@ -209,3 +209,6 @@ platform_v2/.runtime/
 
 # /design-sync build output (regenerated; .design-sync/ holds the durable config)
 ds-bundle/
+
+# design handoff archives — the extracted bundle is committed, the zip is not
+*.zip

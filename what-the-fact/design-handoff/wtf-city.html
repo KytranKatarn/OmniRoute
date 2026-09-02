@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>City weather · What The Fact</title>
+<meta name="description" content="Hourly and long-range forecasts for Canadian cities, scored against what actually happened.">
+<meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="City forecast — What The Fact">
+<meta property="og:description" content="Hourly and long-range forecasts for Canadian cities, scored against what actually happened.">
+<meta property="og:image" content="assets/wtf-logo.png">
+<meta property="og:locale" content="en_CA">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="City forecast — What The Fact">
+<meta name="twitter:description" content="Hourly and long-range forecasts for Canadian cities, scored against what actually happened.">
+<meta name="twitter:image" content="assets/wtf-logo.png">
+<link rel="icon" href="assets/wtf-logo.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root {
+    --wtf-bg:#0d1117; --wtf-bg-card:#11161f; --wtf-bg-panel:#171e2a; --wtf-border:#222b39;
+    --wtf-text:#f2f1ed; --wtf-text-2:#b9bdc5; --wtf-text-muted:#7d8590; --wtf-accent:#dc2626;
+    --wtf-established:#10b981; --wtf-developing:#f59e0b; --wtf-contested:#e05252;
+    --wtf-local:#4a72d8; --wtf-aurora:#a78bfa;
+    --wtf-brand:#14bef0; --wtf-brand-deep:#1e7fd0;
+    --wtf-font-serif:'Newsreader',Georgia,serif; --wtf-font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --wtf-font-mono:'IBM Plex Mono',monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--wtf-bg); color:var(--wtf-text); font-family:var(--wtf-font-body); -webkit-font-smoothing:antialiased; }
+  a { color:var(--wtf-accent); text-decoration:none; } a:hover { color:var(--wtf-text); }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#222b39; border-radius:4px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  @keyframes rise { from{opacity:0;transform:translateY(9px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes drift { 0%,100%{transform:translateX(0)} 50%{transform:translateX(1.6px)} }
+  @keyframes fall { 0%{transform:translateY(-2px);opacity:0} 20%{opacity:1} 100%{transform:translateY(6px);opacity:0} }
+  @keyframes wisp { 0%,100%{transform:translateX(-1.4px)} 50%{transform:translateX(1.4px)} }
+  .wxi { display:inline-block; vertical-align:middle; flex-shrink:0; overflow:visible; }
+  .wxi .sun   { transform-origin:center; animation:spin 22s linear infinite; }
+  .wxi .cloud { transform-origin:center; animation:drift 4.5s ease-in-out infinite; }
+  .wxi .drop  { animation:fall 1.5s linear infinite; }
+  .wxi .drop:nth-of-type(2) { animation-delay:.5s; } .wxi .drop:nth-of-type(3) { animation-delay:1s; }
+  .wxi .wisp  { transform-origin:center; animation:wisp 3.2s ease-in-out infinite; }
+  .wxi .wisp:nth-of-type(2) { animation-delay:.55s; } .wxi .wisp:nth-of-type(3) { animation-delay:1.1s; }
+  @media (prefers-reduced-motion:reduce) { .wxi * { animation:none !important; } }
+
+  .nav { display:flex; align-items:center; gap:20px; padding:0 18px; height:54px; background:var(--wtf-bg-card);
+         border-bottom:1px solid var(--wtf-border); position:sticky; top:0; z-index:500; }
+  .brand { display:flex; align-items:center; gap:11px; flex-shrink:0; }
+  .brand img { width:36px; height:36px; border-radius:50%; display:block; border:1px solid #1d2b3a; }
+  .wordmark { font-family:var(--wtf-font-serif); font-size:19px; font-weight:700; }
+  .wordmark b { color:var(--wtf-brand); }
+  .subbrand { font-family:var(--wtf-font-mono); font-size:8px; letter-spacing:.22em; text-transform:uppercase; color:var(--wtf-brand); }
+  .crumb { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--wtf-text-2); }
+  .btn-sub { margin-left:auto; background:var(--wtf-accent); color:#fff; font-family:var(--wtf-font-mono); font-size:10px;
+             font-weight:600; letter-spacing:.1em; text-transform:uppercase; padding:8px 14px; border-radius:3px; }
+  .btn-sub:hover { background:#b91c1c; color:#fff; }
+
+  .wrap { max-width:1180px; margin:0 auto; padding:22px 18px 60px; display:flex; flex-direction:column; gap:22px; }
+  .card { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; padding:17px 19px; }
+  .sec { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase;
+         color:var(--wtf-text-muted); margin:0 0 12px; }
+  .row2 { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:18px; align-items:start; }
+  @media (max-width:940px) { .row2 { grid-template-columns:minmax(0,1fr); } }
+
+  .hero { display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+  .hero-t { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:62px; font-weight:600;
+            line-height:1; letter-spacing:-.03em; }
+  .hero-t u { font-size:24px; color:var(--wtf-text-muted); text-decoration:none; }
+  .hilo { display:flex; gap:16px; font-family:var(--wtf-font-mono); font-size:13px; }
+  .hilo b { font-weight:500; color:var(--wtf-text); }
+
+  .tabs { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:13px; }
+  .tab { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.09em; text-transform:uppercase;
+         padding:5px 11px; border-radius:3px; border:1px solid var(--wtf-border); background:transparent;
+         color:var(--wtf-text-muted); cursor:pointer; transition:all .16s; }
+  .tab:hover { color:var(--wtf-text-2); }
+  .tab.on { background:var(--wtf-bg-panel); border-color:var(--wtf-text-muted); color:var(--wtf-text); }
+
+  .hstrip { display:flex; gap:3px; overflow-x:auto; padding-bottom:6px; }
+  .hcell { min-width:54px; flex:1; text-align:center; }
+  .hcell .hh { font-family:var(--wtf-font-mono); font-size:8.5px; color:var(--wtf-text-muted); margin-top:6px; }
+  .hbar { display:flex; align-items:flex-end; justify-content:center; height:96px; }
+  .hbar i { display:block; width:70%; border-radius:2px 2px 0 0; }
+  .hval { font-family:var(--wtf-font-mono); font-size:10.5px; color:var(--wtf-text); margin-bottom:4px; }
+
+  .drow { display:grid; grid-template-columns:78px 26px minmax(0,1fr) 92px 58px; gap:10px; align-items:center;
+          padding:8px 0; border-bottom:1px solid #161d29; }
+  .drow:last-child { border-bottom:none; }
+  .dlab { font-family:var(--wtf-font-mono); font-size:11px; color:var(--wtf-text-2); line-height:1.3; }
+  .dlab u { display:block; color:#5d6875; font-size:9px; text-decoration:none; }
+  .dbar { position:relative; height:6px; background:#0f1620; border-radius:3px; }
+  .dbar i { position:absolute; height:100%; border-radius:3px; }
+  .dtemp { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:11.5px; text-align:right; }
+  .dtemp u { color:var(--wtf-text-muted); text-decoration:none; }
+  .dprec { font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-local); text-align:right; }
+
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:8px; }
+  .kv { background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:4px; padding:10px 12px; }
+  .kv .k { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--wtf-text-muted); }
+  .kv .v { font-family:var(--wtf-font-mono); font-size:16px; color:var(--wtf-text); margin-top:4px; }
+  .kv .n { font-size:10px; color:#5d6875; margin-top:2px; }
+
+  .aqi-dial { width:86px; height:86px; border-radius:50%; display:flex; flex-direction:column;
+              align-items:center; justify-content:center; flex-shrink:0; }
+  .aqi-n { font-family:var(--wtf-font-mono); font-size:25px; font-weight:600; line-height:1; }
+  .aqi-l { font-family:var(--wtf-font-mono); font-size:8px; letter-spacing:.14em; text-transform:uppercase; margin-top:3px; }
+
+  .sunbar { position:relative; height:58px; margin:10px 0 4px; }
+  .sunarc { position:absolute; inset:0; }
+  .suntimes { display:flex; justify-content:space-between; font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-muted); }
+  .moon { width:58px; height:58px; border-radius:50%; background:#1b2430; position:relative; overflow:hidden; flex-shrink:0;
+          border:1px solid var(--wtf-border); }
+
+  .pred { background:rgba(124,58,237,.07); border:1px solid #2e1065; border-radius:5px; padding:14px 15px; }
+  .badge-a { font-family:var(--wtf-font-mono); font-size:8px; letter-spacing:.18em; text-transform:uppercase;
+             color:var(--wtf-aurora); background:#2e1065; border-radius:3px; padding:3px 8px; }
+  .note { font-size:11.5px; line-height:1.65; color:var(--wtf-text-muted); }
+  .footer { padding:26px 18px 40px; border-top:1px solid var(--wtf-border); background:var(--wtf-bg-card);
+            display:flex; flex-direction:column; gap:18px; }
+  select { background:var(--wtf-bg-panel); border:1px solid var(--wtf-border); border-radius:3px; color:var(--wtf-text);
+           font-family:var(--wtf-font-mono); font-size:11px; padding:6px 9px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+
+<div class="wrap" style="padding-bottom:0">
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+    <label style="display:flex;align-items:center;gap:9px">
+      <span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#5d6875">City</span>
+      <select id="citypick" aria-label="Choose a city"
+        style="background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px"></select>
+    </label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="sethome" style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer">Set as default</button>
+      <a href="wtf-weather.html" style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2)">All of Canada &rarr;</a>
+    </div>
+  </div>
+</div>
+<div class="wrap" id="app"></div>
+
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+
+<script>
+/* ═══ shared city data (matches the weather map) ═════════════════════════ */
+const CITIES = [
+  { n:"Victoria",                p:"BC", prov:"British Columbia",         lat:48.43,  lon:-123.37,  t:16,    cond:"Mainly sunny",   w:14,    g:22,    dir:"W",    rh:62,    rain:0,      cloud:24,    age:22,    cap:true },
+  { n:"Vancouver",               p:"BC", prov:"British Columbia",         lat:49.28,  lon:-123.12,  t:18,    cond:"Mainly sunny",   w:12,    g:19,    dir:"W",    rh:64,    rain:0.6,    cloud:31,    age:8,     cap:false },
+  { n:"Kelowna",                 p:"BC", prov:"British Columbia",         lat:49.89,  lon:-119.50,  t:24,    cond:"Smoke",          w:15,    g:23,    dir:"S",    rh:33,    rain:0,      cloud:14,    age:19,    cap:false },
+  { n:"Prince George",           p:"BC", prov:"British Columbia",         lat:53.92,  lon:-122.75,  t:21,    cond:"Smoke",          w:17,    g:26,    dir:"NW",   rh:37,    rain:0,      cloud:19,    age:23,    cap:false },
+  { n:"Kamloops",                p:"BC", prov:"British Columbia",         lat:50.68,  lon:-120.34,  t:27,    cond:"Smoke",          w:19,    g:29,    dir:"S",    rh:24,    rain:0,      cloud:11,    age:16,    cap:false },
+  { n:"Nanaimo",                 p:"BC", prov:"British Columbia",         lat:49.17,  lon:-123.94,  t:17,    cond:"Mainly sunny",   w:13,    g:20,    dir:"W",    rh:66,    rain:0.4,    cloud:28,    age:34,    cap:false },
+  { n:"Fort St. John",           p:"BC", prov:"British Columbia",         lat:56.25,  lon:-120.85,  t:19,    cond:"Haze",           w:22,    g:31,    dir:"NW",   rh:41,    rain:0.2,    cloud:33,    age:41,    cap:false },
+  { n:"Edmonton",                p:"AB", prov:"Alberta",                  lat:53.55,  lon:-113.49,  t:24,    cond:"Smoke",          w:21,    g:33,    dir:"NW",   rh:31,    rain:0,      cloud:12,    age:14,    cap:true },
+  { n:"Calgary",                 p:"AB", prov:"Alberta",                  lat:51.04,  lon:-114.07,  t:22,    cond:"Sunny",          w:24,    g:37,    dir:"W",    rh:29,    rain:0,      cloud:9,     age:13,    cap:false },
+  { n:"Red Deer",                p:"AB", prov:"Alberta",                  lat:52.27,  lon:-113.81,  t:23,    cond:"Smoke",          w:23,    g:35,    dir:"NW",   rh:30,    rain:0,      cloud:13,    age:26,    cap:false },
+  { n:"Lethbridge",              p:"AB", prov:"Alberta",                  lat:49.69,  lon:-112.84,  t:26,    cond:"Sunny",          w:31,    g:46,    dir:"W",    rh:22,    rain:0,      cloud:6,     age:18,    cap:false },
+  { n:"Fort McMurray",           p:"AB", prov:"Alberta",                  lat:56.73,  lon:-111.38,  t:25,    cond:"Smoke",          w:26,    g:39,    dir:"SW",   rh:26,    rain:0,      cloud:17,    age:12,    cap:false },
+  { n:"Grande Prairie",          p:"AB", prov:"Alberta",                  lat:55.17,  lon:-118.80,  t:23,    cond:"Smoke",          w:24,    g:36,    dir:"NW",   rh:28,    rain:0,      cloud:15,    age:29,    cap:false },
+  { n:"Regina",                  p:"SK", prov:"Saskatchewan",             lat:50.45,  lon:-104.62,  t:26,    cond:"Sunny",          w:28,    g:41,    dir:"S",    rh:28,    rain:0,      cloud:8,     age:31,    cap:true },
+  { n:"Saskatoon",               p:"SK", prov:"Saskatchewan",             lat:52.13,  lon:-106.67,  t:25,    cond:"Clear",          w:22,    g:32,    dir:"SW",   rh:30,    rain:0.3,    cloud:18,    age:27,    cap:false },
+  { n:"Prince Albert",           p:"SK", prov:"Saskatchewan",             lat:53.20,  lon:-105.75,  t:24,    cond:"Haze",           w:25,    g:36,    dir:"SW",   rh:32,    rain:0.1,    cloud:24,    age:35,    cap:false },
+  { n:"Moose Jaw",               p:"SK", prov:"Saskatchewan",             lat:50.39,  lon:-105.53,  t:27,    cond:"Sunny",          w:30,    g:43,    dir:"S",    rh:26,    rain:0,      cloud:7,     age:44,    cap:false },
+  { n:"La Ronge",                p:"SK", prov:"Saskatchewan",             lat:55.10,  lon:-105.28,  t:22,    cond:"Smoke",          w:21,    g:31,    dir:"SW",   rh:36,    rain:0.4,    cloud:29,    age:52,    cap:false },
+  { n:"Winnipeg",                p:"MB", prov:"Manitoba",                 lat:49.90,  lon:-97.14,   t:23,    cond:"Partly cloudy",  w:19,    g:27,    dir:"SE",   rh:44,    rain:1.4,    cloud:48,    age:18,    cap:true },
+  { n:"Brandon",                 p:"MB", prov:"Manitoba",                 lat:49.85,  lon:-99.95,   t:24,    cond:"Partly cloudy",  w:21,    g:30,    dir:"S",    rh:41,    rain:0.9,    cloud:41,    age:33,    cap:false },
+  { n:"Thompson",                p:"MB", prov:"Manitoba",                 lat:55.74,  lon:-97.86,   t:20,    cond:"Haze",           w:18,    g:26,    dir:"SW",   rh:47,    rain:2.1,    cloud:56,    age:28,    cap:false },
+  { n:"Churchill",               p:"MB", prov:"Manitoba",                 lat:58.77,  lon:-94.17,   t:11,    cond:"Overcast",       w:29,    g:42,    dir:"N",    rh:78,    rain:4.6,    cloud:93,    age:241,   cap:false },
+  { n:"Toronto",                 p:"ON", prov:"Ontario",                  lat:43.65,  lon:-79.38,   t:21,    cond:"Cloudy",         w:16,    g:24,    dir:"E",    rh:58,    rain:4.2,    cloud:78,    age:9,     cap:true },
+  { n:"Ottawa",                  p:"ON", prov:"Ontario",                  lat:45.42,  lon:-75.70,   t:20,    cond:"Partly cloudy",  w:14,    g:21,    dir:"NE",   rh:61,    rain:2.7,    cloud:63,    age:7,     cap:false },
+  { n:"Hamilton",                p:"ON", prov:"Ontario",                  lat:43.26,  lon:-79.87,   t:21,    cond:"Cloudy",         w:17,    g:26,    dir:"E",    rh:59,    rain:5.1,    cloud:81,    age:15,    cap:false },
+  { n:"London",                  p:"ON", prov:"Ontario",                  lat:42.98,  lon:-81.25,   t:22,    cond:"Cloudy",         w:15,    g:23,    dir:"E",    rh:62,    rain:3.9,    cloud:76,    age:20,    cap:false },
+  { n:"Windsor",                 p:"ON", prov:"Ontario",                  lat:42.31,  lon:-83.04,   t:23,    cond:"Partly cloudy",  w:18,    g:27,    dir:"SE",   rh:57,    rain:2.2,    cloud:58,    age:24,    cap:false },
+  { n:"Sudbury",                 p:"ON", prov:"Ontario",                  lat:46.49,  lon:-80.99,   t:19,    cond:"Light rain",     w:16,    g:24,    dir:"NE",   rh:71,    rain:6.4,    cloud:86,    age:13,    cap:false },
+  { n:"Thunder Bay",             p:"ON", prov:"Ontario",                  lat:48.38,  lon:-89.25,   t:22,    cond:"Haze",           w:31,    g:44,    dir:"NW",   rh:41,    rain:0.9,    cloud:42,    age:21,    cap:false },
+  { n:"Kenora",                  p:"ON", prov:"Ontario",                  lat:49.77,  lon:-94.49,   t:22,    cond:"Partly cloudy",  w:24,    g:34,    dir:"NW",   rh:45,    rain:1.6,    cloud:49,    age:37,    cap:false },
+  { n:"Timmins",                 p:"ON", prov:"Ontario",                  lat:48.48,  lon:-81.33,   t:18,    cond:"Light rain",     w:14,    g:21,    dir:"NE",   rh:76,    rain:7.2,    cloud:88,    age:30,    cap:false },
+  { n:"Kingston",                p:"ON", prov:"Ontario",                  lat:44.23,  lon:-76.49,   t:20,    cond:"Cloudy",         w:19,    g:28,    dir:"E",    rh:64,    rain:3.1,    cloud:72,    age:17,    cap:false },
+  { n:"Québec City",             p:"QC", prov:"Québec",                   lat:46.81,  lon:-71.21,   t:18,    cond:"Light rain",     w:22,    g:31,    dir:"NE",   rh:81,    rain:9.6,    cloud:92,    age:12,    cap:true },
+  { n:"Montréal",                p:"QC", prov:"Québec",                   lat:45.50,  lon:-73.57,   t:19,    cond:"Light rain",     w:18,    g:28,    dir:"NE",   rh:77,    rain:8.3,    cloud:89,    age:10,    cap:false },
+  { n:"Gatineau",                p:"QC", prov:"Québec",                   lat:45.48,  lon:-75.70,   t:19,    cond:"Partly cloudy",  w:15,    g:22,    dir:"NE",   rh:64,    rain:3.4,    cloud:66,    age:29,    cap:false },
+  { n:"Sherbrooke",              p:"QC", prov:"Québec",                   lat:45.40,  lon:-71.90,   t:17,    cond:"Light rain",     w:13,    g:20,    dir:"NE",   rh:83,    rain:10.4,   cloud:93,    age:25,    cap:false },
+  { n:"Trois-Rivières",          p:"QC", prov:"Québec",                   lat:46.34,  lon:-72.54,   t:18,    cond:"Light rain",     w:16,    g:24,    dir:"NE",   rh:79,    rain:8.9,    cloud:90,    age:32,    cap:false },
+  { n:"Saguenay",                p:"QC", prov:"Québec",                   lat:48.43,  lon:-71.07,   t:15,    cond:"Showers",        w:20,    g:29,    dir:"N",    rh:85,    rain:13.1,   cloud:95,    age:19,    cap:false },
+  { n:"Val-d'Or",                p:"QC", prov:"Québec",                   lat:48.10,  lon:-77.78,   t:16,    cond:"Light rain",     w:17,    g:25,    dir:"N",    rh:80,    rain:7.6,    cloud:87,    age:46,    cap:false },
+  { n:"Rimouski",                p:"QC", prov:"Québec",                   lat:48.45,  lon:-68.52,   t:14,    cond:"Showers",        w:26,    g:38,    dir:"NE",   rh:88,    rain:15.3,   cloud:96,    age:22,    cap:false },
+  { n:"Fredericton",             p:"NB", prov:"New Brunswick",            lat:45.96,  lon:-66.64,   t:18,    cond:"Mainly cloudy",  w:11,    g:null,  dir:"S",    rh:66,    rain:3.8,    cloud:71,    age:26,    cap:true },
+  { n:"Moncton",                 p:"NB", prov:"New Brunswick",            lat:46.09,  lon:-64.78,   t:17,    cond:"Mainly cloudy",  w:20,    g:29,    dir:"S",    rh:73,    rain:5.2,    cloud:79,    age:17,    cap:false },
+  { n:"Saint John",              p:"NB", prov:"New Brunswick",            lat:45.27,  lon:-66.06,   t:16,    cond:"Fog",            w:22,    g:32,    dir:"SW",   rh:89,    rain:7.4,    cloud:94,    age:14,    cap:false },
+  { n:"Bathurst",                p:"NB", prov:"New Brunswick",            lat:47.62,  lon:-65.65,   t:16,    cond:"Light rain",     w:18,    g:27,    dir:"NE",   rh:78,    rain:6.1,    cloud:83,    age:49,    cap:false },
+  { n:"Halifax",                 p:"NS", prov:"Nova Scotia",              lat:44.65,  lon:-63.58,   t:17,    cond:"Fog",            w:24,    g:36,    dir:"SW",   rh:88,    rain:12.4,   cloud:96,    age:16,    cap:true },
+  { n:"Sydney",                  p:"NS", prov:"Nova Scotia",              lat:46.14,  lon:-60.19,   t:16,    cond:"Mainly cloudy",  w:23,    g:33,    dir:"SW",   rh:74,    rain:11.2,   cloud:87,    age:255,   cap:false },
+  { n:"Truro",                   p:"NS", prov:"Nova Scotia",              lat:45.37,  lon:-63.28,   t:17,    cond:"Cloudy",         w:19,    g:28,    dir:"SW",   rh:82,    rain:9.8,    cloud:90,    age:31,    cap:false },
+  { n:"Yarmouth",                p:"NS", prov:"Nova Scotia",              lat:43.84,  lon:-66.12,   t:15,    cond:"Fog",            w:27,    g:39,    dir:"SW",   rh:92,    rain:14.6,   cloud:98,    age:23,    cap:false },
+  { n:"Charlottetown",           p:"PE", prov:"Prince Edward Island",     lat:46.24,  lon:-63.13,   t:17,    cond:"Mainly sunny",   w:25,    g:34,    dir:"W",    rh:71,    rain:1.1,    cloud:34,    age:20,    cap:true },
+  { n:"Summerside",              p:"PE", prov:"Prince Edward Island",     lat:46.40,  lon:-63.79,   t:17,    cond:"Partly cloudy",  w:23,    g:32,    dir:"W",    rh:73,    rain:1.8,    cloud:44,    age:38,    cap:false },
+  { n:"St. John's",              p:"NL", prov:"Newfoundland & Labrador",  lat:47.56,  lon:-52.71,   t:14,    cond:"Drizzle",        w:33,    g:48,    dir:"NE",   rh:91,    rain:18.9,   cloud:98,    age:11,    cap:true },
+  { n:"Corner Brook",            p:"NL", prov:"Newfoundland & Labrador",  lat:48.95,  lon:-57.95,   t:13,    cond:"Showers",        w:28,    g:40,    dir:"N",    rh:86,    rain:16.2,   cloud:95,    age:27,    cap:false },
+  { n:"Gander",                  p:"NL", prov:"Newfoundland & Labrador",  lat:48.95,  lon:-54.61,   t:13,    cond:"Drizzle",        w:30,    g:43,    dir:"NE",   rh:89,    rain:17.4,   cloud:97,    age:21,    cap:false },
+  { n:"Labrador City",           p:"NL", prov:"Newfoundland & Labrador",  lat:52.94,  lon:-66.91,   t:11,    cond:"Overcast",       w:19,    g:27,    dir:"N",    rh:69,    rain:6.8,    cloud:84,    age:196,   cap:false },
+  { n:"Happy Valley-Goose Bay",  p:"NL", prov:"Newfoundland & Labrador",  lat:53.30,  lon:-60.33,   t:12,    cond:"Overcast",       w:21,    g:30,    dir:"N",    rh:74,    rain:8.1,    cloud:88,    age:42,    cap:false },
+  { n:"Whitehorse",              p:"YT", prov:"Yukon",                    lat:60.72,  lon:-135.05,  t:15,    cond:"Clear",          w:9,     g:null,  dir:"N",    rh:48,    rain:0.2,    cloud:16,    age:38,    cap:true },
+  { n:"Dawson City",             p:"YT", prov:"Yukon",                    lat:64.06,  lon:-139.43,  t:13,    cond:"Mainly sunny",   w:11,    g:null,  dir:"N",    rh:52,    rain:0.4,    cloud:22,    age:63,    cap:false },
+  { n:"Watson Lake",             p:"YT", prov:"Yukon",                    lat:60.06,  lon:-128.71,  t:14,    cond:"Haze",           w:13,    g:19,    dir:"NW",   rh:55,    rain:1.1,    cloud:37,    age:58,    cap:false },
+  { n:"Yellowknife",             p:"NT", prov:"Northwest Territories",    lat:62.45,  lon:-114.37,  t:19,    cond:"Smoke",          w:26,    g:38,    dir:"SW",   rh:34,    rain:0,      cloud:21,    age:24,    cap:true },
+  { n:"Inuvik",                  p:"NT", prov:"Northwest Territories",    lat:68.36,  lon:-133.72,  t:9,     cond:"Overcast",       w:24,    g:34,    dir:"N",    rh:76,    rain:3.2,    cloud:89,    age:51,    cap:false },
+  { n:"Hay River",               p:"NT", prov:"Northwest Territories",    lat:60.82,  lon:-115.80,  t:18,    cond:"Haze",           w:23,    g:33,    dir:"SW",   rh:42,    rain:0.7,    cloud:38,    age:36,    cap:false },
+  { n:"Fort Smith",              p:"NT", prov:"Northwest Territories",    lat:60.00,  lon:-111.89,  t:20,    cond:"Smoke",          w:21,    g:31,    dir:"SW",   rh:38,    rain:0.3,    cloud:27,    age:47,    cap:false },
+  { n:"Iqaluit",                 p:"NU", prov:"Nunavut",                  lat:63.75,  lon:-68.52,   t:6,     cond:"Overcast",       w:21,    g:30,    dir:"N",    rh:79,    rain:5.4,    cloud:88,    age:44,    cap:true },
+  { n:"Rankin Inlet",            p:"NU", prov:"Nunavut",                  lat:62.81,  lon:-92.11,   t:7,     cond:"Overcast",       w:27,    g:39,    dir:"N",    rh:81,    rain:4.1,    cloud:91,    age:67,    cap:false },
+  { n:"Arviat",                  p:"NU", prov:"Nunavut",                  lat:61.11,  lon:-94.06,   t:8,     cond:"Cloudy",         w:25,    g:36,    dir:"N",    rh:77,    rain:3.6,    cloud:86,    age:72,    cap:false },
+  { n:"Cambridge Bay",           p:"NU", prov:"Nunavut",                  lat:69.12,  lon:-105.06,  t:null,  cond:null,             w:null,  g:null,  dir:null,   rh:null,  rain:null,   cloud:null,  age:null,  cap:false }
+];
+
+const CITY_STALE_MIN = 180;
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const NOW = new Date(2026, 8, 1, 14, 45);
+const TODAY = new Date(2026, 8, 1);
+const CONDS = ['Sunny','Mainly sunny','Partly cloudy','Cloudy','Light rain','Showers','Overcast'];
+
+function hashOf(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+function dayAt(n) { const d = new Date(TODAY); d.setDate(d.getDate() + n); return d; }
+const fmtDay = d => DAYS[d.getDay()], fmtDate = d => d.getDate() + ' ' + MONTHS[d.getMonth()];
+const hhmm = m => { const h = Math.floor(m / 60), mm = Math.round(m % 60);
+  const ap = h < 12 ? 'am' : 'pm', h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ':' + String(mm).padStart(2, '0') + ap; };
+const hourLabel = h => { const x = h % 24, ap = x < 12 ? 'AM' : 'PM', h12 = x % 12 === 0 ? 12 : x % 12; return h12 + ' ' + ap; };
+
+/* ── glyphs ─────────────────────────────────────────────────────────────── */
+const SUN = '<circle class="sun" cx="12" cy="12" r="4.2" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="1 3.6" stroke-linecap="round" transform-origin="12 12"/><circle cx="12" cy="12" r="2.6" fill="#f59e0b"/>';
+const SUN_SM = '<circle class="sun" cx="8.6" cy="8.6" r="3.4" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="1 3" stroke-linecap="round" transform-origin="8.6 8.6"/><circle cx="8.6" cy="8.6" r="2.1" fill="#f59e0b"/>';
+const CLOUD = c => '<path class="cloud" d="M7.4 18h9.2a3.6 3.6 0 000-7.2 5.4 5.4 0 00-10.2 2.3A2.9 2.9 0 007.4 18z" fill="none" stroke="' + c + '" stroke-width="1.7" stroke-linejoin="round"/>';
+const DROPS = (c, n) => Array.from({length:n}, (_, i) => '<line class="drop" x1="' + (8.5 + i*3.4) + '" y1="19" x2="' + (7.7 + i*3.4) + '" y2="22" stroke="' + c + '" stroke-width="1.7" stroke-linecap="round"/>').join('');
+const WISPS = c => [0,1,2].map(i => '<line class="wisp" x1="5" y1="' + (10+i*4) + '" x2="' + (19-i*2) + '" y2="' + (10+i*4) + '" stroke="' + c + '" stroke-width="1.7" stroke-linecap="round"/>').join('');
+const GLYPH = { sunny:SUN, clear:SUN, mainlysunny:SUN_SM + CLOUD('#8798b3'), partlycloudy:SUN_SM + CLOUD('#8798b3'),
+  mainlycloudy:CLOUD('#8798b3'), cloudy:CLOUD('#8798b3'), overcast:CLOUD('#5b7397'),
+  lightrain:CLOUD('#5b7397') + DROPS('#38bdf8',2), showers:CLOUD('#5b7397') + DROPS('#38bdf8',3),
+  drizzle:CLOUD('#5b7397') + DROPS('#7dd3fc',2), fog:WISPS('#8798b3'), haze:WISPS('#a1a99b'), smoke:WISPS('#b45309') };
+const key = s => String(s || '').toLowerCase().replace(/[^a-z]/g, '');
+const wxIcon = (c, s) => GLYPH[key(c)] ? '<svg class="wxi" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" aria-hidden="true">' + GLYPH[key(c)] + '</svg>' : '';
+
+const TEMP_STOPS = [[-20,'#312e81'],[-10,'#3730a3'],[0,'#1d4ed8'],[8,'#0891b2'],[16,'#22c55e'],[24,'#f59e0b'],[31,'#ea580c'],[1e9,'#dc2626']];
+const ramp = (st, v) => { for (const s of st) if (v < s[0]) return s[1]; return st[st.length-1][1]; };
+
+/* ── derived forecast ───────────────────────────────────────────────────── */
+function build(c) {
+  const r = rng(hashOf(c.n));
+  const base = c.t === null ? 12 : c.t;
+  const startH = NOW.getHours();
+
+  const hourly = [];
+  for (let i = 0; i < 24; i++) {
+    const h = startH + i;
+    const diurnal = Math.sin(((h % 24) - 9) / 24 * 6.283) * 4.2;
+    hourly.push({
+      h, t: Math.round(base + diurnal - 1.2 + (r() - .5) * 2),
+      precip: +(r() < .34 ? (r() * 2.4) : 0).toFixed(1),
+      wind: Math.max(2, Math.round((c.w || 12) + (r() - .5) * 12)),
+      pressure: Math.round(1013 + (r() - .5) * 16),
+      uv: Math.max(0, Math.round((h % 24 > 6 && h % 24 < 19 ? Math.sin(((h % 24) - 6) / 13 * Math.PI) * 7.5 : 0)))
+    });
+  }
+
+  const day14 = [];
+  for (let d = 0; d < 14; d++) {
+    const dt = dayAt(d);
+    const hi = d === 0 ? Math.max(base, Math.round(base + 1 + r() * 3)) : Math.round(base + (r() - .42) * 7 - d * 0.18);
+    day14.push({ n:d, lbl: fmtDay(dt), date: fmtDate(dt), hi, lo: hi - Math.round(5 + r() * 5),
+      pop: r() < .55 ? Math.round(r() * 80 / 10) * 10 : null,
+      precip: +(r() < .6 ? r() * 17 : 0).toFixed(1),
+      cond: d === 0 && c.cond ? c.cond : CONDS[Math.floor(r() * CONDS.length)] });
+  }
+
+  const clim = base - 4.5, day30 = [];
+  for (let d = 1; d <= 30; d++) {
+    const pull = Math.min(1, d / 26);
+    const mid = (base + (r() - .45) * 6) * (1 - pull) + clim * pull;
+    const sp = 1.4 + d * 0.34, dt = dayAt(d);
+    const cond = d <= 14 ? day14[d - 1].cond : CONDS[Math.floor(r() * CONDS.length)];
+    day30.push({ n:d, day: fmtDay(dt), date: fmtDate(dt), month: MONTHS[dt.getMonth()], cond,
+      mid: Math.round(mid), lo: Math.round(mid - sp), hi: Math.round(mid + sp),
+      conf: Math.max(26, Math.round(92 - d * 2.1)) });
+  }
+
+  const rh = c.rh === null ? 60 : c.rh;
+  const t = base;
+  const dew = Math.round(t - (100 - rh) / 5);
+  const feels = Math.round(t <= 10 && (c.w || 0) > 5
+    ? 13.12 + 0.6215 * t - 11.37 * Math.pow(c.w, .16) + 0.3965 * t * Math.pow(c.w, .16)
+    : t + (rh > 70 ? (rh - 70) * 0.06 : 0) - (c.w || 0) * 0.06);
+
+  return { hourly, day14, day30,
+    pressure: Math.round(1009 + r() * 14), dew, feels,
+    uv: Math.max(0, Math.round(Math.sin(clamp((NOW.getHours() - 6) / 13, 0, 1) * Math.PI) * 8)),
+    aqi: Math.round(18 + r() * (key(c.cond) === 'smoke' ? 130 : 55)),
+    pred: base + Math.round((r() - .5) * 4), spread: 1 + Math.round(r() * 3), conf: 62 + Math.round(r() * 29) };
+}
+
+/* ── sun & moon, computed from the real date and coordinates ────────────── */
+function sunTimes(lat, lon, date) {
+  const rad = Math.PI / 180;
+  const start = new Date(date.getFullYear(), 0, 0);
+  const doy = Math.floor((date - start) / 86400000);
+  const decl = 23.44 * rad * Math.sin(2 * Math.PI * (284 + doy) / 365);
+  const ha = Math.acos(clamp(-Math.tan(lat * rad) * Math.tan(decl), -1, 1)) / rad;
+  const eot = 9.87 * Math.sin(2 * (2 * Math.PI * (doy - 81) / 364)) -
+              7.53 * Math.cos(2 * Math.PI * (doy - 81) / 364) - 1.5 * Math.sin(2 * Math.PI * (doy - 81) / 364);
+  const tz = Math.round(lon / 15);
+  const solarNoon = 720 - 4 * lon - eot + tz * 60;
+  const rise = solarNoon - ha * 4, set = solarNoon + ha * 4;
+  return { rise, set, noon: solarNoon, daylight: (set - rise) };
+}
+function moonPhase(date) {
+  const known = Date.UTC(2000, 0, 6, 18, 14);
+  const syn = 29.530588853;
+  const days = (date.getTime() - known) / 86400000;
+  const p = ((days % syn) + syn) % syn;
+  const frac = p / syn;
+  const illum = (1 - Math.cos(2 * Math.PI * frac)) / 2;
+  const names = ['New moon','Waxing crescent','First quarter','Waxing gibbous','Full moon','Waning gibbous','Last quarter','Waning crescent'];
+  return { frac, illum, name: names[Math.floor(frac * 8 + .5) % 8],
+           nextNew: new Date(date.getTime() + (syn - p) * 86400000) };
+}
+
+/* ═══ render ═════════════════════════════════════════════════════════════ */
+const HOME_KEY = 'wtf.homeCity';
+const params = new URLSearchParams(location.search);
+let cityName = params.get('c') || (() => { try { return localStorage.getItem(HOME_KEY); } catch (e) { return null; } })() || 'Montréal';
+if (!CITIES.some(c => c.n === cityName)) cityName = 'Montréal';
+let metric = 'temp';
+
+const METRICS = [
+  { id:'temp',     label:'Temp. °C',        get:h => h.t,        unit:'°',    col:h => ramp(TEMP_STOPS, h.t) },
+  { id:'precip',   label:'Precipitation mm',get:h => h.precip,   unit:'mm',   col:() => '#38bdf8' },
+  { id:'wind',     label:'Wind km/h',       get:h => h.wind,     unit:'',     col:() => '#14b8a6' },
+  { id:'pressure', label:'Pressure hPa',    get:h => h.pressure, unit:'',     col:() => '#8798b3' },
+  { id:'uv',       label:'UV index /11',    get:h => h.uv,       unit:'',     col:h => h.uv >= 8 ? '#dc2626' : h.uv >= 6 ? '#ea580c' : h.uv >= 3 ? '#f59e0b' : '#10b981' }
+];
+
+function render() {
+  const c = CITIES.find(x => x.n === cityName);
+  const f = build(c);
+  const silent = c.t === null, stale = !silent && c.age !== null && c.age > CITY_STALE_MIN;
+  const sun = sunTimes(c.lat, c.lon, TODAY);
+  const moon = moonPhase(NOW);
+  const today = f.day14[0];
+  const M = METRICS.find(m => m.id === metric);
+  const vals = f.hourly.map(M.get);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = Math.max(0.001, hi - lo);
+  const aqiBand = f.aqi <= 50 ? ['Good','#10b981'] : f.aqi <= 100 ? ['Moderate','#f59e0b']
+    : f.aqi <= 150 ? ['Unhealthy for some','#ea580c'] : ['Unhealthy','#dc2626'];
+  const dHi = Math.max(...f.day14.map(d => d.hi)), dLo = Math.min(...f.day14.map(d => d.lo));
+  const dSpan = Math.max(1, dHi - dLo);
+  const maxP = Math.max(1, ...f.day14.map(d => d.precip));
+
+  document.getElementById('app').innerHTML = `
+    <div class="card" style="animation:rise .35s ease-out both">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--wtf-text-muted)">
+        ${c.prov}${c.cap ? ' &middot; Provincial capital' : ''} &middot; ${DAYS[NOW.getDay()]} ${fmtDate(NOW)} ${hhmm(NOW.getHours()*60+NOW.getMinutes())}
+      </div>
+      <h1 style="font-family:var(--wtf-font-serif);font-size:36px;font-weight:600;margin:5px 0 16px">${c.n} weather</h1>
+      <div class="hero">
+        ${silent ? '' : wxIcon(c.cond, 62)}
+        <div class="hero-t">${silent ? '&mdash;' : c.t + '<u>°C</u>'}</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:16px;color:var(--wtf-text-2)">${c.cond || 'No condition reported'}</div>
+          <div class="hilo"><span style="color:var(--wtf-text-muted)">Max <b>${today.hi}°</b></span>
+            <span style="color:var(--wtf-text-muted)">Min <b>${today.lo}°</b></span>
+            <span style="color:var(--wtf-text-muted)">Feels like <b>${silent ? '—' : f.feels + '°'}</b></span></div>
+          <div style="font-family:var(--wtf-font-mono);font-size:10px;color:${stale ? 'var(--wtf-developing)' : '#5d6875'}">
+            ${silent ? (c.silent || 'no reading available')
+              : (stale ? '⚠ reading ' + Math.round(c.age/60) + 'h old — shown as stale' : 'observed ' + c.age + ' min ago')}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec">Hourly forecast &mdash; next 24 hours</div>
+      <div class="tabs">${METRICS.map(m => `<button class="tab${m.id === metric ? ' on' : ''}" data-m="${m.id}">${m.label}</button>`).join('')}</div>
+      <div class="hstrip">${f.hourly.map(h => {
+        const v = M.get(h), pct = ((v - lo) / span) * 78 + 10;
+        return `<div class="hcell"><div class="hval">${v}${M.unit}</div>
+          <div class="hbar"><i style="height:${pct}%;background:${M.col(h)};opacity:.85"></i></div>
+          <div class="hh">${hourLabel(h.h)}</div></div>`;
+      }).join('')}</div>
+      <p class="note" style="margin:12px 0 0">Hours 1&ndash;12 are the issued forecast. Beyond that the same curve is model
+        continuation &mdash; the chart does not change colour, so the label has to say it.</p>
+    </div>
+
+    <div class="row2">
+      <div class="card">
+        <div class="sec">Daily &mdash; 14 days</div>
+        ${f.day14.map(d => `<div class="drow">
+          <span class="dlab">${d.n === 0 ? 'Today' : d.lbl}<u>${d.date}</u></span>
+          <span>${wxIcon(d.cond, 20)}</span>
+          <span class="dbar"><i style="left:${((d.lo - dLo) / dSpan) * 100}%;right:${100 - ((d.hi - dLo) / dSpan) * 100}%;background:linear-gradient(90deg,${ramp(TEMP_STOPS, d.lo)},${ramp(TEMP_STOPS, d.hi)})"></i></span>
+          <span class="dtemp">${d.hi}° <u>${d.lo}°</u></span>
+          <span class="dprec">${d.precip > 0 ? d.precip + 'mm' : ''}</span>
+        </div>`).join('')}
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--wtf-border)">
+          <div class="sec" style="margin-bottom:9px">Precipitation, next 14 days</div>
+          <div style="display:flex;align-items:flex-end;gap:3px;height:64px">
+            ${f.day14.map(d => `<div style="flex:1;height:100%;display:flex;align-items:flex-end" title="${d.date}: ${d.precip} mm">
+              <div style="width:100%;height:${(d.precip / maxP) * 100}%;background:#38bdf8;opacity:${d.precip ? .8 : 0};border-radius:2px 2px 0 0"></div></div>`).join('')}
+          </div>
+          <div style="font-family:var(--wtf-font-mono);font-size:8.5px;color:#5d6875;margin-top:5px;display:flex;justify-content:space-between">
+            <span>${f.day14[0].date}</span><span>${f.day14[13].date}</span></div>
+        </div>
+      </div>
+
+      <aside style="display:flex;flex-direction:column;gap:18px">
+        <div class="card">
+          <div class="sec">Current conditions</div>
+          <div class="grid2">
+            <div class="kv"><div class="k">Temperature</div><div class="v">${silent ? '—' : c.t + '°C'}</div></div>
+            <div class="kv"><div class="k">Feels like</div><div class="v">${silent ? '—' : f.feels + '°C'}</div><div class="n">wind and humidity adjusted</div></div>
+            <div class="kv"><div class="k">Precipitation</div><div class="v">${c.rain === null ? '—' : c.rain.toFixed(1) + 'mm'}</div><div class="n">last 24h</div></div>
+            <div class="kv"><div class="k">Cloud cover</div><div class="v">${c.cloud === null ? '—' : c.cloud + '%'}</div></div>
+            <div class="kv"><div class="k">Wind</div><div class="v">${c.w === null ? '—' : c.w + 'km/h'}</div><div class="n">${c.dir ? 'from ' + c.dir : ''}${c.g !== null ? ' · gust ' + c.g : ' · no gust reported'}</div></div>
+            <div class="kv"><div class="k">Pressure</div><div class="v">${f.pressure}hPa</div></div>
+            <div class="kv"><div class="k">Humidity</div><div class="v">${c.rh === null ? '—' : c.rh + '%'}</div></div>
+            <div class="kv"><div class="k">Dew point</div><div class="v">${silent ? '—' : f.dew + '°C'}</div></div>
+            <div class="kv"><div class="k">UV index</div><div class="v" style="color:${f.uv >= 8 ? 'var(--wtf-contested)' : f.uv >= 6 ? 'var(--wtf-developing)' : 'var(--wtf-text)'}">${f.uv}/11</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sec">Air quality</div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <div class="aqi-dial" style="border:3px solid ${aqiBand[1]};background:${aqiBand[1]}1a">
+              <div class="aqi-n" style="color:${aqiBand[1]}">${f.aqi}</div>
+              <div class="aqi-l" style="color:${aqiBand[1]}">AQI</div>
+            </div>
+            <div style="min-width:0">
+              <div style="font-size:15px;color:${aqiBand[1]};margin-bottom:5px">${aqiBand[0]}</div>
+              <div class="note">${key(c.cond) === 'smoke'
+                ? 'Wildfire smoke is the driver here. The index is a maximum across monitored pollutants, not an average of them.'
+                : 'Index is the maximum across monitored pollutants, not an average of them.'}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sec">Sun and moon</div>
+          <div style="font-family:var(--wtf-font-mono);font-size:12px;color:var(--wtf-text-2);margin-bottom:2px">
+            Daylight ${Math.floor(sun.daylight / 60)}h ${Math.round(sun.daylight % 60)}min</div>
+          <div class="sunbar">
+            <svg class="sunarc" viewBox="0 0 260 58" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M6 52 Q130 -6 254 52" fill="none" stroke="#2a3546" stroke-width="1.5"/>
+              <path d="M6 52 Q130 -6 254 52" fill="none" stroke="#f59e0b" stroke-width="1.5"
+                    stroke-dasharray="300" stroke-dashoffset="${300 - clamp((NOW.getHours()*60+NOW.getMinutes() - sun.rise) / sun.daylight, 0, 1) * 300}"/>
+              <circle cx="${6 + clamp((NOW.getHours()*60+NOW.getMinutes() - sun.rise) / sun.daylight, 0, 1) * 248}"
+                      cy="${52 - Math.sin(clamp((NOW.getHours()*60+NOW.getMinutes() - sun.rise) / sun.daylight, 0, 1) * Math.PI) * 44}"
+                      r="4.5" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="suntimes"><span>${hhmm(sun.rise)} sunrise</span><span>${hhmm(sun.set)} sunset</span></div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:14px;padding-top:12px;border-top:1px solid var(--wtf-border)">
+            <div class="moon">
+              <div style="position:absolute;inset:0;border-radius:50%;background:#d8dde5;
+                          clip-path:inset(0 ${moon.frac < .5 ? (100 - moon.illum * 100) : 0}% 0 ${moon.frac >= .5 ? (100 - moon.illum * 100) : 0}%)"></div>
+            </div>
+            <div>
+              <div style="font-size:13px;color:var(--wtf-text)">${moon.name} (${(moon.illum * 100).toFixed(1)}%)</div>
+              <div class="note" style="margin-top:3px">New moon ${MONTHS[moon.nextNew.getMonth()]} ${moon.nextNew.getDate()}</div>
+            </div>
+          </div>
+          <p class="note" style="margin:12px 0 0">Sun and moon are computed from this city's coordinates and today's date,
+            not fetched &mdash; they are the only figures on this page that cannot be wrong for want of a station.</p>
+        </div>
+      </aside>
+    </div>
+
+    <div class="card pred">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px">
+        <span class="badge-a">A.U.R.O.R.A.</span>
+        <span class="sec" style="margin:0">30-day outlook</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px">
+        ${f.day30.filter((d, i) => i % 2 === 0).map(d => `
+          <div style="background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:4px;padding:8px 10px">
+            <div style="font-family:var(--wtf-font-mono);font-size:8.5px;color:var(--wtf-text-muted)">${d.day} ${d.date}</div>
+            <div style="display:flex;align-items:center;gap:7px;margin-top:3px">
+              <span style="opacity:${d.n <= 14 ? 1 : .5}">${wxIcon(d.cond, 20)}</span>
+              <span style="font-family:var(--wtf-font-mono);font-size:14px;color:${ramp(TEMP_STOPS, d.mid)}">${d.mid}° <span style="font-size:10px;color:var(--wtf-text-muted)">±${Math.round((d.hi-d.lo)/2)}</span></span></div>
+            <div style="font-size:10px;color:var(--wtf-text-muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.cond}</div>
+            <div style="height:3px;border-radius:2px;margin-top:5px;background:${d.conf >= 60 ? 'var(--wtf-established)' : d.conf >= 40 ? 'var(--wtf-developing)' : 'var(--wtf-contested)'};opacity:${d.conf/100}"></div>
+            <div style="font-family:var(--wtf-font-mono);font-size:8.5px;color:#5d6875;margin-top:3px">${d.conf}% conf.</div>
+          </div>`).join('')}
+      </div>
+      <p class="note" style="margin:13px 0 0">Every second day is shown, with the sky the model expects — drawn faded past day fourteen,
+        where a condition is close to a coin toss. Confidence falls from ${f.day30[0].conf}% on
+        ${f.day30[0].date} to ${f.day30[29].conf}% by ${f.day30[29].date}, and past roughly two weeks the range converges on
+        seasonal normal &mdash; the model admitting it is describing the season rather than predicting the weather.
+        Its calls are scored against what actually happened on the <a href="wtf-weather.html#accuracy">forecast accuracy</a> page.</p>
+    </div>
+
+    <p class="note" style="margin:0">Observations MSC Datamart &middot; msc.citypage. Air quality is the maximum across monitored
+      pollutants. Sun and moon are computed. Everything beyond the current conditions panel is a forecast, and the 30-day
+      band is extrapolation rather than a forecast anyone issued.</p>
+  `;
+
+  document.querySelectorAll('.tab[data-m]').forEach(b => b.onclick = () => { metric = b.dataset.m; render(); });
+}
+
+const pick = document.getElementById('citypick');
+pick.innerHTML = CITIES.slice().sort((a, b) => a.n.localeCompare(b.n, 'en'))
+  .map(c => '<option value="' + c.n + '">' + c.n + ', ' + c.p + '</option>').join('');
+pick.value = cityName;
+const homeBtn = document.getElementById('sethome');
+if (homeBtn) homeBtn.onclick = () => {
+  try { localStorage.setItem(HOME_KEY, cityName); localStorage.setItem('wtf-default-city', cityName); } catch (e) {}
+  homeBtn.textContent = cityName + ' is your default';
+  setTimeout(() => homeBtn.textContent = 'Set as default', 1600);
+};
+pick.addEventListener('change', () => {
+  cityName = pick.value;
+  history.replaceState(null, '', '?c=' + encodeURIComponent(cityName));
+  render();
+});
+document.getElementById('sethome').addEventListener('click', function () {
+  try { localStorage.setItem(HOME_KEY, cityName); } catch (e) {}
+  this.textContent = '✓ ' + cityName + ' is my city';
+  setTimeout(() => { this.textContent = 'Set as my city'; }, 2200);
+});
+
+render();
+</script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

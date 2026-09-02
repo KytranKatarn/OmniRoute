@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent activity log · What The Fact</title>
+<meta name="description" content="Every action across the six What The Fact agents: ingests, bias scores, fact-check verdicts, geo-mapping, summaries and clusters."><meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Agent activity log — What The Fact"><meta property="og:description" content="The newsroom&#39;s own work, published in full.">
+<meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;text-align:center;animation:rise .3s ease-out both}
+  .phead .lede{margin-left:auto;margin-right:auto}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+  .flab{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#5d6875;margin-right:3px}
+  .stat{cursor:pointer}
+  .stat.on{border-color:var(--wtf-accent);background:rgba(220,38,38,.08)}
+  .stat[data-f]:hover{border-color:#2f3d52}
+  .pickbox{position:absolute;top:12px;right:12px;width:19px;height:19px;border-radius:5px;border:1px solid var(--wtf-border);
+           background:var(--wtf-bg);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent}
+  .panel.picked .pickbox{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  .panel.picked{border-color:var(--wtf-accent)}
+  .cmpgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .lowN{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;
+        color:var(--wtf-developing);border:1px solid rgba(245,158,11,.35);border-radius:2px;padding:2px 7px}
+</style><style>
+  .live{display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-established)}
+  .live i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:blink 1.8s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+  .kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin:18px 0}
+  .kpi .stat{text-align:left}
+  .delta{font-family:var(--wtf-font-mono);font-size:9.5px;margin-left:6px}
+  .up{color:var(--wtf-established)} .down{color:var(--wtf-contested)}
+  .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:14px;align-items:start}
+  @media(max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+  .agent{display:grid;grid-template-columns:26px minmax(0,1fr);gap:11px;padding:11px 0;border-bottom:1px solid var(--wtf-border)}
+  .agent:last-child{border-bottom:0}
+  .adot{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--wtf-font-mono);font-size:11px;font-weight:600;color:var(--ac);background:color-mix(in srgb,var(--ac) 16%,transparent);border:1px solid color-mix(in srgb,var(--ac) 42%,transparent)}
+  .aname{font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.08em;color:var(--ac)}
+  .atask{font-size:12px;color:var(--wtf-text-muted)}
+  .abar{height:5px;border-radius:3px;background:var(--wtf-bg);overflow:hidden;margin:7px 0 5px}
+  .abar i{display:block;height:100%;border-radius:3px;background:var(--ac)}
+  .ameta{font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875}
+  .warn{color:var(--wtf-developing)}
+  .row2{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+  .gauge{display:grid;grid-template-columns:104px minmax(0,1fr) 40px;gap:9px;align-items:center;margin-bottom:7px;font-family:var(--wtf-font-mono);font-size:10px}
+  .gbar{height:5px;border-radius:3px;background:var(--wtf-bg);overflow:hidden;display:block}
+  .gbar i{display:block;height:100%;border-radius:3px}
+  table.log{width:100%;border-collapse:collapse;margin-top:10px}
+  table.log th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;text-align:left;padding:0 9px 8px;border-bottom:1px solid var(--wtf-border)}
+  table.log td{padding:9px;border-bottom:1px solid var(--wtf-border);font-size:12px;vertical-align:top}
+  table.log tr:hover{background:var(--wtf-bg-card)}
+  .stagetag{font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.06em;white-space:nowrap}
+  .mono{font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;white-space:nowrap}
+  .vtag{font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.05em;padding:2px 7px;border-radius:2px;white-space:nowrap}
+  .bigbars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px}
+  .bb{background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:var(--r-md);padding:12px}
+  .bb-n{font-family:var(--wtf-font-mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+  .bb-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:3px}
+  .bb-d{font-size:11px;line-height:1.55;color:#5d6875;margin-top:6px}
+  .spark2{display:flex;align-items:flex-end;gap:3px;height:56px}
+  .spark2 i{flex:1;background:var(--wtf-aurora);border-radius:1px;opacity:.85}
+  .srctable{width:100%;border-collapse:collapse}
+  .srctable th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;text-align:left;padding:0 8px 8px;border-bottom:1px solid var(--wtf-border);cursor:pointer}
+  .srctable td{padding:8px;border-bottom:1px solid var(--wtf-border);font-size:12px}
+  .num{text-align:right;font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums}
+  .pg{min-width:32px;height:32px;padding:0 10px;border-radius:var(--r-sm);cursor:pointer;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-2);font-family:var(--wtf-font-mono);font-size:11px}
+  .pg:disabled{opacity:.32;cursor:default}
+</style></head><body>
+<nav class="nav">
+  <a href="wtf-home.html" class="brand">
+    <img src="assets/wtf-logo.png" alt="What The Fact">
+    <span class="brand-txt">
+      <span class="wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+      <span class="subbrand">Canadian AI Newsroom</span>
+    </span>
+  </a>
+
+  <div class="navgrp"><a class="grp" href="wtf-news.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/></svg>News</a><div class="navgrp-menu">
+    <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
+    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
+    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
+    <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-methodology.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/></svg>About</a><div class="navgrp-menu">
+    <a href="wtf-methodology.html">Methodology</a><a href="wtf-team.html">The newsroom</a><a href="wtf-governance.html">Governance &amp; ethics</a><a href="wtf-creed.html">C.R.E.E.D.</a><a href="wtf-literacy.html">Media literacy</a><a href="wtf-score.html">Score an article</a>
+  </div></div>
+
+  <div class="nav-right">
+    <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
+      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+    </a>
+    <a href="wtf-search.html" class="icon-btn" aria-label="Search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+    </a>
+    <a href="wtf-home.html" class="btn-ghost">Sign in</a>
+    <a href="wtf-home.html" class="btn-sub">Subscribe</a>
+  </div>
+</nav>
+<main class="wrap">
+<header class="phead">
+  <div class="live"><i></i>Live &middot; AI newsroom</div>
+  <h1>Agent activity log</h1>
+  <p class="lede">Every action across all six agents — ingests, scores, verdicts, geo-maps, summaries and clusters. Published because a newsroom that scores other people's work should show its own.</p>
+</header>
+
+<div class="panel"><div class="psec">Last 24 hours <span style="text-transform:none;letter-spacing:0">(&#8597; vs previous day)</span></div>
+  <div class="kpi" id="kpi"></div>
+</div>
+
+<div class="grid2">
+  <div>
+    <div class="panel"><div class="psec">Agent throughput</div><div id="agents"></div></div>
+
+    <div class="panel"><div class="psec">Analysis tier distribution &middot; quick vs full LLM depth</div>
+      <div class="bigbars" id="tiers"></div>
+    </div>
+
+    <div class="panel"><div class="psec">Coverage progress &middot; pipeline completeness</div><div id="coverage"></div></div>
+
+    <div class="panel"><div class="psec">LLM throughput &middot; analyses per 2h, last 24h</div>
+      <div class="spark2" id="spark"></div>
+      <div class="row2" style="margin-top:7px"><span class="mono">24h ago</span><span class="mono" id="rate"></span><span class="mono">now</span></div>
+    </div>
+
+    <div class="panel"><div class="psec">Source health &middot; coverage and ownership</div>
+      <div style="overflow-x:auto"><table class="srctable" id="srctable"></table></div>
+      <div class="foot-note">Body % is how often the full article text was retrievable. A low figure means the outlet is scored on headline and summary alone, which is a weaker basis and is flagged as such on the article.</div>
+    </div>
+  </div>
+
+  <aside>
+    <div class="panel" id="gov"></div>
+    <div class="panel"><div class="psec">Pipeline health</div><div id="health"></div></div>
+    <div class="panel"><div class="psec">Who did the work &middot; last 24h</div><div id="who"></div></div>
+    <div class="panel"><div class="psec">Top stories today</div><div id="topstories"></div></div>
+    <div class="panel"><div class="psec">Beat breakdown</div><div id="beats"></div></div>
+    <div class="panel"><div class="psec">Source bias spectrum</div><div id="spectrum"></div></div>
+    <div class="panel"><div class="psec">Story cluster sizes</div><div id="clusters"></div></div>
+  </aside>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <div class="row2" style="margin-bottom:11px">
+    <div class="psec" style="margin:0">Event log</div>
+    <span class="mono" id="logcount"></span>
+  </div>
+  <div class="ctrl" id="logfilters"></div>
+  <div style="overflow-x:auto"><table class="log" id="log"></table></div>
+  <div style="display:flex;justify-content:center;gap:6px;margin-top:14px" id="logpager"></div>
+</div></main>
+<footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
+  <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
+    <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
+    <a href="wtf-methodology.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">How we score bias &rarr;</a>
+    <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
+    <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
+      <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
+    <div style="min-width:0">
+      <div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Weekly Bias Digest</div>
+      <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
+    </div>
+    <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+      <span>what-the-fact.tech</span><span>creed-ai.org</span>
+      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+    </span>
+  </div>
+</footer>
+<script src="wtf-corpus.js"></script>
+<script src="wtf-activity.js"></script>
+<script src="wtf-nav.js"></script>
+</body></html>

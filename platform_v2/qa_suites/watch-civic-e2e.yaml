@@ -5,12 +5,15 @@ suite:
 
 tests:
   - name: "home-loads"
-    type: api
+    # page_load, NOT api — only that runner honours title_contains; on `api` it is
+    # silently ignored. Status alone passes on a parked/blank vhost (KB #301854).
+    type: page_load
     method: GET
     path: /
     skip_auth: true
     expect:
       status: [200, 302]
+      title_contains: "Civic Watch"
 
   - name: "health-ok"
     type: api
@@ -22,12 +25,16 @@ tests:
       json_contains:
         status: "ok"
 
+  # /dashboard redirects to the platform SSO for an anonymous caller, so the
+  # correct assertion is the SSO page title — that IS the gate working. Asserting
+  # the product title here would be asserting the gate is BROKEN.
   - name: "dashboard-renders"
     type: page_load
     path: /dashboard
     skip_auth: true
     expect:
       status: [200]
+      title_contains: "System Access"
 
   # --- data-nonempty: go RED on an empty site (the 2026-06-02 regression) ---
   - name: "contracts-nonempty"

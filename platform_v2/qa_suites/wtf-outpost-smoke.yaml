@@ -1,0 +1,69 @@
+# P.R.O.B.E. — VPS Outpost: What The Fact  (suite id 25)
+#
+# EXPORTED FROM THE DB 2026-09-02. This suite had NO yaml counterpart, so it was
+# invisible to code review and would silently drift from whatever is live. Adding
+# it here makes the repo the record for all eight public-site suites.
+#
+# title_contains is honoured ONLY by the page_load runner (qa_spec_runner.py
+# ~L813) — on `api` it is silently ignored, giving a test that looks stricter and
+# asserts nothing. Status alone passes on a parked or blank vhost: that is exactly
+# how creed-ai.org served a Hostinger parking page to every visitor with a 200
+# (KB #301853 / #301854).
+#
+# ^What The Fact$ is ANCHORED on purpose: .com and .tech are separate apps, and a
+# bare "What The Fact" would still pass if this host ever served the tech site.
+# /login redirects to the platform SSO, so "System Access" asserts THE GATE WORKS —
+# asserting a product title there would be asserting the gate is broken.
+suite:
+  name: VPS Outpost — What The Fact
+  base_url: https://what-the-fact.com
+  description: WTF consumer + tech API coverage
+tests:
+- name: wtf-consumer-home
+  path: /
+  type: page_load
+  expect:
+    status: 200
+    max_load_ms: 10000
+    title_contains: ^What The Fact$
+  method: GET
+  skip_auth: true
+- name: wtf-consumer-login
+  path: /login
+  type: page_load
+  expect:
+    status:
+    - 200
+    - 302
+    - 404
+    title_contains: System Access
+  method: GET
+  skip_auth: true
+- name: wtf-tech-sources
+  path: /api/v1/sources
+  type: api
+  expect:
+    status: 200
+    max_response_ms: 10000
+  method: GET
+  headers:
+    Host: what-the-fact.tech
+  skip_auth: true
+- name: wtf-tech-clusters
+  path: /api/v1/clusters
+  type: api
+  expect:
+    status: 200
+  method: GET
+  headers:
+    Host: what-the-fact.tech
+  skip_auth: true
+- name: wtf-tech-articles
+  path: /api/v1/articles
+  type: api
+  expect:
+    status: 200
+  method: GET
+  headers:
+    Host: what-the-fact.tech
+  skip_auth: true

@@ -7,12 +7,16 @@ suite:
 # smaller API surface (no /api/health, no /api/stats) — /api/v1/articles is the
 # public data signal.
 tests:
+  # title_contains requires BOTH words: .tech and .com are separate apps, so a
+  # bare "What The Fact" would still pass if this host ever served the consumer
+  # site. A status-only check would also pass on a parked vhost (KB #301854).
   - name: "home-loads"
     type: page_load
     path: /
     skip_auth: true
     expect:
       status: [200]
+      title_contains: "What The Fact.*Tech"
 
   - name: "articles-nonempty"
     type: api

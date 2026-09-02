@@ -4,13 +4,19 @@ suite:
   base_url: "https://market.kytranempowerment.com"
 
 tests:
+  # type is page_load, NOT api: title_contains is honoured ONLY by the page_load
+  # runner (qa_spec_runner.py ~L813) — on `api` it is silently ignored, giving a
+  # test that looks stricter and asserts nothing. A status-only check here would
+  # pass on a parked/blank vhost, which is exactly how creed-ai.org served a
+  # Hostinger parking page to every visitor with a 200 (KB #301853/#301854).
   - name: "home-loads"
-    type: api
+    type: page_load
     method: GET
     path: /
     skip_auth: true
     expect:
       status: [200, 302]
+      title_contains: "MARKET WATCH"
 
   # Market's content routes are per-user / authed, so /api/health is the public
   # data signal: it exposes db_size_bytes + last_ingest + status. Assert the DB

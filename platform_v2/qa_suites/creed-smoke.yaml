@@ -7,12 +7,17 @@ suite:
 # liveness + data signal. All endpoints are public (no-auth, CORS-open).
 tests:
   - name: "home-loads"
-    type: api
+    # page_load, NOT api: title_contains is honoured ONLY by the page_load runner
+    # (qa_spec_runner.py ~L813); on `api` it is silently ignored. Status alone
+    # passes on a parked/blank vhost — how creed-ai.org served a Hostinger parking
+    # page to every visitor with a 200 (KB #301853/#301854).
+    type: page_load
     method: GET
     path: /
     skip_auth: true
     expect:
       status: [200, 302]
+      title_contains: "Compliance, Rights"
 
   - name: "v1-scores-has-data"
     type: api

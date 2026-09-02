@@ -5,12 +5,15 @@ suite:
 
 tests:
   - name: "home-loads"
-    type: api
+    # page_load, NOT api — only that runner honours title_contains; on `api` it is
+    # silently ignored. Status alone passes on a parked/blank vhost (KB #301854).
+    type: page_load
     method: GET
     path: /
     skip_auth: true
     expect:
       status: [200, 302]
+      title_contains: "Gov Watch"
 
   - name: "health-ok"
     type: api

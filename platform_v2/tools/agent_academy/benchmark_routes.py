@@ -271,6 +271,9 @@ def register_benchmark_routes(bp, admin_required):
         model_b = data.get("model_b")
         test_prompt = data.get("test_prompt", "")
         capability = data.get("capability", "general")
+        # #383 node axis: OPTIONAL. Absent => today's behaviour exactly.
+        node_a = (data.get("node_a") or "").strip() or None
+        node_b = (data.get("node_b") or "").strip() or None
 
         if not model_a or not model_b or not test_prompt:
             return jsonify({"error": "model_a, model_b, and test_prompt required"}), 400
@@ -278,11 +281,23 @@ def register_benchmark_routes(bp, admin_required):
         # --- Cloud Comparison Lane (#4661): branch off to the async approval
         # path when either side selects a cloud provider. Both-local falls
         # through unchanged to the existing synchronous path below.
-        from tools.agent_academy.ab_compare import parse_model_selection, classify_run
+        from tools.agent_academy.ab_compare import (
+            classify_run,
+            comparison_kind,
+            normalize_side,
+            side_label,
+        )
 
-        sel_a = parse_model_selection(model_a)
-        sel_b = parse_model_selection(model_b)
+        # normalize_side == parse_model_selection plus the node (a cloud side
+        # DROPS any node — a provider's hardware is not ours to choose).
+        sel_a = normalize_side(model_a, node_a)
+        sel_b = normalize_side(model_b, node_b)
         klass = classify_run(sel_a, sel_b)
+        # What is this run actually measuring? A run that changes model AND node
+        # answers NEITHER question cleanly and is labelled 'mixed' rather than
+        # reported as a model verdict — the mislabel that seeded the model
+        # blocklist off a 56% fleet-wide average and got reversed the same day.
+        run_kind = comparison_kind(sel_a, sel_b)
 
         if klass["has_cloud"]:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
@@ -400,7 +415,7 @@ def register_benchmark_routes(bp, admin_required):
 
         # else: both-local -> fall through to the EXISTING synchronous path unchanged
         results = {}
-        for label, model_name in [("a", model_a), ("b", model_b)]:
+        for label, model_name, node_name in [("a", model_a, node_a), ("b", model_b, node_b)]:
             try:
                 from tools.department_hq.services.department_dispatcher import dispatch
 
@@ -408,21 +423,38 @@ def register_benchmark_routes(bp, admin_required):
                 # honored by request_work (unlike the bare `model` kwarg, which the
                 # canonical signature drops) — so each side runs its own model and the
                 # judge compares two DIFFERENT models instead of one routed model vs
-                # itself. model_override pins to the hub: fine for a controlled A/B
-                # (both sides same node = fair). Timeout bumped for cold-loading
-                # larger candidates (e.g. an 8B first-load).
+                # itself. Timeout bumped for cold-loading larger candidates (e.g. an
+                # 8B first-load).
+                #
+                # #383 NODE AXIS (revives the cancelled #825). This used to pin BOTH
+                # sides to the hub, with the honest note "both sides same node =
+                # fair". Fair, but it made the fleet's most important question
+                # unaskable: `gemma3:12b` measures 35% on the hub and 95% on USS-246
+                # over 2,918 runs, so WHERE a model runs can matter more than WHICH
+                # model it is. `preferred_node` is passed only when the caller names
+                # one — omitted, this is byte-identical to the previous behaviour.
+                #
+                # ⚠️ preferred_node is a HINT. The dispatcher may place elsewhere on
+                # capacity/presence/welfare grounds, so the node RECORDED below is
+                # the one that ACTUALLY ran, read back from the result — never the
+                # one requested. Storing the request as if it were the outcome is how
+                # a placement finding becomes fiction.
                 start = time.time()
+                _kw = {"preferred_node": [node_name]} if node_name else {}
                 result = dispatch(
                     capability="benchmark",
                     prompt=test_prompt,
                     module_id=f"agent_academy:{model_name}",
                     model_override=model_name,
                     timeout=240,
+                    **_kw,
                 )
                 duration_ms = int((time.time() - start) * 1000)
 
                 results[label] = {
                     "model": model_name,
+                    "node_requested": node_name or None,
+                    "node_used": getattr(result, "node_name", None) or getattr(result, "node", None),
                     "response": result.response if result and result.success else "",
                     "duration_ms": duration_ms,
                     "prompt_tokens": getattr(result, "prompt_tokens", 0) or 0,
@@ -484,6 +516,20 @@ def register_benchmark_routes(bp, admin_required):
                             "model_a": model_a,
                             "model_b": model_b,
                             "verdict": verdict,
+                            # #383 node axis. `comparison_kind` is stored WITH the
+                            # run so a later reader cannot mistake a placement
+                            # result for a model verdict — the whole point of the
+                            # classification. `node_used` is what ACTUALLY ran
+                            # (preferred_node is only a hint); `node_*` is what was
+                            # asked for. Keeping both makes a silent re-placement
+                            # visible instead of invisible.
+                            "comparison_kind": run_kind,
+                            "node_a": node_a,
+                            "node_b": node_b,
+                            "side_a": side_label(sel_a),
+                            "side_b": side_label(sel_b),
+                            "node_a_used": (results.get("a") or {}).get("node_used"),
+                            "node_b_used": (results.get("b") or {}).get("node_used"),
                         }
                     ),
                     sum(1 for r in results.values() if r["success"]),
@@ -657,6 +703,47 @@ def register_benchmark_routes(bp, admin_required):
         except Exception:
             local = []
 
+        # #383 node axis (revives the cancelled #825). The list above is the HUB's
+        # Ollama and only the hub's, which made the fleet's most important question
+        # unaskable: you could not select a model that lives on USS-246, nor ask
+        # "same model, different hardware" at all. `gemma3:12b` measures 35% on the
+        # hub vs 95% on USS-246 across 2,918 runs — placement can matter more than
+        # model choice, and until now the lane could not see it.
+        #
+        # Sourced from the platform's OWN presence records rather than probing each
+        # node: `node_ollama_models` (the table) plus the heartbeat inventory in
+        # `remote_nodes.extra_capabilities.ollama_models`. Both are live and agree;
+        # a direct per-node Ollama probe would also be an inference call the
+        # dispatcher should own (ADR-013).
+        #
+        # ⚠️ ADVISORY ONLY. This says a model is PRESENT, not that it will be
+        # PLACED there — `node_has_model` is fail-open and capacity is a separate
+        # predicate. The run records the node that ACTUALLY served it.
+        fleet = []
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT r.node_name, r.node_id, m.model_name
+                      FROM node_ollama_models m
+                      JOIN remote_nodes r ON r.node_id = m.node_id
+                     WHERE m.is_available AND r.status = 'online'
+                     ORDER BY r.node_name, m.model_name
+                    """
+                )
+                for row in cur.fetchall():
+                    fleet.append(
+                        {
+                            "node_name": row["node_name"],
+                            "node_id": row["node_id"],
+                            "model": row["model_name"],
+                        }
+                    )
+        except Exception as exc:
+            # Never fail the dropdown over the node axis — the hub list above still
+            # works, which is exactly the pre-#383 behaviour.
+            logger.warning("ab_test_models: fleet enumeration failed: %s", exc)
+
         cloud = []
         try:
             from ai_bridge.external_providers import weekly_budget_status
@@ -695,4 +782,10 @@ def register_benchmark_routes(bp, admin_required):
         except Exception as e:
             logger.warning("ab_test_models cloud enumerate failed: %s", e)
 
-        return Response(json.dumps({"local": local, "cloud": cloud}, default=str), mimetype="application/json")
+        # `fleet` is ADDITIVE — `local` and `cloud` keep their exact shape, so any
+        # existing caller is unaffected and the dropdown degrades to today's
+        # hub-only list if the node enumeration fails.
+        return Response(
+            json.dumps({"local": local, "cloud": cloud, "fleet": fleet}, default=str),
+            mimetype="application/json",
+        )

@@ -218,10 +218,47 @@ def test_gpu_affinity_completion_3955():
     ]
     for cap in wtf:
         nodes = aff[cap]
-        assert nodes[0] == CITADEL, f"{cap} must prefer Citadel first, got {nodes[0]!r}"
-        assert "archie-starbase" in nodes, f"{cap} must include hub as CPU fallback"
+        # ⚠️ CORRECTED (#6216 / PR #2985). This asserted `nodes[0] == CITADEL` and had been
+        # RED on main ever since Citadel was dropped from _WTF_CPU_FIRST — the fix shipped,
+        # the test encoding the OLD intent did not. Citadel can never serve an 8GB model
+        # (max_model_gb=6), and the cap encodes a settled owner decision: Citadel is the DR
+        # warm-standby for 5 live products and does not carry an inference model. So the
+        # CPU-first node for WTF is now the HUB.
+        assert nodes[0] == "archie-starbase", f"{cap} must prefer the hub (CPU-first), got {nodes[0]!r}"
+        assert CITADEL not in nodes, (
+            f"{cap} must NOT list Citadel — it cannot run the 8GB model and re-adding it "
+            "restores the dead first hop #6216 was filed for"
+        )
         assert nodes[-len(GPU) :] == GPU, f"{cap} must have the GPU cluster as the overflow tail"
         assert nodes[0] != DEFIANT, f"{cap} must not make the Defiant its primary node"
+
+
+def test_citadel_is_a_small_model_node_6216():
+    """Citadel appears in an affinity list ONLY where it can actually serve.
+
+    #6216 twice: `documentation` keeps Citadel first and that is CORRECT — it runs
+    llama3.2:3b (5.0GB, 288 runs/30d ON Citadel) as well as mistral:7b (8.0GB, 2,453
+    runs/30d, zero on Citadel). A per-capability node list cannot express per-MODEL
+    capacity, so a partial match is the honest state and the entry is kept deliberately.
+
+    What must NOT happen is Citadel leading a capability whose ONLY model is 7B — that is
+    a pure dead hop, and it is what got removed from the WTF tier.
+    """
+    ns = _resolve_affinity_map()
+    aff = ns["CAPABILITY_NODE_AFFINITY"]
+    CITADEL = ns["_CITADEL"]
+
+    seven_b_only = ["fact_check", "fact_check_backlog", "factcheck_quick",
+                    "bias_analysis", "bias_quick", "bias_backlog", "code_review", "security"]
+    for cap in seven_b_only:
+        assert CITADEL not in aff.get(cap, []), (
+            f"{cap} runs a 7B only; Citadel (max_model_gb=6) can never serve it"
+        )
+
+    # documentation is the deliberate mixed-model exception — keep it, and keep it explained.
+    assert aff["documentation"][0] == CITADEL, (
+        "documentation legitimately prefers Citadel for its llama3.2:3b share"
+    )
 
 
 def test_code_review_prefers_runabout_5861():

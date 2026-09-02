@@ -415,7 +415,15 @@ _GPU_CLUSTER = ["starship_76583490e36955ab", "starship_5501c2766526e746"]  # USS
 # bypasses bridge_enabled, so Citadel routes despite bridge_enabled=0; if it is offline the loop falls
 # through to the Starships then hub exactly as before. Citadel is the DR + watch-products node — keep
 # this to async/low-volume only; never let it starve the watch products.
-_CITADEL = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 — has mistral:7b installed
+# ⚠️ Citadel is a ≤6GB NODE. It has mistral:7b INSTALLED but can never be DISPATCHED one:
+# extra_capabilities.max_model_gb = 6 and every 7B needs 8.0, so can_node_run_model() refuses
+# it. PRESENCE IS NOT CAPACITY (#5862). This line used to read "has mistral:7b installed",
+# which is true and misleading — it reads as "can run mistral:7b" and is why #6216 was filed
+# twice. Measured 30d: Citadel served qwen2.5:1.5b 9,180 and llama3.2:3b 56 — and ZERO 7B.
+# The cap is NOT a RAM limit (31.3GB total, 22GB free, no pressure): it encodes the settled
+# owner decision recorded above — Citadel is the DR warm-standby for 5 live products and does
+# NOT carry an 8GB inference model. Do not "fix" this by raising the cap.
+_CITADEL = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 — CPU, ≤6GB models only
 # Win 3 (2026-06-23): vision work -> Runabout USS-245 (RTX 3050 4GB). moondream (~1.8GB) fits its GPU;
 # the 4GB card can't run a 7B but is ideal for the small vision models it has (moondream + minicpm-v).
 # The hub (M4000, also has moondream) is the fallback when .245 rests (8PM-6AM); NOT the Defiant — its
@@ -467,7 +475,16 @@ CAPABILITY_NODE_AFFINITY = {
     "research_synthesis": _GPU_CLUSTER,
     "knowledge_analysis": _GPU_CLUSTER,
     "analyze": _GPU_CLUSTER,
-    "documentation": [_CITADEL] + _GPU_CLUSTER,  # Win 2: async docs -> Citadel CPU, GPU fallback
+    # Win 2: async docs -> Citadel CPU, GPU fallback. ⚠️ TRUE FOR ONLY PART OF THIS
+    # CAPABILITY, and the entry is kept deliberately. `documentation` runs TWO models, and
+    # a per-capability node list cannot express per-MODEL capacity (#6216):
+    #   mistral:7b  (8.0GB) — 2,453 runs/30d, ZERO on Citadel; the cap refuses it, always GPU
+    #   llama3.2:3b (5.0GB) —   288 runs/30d ON CITADEL; this is the half that works
+    # So Citadel-first is REAL for the 3B share and a no-op skip for the 7B share. Removing
+    # Citadel would break the working half to tidy a hop that costs microseconds — the loop
+    # skips unfit nodes in-process (see the "preference, not a pin" note above), it does not
+    # attempt and fail. Leave it.
+    "documentation": [_CITADEL] + _GPU_CLUSTER,
     "summarize": _GPU_CLUSTER,
     "summarization": _GPU_CLUSTER,
     # #1905 follow-up (2026-06-24): keep translate OFF the Defiant 8GB GPU. translate ran

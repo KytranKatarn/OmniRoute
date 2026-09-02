@@ -2831,6 +2831,103 @@ def clusters_index():
                            shown=len(rows))
 
 
+_ARCHIVE_WINDOWS = (7, 30, 90, 365)
+_ARCHIVE_PAGE = 50
+# Free-tier ceilings, per the handoff spec: 10 stories or 50 articles by view.
+_ARCHIVE_FREE_STORIES = 10
+_ARCHIVE_FREE_ARTICLES = 50
+
+# Sort direction is NAMED, never a bare arrow — "Filed · newest" says which end
+# you are looking at; an arrow leaves the reader to guess.
+_ARCHIVE_SORTS = {
+    "filed":    ("Filed · newest",   "last_pub DESC"),
+    "oldest":   ("Filed · oldest",   "last_pub ASC"),
+    "outlets":  ("Outlets · most",   "outlets DESC, last_pub DESC"),
+    "headline": ("Headline · A–Z",   "title ASC"),
+    "outlet":   ("Outlet · A–Z",     "outlet ASC, last_pub DESC"),
+}
+
+# ⚠️ province (66.0% populated) and city (10.0% — #6174) are DELIBERATELY NOT
+# offered as filters. A filter that silently drops a third — or nine tenths — of
+# the archive misrepresents the corpus, which is the defect class ADR-020 was
+# written about. The page says so out loud instead of quietly omitting them.
+# Re-add province once #6174 lands, and label the coverage when you do.
+
+
+def _archive_filters(args) -> dict:
+    """Validate every filter against a CLOSED set. Never interpolate user text."""
+    def _one(name, allowed, default="all"):
+        v = (args.get(name) or default).strip()
+        return v if v in allowed else default
+
+    try:
+        days = int(args.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    if days not in _ARCHIVE_WINDOWS:
+        days = 30
+    sort = args.get("sort", "filed")
+    if sort not in _ARCHIVE_SORTS:
+        sort = "filed"
+    try:
+        page = max(1, int(args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    return {
+        "view": _one("view", {"story", "article"}, "story"),
+        "days": days,
+        "sort": sort,
+        "page": page,
+        "q": (args.get("q") or "").strip()[:120],
+        "lean": _one("lean", {"all", "left", "center-left", "center", "center-right", "right"}),
+        "verdict": _one("verdict", {"all", "verified", "mostly_true", "mixed",
+                                    "disputed", "unverifiable", "descriptive_reporting"}),
+        "beat": _one("beat", set(VALID_BEATS) | {"all"}),
+        "lang": _one("lang", {"all", "en", "fr"}),
+        "outlet": (args.get("outlet") or "all").strip()[:80],
+    }
+
+
+def _archive_where(f: dict) -> tuple:
+    """Build the shared WHERE fragment + bind params. Parameterised throughout."""
+    where = ["a.suppressed_reason IS NULL",
+             "a.published_at > NOW() - make_interval(days => :days)"]
+    p = {"days": f["days"]}
+    if f["q"]:
+        # ILIKE on title only: body is large and unindexed for this, and a
+        # headline search is what the spec's highlight behaviour describes.
+        where.append("a.title ILIKE :q")
+        p["q"] = f"%{f['q']}%"
+    if f["lean"] != "all":
+        where.append("b.band = :lean");        p["lean"] = f["lean"]
+    if f["verdict"] != "all":
+        where.append("fc.overall_verdict = :verdict"); p["verdict"] = f["verdict"]
+    if f["beat"] != "all":
+        where.append("a.beat = :beat");        p["beat"] = f["beat"]
+    if f["lang"] != "all":
+        where.append("s.language = :lang");    p["lang"] = f["lang"]
+    if f["outlet"] != "all":
+        where.append("s.name = :outlet");      p["outlet"] = f["outlet"]
+    return " AND ".join(where), p
+
+
+def _archive_qs(f: dict, **override) -> str:
+    """Build an /archive URL preserving current filters, with overrides applied.
+
+    Lives in Python, not the template: Jinja macros cannot take **kwargs (the
+    first draft tried and raised TemplateSyntaxError at render time), and URL
+    assembly is worth unit-testing. Defaults and empties are dropped so a shared
+    link stays short and readable.
+    """
+    from urllib.parse import urlencode
+    merged = {k: f[k] for k in ("view", "days", "sort", "page", "q",
+                                "lean", "verdict", "beat", "lang", "outlet")}
+    merged.update(override)
+    keep = {k: v for k, v in merged.items()
+            if v not in (None, "", "all") and not (k == "page" and v == 1)}
+    return "/archive" + ("?" + urlencode(keep) if keep else "")
+
+
 @bp.get("/cluster/<int:cluster_id>")
 def cluster_comparison(cluster_id: int):
     """Side-by-side outlet comparison for a story cluster (#3069)."""

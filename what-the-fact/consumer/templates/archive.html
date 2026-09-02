@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import data_table, segment, stat_tiles, lean_pill, paywall, record_links %}
+{% block title %}Full Archive · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Every article we have tracked, by story or by outlet — filterable by lean, verdict, beat, outlet and language.">
+{% endblock %}
+{% block content %}
+{# #6149 Design phase 2 — ARCHETYPE 3 (DATA EXPLORER), sibling of /blindspot and /clusters.
+
+   /archive returned 404. Server-rendered, no client JS: every filter, the sort
+   and the page are plain links, so the whole page works with scripting off.
+
+   ⚠️ WHAT THIS PAGE DELIBERATELY DOES NOT OFFER, and says so below:
+     · PROVINCE filter — province_code is 66.0% populated
+     · CITY filter     — city is 10.0% populated (#6174)
+   A filter that silently drops a third (or nine tenths) of the archive tells the
+   reader they have seen everything matching. That is the defect class ADR-020
+   was written about, so the gap is STATED rather than quietly omitted.
+   Saved / unread are deferred — they need per-user state this page has none of.
+
+   ⚠️ The prototype's outlet control reads "All 33 outlets". There are 46
+   sources. The list is built from the DB so the label cannot go stale.
+
+   Data: rows[], total, f{view,days,sort,page,q,lean,verdict,beat,lang,outlet},
+         sorts{}, windows[], outlets[], beats[], page_size, is_subscriber, gated, cap #}
+
+
+<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
+  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">The full archive</h1>
+  <p class="wtf-a-tile-d" style="margin:0;max-width:72ch;">
+    Everything we have tracked. <strong>By story</strong> groups the outlets covering one event into a
+    single row; <strong>every article</strong> lists them separately.
+  </p>
+</div>
+
+{{ stat_tiles([
+     {'label': ('Stories' if f.view == 'story' else 'Articles') ~ ' matching',
+      'value': '{:,}'.format(total),
+      'detail': 'last ' ~ f.days ~ ' days · showing ' ~ rows|length},
+     {'label': 'Sorted by', 'value': sorts[f.sort][0],
+      'detail': 'direction is named, not an arrow'},
+     {'label': 'View', 'value': ('By story' if f.view == 'story' else 'Every article'),
+      'detail': 'one row per event' if f.view == 'story' else 'one row per outlet item'},
+]) }}
+
+{# ── view toggle + window ── #}
+<div class="wtf-a-layers" style="margin:16px 0 8px;" role="group" aria-label="View">
+  {{ segment('By story', url_story, active=(f.view == 'story')) }}
+  {{ segment('Every article', url_article, active=(f.view == 'article')) }}
+</div>
+<div class="wtf-a-layers" style="margin:0 0 8px;" role="group" aria-label="Time window">
+  {% for w, u in url_windows %}{{ segment(w ~ ' days', u, active=(w == f.days)) }}{% endfor %}
+</div>
+
+{# ── search + filters: a plain GET form, works without JavaScript ── #}
+<form method="get" action="/archive" style="margin:0 0 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+  <input type="hidden" name="view" value="{{ f.view }}">
+  <input type="hidden" name="days" value="{{ f.days }}">
+  <input type="hidden" name="sort" value="{{ f.sort }}">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Search headlines…"
+         aria-label="Search headlines"
+         style="flex:1 1 220px;min-width:180px;padding:7px 10px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
+  <select name="lean" aria-label="Lean" class="wtf-a-chip">
+    <option value="all">Any lean</option>
+    {% for b in ['left','center-left','center','center-right','right'] %}
+      <option value="{{ b }}"{% if f.lean == b %} selected{% endif %}>{{ b|title }}</option>
+    {% endfor %}
+  </select>
+  <select name="verdict" aria-label="Verdict" class="wtf-a-chip">
+    <option value="all">Any verdict</option>
+    {% for v in ['verified','mostly_true','mixed','disputed','unverifiable','descriptive_reporting'] %}
+      <option value="{{ v }}"{% if f.verdict == v %} selected{% endif %}>{{ v|replace('_',' ')|title }}</option>
+    {% endfor %}
+  </select>
+  <select name="beat" aria-label="Beat" class="wtf-a-chip">
+    <option value="all">Any beat</option>
+    {% for b in beats %}<option value="{{ b }}"{% if f.beat == b %} selected{% endif %}>{{ b|replace('_',' ')|title }}</option>{% endfor %}
+  </select>
+  <select name="lang" aria-label="Language" class="wtf-a-chip">
+    <option value="all">EN + FR</option>
+    <option value="en"{% if f.lang == 'en' %} selected{% endif %}>English</option>
+    <option value="fr"{% if f.lang == 'fr' %} selected{% endif %}>Français</option>
+  </select>
+  {# Built from the DB, with counts — so "All N outlets" can never go stale. #}
+  <select name="outlet" aria-label="Outlet" class="wtf-a-chip">
+    <option value="all">All {{ outlets|length }} outlets</option>
+    {% for o in outlets %}<option value="{{ o.name }}"{% if f.outlet == o.name %} selected{% endif %}>{{ o.name }} ({{ o.n }})</option>{% endfor %}
+  </select>
+  <button type="submit" class="wtf-a-chip" style="cursor:pointer;">Apply</button>
+  <a class="wtf-a-chip" href="{{ url_clear }}">Clear</a>
+</form>
+
+{# ── sort: named directions, as plain links ── #}
+<div class="wtf-a-layers" style="margin:0 0 12px;" role="group" aria-label="Sort">
+  {% for key, label, u in url_sorts %}{{ segment(label, u, active=(key == f.sort)) }}{% endfor %}
+</div>
+
+{% set cols = [('Filed','')] + ([('Outlets','num')] if f.view == 'story' else [('Outlet','')]) + [('Headline',''),('Lean',''),('Verdict','')] %}
+{% set body = [] %}
+{% for r in rows %}
+  {% set _title %}<a href="/cluster/{{ r.cluster_id }}" style="color:var(--wtf-text);">{{ r.title }}</a>{% endset %}
+  {% set _lean %}{% if r.lean %}{{ lean_pill(r.lean) }}{% else %}<span class="wtf-a-tile-d">—</span>{% endif %}{% endset %}
+  {% set _verdict %}{% if r.verdict %}{{ r.verdict|replace('_',' ')|title }}{% else %}<span class="wtf-a-tile-d">—</span>{% endif %}{% endset %}
+  {% set _second = r.outlets if f.view == 'story' else r.outlet %}
+  {% if body.append([r.age_text, _second, _title, _lean, _verdict]) %}{% endif %}
+{% endfor %}
+{{ data_table(cols, body, empty='No ' ~ ('stories' if f.view == 'story' else 'articles') ~ ' match these filters.') }}
+
+{% if gated %}
+{{ paywall(
+     title='The rest of the archive — Starter+',
+     blurb='Free readers see the ' ~ cap ~ ' most relevant ' ~ ('stories' if f.view == 'story' else 'articles') ~
+           ' per view. Subscribers get the full ' ~ '{:,}'.format(total) ~ ' matching this filter, plus CSV export.',
+     next_url='/archive') }}
+{% elif rows|length >= page_size %}
+<div class="wtf-a-layers" style="margin:14px 0;" role="group" aria-label="Pages">
+  {% if url_prev %}{{ segment('← Previous', url_prev) }}{% endif %}
+  {{ segment('Page ' ~ f.page, '#', active=True) }}
+  {{ segment('Next →', url_next) }}
+</div>
+{% endif %}
+
+<div style="margin-top:26px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">What this archive does and does not cover</div>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
+    Suppressed duplicates are excluded everywhere. Lean is scored per article, not fixed to an outlet.
+    <strong>There is no province or city filter yet</strong> — we have a province for about two thirds of
+    articles and a city for about one in ten, and a filter on a mostly-empty column would tell you that you
+    had seen everything when you had not. It will appear when the coverage does.
+    Saved and unread lists need an account feature we have not built.
+  </p>
+  {{ record_links([
+       ('Story clusters →', '/clusters', False),
+       ('Coverage blind spots →', '/blindspot', False),
+       ('All sources →', '/sources', False)]) }}
+</div>
+{% endblock %}

@@ -2928,6 +2928,129 @@ def _archive_qs(f: dict, **override) -> str:
     return "/archive" + ("?" + urlencode(keep) if keep else "")
 
 
+def _archive_rows(f: dict):
+    """One query, two shapes.
+
+    ⚠️ The story/article toggle is not cosmetic. 28,204 articles in 30 days
+    collapse to far fewer stories, and a 16-outlet cluster repeats its headline
+    16 times — which makes sorting by headline useless and inflates any count a
+    reader takes as "how much happened". Grouping is the honest default.
+    """
+    S = _schema()
+    where, p = _archive_where(f)
+    order = _ARCHIVE_SORTS[f["sort"]][1]
+    p["lim"] = _ARCHIVE_PAGE
+    p["off"] = (f["page"] - 1) * _ARCHIVE_PAGE
+
+    base = f"""
+        FROM {S}.articles a
+        JOIN {S}.sources s ON s.id = a.source_id
+        LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+        LEFT JOIN LATERAL (
+            SELECT overall_verdict FROM {S}.fact_checks
+             WHERE article_id = a.id AND checker NOT LIKE 'GoogleFCT%%'
+             ORDER BY created_at DESC LIMIT 1
+        ) fc ON true
+        WHERE {where}
+    """
+    if f["view"] == "story":
+        sql = f"""
+            SELECT MIN(a.cluster_id)                    AS cluster_id,
+                   MIN(a.title)                         AS title,
+                   MIN(s.name)                          AS outlet,
+                   COUNT(DISTINCT a.source_id)          AS outlets,
+                   MAX(a.published_at)                  AS last_pub,
+                   MIN(b.band)                          AS lean,
+                   MIN(fc.overall_verdict)              AS verdict,
+                   MIN(a.id)                            AS article_id
+            {base} AND a.cluster_id IS NOT NULL
+            GROUP BY a.cluster_id
+            ORDER BY {order} LIMIT :lim OFFSET :off
+        """
+    else:
+        sql = f"""
+            SELECT a.cluster_id, a.title, s.name AS outlet, 1 AS outlets,
+                   a.published_at AS last_pub, b.band AS lean,
+                   fc.overall_verdict AS verdict, a.id AS article_id
+            {base}
+            ORDER BY {order} LIMIT :lim OFFSET :off
+        """
+    with _db().begin() as c:
+        return c.execute(text(sql), p).mappings().all()
+
+
+def _archive_total(f: dict) -> int:
+    S = _schema()
+    where, p = _archive_where(f)
+    inner = "COUNT(DISTINCT a.cluster_id)" if f["view"] == "story" else "COUNT(*)"
+    extra = " AND a.cluster_id IS NOT NULL" if f["view"] == "story" else ""
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            SELECT {inner}
+              FROM {S}.articles a
+              JOIN {S}.sources s ON s.id = a.source_id
+              LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+              LEFT JOIN LATERAL (
+                  SELECT overall_verdict FROM {S}.fact_checks
+                   WHERE article_id = a.id AND checker NOT LIKE 'GoogleFCT%%'
+                   ORDER BY created_at DESC LIMIT 1
+              ) fc ON true
+             WHERE {where}{extra}
+        """), p).scalar() or 0
+
+
+def _archive_outlets(days: int):
+    """Outlet options, most-published first.
+
+    ⚠️ The prototype's control reads "All 33 outlets". There are 46 sources.
+    The list is built from the DB so the label can never go stale again.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        return [dict(r) for r in c.execute(text(f"""
+            SELECT s.name, COUNT(*) AS n
+              FROM {S}.articles a JOIN {S}.sources s ON s.id = a.source_id
+             WHERE a.suppressed_reason IS NULL
+               AND a.published_at > NOW() - make_interval(days => :days)
+             GROUP BY s.name ORDER BY n DESC
+        """), {"days": days}).mappings().all()]
+
+
+@bp.get("/archive")
+def archive_index():
+    """The full archive — by story or by article (#6149 Design phase 2)."""
+    from flask import request as _req
+    f = _archive_filters(_req.args)
+    rows = [dict(r) for r in _archive_rows(f)]
+    for r in rows:
+        r["age_text"] = _age_text(r["last_pub"])
+    total = _archive_total(f)
+
+    sub = is_subscriber()
+    cap = _ARCHIVE_FREE_STORIES if f["view"] == "story" else _ARCHIVE_FREE_ARTICLES
+    gated = (not sub) and len(rows) > cap
+    if gated:
+        rows = rows[:cap]
+
+    return render_template("archive.html",
+                           rows=rows, total=total, f=f,
+                           sorts=_ARCHIVE_SORTS, windows=_ARCHIVE_WINDOWS,
+                           outlets=_archive_outlets(f["days"]),
+                           beats=sorted(VALID_BEATS),
+                           page_size=_ARCHIVE_PAGE,
+                           is_subscriber=sub, gated=gated, cap=cap,
+                           # URLs built server-side (see _archive_qs)
+                           url_story=_archive_qs(f, view="story", page=1),
+                           url_article=_archive_qs(f, view="article", page=1),
+                           url_windows=[(w, _archive_qs(f, days=w, page=1)) for w in _ARCHIVE_WINDOWS],
+                           url_sorts=[(k, s[0], _archive_qs(f, sort=k, page=1))
+                                      for k, s in _ARCHIVE_SORTS.items()],
+                           url_clear=_archive_qs({**f, "q": "", "lean": "all", "verdict": "all",
+                                                  "beat": "all", "lang": "all", "outlet": "all"}, page=1),
+                           url_prev=_archive_qs(f, page=f["page"] - 1) if f["page"] > 1 else None,
+                           url_next=_archive_qs(f, page=f["page"] + 1))
+
+
 @bp.get("/cluster/<int:cluster_id>")
 def cluster_comparison(cluster_id: int):
     """Side-by-side outlet comparison for a story cluster (#3069)."""

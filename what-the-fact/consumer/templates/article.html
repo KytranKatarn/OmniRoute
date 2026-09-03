@@ -37,6 +37,41 @@
 <style>
 /* Article page — dark theme */
 .wtf-art-container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+/* Two-column reflow (design-handoff/wtf-article.html target, #6149 phase).
+   CSS-GRID-COLUMN-ONLY, not a DOM reorder: every block below stays exactly
+   where it already is in source order. .wtf-art-rail-item is added to the
+   handful of already-scannable panels (bias/fact-check/coverage/etc.) that
+   should read as a sidebar; everything else (title, body, key figures, the
+   untouched JS-id-bearing blocks) is left alone and defaults to column 1.
+   grid-auto-flow:row dense packs each column independently in source order
+   — this is what makes DOM-order-preserving column placement work at all.
+   Below the breakpoint every rail item collapses back to column 1, which
+   reproduces exactly today's single-column reading order — mobile is
+   unchanged by this PR. */
+@media (min-width: 981px) {
+  .wtf-art-container {
+    max-width: 1226px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 26px;
+    align-items: start;
+    grid-auto-flow: row dense;
+  }
+  /* .wtf-art-rail-item is added below to the handful of panels that had no
+     existing unique class (inline-style-only divs). The rest already carry
+     a stable, single-use class in this file, so they're targeted directly —
+     verified via grep before writing this rule that each class below is
+     used exactly once in this template, at the intended block. */
+  .wtf-art-rail-item,
+  .wtf-bias-panel,
+  .wtf-factcheck-panel,
+  .wtf-paywall-panel,
+  .wtf-mp-claims-panel,
+  .wtf-crosswatch-panel,
+  .wtf-how-scored {
+    grid-column: 2;
+  }
+}
 .wtf-art-header { margin-bottom: 20px; }
 .wtf-art-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 11px; color: #666; }
 .wtf-art-title { font-size: 20px; font-weight: bold; color: #e8e8e8; line-height: 1.4; margin-bottom: 12px; }
@@ -180,7 +215,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   {% endif %}
 
   {% if tickers %}
-  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
+  <div class="wtf-art-rail-item" style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Listed securities named in this item</div>
     {% for tk in tickers %}
     <span style="display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#0af;border:1px solid #123;background:#0a1520;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0;">{{ tk }}</span>
@@ -194,7 +229,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      Shipped only after the #3032 purge made the underlying tags grounded; before
      it, 66% of these named an entity absent from the article entirely. #}
   {% if article_entities %}
-  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
+  <div class="wtf-art-rail-item" style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Named in this story</div>
     {% for ent in article_entities %}
     <a href="/entity/{{ ent.id }}" style="display:inline-block;font-size:11.5px;color:#9ca3af;border:1px solid #1f2937;background:#0b1219;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0;text-decoration:none;">{{ ent.name
@@ -324,7 +359,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- Source Intelligence Card -->
   {% if a.source_name %}
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+  <div class="wtf-art-rail-item" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">🏦 Source Intelligence</div>
     <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
       <div style="flex:1;min-width:160px;">
@@ -557,7 +592,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- GoogleFCT partner fact-checks — free, always visible -->
   {% if google_fact_checks %}
-  <div style="background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+  <div class="wtf-art-rail-item" style="background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4a9eff;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x2713; Third-Party Fact-Checks</div>
     {% for gfc in google_fact_checks %}
     {% set pub = gfc.checker.replace('GoogleFCT:', '') %}
@@ -620,7 +655,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      made. Titles use textContent-equivalent Jinja autoescaping (never |safe) —
      these are external headlines. #}
   {% if local_articles %}
-  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+  <div class="wtf-art-rail-item" style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">
       Local coverage · {{ local_place }}
     </div>
@@ -647,7 +682,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- Analysis Provenance Footer -->
   {% if a.ai_analyzed %}
-  <div style="margin-top:16px;padding:10px 14px;background:#040a10;border-top:1px solid #0d1f2d;border-radius:0 0 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+  <div class="wtf-art-rail-item" style="margin-top:16px;padding:10px 14px;background:#040a10;border-top:1px solid #0d1f2d;border-radius:0 0 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
     <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.06em;">Analyzed by</div>
     <span style="font-size:10px;color:#0af;font-family:'IBM Plex Mono',monospace;">B.I.A.S.</span>
     <span style="font-size:10px;color:#10b981;font-family:'IBM Plex Mono',monospace;">V.E.R.I.F.Y.</span>
@@ -683,7 +718,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- Cross-source outlet comparison (#3069) -->
   {% if cluster_articles %}
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px;">
+  <div class="wtf-art-rail-item" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px;">
     {% if is_subscriber %}
     <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
       📰 {{ cluster_articles|length }} other outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story
@@ -719,7 +754,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     {% endif %}
   </div>
   {% elif a.cluster_id and is_subscriber %}
-  <div style="margin-top:12px;">
+  <div class="wtf-art-rail-item" style="margin-top:12px;">
     <a style="font-size:11px;color:#0af;text-decoration:none;" href="/cluster/{{ a.cluster_id }}">
       Compare with other outlets covering this story &#x2192;
     </a>

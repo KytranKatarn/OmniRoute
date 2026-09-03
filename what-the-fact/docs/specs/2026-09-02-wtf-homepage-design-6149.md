@@ -1,8 +1,27 @@
 # WTF homepage — applying the Design handoff's actual visual design (#6149)
 
-**Branch:** `feat/wtf-home-design-6149` (exists, clean, off `main` @ `c071b3c88`)
-**Status:** spec only — no code written. Written 2026-09-02 after measuring; every
-number below was verified, not inferred.
+**Branch:** `feat/wtf-home-design-6149` (exists, off `main` @ `c071b3c88` — superseded, see below)
+**Status:** ⚠️ CORRECTED 2026-09-03 — the line below said "spec only, no code
+written" and that went stale the same day it was written. Verified via
+`git merge-base --is-ancestor <sha> main` before trusting either claim, not
+by re-reading this file.
+
+**What actually shipped (do not redo):**
+- Recommended-order step 3 (homepage layout/typography translation) —
+  PRs #3066/#3067 (`d8ff303ab`/`b8e48a200`), merged same day.
+- The `.gate` (paywall) treatment from step 2 — already applied in
+  `index.html` as `.wtf-gate`.
+- Step 1 (shell site-wide) — `base.html`'s nav already uses translated
+  `wtf-navgrp`/`wtf-nav-ico` classes.
+- The remaining step-2 gap (weather strip `#wx-home`, map-index sidebar
+  `#map-index`/`#ix-list`) — PR #3103 (`cf7f9a804`), merged 2026-09-03.
+  `_home_weather_strip()` in `consumer/routes.py`; `#wtf-weather-strip` /
+  `#wtf-map-index` in `index.html` + `style.css`.
+
+Everything this spec originally called for is now live. Before starting
+"the next phase" of this project, check what's actually still open —
+this file's own body below (section map, translation table, constraints)
+remains accurate reference material, only the STATUS line above was stale.
 
 ---
 

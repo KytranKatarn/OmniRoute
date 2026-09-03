@@ -10,7 +10,7 @@
    Weather-specific styling is namespaced wtf-wx-* so it cannot leak. #}
 <style>
 .wtf-wx-header { padding:20px 0 16px; border-bottom:1px solid #0a1a2a; margin-bottom:20px; }
-.wtf-wx-eyebrow { font-size:9px; letter-spacing:2px; color:#7c3aed; text-transform:uppercase; margin-bottom:6px; }
+.wtf-wx-eyebrow { font-size:9px; letter-spacing:2px; color:var(--wtf-aurora); text-transform:uppercase; margin-bottom:6px; }
 .wtf-wx-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; color:var(--wtf-text); margin:0 0 6px; }
 .wtf-wx-sub { font-size:12px; color:#6b7280; line-height:1.6; }
 .wtf-wx-stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 22px; }
@@ -19,7 +19,7 @@
 .wtf-wx-stat-l { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
 .wtf-wx-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin:22px 0 10px; }
 .wtf-wx-article-list { display:flex; flex-direction:column; gap:6px; }
-.wtf-wx-article-card { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid #7c3aed; border-radius:4px; padding:10px 14px; }
+.wtf-wx-article-card { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid var(--wtf-aurora); border-radius:4px; padding:10px 14px; }
 .wtf-wx-card-title { font-size:13px; color:#e5e7eb; margin-bottom:4px; }
 .wtf-wx-card-title a { color:#e5e7eb; text-decoration:none; }
 .wtf-wx-card-title a:hover { color:#60a5fa; }
@@ -68,7 +68,7 @@
 .wtf-wx-aurora { background:#060d14; border:1px solid #2e1065; border-radius:6px; padding:14px; }
 .wtf-wx-aurora-head { display:flex; align-items:center; gap:8px; margin-bottom:10px;
   padding-bottom:9px; border-bottom:1px solid #1e1b4b; }
-.wtf-wx-aurora-badge { font-size:8px; letter-spacing:1.6px; color:#a78bfa; background:#2e1065;
+.wtf-wx-aurora-badge { font-size:8px; letter-spacing:1.6px; color:var(--wtf-aurora); background:#2e1065;
   border-radius:3px; padding:3px 7px; text-transform:uppercase; }
 .wtf-wx-aurora-scope { font-family:var(--wtf-font-mono); font-size:13px; color:var(--wtf-text); }
 .wtf-wx-metric { margin-bottom:9px; }
@@ -83,7 +83,7 @@
   font-size:9.5px; color:#4b5563; line-height:1.65; }
 .wtf-wx-nodata { color:#6b7280; font-size:11.5px; line-height:1.7; padding:6px 0; }
 .wtf-wx-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:8px; margin-bottom:22px; }
-.wtf-wx-card { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid #f59e0b;
+.wtf-wx-card { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid var(--wtf-developing);
   border-radius:4px; padding:10px 12px; }
 .wtf-wx-card-name { font-size:12px; color:#e5e7eb; margin-bottom:2px; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; }
@@ -278,8 +278,8 @@
         {% endif %}
       </div>
       <div style="margin-top:20px;text-align:center;">
-        <a href="/news?beat=climate" style="color:#7c3aed;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Climate →</a>
-        <a href="/news?beat=science-tech" style="color:#a78bfa;font-size:10px;letter-spacing:1px;text-decoration:none;">All Science & Tech →</a>
+        <a href="/news?beat=climate" style="color:var(--wtf-aurora);font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Climate →</a>
+        <a href="/news?beat=science-tech" style="color:var(--wtf-aurora);font-size:10px;letter-spacing:1px;text-decoration:none;">All Science & Tech →</a>
       </div>
   </div>
 
@@ -308,7 +308,7 @@
 
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
         {% for L in layers %}
-        <div style="background:#060d14;border:1px solid {% if L.is_stale %}#7f1d1d{% else %}#1a3a5a{% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
+        <div style="background:#060d14;border:1px solid {% if L.is_stale %}var(--wtf-developing){% else %}#1a3a5a{% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
           <div style="font-size:9px;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">{{ L.layer_label }}</div>
           <div style="font-size:15px;font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums;color:{% if L.is_stale %}var(--wtf-developing){% else %}var(--wtf-text){% endif %};margin-top:3px;">
             {{ '{:,}'.format(L.record_count or 0) }}
@@ -317,7 +317,7 @@
             {{ L.issuing_body }}<br>
             <span style="color:#4b5563;">{{ L.dataset_id }}</span><br>
             {% if L.is_stale %}
-            <span style="color:#ef4444;">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
+            <span style="color:var(--wtf-developing);">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
             {% else %}
             pulled {{ L.last_pull.strftime('%Y-%m-%d %H:%M') }} UTC
             {% endif %}
@@ -406,18 +406,10 @@
   // because station names are third-party strings (site-wide rule).
   var A = {{ aurora_map | tojson }};
   var CITIES = {{ (aurora_cities or {}) | tojson }};
-  var PROVINCE_CODES = {
-    "Alberta":"AB","British Columbia":"BC","Manitoba":"MB","New Brunswick":"NB",
-    "Newfoundland and Labrador":"NL","Nova Scotia":"NS","Northwest Territories":"NT",
-    "Nunavut":"NU","Ontario":"ON","Prince Edward Island":"PE","Quebec":"QC",
-    "Saskatchewan":"SK","Yukon":"YT","Yukon Territory":"YT"
-  };
-  var CENTROIDS = {
-    "ON":[51.25,-85.32],"QC":[53.00,-70.00],"BC":[53.73,-127.65],"AB":[53.93,-116.58],
-    "SK":[52.94,-106.45],"MB":[56.42,-98.74],"NB":[46.57,-66.46],"NS":[44.68,-63.74],
-    "NL":[53.14,-57.66],"PE":[46.51,-63.42],"YT":[64.28,-135.00],"NT":[64.28,-119.18],
-    "NU":[70.30,-83.11]
-  };
+  // Province name→code and centroid lookups are the SHARED wtf-map.js copy
+  // (WTFMap.PROVINCE_CODES) — this file previously redeclared its own,
+  // byte-identical, unused-outside-itself copy that just shadowed the shared
+  // one instead of ever being read.
   var NO_DATA = "#1b2430";   // grey = this layer does not cover the area
   var selected = null, activeLayer = "fire";
 

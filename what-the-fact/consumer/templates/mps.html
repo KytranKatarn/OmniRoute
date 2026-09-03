@@ -339,7 +339,14 @@ function wtfShowSenatorCard(s, cx, cy) {
       return 'Independent';
     }
     ALL_MPS.forEach(function(mp){ var np=normParty(mp.party); counts[np]=(counts[np]||0)+1; });
-    var total338 = 338, maj = 170;
+    {# {{ total_seats }} is the REAL current is_current=true count from the DB
+       (routes.py), never hardcoded — measured 337 on 2026-09-03, not the
+       textbook 343 (vacant seats are real and drift this independently of
+       any code change). Majority = floor(total/2)+1, correct for either
+       parity. Falls back to ALL_MPS.length only if the server ever omits
+       the value, so the bar still renders something rather than NaN. #}
+    var total338 = {{ total_seats | default(0) }} || ALL_MPS.length;
+    var maj = Math.floor(total338 / 2) + 1;
     var gov_count = counts[GOV]||0;
     var is_majority = gov_count >= maj;
 

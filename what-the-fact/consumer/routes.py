@@ -4123,6 +4123,15 @@ def mps_listing():
             "SELECT DISTINCT province_code FROM parliament.mps WHERE is_current=true AND province_code IS NOT NULL ORDER BY province_code"
         )).scalars().all()
         source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        # The seat-distribution bar's majority line needs the REAL total seat
+        # count, unconditionally — NOT len(mps), which is party/province-
+        # FILTERED when those query params are set, and NOT a hardcoded 338/343:
+        # measured live 2026-09-03, is_current=true returns 337, not the
+        # textbook 343 (vacant seats awaiting byelections are real and drift
+        # the count independently of any code change here).
+        total_seats = c.execute(text(
+            "SELECT COUNT(*) FROM parliament.mps WHERE is_current = true"
+        )).scalar() or 0
         # COALESCE is load-bearing: the template does `groupby('caucus')`, and
         # Jinja's groupby SORTS by key — None < str raises TypeError and 500s
         # the whole page. A freshly-appointed senator legitimately has no
@@ -4149,7 +4158,7 @@ def mps_listing():
     return render_template("mps.html", mps=mps, parties=list(parties),
                            provinces=list(provinces), party_filter=party_filter,
                            province_filter=province_filter, source_count=source_count,
-                           senators=senators_list)
+                           senators=senators_list, total_seats=total_seats)
 
 
 @bp.get("/senator/<slug>")

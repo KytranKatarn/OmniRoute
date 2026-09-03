@@ -82,7 +82,14 @@ def _arm(monkeypatch, structured_results, freeform_text):
         idx = min(calls["structured"], len(structured_results)) - 1
         return structured_results[idx]
 
-    def fake_freeform(prompt, pr_number=None, repo=None, diff=None):
+    # **_kw for the SAME reason as fake_structured above, applied to the other boundary.
+    # It was hardened there and left bare here, so this double broke on the very next
+    # additive param: `await_queue` (#6247) put all 5 tests in this class red on main.
+    # The contract IS tested — test_chunked_review_loop.py asserts single-pass passes
+    # await_queue=False and multi-pass passes True — so pinning the signature here would
+    # duplicate that coverage while re-earning the brittleness the sibling comment warns
+    # about. These tests pin the #5287 RETRY semantics, not the signature.
+    def fake_freeform(prompt, pr_number=None, repo=None, diff=None, **_kw):
         calls["freeform"] += 1
         return freeform_text
 

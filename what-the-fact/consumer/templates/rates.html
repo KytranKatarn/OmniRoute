@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import stat_tiles, data_table, chip, segment %}
+{% from "_archetypes.html" import stat_tiles, data_table, chip, segment, paywall %}
 {% block title %}Bank of Canada Rate Decisions · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Bank of Canada overnight rate decision history. Every cut, hike, and hold since 2000 — with basis-point changes.">
@@ -58,19 +58,15 @@
        _rows,
        empty='No rate decisions on record.') }}
 {% else %}
-  {# Paywall — preserved verbatim in behaviour (Starter+), restyled onto tokens. #}
-  <div style="background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;padding:26px;text-align:center;margin:18px 0;">
-    <div class="wtf-a-tile-l" style="margin-bottom:10px;">Rate decision history — Starter+</div>
-    <p class="wtf-a-para" style="font-size:14px;margin:0 auto 18px;max-width:52ch;">
-      Every Bank of Canada rate cut and hike from 2000&ndash;2026 with basis-point
-      changes. Follow the money behind Canadian economic policy.
-    </p>
-    <a href="/login?next=/rates"
-       style="display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:0.06em;padding:11px 26px;border-radius:4px;text-decoration:none;">
-      Unlock with Starter &rarr;
-    </a>
-    <div style="margin-top:12px;"><a href="/join" class="wtf-a-tile-d" style="text-decoration:none;">See plans</a></div>
-  </div>
+  {# Paywall — converged onto the shared paywall() macro (same behaviour,
+     Starter+, /login?next=/rates, "Unlock with Starter" CTA, /join plans
+     link) instead of a hand-rolled duplicate of the block that macro was
+     built to replace. #}
+  {{ paywall(
+       'Rate decision history — Starter+',
+       'Every Bank of Canada rate cut and hike from 2000–2026 with basis-point changes. Follow the money behind Canadian economic policy.',
+       '/rates'
+  ) }}
 {% endif %}
 
 <div style="margin-top:26px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">

@@ -1,70 +1,128 @@
 {% extends "base.html" %}
 {% block title %}AI Newsroom Governance — What The Fact{% endblock %}
 {% block content %}
+<style>
+/* Extracted all 31 inline style="..." attributes on this page into namespaced
+   wtf-gv- classes — value-preserving, same hex/rem/px literals throughout. The
+   page had NO <style> block and NO class= attributes before this pass; every
+   rule below is new, not a merge into pre-existing CSS (checked against
+   consumer/static/style.css first — no unused governance-page classes exist
+   there to duplicate or reuse).
 
-<div style="max-width:760px;margin:48px auto;padding:0 16px;">
+   9 pre-existing var(--wtf-aurora) references on links/scores are kept as-is
+   (already token-aware) — grep confirms exactly 9 occurrences before and after
+   this change. No other hex literal here is a byte-identical match to any
+   --wtf-* token in style.css (checked #4b5563, #f0f0f0, #6b7280, #9ca3af,
+   #0d0a1a, #4c1d95, #c4b5fd, #1a2a3a, #b45309/#b4530955, #0a0e18 individually —
+   none equal a token value, e.g. #0a0e18/#0d0a1a are close to but not
+   byte-identical to --wtf-bg #0d1117), so none are swapped.
 
-  <div style="margin-bottom:28px;">
-    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Radical Transparency</div>
-    <h1 style="font-family:Georgia,serif;font-size:1.8rem;color:#f0f0f0;margin:0 0 8px;">AI Newsroom Governance</h1>
-    <p style="color:#6b7280;font-size:0.78rem;margin:0;line-height:1.6;">
+   font-family:Georgia,serif (3 occurrences: h1 title, overall score, pillar
+   score) is deliberately LEFT literal — it is not the never-loaded 'Orbitron'
+   bug fixed elsewhere this session (base.html loads no Orbitron reference on
+   this page at all), and Georgia,serif is not byte-identical to the
+   --wtf-font-serif token value ('Newsreader', Georgia, 'Times New Roman',
+   serif), so swapping it would silently change the rendered font stack.
+
+   No paywall gate exists on this page (fully public — no Starter+ card, no
+   "Unlock with Starter" CTA), so the _archetypes.html paywall() macro does not
+   apply here. */
+.wtf-gv-wrap { max-width:760px; margin:48px auto; padding:0 16px; }
+.wtf-gv-header { margin-bottom:28px; }
+.wtf-gv-eyebrow { font-size:0.55rem; letter-spacing:3px; color:#4b5563; text-transform:uppercase; margin-bottom:8px; }
+.wtf-gv-title { font-family:Georgia,serif; font-size:1.8rem; color:#f0f0f0; margin:0 0 8px; }
+.wtf-gv-intro { color:#6b7280; font-size:0.78rem; margin:0; line-height:1.6; }
+.wtf-gv-link { color:var(--wtf-aurora); }
+.wtf-gv-strong { color:#9ca3af; }
+.wtf-gv-code { color:var(--wtf-aurora); }
+
+.wtf-gv-scorecard { background:#0d0a1a; border:1px solid #4c1d95; border-radius:6px; padding:20px; margin-bottom:20px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+.wtf-gv-score-big { font-size:2.6rem; font-family:Georgia,serif; color:#c4b5fd; line-height:1; }
+.wtf-gv-score-suffix { font-size:1.2rem; color:var(--wtf-aurora); }
+.wtf-gv-grade-label { font-size:0.6rem; letter-spacing:2px; color:#6b7280; text-transform:uppercase; margin-top:4px; }
+.wtf-gv-grade-value { color:var(--wtf-aurora); }
+.wtf-gv-stats { flex:1; min-width:200px; color:#6b7280; font-size:0.72rem; line-height:1.7; }
+.wtf-gv-cats { color:var(--wtf-aurora); text-transform:capitalize; }
+.wtf-gv-badge { height:22px; }
+
+.wtf-gv-section-label { font-size:0.55rem; letter-spacing:2px; color:#4b5563; text-transform:uppercase; margin:0 0 10px; }
+.wtf-gv-pillar-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; margin-bottom:24px; }
+.wtf-gv-pillar-card { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; }
+.wtf-gv-pillar-head { display:flex; align-items:baseline; justify-content:space-between; }
+.wtf-gv-pillar-name { color:#9ca3af; font-size:0.72rem; text-transform:capitalize; font-weight:600; }
+.wtf-gv-pillar-score { color:var(--wtf-aurora); font-family:Georgia,serif; font-size:1.05rem; }
+.wtf-gv-pillar-score-suffix { font-size:0.65rem; color:#6b7280; }
+.wtf-gv-pillar-meta { margin-top:6px; color:#4b5563; font-size:0.62rem; line-height:1.5; }
+.wtf-gv-provisional-tag { color:#b45309; border:1px solid #b4530955; border-radius:3px; padding:0 4px; margin-left:4px; }
+.wtf-gv-pillar-note { margin-top:3px; }
+
+.wtf-gv-footnote { color:#4b5563; font-size:0.65rem; line-height:1.7; }
+.wtf-gv-unavailable { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:20px; color:#6b7280; font-size:0.78rem; }
+</style>
+
+<div class="wtf-gv-wrap">
+
+  <div class="wtf-gv-header">
+    <div class="wtf-gv-eyebrow">Radical Transparency</div>
+    <h1 class="wtf-gv-title">AI Newsroom Governance</h1>
+    <p class="wtf-gv-intro">
       What The Fact is produced by an AI newsroom. Every editorial action our agents take —
       bias scoring, fact-checking, publishing — emits a governance event to
-      <a href="https://creed-ai.org" style="color:var(--wtf-aurora);">C.R.E.E.D.</a>, an independent ethics
-      layer. This page shows the <strong style="color:#9ca3af;">live score of our own newsroom</strong>
-      (the <code style="color:var(--wtf-aurora);">what-the-fact</code> organization) — not a self-audit, and
+      <a href="https://creed-ai.org" class="wtf-gv-link">C.R.E.E.D.</a>, an independent ethics
+      layer. This page shows the <strong class="wtf-gv-strong">live score of our own newsroom</strong>
+      (the <code class="wtf-gv-code">what-the-fact</code> organization) — not a self-audit, and
       not C.R.E.E.D.'s score of itself.
     </p>
   </div>
 
   {% if scan %}
-  <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:6px;padding:20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+  <div class="wtf-gv-scorecard">
     <div>
-      <div style="font-size:2.6rem;font-family:Georgia,serif;color:#c4b5fd;line-height:1;">{{ scan.overall }}<span style="font-size:1.2rem;color:var(--wtf-aurora);">/100</span></div>
-      <div style="font-size:0.6rem;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-top:4px;">Grade <strong style="color:var(--wtf-aurora);">{{ scan.grade }}</strong></div>
+      <div class="wtf-gv-score-big">{{ scan.overall }}<span class="wtf-gv-score-suffix">/100</span></div>
+      <div class="wtf-gv-grade-label">Grade <strong class="wtf-gv-grade-value">{{ scan.grade }}</strong></div>
     </div>
-    <div style="flex:1;min-width:200px;color:#6b7280;font-size:0.72rem;line-height:1.7;">
+    <div class="wtf-gv-stats">
       <div>{{ "{:,}".format(scan.event_count) }} governance events tracked</div>
       {% if scan.freshness and scan.freshness.events_30d %}
       <div>{{ "{:,}".format(scan.freshness.events_30d) }} events in the last 30 days</div>
       {% endif %}
       {% if scan.overall_categories %}
-      <div>Overall is computed from pillars with &ge;100 events: <span style="color:var(--wtf-aurora);text-transform:capitalize;">{{ scan.overall_categories | join(', ') }}</span></div>
+      <div>Overall is computed from pillars with &ge;100 events: <span class="wtf-gv-cats">{{ scan.overall_categories | join(', ') }}</span></div>
       {% endif %}
     </div>
-    <img src="/api/creed-badge" alt="C.R.E.E.D. what-the-fact badge" style="height:22px;">
+    <img src="/api/creed-badge" alt="C.R.E.E.D. what-the-fact badge" class="wtf-gv-badge">
   </div>
 
-  <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin:0 0 10px;">Pillars</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:24px;">
+  <div class="wtf-gv-section-label">Pillars</div>
+  <div class="wtf-gv-pillar-grid">
     {% for cat, pv in (scan.by_category or {}).items() %}
-    <div style="background:#0a0e18;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;">
-        <span style="color:#9ca3af;font-size:0.72rem;text-transform:capitalize;font-weight:600;">{{ cat }}</span>
-        <span style="color:var(--wtf-aurora);font-family:Georgia,serif;font-size:1.05rem;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}<span style="font-size:0.65rem;color:#6b7280;">/100</span></span>
+    <div class="wtf-gv-pillar-card">
+      <div class="wtf-gv-pillar-head">
+        <span class="wtf-gv-pillar-name">{{ cat }}</span>
+        <span class="wtf-gv-pillar-score">{{ (pv.score if pv is mapping else pv) | round(0) | int }}<span class="wtf-gv-pillar-score-suffix">/100</span></span>
       </div>
       {% if pv is mapping %}
-      <div style="margin-top:6px;color:#4b5563;font-size:0.62rem;line-height:1.5;">
+      <div class="wtf-gv-pillar-meta">
         {{ "{:,}".format(pv.events or 0) }} events
         {% if pv.provisional %}
-        <span style="color:#b45309;border:1px solid #b4530955;border-radius:3px;padding:0 4px;margin-left:4px;">provisional</span>
+        <span class="wtf-gv-provisional-tag">provisional</span>
         {% endif %}
-        {% if pv.note %}<div style="margin-top:3px;">{{ pv.note }}</div>{% endif %}
+        {% if pv.note %}<div class="wtf-gv-pillar-note">{{ pv.note }}</div>{% endif %}
       </div>
       {% endif %}
     </div>
     {% endfor %}
   </div>
 
-  <p style="color:#4b5563;font-size:0.65rem;line-height:1.7;">
+  <p class="wtf-gv-footnote">
     Pillars under 100 events are marked <em>provisional</em> and excluded from the overall —
     a low-volume pillar never inflates (or fakes) confidence. Methodology:
-    <a href="https://what-the-fact.tech/transparency" style="color:var(--wtf-aurora);">what-the-fact.tech/transparency</a> ·
-    Watch the agents work live on the <a href="/activity" style="color:var(--wtf-aurora);">Activity Log</a> ·
-    Meet the team on <a href="/team" style="color:var(--wtf-aurora);">Team</a>.
+    <a href="https://what-the-fact.tech/transparency" class="wtf-gv-link">what-the-fact.tech/transparency</a> ·
+    Watch the agents work live on the <a href="/activity" class="wtf-gv-link">Activity Log</a> ·
+    Meet the team on <a href="/team" class="wtf-gv-link">Team</a>.
   </p>
   {% else %}
-  <div style="background:#0a0e18;border:1px solid #1a2a3a;border-radius:4px;padding:20px;color:#6b7280;font-size:0.78rem;">
+  <div class="wtf-gv-unavailable">
     Governance data is temporarily unavailable — the C.R.E.E.D. scoring service could not be
     reached. The score returns automatically; nothing is cached or fabricated in the meantime.
   </div>

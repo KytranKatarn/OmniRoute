@@ -1,19 +1,34 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}CRTC Decisions — Broadcasting & Telecom Rulings · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Canadian Radio-television and Telecommunications Commission decisions 2024–2026. Broadcasting licences, telecom rulings, and enforcement actions.">
 {% endblock %}
 {% block content %}
 <style>
+/* Extracted 26 inline style="..." attributes across 3 previously wholly-unstyled
+   sections (ownership panel, paywall gate, about footer) into namespaced classes —
+   value-preserving, same hex literals throughout. Fixed the same never-loaded
+   'Orbitron' bug already fixed 4x this session -> var(--wtf-font-mono) (also
+   normalized the already-correct 'IBM Plex Mono' literal to the same token for
+   consistency). The TYPE_COLOURS Jinja dicts below (owner-type, decision-type)
+   are deliberately LEFT as literal hex even though 2 values (#3b82f6, #f59e0b)
+   exactly match var(--wtf-local)/var(--wtf-developing) — they're alpha-blended
+   per-row via "{{ tc }}22"/"{{ tc }}44" string concatenation, which only works on
+   a real hex literal; a CSS var() reference can't take an appended alpha suffix.
+   The design contract's flagged "owner-type colors collide with the lean
+   spectrum" issue is a real, deliberate recoloring decision, not styling debt —
+   left out of scope, same discipline as cost.js/markets.html this session. */
 .wtf-crtc-header { padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:20px; }
-.wtf-crtc-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-crtc-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-crtc-sub { font-size:12px; color:#6b7280; }
 .wtf-crtc-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
 .wtf-crtc-filter { font-size:11px; padding:4px 12px; border-radius:12px; border:1px solid #1a3a5a; background:#060d14; color:#9ca3af; text-decoration:none; }
 .wtf-crtc-filter.active { border-color:#0af; color:#0af; background:#0a1a2a; }
 .wtf-crtc-list { display:flex; flex-direction:column; gap:8px; }
 .wtf-crtc-row { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:12px 14px; }
-.wtf-crtc-num { font-family:'IBM Plex Mono',monospace; font-size:11px; color:#0af; font-weight:600; text-decoration:none; }
+.wtf-crtc-row-head { display:flex; align-items:center; flex-wrap:wrap; gap:4px; }
+.wtf-crtc-num { font-family:var(--wtf-font-mono); font-size:11px; color:#0af; font-weight:600; text-decoration:none; }
 .wtf-crtc-num:hover { text-decoration:underline; }
 .wtf-crtc-type { font-size:10px; padding:1px 7px; border-radius:10px; margin-left:8px; }
 .wtf-crtc-subject { font-size:13px; color:#e5e7eb; margin:4px 0 2px; font-weight:500; }
@@ -21,6 +36,24 @@
 .wtf-crtc-scope { font-size:10px; color:#6b7280; margin-top:4px; }
 .wtf-crtc-source-link { font-size:10px; color:#22c55e; margin-left:8px; text-decoration:none; }
 .wtf-crtc-source-link:hover { text-decoration:underline; }
+
+.wtf-crtc-own { background:#060d14; border:1px solid #1a3a5a; border-radius:6px; padding:14px 16px; margin-bottom:16px; }
+.wtf-crtc-own-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.wtf-crtc-own-title { font-family:var(--wtf-font-mono); font-size:12px; color:#e5e7eb; }
+.wtf-crtc-badge { font-size:10px; font-weight:700; padding:3px 10px; border-radius:10px; }
+.wtf-crtc-own-bars { display:flex; flex-direction:column; gap:6px; }
+.wtf-crtc-own-row { display:flex; align-items:center; gap:8px; }
+.wtf-crtc-own-name { width:110px; font-size:11px; color:#9ca3af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wtf-crtc-own-track { flex:1; background:#0a1520; border-radius:2px; height:12px; position:relative; }
+.wtf-crtc-own-fill { height:100%; border-radius:2px; opacity:0.7; }
+.wtf-crtc-own-stat { width:60px; font-size:10px; color:#6b7280; text-align:right; flex-shrink:0; }
+.wtf-crtc-own-note { margin-top:10px; font-size:10px; color:#4b5563; }
+.wtf-crtc-own-link { color:#0af; margin-left:8px; }
+
+.wtf-crtc-about { margin-top:24px; padding:12px 14px; background:#060d14; border:1px solid #1a3a5a; border-radius:6px; font-size:12px; color:#6b7280; line-height:1.8; }
+.wtf-crtc-about-h { color:#9ca3af; }
+.wtf-crtc-about-link { color:#0af; font-size:11px; }
+.wtf-crtc-about-link--muted { color:#6b7280; font-size:11px; }
 </style>
 
 <div class="wtf-crtc-header">
@@ -32,11 +65,11 @@
 
 {# ── Ownership concentration panel ─────────────────────────────────────── #}
 {% if owners_summary %}
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:6px;padding:14px 16px;margin-bottom:16px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-    <div style="font-family:'Orbitron',sans-serif;font-size:12px;color:#e5e7eb;">🏢 Media Ownership Concentration</div>
+<div class="wtf-crtc-own">
+  <div class="wtf-crtc-own-head">
+    <div class="wtf-crtc-own-title">🏢 Media Ownership Concentration</div>
     {% if concentration_badge %}
-    <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;background:{{ concentration_badge.colour }}22;color:{{ concentration_badge.colour }};border:1px solid {{ concentration_badge.colour }}44;">
+    <span class="wtf-crtc-badge" style="background:{{ concentration_badge.colour }}22;color:{{ concentration_badge.colour }};border:1px solid {{ concentration_badge.colour }}44;">
       {{ concentration_badge.label }} · top 3 own {{ concentration_badge.pct_top3 }}% of tracked outlets
     </span>
     {% endif %}
@@ -45,28 +78,28 @@
   {% set max_count = owners_summary[0].outlet_count if owners_summary else 1 %}
   {% set TYPE_COLOURS = {'corporate':'#ef4444','public':'#3b82f6','non_profit':'#22c55e','independent':'#a78bfa'} %}
   {% set TYPE_ICONS = {'corporate':'🏢','public':'🏛','non_profit':'🤝','independent':'👤'} %}
-  <div style="display:flex;flex-direction:column;gap:6px;">
+  <div class="wtf-crtc-own-bars">
   {% for o in owners_summary %}
   {% set tc = TYPE_COLOURS.get(o.owner_type or '', '#6b7280') %}
   {% set ti = TYPE_ICONS.get(o.owner_type or '', '📰') %}
   {% set bar_pct = (o.outlet_count / max_count * 100)|int %}
-  <div style="display:flex;align-items:center;gap:8px;">
-    <div style="width:110px;font-size:11px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ o.owner_name }}">
+  <div class="wtf-crtc-own-row">
+    <div class="wtf-crtc-own-name" title="{{ o.owner_name }}">
       {{ ti }} {{ o.owner_name }}
     </div>
-    <div style="flex:1;background:#0a1520;border-radius:2px;height:12px;position:relative;">
-      <div style="width:{{ bar_pct }}%;background:{{ tc }};height:100%;border-radius:2px;opacity:0.7;"></div>
+    <div class="wtf-crtc-own-track">
+      <div class="wtf-crtc-own-fill" style="width:{{ bar_pct }}%;background:{{ tc }};"></div>
     </div>
-    <div style="width:60px;font-size:10px;color:#6b7280;text-align:right;flex-shrink:0;">
+    <div class="wtf-crtc-own-stat">
       {{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }}
       {% if o.avg_bias is not none %}· <span style="color:{{ '#ef4444' if (o.avg_bias|float) > 0.15 else ('#3b82f6' if (o.avg_bias|float) < -0.15 else '#22c55e') }};">{{ '%+.2f'|format(o.avg_bias|float) }}</span>{% endif %}
     </div>
   </div>
   {% endfor %}
   </div>
-  <div style="margin-top:10px;font-size:10px;color:#4b5563;">
+  <div class="wtf-crtc-own-note">
     Bias scores are rolling averages from AI analysis. Bar width = share of tracked outlets.
-    <a href="/owners" style="color:#0af;margin-left:8px;">Full ownership map →</a>
+    <a href="/owners" class="wtf-crtc-own-link">Full ownership map →</a>
   </div>
 </div>
 {% endif %}
@@ -86,7 +119,7 @@
 {% for d in decisions %}
 {% set tc = TYPE_COLOURS.get(d.decision_type or 'broadcasting', '#6b7280') %}
 <div class="wtf-crtc-row" style="border-left:3px solid {{ tc }};">
-  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+  <div class="wtf-crtc-row-head">
     {% if d.decision_url %}
     <a class="wtf-crtc-num" href="{{ d.decision_url }}" target="_blank" rel="noopener">{{ d.decision_number }}</a>
     {% else %}
@@ -112,23 +145,22 @@
 {% endfor %}
 </div>
 {% else %}
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin:8px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 CRTC Decisions — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">280 CRTC broadcasting and telecom rulings (2024–2026) with cross-links to WTF outlet profiles.</div>
-  <a href="/login?next=/crtc" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-</div>
+{{ paywall(
+     '🔒 CRTC Decisions — Starter+',
+     '280 CRTC broadcasting and telecom rulings (2024–2026) with cross-links to WTF outlet profiles.',
+     '/crtc'
+) }}
 {% endif %}
 
-<div style="margin-top:24px;padding:12px 14px;background:#060d14;border:1px solid #1a3a5a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
-  <strong style="color:#9ca3af;">About CRTC decisions</strong><br>
+<div class="wtf-crtc-about">
+  <strong class="wtf-crtc-about-h">About CRTC decisions</strong><br>
   The CRTC regulates Canada's broadcasting system (TV, radio, streaming) and telecommunications (internet, wireless, phone).
   Its decisions affect every media outlet, telecom provider, and online platform operating in Canada.
   🔗 items indicate the subject matches a WTF-tracked news outlet.
   <br><br>
-  <a href="https://crtc.gc.ca/eng/dno.htm" target="_blank" rel="noopener" style="color:#0af;font-size:11px;">Full CRTC index ↗</a>
+  <a href="https://crtc.gc.ca/eng/dno.htm" target="_blank" rel="noopener" class="wtf-crtc-about-link">Full CRTC index ↗</a>
   &nbsp;&nbsp;
-  <a href="/owners" style="color:#6b7280;font-size:11px;">Media Owners →</a>
+  <a href="/owners" class="wtf-crtc-about-link--muted">Media Owners →</a>
 </div>
 
 {% endblock %}

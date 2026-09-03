@@ -389,6 +389,7 @@ def main():
     _last_parliament_date = None
     _last_aurora_date = None
     _last_city_hour = None
+    _last_elections_week = None
     _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
     _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
     _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
@@ -579,6 +580,33 @@ def main():
             except Exception:
                 log.exception("aurora citypage crashed")
             _last_city_hour = _city_hour
+
+        # Elections Canada general-election results — WEEKLY, not daily.
+        # The data is STATIC: GE44's official results will never change. A daily
+        # re-fetch would buy nothing, but a periodic one is not pointless either
+        # — it re-proves the CKAN resource is still reachable and still parses,
+        # which is what would catch the source moving or changing shape. The
+        # upsert is idempotent, so a re-run is a no-op on unchanged data.
+        #
+        # ⚠️ This schedule and the drift_guard window are ONE decision. A task
+        # registered in _MAX_AGE_DAYS with no scheduled writer stays `unknown`
+        # forever and can never alarm — unmonitored while APPEARING monitored,
+        # which is the failure gov-watch's test_every_monitored_job_has_a_
+        # heartbeat_writer exists to prevent. Change the cadence here and change
+        # WTF_DRIFT_ELECTIONS_DAYS with it.
+        #
+        # Runs BEFORE the drift guard so the guard reads this pass's heartbeat.
+        # run_election_results never raises and writes its own heartbeat on both
+        # the success and swallowed-error paths.
+        _elec_week = datetime.date.today().strftime("%G-W%V")
+        if _last_elections_week != _elec_week:
+            try:
+                from ingest.elections.results import run_election_results
+                for _ge in (44, 43):
+                    log.info("elections GE%s: %s", _ge, run_election_results(engine, _ge))
+            except Exception:
+                log.exception("elections results crashed")
+            _last_elections_week = _elec_week
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

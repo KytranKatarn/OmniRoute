@@ -49,6 +49,12 @@ _MAX_AGE_DAYS = {
     "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
     "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
     "issuer_contracts": int(os.environ.get("WTF_DRIFT_ISSUERC_DAYS", "21")),
+    # Elections Canada results. The DATA is static — GE44's official results
+    # will never change — so this window is not measuring data freshness, it is
+    # measuring that the WEEKLY job in ingest/run.py is still running and the
+    # CKAN resource still fetches and parses. 10 = a 7-day cadence plus slack.
+    # ⚠️ This number and that cadence are one decision; move them together.
+    "elections_results": int(os.environ.get("WTF_DRIFT_ELECTIONS_DAYS", "10")),
     # Added 2026-08-18 (#5725): these five were EXACTLY the feeds that died
     # silently for 2-3 months while this guard watched everything else —
     # senators frozen 87d on a DEAD top-level bs4 import (never called —
@@ -95,6 +101,11 @@ _MAX_AGE_DAYS = {
 # reports green forever. Anything listed here alarms on absence instead.
 _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    "aurora_city_obs", "aurora_city_forecast",
+                   # elections_results is SCHEDULED (weekly, ingest/run.py), so
+                   # zero rows does not mean "not tracked yet" — it means the
+                   # schedule is not running. Required, or the one signal that
+                   # the job vanished is the signal we would skip.
+                   "elections_results",
                    # weekly_digest has ZERO rows as of 2026-09-01 (verified), so
                    # without this line the freshness loop would skip it as "not yet
                    # tracked" and it would report green forever — which is exactly

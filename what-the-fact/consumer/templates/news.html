@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}Latest News — What The Fact{% endblock %}
 {% block content %}
 
@@ -17,20 +18,29 @@
     {% for s in sources if s.article_count %}
     {% set lean = s.bias_lean or s.bias_band or 'center' %}
     {% set lean_cls = lean | replace(' ', '-') | lower %}
-    {% set colors = {
-      'left': '#dc2626', 'center-left': '#f97316',
-      'center': '#6b7280', 'center-right': '#0ea5e9', 'right': '#2563eb'
+    {# Lean colour comes from the shared tokens. This page previously carried its
+       OWN hex map — a THIRD one, disagreeing with /score and /search on 'left'
+       (#dc2626 vs #ef4444) and 'center' (#6b7280 vs #22c55e). Same measured lean,
+       three different colours depending on which page you were on. #}
+    {% set _lean_tok = {
+      'left': '--wtf-left', 'center-left': '--wtf-center-left', 'center': '--wtf-center',
+      'center-right': '--wtf-center-right', 'right': '--wtf-right'
     } %}
-    {% set col = colors.get(lean_cls, '#6b7280') %}
+    {% set col = 'var(%s)' % _lean_tok.get(lean_cls, '--wtf-center') %}
     <div style="text-align:center;min-width:72px;cursor:pointer;"
          onclick="window.location='/news?band={{ lean_cls }}&page=1'" title="{{ s.name }}">
-      <div style="width:44px;height:44px;border-radius:8px;margin:0 auto 6px;
-                  border:2px solid {{ col }}22;background:#0a0f1a;
-                  display:flex;align-items:center;justify-content:center;overflow:hidden;">
-        <img src="https://www.google.com/s2/favicons?domain={{ s.url }}&sz=32"
-             width="24" height="24" alt="{{ s.name }}"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-             style="border-radius:4px;">
+      <div class="wtf-news-favicon" style="border-color:{{ col }};">
+        {# ⚠️ SERVED LOCALLY. This used to be google.com/s2/favicons?domain=… — one
+           THIRD-PARTY request per source per page view (up to 46), telling Google
+           which outlets each reader browses. Icons are now fetched from each
+           PUBLISHER'S OWN domain at build time by scripts/fetch_source_favicons.py
+           and committed; the containers are read_only so runtime caching is not
+           an option. 37 of 46 sources resolved — the rest (mostly Postmedia, which
+           bot-blocks) fall through to the monogram, which is the correct render
+           for a publisher with no usable icon. #}
+        <img src="/static/favicons/{{ s.slug }}.png"
+             width="24" height="24" alt="" loading="lazy"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
         <span style="display:none;color:{{ col }};font-size:0.7rem;font-weight:700;">
           {{ s.name[:2] | upper }}
         </span>
@@ -148,12 +158,9 @@
   {% endfor %}
 
   {% if not is_subscriber %}
-  <div style="text-align:center;padding:24px 0 8px;border-top:1px solid #112233;margin-top:8px;">
-    <div style="font-size:0.65rem;color:#555;letter-spacing:1px;margin-bottom:10px;">UNLOCK B.I.A.S. RATIONALE · V.E.R.I.F.Y. FACT-CHECKS · DEEP DIVE</div>
-    <a href="/billing/checkout/starter" style="background:#0a2a3a;border:1px solid #0af;color:#0af;padding:8px 20px;border-radius:3px;font-size:0.75rem;text-decoration:none;">Subscribe — $4.99/mo</a>
-    <span style="color:#333;margin:0 10px;font-size:0.7rem;">or</span>
-    <a href="/login?next=/news" style="color:#555;font-size:0.7rem;text-decoration:none;">Sign in →</a>
-  </div>
+  {{ paywall("Unlock the full analysis",
+             "B.I.A.S. rationale, V.E.R.I.F.Y. fact-checks and Deep Dive on every article.",
+             "/news") }}
   {% endif %}
 
 

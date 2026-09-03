@@ -571,7 +571,11 @@ def news():
         # Pre-aggregate per-source counts instead of grouping 107k wide
         # joined rows — measured 305ms → 66ms (#5719).
         sources = c.execute(text(f"""
-            SELECT s.name, s.url, s.bias_lean,
+            -- s.slug feeds /static/favicons/<slug>.png in news.html. Without it the
+            -- template renders /static/favicons/.png for EVERY source: 46 silent
+            -- 404s, every logo falling back to its monogram, and a page that looks
+            -- merely plainer rather than broken.
+            SELECT s.name, s.slug, s.url, s.bias_lean,
                    obs.avg_score, obs.band AS bias_band,
                    COALESCE(ac.article_count, 0) AS article_count
             FROM {S}.sources s

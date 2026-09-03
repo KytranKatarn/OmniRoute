@@ -47,6 +47,12 @@ _FORBIDDEN_HOSTS = (
     "cdnjs.cloudflare.com",
     "basemaps.cartocdn.com",
     "tile.openstreetmap.org",
+    # /news served every source logo from google.com/s2/favicons — up to 46
+    # third-party requests per page view, telling Google which outlets each
+    # reader browses. The guard did not list google.com, so news.html PASSED
+    # while doing it. Icons are now fetched from each publisher's own domain at
+    # build time (scripts/fetch_source_favicons.py) and served from /static.
+    "google.com",
 )
 
 

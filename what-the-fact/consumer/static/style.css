@@ -1457,3 +1457,15 @@ p { text-wrap: pretty; }
   .wtf-search-form { flex-wrap: wrap; }
   .wtf-search-form input { flex: 1 1 100%; }
 }
+
+/* ── /news source bar — Phase 3 (design handoff) ────────────────────────────
+   Icons are LOCAL (/static/favicons/<slug>.png, fetched from each publisher's
+   own domain at build time). The border takes the outlet's lean token, so the
+   source bar cannot disagree with the same lean elsewhere on the site — this
+   page used to carry its own third hex map. */
+.wtf-news-favicon {
+  width: 44px; height: 44px; border-radius: 8px; margin: 0 auto 6px;
+  border: 2px solid var(--wtf-border); background: var(--wtf-bg-panel);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.wtf-news-favicon img { border-radius: 4px; }

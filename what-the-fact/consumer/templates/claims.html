@@ -49,13 +49,16 @@
 
 .wtf-claims-empty { text-align: center; padding: 40px 20px; color: #4b5563; font-size: 12px; }
 .wtf-claims-count { font-size: 10px; color: #4b5563; letter-spacing: 1px; margin-bottom: 14px; }
+
+.wtf-cl-back-link { color: #0af; text-decoration: none; }
+.wtf-cl-empty-icon { font-size: 24px; margin-bottom: 10px; }
 </style>
 
 <div class="wtf-claims-container">
   <div class="wtf-claims-header">
     {% if politician_name is defined and politician_slug is defined %}
     <div class="wtf-claims-title">&#x1F4CB; Claims — {{ politician_name }}</div>
-    <div class="wtf-claims-subtitle">ELECTION CLAIM TRACKER &nbsp;&bull;&nbsp; <a href="/claims" style="color:#0af;text-decoration:none;">&#x2190; All Claims</a></div>
+    <div class="wtf-claims-subtitle">ELECTION CLAIM TRACKER &nbsp;&bull;&nbsp; <a href="/claims" class="wtf-cl-back-link">&#x2190; All Claims</a></div>
     {% else %}
     <div class="wtf-claims-title">&#x1F4CB; Election Claim Tracker</div>
     <div class="wtf-claims-subtitle">TRACKING MP PROMISES AND STATEMENTS</div>
@@ -103,7 +106,7 @@
     {% endfor %}
   {% else %}
   <div class="wtf-claims-empty">
-    <div style="font-size:24px;margin-bottom:10px;">&#x1F4CB;</div>
+    <div class="wtf-cl-empty-icon">&#x1F4CB;</div>
     No claims tracked yet{% if active_status and active_status != 'all' %} with status <strong>{{ active_status }}</strong>{% endif %}.
   </div>
   {% endif %}

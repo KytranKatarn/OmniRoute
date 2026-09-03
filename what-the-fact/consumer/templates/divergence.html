@@ -8,25 +8,60 @@
    Classes are namespaced wtf-dv-* — the originals (.logo, .nav-links, .active,
    .page-title, .legend) were safe only while this page was isolated and would
    collide site-wide now that it shares style.css.
-   Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main #}
+   Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main
+
+   Phase 6 styling-debt pass (design-handoff scoping): extracted all 7 inline
+   style="..." attributes into namespaced classes (value-preserving, same hex
+   literals throughout) — the page-title accent color, the 3 legend dots (now
+   reusing the existing .wtf-dv-en-only/.wtf-dv-fr-only/.wtf-dv-bias-gap
+   modifiers already used on the cards below, instead of inventing new names),
+   the filters row's margin-top, and the paywall gate's sign-in wrapper+link.
+   Fixed the never-loaded 'Orbitron' bug (base.html loads no such font, so it
+   has always silently rendered its sans-serif fallback) -> var(--wtf-font-mono),
+   same fix already applied to 6 other WTF pages this session. Adopted 3
+   confirmed exact-match tokens: #0d1117 -> var(--wtf-bg) (filter buttons +
+   divergence cards), #3b82f6 -> var(--wtf-local) (every EN-language accent:
+   legend dot, card border, badge text, score-bar fill), #f59e0b ->
+   var(--wtf-developing) (paywall gate title + button). This page has zero
+   Jinja-templated colors (#div-list is populated client-side by JS, not
+   server-rendered per-row), so none of the swaps risk an alpha-suffix
+   string-concatenation break. #6b7280/#1f2937/#ef4444/#a855f7/#00e5ff/#000
+   are all close to a token but NOT byte-identical to any --wtf-* value
+   (muted text/border/contested/aurora/etc. each differ by at least one hex
+   digit) — left as literals per the exact-match-only rule, including the
+   already-alpha-suffixed 8-hex badge borders (#3b82f630 etc.), which are
+   distinct literal strings regardless.
+
+   The paywall gate below was deliberately NOT converged onto the shared
+   paywall() macro (already adopted on rates.html/crtc.html/lobbying.html
+   this session) — its shape doesn't genuinely match the other pages' gates:
+   the CTA here points at bare /join (every converged page's CTA already
+   pointed at /login?next=...), and there is a second, separate "Sign in"
+   link the macro has no equivalent for. Converging it would silently change
+   the CTA destination and drop the sign-in path for a returning subscriber,
+   not just add the macro's usual "See plans" link the way the lobbying.html
+   convergence did. Left hand-rolled; only its inline styles were extracted. #}
 <style>
-.wtf-dv-page-title { font-family:'Orbitron',sans-serif;font-size:1.3rem;letter-spacing:2px;margin-bottom:8px }
+.wtf-dv-page-title { font-family:var(--wtf-font-mono);font-size:1.3rem;letter-spacing:2px;margin-bottom:8px;color:#a855f7 }
 .wtf-dv-page-desc { font-size:11px;color:#6b7280;line-height:1.7;max-width:640px;margin-bottom:28px }
 .wtf-dv-legend { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px }
 .wtf-dv-leg { display:flex;align-items:center;gap:5px;font-size:9px;letter-spacing:.5px;color:#6b7280 }
 .wtf-dv-leg-dot { width:8px;height:8px;border-radius:2px }
-.wtf-dv-filters { display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center }
-.wtf-dv-filter-btn { background:#0d1117;border:1px solid #1f2937;border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#6b7280;cursor:pointer;transition:all .15s }
+.wtf-dv-leg-dot.wtf-dv-en-only { background:var(--wtf-local) }
+.wtf-dv-leg-dot.wtf-dv-fr-only { background:#ef4444 }
+.wtf-dv-leg-dot.wtf-dv-bias-gap { background:#a855f7 }
+.wtf-dv-filters { display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center;margin-top:14px }
+.wtf-dv-filter-btn { background:var(--wtf-bg);border:1px solid #1f2937;border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#6b7280;cursor:pointer;transition:all .15s }
 .wtf-dv-filter-btn:hover,.wtf-dv-filter-btn.wtf-dv-active { border-color:#00e5ff;color:#00e5ff }
 .wtf-dv-filter-label { font-size:10px;color:#6b7280;letter-spacing:1px }
 #div-list { display:flex;flex-direction:column;gap:10px }
-.wtf-dv-dv-card { background:#0d1117;border:1px solid #1f2937;border-radius:6px;padding:14px 16px }
-.wtf-dv-dv-card.wtf-dv-en-only { border-left:3px solid #3b82f6 }
+.wtf-dv-dv-card { background:var(--wtf-bg);border:1px solid #1f2937;border-radius:6px;padding:14px 16px }
+.wtf-dv-dv-card.wtf-dv-en-only { border-left:3px solid var(--wtf-local) }
 .wtf-dv-dv-card.wtf-dv-fr-only { border-left:3px solid #ef4444 }
 .wtf-dv-dv-card.wtf-dv-bias-gap { border-left:3px solid #a855f7 }
 .wtf-dv-dv-meta { display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap }
 .wtf-dv-dv-badge { font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px }
-.wtf-dv-badge-en { background:#0a1428;color:#3b82f6;border:1px solid #3b82f630 }
+.wtf-dv-badge-en { background:#0a1428;color:var(--wtf-local);border:1px solid #3b82f630 }
 .wtf-dv-badge-fr { background:#280a0a;color:#ef4444;border:1px solid #ef444430 }
 .wtf-dv-badge-gap { background:#1a0a28;color:#a855f7;border:1px solid #a855f730 }
 .wtf-dv-dv-cert { font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px }
@@ -38,21 +73,23 @@
 .wtf-dv-score-track { flex:1;height:6px;background:#1f2937;border-radius:3px;position:relative;overflow:hidden }
 .wtf-dv-score-fill { height:100%;border-radius:3px;position:absolute;transition:width .3s }
 .wtf-dv-score-val { font-size:10px;color:#6b7280;width:38px;text-align:right }
-.wtf-dv-en-fill { background:#3b82f6 }
+.wtf-dv-en-fill { background:var(--wtf-local) }
 .wtf-dv-fr-fill { background:#ef4444 }
 .wtf-dv-dv-counts { font-size:10px;color:#6b7280;margin-top:6px }
 .wtf-dv-dv-footer { display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:9px;color:#374151;flex-wrap:wrap;gap:4px }
 .wtf-dv-dv-deep { font-size:9px;color:#00e5ff;text-decoration:none;letter-spacing:.5px }
 .wtf-dv-dv-msg { text-align:center;padding:40px;color:#6b7280;font-size:11px;line-height:1.8 }
 .wtf-dv-paywall-gate { background:#060d14;border:1px solid #2a1a00;border-radius:6px;padding:16px;text-align:center;margin-top:20px }
-.wtf-dv-paywall-gate-title { font-family:'Orbitron',sans-serif;font-size:11px;color:#f59e0b;margin-bottom:6px }
+.wtf-dv-paywall-gate-title { font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-developing);margin-bottom:6px }
 .wtf-dv-paywall-gate-desc { font-size:11px;color:#6b7280;margin-bottom:10px }
-.wtf-dv-paywall-btn { display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none }
+.wtf-dv-paywall-btn { display:inline-block;background:var(--wtf-developing);color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none }
+.wtf-dv-paywall-signin { margin-left:10px }
+.wtf-dv-paywall-signin a { font-size:10px;color:#6b7280;text-decoration:none }
 .wtf-dv-score-bar { flex-wrap:wrap }
 @media(max-width:600px){main{padding:20px 12px}.wtf-dv-score-bar{flex-wrap:wrap}}
 </style>
 
-<div class="wtf-dv-page-title" style="color:#a855f7">🇨🇦 FR/EN DIVERGENCE ALERT</div>
+<div class="wtf-dv-page-title">🇨🇦 FR/EN DIVERGENCE ALERT</div>
   <p class="wtf-dv-page-desc">
     Stories where French and English Canadian outlets tell a different story —
     either by ignoring it entirely or by framing it with opposite political lean.
@@ -60,12 +97,12 @@
   </p>
 
   <div class="wtf-dv-legend">
-    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot" style="background:#3b82f6"></span>EN ONLY — French press silent</span>
-    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot" style="background:#ef4444"></span>FR ONLY — English press silent</span>
-    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot" style="background:#a855f7"></span>BIAS GAP — Different framing</span>
+    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot wtf-dv-en-only"></span>EN ONLY — French press silent</span>
+    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot wtf-dv-fr-only"></span>FR ONLY — English press silent</span>
+    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot wtf-dv-bias-gap"></span>BIAS GAP — Different framing</span>
   </div>
 
-  <div class="wtf-dv-filters" style="margin-top:14px">
+  <div class="wtf-dv-filters">
     <span class="wtf-dv-filter-label">WINDOW</span>
     <button class="wtf-dv-filter-btn" data-days="7">7 days</button>
     <button class="wtf-dv-filter-btn wtf-dv-active" data-days="30">30 days</button>
@@ -80,7 +117,7 @@
     <div class="wtf-dv-paywall-gate-title">Bias Score Analysis Locked</div>
     <div class="wtf-dv-paywall-gate-desc">Subscribers see the full EN vs FR bias score breakdown per story cluster.</div>
     <a href="/join" class="wtf-dv-paywall-btn">Unlock with Starter</a>
-    <span style="margin-left:10px"><a href="/login" style="font-size:10px;color:#6b7280;text-decoration:none">Sign in</a></span>
+    <span class="wtf-dv-paywall-signin"><a href="/login">Sign in</a></span>
   </div>
   {% endif %}
 {% endblock %}

@@ -94,9 +94,23 @@ def test_every_nav_destination_has_a_route(client):
 
 
 def test_placeholder_routes_are_all_reachable(client):
-    for slug in ("parties", "platforms", "elections", "races", "global",
+    # ⚠️ `races` and `parties` are deliberately ABSENT: both graduated to real,
+    # DB-backed pages (test_races_pages.py, test_party_identity.py). This test
+    # asserts placeholders render with NO database, so a real page listed here
+    # fails on the engine rather than on the view — which is exactly how each
+    # graduation announced itself. Slugs move OUT of this list as they are
+    # built; a slug in both places is the bug.
+    for slug in ("platforms", "elections", "global",
                  "debt", "echo", "methodology", "creed"):
         assert client.get(f"/{slug}").status_code == 200, slug
+
+
+def test_a_built_page_is_no_longer_advertised_as_a_placeholder(client):
+    """The two sets must stay disjoint. A page that exists while still being
+    described as unbuilt tells the reader the opposite of the truth."""
+    from consumer.routes import _COMING_SOON
+    for built in ("races", "parties"):
+        assert built not in _COMING_SOON, built
 
 
 # --------------------------------------------------------------------------
@@ -116,8 +130,9 @@ def test_a_placeholder_says_it_is_not_live(client):
 def test_a_placeholder_names_what_it_is_waiting_on(client):
     """A generic 'coming soon' is not accountable. Each says which data is
     missing, so the claim can be checked against the schema."""
-    body = client.get("/races").get_data(as_text=True)
-    assert "candidate and riding-race ingest" in body
+    body = client.get("/platforms").get_data(as_text=True)
+    assert "platform documents" in body
+    assert "parliament.mp_promises" in body, "it names the table it can and cannot read"
 
 
 # --------------------------------------------------------------------------

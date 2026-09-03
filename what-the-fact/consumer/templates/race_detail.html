@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles, data_table, ranked_bars %}
+{% block title %}{{ district_name }} · {{ ge }}th general election · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Full candidate-by-candidate result for {{ district_name }} in the {{ ge }}th Canadian general election.">
+{% endblock %}
+{% block content %}
+{# One riding, every candidate. The bar chart is VOTES, not seats — this is a
+   single seat, so a seat chart would be one full bar and say nothing.
+
+   ⚠️ Bars carry NO party colour, matching /races and the handoff rule that
+   party colour appears only on the floor plan. A blue bar beside a vote count
+   invites the reader to see a lean score where there is none. #}
+<style>
+  .wtf-rd { max-width: 900px; margin: 0 auto; padding: 22px 16px 60px; }
+  .wtf-rd-back { display: inline-block; font-family: var(--wtf-font-mono); font-size: 0.68rem;
+                 letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--wtf-text-muted); text-decoration: none; margin-bottom: 14px; }
+  .wtf-rd-back:hover { color: var(--wtf-text); }
+  .wtf-rd h1 { font-family: var(--wtf-font-serif); font-size: 1.9rem; margin: 0 0 4px; color: var(--wtf-text); }
+  .wtf-rd-sub { color: var(--wtf-text-2); font-size: 0.9rem; margin: 0 0 4px; }
+  .wtf-rd-src { color: var(--wtf-text-muted); font-size: 0.72rem; margin: 0 0 22px; }
+  .wtf-rd-src a { color: var(--wtf-text-muted); }
+  .wtf-rd-sec { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin: 26px 0 10px; }
+  .wtf-rd-won { color: var(--wtf-text); }
+  .wtf-rd-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
+</style>
+<div class="wtf-rd">
+  <a class="wtf-rd-back" href="/races?ge={{ ge }}">&larr; All ridings</a>
+  <h1>{{ district_name }}</h1>
+  <p class="wtf-rd-sub">
+    {{ province }} &middot; district {{ district_number }} &middot;
+    {{ ge }}th general election{% if election_date %}, {{ election_date.strftime('%-d %B %Y') }}{% endif %}
+  </p>
+  <p class="wtf-rd-src">
+    Official results, Elections Canada via
+    <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
+  </p>
+
+  {% set winner = (rows | selectattr('elected') | list | first) %}
+  {{ stat_tiles([
+      {'label': 'Elected', 'value': winner.candidate_name if winner else '—'},
+      {'label': 'Party', 'value': (winner.party or '—') if winner else '—'},
+      {'label': 'Winning margin',
+       'value': ('{:,}'.format(winner.majority) if winner and winner.majority is not none else '—')},
+      {'label': 'Votes cast', 'value': '{:,}'.format(cast_votes)},
+  ]) }}
+
+  <div class="wtf-rd-sec">Votes by candidate</div>
+  {% set bars = [] %}
+  {% for r in rows %}
+    {% set _ = bars.append({
+        'label': r.candidate_name ~ (' (' ~ r.party ~ ')' if r.party else ''),
+        'value': r.votes,
+        'display': '{:,}'.format(r.votes) ~ (' · %.1f%%' % r.vote_share if r.vote_share is not none else ''),
+    }) %}
+  {% endfor %}
+  {{ ranked_bars(bars, highlight=(bars[0].label if winner and rows[0].elected else None)) }}
+
+  <div class="wtf-rd-sec">Full result</div>
+  {% set trows = [] %}
+  {% for r in rows %}
+    {% set _cand %}<span{% if r.elected %} class="wtf-rd-won"{% endif %}>{{ r.candidate_name }}</span>{% if r.incumbent %} &middot; incumbent{% endif %}{% endset %}
+    {% set _ = trows.append([
+        _cand,
+        r.party or '—',
+        '{:,}'.format(r.votes),
+        ('%.1f%%' % r.vote_share) if r.vote_share is not none else '—',
+        'Elected' if r.elected else '',
+    ]) %}
+  {% endfor %}
+  {{ data_table([('Candidate', ''), ('Party', ''), ('Votes', 'num'),
+                 ('Share', 'num'), ('Result', '')], trows,
+                empty='No candidates recorded for this district.') }}
+
+  <p class="wtf-rd-note">
+    The elected candidate is the one the source records with a winning margin,
+    cross-checked against the highest vote count. The incumbency marker in the
+    source file is shown separately because it is a different fact: it marks a
+    sitting MP who ran again, whether or not they held the seat.
+  </p>
+</div>
+{% endblock %}

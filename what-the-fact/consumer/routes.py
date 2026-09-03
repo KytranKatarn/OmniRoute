@@ -6459,15 +6459,17 @@ def api_docs_page():
 # ---------------------------------------------------------------------------
 
 _COMING_SOON = {
-    "parties": (
-        "Political parties — 25 years of record",
-        "Political parties",
-        "Twenty-five years of party record — seats, votes, promises kept and "
-        "broken, read from the same sources as the rest of the newsroom.",
-        "Waiting on a party-record ingest. `parliament.mps` carries a party "
-        "label per member, but there is no party entity, no historical seat or "
-        "vote series, and no per-party promise rollup to read from yet.",
-    ),
+    # "parties" graduated to a real page — see parties() below. Its placeholder
+    # is DELETED rather than disabled: a page that exists must not also be
+    # advertised as unbuilt.
+    #
+    # ⚠️ The blocker it named was half right, and the surviving half shaped the
+    # page. "No historical seat or vote series" is now answered — but only for
+    # TWO elections, because CKAN publishes no more (GE38-41 absent, GE42 on a
+    # disallowed host). "No party entity" was exactly right and remains the
+    # hard part: shared/party_identity.py is the minimum honest substitute, and
+    # "promises kept and broken" still has no data at all, so the page does not
+    # claim it.
     "platforms": (
         "Platforms and promises — did they do what they said?",
         "Did they do what they said?",
@@ -6486,13 +6488,9 @@ _COMING_SOON = {
         "Waiting on an election-calendar ingest. No table records election "
         "dates, fixed-date rules or writ periods today.",
     ),
-    "races": (
-        "Candidates and races",
-        "Candidates and races",
-        "Who is running where, and what the newsroom has published about them.",
-        "Waiting on a candidate and riding-race ingest. Nothing records "
-        "candidates or contests today — only sitting members.",
-    ),
+    # "races" graduated to a real page — see races() below. Its placeholder is
+    # deleted rather than disabled: a page that exists must not also be
+    # advertised as unbuilt.
     "global": (
         "Global Affairs spending — what Canada sends abroad",
         "Global Affairs spending",
@@ -6558,3 +6556,366 @@ def _register_coming_soon(slug, title, h1, lede, blocker):
 
 for _slug, _copy in _COMING_SOON.items():
     _register_coming_soon(_slug, *_copy)
+
+
+# ---------------------------------------------------------------------------
+# /races — federal general election results by riding
+#
+# Reads parliament.election_candidates (migration 074, ingested by
+# ingest/elections/results.py from open.canada.ca CKAN).
+#
+# ⚠️ THESE ARE PAST RESULTS, NOT LIVE RACES. The design prototype is written for
+# an election period — "who is running where". No dataset provides that outside
+# a writ period, and CKAN carries completed elections only. The page says so in
+# its own lede rather than letting a reader assume a contest is under way.
+#
+# ⚠️ `elected` COMES FROM THE DATA, never from the `**` marker in the source —
+# that marks incumbency and would name the wrong MP in 53 of 338 ridings
+# (KB #301957). Nothing here re-derives a winner.
+# ---------------------------------------------------------------------------
+
+_RACES_CACHE: dict = {}
+_RACES_CACHE_TTL = int(os.environ.get("WTF_RACES_CACHE_TTL", "900"))
+
+
+def _races_bundle(ge_number: int) -> dict:
+    key = ("races", ge_number)
+    hit = _RACES_CACHE.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+
+    with _db().begin() as c:
+        elections = [
+            dict(r) for r in c.execute(text(
+                "SELECT ge_number, election_date FROM parliament.elections "
+                "ORDER BY ge_number DESC")).mappings()
+        ]
+        if not elections:
+            return {"elections": [], "ge": None, "races": [], "tiles": [], "parties": []}
+
+        rows = [dict(r) for r in c.execute(text("""
+            WITH ranked AS (
+              SELECT ec.*,
+                     row_number() OVER (PARTITION BY ec.district_number
+                                        ORDER BY ec.votes DESC) AS rk,
+                     sum(ec.votes)  OVER (PARTITION BY ec.district_number) AS cast_votes,
+                     count(*)       OVER (PARTITION BY ec.district_number) AS runners
+                FROM parliament.election_candidates ec
+                JOIN parliament.elections e ON e.id = ec.election_id
+               WHERE e.ge_number = :ge
+            )
+            SELECT w.district_number, w.district_name, w.province,
+                   w.candidate_name, w.party, w.incumbent,
+                   w.votes, w.vote_share, w.majority, w.runners, w.cast_votes,
+                   r.candidate_name AS runner_up, r.party AS runner_up_party,
+                   CASE WHEN w.cast_votes > 0
+                        THEN round(100.0 * w.majority / w.cast_votes, 1) END AS margin_pct
+              FROM ranked w
+              LEFT JOIN ranked r ON r.district_number = w.district_number AND r.rk = 2
+             WHERE w.elected
+             ORDER BY margin_pct NULLS LAST, w.district_name
+        """), {"ge": ge_number}).mappings()]
+
+        seats = [dict(r) for r in c.execute(text("""
+            SELECT ec.party, count(*) AS seats,
+                   sum(ec.votes) AS votes
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge AND ec.elected AND ec.party <> ''
+             GROUP BY 1 ORDER BY 2 DESC
+        """), {"ge": ge_number}).mappings()]
+
+        totals = dict(c.execute(text("""
+            SELECT count(*) AS candidates,
+                   count(DISTINCT ec.district_number) AS districts,
+                   count(DISTINCT NULLIF(ec.party, '')) AS parties
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge
+        """), {"ge": ge_number}).mappings().first() or {})
+
+    closest = rows[0] if rows else None
+    tiles = [
+        {"label": "Ridings", "value": f"{totals.get('districts', 0):,}"},
+        {"label": "Candidates", "value": f"{totals.get('candidates', 0):,}"},
+        {"label": "Parties", "value": f"{totals.get('parties', 0):,}"},
+        {"label": "Closest margin",
+         "value": (f"{closest['majority']:,} votes" if closest and closest.get("majority")
+                   else "—")},
+    ]
+    # ranked_bars() reads .label/.value, and Jinja has NO list comprehension —
+    # so the bar rows are shaped here rather than contorted in the template.
+    # `display` carries the seat count with its unit; `value` stays numeric
+    # because the macro divides by max(value) to size the bar.
+    party_bars = [{"label": s["party"], "value": s["seats"],
+                   "display": f"{s['seats']} seat" + ("" if s["seats"] == 1 else "s")}
+                  for s in seats]
+
+    out = {"elections": elections, "ge": ge_number, "races": rows,
+           "tiles": tiles, "parties": seats, "party_bars": party_bars,
+           "election_date": next((e["election_date"] for e in elections
+                                  if e["ge_number"] == ge_number), None)}
+    _RACES_CACHE[key] = (time.time() + _RACES_CACHE_TTL, out)
+    return out
+
+
+@bp.get("/races")
+def races():
+    from flask import request as _req
+    try:
+        ge = int(_req.args.get("ge", 0))
+    except (TypeError, ValueError):
+        ge = 0
+    B = _races_bundle(ge) if ge else None
+    if not B or not B.get("races"):
+        # Default to the most recent election we actually hold.
+        with _db().begin() as c:
+            latest = c.execute(text(
+                "SELECT max(ge_number) FROM parliament.elections")).scalar()
+        B = _races_bundle(int(latest)) if latest else {
+            "elections": [], "ge": None, "races": [], "tiles": [], "parties": [],
+            "party_bars": [], "election_date": None}
+
+    province = (_req.args.get("province") or "").strip()
+    races_rows = B["races"]
+    if province:
+        races_rows = [r for r in races_rows if r["province"] == province]
+
+    return render_template(
+        "races.html",
+        elections=B["elections"], ge=B["ge"], election_date=B["election_date"],
+        tiles=B["tiles"], parties=B["parties"], party_bars=B["party_bars"],
+        races=races_rows, total_races=len(B["races"]),
+        provinces=sorted({r["province"] for r in B["races"] if r["province"]}),
+        province=province,
+    )
+
+
+@bp.get("/races/<district_number>")
+def race_detail(district_number):
+    from flask import request as _req
+    try:
+        ge = int(_req.args.get("ge", 0))
+    except (TypeError, ValueError):
+        ge = 0
+    with _db().begin() as c:
+        if not ge:
+            ge = c.execute(text("SELECT max(ge_number) FROM parliament.elections")).scalar()
+        rows = [dict(r) for r in c.execute(text("""
+            SELECT ec.candidate_name, ec.party, ec.incumbent, ec.votes,
+                   ec.vote_share, ec.majority, ec.elected,
+                   ec.district_name, ec.province
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge AND ec.district_number = :d
+             ORDER BY ec.votes DESC
+        """), {"ge": ge, "d": district_number}).mappings()]
+        edate = c.execute(text(
+            "SELECT election_date FROM parliament.elections WHERE ge_number = :ge"),
+            {"ge": ge}).scalar()
+    if not rows:
+        abort(404)
+    return render_template("race_detail.html", rows=rows, ge=ge,
+                           election_date=edate,
+                           district_number=district_number,
+                           district_name=rows[0]["district_name"],
+                           province=rows[0]["province"],
+                           cast_votes=sum(r["votes"] for r in rows))
+
+
+# ---------------------------------------------------------------------------
+# /parties — party performance across the elections we actually hold.
+#
+# ⚠️ TWO ELECTIONS, NOT A TREND, AND NOT THE "25 YEARS" THE PLACEHOLDER PROMISED.
+# CKAN's `elections` organisation publishes exactly THREE official voting-results
+# datasets — GE42, GE43, GE44 — and GE42's resources are hosted on
+# www.elections.ca, whose robots.txt 500s (RFC 9309: assume complete disallow).
+# So the ceiling is GE43 + GE44, and that is a property of the SOURCE, not of
+# the discovery query. Measured 2026-09-02. The page says so on its face rather
+# than presenting two points as a series.
+#
+# ⚠️ PARTY NAMES ARE CANONICALISED IN SQL, BEFORE AGGREGATION, via
+# shared.party_identity. Grouping on the raw ballot label splits a continuing
+# party in two: the PPC is "People's Party" in GE43 and "People's Party - PPC"
+# in GE44, so the raw grouping reports they did not exist in 2019 — destroying
+# the real finding, that their vote nearly tripled. Canonicalising AFTER a
+# GROUP BY would be just as wrong: it would produce two rows to add together in
+# Python, which is where the sums quietly stop matching the source totals.
+# ---------------------------------------------------------------------------
+
+_PARTIES_CACHE: dict = {}
+_PARTIES_CACHE_TTL = int(os.environ.get("WTF_PARTIES_CACHE_TTL", "900"))
+
+
+def _party_case_sql() -> str:
+    """A SQL CASE that applies shared.party_identity to ec.party.
+
+    Built FROM the Python mapping so the two can never drift — a second copy of
+    the alias table pasted into SQL is exactly how a canonicalisation boundary
+    stops being one. Values are single-quote-escaped and the table is a
+    module-level literal (no user input reaches it).
+    """
+    from shared.party_identity import _ALIASES
+
+    whens = " ".join(
+        "WHEN %s THEN %s" % (_sql_str(raw), _sql_str(canon))
+        for raw, canon in sorted(_ALIASES.items())
+    )
+    return f"CASE btrim(ec.party) {whens} ELSE btrim(ec.party) END"
+
+
+def _sql_str(s: str) -> str:
+    return "'" + s.replace("'", "''") + "'"
+
+
+def _parties_bundle(ge_number: int) -> dict:
+    key = ("parties", ge_number)
+    hit = _PARTIES_CACHE.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+
+    canon = _party_case_sql()
+    with _db().begin() as c:
+        elections = [dict(r) for r in c.execute(text(
+            "SELECT ge_number, election_date FROM parliament.elections "
+            "ORDER BY ge_number DESC")).mappings()]
+
+        # One row per canonical party for the selected election. Seat share is
+        # computed against the SEATS ACTUALLY CONTESTED in that election, not a
+        # hardcoded 338 — the House changed size between elections and will
+        # again (343 after the 2023 redistribution).
+        rows = [dict(r) for r in c.execute(text(f"""
+            WITH tot AS (
+                SELECT sum(ec.votes)::numeric AS all_votes,
+                       count(DISTINCT ec.district_number)::numeric AS all_seats
+                  FROM parliament.election_candidates ec
+                  JOIN parliament.elections e ON e.id = ec.election_id
+                 WHERE e.ge_number = :ge
+            )
+            SELECT {canon} AS party,
+                   count(*)                          AS candidates,
+                   sum(ec.votes)                     AS votes,
+                   count(*) FILTER (WHERE ec.elected) AS seats,
+                   round(100.0 * sum(ec.votes) / NULLIF((SELECT all_votes FROM tot), 0), 2)
+                       AS vote_pct,
+                   round(100.0 * count(*) FILTER (WHERE ec.elected)
+                         / NULLIF((SELECT all_seats FROM tot), 0), 2) AS seat_pct
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge AND btrim(ec.party) <> ''
+             GROUP BY 1
+             ORDER BY sum(ec.votes) DESC
+        """), {"ge": ge_number}).mappings()]
+
+        # The SAME canonicalisation for the comparison election, so a party is
+        # matched across elections by canonical name and never by raw label.
+        prev = c.execute(text(
+            "SELECT max(ge_number) FROM parliament.elections WHERE ge_number < :ge"),
+            {"ge": ge_number}).scalar()
+        before = {}
+        if prev:
+            before = {r["party"]: dict(r) for r in c.execute(text(f"""
+                SELECT {canon} AS party, sum(ec.votes) AS votes,
+                       count(*) FILTER (WHERE ec.elected) AS seats
+                  FROM parliament.election_candidates ec
+                  JOIN parliament.elections e ON e.id = ec.election_id
+                 WHERE e.ge_number = :ge AND btrim(ec.party) <> ''
+                 GROUP BY 1
+            """), {"ge": prev}).mappings()}
+
+        totals = dict(c.execute(text("""
+            SELECT sum(ec.votes) AS votes,
+                   count(DISTINCT ec.district_number) AS seats,
+                   count(*) AS candidates
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge
+        """), {"ge": ge_number}).mappings().first() or {})
+
+        # Candidates whose party could not be derived, counted SEPARATELY and
+        # reported on the page.
+        #
+        # ⚠️ WITHOUT THIS THE ARITHMETIC DOES NOT CLOSE AND NOTHING SAYS SO.
+        # The party table excludes blank-party rows while the "Votes counted"
+        # tile totals every row, so GE44 rendered 2,009 candidates against
+        # 2,010 in the source — a silent one-row gap. The row is real: the
+        # Nationalist party fielded a SINGLE candidate, and the parser derives
+        # a party name from the longest common suffix of at least two
+        # candidates, so a one-candidate party has no derivable boundary and
+        # keeps the whole cell as the name (see results_parse.derive_parties).
+        # Same discipline as the weather map greying an uncovered province
+        # explicitly instead of drawing it as zero.
+        unresolved = dict(c.execute(text("""
+            SELECT count(*) AS candidates, COALESCE(sum(ec.votes), 0) AS votes
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge AND COALESCE(btrim(ec.party), '') = ''
+        """), {"ge": ge_number}).mappings().first() or {})
+
+        # The SITTING House — a DIFFERENT event, a different source and a
+        # different label vocabulary. Never joined to the election rows; see
+        # rule 3 in shared/party_identity.py.
+        house = [dict(r) for r in c.execute(text(
+            "SELECT party, count(*) AS seats FROM parliament.mps "
+            "WHERE COALESCE(btrim(party),'') <> '' GROUP BY 1 ORDER BY 2 DESC")).mappings()]
+
+    for r in rows:
+        b = before.get(r["party"])
+        r["prev_votes"] = b["votes"] if b else None
+        r["prev_seats"] = b["seats"] if b else None
+        # A party absent from the earlier election has NO change — not a change
+        # of zero, and not a change from zero. Left None and rendered as "new".
+        r["votes_delta"] = (r["votes"] - b["votes"]) if b else None
+        r["seats_delta"] = (r["seats"] - b["seats"]) if b else None
+        # Disproportionality: seat share minus vote share, in points.
+        r["gap"] = (float(r["seat_pct"] or 0) - float(r["vote_pct"] or 0))
+
+    out = {
+        "elections": elections, "ge": ge_number, "prev_ge": prev,
+        "rows": rows, "house": house, "unresolved": unresolved,
+        "election_date": next((e["election_date"] for e in elections
+                               if e["ge_number"] == ge_number), None),
+        "tiles": [
+            {"label": "Elections on record", "value": str(len(elections))},
+            {"label": "Parties fielding candidates", "value": f"{len(rows):,}"},
+            {"label": "Votes counted", "value": f"{int(totals.get('votes') or 0):,}"},
+            {"label": "Seats contested", "value": f"{int(totals.get('seats') or 0):,}"},
+        ],
+    }
+    _PARTIES_CACHE[key] = (time.time() + _PARTIES_CACHE_TTL, out)
+    return out
+
+
+@bp.get("/parties")
+def parties():
+    from flask import request as _req
+    try:
+        ge = int(_req.args.get("ge", 0))
+    except (TypeError, ValueError):
+        ge = 0
+    with _db().begin() as c:
+        available = [r[0] for r in c.execute(text(
+            "SELECT ge_number FROM parliament.elections ORDER BY ge_number DESC"))]
+    if not available:
+        return render_template("parties.html", elections=[], ge=None, rows=[],
+                               house=[], tiles=[], election_date=None,
+                               prev_ge=None, merged={}, bars=[],
+                               unresolved={"candidates": 0, "votes": 0})
+    if ge not in available:
+        ge = available[0]
+
+    B = _parties_bundle(ge)
+    from shared.party_identity import merged_labels
+
+    # ranked_bars rows are shaped here — Jinja has no list comprehension, and
+    # the bars show VOTE SHARE, the quantity the seat gap is measured against.
+    bars = [{"label": r["party"], "value": float(r["vote_pct"] or 0),
+             "display": f"{float(r['vote_pct'] or 0):.1f}% of votes · "
+                        f"{r['seats']} seat" + ("" if r["seats"] == 1 else "s")}
+            for r in B["rows"][:8]]
+
+    return render_template("parties.html", elections=B["elections"], ge=B["ge"],
+                           prev_ge=B["prev_ge"], rows=B["rows"], house=B["house"],
+                           tiles=B["tiles"], election_date=B["election_date"],
+                           merged=merged_labels(), bars=bars,
+                           unresolved=B["unresolved"])

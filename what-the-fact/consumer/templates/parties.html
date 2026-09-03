@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles, segment, data_table, ranked_bars %}
+{% block title %}Political parties · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="How each federal party's share of the vote compares to its share of the seats, from the official Elections Canada results.">
+{% endblock %}
+{% block content %}
+{# ARCHETYPE 3 (DATA EXPLORER) — same shape as /races, /clusters, /blindspot.
+   Server-rendered, no client JS, no new CSS beyond this page's block.
+
+   ⚠️ THE PLACEHOLDER PROMISED "25 YEARS" AND "PROMISES KEPT AND BROKEN".
+   Neither is deliverable. CKAN's `elections` organisation publishes exactly
+   three official voting-results datasets (GE42/43/44) and GE42's files sit on
+   a host whose robots.txt 500s, so TWO elections is the ceiling — a property
+   of the source, not of our query. There is no promise dataset at all. The
+   page reports what the data holds and states the limit in its own lede
+   rather than dressing two points up as a series.
+
+   ⚠️ THE HEADLINE IS VOTES VERSUS SEATS, because that is the one thing this
+   data says loudly and cannot be read anywhere else on the site: in GE44 the
+   People's Party took 840,993 votes and won nothing, while the Bloc took
+   1,301,615 and won 32 seats. That is first-past-the-post, stated as
+   arithmetic rather than as an opinion about it.
+
+   ⚠️ NO PARTY COLOUR — reserved for the floor plan, so a party blue can never
+   be misread as a lean score (same rule as /races). #}
+<style>
+  .wtf-pt { max-width: 1080px; margin: 0 auto; padding: 22px 16px 60px; }
+  .wtf-pt h1 { font-family: var(--wtf-font-serif); font-size: 2rem; margin: 0 0 10px; color: var(--wtf-text); }
+  .wtf-pt-lede { color: var(--wtf-text-2); font-size: 0.95rem; line-height: 1.55; margin: 0 0 6px; max-width: 70ch; }
+  .wtf-pt-src { color: var(--wtf-text-muted); font-size: 0.72rem; margin: 0 0 22px; max-width: 70ch; line-height: 1.5; }
+  .wtf-pt-src a { color: var(--wtf-text-muted); }
+  .wtf-pt-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 18px 0 14px; }
+  .wtf-pt-lbl { font-family: var(--wtf-font-mono); font-size: 0.6rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin-right: 4px; }
+  .wtf-pt-sec { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin: 28px 0 6px; }
+  .wtf-pt-hint { color: var(--wtf-text-muted); font-size: 0.76rem; margin: 0 0 12px; max-width: 72ch; line-height: 1.5; }
+  .wtf-pt-over { color: var(--wtf-accent); }
+  .wtf-pt-under { color: var(--wtf-text-2); }
+  .wtf-pt-num { font-family: var(--wtf-font-mono); }
+  .wtf-pt-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 20px;
+                 line-height: 1.55; max-width: 74ch; }
+  .wtf-pt-note code { font-size: 0.95em; }
+</style>
+<div class="wtf-pt">
+  <h1>Political parties</h1>
+  {% if rows %}
+  <p class="wtf-pt-lede">
+    What each party won, and what it was given. Share of the vote against share
+    of the seats, from the official results.
+  </p>
+  <p class="wtf-pt-src">
+    Elections Canada via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
+    <strong>Two elections, not a trend.</strong> Official voting results are published
+    there for three general elections only, and the earliest of the three is hosted
+    on a server that disallows automated collection — so this page covers the
+    {{ elections | map(attribute='ge_number') | sort | join('th and ') }}th, and
+    nothing before them. Party platforms and promises are not published as data
+    anywhere, so this page does not score them.
+  </p>
+
+  {{ stat_tiles(tiles) }}
+
+  {% if elections | length > 1 %}
+  <div class="wtf-pt-bar">
+    <span class="wtf-pt-lbl">Election</span>
+    {% for e in elections %}
+      {{ segment(e.ge_number ~ 'th' ~ (' · ' ~ e.election_date.year if e.election_date else ''),
+                 '/parties?ge=' ~ e.ge_number, e.ge_number == ge) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="wtf-pt-sec">Share of the vote</div>
+  <p class="wtf-pt-hint">
+    The eight parties with the most votes{% if election_date %} in
+    {{ election_date.year }}{% endif %}. Bars are vote share; the figure beside
+    each names the seats that share actually bought.
+  </p>
+  {{ ranked_bars(bars) }}
+
+  <div class="wtf-pt-sec">Votes against seats</div>
+  <p class="wtf-pt-hint">
+    The gap column is seat share minus vote share, in percentage points. A
+    positive number means the party holds a larger share of the House than of
+    the vote. It is arithmetic about the electoral system, not a judgement of
+    the party.
+  </p>
+  {% set trows = [] %}
+  {% for r in rows %}
+    {% set _gap %}
+      {%- if r.gap > 0.05 -%}<span class="wtf-pt-num wtf-pt-over">+{{ '%.1f'|format(r.gap) }}</span>
+      {%- elif r.gap < -0.05 -%}<span class="wtf-pt-num wtf-pt-under">{{ '%.1f'|format(r.gap) }}</span>
+      {%- else -%}<span class="wtf-pt-num">0.0</span>{%- endif -%}
+    {% endset %}
+    {% set _dv %}
+      {%- if r.prev_votes is none -%}
+        <span class="wtf-pt-num">&mdash;</span>
+      {%- else -%}
+        <span class="wtf-pt-num">{{ '{:+,}'.format(r.votes_delta) }}</span>
+      {%- endif -%}
+    {% endset %}
+    {% set _ds %}
+      {%- if r.prev_seats is none -%}
+        <span class="wtf-pt-num">&mdash;</span>
+      {%- else -%}
+        <span class="wtf-pt-num">{{ '{:+d}'.format(r.seats_delta) }}</span>
+      {%- endif -%}
+    {% endset %}
+    {% set _ = trows.append([
+        r.party,
+        '{:,}'.format(r.candidates),
+        '{:,}'.format(r.votes),
+        '%.2f%%' % r.vote_pct if r.vote_pct is not none else '—',
+        '{:,}'.format(r.seats),
+        '%.2f%%' % r.seat_pct if r.seat_pct is not none else '—',
+        _gap, _dv, _ds,
+    ]) %}
+  {% endfor %}
+  {{ data_table([('Party', ''), ('Candidates', 'num'), ('Votes', 'num'),
+                 ('Vote share', 'num'), ('Seats', 'num'), ('Seat share', 'num'),
+                 ('Gap', 'num'),
+                 ('Votes vs ' ~ (prev_ge | string) ~ 'th', 'num'),
+                 ('Seats vs ' ~ (prev_ge | string) ~ 'th', 'num')] if prev_ge else
+                [('Party', ''), ('Candidates', 'num'), ('Votes', 'num'),
+                 ('Vote share', 'num'), ('Seats', 'num'), ('Seat share', 'num'),
+                 ('Gap', 'num'), ('Votes change', 'num'), ('Seats change', 'num')],
+                trows, empty='No party results for this election.') }}
+  <p class="wtf-pt-hint" style="margin-top:10px;">
+    An em dash in a change column means the party fielded no candidates in the
+    earlier election under any name we can match &mdash; not that it received
+    zero votes.
+    {%- if unresolved and unresolved.candidates %}
+    This table also excludes
+    <strong>{{ unresolved.candidates }} candidate{{ '' if unresolved.candidates == 1 else 's' }}</strong>
+    ({{ '{:,}'.format(unresolved.votes) }} vote{{ '' if unresolved.votes == 1 else 's' }})
+    whose party could not be read from the source: a party running a single
+    candidate gives the parser no second name to find the boundary between
+    person and party, so the whole entry is kept as the name rather than guessed
+    at. They are counted in the totals above, which is why the two differ.
+    {%- endif %}
+  </p>
+
+  {% if house %}
+  <div class="wtf-pt-sec">The House as it sits today</div>
+  <p class="wtf-pt-hint">
+    <strong>A different measurement, shown separately on purpose.</strong> This is
+    the current membership of the House of Commons, not the result of any
+    election above &mdash; it reflects a later election whose official results
+    are not yet published as open data, plus any floor crossings and by-elections
+    since. It uses its own party labels and its own seat count
+    ({{ house | sum(attribute='seats') }} seats, against
+    {{ rows | sum(attribute='seats') }} contested in the {{ ge }}th), which is
+    why the two are never added together or joined.
+  </p>
+  {% set hrows = [] %}
+  {% for h in house %}
+    {% set _ = hrows.append([h.party, '{:,}'.format(h.seats)]) %}
+  {% endfor %}
+  {{ data_table([('Party', ''), ('Seats', 'num')], hrows,
+                empty='No sitting members on record.') }}
+  {% endif %}
+
+  <p class="wtf-pt-note">
+    <strong>How parties are matched across elections.</strong> Elections Canada
+    records the name that appeared on the ballot, and a ballot name can change.
+    {% if merged %}
+      {%- for canon, raw in merged.items() %}
+      &ldquo;{{ raw | join('&rdquo; and &ldquo;' | safe) }}&rdquo; are counted
+      together as <strong>{{ canon }}</strong>{{ '; ' if not loop.last else '. ' }}
+      {%- endfor %}
+      Without that, this page would report that the People's Party did not
+      contest the earlier election, when in fact it ran a near-full slate and
+      its vote nearly tripled between the two.
+    {% endif %}
+    Every other name is left exactly as the source recorded it: where a rename
+    is plausible but not demonstrable from the data, no merge is made, because
+    inventing continuity is worse than showing two rows a reader can compare.
+  </p>
+  {% else %}
+  <p class="wtf-pt-lede">No election results have been ingested yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

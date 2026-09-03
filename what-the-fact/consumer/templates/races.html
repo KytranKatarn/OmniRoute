@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles, segment, data_table, ranked_bars %}
+{% block title %}Candidates and races · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Every federal riding result — who won, by how much, and who came second. Ranked by margin, so the closest races come first.">
+{% endblock %}
+{% block content %}
+{# ARCHETYPE 3 (DATA EXPLORER), same shape as /clusters and /blindspot:
+   tiles -> ranked bars -> filterable table. Server-rendered, no client JS.
+
+   ⚠️ THE PROTOTYPE IS WRITTEN FOR AN ELECTION PERIOD and this page is not.
+   design-handoff/wtf-races.html asks "who is running where" from
+   wtf-candidates.js — sample data for a live contest. No dataset provides that
+   outside a writ period, and CKAN carries completed elections only. So the page
+   reports RESULTS and says so in its own lede, rather than letting the title
+   imply a race is under way.
+
+   ⚠️ NO PARTY COLOUR. The handoff is explicit that party colour appears only on
+   the floor plan and never beside a lean band, so a Conservative blue cannot be
+   misread as a right-lean score. This page carries no lean data at all, so it
+   uses none — party is text.
+
+   ⚠️ RANKED BY MARGIN, not alphabetically. The closest result in GE44 was
+   Châteauguay—Lacolle, won by TWELVE votes. Sorting by name would bury the one
+   fact a reader most wants. #}
+<style>
+  .wtf-rc { max-width: 1100px; margin: 0 auto; padding: 22px 16px 60px; }
+  .wtf-rc h1 { font-family: var(--wtf-font-serif); font-size: 2rem; margin: 0 0 10px; color: var(--wtf-text); }
+  .wtf-rc-lede { color: var(--wtf-text-2); font-size: 0.95rem; line-height: 1.55; margin: 0 0 6px; max-width: 70ch; }
+  .wtf-rc-src { color: var(--wtf-text-muted); font-size: 0.72rem; margin: 0 0 22px; }
+  .wtf-rc-src a { color: var(--wtf-text-muted); }
+  .wtf-rc-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 18px 0 14px; }
+  .wtf-rc-lbl { font-family: var(--wtf-font-mono); font-size: 0.6rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin-right: 4px; }
+  .wtf-rc-sec { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin: 26px 0 10px; }
+  .wtf-rc-win { color: var(--wtf-text); }
+  .wtf-rc-mar { font-family: var(--wtf-font-mono); }
+  .wtf-rc-tight { color: var(--wtf-accent); }
+  .wtf-rc-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
+</style>
+<div class="wtf-rc">
+  <h1>Candidates and races</h1>
+  {% if ge %}
+  <p class="wtf-rc-lede">
+    Every riding in the {{ ge }}th general election — who won, by how much, and who
+    came second. Ranked by margin, so the closest results come first.
+  </p>
+  <p class="wtf-rc-src">
+    Official results{% if election_date %}, polling day {{ election_date.strftime('%-d %B %Y') }}{% endif %} ·
+    Elections Canada via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
+    These are completed elections, not a contest in progress.
+  </p>
+
+  {{ stat_tiles(tiles) }}
+
+  {% if elections|length > 1 %}
+  <div class="wtf-rc-bar">
+    <span class="wtf-rc-lbl">Election</span>
+    {% for e in elections %}
+      {{ segment(e.ge_number ~ 'th', '/races?ge=' ~ e.ge_number, e.ge_number == ge) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if provinces %}
+  <div class="wtf-rc-bar">
+    <span class="wtf-rc-lbl">Province</span>
+    {{ segment('All', '/races?ge=' ~ ge, not province) }}
+    {% for p in provinces %}
+      {{ segment(p, '/races?ge=' ~ ge ~ '&province=' ~ p, p == province) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if party_bars %}
+  <div class="wtf-rc-sec">Seats won</div>
+  {{ ranked_bars(party_bars) }}
+  {% endif %}
+
+  <div class="wtf-rc-sec">
+    {% if province %}{{ province }} — {% endif %}{{ races|length }} of {{ total_races }} ridings, closest first
+  </div>
+  {# Cells are built with {% set %}…{% endset %} block-sets, the same idiom
+     /archive uses. That matters twice over: the block yields Markup so the
+     macro's {{ cell }} renders it as HTML instead of printing the tags, AND
+     every interpolated value inside is still autoescaped. String concatenation
+     with ~ gets BOTH of those backwards — the markup shows as literal text and
+     the data goes in raw. Candidate names come from a government CSV, but the
+     site rule is that external text is never trusted into markup. #}
+  {% set rows = [] %}
+  {% for r in races %}
+    {% set _riding %}<a href="/races/{{ r.district_number }}?ge={{ ge }}">{{ r.district_name }}</a>{% endset %}
+    {% set _won %}<span class="wtf-rc-win">{{ r.candidate_name }}</span>{% if r.incumbent %} &middot; incumbent{% endif %}{% endset %}
+    {% set _margin %}
+      {%- if r.majority is not none -%}
+        <span class="wtf-rc-mar{% if r.margin_pct is not none and r.margin_pct < 2 %} wtf-rc-tight{% endif %}"
+        >{{ '{:,}'.format(r.majority) }}{% if r.margin_pct is not none %} ({% if r.margin_pct > 0 and r.margin_pct < 0.05 %}&lt;0.1{% else %}{{ '%.1f'|format(r.margin_pct) }}{% endif %}%){% endif %}</span>
+      {%- else -%}&mdash;{%- endif -%}
+    {% endset %}
+    {% set _ = rows.append([
+        _riding,
+        r.province,
+        _won,
+        r.party or '—',
+        '{:,}'.format(r.votes),
+        ('%.1f%%' % r.vote_share) if r.vote_share is not none else '—',
+        _margin,
+        r.runner_up_party or '—',
+    ]) %}
+  {% endfor %}
+  {{ data_table([('Riding', ''), ('Province', ''), ('Elected', ''), ('Party', ''),
+                 ('Votes', 'num'), ('Share', 'num'), ('Margin', 'num'), ('Runner-up', '')],
+                rows, empty='No ridings match this filter.') }}
+
+  <p class="wtf-rc-note">
+    The winner is the candidate the official results record with a winning
+    margin — cross-checked against the highest vote count, which agrees in all
+    {{ total_races }} ridings. It is never inferred from the incumbency marker in
+    the source file: that marks a sitting MP who ran again, and 32 seats were won
+    by candidates who carried no marker at all.
+    {% if parties %}Party totals count seats, not votes.{% endif %}
+  </p>
+  {% else %}
+  <p class="wtf-rc-lede">No election results have been ingested yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

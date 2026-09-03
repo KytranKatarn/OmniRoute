@@ -188,6 +188,22 @@ Object.keys(BIAS_COLOURS).forEach(function (k) {
   if (!BIAS_COLOURS[k]) { BIAS_COLOURS[k] = "#929aa5"; }
 });
 
+// Fact-check verdict colours — same resolve-once-fall-back-once pattern as
+// BIAS_COLOURS above, so this file has exactly one way of turning a design
+// token into a colour a reader sees. An unrecognised or missing token must
+// never silently borrow another verdict's hue (a missing --wtf-established
+// falling through to the amber --wtf-developing would paint an ESTABLISHED
+// fact as "disputed"), so every gap here converges on the same muted grey
+// this page already uses for "no data" (line ~84's --wtf-text-muted).
+var VERDICT_COLOURS = {
+  established: _leanToken("--wtf-established"),
+  developing:  _leanToken("--wtf-developing"),
+  contested:   _leanToken("--wtf-contested")
+};
+Object.keys(VERDICT_COLOURS).forEach(function (k) {
+  if (!VERDICT_COLOURS[k]) { VERDICT_COLOURS[k] = _leanToken("--wtf-text-muted") || "#7d8590"; }
+});
+
 var map = L.map("wtf-canada-map", {
   center: [60, -96], zoom: 3,
   zoomControl: true,
@@ -401,16 +417,26 @@ var LEAN_SPREAD = 0.06;     // score delta from the anchor that saturates the ra
 // #6149 — the poles were baked into ARITHMETIC: neutral (148,163,184),
 // left (220,38,38) = #dc2626, right (37,99,235) = #2563eb. Channel constants
 // track no palette at all, so this ramp kept the retired poles even after the
-// tokens changed. Now derived from --wtf-left / --wtf-center / --wtf-right, so
-// the choropleth, the discrete BIAS_COLOURS buckets and /sources cannot drift.
+// tokens changed. Now derived from BIAS_COLOURS (defined near the top of this
+// file), so the choropleth, the discrete BIAS_COLOURS buckets and /sources
+// cannot drift.
+//
+// This used to call _leanToken("--wtf-center"/"--wtf-left"/"--wtf-right") a
+// SECOND time here, with its own hardcoded RGB fallback triples independent
+// of BIAS_COLOURS's own "#929aa5" fallback — a missing token would render
+// this ramp's neutral point in a different grey than the discrete pins used,
+// and would render the left/right poles in colour even where the discrete
+// map had already fallen back to grey. Reusing BIAS_COLOURS's already-
+// resolved, already-fallback-safe hex strings makes this ONE source of truth
+// for lean colour instead of two that can disagree.
 function _rgb(hex) {
   var h = (hex || "").trim().replace("#", "");
   if (h.length !== 6) return null;
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
-var _LEAN_NEUTRAL = _rgb(_leanToken("--wtf-center")) || [146, 154, 165];
-var _LEAN_L       = _rgb(_leanToken("--wtf-left"))   || [216, 75, 71];
-var _LEAN_R       = _rgb(_leanToken("--wtf-right"))  || [74, 114, 216];
+var _LEAN_NEUTRAL = _rgb(BIAS_COLOURS["center"]);
+var _LEAN_L       = _rgb(BIAS_COLOURS["left"]);
+var _LEAN_R       = _rgb(BIAS_COLOURS["right"]);
 
 // ONE predicate for "can this be measured at all". The fill, the tooltip label,
 // the dashed outline and the legend all ask THIS function, so they cannot end up
@@ -741,7 +767,9 @@ function loadArticleFeed() {
           var vEst = ['verified', 'mostly_true', 'true', 'verified_facts',
                       'factual_reporting', 'factual_statements'].indexOf(v) !== -1;
           if (vEst || v === 'mixed' || v === 'disputed') {
-            var vc = vEst ? '#4ade80' : v === 'mixed' ? '#fbbf24' : '#f87171';
+            var vc = vEst ? VERDICT_COLOURS.established
+                     : v === 'mixed' ? VERDICT_COLOURS.developing
+                     : VERDICT_COLOURS.contested;
             var vl = vEst ? '✓ Established' : v === 'mixed' ? '⚡ Developing' : '⚠ Contested';
             badges += '<span class="wtf-card-badge" style="background:' + vc + '15;color:' + vc + ';border:1px solid ' + vc + '33;" title="' + escAttr('Certainty: ' + v.replace(/_/g, ' ')) + '">' + esc(vl) + '</span>';
           }

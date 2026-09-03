@@ -4695,10 +4695,16 @@ def search():
     S = _schema()
     q = (_req.args.get("q") or "").strip()[:200]
     results = []
-    if q:
-        with _db().begin() as c:
-            c.execute(text("SET LOCAL jit = off"))
-            source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+    # ⚠️ source_count is computed for BOTH branches. It used to be assigned only
+    # inside `if q:` with `else: source_count = 0`, so the landing state — the one
+    # page that wants to say how many sources are searchable — received a hardcoded
+    # 0 and could never display it. The template's "Across N sources" was therefore
+    # unreachable by construction while looking implemented. Live value is 41.
+    source_count = 0
+    with _db().begin() as c:
+        c.execute(text("SET LOCAL jit = off"))
+        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        if q:
             # The WHERE expression must stay byte-identical to the expression
             # GIN index idx_articles_fts (migration 051) or the planner falls
             # back to a full seq scan recomputing to_tsvector over 108k bodies
@@ -4707,27 +4713,25 @@ def search():
             # so it runs only over the newest 400 matches, never unbounded:
             # relevance-among-recent is the right semantics for a news site.
             rows = c.execute(text(f"""
-                SELECT m.id, m.title, m.url, m.published_at,
-                       m.source, m.source_slug, m.band,
-                       ts_rank(to_tsvector('english', COALESCE(m.title,'') || ' ' || COALESCE(m.body,'')),
-                               plainto_tsquery('english', :q)) AS rank
-                FROM (
-                    SELECT a.id, a.title, a.body, a.url, a.published_at,
-                           s.name AS source, s.slug AS source_slug, b.band
-                    FROM {S}.articles a
-                    JOIN {S}.sources s ON s.id = a.source_id
-                    LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-                    WHERE a.suppressed_reason IS NULL AND to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
-                          @@ plainto_tsquery('english', :q)
-                    ORDER BY a.published_at DESC
-                    LIMIT 400
-                ) m
-                ORDER BY rank DESC, m.published_at DESC
-                LIMIT 50
-            """), {"q": q}).mappings().all()
-        results = [dict(r) for r in rows]
-    else:
-        source_count = 0
+                    SELECT m.id, m.title, m.url, m.published_at,
+                           m.source, m.source_slug, m.band,
+                           ts_rank(to_tsvector('english', COALESCE(m.title,'') || ' ' || COALESCE(m.body,'')),
+                                   plainto_tsquery('english', :q)) AS rank
+                    FROM (
+                        SELECT a.id, a.title, a.body, a.url, a.published_at,
+                               s.name AS source, s.slug AS source_slug, b.band
+                        FROM {S}.articles a
+                        JOIN {S}.sources s ON s.id = a.source_id
+                        LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                        WHERE a.suppressed_reason IS NULL AND to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
+                              @@ plainto_tsquery('english', :q)
+                        ORDER BY a.published_at DESC
+                        LIMIT 400
+                    ) m
+                    ORDER BY rank DESC, m.published_at DESC
+                    LIMIT 50
+                """), {"q": q}).mappings().all()
+            results = [dict(r) for r in rows]
     return render_template("search.html", q=q, results=results,
                            source_count=source_count, is_subscriber=is_subscriber())
 

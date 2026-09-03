@@ -459,7 +459,7 @@ def news():
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
-        source_count, total, rows, sources, ridings, band_mix = _cached
+        source_count, total, rows, sources, ridings, band_mix, band_facets = _cached
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
         return render_template("news.html", articles=rows, source_count=source_count,
                                total=total, page=page, total_pages=total_pages,
@@ -468,7 +468,7 @@ def news():
                                beat_filter=beat_filter, scope_filter=scope_filter,
                                riding_filter=riding_filter, ridings=ridings,
                                beat_meta=BEAT_META, sources=sources,
-                               band_mix=band_mix,
+                               band_mix=band_mix, band_facets=band_facets,
                                is_subscriber=is_subscriber())
 
     with _db().begin() as c:
@@ -501,12 +501,36 @@ def news():
             )
             params["riding"] = riding_filter
         band_where = ("AND " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        # Facet WHERE for the band chip row specifically: every OTHER active
+        # filter (province/beat/scope/riding) but never the band filter itself
+        # — so picking a different band shows what that band would actually
+        # give you, not just the currently-selected band at 100%. Deliberately
+        # NOT extended to province/beat/scope chips in this pass: each would
+        # be one more full-table-scan query on a route with real incident
+        # history (#5719, the 2026-08-18/08-30 crawler incidents) — banding
+        # is the most prominent row and the one the design spec calls out for
+        # a "spread" purpose, so it goes first; the rest are a follow-up once
+        # real cache-hit behaviour on this one is observed.
+        _band_facet_clauses = [c for c in where_clauses if not c.startswith("b.band")]
+        band_facet_where = ("AND " + " AND ".join(_band_facet_clauses)) if _band_facet_clauses else ""
+
         total = c.execute(text(f"""
             SELECT COUNT(*) FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             WHERE 1=1 AND a.suppressed_reason IS NULL {band_where}
         """), params).scalar() or 0
+
+        band_facet_rows = c.execute(text(f"""
+            SELECT b.band, COUNT(*) AS n
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND b.band IS NOT NULL {band_facet_where}
+            GROUP BY b.band
+        """), params).mappings().all()
+        band_facets = {r["band"]: r["n"] for r in band_facet_rows}
 
         # Lean-mix bar (design handoff #6149, /news Phase 3): a segmented bar +
         # named index of the CURRENT filter selection's band distribution.
@@ -632,7 +656,7 @@ def news():
         ridings = [dict(r) for r in riding_rows]
 
     sources = [dict(s) for s in sources]
-    _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix))
+    _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix, band_facets))
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
@@ -641,7 +665,7 @@ def news():
                            beat_filter=beat_filter, scope_filter=scope_filter,
                            riding_filter=riding_filter, ridings=ridings,
                            beat_meta=BEAT_META, sources=sources,
-                           band_mix=band_mix,
+                           band_mix=band_mix, band_facets=band_facets,
                            is_subscriber=is_subscriber())
 
 

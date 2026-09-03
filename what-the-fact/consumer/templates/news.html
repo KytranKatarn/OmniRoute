@@ -65,10 +65,16 @@
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
       {% set bands = [('all','All',''),('left','Left','#dc2626'),('center-left','Ctr-Left','#f97316'),('center','Center',''),('center-right','Ctr-Right','#0ea5e9'),('right','Right','#2563eb')] %}
+      {# Counts on every band EXCEPT 'all' come from band_facets — computed
+         server-side with the band filter itself excluded from its own WHERE
+         clause, so switching bands shows what you'd actually get, not the
+         currently-active band at 100%. 'all' carries no count (would need a
+         6th value not worth a separate query for this pass — see routes.py). #}
       {% for val, label, col in bands %}
+      {% set _n = band_facets.get(val) if val != 'all' else None %}
       <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
-         class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}"
-         style="text-decoration:none;{% if col %}color:{{ col }};{% endif %}">{{ label }}</a>
+         class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
+         style="text-decoration:none;{% if col %}color:{{ col }};{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
       {% endfor %}
     </div>
   </div>
@@ -213,6 +219,8 @@
   letter-spacing: 1px; cursor: pointer; font-family: inherit; text-transform: uppercase;
 }
 .wtf-act-filter--active { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+.wtf-act-filter--empty { opacity: .4; }
+.wtf-act-filter-n { font-size: 0.85em; opacity: .7; }
 
 /* ── Lean-mix bar (design handoff #6149) ── */
 .wtf-news-mix { margin: 0 0 12px; }

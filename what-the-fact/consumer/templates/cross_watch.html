@@ -16,11 +16,17 @@
 .wtf-cw-badges { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
 .wtf-cw-badge { font-size:8px; letter-spacing:.5px; text-transform:uppercase; padding:2px 6px; border-radius:2px; background:#060d14; }
 .wtf-cw-mentions { font-size:9px; color:#374151; font-family:'IBM Plex Mono',monospace; }
+.wtf-cw-title { font-family: var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:16px 0 6px; }
+.wtf-cw-results-note { font-size:11px; color:#6b7280; margin-bottom:10px; }
+.wtf-cw-clear { color:#38bdf8; text-decoration:none; }
+.wtf-cw-section-label { font-size:10px; color:#4b5563; letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
+.wtf-cw-empty { color:#6b7280; font-size:12px; padding:24px 0; }
+.wtf-cw-footnote { font-size:9px; color:#374151; margin-top:18px; }
 </style>
 
 {% set CWP = {'gov-watch':{'l':'Gov','c':'#0ea5e9'},'civic-watch':{'l':'Civic','c':'#22c55e'},'legal-watch':{'l':'Legal','c':'#a78bfa'},'market-watch':{'l':'Market','c':'#f59e0b'},'wtf':{'l':'News','c':'#00aaff'},'parliament':{'l':'Parliament','c':'#ef4444'}} %}
 
-<h1 style="font-family:'Orbitron',sans-serif;font-size:18px;color:#e5e7eb;margin:16px 0 6px;">🔗 Cross-Watch</h1>
+<h1 class="wtf-cw-title">🔗 Cross-Watch</h1>
 <p class="wtf-cw-intro">
   People and organizations resolved across the Watch Series — Gov, Civic, Legal &amp; Market Watch and the news.
   These are the names that show up in more than one place. Open any to see its cross-product accountability footprint.
@@ -32,11 +38,11 @@
 </form>
 
 {% if q %}
-<div style="font-size:11px;color:#6b7280;margin-bottom:10px;">
-  Results for &ldquo;{{ q }}&rdquo; · <a href="/cross-watch" style="color:#38bdf8;text-decoration:none;">clear</a>
+<div class="wtf-cw-results-note">
+  Results for &ldquo;{{ q }}&rdquo; · <a href="/cross-watch" class="wtf-cw-clear">clear</a>
 </div>
 {% else %}
-<div style="font-size:10px;color:#4b5563;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Most cross-linked entities</div>
+<div class="wtf-cw-section-label">Most cross-linked entities</div>
 {% endif %}
 
 {% if entities %}
@@ -55,10 +61,10 @@
   {% endfor %}
 </div>
 {% else %}
-<div style="color:#6b7280;font-size:12px;padding:24px 0;">
+<div class="wtf-cw-empty">
   {% if q %}No cross-watch entities match &ldquo;{{ q }}&rdquo;.{% else %}No cross-product entities yet.{% endif %}
 </div>
 {% endif %}
 
-<div style="font-size:9px;color:#374151;margin-top:18px;">Cross-Watch resolves the same person or organization by name across our datasets. Coverage grows as Legal &amp; Market link in.</div>
+<div class="wtf-cw-footnote">Cross-Watch resolves the same person or organization by name across our datasets. Coverage grows as Legal &amp; Market link in.</div>
 {% endblock %}

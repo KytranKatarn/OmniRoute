@@ -72,6 +72,42 @@
 })();
 </script>
 
+<!-- ══ LOCAL WEATHER ══ (A.U.R.O.R.A. — wtf.aurora_city_* / _fire_hotspot_daily,
+     see _home_weather_strip() in routes.py. "Local" = one representative city
+     per province, not IP-derived — this site has no per-visitor geolocation. -->
+{% if weather_strip.cities %}
+<div id="wtf-weather-strip">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;flex-wrap:wrap;">
+    <span class="wtf-section-label">Weather across Canada</span>
+    <a href="/weather" style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted);text-decoration:none;">A.U.R.O.R.A. &rarr;</a>
+  </div>
+  <div class="wtf-weather-cards">
+    {% for city in weather_strip.cities %}
+    <div class="wtf-weather-card{% if city.temp is not none and city.temp >= 30 %} is-alert{% endif %}">
+      <div class="wtf-weather-card-name">{{ city.name }}</div>
+      <div class="wtf-weather-card-temp">{{ ("%+.0f"|format(city.temp)) ~ "°" if city.temp is not none else "—" }}</div>
+      <div class="wtf-weather-card-cond">{{ city.condition or (city.age_min is none and "no data") or "—" }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if weather_strip.fire_provinces %}
+  <div style="display:flex;align-items:baseline;gap:10px;margin:14px 0 8px;flex-wrap:wrap;">
+    <span class="wtf-section-label" style="color:var(--wtf-aurora);">Wildfire activity, last 3 days</span>
+  </div>
+  <div class="wtf-fire-grid">
+    {% for p in weather_strip.fire_provinces %}
+    <div class="wtf-fire-card">
+      <div class="wtf-fire-card-key">{{ p.prov }}</div>
+      <div class="wtf-fire-card-value">{{ p.hotspots }}</div>
+      <div class="wtf-fire-card-note">hotspots{% if p.max_fwi %} &middot; FWI {{ "%.0f"|format(p.max_fwi) }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <!-- Zone 1: Canada Map -->
 <div id="wtf-map-zone">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -90,7 +126,13 @@
       </div>
     </div>
   </div>
-  <div id="wtf-canada-map"></div>
+  <div id="wtf-map-row">
+    <div id="wtf-map-index">
+      <div id="wtf-map-index-head">Index</div>
+      <div id="wtf-map-index-list"></div>
+    </div>
+    <div id="wtf-canada-map"></div>
+  </div>
 </div>
 
 <!-- Zone 2 + 3 -->
@@ -476,6 +518,48 @@ function leanLabel(avgScore, count) {
   return " · balanced coverage";
 }
 
+// Ranked sidebar list beside the map (#wtf-map-index-list). Built from the
+// SAME aggregateCounts already fetched by loadArticlesGeo() below — no
+// second request. Click behaviour mirrors the matching map circle's onclick.
+function renderMapIndex(rows, mode) {
+  var list = document.getElementById('wtf-map-index-list');
+  if (!list) return;
+  rows.sort(function(a, b) { return b.count - a.count; });
+  while (list.firstChild) list.removeChild(list.firstChild);
+  if (!rows.length) {
+    var empty = document.createElement('div');
+    empty.className = 'wtf-map-index-empty';
+    empty.textContent = 'No data for this view.';
+    list.appendChild(empty);
+    return;
+  }
+  rows.forEach(function(r, i) {
+    var row = document.createElement('div');
+    row.className = 'wtf-map-index-row';
+    var swatch = document.createElement('i');
+    swatch.className = 'wtf-map-index-swatch';
+    swatch.style.background = r.colour;
+    var rank = document.createElement('b');
+    rank.className = 'wtf-map-index-rank';
+    rank.textContent = '#' + (i + 1);
+    var name = document.createElement('span');
+    name.className = 'wtf-map-index-name';
+    name.textContent = r.name;
+    var count = document.createElement('span');
+    count.className = 'wtf-map-index-count';
+    count.textContent = r.count.toLocaleString();
+    row.appendChild(swatch);
+    row.appendChild(rank);
+    row.appendChild(name);
+    row.appendChild(count);
+    row.addEventListener('click', function() {
+      if (mode === 'canada') { setProvince(r.code); }
+      else { loadArticleFeed_country(r.code); }
+    });
+    list.appendChild(row);
+  });
+}
+
 function loadArticlesGeo() {
   var _scope = (mapMode === 'world') ? 'world' : 'canada';
   var _geoUrl = "/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat) + "&scope=" + _scope;
@@ -490,12 +574,14 @@ function loadArticlesGeo() {
         // WORLD MODE: replace world layer with local-data country circles
         if (worldLayer) map.removeLayer(worldLayer);
         worldLayer = L.layerGroup();
+        var _indexRowsWorld = [];
         Object.keys(aggregateCounts).forEach(function(cc) {
           var cd = aggregateCounts[cc];
           var count = cd.count || 0;
           var lat = cd.lat, lng = cd.lng;
           if (!lat || !lng) return;
           var colour = BIAS_COLOURS[cd.band] || BIAS_COLOURS['center'];
+          _indexRowsWorld.push({ code: cc, name: cc, count: count, colour: colour });
           var radius = Math.min(6 + Math.sqrt(count) * 1.8, 26);
           var circle = L.circleMarker([lat, lng], {
             pane: 'clusterPane', radius: radius,
@@ -515,10 +601,12 @@ function loadArticlesGeo() {
           }));
         });
         worldLayer.addTo(map);
+        renderMapIndex(_indexRowsWorld, 'world');
       } else {
         // CANADA MODE: province cluster badges (use aggregate counts)
         if (clusterLayer) map.removeLayer(clusterLayer);
         clusterLayer = L.layerGroup();
+        var _indexRowsCanada = [];
         Object.keys(aggregateCounts).forEach(function(pc) {
           var centroid = PROVINCE_CENTROIDS[pc];
           if (!centroid) return;
@@ -537,6 +625,7 @@ function loadArticlesGeo() {
           });
           circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories" + leanLabel(avgScore, count));
           var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
+          _indexRowsCanada.push({ code: pc, name: pname, count: count, colour: colour });
           var cpopup =
             "<div style='font-family:monospace;font-size:13px;color:#fff;text-align:center;'>" +
             "<b>" + esc(count.toLocaleString()) + " article" + (count === 1 ? "" : "s") + "</b><br>" +
@@ -555,6 +644,7 @@ function loadArticlesGeo() {
           }));
         });
         clusterLayer.addTo(map);
+        renderMapIndex(_indexRowsCanada, 'canada');
         // Lean legend — created once, bottom-left of the map (ADR-011)
         if (!window._leanLegend) {
           window._leanLegend = L.control({ position: "bottomleft" });

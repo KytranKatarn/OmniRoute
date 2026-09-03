@@ -1290,6 +1290,122 @@ p { text-wrap: pretty; }
   .wtf-map-btn:hover { transform: none !important; }
 }
 
+/* ── Local weather strip (#wtf-weather-strip, Design handoff #wx-home) ──────
+   The two "genuinely new" homepage sections from the #6149 spec: a scrollable
+   row of city current-conditions cards, and a wildfire summary grid. Server-
+   rendered from _home_weather_strip() — a snapshot per page load, same as
+   #wtf-top-stories, not a 30s-refresh live feed like the map/article cards. */
+#wtf-weather-strip {
+  padding-left: var(--gut);
+  padding-right: var(--gut);
+  padding-top: 12px;
+  padding-bottom: 12px;
+  background: var(--wtf-bg-card);
+  border-bottom: 1px solid var(--wtf-border);
+}
+.wtf-weather-cards {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.wtf-weather-card {
+  flex: 0 0 auto;
+  min-width: 148px;
+  background: var(--wtf-bg-panel);
+  border: 1px solid var(--wtf-border);
+  border-left: 3px solid var(--wtf-local);
+  border-radius: var(--wtf-r-md);
+  padding: 11px 13px;
+  box-shadow: var(--wtf-shadow-card);
+  transition: transform .22s var(--wtf-ease), border-color .22s var(--wtf-ease);
+}
+.wtf-weather-card:hover { transform: translateY(-2px); border-color: #2f3d52; }
+.wtf-weather-card.is-alert { border-left-color: var(--wtf-developing); }
+.wtf-weather-card-name { font-size: 12.5px; color: var(--wtf-text); font-weight: 500; }
+.wtf-weather-card-temp {
+  font-family: var(--wtf-font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  color: var(--wtf-text);
+  margin: 5px 0 2px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.wtf-weather-card-cond { font-family: var(--wtf-font-mono); font-size: 9.5px; color: var(--wtf-text-muted); }
+
+.wtf-fire-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+.wtf-fire-card {
+  background: var(--wtf-bg-card);
+  border: 1px solid var(--wtf-border);
+  border-left: 3px solid var(--wtf-aurora);
+  border-radius: var(--wtf-r-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wtf-fire-card-key { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--wtf-text-muted); }
+.wtf-fire-card-value { font-family: var(--wtf-font-mono); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 600; line-height: 1.1; }
+.wtf-fire-card-note { font-size: 11px; line-height: 1.5; color: var(--wtf-text-muted); }
+
+/* ── Map index sidebar (#wtf-map-index, Design handoff #map-index) ──────────
+   Ranked list beside the map, populated by renderMapIndex() from data the
+   map's own fetches already retrieved — see loadArticlesGeo() above. */
+#wtf-map-row {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  #wtf-map-row { grid-template-columns: minmax(0, 1fr); }
+  #wtf-map-index { height: 180px; }
+}
+#wtf-map-index {
+  height: 352px;
+  display: flex;
+  flex-direction: column;
+  background: var(--wtf-bg);
+  border: 1px solid var(--wtf-border);
+  border-radius: var(--wtf-r-lg);
+  overflow: hidden;
+}
+#wtf-map-index-head {
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--wtf-border);
+  font-family: var(--wtf-font-mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--wtf-text-muted);
+}
+#wtf-map-index-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 5px; }
+.wtf-map-index-row {
+  display: grid;
+  grid-template-columns: 9px 26px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 7px;
+  border-radius: var(--wtf-r-sm);
+  cursor: pointer;
+  transition: background .18s var(--wtf-ease), padding-left .18s var(--wtf-ease);
+}
+.wtf-map-index-row:hover { background: var(--wtf-bg-panel); padding-left: 11px; }
+.wtf-map-index-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.wtf-map-index-rank { font-family: var(--wtf-font-mono); font-size: 10px; font-weight: 500; color: var(--wtf-text); }
+.wtf-map-index-name { font-size: 11.5px; color: var(--wtf-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wtf-map-index-count { font-family: var(--wtf-font-mono); font-size: 10.5px; color: var(--wtf-text); }
+.wtf-map-index-empty { padding: 12px; font-size: 11px; color: var(--wtf-text-muted); }
+@media (prefers-reduced-motion: reduce) {
+  .wtf-weather-card:hover, .wtf-map-index-row:hover { transform: none !important; }
+}
+
 /* ── shared map component (wtf-map.js, d3-geo renderer) ──────────────────────
    Replaced Leaflet 2026-09-02. There is no third-party stylesheet behind these
    any more, so every rule the map needs lives here. */

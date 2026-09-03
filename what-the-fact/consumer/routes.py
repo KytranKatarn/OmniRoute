@@ -1795,6 +1795,63 @@ def cost_of_parliament():
                            is_subscriber=is_subscriber())
 
 
+def _home_weather_strip():
+    """Compact weather + wildfire summary for the homepage strip (#wtf-weather-strip).
+
+    Reuses the SAME aurora_city_site/_city_obs/_city_forecast tables and the
+    SAME _aurora_city_payload() builder as /weather — trimmed to the 13
+    provincial capitals (there is no per-visitor geolocation on this site, so
+    "local" here means one representative city per province, not an IP-derived
+    location). Fire data is the same aurora_fire_hotspot_daily query /weather
+    runs, capped to the top 6 provinces by hotspot count for a homepage strip.
+
+    Weather is supplementary here (unlike the article feed), so any failure
+    degrades to an empty strip rather than 500ing the whole homepage.
+    """
+    try:
+        with _db().begin() as c:
+            city_rows = c.execute(text("""
+                SELECT s.site_code, s.name_en, s.display_name, s.source_prov,
+                       s.lat, s.lon, s.last_obs_status,
+                       o.observed_utc, o.temp_c, o.condition_text, o.rel_humidity_pct,
+                       o.wind_speed_kmh, o.wind_is_calm, o.wind_gust_kmh, o.wind_dir,
+                       o.humidex, o.pressure_kpa,
+                       EXTRACT(EPOCH FROM (now() - o.observed_utc))/60 AS age_min
+                FROM wtf.aurora_city_site s
+                LEFT JOIN LATERAL (
+                    SELECT * FROM wtf.aurora_city_obs x
+                    WHERE x.site_code = s.site_code
+                    ORDER BY x.observed_utc DESC LIMIT 1
+                ) o ON true
+                WHERE s.is_city
+                ORDER BY s.sort_order, s.name_en
+            """)).mappings().all()
+            forecast_rows = c.execute(text("""
+                SELECT f.site_code, f.period_index, f.period_label,
+                       f.temp_high_c, f.temp_low_c, f.pop_pct,
+                       f.abbrev_summary, f.text_summary
+                FROM wtf.aurora_city_forecast f
+                JOIN (SELECT site_code, max(issued_utc) AS latest
+                      FROM wtf.aurora_city_forecast GROUP BY site_code) m
+                  ON m.site_code = f.site_code AND m.latest = f.issued_utc
+                ORDER BY f.site_code, f.period_index
+            """)).mappings().all()
+            fire_provinces = c.execute(text("""
+                SELECT prov, sum(hotspot_count) AS hotspots, max(max_fwi) AS max_fwi,
+                       max(obs_date) AS obs_date
+                FROM wtf.aurora_fire_hotspot_daily
+                WHERE obs_date > CURRENT_DATE - 3
+                GROUP BY prov ORDER BY sum(hotspot_count) DESC LIMIT 6
+            """)).mappings().all()
+        payload = _aurora_city_payload(city_rows, forecast_rows)
+        payload["cities"] = [c for c in payload["cities"] if c["is_capital"]]
+        payload["fire_provinces"] = [dict(r) for r in fire_provinces]
+        return payload
+    except Exception:
+        return {"cities": [], "count": 0, "reporting": 0, "warmest": None,
+                "coldest": None, "provinces": [], "fire_provinces": []}
+
+
 @bp.get("/")
 def index():
     S = _schema()
@@ -1826,7 +1883,8 @@ def index():
     sub = is_subscriber()
     return render_template("index.html", articles=rows,
                            top_stories=_home_top_stories(rows, is_sub=sub),
-                           source_count=source_count, is_subscriber=sub)
+                           source_count=source_count, is_subscriber=sub,
+                           weather_strip=_home_weather_strip())
 
 
 # ───────────────────────────────────────────────────────────────────────────

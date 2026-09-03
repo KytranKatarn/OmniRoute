@@ -1,23 +1,44 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}Ethics Commissioner Rulings — Conflict of Interest Reports · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="All Ethics Commissioner investigation reports on Canadian MPs, ministers, and public officials. Conflict of interest findings 2015–2026.">
 {% endblock %}
 {% block content %}
 <style>
+{# Design-handoff Phase 6 scoping: own <style> block using zero var(--wtf-*)
+   tokens across 12 hex-color occurrences. Exactly ONE is a byte-for-byte
+   match to a platform token (confirmed by grep against
+   consumer/static/style.css): #f59e0b (3 static uses below — row left
+   border, ruling name, type-pill text/CIEC link; never inside a Jinja
+   alpha-concatenated dict, so the swap is safe) === var(--wtf-developing).
+   Every other color (#2a1a00, #e5e7eb, #6b7280, #060d14, #9ca3af, #22c55e,
+   #0af, #78350f incl. its 22/44 alpha suffixes, #ef4444, #fff) has no
+   confirmed exact token match and stays a page-local literal. Fixed the
+   same never-loaded 'Orbitron' bug fixed repeatedly this session ->
+   var(--wtf-font-mono). Extracted the 5 remaining inline style="..."
+   attributes (row-top flex, about-box, about-box heading, CIEC link,
+   officers link) into namespaced classes below; the paywall block
+   converged onto the shared paywall() macro instead (_archetypes.html),
+   so its 6 inline styles are gone via the macro's own classes. #}
 .wtf-eth-header { padding:20px 0 16px; border-bottom:1px solid #2a1a00; margin-bottom:20px; }
-.wtf-eth-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-eth-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-eth-sub { font-size:12px; color:#6b7280; }
 .wtf-eth-list { display:flex; flex-direction:column; gap:8px; }
-.wtf-eth-row { background:#060d14; border:1px solid #2a1a00; border-left:3px solid #f59e0b; border-radius:4px; padding:12px 14px; }
-.wtf-eth-name { font-size:13px; color:#f59e0b; font-weight:600; }
+.wtf-eth-row { background:#060d14; border:1px solid #2a1a00; border-left:3px solid var(--wtf-developing); border-radius:4px; padding:12px 14px; }
+.wtf-eth-rowtop { display:flex; align-items:center; flex-wrap:wrap; gap:4px; }
+.wtf-eth-name { font-size:13px; color:var(--wtf-developing); font-weight:600; }
 .wtf-eth-date { font-size:11px; color:#6b7280; margin-left:8px; }
-.wtf-eth-type { font-size:10px; padding:1px 7px; border-radius:10px; margin-left:6px; background:#78350f22; color:#f59e0b; border:1px solid #78350f44; }
+.wtf-eth-type { font-size:10px; padding:1px 7px; border-radius:10px; margin-left:6px; background:#78350f22; color:var(--wtf-developing); border:1px solid #78350f44; }
 .wtf-eth-subject { font-size:12px; color:#9ca3af; margin-top:4px; }
 .wtf-eth-mp-link { font-size:11px; color:#22c55e; margin-left:6px; text-decoration:none; }
 .wtf-eth-mp-link:hover { text-decoration:underline; }
 .wtf-eth-report-link { font-size:11px; color:#0af; text-decoration:none; }
 .wtf-eth-report-link:hover { text-decoration:underline; }
+.wtf-eth-about { margin-top:24px; padding:12px 14px; background:#060d14; border:1px solid #2a1a00; border-radius:6px; font-size:12px; color:#6b7280; line-height:1.8; }
+.wtf-eth-about-h { color:#9ca3af; }
+.wtf-eth-ciec-link { color:var(--wtf-developing); font-size:11px; }
+.wtf-eth-officers-link { color:#6b7280; font-size:11px; }
 </style>
 
 <div class="wtf-eth-header">
@@ -31,7 +52,7 @@
 <div class="wtf-eth-list">
 {% for r in rulings %}
 <div class="wtf-eth-row">
-  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+  <div class="wtf-eth-rowtop">
     {% if r.report_url %}
     <a class="wtf-eth-report-link" href="{{ r.report_url }}" target="_blank" rel="noopener">{{ r.report_name }}</a>
     {% else %}
@@ -52,24 +73,23 @@
 {% endfor %}
 </div>
 {% else %}
-<div style="background:#060d14;border:1px solid #2a1a00;border-radius:8px;padding:24px;text-align:center;margin:8px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Ethics Rulings — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">30 investigation reports on Canadian MPs, ministers, and public officials — from Trudeau III to Fox (2015–2026).</div>
-  <a href="/login?next=/ethics" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-</div>
+{{ paywall(
+     '🔒 Ethics Rulings — Starter+',
+     '30 investigation reports on Canadian MPs, ministers, and public officials — from Trudeau III to Fox (2015–2026).',
+     '/ethics'
+) }}
 {% endif %}
 
-<div style="margin-top:24px;padding:12px 14px;background:#060d14;border:1px solid #2a1a00;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
-  <strong style="color:#9ca3af;">About ethics investigations</strong><br>
+<div class="wtf-eth-about">
+  <strong class="wtf-eth-about-h">About ethics investigations</strong><br>
   The Commissioner investigates MPs and ministers under the <em>Conflict of Interest Act</em> (cabinet ministers, senior public servants)
   and the <em>Conflict of Interest Code for Members</em> (all 338 MPs).
   "Act" investigations are called examinations; "Code" investigations are called inquiries.
   Reports are public and link directly to CIEC findings.
   <br><br>
-  <a href="https://ciec-ccie.parl.gc.ca/en/investigations-enquetes/Pages/InvestReport-RapportEnquete.aspx" target="_blank" rel="noopener" style="color:#f59e0b;font-size:11px;">CIEC full index ↗</a>
+  <a href="https://ciec-ccie.parl.gc.ca/en/investigations-enquetes/Pages/InvestReport-RapportEnquete.aspx" target="_blank" rel="noopener" class="wtf-eth-ciec-link">CIEC full index ↗</a>
   &nbsp;&nbsp;
-  <a href="/parliament/officers" style="color:#6b7280;font-size:11px;">Officers of Parliament →</a>
+  <a href="/parliament/officers" class="wtf-eth-officers-link">Officers of Parliament →</a>
 </div>
 
 {% endblock %}

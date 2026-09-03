@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall %}
+{% from "_archetypes.html" import paywall, lean_token %}
 {% block title %}Latest News — What The Fact{% endblock %}
 {% block content %}
 
@@ -73,6 +73,32 @@
     </div>
   </div>
 
+  {# Lean-mix bar — segmented bar + NAMED index (five bare percentages are not
+     an index, per the design handoff). Reflects the current filter selection
+     (band_mix is computed server-side over the same WHERE clause as `total`,
+     see news() in routes.py). Server-rendered, no JS. #}
+  {% if band_mix and band_mix | sum(attribute='n') > 0 %}
+  <div class="wtf-news-mix" role="img" aria-label="Lean mix: {% for m in band_mix %}{{ m.label }} {{ m.pct }}%{% if not loop.last %}, {% endif %}{% endfor %}">
+    <div class="wtf-news-mix-bar">
+      {% for m in band_mix %}{% if m.pct > 0 %}<span style="width:{{ m.pct }}%;background:var({{ lean_token(m.band) }});"></span>{% endif %}{% endfor %}
+    </div>
+    <div class="wtf-news-mix-index">
+      {% for m in band_mix %}
+      <span><i style="background:var({{ lean_token(m.band) }});"></i>{{ m.label }} {{ m.pct }}%</span>
+      {%- endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Density toggle + read-state (client-side only — see script at bottom) -->
+  <div class="wtf-news-toolbar">
+    <div class="wtf-news-density" role="group" aria-label="Density">
+      <button type="button" class="wtf-act-filter" data-density-btn="card" aria-pressed="true">Card</button>
+      <button type="button" class="wtf-act-filter" data-density-btn="row" aria-pressed="false">Row</button>
+    </div>
+    <button type="button" class="wtf-act-filter" id="wtf-news-mark-read">Mark page read</button>
+  </div>
+
   <!-- Province filter -->
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
@@ -119,9 +145,10 @@
   </div>
   {% endif %}
 
+  <div id="wtf-news-feed">
   {% for a in articles %}
   {% set band = (a.band or 'center') | replace(' ', '-') %}
-  <div class="wtf-article-card wtf-article-card--{{ band }}">
+  <div class="wtf-article-card wtf-article-card--{{ band }}" data-article-id="{{ a.id }}">
     <div class="wtf-card-meta">
       <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
       <span style="color:#555;font-size:0.65rem;">{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
@@ -130,7 +157,7 @@
         <span style="position:absolute;top:50%;left:{{ _dot_pos }};transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 2px rgba(0,0,0,0.6);"></span>
       </span>
     </div>
-    <a class="wtf-card-title" href="/article/{{ a.id }}">{{ a.title }}</a>
+    <a class="wtf-card-title" href="/article/{{ a.id }}" data-news-open="{{ a.id }}">{{ a.title }}</a>
     <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
       {% if a.ai_analyzed and is_subscriber %}
       <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
@@ -156,6 +183,7 @@
     </div>
   </div>
   {% endfor %}
+  </div>
 
   {% if not is_subscriber %}
   {{ paywall("Unlock the full analysis",
@@ -185,6 +213,118 @@
   letter-spacing: 1px; cursor: pointer; font-family: inherit; text-transform: uppercase;
 }
 .wtf-act-filter--active { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+
+/* ── Lean-mix bar (design handoff #6149) ── */
+.wtf-news-mix { margin: 0 0 12px; }
+.wtf-news-mix-bar {
+  display: flex; height: 6px; border-radius: 3px; overflow: hidden;
+  background: var(--wtf-bg-panel, #0a0f1a);
+}
+.wtf-news-mix-bar span { display: block; height: 100%; }
+.wtf-news-mix-index {
+  display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--wtf-text-muted, #6b7280);
+}
+.wtf-news-mix-index span { display: inline-flex; align-items: center; gap: 5px; }
+.wtf-news-mix-index i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+/* ── Density toggle + mark-read toolbar ── */
+.wtf-news-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.wtf-news-density { display: flex; gap: 4px; }
+[data-density-btn][aria-pressed="true"] { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+
+/* ── Read state (localStorage['wtf-read'], client-side only) ── */
+#wtf-news-feed.wtf-news-density-row { display: flex; flex-direction: column; gap: 0; }
+#wtf-news-feed.wtf-news-density-row .wtf-article-card {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px;
+  margin-bottom: 0; border-left-width: 3px; border-radius: 0;
+  border-bottom: 1px solid #161d29;
+}
+#wtf-news-feed.wtf-news-density-row .wtf-card-meta { flex: 0 0 auto; margin: 0; }
+#wtf-news-feed.wtf-news-density-row .wtf-card-title { flex: 1; }
+.wtf-article-card.wtf-is-read { opacity: .6; }
+.wtf-article-card.wtf-is-read .wtf-card-title { color: var(--wtf-text-muted, #6b7280); }
+.wtf-article-card:hover.wtf-is-read { opacity: 1; }
 </style>
+
+<script>
+(function () {
+  // Read state — pure client-side, no backend. Same key name the homepage
+  // design (#6149) reserves for this ('wtf-read'). A Set of opened article
+  // ids, capped so it cannot grow unbounded across months of browsing.
+  var READ_KEY = 'wtf-read';
+  var READ_CAP = 2000;
+
+  function loadRead() {
+    try {
+      var raw = localStorage.getItem(READ_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  }
+  function saveRead(set) {
+    try {
+      var arr = Array.from(set);
+      if (arr.length > READ_CAP) arr = arr.slice(arr.length - READ_CAP);
+      localStorage.setItem(READ_KEY, JSON.stringify(arr));
+    } catch (e) { /* localStorage unavailable (private mode / quota) — degrade silently */ }
+  }
+
+  var read = loadRead();
+
+  function applyReadState() {
+    document.querySelectorAll('#wtf-news-feed .wtf-article-card[data-article-id]').forEach(function (card) {
+      var id = card.getAttribute('data-article-id');
+      card.classList.toggle('wtf-is-read', read.has(id));
+    });
+  }
+  applyReadState();
+
+  document.querySelectorAll('[data-news-open]').forEach(function (link) {
+    link.addEventListener('click', function () {
+      read.add(link.getAttribute('data-news-open'));
+      saveRead(read);
+    });
+  });
+
+  var markBtn = document.getElementById('wtf-news-mark-read');
+  if (markBtn) {
+    markBtn.addEventListener('click', function () {
+      document.querySelectorAll('#wtf-news-feed .wtf-article-card[data-article-id]').forEach(function (card) {
+        read.add(card.getAttribute('data-article-id'));
+      });
+      saveRead(read);
+      applyReadState();
+    });
+  }
+
+  // Density toggle — persisted per-browser, matches the design's card/row
+  // view switch. Pure CSS class swap, no re-render of the already-rendered cards.
+  var DENSITY_KEY = 'wtf-dens';
+  var feed = document.getElementById('wtf-news-feed');
+  var densityBtns = document.querySelectorAll('[data-density-btn]');
+
+  function applyDensity(mode) {
+    if (!feed) return;
+    feed.classList.toggle('wtf-news-density-row', mode === 'row');
+    densityBtns.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-density-btn') === mode));
+    });
+  }
+  var savedDensity = 'card';
+  try { savedDensity = localStorage.getItem(DENSITY_KEY) || 'card'; } catch (e) {}
+  applyDensity(savedDensity);
+
+  densityBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      var mode = b.getAttribute('data-density-btn');
+      applyDensity(mode);
+      try { localStorage.setItem(DENSITY_KEY, mode); } catch (e) {}
+    });
+  });
+})();
+</script>
 
 {% endblock %}

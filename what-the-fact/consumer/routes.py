@@ -459,7 +459,7 @@ def news():
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
-        source_count, total, rows, sources, ridings = _cached
+        source_count, total, rows, sources, ridings, band_mix = _cached
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
         return render_template("news.html", articles=rows, source_count=source_count,
                                total=total, page=page, total_pages=total_pages,
@@ -468,6 +468,7 @@ def news():
                                beat_filter=beat_filter, scope_filter=scope_filter,
                                riding_filter=riding_filter, ridings=ridings,
                                beat_meta=BEAT_META, sources=sources,
+                               band_mix=band_mix,
                                is_subscriber=is_subscriber())
 
     with _db().begin() as c:
@@ -506,6 +507,33 @@ def news():
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             WHERE 1=1 AND a.suppressed_reason IS NULL {band_where}
         """), params).scalar() or 0
+
+        # Lean-mix bar (design handoff #6149, /news Phase 3): a segmented bar +
+        # named index of the CURRENT filter selection's band distribution.
+        # Same WHERE-clause shape as `total` above (band_where already excludes
+        # the band filter itself when band_filter=='all', and INCLUDES it when
+        # set — that's fine, a mix bar under an active band filter just shows
+        # one band at 100%, which is honest). One extra GROUP BY over the same
+        # indexed columns `total` already scans — same cost class, not a second
+        # full-table pass. Rows with no bias_scores row (band IS NULL) are
+        # excluded: an unscored article is an absence, not a 'center' reading.
+        band_count_rows = c.execute(text(f"""
+            SELECT b.band, COUNT(*) AS n
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND b.band IS NOT NULL {band_where}
+            GROUP BY b.band
+        """), params).mappings().all()
+        _band_n = {r["band"]: r["n"] for r in band_count_rows}
+        _band_scored = sum(_band_n.values())
+        band_mix = [
+            {"band": bk, "label": bl, "n": _band_n.get(bk, 0),
+             "pct": round(100 * _band_n.get(bk, 0) / _band_scored) if _band_scored else 0}
+            for bk, bl in (("left", "Left"), ("center-left", "Center-Left"),
+                           ("center", "Center"), ("center-right", "Center-Right"),
+                           ("right", "Right"))
+        ]
         # #5719 rewrite — the old form joined fact_checks/decorations across
         # the WHOLE table before ranking: the newest-per-cluster subquery ran
         # 107,885× (planner can't push the LIMIT below the WindowAgg), and the
@@ -604,7 +632,7 @@ def news():
         ridings = [dict(r) for r in riding_rows]
 
     sources = [dict(s) for s in sources]
-    _news_cache_set(_ck, (source_count, total, rows, sources, ridings))
+    _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix))
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
@@ -613,6 +641,7 @@ def news():
                            beat_filter=beat_filter, scope_filter=scope_filter,
                            riding_filter=riding_filter, ridings=ridings,
                            beat_meta=BEAT_META, sources=sources,
+                           band_mix=band_mix,
                            is_subscriber=is_subscriber())
 
 

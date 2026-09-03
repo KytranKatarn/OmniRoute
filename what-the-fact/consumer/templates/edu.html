@@ -2,29 +2,85 @@
 {% block title %}Education API — What The Fact{% endblock %}
 {% block content %}
 
+<style>
+/* Design-handoff Phase 6 — value-preserving extraction of edu.html's inline
+   styles into namespaced classes. The design-handoff target for /edu is
+   itself an explicitly-marked "not yet built" stub with no real layout for
+   this page's actual content (4 API endpoints, rate-limit/CORS list, data
+   licence, institutional CTA), so this does not attempt to match a design
+   that does not exist yet — it only DRYs up the 91 repeated inline styles
+   into the same computed pixels, using shared var(--wtf-*) tokens for the
+   one color that is an exact token match (#10b981 = --wtf-established) and
+   var(--wtf-font-mono) for the monospace font, per the "page styles stay in
+   the page's own <style> block" ground rule. */
+.wtf-edu-wrap { max-width: 900px; margin: 0 auto; padding: 16px 16px 40px; }
+
+.wtf-edu-hero-tag { font-size: 0.7rem; letter-spacing: 2px; color: #7fbf7f; }
+.wtf-edu-h1 { font-size: 1.6rem; }
+.wtf-edu-lede { font-size: 0.85rem; color: #9ca3af; max-width: 680px; margin-top: 8px; }
+
+.wtf-edu-card { background: #050d1a; border: 1px solid #1a2a3a; border-radius: 4px; padding: 20px; margin-bottom: 20px; }
+.wtf-edu-card--pad24 { padding: 24px; }
+.wtf-edu-card--mb12 { margin-bottom: 12px; }
+.wtf-edu-card--mb0 { margin-bottom: 0; }
+.wtf-edu-card--cta { border-color: var(--wtf-established); text-align: center; }
+
+.wtf-edu-label { color: #9ca3af; font-size: 0.6rem; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+.wtf-edu-label--accent { color: var(--wtf-established); }
+
+.wtf-edu-p { font-size: 0.85rem; color: #e0e0e0; margin: 0 0 10px; }
+.wtf-edu-p--muted { font-size: 0.8rem; color: #9ca3af; margin: 0 0 10px; }
+.wtf-edu-p--muted-tight { font-size: 0.8rem; color: #9ca3af; margin: 0; }
+.wtf-edu-p--cta { font-size: 0.85rem; color: #e0e0e0; margin: 0 0 16px; max-width: 560px; margin-left: auto; margin-right: auto; }
+
+.wtf-edu-list { font-size: 0.82rem; color: #9ca3af; margin: 0; padding-left: 20px; line-height: 1.8; }
+.wtf-edu-list--loose { line-height: 1.9; }
+
+.wtf-edu-ep-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.wtf-edu-method { background: var(--wtf-established); color: #050d1a; font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 2px; font-family: var(--wtf-font-mono); }
+.wtf-edu-path { font-family: var(--wtf-font-mono); font-size: 0.82rem; color: #7dd3fc; }
+
+.wtf-edu-params { font-size: 0.72rem; color: #6b7280; font-family: var(--wtf-font-mono); }
+.wtf-edu-params > div { margin-bottom: 4px; }
+.wtf-edu-param-k { color: #9ca3af; }
+.wtf-edu-param-v { color: #e0e0e0; }
+
+.wtf-edu-example { margin-top: 8px; background: #060d14; border-radius: 3px; padding: 10px; font-size: 0.72rem; font-family: var(--wtf-font-mono); color: #9ca3af; overflow-x: auto; }
+.wtf-edu-example--mt12 { margin-top: 12px; }
+
+.wtf-edu-cta-btn { display: inline-block; padding: 8px 20px; background: var(--wtf-established); color: #050d1a; text-decoration: none; border-radius: 3px; font-size: 0.78rem; font-weight: 700; letter-spacing: 1px; }
+.wtf-edu-link { color: var(--wtf-established); text-decoration: none; }
+.wtf-edu-inline-code { color: #e0e0e0; }
+
+.wtf-edu-code { margin: 0; font-family: var(--wtf-font-mono); font-size: 0.72rem; color: #9ca3af; overflow-x: auto; line-height: 1.6; }
+.wtf-edu-code .c1 { color: #6b7280; }
+.wtf-edu-code .kw { color: #7dd3fc; }
+.wtf-edu-code .str { color: #a3e635; }
+</style>
+
 <div class="wtf-team-hero">
   <div class="wtf-team-hero-live">
     <span class="wtf-live-pulse"></span>
-    <span style="font-size:0.7rem;letter-spacing:2px;color:#7fbf7f;">EDUCATION &amp; RESEARCH</span>
+    <span class="wtf-edu-hero-tag">EDUCATION &amp; RESEARCH</span>
   </div>
-  <h1 style="font-size:1.6rem;">MEDIA LITERACY API</h1>
-  <p style="font-size:0.85rem;color:#9ca3af;max-width:680px;margin-top:8px;">
+  <h1 class="wtf-edu-h1">MEDIA LITERACY API</h1>
+  <p class="wtf-edu-lede">
     Structured article, bias, and fact-check data for classrooms, journalism programs,
     and media literacy research. Free to use. No API key required.
   </p>
 </div>
 
-<div style="max-width:900px;margin:0 auto;padding:16px 16px 40px;">
+<div class="wtf-edu-wrap">
 
   <!-- What it is -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:24px;margin-bottom:20px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">What Is This</div>
-    <p style="font-size:0.85rem;color:#e0e0e0;margin:0 0 10px;">
+  <div class="wtf-edu-card wtf-edu-card--pad24">
+    <div class="wtf-edu-label">What Is This</div>
+    <p class="wtf-edu-p">
       What The Fact tracks Canadian news coverage, scores articles for political bias,
       and fact-checks verifiable claims using a team of AI agents.
       This Education API exposes that data in a clean JSON format suitable for:
     </p>
-    <ul style="font-size:0.82rem;color:#9ca3af;margin:0;padding-left:20px;line-height:1.8;">
+    <ul class="wtf-edu-list">
       <li>Journalism school assignments — compare how different outlets cover the same story</li>
       <li>Media literacy courses — visualise bias distribution across Canadian news</li>
       <li>Academic research — longitudinal bias analysis, outlet ownership mapping</li>
@@ -33,127 +89,127 @@
   </div>
 
   <!-- Endpoints -->
-  <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">API Endpoints</div>
+  <div class="wtf-edu-label">API Endpoints</div>
 
   <!-- /api/edu/v1/articles -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;margin-bottom:12px;">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
-      <span style="background:#10b981;color:#050d1a;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:2px;font-family:'IBM Plex Mono',monospace;">GET</span>
-      <code style="font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:#7dd3fc;">/api/edu/v1/articles</code>
+  <div class="wtf-edu-card wtf-edu-card--mb12">
+    <div class="wtf-edu-ep-head">
+      <span class="wtf-edu-method">GET</span>
+      <code class="wtf-edu-path">/api/edu/v1/articles</code>
     </div>
-    <p style="font-size:0.8rem;color:#9ca3af;margin:0 0 10px;">
+    <p class="wtf-edu-p--muted">
       Paginated article list with bias scores. Returns up to 50 articles per page.
     </p>
-    <div style="font-size:0.72rem;color:#6b7280;font-family:'IBM Plex Mono',monospace;">
-      <div style="margin-bottom:4px;"><span style="color:#9ca3af;">beat</span> — news beat filter (e.g. <span style="color:#e0e0e0;">politics</span>, <span style="color:#e0e0e0;">economy</span>)</div>
-      <div style="margin-bottom:4px;"><span style="color:#9ca3af;">province</span> — 2-letter province code (e.g. <span style="color:#e0e0e0;">ON</span>, <span style="color:#e0e0e0;">QC</span>)</div>
-      <div style="margin-bottom:4px;"><span style="color:#9ca3af;">bias_band</span> — filter by band (e.g. <span style="color:#e0e0e0;">left</span>, <span style="color:#e0e0e0;">center</span>, <span style="color:#e0e0e0;">right</span>)</div>
-      <div style="margin-bottom:4px;"><span style="color:#9ca3af;">days</span> — lookback window, default <span style="color:#e0e0e0;">7</span>, max <span style="color:#e0e0e0;">90</span></div>
-      <div style="margin-bottom:4px;"><span style="color:#9ca3af;">page</span> — page number, default <span style="color:#e0e0e0;">1</span></div>
-      <div style="margin-bottom:4px;"><span style="color:#9ca3af;">limit</span> — results per page, default <span style="color:#e0e0e0;">20</span>, max <span style="color:#e0e0e0;">50</span></div>
+    <div class="wtf-edu-params">
+      <div><span class="wtf-edu-param-k">beat</span> — news beat filter (e.g. <span class="wtf-edu-param-v">politics</span>, <span class="wtf-edu-param-v">economy</span>)</div>
+      <div><span class="wtf-edu-param-k">province</span> — 2-letter province code (e.g. <span class="wtf-edu-param-v">ON</span>, <span class="wtf-edu-param-v">QC</span>)</div>
+      <div><span class="wtf-edu-param-k">bias_band</span> — filter by band (e.g. <span class="wtf-edu-param-v">left</span>, <span class="wtf-edu-param-v">center</span>, <span class="wtf-edu-param-v">right</span>)</div>
+      <div><span class="wtf-edu-param-k">days</span> — lookback window, default <span class="wtf-edu-param-v">7</span>, max <span class="wtf-edu-param-v">90</span></div>
+      <div><span class="wtf-edu-param-k">page</span> — page number, default <span class="wtf-edu-param-v">1</span></div>
+      <div><span class="wtf-edu-param-k">limit</span> — results per page, default <span class="wtf-edu-param-v">20</span>, max <span class="wtf-edu-param-v">50</span></div>
     </div>
-    <div style="margin-top:12px;background:#060d14;border-radius:3px;padding:10px;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;color:#9ca3af;overflow-x:auto;">
+    <div class="wtf-edu-example wtf-edu-example--mt12">
       GET /api/edu/v1/articles?bias_band=left&amp;province=ON&amp;days=14&amp;limit=10
     </div>
   </div>
 
   <!-- /api/edu/v1/sources -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;margin-bottom:12px;">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
-      <span style="background:#10b981;color:#050d1a;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:2px;font-family:'IBM Plex Mono',monospace;">GET</span>
-      <code style="font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:#7dd3fc;">/api/edu/v1/sources</code>
+  <div class="wtf-edu-card wtf-edu-card--mb12">
+    <div class="wtf-edu-ep-head">
+      <span class="wtf-edu-method">GET</span>
+      <code class="wtf-edu-path">/api/edu/v1/sources</code>
     </div>
-    <p style="font-size:0.8rem;color:#9ca3af;margin:0 0 10px;">
+    <p class="wtf-edu-p--muted">
       All tracked Canadian news sources with rolling bias scores, ownership data,
       and article counts. Ideal for outlet-level analysis and ownership mapping exercises.
     </p>
-    <div style="margin-top:8px;background:#060d14;border-radius:3px;padding:10px;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;color:#9ca3af;overflow-x:auto;">
+    <div class="wtf-edu-example">
       GET /api/edu/v1/sources
     </div>
   </div>
 
   <!-- /api/edu/v1/story/:id -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;margin-bottom:12px;">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
-      <span style="background:#10b981;color:#050d1a;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:2px;font-family:'IBM Plex Mono',monospace;">GET</span>
-      <code style="font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:#7dd3fc;">/api/edu/v1/story/&lt;cluster_id&gt;</code>
+  <div class="wtf-edu-card wtf-edu-card--mb12">
+    <div class="wtf-edu-ep-head">
+      <span class="wtf-edu-method">GET</span>
+      <code class="wtf-edu-path">/api/edu/v1/story/&lt;cluster_id&gt;</code>
     </div>
-    <p style="font-size:0.8rem;color:#9ca3af;margin:0 0 10px;">
+    <p class="wtf-edu-p--muted">
       Full story cluster for classroom comparison. Returns every article covering a single
       news event, with per-article bias scores, fact-check verdicts, and a bias distribution
-      summary. Use the <code style="color:#e0e0e0;">id</code> field from <code style="color:#e0e0e0;">/api/edu/v1/stats</code> top stories.
+      summary. Use the <code class="wtf-edu-inline-code">id</code> field from <code class="wtf-edu-inline-code">/api/edu/v1/stats</code> top stories.
     </p>
-    <div style="margin-top:8px;background:#060d14;border-radius:3px;padding:10px;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;color:#9ca3af;overflow-x:auto;">
+    <div class="wtf-edu-example">
       GET /api/edu/v1/story/142
     </div>
   </div>
 
   <!-- /api/edu/v1/stats -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;margin-bottom:20px;">
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
-      <span style="background:#10b981;color:#050d1a;font-size:0.65rem;font-weight:700;padding:2px 7px;border-radius:2px;font-family:'IBM Plex Mono',monospace;">GET</span>
-      <code style="font-family:'IBM Plex Mono',monospace;font-size:0.82rem;color:#7dd3fc;">/api/edu/v1/stats</code>
+  <div class="wtf-edu-card">
+    <div class="wtf-edu-ep-head">
+      <span class="wtf-edu-method">GET</span>
+      <code class="wtf-edu-path">/api/edu/v1/stats</code>
     </div>
-    <p style="font-size:0.8rem;color:#9ca3af;margin:0 0 10px;">
+    <p class="wtf-edu-p--muted">
       Platform-wide snapshot: total sources and articles, bias band distribution with
       percentages, and top story clusters this week. Good starting point for
       in-class visualisation exercises.
     </p>
-    <div style="margin-top:8px;background:#060d14;border-radius:3px;padding:10px;font-size:0.72rem;font-family:'IBM Plex Mono',monospace;color:#9ca3af;overflow-x:auto;">
+    <div class="wtf-edu-example">
       GET /api/edu/v1/stats
     </div>
   </div>
 
   <!-- Rate limits & CORS -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;margin-bottom:20px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Rate Limits &amp; CORS</div>
-    <ul style="font-size:0.82rem;color:#9ca3af;margin:0;padding-left:20px;line-height:1.9;">
-      <li><span style="color:#e0e0e0;">No API key required</span> — all education endpoints are public</li>
-      <li><span style="color:#e0e0e0;">{{ rate_limit }} requests / {{ rate_window }}s per IP</span> — enough for classroom use; contact us for higher limits</li>
-      <li><span style="color:#e0e0e0;">CORS: *</span> — call directly from browser or any origin</li>
-      <li>All responses include <code style="color:#e0e0e0;">X-WTF-API-Version: v1</code></li>
-      <li>Rate-limited responses return HTTP <code style="color:#e0e0e0;">429</code> with a <code style="color:#e0e0e0;">retry_after</code> field</li>
+  <div class="wtf-edu-card">
+    <div class="wtf-edu-label">Rate Limits &amp; CORS</div>
+    <ul class="wtf-edu-list wtf-edu-list--loose">
+      <li><span class="wtf-edu-param-v">No API key required</span> — all education endpoints are public</li>
+      <li><span class="wtf-edu-param-v">{{ rate_limit }} requests / {{ rate_window }}s per IP</span> — enough for classroom use; contact us for higher limits</li>
+      <li><span class="wtf-edu-param-v">CORS: *</span> — call directly from browser or any origin</li>
+      <li>All responses include <code class="wtf-edu-inline-code">X-WTF-API-Version: v1</code></li>
+      <li>Rate-limited responses return HTTP <code class="wtf-edu-inline-code">429</code> with a <code class="wtf-edu-inline-code">retry_after</code> field</li>
     </ul>
   </div>
 
   <!-- Data licence -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;margin-bottom:20px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Data &amp; Licence</div>
-    <p style="font-size:0.8rem;color:#9ca3af;margin:0 0 10px;">
+  <div class="wtf-edu-card">
+    <div class="wtf-edu-label">Data &amp; Licence</div>
+    <p class="wtf-edu-p--muted">
       Article metadata (title, URL, publication date) is sourced from public RSS feeds.
       Cite individual articles per each publisher's terms of use.
     </p>
-    <p style="font-size:0.8rem;color:#9ca3af;margin:0;">
+    <p class="wtf-edu-p--muted-tight">
       Aggregate bias scores, outlet scores, and fact-check verdicts are generated by
       What The Fact's AI team and are released under
-      <a href="https://creativecommons.org/licenses/by-nc/4.0/" style="color:#10b981;text-decoration:none;" target="_blank" rel="noopener">CC BY-NC 4.0</a>.
+      <a href="https://creativecommons.org/licenses/by-nc/4.0/" class="wtf-edu-link" target="_blank" rel="noopener">CC BY-NC 4.0</a>.
       Commercial use or redistribution of WTF-generated scores requires a licensing agreement.
     </p>
   </div>
 
   <!-- Institutional licensing CTA -->
-  <div style="background:#050d1a;border:1px solid #10b981;border-radius:4px;padding:24px;margin-bottom:20px;text-align:center;">
-    <div style="color:#10b981;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">Institutional Licensing</div>
-    <p style="font-size:0.85rem;color:#e0e0e0;margin:0 0 16px;max-width:560px;margin-left:auto;margin-right:auto;">
+  <div class="wtf-edu-card wtf-edu-card--pad24 wtf-edu-card--cta">
+    <div class="wtf-edu-label wtf-edu-label--accent">Institutional Licensing</div>
+    <p class="wtf-edu-p--cta">
       Universities, colleges, and journalism schools can request higher rate limits,
       bulk data exports, or a custom data feed for curriculum integration.
     </p>
     <a href="mailto:api@what-the-fact.com?subject=Education%20API%20Licensing"
-       style="display:inline-block;padding:8px 20px;background:#10b981;color:#050d1a;text-decoration:none;border-radius:3px;font-size:0.78rem;font-weight:700;letter-spacing:1px;">
+       class="wtf-edu-cta-btn">
       Contact Us
     </a>
   </div>
 
   <!-- Quick example -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:20px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Quick Start Example</div>
-    <pre style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:#9ca3af;overflow-x:auto;line-height:1.6;"><code><span style="color:#6b7280;">// Fetch this week's top stories and log bias distribution</span>
-<span style="color:#7dd3fc;">fetch</span>(<span style="color:#a3e635;">'/api/edu/v1/stats'</span>)
-  .<span style="color:#7dd3fc;">then</span>(r =&gt; r.<span style="color:#7dd3fc;">json</span>())
-  .<span style="color:#7dd3fc;">then</span>(data =&gt; {
-    console.<span style="color:#7dd3fc;">log</span>(<span style="color:#a3e635;">'Bias distribution:'</span>, data.bias_distribution);
-    data.top_stories_this_week.<span style="color:#7dd3fc;">forEach</span>(s =&gt;
-      console.<span style="color:#7dd3fc;">log</span>(s.article_count, s.title)
+  <div class="wtf-edu-card wtf-edu-card--mb0">
+    <div class="wtf-edu-label">Quick Start Example</div>
+    <pre class="wtf-edu-code"><code><span class="c1">// Fetch this week's top stories and log bias distribution</span>
+<span class="kw">fetch</span>(<span class="str">'/api/edu/v1/stats'</span>)
+  .<span class="kw">then</span>(r =&gt; r.<span class="kw">json</span>())
+  .<span class="kw">then</span>(data =&gt; {
+    console.<span class="kw">log</span>(<span class="str">'Bias distribution:'</span>, data.bias_distribution);
+    data.top_stories_this_week.<span class="kw">forEach</span>(s =&gt;
+      console.<span class="kw">log</span>(s.article_count, s.title)
     );
   });</code></pre>
   </div>

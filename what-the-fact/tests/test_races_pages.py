@@ -23,6 +23,10 @@ import re
 
 import pytest
 
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
 flask = pytest.importorskip("flask")
 jinja2 = pytest.importorskip("jinja2")
 
@@ -42,7 +46,7 @@ RACES = [
     {"district_number": "24019", "district_name": "Châteauguay--Lacolle",
      "province": "Quebec", "candidate_name": "Brenda Shanahan", "party": "Liberal",
      "incumbent": True, "votes": 18029, "vote_share": 37.0, "majority": 12,
-     "margin_pct": 0.0246, "runner_up_party": "Bloc Québécois"},
+     "margin_pct": 0.02, "runner_up_party": "Bloc Québécois"},
     {"district_number": "10006", "district_name": "St. John's East",
      "province": "Newfoundland and Labrador", "candidate_name": "Joanne Thompson",
      "party": "Liberal", "incumbent": False, "votes": 16601, "vote_share": 44.1,
@@ -132,3 +136,35 @@ def test_incumbency_is_shown_but_never_as_the_reason_they_won(env):
 def test_empty_state_says_so_rather_than_rendering_a_bare_table(env):
     out = _render(env, races=[], total_races=0)
     assert "No ridings match this filter." in out
+
+
+# --------------------------------------------------------------------------
+# The fixture must match what the QUERY emits
+# --------------------------------------------------------------------------
+
+
+def test_the_margin_fixture_matches_the_querys_own_rounding():
+    """⚠️ THIS IS THE TEST THAT WAS MISSING, and its absence shipped a bug.
+
+    The <0.1% guard was written against a fixture of 0.0246 — a value the query
+    CANNOT produce, because the SQL rounds margin_pct before the template ever
+    sees it. At the shipped 1dp a 12-vote win in 57,349 became exactly 0.0, the
+    template guard (`margin_pct > 0`) never fired, and the closest race in the
+    country rendered "12 (0.0%)" on the LIVE SITE while this suite was green.
+    The test was rigorous about a number that does not exist.
+
+    Second time this session a self-chosen fixture proved a property of the
+    fixture rather than of the code (cf. the winner-rule districts, which all
+    happened to have simple party names). When you pick the input, you pick the
+    answer — so pin the query's rounding and DERIVE the fixture from it.
+    """
+    routes = (ROOT / "consumer" / "routes.py").read_text(encoding="utf-8")
+    assert "round(100.0 * w.majority / w.cast_votes, 2)" in routes, (
+        "margin_pct must keep 2dp — 1dp flattens a sub-0.1% margin to 0.0 "
+        "before the template can say '<0.1%'")
+
+    # The real riding (Châteauguay—Lacolle, GE44), computed as the query does.
+    majority, cast_votes = 12, 57349
+    assert round(100.0 * majority / cast_votes, 2) == RACES[0]["margin_pct"]
+    # …and that value must still trip the template's guard.
+    assert 0 < RACES[0]["margin_pct"] < 0.05

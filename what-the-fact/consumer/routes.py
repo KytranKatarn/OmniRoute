@@ -6609,7 +6609,14 @@ def _races_bundle(ge_number: int) -> dict:
                    w.votes, w.vote_share, w.majority, w.runners, w.cast_votes,
                    r.candidate_name AS runner_up, r.party AS runner_up_party,
                    CASE WHEN w.cast_votes > 0
-                        THEN round(100.0 * w.majority / w.cast_votes, 1) END AS margin_pct
+                        -- 2dp, NOT 1. A 12-vote win in 57,349 is 0.02%, which
+                        -- rounds to exactly 0.0 at 1dp — and the template's
+                        -- "show <0.1% instead of 0.0%" guard is `> 0`, so a value
+                        -- already flattened to 0.0 slips straight past it and the
+                        -- closest race in the country renders as a ZERO margin.
+                        -- The display rounding belongs in the template; the query
+                        -- must not destroy the distinction before it gets there.
+                        THEN round(100.0 * w.majority / w.cast_votes, 2) END AS margin_pct
               FROM ranked w
               LEFT JOIN ranked r ON r.district_number = w.district_number AND r.rk = 2
              WHERE w.elected

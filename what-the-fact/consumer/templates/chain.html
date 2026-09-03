@@ -32,10 +32,22 @@
 </div>
 
 <style>
+{# Design-handoff Phase 6 scoping: own <style> block, 19 hex-color occurrences,
+   checked byte-for-byte against every --wtf-* token in consumer/static/style.css
+   (script-driven compare, not eyeballed) -> ZERO exact matches, so every color
+   stays a page-local literal (this page's palette is deliberately its own
+   cyan-accented "shared entity graph" look, distinct from --wtf-accent's red).
+   No inline style="..." attributes exist anywhere in this template (it already
+   renders everything through this <style> block + classes) -> nothing to
+   extract. No paywall block on this page -> nothing to converge onto the
+   paywall() macro. No Jinja {% set %} dict / alpha-concatenated color value
+   anywhere -> no swap-safety trap to worry about. Fixed the same never-loaded
+   'Orbitron' bug fixed repeatedly this session -> var(--wtf-font-mono)
+   (2 occurrences: .chain-title, .chain-ent-name). #}
   .chain-wrap{max-width:920px;margin:38px auto 64px;padding:0 16px;}
   .chain-head{margin-bottom:22px;}
   .chain-eyebrow{font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;}
-  .chain-title{font-family:'Orbitron',sans-serif;font-size:1.6rem;color:#e5e7eb;margin:0 0 8px;letter-spacing:0.5px;}
+  .chain-title{font-family:var(--wtf-font-mono);font-size:1.6rem;color:#e5e7eb;margin:0 0 8px;letter-spacing:0.5px;}
   .chain-sub{font-size:0.82rem;color:#9ca3af;line-height:1.6;max-width:640px;margin:0;}
 
   /* 8-link rail */
@@ -65,7 +77,7 @@
   .chain-empty{color:#4b5563;font-size:0.8rem;padding:30px 4px;}
   .chain-loading{color:#6b7280;font-size:0.8rem;padding:14px 0;}
   .chain-ent-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;border-bottom:1px solid #1a2030;padding-bottom:12px;margin:8px 0 18px;}
-  .chain-ent-name{font-family:'Orbitron',sans-serif;font-size:1.15rem;color:#f3f4f6;}
+  .chain-ent-name{font-family:var(--wtf-font-mono);font-size:1.15rem;color:#f3f4f6;}
   .chain-ent-type{font-size:0.56rem;letter-spacing:1.5px;text-transform:uppercase;color:#06b6d4;border:1px solid #164e63;border-radius:3px;padding:2px 7px;}
   .chain-ent-edges{font-size:0.66rem;color:#6b7280;margin-left:auto;}
 

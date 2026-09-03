@@ -9,23 +9,39 @@
    .page-title, .legend) were safe only while this page was isolated and would
    collide site-wide now that it shares style.css.
    Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main #}
+{# Design-handoff style-token migration (this pass): fixed the never-loaded
+   'Orbitron' font -> var(--wtf-font-mono) (base.html loads no Orbitron font
+   file, same bug fixed identically on 6+ pages this session). Grepped every
+   hex literal against consumer/static/style.css's --wtf-* tokens: ONLY
+   #0d1117 is an exact byte match (--wtf-bg), used 4x in plain static CSS
+   declarations, all swapped. #0ea5e9 (11x, the page's own teal accent),
+   #6b7280 (9x), #1f2937 (5x) look close to --wtf-local/--wtf-text-muted/
+   --wtf-border but are NOT exact matches — left as literals per the "exact
+   match only" rule (#3b82f6/#7d8590/#222b39 are the real token values).
+   Extracted all 5 residual inline style="..." attributes into namespaced
+   classes below (value-preserving, same literals). No paywall block exists
+   on this page (unlike crtc.html/lobbying.html) — nothing to converge onto
+   the shared macro. The design-handoff target adds two whole new panels
+   (a "silent cities" coverage-gap panel + a council/ward table) backed by
+   static hardcoded JS sample data, not a DB query — deliberately NOT
+   ported; out of scope for a styling-debt pass. #}
 <style>
 .wtf-mu-page-header { margin-bottom:28px }
 .wtf-mu-muni-label { font-size:9px;letter-spacing:2px;color:#0ea5e9;text-transform:uppercase;margin-bottom:6px }
-.wtf-mu-page-title { font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#0ea5e9;letter-spacing:2px;margin-bottom:8px }
+.wtf-mu-page-title { font-family:var(--wtf-font-mono);font-size:1.3rem;color:#0ea5e9;letter-spacing:2px;margin-bottom:8px }
 .wtf-mu-page-desc { font-size:11px;color:#6b7280;line-height:1.7;max-width:640px }
 .wtf-mu-stats-row { display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px }
-.wtf-mu-stat-box { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #0ea5e9;border-radius:6px;padding:12px 16px;min-width:120px }
-.wtf-mu-stat-num { font-family:'Orbitron',sans-serif;font-size:1.2rem;color:#0ea5e9 }
+.wtf-mu-stat-box { background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid #0ea5e9;border-radius:6px;padding:12px 16px;min-width:120px }
+.wtf-mu-stat-num { font-family:var(--wtf-font-mono);font-size:1.2rem;color:#0ea5e9 }
 .wtf-mu-stat-lbl { font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-top:4px }
 .wtf-mu-city-filter { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:24px }
-.wtf-mu-city-chip { padding:4px 10px;background:#0d1117;border:1px solid #1f2937;border-radius:14px;font-size:9px;letter-spacing:.5px;color:#6b7280;text-decoration:none;transition:all .15s }
+.wtf-mu-city-chip { padding:4px 10px;background:var(--wtf-bg);border:1px solid #1f2937;border-radius:14px;font-size:9px;letter-spacing:.5px;color:#6b7280;text-decoration:none;transition:all .15s }
 .wtf-mu-city-chip:hover { color:#0ea5e9;border-color:#0ea5e9 }
 .wtf-mu-city-chip.wtf-mu-active { background:#062536;color:#0ea5e9;border-color:#0ea5e9 }
 .wtf-mu-city-chip .wtf-mu-cnt { color:#374151;margin-left:4px }
 .wtf-mu-section-title { font-size:10px;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #1f2937;padding-bottom:6px }
 .wtf-mu-article-list { display:flex;flex-direction:column;gap:8px }
-.wtf-mu-article-card { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #0ea5e9;border-radius:6px;padding:12px 16px }
+.wtf-mu-article-card { background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid #0ea5e9;border-radius:6px;padding:12px 16px }
 .wtf-mu-card-meta { display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;font-size:9px;color:#6b7280 }
 .wtf-mu-city-pill { padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;background:#062536;color:#38bdf8;border:1px solid #38bdf830 }
 .wtf-mu-card-title { font-size:12px;font-weight:500;line-height:1.5;color:#e2e8f0;text-decoration:none }
@@ -33,9 +49,14 @@
 .wtf-mu-card-footer { margin-top:6px;display:flex;gap:8px;align-items:center;font-size:9px;color:#374151 }
 .wtf-mu-outlet-link { color:#6b7280;font-size:9px;text-decoration:none }
 .wtf-mu-outlet-link:hover { color:#00e5ff }
-.wtf-mu-province-tag { padding:1px 5px;background:#0d1117;border:1px solid #1f2937;border-radius:3px;font-size:8px;color:#6b7280 }
+.wtf-mu-province-tag { padding:1px 5px;background:var(--wtf-bg);border:1px solid #1f2937;border-radius:3px;font-size:8px;color:#6b7280 }
 .wtf-mu-empty-state { text-align:center;padding:48px;color:#6b7280;font-size:11px;line-height:1.8 }
 .wtf-mu-stats-row { gap:10px }
+.wtf-mu-band { color:#6b7280 }
+.wtf-mu-cluster-link { color:#0af;font-size:9px;text-decoration:none }
+.wtf-mu-back-link { color:#0ea5e9 }
+.wtf-mu-footer { margin-top:20px;text-align:center }
+.wtf-mu-all-link { color:#0ea5e9;font-size:10px;letter-spacing:1px;text-decoration:none }
 @media(max-width:600px){main{padding:20px 12px}.wtf-mu-stats-row{gap:10px}}
 </style>
 
@@ -86,24 +107,24 @@
         <a href="#" class="wtf-mu-outlet-link">{{ a.source or '' }}</a>
         {% if a.province_code %}<span class="wtf-mu-province-tag">{{ a.province_code }}</span>{% endif %}
         <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
-        {% if a.band %}<span style="color:#6b7280">{{ a.band.upper() }}</span>{% endif %}
+        {% if a.band %}<span class="wtf-mu-band">{{ a.band.upper() }}</span>{% endif %}
       </div>
       <a href="/article/{{ a.id }}" class="wtf-mu-card-title">{{ a.title }}</a>
       {% if a.cluster_size and a.cluster_size > 1 %}
       <div class="wtf-mu-card-footer">
-        <a href="/cluster/{{ a.cluster_id }}" style="color:#0af;font-size:9px;text-decoration:none;">📰 {{ a.cluster_size }} outlets covering this</a>
+        <a href="/cluster/{{ a.cluster_id }}" class="wtf-mu-cluster-link">📰 {{ a.cluster_size }} outlets covering this</a>
       </div>
       {% endif %}
     </div>
     {% endfor %}
     {% else %}
     <div class="wtf-mu-empty-state">
-      {% if active_city %}No municipal stories for {{ active_city }} yet.<br><a href="/municipal" style="color:#0ea5e9">← All municipal coverage</a>{% else %}No municipal stories in the feed right now.<br>Check back soon — the pipeline is running.{% endif %}
+      {% if active_city %}No municipal stories for {{ active_city }} yet.<br><a href="/municipal" class="wtf-mu-back-link">← All municipal coverage</a>{% else %}No municipal stories in the feed right now.<br>Check back soon — the pipeline is running.{% endif %}
     </div>
     {% endif %}
   </div>
 
-  <div style="margin-top:20px;text-align:center;">
-    <a href="/news?beat=municipal" style="color:#0ea5e9;font-size:10px;letter-spacing:1px;text-decoration:none;">All Municipal Coverage →</a>
+  <div class="wtf-mu-footer">
+    <a href="/news?beat=municipal" class="wtf-mu-all-link">All Municipal Coverage →</a>
   </div>
 {% endblock %}

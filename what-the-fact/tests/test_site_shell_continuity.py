@@ -38,9 +38,15 @@ CONVERTED = {
 # base.html legitimately owns the document shell; partials are fragments.
 _SHELL_OWNERS = {"base.html"}
 
-# Third-party stylesheets ship their own class names and MUST NOT be namespaced
-# — rewriting `.leaflet-*` would simply break the library.
-_VENDOR_PREFIXES = ("leaflet-",)
+# Class names OWNED OUTSIDE THIS PAGE must not be namespaced into it — the
+# rename would simply stop matching the thing that creates them.
+#
+# `leaflet-*` was the original case (a third-party stylesheet). `wtf-map-*` is
+# ours but has the same property: it is created by the shared wtf-map.js
+# component, so a page-local rename breaks the component rather than scoping it.
+# The prefix is what matters, not who wrote it — a shared in-house component and
+# a vendored library are the same problem for this guard.
+_VENDOR_PREFIXES = ("leaflet-", "wtf-map-")
 
 
 def _strip_jinja_comments(src: str) -> str:

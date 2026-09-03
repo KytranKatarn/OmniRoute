@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>wtf-map.js harness</title>
+<!--
+  DEV HARNESS for the shared map component — not linked from the site.
+
+  ⚠️ WHY THIS EXISTS. /map is PAYWALLED, so a Flask render check reaches the
+  paywall and never the canvas, and the component's DOM output was shipped
+  unverified once already. The projection maths is unit-tested and the wiring is
+  covered by source invariants, but nothing had ever WATCHED THIS MAP DRAW.
+  KB #283579: 23 unit tests and a F.O.R.G.E. APPROVE both passed on a build that
+  only a live browser drive caught.
+
+  It feeds the component a fixed set of points chosen to exercise all three
+  outcomes at once: drawn, clipped (outside a Canada conic) and invalid
+  (a transposed lat/lng pair that exists in the real feed).
+-->
+<!-- The REAL stylesheet: without it the legend runs together ("drawnno data")
+     and a reader of this harness would report a bug that does not exist. A
+     harness that differs from the page teaches the wrong lesson. -->
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  html,body { margin:0; background:#0d1117; color:#e6edf6;
+              font:13px ui-monospace,monospace; }
+  #wrap { width:900px; height:520px; margin:12px; border:1px solid #1a2a3a; }
+  #legend { margin:0 12px; }
+  .wtf-map-legend-note { color:#7d8590; font-size:12px; margin-top:6px; }
+</style>
+<div id="wrap"></div>
+<div id="legend"></div>
+<script src="/static/vendor/internmap.min.js"></script>
+<script src="/static/vendor/d3-array.min.js"></script>
+<script src="/static/vendor/d3-geo.min.js"></script>
+<script src="/static/js/wtf-map.js"></script>
+<script>
+window.__PTS = [
+  { lat: 43.65,   lon: -79.38,  r: 10, col: '#10b981', tip: 'Toronto',   kind: 'draw' },
+  { lat: 49.28,   lon: -123.12, r: 8,  col: '#10b981', tip: 'Vancouver', kind: 'draw' },
+  { lat: 63.75,   lon: -68.52,  r: 6,  col: '#10b981', tip: 'Iqaluit',   kind: 'draw' },
+  { lat: 51.51,   lon: -0.13,   r: 6,  col: '#3b82f6', tip: 'London',    kind: 'clip' },
+  { lat: 35.69,   lon: 139.69,  r: 6,  col: '#3b82f6', tip: 'Tokyo',     kind: 'clip' },
+  // The real transposed row from the live feed: latitude cannot be -117.95.
+  { lat: -117.95, lon: 49.28,   r: 6,  col: '#6b7280', tip: 'transposed', kind: 'bad' }
+];
+window.__RENDER = null;
+window.__MAP = WTFMap.create({
+  el: 'wrap',
+  legendEl: 'legend',
+  layers: [{
+    id: 'harness',
+    metric: function () { return null; },
+    ramp: [[1, '#10b981', 'drawn']],
+    points: function () { return window.__PTS; }
+  }],
+  active: 'harness',
+  onRender: function (r) { window.__RENDER = r; }
+});
+</script>

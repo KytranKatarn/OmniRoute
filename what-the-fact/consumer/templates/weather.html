@@ -55,8 +55,8 @@
    design decision rather than a near-black leftover: one step darker
    than the page so the landmass reads as lifted off it. */
 #wtf-wx-map { height:460px; width:100%; background:var(--wtf-map-bg, #0a0e14); }
-/* Leaflet paints a white div behind panes when no tiles are present. */
-.wtf-wx-mapwrap .leaflet-container { background:var(--wtf-map-bg, #0a0e14); }
+/* The map ground is ours to paint — there are no tiles behind it. */
+.wtf-wx-mapwrap .wtf-map-d3 { background:var(--wtf-map-bg, #0a0e14); }
 .wtf-wx-layerbar { display:flex; gap:4px; padding:8px 10px; border-bottom:1px solid #0a1a2a; }
 .wtf-wx-layer-btn { background:transparent; border:1px solid #16304a; color:#6b7280; border-radius:4px;
   padding:4px 10px; font-size:10px; font-family:inherit; cursor:pointer; letter-spacing:.04em; }
@@ -177,7 +177,8 @@
 <div class="wtf-wx-mapzone">
 
     {# ── Interactive national / provincial map (task #5756) ───────────────────
-       Reuses the HOMEPAGE map stack verbatim — same Leaflet build, same CARTO
+       ⚠️ NO LONGER the homepage stack: this page moved to the shared d3-geo
+       component on 2026-09-02 while index.html still runs inline Leaflet with CARTO
        dark tiles, same canada-provinces.geojson, same province codes — so the
        weather page reads as the same site rather than a bolt-on.
 
@@ -388,9 +389,10 @@
 </div>
 
 {% if aurora_map %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-{# Shared map component — MUST load after Leaflet and before the inline script
+<script src="/static/vendor/internmap.min.js"></script>
+<script src="/static/vendor/d3-array.min.js"></script>
+<script src="/static/vendor/d3-geo.min.js"></script>
+{# Shared map component — MUST load after d3-geo and before the inline script
    below, which calls WTFMap.create(). Referencing the path in a comment does
    not load it: this tag was missing on the first pass and the page would have
    thrown "WTFMap is not defined", taking the whole map with it. #}
@@ -398,7 +400,8 @@
 <script>
 (function () {
   "use strict";
-  // Same Leaflet build, tiles, GeoJSON and province codes as the homepage map.
+  // Same GeoJSON and province codes as the homepage map; the RENDERER now
+  // differs (d3-geo here, inline Leaflet there) until index.html is migrated.
   // ALL text from this payload is written with textContent — never innerHTML —
   // because station names are third-party strings (site-wide rule).
   var A = {{ aurora_map | tojson }};
@@ -589,8 +592,10 @@
       document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
         b.classList.toggle("active", (b.getAttribute("data-prov") || "") === (selected || ""));
       });
-      if (selected && CENTROIDS[selected]) wtfmap.map.flyTo(CENTROIDS[selected], 5, { duration: 0.6 });
-      else wtfmap.map.flyTo([60, -96], 3, { duration: 0.6 });
+      // The component owns framing now — there is no Leaflet instance to
+      // fly. focusProvince() refits the conic projection to that province.
+      if (selected) wtfmap.focusProvince(selected);
+      else wtfmap.resetView();
       renderAurora(); renderCards(); renderCities();
     },
     onLayer: function (id) {

@@ -2,8 +2,29 @@
 {% from "_archetypes.html" import paywall %}
 {% block title %}News Map — What The Fact{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{# ARCHETYPE 4 (MAP / GEO). Migrated 2026-09-02 from a private inline Leaflet
+   implementation onto the SHARED wtf-map.js component.
+
+   ⚠️ THIS PAGE WAS THE FOURTH COPY wtf-map.js was written to prevent. Its own
+   docstring promised "a bounded Canada map … and NO third-party tiles", while
+   this page ran its own Leaflet instance AND pulled raster basemap tiles from
+   basemaps.cartocdn.com — a request per tile, per pan, per reader.
+
+   ⚠️ CARTO/OSM ATTRIBUTION (#6145) IS RESOLVED BY REMOVAL, NOT BY DELETION.
+   The old code carried a required-attribution control because the basemap
+   licence demanded visible credit — the map watermarked itself on 2026-08-30
+   when it was missing. There is now no third-party basemap to credit, so the
+   obligation is gone rather than dropped.
+   ⚠️ NOT the same as "this page needs no attribution": the province geometry in
+   canada-provinces.geojson carries `cartodb_id` and 2014 timestamps, and its
+   licence was NEVER recorded anywhere in this repo. That gap predates this
+   change and is not fixed by it — tracked separately, not asserted away here.
+
+   ⚠️ A CANADA PROJECTION HIDES EVERYTHING ELSE, so the legend counts only pins
+   the map actually DREW and states the rest. That is the page's own long-
+   standing rule ("the legend always describes what is on screen") applied to a
+   projection that can now clip. Measured over the live 7-day window: 4,215 of
+   4,224 pins fall inside Canada and 9 do not. #}
 
 <div class="wtf-team-hero">
   <div class="wtf-team-hero-live">
@@ -12,20 +33,20 @@
   </div>
   <h1 style="font-size:1.6rem;">NEWS MAP</h1>
   <p style="font-size:0.85rem;color:#9ca3af;max-width:680px;margin-top:8px;">
-    Where the news happens. Circles sized by article count.
-    Canadian articles cluster at province centroids; international
-    articles pin at country centers from L.O.C.A.L.
+    Where the news happens. Circles sized by article count, on a Lambert
+    conformal conic projection — the one Canadian atlases use, so the northern
+    territories are not drawn several times their real size.
   </p>
 </div>
 
 {% if is_subscriber %}
 <div style="max-width:1200px;margin:0 auto;padding:8px 16px 24px;">
   <div id="wtfMap" style="width:100%;height:560px;background:#050d0d;border:1px solid #1a2a3a;border-radius:4px;"></div>
-  <!-- The legend is BUILT FROM THE PINS (see drawLegend), not hand-written. A
-       hardcoded list is how this page came to advertise three categories while
+  <!-- The legend is BUILT FROM THE PINS DRAWN (see drawLegend), not hand-written.
+       A hardcoded list is how this page came to advertise three categories while
        every pin rendered the same grey: articles.country_code stopped being
        populated, so nothing was ever Canadian or International again and nobody
-       could see it from the markup. A category with no pins is not shown. -->
+       could see it from the markup. A category with no drawn pins is not shown. -->
   <div id="wtfMapLegend" class="wtf-nm-legend"></div>
 </div>
 
@@ -39,31 +60,18 @@
                 margin-right:5px; vertical-align:middle; }
   .wtf-nm-count { margin-left:auto; color:var(--wtf-text-faint,#6b7280);
                   font-size:.6rem; font-family:'IBM Plex Mono',monospace; }
-  /* The derivation note takes the full row so it reads as a sentence about the
-     data rather than a fourth legend category. */
+  /* The derivation and clipping notes take the full row so each reads as a
+     sentence about the data rather than a fourth legend category. */
   .wtf-nm-note { flex-basis:100%; color:var(--wtf-text-faint,#6b7280);
                  font-size:.62rem; line-height:1.5; }
 </style>
 
+<script src="/static/vendor/internmap.min.js"></script>
+<script src="/static/vendor/d3-array.min.js"></script>
+<script src="/static/vendor/d3-geo.min.js"></script>
+<script src="/static/js/wtf-map.js"></script>
 <script>
 (function() {
-  var map = L.map('wtfMap', {
-    center: [40, -30],
-    zoom: 2,
-    minZoom: 1,
-    maxZoom: 8,
-    attributionControl: false,
-  });
-  // ⚠️ ATTRIBUTION IS REQUIRED, NOT DECORATIVE (#6145) — see index.html for the
-  // full note. CARTO's free basemap terms and the OSM licence both require visible
-  // credit; this map carried none, and the basemap watermarked on 2026-08-30.
-  L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
-
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    subdomains: 'abcd',
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  }).addTo(map);
-
   // Three buckets, each with the colour AND the words used in the legend, so a
   // swatch and its label cannot describe different things.
   var BUCKETS = {
@@ -84,47 +92,62 @@
     return Math.min(60, Math.max(6, 6 + Math.sqrt(count) * 3));
   }
 
-  function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  var PINS = [];
+  var wtfmap = null;
+
+  // The component takes points as {lat, lon, r, col, tip}. Titles and source
+  // names are EXTERNAL content and reach the DOM via textContent inside the
+  // component — never innerHTML (WTF XSS rule).
+  function toPoints() {
+    return PINS.map(function (pin) {
+      var b = bucketFor(pin);
+      // "??/ON" was rendered to readers for every Canadian pin. A province on
+      // its own is the more informative label anyway, so the country is only
+      // shown when it adds something the province does not already imply.
+      var label = pin.province_code
+        ? (b === BUCKETS.ca ? pin.province_code
+                            : pin.country_code + '/' + pin.province_code)
+        : (b === BUCKETS.unknown ? 'Location not resolved' : pin.country_code);
+      var tip = label + ' · ' + pin.article_count
+              + ' article' + (pin.article_count === 1 ? '' : 's');
+      (pin.samples || []).forEach(function (s) {
+        if (s && s.title) tip += '\n• ' + s.title + (s.source ? ' (' + s.source + ')' : '');
+      });
+      return {
+        lat: pin.lat, lon: pin.lng,
+        r: pinRadius(pin.article_count),
+        col: b.colour,
+        tip: tip,
+        _bucket: b.key,
+        _derived: pin.country_source === 'derived'
+      };
+    });
+  }
+
+  var LAYER = {
+    id: 'coverage',
+    // No choropleth on this page — provinces are the ground, the pins are the
+    // data. metric() returning null puts every province in the component's
+    // "no data" style, which is the honest reading: this layer measures points.
+    metric: function () { return null; },
+    points: function () { return toPoints(); }
+  };
 
   fetch('/api/v1/map-data')
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      if (!data.ok || !data.pins) return;
-      var tally = { ca: 0, intl: 0, unknown: 0 }, derived = 0;
-      data.pins.forEach(function(pin) {
-        var bucket = bucketFor(pin);
-        tally[bucket.key] += 1;
-        if (pin.country_source === 'derived') derived += 1;
-        var color = bucket.colour;
-        var circle = L.circleMarker([pin.lat, pin.lng], {
-          radius: pinRadius(pin.article_count),
-          color: color,
-          weight: 1.5,
-          fillColor: color,
-          fillOpacity: 0.45,
-        });
-        // "??/ON" was rendered to readers for every Canadian pin. A province on
-        // its own is the more informative label anyway, so the country is only
-        // shown when it adds something the province does not already imply.
-        var label = pin.province_code
-          ? (bucket === BUCKETS.ca ? pin.province_code
-                                   : pin.country_code + '/' + pin.province_code)
-          : (bucket === BUCKETS.unknown ? 'Location not resolved' : pin.country_code);
-        var popup = '<div style="font-family:system-ui,sans-serif;min-width:240px;max-width:320px;">'
-                  + '<div style="font-weight:600;color:#0a0f0a;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">'
-                  + esc(label) + ' · ' + pin.article_count + ' article' + (pin.article_count === 1 ? '' : 's')
-                  + '</div>';
-        (pin.samples || []).forEach(function(s) {
-          popup += '<div style="font-size:0.78rem;color:#1a1a1a;margin-top:6px;padding-top:4px;border-top:1px solid #e5e7eb;">'
-                + '<a href="/article/' + s.id + '" style="color:#1a3a5a;text-decoration:none;">' + esc(s.title) + '</a>'
-                + '<div style="font-size:0.65rem;color:#6b7280;margin-top:2px;">' + esc(s.source) + '</div>'
-                + '</div>';
-        });
-        popup += '</div>';
-        circle.bindPopup(popup);
-        circle.addTo(map);
+      if (!data.ok || !data.pins) throw new Error('bad payload');
+      PINS = data.pins;
+      wtfmap = WTFMap.create({
+        el: 'wtfMap',
+        layers: [LAYER],
+        active: 'coverage',
+        // legendEl is deliberately NOT passed: this page's legend is
+        // CATEGORICAL (three country buckets), not a ramp, so it draws its own
+        // from the render result below.
+        onRender: function (r) { drawLegend(r.drawn, r.offscreen); }
       });
-      drawLegend(tally, derived, data.pins.length);
+      if (!wtfmap) throw new Error('map init failed');
     })
     .catch(function(e) {
       console.error('map load failed:', e);
@@ -134,12 +157,17 @@
       if (box) box.textContent = 'Map data could not be loaded.';
     });
 
-  // Built from the pins actually drawn. A bucket with no pins is omitted rather
-  // than shown at zero, so the legend always describes what is on screen.
-  function drawLegend(tally, derived, total) {
+  // Built from the pins actually DRAWN. A bucket with no drawn pins is omitted
+  // rather than shown at zero, so the legend always describes what is on screen.
+  function drawLegend(drawn, offscreen) {
     var box = document.getElementById('wtfMapLegend');
     if (!box) return;
     box.textContent = '';
+    var tally = { ca: 0, intl: 0, unknown: 0 }, derived = 0;
+    drawn.forEach(function (p) {
+      tally[p._bucket] += 1;
+      if (p._derived) derived += 1;
+    });
     ['ca', 'intl', 'unknown'].forEach(function(k) {
       if (!tally[k]) return;
       var b = BUCKETS[k];
@@ -153,7 +181,7 @@
     });
     var count = document.createElement('span');
     count.className = 'wtf-nm-count';
-    count.textContent = total + (total === 1 ? ' pin' : ' pins');
+    count.textContent = drawn.length + (drawn.length === 1 ? ' pin' : ' pins');
     box.appendChild(count);
     if (derived) {
       // State the recovery rather than passing it off as a reading: the country
@@ -164,6 +192,16 @@
         + (derived === 1 ? ' pin' : ' pins')
         + ' and has been taken from the province code.';
       box.appendChild(note);
+    }
+    if (offscreen && offscreen.length) {
+      // The cost of the Canada projection, named. Without this the map would
+      // quietly stop being a map of anywhere else.
+      var off = document.createElement('div');
+      off.className = 'wtf-nm-note';
+      off.textContent = offscreen.length
+        + (offscreen.length === 1 ? ' location falls' : ' locations fall')
+        + ' outside this view of Canada and are not drawn.';
+      box.appendChild(off);
     }
   }
 })();

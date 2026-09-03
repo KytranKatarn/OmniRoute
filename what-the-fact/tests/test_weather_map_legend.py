@@ -49,11 +49,17 @@ class TestTheComponentIsActuallyLoaded:
             "wtf-map.js is not loaded — WTFMap.create() would be undefined"
         )
 
-    def test_it_loads_after_leaflet(self):
-        """The component calls L.map() at create time."""
-        leaflet = SRC.index("leaflet@1.9.4/dist/leaflet.js")
-        comp = SRC.index("wtf-map.js")
-        assert leaflet < comp, "wtf-map.js must load AFTER Leaflet"
+    def test_it_loads_after_its_projection_library(self):
+        """The component calls d3.geoConicConformal() at create time.
+
+        ⚠️ This test used to assert "after Leaflet". The renderer moved to
+        d3-geo on 2026-09-02 and Leaflet is gone from this page, so the old
+        assertion was not merely outdated — its subject no longer exists, and
+        SRC.index() would raise rather than fail with a useful message.
+        """
+        d3geo = SRC.index("/static/vendor/d3-geo.min.js")
+        comp = SRC.index("js/wtf-map.js")
+        assert d3geo < comp, "wtf-map.js must load AFTER d3-geo"
 
     def test_it_loads_before_the_inline_script_that_uses_it(self):
         """⚠️ Match the TAG and the CALL SITE, not the first mention of either.

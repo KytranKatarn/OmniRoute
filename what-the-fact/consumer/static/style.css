@@ -1289,3 +1289,23 @@ p { text-wrap: pretty; }
   .wtf-beat-pill:hover,
   .wtf-map-btn:hover { transform: none !important; }
 }
+
+/* ── shared map component (wtf-map.js, d3-geo renderer) ──────────────────────
+   Replaced Leaflet 2026-09-02. There is no third-party stylesheet behind these
+   any more, so every rule the map needs lives here. */
+.wtf-map-d3 { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.wtf-map-svg { display: block; width: 100%; height: 100%; }
+.wtf-map-prov { cursor: pointer; transition: fill-opacity .14s ease; }
+.wtf-map-prov:hover { stroke: #e6edf6; stroke-width: 2.2; }
+.wtf-map-pt { pointer-events: auto; }
+.wtf-map-tip {
+  position: absolute; z-index: 5; pointer-events: none; max-width: 280px;
+  background: #0b1220; color: var(--wtf-text, #e6edf6);
+  border: 1px solid #233047; border-radius: 4px;
+  padding: 6px 9px; font-size: 0.74rem; line-height: 1.4;
+  font-family: var(--wtf-font-mono, ui-monospace, monospace);
+  box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+/* The out-of-view count is a caveat, not decoration — it reads like the other
+   legend notes rather than like an error. */
+.wtf-map-legend-note.is-offscreen { color: var(--wtf-text-muted, #7d8590); font-style: italic; }

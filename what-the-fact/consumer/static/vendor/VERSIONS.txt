@@ -1,0 +1,26 @@
+Vendored browser libraries for the WTF consumer site.
+
+WHY VENDORED, NOT CDN-LOADED
+This is a Canadian civic-transparency site. Loading libraries from unpkg or
+jsdelivr announces every reader's browser to a third party on every page view,
+which is at odds with the platform's local-sovereign principle, and it makes
+the map's availability depend on someone else's uptime. These are served from
+our own origin instead.
+
+The previous /map additionally pulled raster basemap TILES from
+basemaps.cartocdn.com — a request per tile, per pan, per reader. Those are gone
+entirely: the province geometry in /static/canada-provinces.geojson IS the
+geography this site draws.
+
+FILES (all UMD builds, loaded in this order — d3-geo depends on d3-array,
+which depends on internmap)
+  internmap.min.js    internmap@2.0.3
+  d3-array.min.js     d3-array@3.2.4
+  d3-geo.min.js       d3-geo@3.1.1
+
+60 KB total, replacing ~145 KB of Leaflet plus its stylesheet plus tiles.
+
+TO UPDATE
+  npm install d3-geo@<version>
+  cp node_modules/{internmap,d3-array,d3-geo}/dist/*.min.js consumer/static/vendor/
+  update the versions above, then re-run tests/test_wtf_map.py

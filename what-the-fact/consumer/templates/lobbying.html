@@ -1,29 +1,45 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}{% if detail %}{{ detail.org_label }} — lobbying{% else %}Lobbying Tracker{% endif %} · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{% if detail %}Who {{ detail.org_label }} lobbies in Parliament — {{ detail.contacts }} registered communications with {{ detail.mps }} MPs.{% else %}Who lobbies Canadian MPs — {{ '{:,}'.format(stats.contacts or 0) }} registered communications from the federal Lobbying Registry, by organization and by MP.{% endif %}">
 {% endblock %}
 {% block content %}
 <style>
+/* Extracted 14 inline style="..." attributes into namespaced classes —
+   value-preserving, same hex literals throughout (confirmed: no exact
+   matches to any var(--wtf-*) token exist in this file's palette, unlike
+   several other Phase 6 pages this session — it's a genuinely unrelated
+   hex set from the design system). Fixed the same never-loaded 'Orbitron'
+   bug fixed 5x already this session -> var(--wtf-font-mono) (also
+   normalized the already-correct 'IBM Plex Mono' literal to the same
+   token). Converged both Starter+ gate blocks onto the shared paywall()
+   macro — same title/blurb/CTA/next-url as before, PLUS the macro's
+   "See plans" link these two hand-rolled copies were missing (a small,
+   deliberate content addition matching the sitewide convention already
+   adopted on rates.html/crtc.html this session — not a silent change). */
 .wtf-lob-header { padding:20px 0 16px; border-bottom:1px solid #0a1a2a; margin-bottom:20px; }
-.wtf-lob-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-lob-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-lob-sub { font-size:12px; color:#6b7280; line-height:1.6; }
 .wtf-lob-stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 20px; }
 .wtf-lob-stat { background:#060d14; border:1px solid #0a1a2a; border-radius:4px; padding:8px 14px; min-width:96px; }
-.wtf-lob-stat-n { font-family:'Orbitron',sans-serif; font-size:16px; color:#60a5fa; }
+.wtf-lob-stat-n { font-family:var(--wtf-font-mono); font-size:16px; color:#60a5fa; }
+.wtf-lob-stat-n--sm { font-size:12px; }
 .wtf-lob-stat-l { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
 .wtf-lob-section { margin-bottom:26px; }
 .wtf-lob-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }
 .wtf-lob-table { width:100%; border-collapse:collapse; font-size:12px; }
 .wtf-lob-table th { text-align:left; font-size:9px; color:#4b5563; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1px solid #1a2a3a; font-weight:500; }
+.wtf-lob-table th.wtf-lob-num-h { text-align:right; }
 .wtf-lob-table td { padding:7px 8px; border-bottom:1px solid #0a1420; color:#9ca3af; }
 .wtf-lob-table tr:hover td { background:#060d14; }
 .wtf-lob-table a { color:#60a5fa; text-decoration:none; }
 .wtf-lob-table a:hover { text-decoration:underline; }
-.wtf-lob-num { font-family:'IBM Plex Mono',monospace; color:#e5e7eb; text-align:right; white-space:nowrap; }
+.wtf-lob-num { font-family:var(--wtf-font-mono); color:#e5e7eb; text-align:right; white-space:nowrap; }
+.wtf-lob-former { color:#4b5563; font-size:10px; }
 .wtf-lob-scroll { overflow-x:auto; }
-.wtf-lob-gate { background:#0a0505; border:1px solid #1f2937; border-radius:8px; padding:22px; text-align:center; margin:8px 0 0; }
 .wtf-lob-note { font-size:9px; color:#374151; margin-top:8px; }
+.wtf-lob-source-link { color:#374151; }
 .wtf-lob-back { font-size:11px; color:#6b7280; text-decoration:none; }
 </style>
 
@@ -63,7 +79,7 @@
   </div>
   {% if stats.first_seen %}
   <div class="wtf-lob-stat">
-    <div class="wtf-lob-stat-n" style="font-size:12px;">{{ stats.first_seen.year }}–{{ stats.last_seen.year }}</div>
+    <div class="wtf-lob-stat-n wtf-lob-stat-n--sm">{{ stats.first_seen.year }}–{{ stats.last_seen.year }}</div>
     <div class="wtf-lob-stat-l">Coverage</div>
   </div>
   {% endif %}
@@ -75,11 +91,11 @@
   <div class="wtf-lob-section-title">MPs lobbied by this organization</div>
   <div class="wtf-lob-scroll">
   <table class="wtf-lob-table">
-    <thead><tr><th>MP</th><th>Party</th><th>Riding</th><th style="text-align:right;">Contacts</th><th>Most recent</th></tr></thead>
+    <thead><tr><th>MP</th><th>Party</th><th>Riding</th><th class="wtf-lob-num-h">Contacts</th><th>Most recent</th></tr></thead>
     <tbody>
       {% for m in org_mps %}
       <tr>
-        <td><a href="/mp/{{ m.slug }}">{{ m.name }}</a>{% if not m.is_current %} <span style="color:#4b5563;font-size:10px;">(former)</span>{% endif %}</td>
+        <td><a href="/mp/{{ m.slug }}">{{ m.name }}</a>{% if not m.is_current %} <span class="wtf-lob-former">(former)</span>{% endif %}</td>
         <td>{{ m.party or '—' }}</td>
         <td>{{ m.riding_name or '—' }}</td>
         <td class="wtf-lob-num">{{ m.contacts }}</td>
@@ -109,13 +125,11 @@
   </table>
   </div>
   {% else %}
-  <div class="wtf-lob-gate">
-    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Contact-level detail — Starter+</div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">
-      The totals above are free. Who met whom, and on what date, is available to subscribers.
-    </div>
-    <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  </div>
+  {{ paywall(
+       '🔒 Contact-level detail — Starter+',
+       'The totals above are free. Who met whom, and on what date, is available to subscribers.',
+       request.path
+  ) }}
   {% endif %}
 </div>
 
@@ -125,7 +139,7 @@
   <div class="wtf-lob-section-title">Most active organizations — all time</div>
   <div class="wtf-lob-scroll">
   <table class="wtf-lob-table">
-    <thead><tr><th>Organization</th><th style="text-align:right;">Communications</th><th style="text-align:right;">MPs</th><th>Most recent</th></tr></thead>
+    <thead><tr><th>Organization</th><th class="wtf-lob-num-h">Communications</th><th class="wtf-lob-num-h">MPs</th><th>Most recent</th></tr></thead>
     <tbody>
       {% for o in top_orgs %}
       <tr>
@@ -144,7 +158,7 @@
   <div class="wtf-lob-section-title">Most-lobbied MPs — last 12 months</div>
   <div class="wtf-lob-scroll">
   <table class="wtf-lob-table">
-    <thead><tr><th>MP</th><th>Party</th><th>Riding</th><th style="text-align:right;">Contacts</th><th style="text-align:right;">Orgs</th></tr></thead>
+    <thead><tr><th>MP</th><th>Party</th><th>Riding</th><th class="wtf-lob-num-h">Contacts</th><th class="wtf-lob-num-h">Orgs</th></tr></thead>
     <tbody>
       {% for m in top_mps %}
       <tr>
@@ -179,20 +193,18 @@
   </table>
   </div>
   {% else %}
-  <div class="wtf-lob-gate">
-    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Contact-level detail — Starter+</div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">
-      Organization and MP totals are free. The individual meeting record is available to subscribers.
-    </div>
-    <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  </div>
+  {{ paywall(
+       '🔒 Contact-level detail — Starter+',
+       'Organization and MP totals are free. The individual meeting record is available to subscribers.',
+       request.path
+  ) }}
   {% endif %}
 </div>
 {% endif %}
 
 <div class="wtf-lob-note">
   Source: Office of the Commissioner of Lobbying of Canada — Monthly Communication Reports ·
-  <a href="https://lobbycanada.gc.ca/en/open-data/" target="_blank" rel="noopener" style="color:#374151;">lobbycanada.gc.ca</a>
+  <a href="https://lobbycanada.gc.ca/en/open-data/" target="_blank" rel="noopener" class="wtf-lob-source-link">lobbycanada.gc.ca</a>
   {% if stats.synced_at %} · registry last pulled {{ stats.synced_at.strftime('%Y-%m-%d') }}{% endif %}
   <br>The registry records that a communication took place; it does not publish what was discussed.
 </div>

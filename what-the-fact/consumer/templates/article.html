@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import lean_token, verdict_class %}
 {% block title %}{{ a.title }} — What The Fact{% endblock %}
 {% block meta %}
 {% set _desc = (a.source_name or '') + ' · ' + (a.bias_band or 'unscored') + ' bias' %}
@@ -47,16 +48,37 @@
 .wtf-bias-panel { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px; margin-bottom: 14px; }
 .wtf-panel-label { font-size: 10px; letter-spacing: 2px; color: #0af; margin-bottom: 10px; }
 .wtf-bias-bar-wrap { background: #0a1520; border-radius: 3px; height: 8px; margin: 8px 0; position: relative; overflow: visible; }
-.wtf-bias-bar { height: 8px; border-radius: 3px; background: linear-gradient(to right,#dc2626,#f97316,#22c55e,#0ea5e9,#2563eb); }
+/* The B.I.A.S. scale — the design package specifies "a gradient of the five band
+   colours", so it must be the five TOKENS and nothing else. It shipped as a
+   fourth private copy of the lean map, with GREEN at the midpoint, on the most
+   prominent element of the page. (Old hex deliberately NOT quoted here: this
+   file is grepped for the retired palette, and a comment quoting it is a false
+   positive that never goes away.) Green
+   is a VERDICT colour here; using it for the centre of a lean spectrum says a
+   centrist outlet is a correct one, which is an editorial claim this site does
+   not make. The diverging scale is red pole / neutral grey centre / blue pole. */
+.wtf-bias-bar {
+  height: 8px; border-radius: 3px;
+  background: linear-gradient(to right,
+    var(--wtf-left), var(--wtf-center-left), var(--wtf-center),
+    var(--wtf-center-right), var(--wtf-right));
+}
 .wtf-bias-marker { position: absolute; top: -4px; width: 2px; height: 16px; background: #fff; border-radius: 1px; transform: translateX(-50%); }
 .wtf-band-label { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
 .wtf-rationale { font-size: 11px; color: #888; line-height: 1.5; margin: 6px 0; }
 .wtf-trigger-phrase { display: inline-block; background: #1a1020; color: #f80; font-size: 10px; padding: 2px 6px; border-radius: 2px; margin: 2px; }
-.wtf-band-left         { color: #dc2626; }
-.wtf-band-center-left  { color: #f97316; }
-.wtf-band-center       { color: #9ca3af; }
-.wtf-band-center-right { color: #0ea5e9; }
-.wtf-band-right        { color: #ef4444; }
+/* The band label under the B.I.A.S. bar — a fifth private copy of the lean map,
+   and this one was BROKEN, not merely drifted: `left` and `right` were BOTH set
+   to reds (two different ones). The two POLES of a diverging left/right scale
+   rendered in the same colour family, so a right-leaning article's band label
+   was visually indistinguishable from a left-leaning one. Now the five tokens,
+   which diverge red -> neutral -> blue by construction and cannot collide.
+   (Retired hex not quoted — see the note on .wtf-bias-bar.) */
+.wtf-band-left         { color: var(--wtf-left); }
+.wtf-band-center-left  { color: var(--wtf-center-left); }
+.wtf-band-center       { color: var(--wtf-center); }
+.wtf-band-center-right { color: var(--wtf-center-right); }
+.wtf-band-right        { color: var(--wtf-right); }
 
 /* Fact-check panel */
 .wtf-factcheck-panel { background: #060d14; border: 1px solid #1a4a2a; border-radius: 4px; padding: 14px; margin-bottom: 14px; }
@@ -102,7 +124,9 @@
 .wtf-flag-btn:hover { border-color: #ef4444; color: #ef4444; }
 
 /* Trigger phrase highlight */
-mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-radius: 2px; padding: 0 2px; text-decoration: underline; text-decoration-color: rgba(245,158,11,0.4); }
+/* The background was already --wtf-developing at 18%; only the text colour had
+   drifted to a neighbouring amber. Same token now, so the two cannot diverge. */
+mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-developing); border-radius: 2px; padding: 0 2px; text-decoration: underline; text-decoration-color: rgba(245,158,11,0.4); }
 </style>
 
 <div class="wtf-art-container">
@@ -122,9 +146,8 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
         <span class="wtf-art-badge wtf-badge-quick">Quick Score</span>
       {% endif %}
       {% if a.overall_verdict %}
-      {% set _cv_col = '#4ade80' if a.overall_verdict in ('verified','mostly_true') else '#fbbf24' if a.overall_verdict == 'mixed' else '#f87171' if a.overall_verdict == 'disputed' else '#6b7280' %}
       {% set _cv_lbl = '✓ Established' if a.overall_verdict in ('verified','mostly_true') else '⚡ Developing' if a.overall_verdict == 'mixed' else '⚠ Contested' if a.overall_verdict == 'disputed' else '○ Unverifiable' %}
-      <span class="wtf-art-badge" style="background:{{ _cv_col }}18;color:{{ _cv_col }};border:1px solid {{ _cv_col }}44;" title="Certainty: {{ a.overall_verdict.replace('_',' ').title() }}">{{ _cv_lbl }}</span>
+      <span class="wtf-verdict {{ verdict_class(a.overall_verdict) }}" title="Certainty: {{ a.overall_verdict.replace('_',' ').title() }}">{{ _cv_lbl }}</span>
       {% endif %}
       <a href="https://what-the-fact.tech/transparency/{{ a.id }}" target="_blank" rel="noopener" style="font-size:10px;color:#a0f;text-decoration:none;white-space:nowrap;">View full audit trail &#x2192;</a>
       <img src="/api/creed-badge" alt="C.R.E.E.D. audited" style="height:18px;vertical-align:middle;">
@@ -318,10 +341,9 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
       </div>
       <div style="text-align:right;flex-shrink:0;">
         {% set ob = a.outlet_rolling_band or a.source_bias_lean or '' %}
-        {% set ob_colour = '#2563eb' if ob == 'right' else '#dc2626' if ob == 'left' else '#0ea5e9' if ob == 'center-right' else '#f97316' if ob == 'center-left' else '#22c55e' %}
         {% if ob %}
         <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Rolling outlet bias</div>
-        <div style="font-size:13px;font-weight:600;color:{{ ob_colour }};">{{ ob.upper().replace('-',' ') }}</div>
+        <div style="font-size:13px;font-weight:600;color:var({{ lean_token(ob) }});">{{ ob.upper().replace('-',' ') }}</div>
         {% if a.outlet_avg_score is not none %}
         <div style="font-size:10px;color:#4b5563;font-family:'IBM Plex Mono',monospace;">avg {{ "%.3f"|format(a.outlet_avg_score|float) }}</div>
         {# The sample the average was actually built from — NOT the lifetime
@@ -347,12 +369,15 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
         <polyline
           points="{% for pt in sparkline %}{{ loop.index0 * (140/(n-1)) | round(1) }},{{ (16 - pt.score * 14) | round(1) }} {% endfor %}"
           fill="none"
-          stroke="{% set _b = sparkline[-1].band %}{% if _b == 'right' %}#2563eb{% elif _b == 'left' %}#dc2626{% elif _b == 'center-right' %}#0ea5e9{% elif _b == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"
+          {# style=, not stroke=: a CSS custom property does NOT resolve in an SVG
+             PRESENTATION attribute (stroke="var(--x)" paints nothing). It does
+             resolve in the style attribute. #}
+          style="stroke: var({{ lean_token(sparkline[-1].band) }});"
           stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
         {% endif %}
         {% for pt in sparkline %}
         <circle cx="{{ loop.index0 * (140/(n-1 if n > 1 else 1)) | round(1) }}" cy="{{ (16 - pt.score * 14) | round(1) }}" r="2"
-          fill="{% if pt.band == 'right' %}#2563eb{% elif pt.band == 'left' %}#dc2626{% elif pt.band == 'center-right' %}#0ea5e9{% elif pt.band == 'center-left' %}#f97316{% else %}#22c55e{% endif %}"/>
+          style="fill: var({{ lean_token(pt.band) }});"/>
         {% endfor %}
       </svg>
       <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-top:2px;">
@@ -369,10 +394,9 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <div class="wtf-factcheck-panel">
       <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
       {% if a.overall_verdict %}
-      {% set verdict_colour = '#22c55e' if a.overall_verdict == 'verified' else '#84cc16' if a.overall_verdict == 'mostly_true' else '#f59e0b' if a.overall_verdict == 'mixed' else '#f97316' if a.overall_verdict == 'disputed' else '#9ca3af' if a.overall_verdict == 'descriptive_reporting' else '#6b7280' %}
       {% set verdict_display = 'Descriptive Reporting' if a.overall_verdict == 'descriptive_reporting' else (a.overall_verdict.replace('_',' ').title() if a.overall_verdict else '') %}
       <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
-        Overall: <strong style="color:{{ verdict_colour }};">{{ verdict_display }}</strong>
+        Overall: <strong class="wtf-verdict-text {{ verdict_class(a.overall_verdict) }}">{{ verdict_display }}</strong>
         {% if a.overall_verdict == 'descriptive_reporting' %}
         <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
           Descriptive reporting — V.E.R.I.F.Y. found no specific factual claims to check. Wire copy, market summaries, and sports dispatches typically have no verifiable assertions. This is not a quality judgment.
@@ -480,22 +504,15 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   <div class="wtf-mp-claims-panel" style="background:#0a0e14;border:1px solid #1a2a1a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F4CB; Tracked Claims</div>
     {% for claim in mp_claims[:3] %}
-    <div style="background:#060d08;border-radius:3px;padding:8px 10px;margin-bottom:6px;border-left:3px solid
-      {%- if claim.status == 'verified_true' %} #22c55e
-      {%- elif claim.status == 'partially_true' %} #84cc16
-      {%- elif claim.status == 'misleading' %} #f97316
-      {%- elif claim.status == 'false' %} #ef4444
-      {%- else %} #374151
-      {%- endif %};">
+    {# The claim_tracker vocabulary is a FOURTH copy of the verdict map with its
+       own hex, so the same epistemic state rendered differently here and in the
+       V.E.R.I.F.Y. panel above. verdict_class() now knows both vocabularies. #}
+    <div class="wtf-fc-row {{ verdict_class(claim.status) }}"
+         style="background:#060d08;border-radius:3px;padding:8px 10px;margin-bottom:6px;border-left-width:3px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap;">
         <a href="/claims/{{ claim.politician_slug }}" style="font-size:10px;color:#38bdf8;text-decoration:none;font-weight:bold;">{{ claim.politician_name }}</a>
-        <span style="font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:2px 6px;border-radius:2px;font-weight:bold;
-          {%- if claim.status == 'verified_true' %} background:#14532d;color:#4ade80;
-          {%- elif claim.status == 'partially_true' %} background:#1a3a0a;color:#a3e635;
-          {%- elif claim.status == 'misleading' %} background:#431407;color:#fb923c;
-          {%- elif claim.status == 'false' %} background:#450a0a;color:#f87171;
-          {%- else %} background:#1f2937;color:#9ca3af;
-          {%- endif %}">{{ claim.status.replace('_', ' ').title() }}</span>
+        <span class="wtf-verdict {{ verdict_class(claim.status) }}"
+              style="font-size:9px;letter-spacing:1px;">{{ claim.status.replace('_', ' ').title() }}</span>
       </div>
       <p style="font-size:11px;color:#ccc;margin:0 0 4px;">{{ claim.claim_text[:150] }}{% if claim.claim_text | length > 150 %}&hellip;{% endif %}</p>
       {% if claim.verdict_summary and is_subscriber %}
@@ -544,10 +561,9 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <div style="font-size:10px;letter-spacing:1.5px;color:#4a9eff;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x2713; Third-Party Fact-Checks</div>
     {% for gfc in google_fact_checks %}
     {% set pub = gfc.checker.replace('GoogleFCT:', '') %}
-    {% set vc = {'true': '#4ade80', 'mostly_true': '#a3e635', 'mixed': '#fbbf24', 'false': '#f87171', 'unverified': '#6b7280'}.get(gfc.verdict, '#6b7280') %}
-    <div style="border-left:2px solid {{ vc }};padding:6px 10px;margin-bottom:6px;background:#0a0f1a;border-radius:2px;">
+    <div class="wtf-fc-row {{ verdict_class(gfc.verdict) }}">
       <div style="font-size:10px;color:#9ca3af;margin-bottom:3px;">
-        <span style="color:{{ vc }};font-weight:600;text-transform:uppercase;">{{ gfc.verdict.replace('_', ' ') }}</span>
+        <span class="wtf-fc-verdict">{{ gfc.verdict.replace('_', ' ') }}</span>
         &nbsp;·&nbsp; {{ pub }}
       </div>
       <div style="font-size:11px;color:#c0c8d8;line-height:1.5;">{{ gfc.claim[:200] }}</div>
@@ -675,8 +691,12 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     {% for ca in cluster_articles[:5] %}
     <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #0d1f2d;{% if loop.last %}border-bottom:none;{% endif %}">
       {% set _cb = ca.bias_band or '' %}
-      {% set _cc = '#2563eb' if _cb == 'right' else '#dc2626' if _cb == 'left' else '#f97316' if _cb == 'center-left' else '#0ea5e9' if _cb == 'center-right' else '#22c55e' if _cb == 'center' else '#6b7280' %}
-      <span style="width:8px;height:8px;border-radius:50%;background:{{ _cc }};flex-shrink:0;"></span>
+      {# A bare colour swatch with no label is exactly what lean_pill's docstring
+         forbids, and this one had GREEN at the midpoint. Kept as a dot because
+         the outlet name sits beside it in the row, but the colour now comes from
+         the one lean map and an unscored outlet reads muted, not centre. #}
+      <span class="wtf-lean-dot" style="background: var({{ lean_token(_cb) }});"
+            title="{{ (_cb or 'unscored')|replace('-', ' ')|title }}"></span>
       <a href="/article/{{ ca.id }}" style="color:#ccc;text-decoration:none;font-size:12px;flex:1;line-height:1.4;">{{ (ca.title or '')[:90] }}{% if (ca.title or '')|length > 90 %}…{% endif %}</a>
       <span style="font-size:10px;color:#6b7280;flex-shrink:0;">{{ ca.source_name or '' }}</span>
     </div>

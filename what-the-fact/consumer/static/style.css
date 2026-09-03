@@ -1469,3 +1469,60 @@ p { text-wrap: pretty; }
   display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
 .wtf-news-favicon img { border-radius: 4px; }
+
+/* ── VERDICT CHIP — article.html (2026-09-03) ─────────────────────────────────
+   One class per verdict state, resolved by `verdict_class()` in _archetypes.
+   These exist because the template built its chip with 8-digit hex alpha
+   (`{{ col }}18` / `{{ col }}44`) — a trick that CANNOT survive the move to a
+   design token, since `var(--wtf-established)18` is not a colour. The alpha has
+   to live in CSS, so the chip has to be a class.
+
+   Tints mirror .wtf-badge-ai's .12 background so a verdict chip and an AI badge
+   sitting side by side in the same kicker weigh the same.                     */
+.wtf-verdict {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  padding: 2px 7px; border-radius: 2px; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.wtf-verdict.is-established   { background: rgba(16, 185, 129, .12); color: var(--wtf-established); border-color: rgba(16, 185, 129, .28); }
+.wtf-verdict.is-developing    { background: rgba(245, 158, 11, .12); color: var(--wtf-developing);  border-color: rgba(245, 158, 11, .28); }
+.wtf-verdict.is-contested     { background: rgba(224, 82, 82, .12);  color: var(--wtf-contested);   border-color: rgba(224, 82, 82, .28); }
+/* Muted, never amber. "No claims to check" is an ABSENCE of a verdict; amber
+   would render it as "disputed", which is a different and false statement. */
+.wtf-verdict.is-unestablished { background: rgba(125, 133, 144, .12); color: var(--wtf-text-muted); border-color: rgba(125, 133, 144, .28); }
+
+/* Verdict as plain text (V.E.R.I.F.Y. panel headline) — colour only, no chrome. */
+.wtf-verdict-text.is-established   { color: var(--wtf-established); }
+.wtf-verdict-text.is-developing    { color: var(--wtf-developing); }
+.wtf-verdict-text.is-contested     { color: var(--wtf-contested); }
+.wtf-verdict-text.is-unestablished { color: var(--wtf-text-muted); }
+
+/* Verdict as a left rule (third-party fact-check rows). */
+.wtf-fc-row {
+  border-left: 2px solid var(--wtf-text-muted);
+  padding: 6px 10px; margin-bottom: 6px;
+  background: var(--wtf-bg-panel); border-radius: 2px;
+}
+.wtf-fc-row.is-established   { border-left-color: var(--wtf-established); }
+.wtf-fc-row.is-developing    { border-left-color: var(--wtf-developing); }
+.wtf-fc-row.is-contested     { border-left-color: var(--wtf-contested); }
+.wtf-fc-row.is-unestablished { border-left-color: var(--wtf-text-muted); }
+.wtf-fc-verdict { font-weight: 600; text-transform: uppercase; }
+.wtf-fc-row.is-established   .wtf-fc-verdict { color: var(--wtf-established); }
+.wtf-fc-row.is-developing    .wtf-fc-verdict { color: var(--wtf-developing); }
+.wtf-fc-row.is-contested     .wtf-fc-verdict { color: var(--wtf-contested); }
+.wtf-fc-row.is-unestablished .wtf-fc-verdict { color: var(--wtf-text-muted); }
+
+/* Coverage-spread dot. Geometry here, colour from `lean_token()` set inline by
+   the caller, so there is still exactly ONE lean map.
+   ⚠️ An earlier draft went through a `--dot` custom property. Don't: a property
+   that is only ever assigned inline is invisible to this stylesheet, so a typo
+   in the caller silently falls back and nothing flags it —
+   test_home_design_css.py::test_every_custom_property_the_homepage_uses_is_defined
+   fails on it, correctly. A plain inline `background` overrides the default
+   below and needs no indirection at all. */
+.wtf-lean-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--wtf-text-muted); flex-shrink: 0;
+}

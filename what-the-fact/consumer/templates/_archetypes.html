@@ -48,17 +48,71 @@
 </div>
 {%- endmacro %}
 
+{# LEAN → DESIGN TOKEN. The ONE definition. Everything that paints a lean
+   colour — pill, dot, sparkline stroke, text — resolves through here.
+
+   `fallback` is a parameter and not a constant on purpose. There are two
+   honest answers for an unknown bucket and they belong to different callers:
+     • `lean_pill` passes '--wtf-center' to keep its long-standing rendering
+       byte-identical (it is called from 8 templates; changing it here would
+       be an unrelated, invisible change to seven other pages).
+     • Everything else takes the muted default, because painting an outlet we
+       have not scored as *centre* asserts a measurement we do not have —
+       the same objection as ADR-020 (no province filter over a 66%-populated
+       column). An absent lean is not a middling lean. #}
+{% macro lean_token(bucket, fallback='--wtf-text-muted') -%}
+{{- {'left':'--wtf-left','center-left':'--wtf-center-left','center':'--wtf-center',
+     'center-right':'--wtf-center-right','right':'--wtf-right'}.get(bucket, fallback) -}}
+{%- endmacro %}
+
+{# VERDICT → CSS CLASS. The ONE definition, and it is a class rather than a
+   token because every call site needs a background *and* a border *and* a
+   foreground. The old sites built those with 8-digit hex alpha suffixes
+   (`{{ col }}18`, `{{ col }}44`) — a trick that silently breaks the moment the
+   colour becomes a variable, since `var(--wtf-established)18` is not a colour.
+
+   Five verdicts, three colours, deliberately. `mostly_true` shares Established
+   because that is already what the page's own LABELS say ("✓ Established" for
+   verified *and* mostly_true) — only the hex had drifted into a fourth green.
+   The distinction survives in the text, which is where it belongs.
+
+   Anything unrecognised — `unverifiable`, `descriptive_reporting`, NULL —
+   resolves to `is-unestablished`, a muted grey. Never amber: "we found no
+   claims to check" is an ABSENCE of a verdict, and amber reads as "disputed".
+   wtf.md is explicit that descriptive_reporting gets no chip at all. #}
+   TWO vocabularies share this axis and must resolve consistently. The article's
+   V.E.R.I.F.Y. verdict says verified / mostly_true / mixed / disputed; the
+   claim_tracker (#3013) says verified_true / partially_true / misleading /
+   false. They were separate maps with separate hex, so the SAME epistemic state
+   rendered differently in two panels of one page.
+     • `partially_true` -> DEVELOPING, not established. On a political claim it
+       means "half of this is wrong", which is `mixed`. That is a different
+       thing from the article-level `mostly_true` ("attributed and internally
+       consistent", per wtf.md), which is genuinely established.
+     • `misleading` -> CONTESTED. Technically-true-but-framed-to-deceive is a
+       disputed claim, not a developing one. #}
+{% macro verdict_class(verdict) -%}
+{{- {'verified':'is-established','true':'is-established','mostly_true':'is-established',
+     'verified_true':'is-established',
+     'mixed':'is-developing','partially_true':'is-developing',
+     'disputed':'is-contested','false':'is-contested','misleading':'is-contested'
+     }.get(verdict, 'is-unestablished') -}}
+{%- endmacro %}
+
 {# LEAN PILL — colour + LABEL, never colour alone.
    The whole point of the new diverging scale: red pole / neutral centre / blue
    pole, because the old ramp failed colour-vision checks and put GREEN at the
    midpoint (reads as "centre = good", an editorial claim this site must not
    make). If you ever render lean as a bare swatch, you have reintroduced that
-   bug. `bucket` is one of: left, center-left, center, center-right, right. #}
+   bug. `bucket` is one of: left, center-left, center, center-right, right.
+
+   ⚠️ That warning was written here and then not applied: article.html shipped
+   a bare 8px round swatch with a GREEN midpoint (plus two more copies of the
+   same map for the outlet-bias text and the sparkline) until 2026-09-03.
+   A guard in a docstring is not a guard at the call site. #}
 {% macro lean_pill(bucket, label=None) -%}
-{%- set _tok = {'left':'--wtf-left','center-left':'--wtf-center-left','center':'--wtf-center',
-                'center-right':'--wtf-center-right','right':'--wtf-right'} -%}
 <span class="wtf-a-chip">
-  <span style="width:9px;height:9px;border-radius:2px;background:var({{ _tok.get(bucket, '--wtf-center') }});display:inline-block;" aria-hidden="true"></span>
+  <span style="width:9px;height:9px;border-radius:2px;background:var({{ lean_token(bucket, '--wtf-center') }});display:inline-block;" aria-hidden="true"></span>
   {{ label or bucket|replace('-', ' ')|title }}
 </span>
 {%- endmacro %}

@@ -105,13 +105,18 @@
     <button type="button" class="wtf-act-filter" id="wtf-news-mark-read">Mark page read</button>
   </div>
 
+  {# Province/scope/beat chips carry live counts the same way the band row
+     does (routes.py: province_facets/scope_facets/beat_facets, each
+     excluding only its own filter). 'all' carries no count on every row,
+     same reasoning as band's 'all' — see routes.py. #}
   <!-- Province filter -->
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
     {% for val, label in provinces %}
+    {% set _n = province_facets.get(val) if val != 'all' else None %}
     <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
-       class="wtf-act-filter {% if province_filter == val %}wtf-act-filter--active{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;">{{ label }}</a>
+       class="wtf-act-filter {% if province_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
+       style="text-decoration:none;font-size:0.62rem;">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
 
@@ -119,9 +124,10 @@
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;">
     <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">SCOPE</span>
     {% for val, label in [('all','🌐 All'), ('national','🇨🇦 National'), ('provincial','📍 Provincial'), ('international','🌍 International')] %}
+    {% set _n = scope_facets.get(val) if val != 'all' else None %}
     <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&page=1"
-       class="wtf-act-filter {% if scope_filter == val %}wtf-act-filter--active{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;">{{ label }}</a>
+       class="wtf-act-filter {% if scope_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
+       style="text-decoration:none;font-size:0.62rem;">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
 
@@ -129,9 +135,10 @@
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;">
     <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">BEAT</span>
     {% for val, label, col in beat_meta %}
+    {% set _n = beat_facets.get(val) if val != 'all' else None %}
     <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
-       class="wtf-act-filter {% if beat_filter == val %}wtf-act-filter--active{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;{% if col and beat_filter == val %}color:{{ col }};border-color:{{ col }};{% endif %}">{{ label }}</a>
+       class="wtf-act-filter {% if beat_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
+       style="text-decoration:none;font-size:0.62rem;{% if col and beat_filter == val %}color:{{ col }};border-color:{{ col }};{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
 

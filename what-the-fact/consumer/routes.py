@@ -459,7 +459,8 @@ def news():
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
-        source_count, total, rows, sources, ridings, band_mix, band_facets = _cached
+        (source_count, total, rows, sources, ridings, band_mix,
+         band_facets, province_facets, beat_facets, scope_facets) = _cached
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
         return render_template("news.html", articles=rows, source_count=source_count,
                                total=total, page=page, total_pages=total_pages,
@@ -469,6 +470,8 @@ def news():
                                riding_filter=riding_filter, ridings=ridings,
                                beat_meta=BEAT_META, sources=sources,
                                band_mix=band_mix, band_facets=band_facets,
+                               province_facets=province_facets, beat_facets=beat_facets,
+                               scope_facets=scope_facets,
                                is_subscriber=is_subscriber())
 
     with _db().begin() as c:
@@ -480,40 +483,35 @@ def news():
             text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
         params = {}
-        where_clauses = []
+        # Keyed by axis so a per-axis facet WHERE ("every filter except this
+        # one") is a one-line dict comprehension instead of a hand-picked
+        # exclusion per axis (band's earlier version only handled itself).
+        filter_clauses = {}
         if band_filter != "all":
-            where_clauses.append("b.band = :band")
+            filter_clauses["band"] = "b.band = :band"
             params["band"] = band_filter
         if province_filter != "all":
-            where_clauses.append("a.province_code = :province")
+            filter_clauses["province"] = "a.province_code = :province"
             params["province"] = province_filter
         if beat_filter != "all":
-            where_clauses.append("a.beat = :beat")
+            filter_clauses["beat"] = "a.beat = :beat"
             params["beat"] = beat_filter
         if scope_filter != "all":
-            where_clauses.append("a.geo_scope = :scope")
+            filter_clauses["scope"] = "a.geo_scope = :scope"
             params["scope"] = scope_filter
         if riding_filter != "all":
-            where_clauses.append(
+            filter_clauses["riding"] = (
                 "EXISTS (SELECT 1 FROM wtf.article_mp_tags t"
                 " JOIN parliament.mps m ON m.id = t.mp_id"
                 " WHERE t.article_id = a.id AND m.riding_name = :riding)"
             )
             params["riding"] = riding_filter
-        band_where = ("AND " + " AND ".join(where_clauses)) if where_clauses else ""
 
-        # Facet WHERE for the band chip row specifically: every OTHER active
-        # filter (province/beat/scope/riding) but never the band filter itself
-        # — so picking a different band shows what that band would actually
-        # give you, not just the currently-selected band at 100%. Deliberately
-        # NOT extended to province/beat/scope chips in this pass: each would
-        # be one more full-table-scan query on a route with real incident
-        # history (#5719, the 2026-08-18/08-30 crawler incidents) — banding
-        # is the most prominent row and the one the design spec calls out for
-        # a "spread" purpose, so it goes first; the rest are a follow-up once
-        # real cache-hit behaviour on this one is observed.
-        _band_facet_clauses = [c for c in where_clauses if not c.startswith("b.band")]
-        band_facet_where = ("AND " + " AND ".join(_band_facet_clauses)) if _band_facet_clauses else ""
+        def _where_except(*exclude_axes):
+            clauses = [c for k, c in filter_clauses.items() if k not in exclude_axes]
+            return ("AND " + " AND ".join(clauses)) if clauses else ""
+
+        band_where = _where_except()  # every active filter — unchanged behaviour
 
         total = c.execute(text(f"""
             SELECT COUNT(*) FROM {S}.articles a
@@ -522,15 +520,59 @@ def news():
             WHERE 1=1 AND a.suppressed_reason IS NULL {band_where}
         """), params).scalar() or 0
 
+        # Per-axis facet counts: each excludes ONLY its own filter, keeping
+        # every other active one — so a chip shows what picking IT would
+        # yield given your other selections, not what's already selected.
+        # Four GROUP BY queries added here (band was first, #3106); each is
+        # the same cost class as `total` above (~150-200ms measured via
+        # EXPLAIN ANALYZE) and rides the same 60s _news_cache_get/set this
+        # route already had — real per-second load is bounded by cache hits,
+        # not by these four running on every request.
         band_facet_rows = c.execute(text(f"""
             SELECT b.band, COUNT(*) AS n
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE 1=1 AND a.suppressed_reason IS NULL AND b.band IS NOT NULL {band_facet_where}
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND b.band IS NOT NULL {_where_except('band')}
             GROUP BY b.band
         """), params).mappings().all()
         band_facets = {r["band"]: r["n"] for r in band_facet_rows}
+
+        # Each of these MUST join bias_scores even though it doesn't select
+        # from it: _where_except() includes 'b.band = :band' whenever a band
+        # filter is active (only band_facet_rows excludes it), so without
+        # this join a live band filter 500s every one of these three queries
+        # with "missing FROM-clause entry for table b" — caught by rendering
+        # ?band=left against the real DB before shipping, not by inspection.
+        province_facet_rows = c.execute(text(f"""
+            SELECT a.province_code, COUNT(*) AS n
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND a.province_code IS NOT NULL {_where_except('province')}
+            GROUP BY a.province_code
+        """), params).mappings().all()
+        province_facets = {r["province_code"]: r["n"] for r in province_facet_rows}
+
+        beat_facet_rows = c.execute(text(f"""
+            SELECT a.beat, COUNT(*) AS n
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND a.beat IS NOT NULL {_where_except('beat')}
+            GROUP BY a.beat
+        """), params).mappings().all()
+        beat_facets = {r["beat"]: r["n"] for r in beat_facet_rows}
+
+        scope_facet_rows = c.execute(text(f"""
+            SELECT a.geo_scope, COUNT(*) AS n
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND a.geo_scope IS NOT NULL {_where_except('scope')}
+            GROUP BY a.geo_scope
+        """), params).mappings().all()
+        scope_facets = {r["geo_scope"]: r["n"] for r in scope_facet_rows}
 
         # Lean-mix bar (design handoff #6149, /news Phase 3): a segmented bar +
         # named index of the CURRENT filter selection's band distribution.
@@ -656,7 +698,8 @@ def news():
         ridings = [dict(r) for r in riding_rows]
 
     sources = [dict(s) for s in sources]
-    _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix, band_facets))
+    _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix,
+                          band_facets, province_facets, beat_facets, scope_facets))
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
@@ -666,6 +709,8 @@ def news():
                            riding_filter=riding_filter, ridings=ridings,
                            beat_meta=BEAT_META, sources=sources,
                            band_mix=band_mix, band_facets=band_facets,
+                           province_facets=province_facets, beat_facets=beat_facets,
+                           scope_facets=scope_facets,
                            is_subscriber=is_subscriber())
 
 

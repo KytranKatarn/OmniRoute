@@ -4166,7 +4166,7 @@ def mp_profile(slug: str):
     mp = dict(mp_row)
     if mp.get("photo_url") and not mp["photo_url"].startswith("http"):
         mp["photo_url"] = _OPENPARL_BASE + mp["photo_url"]
-    mp["party_colour"] = _PARTY_COLOURS.get(mp.get("party") or "", "#6b7280")
+    mp["party_colour"] = _party_colour(mp.get("party") or "")
 
     with _db().begin() as c:
         # Recent votes

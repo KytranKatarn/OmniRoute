@@ -601,6 +601,33 @@ _PROSE_EVIDENCE_RE = re.compile(
         )""",
     re.VERBOSE,
 )
+# Bullets that are NOT ASCII `-*+`, matched on the RAW evidence before the diff-marker strip.
+#
+# ⚠️ Two separate reasons this exists, both measured on PR #3089 (2026-09-03) — a DOCS-ONLY PR
+# (one .md file, +32 lines, zero code files) that F.O.R.G.E. failed with a [CRITICAL] "rounding
+# issue in SQL". There is no SQL in that PR: it quoted the file's own prose DESCRIBING the #3087
+# fix and re-flagged the fix as the defect. Gate 5 should have demoted it and did not, because:
+#
+#   1. `module-capability-index.md` house style bullets with `·` and `⚠️`, neither of which is in
+#      `[-*+]`, so _PROSE_EVIDENCE_RE never matched.
+#   2. The `^[+-]\s?` diff-marker strip in _evidence_is_prose_not_code EATS a leading markdown
+#      `- ` bullet. Every case in test_describing_vs_doing_gate.py is `+`-prefixed (`+- item`),
+#      where the strip removes the `+` and the bullet SURVIVES — so the suite was green while
+#      un-prefixed prose could never match. A self-chosen fixture proved a property of the
+#      fixture (KB #302084, the same lesson as the #3087 `<0.1%` guard).
+#
+# Deliberately NOT fixed here: bare ASCII `- **bold prose**` with no diff marker. A markdown
+# bullet and a diff-REMOVED line are genuinely indistinguishable at column 0 (`-    return None`
+# is a removed code line and has no code shape), so widening that would demote real findings.
+# These characters are never diff markers, so there is no such ambiguity. Per this file's own
+# rule: a gate that demotes real findings is worse than the bug it fixes.
+_UNICODE_BULLET_RE = re.compile(
+    "^\\s*(?:"
+    "[·•‣⁃▪●◦]\\s*\\S"  # · • ‣ ⁃ ▪ ● ◦
+    "|[⚠❗✅❌ℹ⭐]️?\\s*\\S"  # ⚠ ❗ ✅ ❌ ℹ ⭐ (+ optional VS16)
+    "|[\U0001F300-\U0001FAFF]\\s*\\S"  # emoji planes (🔴 📌 …)
+    ")"
+)
 # Code-ish structure that a prose bullet does not have. If ANY appears, we do NOT treat the
 # evidence as prose — a YAML list item (`+  - name: Build`) or a decorated call must stay
 # blockable. Keeps the gate off real code that merely starts with a dash.
@@ -628,16 +655,20 @@ def _evidence_is_prose_not_code(issue: dict) -> bool:
     and the absence of code shape — both, so a YAML list entry or a dash-prefixed statement is
     never mistaken for prose.
     """
-    ev = str((issue or {}).get("evidence", "") or "").strip()
-    if not ev:
+    ev_raw = str((issue or {}).get("evidence", "") or "").strip()
+    if not ev_raw:
         return False
     # ⚠️ Strip the diff marker FIRST. Leaving it on let `+` satisfy the optional bullet char in
     # the key:value alternative, so `+  - name: Build` never matched as code and a YAML list
     # item was misread as prose.
-    ev = re.sub(r"^[+-]\s?", "", ev).strip()
+    ev = re.sub(r"^[+-]\s?", "", ev_raw).strip()
     if not ev:
         return False
-    if not _PROSE_EVIDENCE_RE.search(ev):
+    # #3089 — a non-ASCII bullet (`·`, `⚠️`, emoji) is checked on the RAW string, because the
+    # strip above would not remove it but _PROSE_EVIDENCE_RE's `[-*+]` class does not contain
+    # it either. Unlike `-`/`+`, these can never be diff markers, so matching them here cannot
+    # misread a removed code line as prose. The code-shape veto below still applies.
+    if not (_PROSE_EVIDENCE_RE.search(ev) or _UNICODE_BULLET_RE.search(ev_raw)):
         return False
     return not _CODE_SHAPE_RE.search(ev)
 

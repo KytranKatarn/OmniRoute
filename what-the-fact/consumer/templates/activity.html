@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}Agent Activity — What The Fact{% endblock %}
 {% block content %}
 
@@ -50,6 +51,66 @@
     </span>
     {% endif %}
   </div>
+  {% endif %}
+  {# ── Throughput strip ──────────────────────────────────────────────────
+     Sits ABOVE the blanket `{% if is_subscriber %}` that wraps the rest of the
+     analytics (lines ~56-547) so it can gate ITSELF and show the canonical
+     paywall block to everyone else.
+
+     Inside that blanket gate a signed-out reader saw the panel silently absent
+     — indistinguishable from "the agents did no work". A paywall that says what
+     is behind it is the honest version of the same restriction, and it is the
+     shape every other gated section on the site already uses.
+
+     `paywall()` from _archetypes.html is THE macro — its own comment records
+     this block being hand-rolled in 14 templates and drifting to four different
+     CTA colours, none of them --wtf-accent. Do not restyle the button. #}
+  {% if agent_throughput and is_subscriber %}
+  {# Throughput strip — the newsroom rebuild's per-agent cards.
+     DELIBERATELY SEPARATE from the coverage grid below. Coverage answers "how
+     much of the corpus has this agent touched, ever"; throughput answers "is it
+     working right now". A stalled agent can show 99% coverage, so the two must
+     not be blended into one number.
+
+     The headline is a RATE, not a count. `geo_processed_at` landed today and is
+     not backfilled, so L.O.C.A.L. had 509 events in a window labelled 24h while
+     the column was 4.7h old — beside V.E.R.I.F.Y.'s 8,133 that reads as "16x
+     slower" when it is in fact third-fastest by rate. Counts over unequal
+     windows are not comparable. Each card carries the window it was actually
+     measured over, and a short window is marked.
+
+     Not shown: model name, average duration, target. The first two live in the
+     hub's task_execution_log (another database); a target is a policy nobody
+     has set. The design prototype carries all three as sample constants —
+     rendering invented figures on the page that exists to show how honestly
+     this newsroom reports itself would be self-defeating. #}
+  <div style="margin-bottom:8px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+    <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;">Throughput now</span>
+    <span style="color:#4b5563;font-size:0.66rem;">events per hour, measured over the window shown</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:20px;">
+    {% for a in agent_throughput %}
+    <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:11px 13px;">
+      <div style="font-family:var(--wtf-font-mono);font-size:0.68rem;letter-spacing:.1em;color:#e0e0e0;">{{ a.name }}</div>
+      <div style="font-size:0.63rem;color:#6b7280;margin-bottom:7px;">{{ a.what }}</div>
+      <div style="display:flex;align-items:baseline;gap:5px;">
+        <span style="font-family:var(--wtf-font-mono);font-size:1.32rem;color:#a78bfa;">{{ a.per_hour if a.per_hour is not none else '—' }}</span>
+        <span style="font-size:0.62rem;color:#6b7280;">/hour</span>
+      </div>
+      <div style="font-size:0.62rem;color:#6b7280;margin-top:5px;">
+        {{ "{:,}".format(a.events) }} in {{ a.window_hours }}h
+        {%- if a.partial %} <span style="color:#f59e0b;" title="This agent's timestamp column is newer than 24h, so its window is shorter than the others. The rate is comparable; the raw count is not.">· short window</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% elif agent_throughput %}
+  {{ paywall(
+       'Throughput now',
+       'See how fast each of the six agents is working right now — events per
+        hour for F.A.C.T., V.E.R.I.F.Y., B.I.A.S., D.R.A.F.T., I.N.K. and
+        L.O.C.A.L., each measured over the window it actually covers.',
+       '/activity') }}
   {% endif %}
   <!-- Pipeline health bar (#2955) -->
   <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:0.7rem;color:#9ca3af;">

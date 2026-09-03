@@ -1065,6 +1065,83 @@ def _newsroom_agents(S):
     }
 
 
+# Per-agent throughput sources. Each agent's work is evidenced by rows landing
+# in one table with one timestamp — the SAME tables the event feed unions in
+# _activity_agent_queries, so the cards and the log can never disagree.
+#
+# ⚠️ WHY A RATE AND NOT A COUNT. `geo_processed_at` was added today (migration
+# 073) and is deliberately not backfilled, so L.O.C.A.L. had 509 rows in a
+# window advertised as 24h while the column itself was 4.7h old. Rendered beside
+# V.E.R.I.F.Y.'s 8,133 that reads as "L.O.C.A.L. is 16x slower", which is false
+# — it is the newest column, not the slowest agent. Counts over unequal windows
+# are not comparable; a rate is. Each agent therefore carries the window it was
+# actually measured over, and the window is shown.
+#
+# The window self-heals: once a column is older than 24h, GREATEST() pins the
+# start at the 24h boundary, `partial` goes False and the caveat disappears
+# without anyone editing this.
+_AGENT_SOURCES = (
+    ("F.A.C.T.", "audit_trail", "created_at", "verdicts recorded"),
+    ("V.E.R.I.F.Y.", "fact_checks", "checked_at", "claims checked"),
+    ("B.I.A.S.", "bias_scores", "computed_at", "articles scored"),
+    ("D.R.A.F.T.", "summaries", "created_at", "summaries written"),
+    ("I.N.K.", "articles", "ingested_at", "articles ingested"),
+    ("L.O.C.A.L.", "articles", "geo_processed_at", "articles placed"),
+)
+
+
+def _activity_agent_throughput(S):
+    """Per-agent throughput over the last 24h, honest about short windows.
+
+    Returns a list of dicts sorted by rate: name, what, events, window_hours,
+    per_hour, last_at, partial.
+
+    Deliberately NOT reported: model name, average duration and a target.
+    Those live in the hub's `task_execution_log` (a different database), and a
+    target is a policy choice nobody has made — the design prototype carries all
+    three as sample constants. Inventing them here would put fabricated figures
+    on the page whose entire subject is how honestly this newsroom reports
+    itself.
+    """
+    parts = []
+    for name, table, col, what in _AGENT_SOURCES:
+        parts.append(
+            f"""SELECT '{name}' AS name, '{what}' AS what,
+                   count(*) FILTER (WHERE {col} > now() - interval '24 hours') AS events,
+                   GREATEST(now() - interval '24 hours', min({col})) AS win_start,
+                   max({col}) AS last_at,
+                   (min({col}) > now() - interval '24 hours') AS partial
+              FROM {S}.{table}"""
+        )
+    sql = " UNION ALL ".join(f"({p})" for p in parts)
+
+    out = []
+    with _db().begin() as c:
+        for r in c.execute(text(sql)).mappings():
+            win_start, events = r["win_start"], int(r["events"] or 0)
+            hours = 0.0
+            if win_start is not None:
+                # `import datetime` at module scope is the MODULE — `timezone` is
+                # not a module-level name here, so the qualified form is required.
+                _now = datetime.datetime.now(datetime.timezone.utc)
+                hours = max(0.0, (_now - win_start).total_seconds() / 3600.0)
+            # Under ~6 minutes of coverage a rate is noise, not a measurement.
+            per_hour = round(events / hours, 1) if hours >= 0.1 else None
+            out.append(
+                {
+                    "name": r["name"],
+                    "what": r["what"],
+                    "events": events,
+                    "window_hours": round(hours, 1),
+                    "per_hour": per_hour,
+                    "last_at": r["last_at"],
+                    "partial": bool(r["partial"]) and hours < 23.5,
+                }
+            )
+    out.sort(key=lambda a: (a["per_hour"] is None, -(a["per_hour"] or 0)))
+    return out
+
+
 def _activity_bundle(S, force: bool = False):
     """Everything on /activity except the paginated event feed — one shared
     snapshot cached _ACTIVITY_CACHE_TTL seconds."""
@@ -1359,6 +1436,19 @@ def _activity_bundle(S, force: bool = False):
         "source_health": source_health,
         "newsroom": _newsroom,
     }
+    # ⚠️ MUST be set BEFORE write_snapshot below, not after.
+    # Most requests are served from the stored snapshot, not from this compute —
+    # a key added after the write is persisted by nobody, so the panel renders
+    # its empty state forever while the code that fills it looks correct. That is
+    # exactly what happened on the first attempt here.
+    # Failure is non-fatal: the cards disappear, the rest of the page still
+    # renders. (`write_snapshot` uses json.dumps(default=str), so the datetime in
+    # `last_at` cannot abort the write.)
+    try:
+        B["agent_throughput"] = _activity_agent_throughput(S)
+    except Exception:
+        logger.exception("activity: agent throughput failed")
+        B["agent_throughput"] = []
     # Publish for every OTHER worker (and for workers not yet born — a recycled
     # one starts with an empty dict but a populated table). Best-effort: a failed
     # write costs the next reader a recompute, nothing more.
@@ -1539,6 +1629,7 @@ def activity():
                            # here renders the panel's EMPTY state, which reads as
                            # "no agents did any work" rather than "not wired".
                            newsroom=B.get("newsroom") or {},
+                           agent_throughput=B.get("agent_throughput") or [],
                            sparklines=B["sparklines"],
                            agent_stats=_fetch_agent_stats(),
                            trends=B["trends"],

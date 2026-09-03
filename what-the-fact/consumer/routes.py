@@ -961,6 +961,21 @@ def municipal():
 # + analytics + sparklines + source-health measured 20-36s per page view.
 # One shared snapshot, 5-min TTL (per gunicorn worker); the event feed stays
 # per-request but each union branch is pre-sorted + capped (#5725).
+# Keys the /activity template renders and therefore the MINIMUM a stored
+# snapshot must carry. A snapshot written by an older build is fresh and
+# well-formed while missing whatever that build did not produce, and there is no
+# version stamp to tell them apart — so the reader is given this list and treats
+# a short snapshot as stale (KB #302073).
+#
+# ⚠️ ADD A KEY TO THE BUNDLE BELOW, ADD IT HERE. `test_activity_snapshot_version`
+# derives the builder's real key set from this file's source and fails if the two
+# drift, so this cannot quietly fall behind the way the snapshot itself did.
+_ACTIVITY_SNAPSHOT_REQUIRED_KEYS = (
+    "source_count", "stats", "trends", "beat_breakdown", "top_stories",
+    "throughput_sparkline", "bias_spectrum", "llm_rate", "geo_rate",
+    "sparklines", "source_health", "newsroom", "agent_throughput",
+)
+
 _ACTIVITY_CACHE: dict = {}  # 'bundle' -> (expiry, dict) | ('total', filter) -> (expiry, int)
 _ACTIVITY_CACHE_TTL = int(os.environ.get("WTF_ACTIVITY_CACHE_TTL", "300"))
 
@@ -1160,7 +1175,8 @@ def _activity_bundle(S, force: bool = False):
         try:
             from . import activity_snapshot as _snap
             with _db().begin() as _c:
-                _hit = _snap.read_snapshot(_c)
+                _hit = _snap.read_snapshot(
+                    _c, require_keys=_ACTIVITY_SNAPSHOT_REQUIRED_KEYS)
         except Exception:
             _hit = None
         if _hit:

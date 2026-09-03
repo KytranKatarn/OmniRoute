@@ -37,13 +37,32 @@ log = logging.getLogger(__name__)
 MAX_AGE_S = int(os.environ.get("WTF_ACTIVITY_SNAPSHOT_MAX_AGE", "5400"))
 
 
-def read_snapshot(conn, max_age_s: int | None = None) -> tuple[dict, object] | None:
-    """Return (bundle, computed_at) if a snapshot exists and is fresh, else None.
+def read_snapshot(
+    conn,
+    max_age_s: int | None = None,
+    require_keys: "tuple[str, ...] | None" = None,
+) -> tuple[dict, object] | None:
+    """Return (bundle, computed_at) if a snapshot exists, is fresh, and carries
+    every key in `require_keys`; else None.
 
     Freshness is evaluated IN SQL (`NOW() - computed_at`), not against the
     reader's clock: the consumer and the refresher are different containers, and
     comparing a local clock to a DB timestamp is how a snapshot silently reads
     as eternally fresh or eternally stale after a drift.
+
+    ⚠️ `require_keys` EXISTS BECAUSE AGE IS NOT THE ONLY WAY A SNAPSHOT GOES
+    STALE. A snapshot written by an OLDER BUILD is byte-fresh and structurally
+    valid while missing whatever that build did not yet produce — there is no
+    version stamp to tell the two apart. That is not hypothetical: PR #3083
+    added `agent_throughput` to the bundle, the stored snapshot still held the
+    previous 12 keys, and every reader was served the old shape. The panel
+    rendered its empty state on the live site for as long as the snapshot stayed
+    fresh, while the deployed code, the query and the template were all correct
+    and every route returned 200. KB mistake #302073.
+
+    A snapshot missing an expected key is treated as STALE, not as malformed:
+    the caller recomputes, the recompute writes the new shape, and the system
+    heals itself on the first request instead of waiting for someone to notice.
     """
     limit = MAX_AGE_S if max_age_s is None else max_age_s
     try:
@@ -83,6 +102,18 @@ def read_snapshot(conn, max_age_s: int | None = None) -> tuple[dict, object] | N
         # blow up in the template, so refuse it and let the caller compute.
         log.warning("activity snapshot present but malformed — computing inline")
         return None
+
+    # Written by an older build: fresh, well-formed, and short of keys this code
+    # now renders. Named individually because "the snapshot looked fine" was the
+    # whole difficulty last time — the log line has to say WHICH key is absent.
+    if require_keys:
+        missing = [k for k in require_keys if k not in bundle]
+        if missing:
+            log.info(
+                "activity snapshot predates this build (missing %s) — computing inline",
+                ", ".join(sorted(missing)),
+            )
+            return None
     return bundle, row["computed_at"]
 
 

@@ -1,60 +1,104 @@
 {% extends "base.html" %}
-{% block title %}{% if q %}Search: {{ q }} — {% endif %}What The Fact{% endblock %}
+{% from "_archetypes.html" import record_card, record_links, lean_pill, paywall, chip %}
+{% block title %}{% if q %}{{ q }} · Search{% else %}Search{% endif %} · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Search every article we track, with the outlet and its measured lean attached to each result.">
+{% endblock %}
 {% block content %}
+{# Design-handoff Phase 2, final item (design-handoff/wtf-search.html).
 
-{% set BAND_COLOURS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#3b82f6','right':'#8b5cf6','unscored':'#4b5563'} %}
+   ⚠️ THE PROTOTYPE DESCRIBES A DIFFERENT SEARCH ENGINE, and three of its
+   promises cannot be kept by this route. Recreating its copy verbatim would
+   put false claims on the page, so the presentation is migrated and the
+   claims are not:
 
-<div style="max-width:760px;margin:40px auto;padding:0 16px;">
+   1. "Nothing is sent anywhere — the index is already in your browser."
+      The prototype searches a CLIENT-SIDE bundle (wtf-corpus.js, 241 sample
+      rows). /search is a SERVER-SIDE SQL query — the term IS sent to us. That
+      sentence is DELIBERATELY NOT CARRIED OVER; shipping it would be a privacy
+      claim the implementation contradicts.
+   2. "Six kinds of record, one field." The route returns ONE kind: articles.
+   3. Facets by `.beat` and `.lean`. The result rows carry no beat, so a beat
+      facet cannot be built from what we have, and a lean facet over a single
+      page of results would filter a slice while implying it filters the corpus.
 
-  <div style="margin-bottom:24px;">
-    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">Search articles</div>
-    <form action="/search" method="get" style="display:flex;gap:8px;">
-      <input type="text" name="q" value="{{ q | e }}"
-             placeholder="e.g. housing affordability Ontario"
-             style="flex:1;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:10px 14px;border-radius:5px;font-size:0.85rem;outline:none;"
-             autofocus>
-      <button type="submit"
-              style="background:var(--wtf-accent);color:#fff;border:none;padding:10px 20px;border-radius:5px;font-size:0.82rem;cursor:pointer;letter-spacing:0.5px;">
-        Search
-      </button>
-    </form>
-  </div>
+   Same call as races.html made about the election-period prototype: migrate the
+   shape, refuse the claims the data does not support. Facets are a route change
+   (grouping + counts), not a template change — deliberately out of this pass.
 
-  {% if q %}
-  <div style="font-size:0.65rem;color:#6b7280;margin-bottom:16px;letter-spacing:1px;">
-    {{ results|length }} result{{ 's' if results|length != 1 else '' }} for "<span style="color:#9ca3af;">{{ q | e }}</span>"
-  </div>
+   ⚠️ THE PROTOTYPE'S SHELL CLASSES (panel/psec/eyebrow/lede/facets/grp) EXIST
+   IN NO STYLESHEET HERE. Following the archetype macros, as every migrated page
+   does. #}
 
-  {% if is_subscriber %}
-  {% if results %}
-  {% for r in results %}
-  {% set band = r.band or 'unscored' %}
-  {% set colour = BAND_COLOURS.get(band, '#4b5563') %}
-  <div style="background:#0a0f1a;border:1px solid #1a2030;border-left:2px solid {{ colour }};border-radius:4px;padding:12px 14px;margin-bottom:6px;">
-    <a href="/article/{{ r.id }}" style="display:block;color:#d1d5db;font-size:0.82rem;font-weight:500;line-height:1.4;text-decoration:none;margin-bottom:5px;">
-      {{ r.title[:160] }}
-    </a>
-    <div style="font-size:0.62rem;color:#4b5563;display:flex;gap:10px;flex-wrap:wrap;">
-      {% if r.source_slug %}
-      <a href="/source/{{ r.source_slug }}" style="color:#4b5563;text-decoration:none;">{{ r.source }}</a>
-      {% else %}{{ r.source }}{% endif %}
-      <span style="color:{{ colour }};">{{ band.upper() }}</span>
-      {% if r.published_at %}<span>{{ r.published_at.strftime('%b %d, %Y') }}</span>{% endif %}
+{# Lean spine token per band. `unscored` is intentionally absent: it is NOT a
+   lean, and defaulting it into the centre token would colour an unmeasured
+   article as centrist. Absent => neutral border from .wtf-a-rcard. #}
+{% set LEAN_TOKEN = {
+  'left': '--wtf-left', 'center-left': '--wtf-center-left', 'center': '--wtf-center',
+  'center-right': '--wtf-center-right', 'right': '--wtf-right'
+} %}
+
+<div class="wtf-search">
+
+  <header class="wtf-search-head">
+    <div class="wtf-search-eyebrow">Search</div>
+    <h1>Search the archive</h1>
+    <p class="wtf-search-lede">Every article we track, with its outlet and that outlet's
+      measured lean attached to the result — so you can see who is saying it, not just what
+      was said.</p>
+  </header>
+
+  <form action="/search" method="get" class="wtf-search-form" role="search">
+    <label class="wtf-sr-only" for="search-q">Search articles</label>
+    <input id="search-q" type="text" name="q" value="{{ q | e }}"
+           placeholder="e.g. housing affordability Ontario" autofocus>
+    <button type="submit">Search</button>
+  </form>
+
+  {% if not q %}
+    <div class="wtf-search-empty">
+      <h2>Search the archive</h2>
+      <p>{% if source_count %}Across {{ source_count }} source{{ 's' if source_count != 1 }} publishing in
+         the last 48 hours.{% else %}One field, every article we hold.{% endif %}</p>
+      <div class="wtf-search-sug">
+        {% for t in ['housing affordability', 'Bank of Canada', 'wildfire', 'procurement', 'emissions cap', 'Nunavut'] %}
+        <a class="wtf-a-chip" href="/search?q={{ t | urlencode }}">{{ t }}</a>
+        {% endfor %}
+      </div>
     </div>
-  </div>
-  {% endfor %}
+
+  {% elif not is_subscriber %}
+    {{ paywall("Search is a Starter feature",
+               "Search runs across every article we track, with the outlet and its measured lean on each result.",
+               request.full_path) }}
+
   {% else %}
-  <div style="color:#4b5563;font-size:0.78rem;padding:20px 0;">No articles found for "{{ q | e }}".</div>
-  {% endif %}
-  {% else %}
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin:8px 0;">
-    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Search — Starter+</div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Search across all tracked Canadian news with bias scores and source attribution.</div>
-    <a href="/login?next={{ request.full_path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-  </div>
+    <div class="wtf-search-count">
+      {{ results|length }} result{{ 's' if results|length != 1 }} for &ldquo;{{ q | e }}&rdquo;
+    </div>
+
+    {% if results %}
+      {% for r in results %}
+        {% set band = r.band or 'unscored' %}
+        {% call record_card(r.title[:160],
+                            meta = (r.published_at.strftime('%b %d, %Y') if r.published_at else None),
+                            spine_token = LEAN_TOKEN.get(band)) %}
+          <div class="wtf-search-rmeta">
+            {% if band in LEAN_TOKEN %}{{ lean_pill(band) }}{% endif %}
+            {{ record_links([
+                 ('Read article', '/article/' ~ r.id, false)
+               ] + ([(r.source, '/source/' ~ r.source_slug, false)] if r.source_slug else [])) }}
+            {% if not r.source_slug and r.source %}<span class="wtf-search-src">{{ r.source }}</span>{% endif %}
+          </div>
+        {% endcall %}
+      {% endfor %}
+    {% else %}
+      <div class="wtf-search-empty">
+        <h2>Nothing matches &ldquo;{{ q | e }}&rdquo;</h2>
+        <p>Try a broader term, or an outlet name.</p>
+      </div>
+    {% endif %}
   {% endif %}
 
-  {% endif %}
 </div>
 {% endblock %}

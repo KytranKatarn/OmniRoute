@@ -1403,3 +1403,57 @@ p { text-wrap: pretty; }
   .wtf-score { padding: 24px 14px 48px; }
   .wtf-score h1 { font-size: 1.5rem; }
 }
+
+/* ── /search — design-handoff Phase 2 ───────────────────────────────────────
+   Tokens only. Result spines take their colour from LEAN_TOKEN in the template,
+   so a band can never disagree with the same band elsewhere on the site — the
+   two pages previously shipped DIFFERENT hex for 'right' (#2563eb on /score,
+   #8b5cf6 on /search). Reused .wtf-sr-only rather than adding a second one. */
+.wtf-search { max-width: 820px; margin: 0 auto; padding: 40px 16px 64px; }
+.wtf-search-head { margin-bottom: 22px; }
+.wtf-search-eyebrow {
+  font-size: .58rem; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--wtf-text-muted); margin-bottom: 8px;
+}
+.wtf-search h1 { font-family: var(--wtf-font-serif); font-size: 1.9rem; color: var(--wtf-text); margin: 0 0 10px; }
+.wtf-search-lede { color: var(--wtf-text-2); font-size: .85rem; line-height: 1.65; margin: 0; max-width: 62ch; }
+
+.wtf-search-form { display: flex; gap: 8px; margin-bottom: 20px; }
+.wtf-search-form input {
+  flex: 1; background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border);
+  color: var(--wtf-text); border-radius: var(--wtf-r-sm);
+  padding: 11px 14px; font-size: .85rem; font-family: inherit;
+}
+.wtf-search-form input:focus { outline: 2px solid var(--wtf-accent); outline-offset: 1px; }
+.wtf-search-form button {
+  background: var(--wtf-accent); color: #fff; border: none;
+  padding: 11px 22px; border-radius: var(--wtf-r-sm);
+  font-size: .82rem; font-family: inherit; cursor: pointer; letter-spacing: .4px;
+}
+
+.wtf-search-count {
+  font-size: .68rem; letter-spacing: 1px; color: var(--wtf-text-muted);
+  margin-bottom: 14px; text-transform: uppercase;
+}
+.wtf-search-rmeta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.wtf-search-src { font-size: .7rem; color: var(--wtf-text-muted); }
+
+.wtf-search-empty {
+  text-align: center; padding: 40px 16px;
+  border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-md);
+  background: var(--wtf-bg-card);
+}
+.wtf-search-empty h2 {
+  font-family: var(--wtf-font-serif); font-size: 1.2rem;
+  color: var(--wtf-text); margin: 0 0 6px; font-weight: 400;
+}
+.wtf-search-empty p { font-size: .8rem; color: var(--wtf-text-muted); margin: 0 auto; max-width: 52ch; }
+.wtf-search-sug { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 18px; }
+.wtf-search-sug .wtf-a-chip { text-decoration: none; }
+
+@media (max-width: 600px) {
+  .wtf-search { padding: 24px 14px 48px; }
+  .wtf-search h1 { font-size: 1.5rem; }
+  .wtf-search-form { flex-wrap: wrap; }
+  .wtf-search-form input { flex: 1 1 100%; }
+}

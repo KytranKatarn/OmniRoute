@@ -1135,6 +1135,13 @@ const CLOUD_STOPS = [[15,'#0b1a2e','clear'],[35,'#1e3352','15%'],[55,'#33507a','
 const CB_FIRE = [[1,'#1b1e2b','0'],[10,'#3b2f6b','1–9'],[100,'#2c5f8a','10–99'],[500,'#2a8f8f','100–499'],[2000,'#7fc45a','500–1,999'],[1e9,'#f5f36b','2,000+']];
 const CB_FWI  = [[5,'#242a44','FWI 0–5'],[11,'#3d4b8c','5–11'],[21,'#3b7ea1','11–21'],[38,'#57ab8a','21–38'],[1e9,'#e8e46b','38+']];
 const CB_TEMP = [[-20,'#1a1f3d','−20 °C'],[-10,'#2b3a72','−10'],[0,'#3560a8','0'],[8,'#3f8bb5','8'],[16,'#5fae95','16'],[24,'#a8c96a','24'],[31,'#e3d95e','31'],[1e9,'#f7f4a8','31+']];
+/* Same navy→blue→teal→green→pale-yellow family as the three ramps above,
+   sampled at each layer's own stop count so every sequential ramp on the
+   page — not just fire/FWI/temp — has a colourblind-safe alternate. */
+const CB_RAIN  = [[0.2,'#22265a','dry'],[1,'#2d3f78','trace'],[3,'#2f5f92','1 mm'],[8,'#2f9aa0','3 mm'],[15,'#6bc17c','8 mm'],[25,'#cddb6c','15 mm'],[1e9,'#f0e488','25 mm+']];
+const CB_WIND  = [[12,'#22265a','<12 km/h'],[20,'#2f5f92','12–20'],[30,'#2f9aa0','20–30'],[40,'#6bc17c','30–40'],[1e9,'#f0e488','40+']];
+const CB_CLOUD = [[15,'#22265a','clear'],[35,'#2f5f92','15%'],[55,'#2f7fa0','35%'],[75,'#3aab8f','55%'],[90,'#9ecf6e','75%'],[1e9,'#f0e488','90%+']];
+const CB_AQHI  = [[3,'#2d3f78'],[6,'#2f9aa0'],[10,'#6bc17c'],[1e9,'#f0e488']];
 let cbSafe = false;
 try { cbSafe = localStorage.getItem('wtf-cb') === '1'; } catch (e) {}
 const CB_MAP = new Map();
@@ -1146,6 +1153,12 @@ const ramp = (stops, v) => {
 CB_MAP.set(FIRE_STOPS, CB_FIRE);
 CB_MAP.set(FWI_STOPS, CB_FWI);
 CB_MAP.set(TEMP_STOPS, CB_TEMP);
+CB_MAP.set(RAIN_STOPS, CB_RAIN);
+CB_MAP.set(WIND_STOPS, CB_WIND);
+CB_MAP.set(CLOUD_STOPS, CB_CLOUD);
+/* AQHI_STOPS is declared later, with the air-quality section — its CB_MAP
+   registration happens right after that declaration (CB_AQHI is defined up
+   here, alongside its siblings, so both names are in scope there). */
 /* Legend swatches must follow the active palette too, or the key lies. */
 const rampStops = stops => (cbSafe && CB_MAP.has(stops)) ? CB_MAP.get(stops) : stops;
 
@@ -1262,9 +1275,14 @@ function snapForward(d) {
    Warning types follow Environment Canada's categories. AQHI is the Canadian
    Air Quality Health Index, 1–10+, where 7+ is high risk. */
 const AQHI_STOPS = [[3,'#38bdf8'],[6,'#f59e0b'],[10,'#e05252'],[1e9,'#7f1d1d']];
-const AQHI_BAND = v => v <= 3 ? ['Low', 'var(--wtf-established)']
-  : v <= 6 ? ['Moderate', 'var(--wtf-developing)']
-  : v <= 10 ? ['High', 'var(--wtf-contested)'] : ['Very high', '#f87171'];
+CB_MAP.set(AQHI_STOPS, CB_AQHI);
+/* Colour is read straight off AQHI_STOPS so the city-drawer badge can never
+   drift from the map choropleth again (it used to render a low, good AQHI
+   as green here while the map rendered the same value blue) — only the
+   text label stays band-specific. */
+const AQHI_BAND = v => v <= 3 ? ['Low', AQHI_STOPS[0][1]]
+  : v <= 6 ? ['Moderate', AQHI_STOPS[1][1]]
+  : v <= 10 ? ['High', AQHI_STOPS[2][1]] : ['Very high', AQHI_STOPS[3][1]];
 
 const ALERT_KIND = {
   smoke:   { label:'Air quality',   col:'#a78bfa', ico:'◍' },

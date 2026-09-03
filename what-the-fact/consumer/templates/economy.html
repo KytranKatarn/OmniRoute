@@ -10,36 +10,53 @@
    collide site-wide now that it shares style.css.
    Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main #}
 <style>
+/* Two confirmed exact-value token matches (evidence-backed, not guessed):
+   #f59e0b === var(--wtf-developing) and #0d1117 === var(--wtf-bg), byte for
+   byte, across every occurrence below. 'Orbitron' is never loaded by this
+   app's base.html (same bug already fixed on rates.html/cost.html this
+   session) so it now uses var(--wtf-font-mono), matching the IBM Plex Mono
+   already used on this page's market-cta-btn. Every other color here
+   (#6b7280, #1f2937, #fbbf24, #34d399, #00e5ff, #e2e8f0, #d97706, #374151,
+   the beat-pill backgrounds, #000, #0af) has no confirmed exact token match
+   and stays a page-local literal rather than a guessed swap. */
 .wtf-ec-page-header { margin-bottom:28px }
-.wtf-ec-market-label { font-size:9px;letter-spacing:2px;color:#f59e0b;text-transform:uppercase;margin-bottom:6px }
-.wtf-ec-page-title { font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#f59e0b;letter-spacing:2px;margin-bottom:8px }
+.wtf-ec-market-label { font-size:9px;letter-spacing:2px;color:var(--wtf-developing);text-transform:uppercase;margin-bottom:6px }
+.wtf-ec-page-title { font-family:var(--wtf-font-mono);font-size:1.3rem;color:var(--wtf-developing);letter-spacing:2px;margin-bottom:8px }
 .wtf-ec-page-desc { font-size:11px;color:#6b7280;line-height:1.7;max-width:620px }
 .wtf-ec-attribution { font-size:9px;color:#6b7280;letter-spacing:1px;margin-top:6px }
-.wtf-ec-attribution a { color:#f59e0b;text-decoration:none }
+.wtf-ec-attribution a { color:var(--wtf-developing);text-decoration:none }
 .wtf-ec-attribution a:hover { text-decoration:underline }
 .wtf-ec-stats-row { display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px }
-.wtf-ec-stat-box { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #f59e0b;border-radius:6px;padding:12px 16px;min-width:120px }
-.wtf-ec-stat-num { font-family:'Orbitron',sans-serif;font-size:1.2rem;color:#f59e0b }
+.wtf-ec-stat-box { background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid var(--wtf-developing);border-radius:6px;padding:12px 16px;min-width:120px }
+.wtf-ec-stat-num { font-family:var(--wtf-font-mono);font-size:1.2rem;color:var(--wtf-developing) }
 .wtf-ec-stat-lbl { font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-top:4px }
 .wtf-ec-section-title { font-size:10px;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #1f2937;padding-bottom:6px }
 .wtf-ec-article-list { display:flex;flex-direction:column;gap:8px }
-.wtf-ec-article-card { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #f59e0b;border-radius:6px;padding:12px 16px }
+.wtf-ec-article-card { background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid var(--wtf-developing);border-radius:6px;padding:12px 16px }
 .wtf-ec-card-meta { display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;font-size:9px;color:#6b7280 }
+.wtf-ec-band { color:#6b7280 }
 .wtf-ec-beat-pill { padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase }
-.wtf-ec-beat-economy { background:#1a0e00;color:#f59e0b;border:1px solid #f59e0b30 }
+.wtf-ec-beat-economy { background:#1a0e00;color:var(--wtf-developing);border:1px solid #f59e0b30 }
 .wtf-ec-beat-business { background:#052e1a;color:#34d399;border:1px solid #34d39930 }
 .wtf-ec-beat-foreign { background:#0f0a00;color:#fbbf24;border:1px solid #fbbf2430 }
 .wtf-ec-card-title { font-size:12px;font-weight:500;line-height:1.5;color:#e2e8f0;text-decoration:none }
 .wtf-ec-card-title:hover { color:#00e5ff }
 .wtf-ec-card-footer { margin-top:6px;display:flex;gap:8px;align-items:center;font-size:9px;color:#374151 }
+.wtf-ec-cluster-link { color:#0af;font-size:9px;text-decoration:none }
 .wtf-ec-outlet-link { color:#6b7280;font-size:9px;text-decoration:none }
 .wtf-ec-outlet-link:hover { color:#00e5ff }
-.wtf-ec-province-tag { padding:1px 5px;background:#0d1117;border:1px solid #1f2937;border-radius:3px;font-size:8px;color:#6b7280 }
+.wtf-ec-province-tag { padding:1px 5px;background:var(--wtf-bg);border:1px solid #1f2937;border-radius:3px;font-size:8px;color:#6b7280 }
 .wtf-ec-empty-state { text-align:center;padding:48px;color:#6b7280;font-size:11px;line-height:1.8 }
-.wtf-ec-market-cta { background:#0d1117;border:1px solid #f59e0b40;border-radius:6px;padding:16px 20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px }
+.wtf-ec-beat-links { margin-top:20px;text-align:center }
+.wtf-ec-beat-links a { font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px }
+.wtf-ec-beat-links a:last-child { margin-right:0 }
+.wtf-ec-beat-link--economy { color:var(--wtf-developing) }
+.wtf-ec-beat-link--business { color:#34d399 }
+.wtf-ec-beat-link--foreign { color:#fbbf24 }
+.wtf-ec-market-cta { background:var(--wtf-bg);border:1px solid #f59e0b40;border-radius:6px;padding:16px 20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px }
 .wtf-ec-market-cta-text { font-size:11px;color:#6b7280;line-height:1.6 }
-.wtf-ec-market-cta-text strong { color:#f59e0b }
-.wtf-ec-market-cta-btn { display:inline-block;background:#f59e0b;color:#000;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:8px 18px;border-radius:4px;text-decoration:none;white-space:nowrap }
+.wtf-ec-market-cta-text strong { color:var(--wtf-developing) }
+.wtf-ec-market-cta-btn { display:inline-block;background:var(--wtf-developing);color:#000;font-family:var(--wtf-font-mono);font-size:10px;font-weight:700;letter-spacing:1px;padding:8px 18px;border-radius:4px;text-decoration:none;white-space:nowrap }
 .wtf-ec-market-cta-btn:hover { background:#d97706 }
 .wtf-ec-stats-row { gap:10px }
 .wtf-ec-market-cta { flex-direction:column }
@@ -92,12 +109,12 @@
         <a href="#" class="wtf-ec-outlet-link">{{ a.source or '' }}</a>
         {% if a.province_code %}<span class="wtf-ec-province-tag">{{ a.province_code }}</span>{% endif %}
         <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
-        {% if a.band %}<span style="color:#6b7280">{{ a.band.upper() }}</span>{% endif %}
+        {% if a.band %}<span class="wtf-ec-band">{{ a.band.upper() }}</span>{% endif %}
       </div>
       <a href="/article/{{ a.id }}" class="wtf-ec-card-title">{{ a.title }}</a>
       {% if a.cluster_size and a.cluster_size > 1 %}
       <div class="wtf-ec-card-footer">
-        <a href="/cluster/{{ a.cluster_id }}" style="color:#0af;font-size:9px;text-decoration:none;">📰 {{ a.cluster_size }} outlets covering this</a>
+        <a href="/cluster/{{ a.cluster_id }}" class="wtf-ec-cluster-link">📰 {{ a.cluster_size }} outlets covering this</a>
       </div>
       {% endif %}
     </div>
@@ -110,10 +127,10 @@
     {% endif %}
   </div>
 
-  <div style="margin-top:20px;text-align:center;">
-    <a href="/news?beat=economy" style="color:#f59e0b;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Economy →</a>
-    <a href="/news?beat=business" style="color:#34d399;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Business →</a>
-    <a href="/news?beat=foreign-policy" style="color:#fbbf24;font-size:10px;letter-spacing:1px;text-decoration:none;">All Foreign Policy →</a>
+  <div class="wtf-ec-beat-links">
+    <a href="/news?beat=economy" class="wtf-ec-beat-link--economy">All Economy →</a>
+    <a href="/news?beat=business" class="wtf-ec-beat-link--business">All Business →</a>
+    <a href="/news?beat=foreign-policy" class="wtf-ec-beat-link--foreign">All Foreign Policy →</a>
   </div>
 
   <div class="wtf-ec-market-cta">

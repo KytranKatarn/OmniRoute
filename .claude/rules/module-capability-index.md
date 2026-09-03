@@ -578,6 +578,38 @@
   · **Province codes: CWFIS emits `NF`, Datamart emits `NL`, the GeoJSON says `NL`.** `consumer/aurora_map._canon_prov` is the ONE canonicalisation boundary — a second one is how a province goes missing.
 - **Site shell + data integrity (2026-08-18, PRs #2677–#2685)**: `/blindspot`, `/divergence`, `/economy`, `/municipal`, `/weather` were STANDALONE documents (own `<html>`, own nav, own palette) — all now extend `base.html` with namespaced classes (`wtf-bs-`/`wtf-dv-`/`wtf-ec-`/`wtf-mu-`/`wtf-wx-`); guard `tests/test_site_shell_continuity.py`. The nav "LIVE · N SOURCES" counter is ONE cached context processor (it read **0** on /lobbying and /claims and disagreed 46-vs-41 elsewhere). **Three French sources were declared `en`** (La Presse 491, Le Journal de Montréal 13765, L'actualité 13766), putting **2,785 French articles on the English side** of the public `/divergence` EN-vs-FR comparison — migration 054 corrects them, identified by CONTENT not name (Edmonton Journal matches a French-name heuristic and IS English). **La Presse was ingested via a Google News proxy** — 74/180 titles were the literal `- La Presse+`; migration 056 re-points it to `lapresse.ca/actualites/rss`, adds reversible `wtf.articles.suppressed_reason`, and `ingest/persist.is_publisher_suffix_title()` rejects publisher-only titles at ingest. ⚠️ **10 of 46 sources use a Google News feed** — migration 056 reports them all on every run; the other 9 sit at 73–98% title uniqueness vs La Presse's 43.9%.
 - **Consumer pages added 2026-09-02 (Design handoff phases 2–3, PRs #3059–#3062)**: **`/clusters`** (story clusters ranked by framing SPREAD, median lean via `percentile_disc` — an OBSERVED band, never an average) and **`/archive`** (by-story/every-article toggle, 7 filters, 5 named sort directions, paywall 10 stories/50 articles). Both ARCHETYPE 3 on `_archetypes.html`, server-rendered, **no client JS, zero new CSS**. Homepage TOP STORIES is now spread-ranked **for signed-out readers only** — signed-in is byte-identical recency and issues NO query (`_home_top_stories`). ⚠️ **`/archive` deliberately offers NO province or city filter and says so on the page** — `province_code` 66% / `city` 10% populated (#6174); a filter over a mostly-empty column tells a reader they have seen everything when they have not (**ADR-020**). ⚠️ **This app registers NO custom Jinja filters** — `|localtime` does not exist here and raises `TemplateAssertionError`. ⚠️ `story_clusters.framing_summary` is **NULL on all 5,485 rows**; card bodies are DERIVED, no LLM in the render path. ⚠️ **The visual REDESIGN did not ship** — layout and map are unchanged; spec at `what-the-fact/docs/specs/2026-09-02-wtf-homepage-design-6149.md` (18 of 23 design tokens were already identical — the gap is layout/typography, not colour). KB #301847 (user) / #301848 (coder).
+- **Elections section — /races and /parties (2026-09-03, PRs #3084/#3086/#3087)**: the first
+  data-backed pages under the Elections nav group. Source is **open.canada.ca CKAN, org
+  `elections`, Table 12** (candidates by district) — NOT elections.ca, whose robots.txt returns
+  HTTP 500 (RFC 9309: a 5xx there means assume COMPLETE DISALLOW), so `ingest/elections/results.py`
+  enforces a HOST allowlist on the resource URL. Tables `parliament.elections` +
+  `parliament.election_candidates` (migration **074**); weekly gate in `ingest/run.py`, heartbeat
+  + `drift_guard` registration as `elections_results`. Live: **4,156 rows** (GE44 2,010 + GE43 2,146).
+  · **`/races`** — every riding ranked by MARGIN (closest first), plus `/races/<district_number>`.
+  · **`/parties`** — vote share against seat share, with a gap column stating first-past-the-post
+    as arithmetic. GE44 renders LIB 160 / CPC 119 / BQ 32 / NDP 25 / GRN 2, matching Elections Canada.
+  ⚠️ **`elected` IS NOT THE `**` MARKER.** Table 12 has no elected column and `**` marks the
+  INCUMBENT: 306 rows carry it, 32 districts have none, and it identifies the top-vote row in only
+  285 of 338. The winner is the row with a non-empty **Majority**, cross-checked against highest
+  votes (agrees 338/338). Reading `**` as victory names the WRONG MP in 53 ridings. KB #301957.
+  ⚠️ **PARTY NAMES ARE CANONICALISED IN SQL, BEFORE AGGREGATION**, via `shared/party_identity.py`
+  (sibling of `city_identity.py`). Table 12 records the BALLOT name and it changes between
+  elections — the PPC is `People's Party` in GE43 and `People's Party - PPC` in GE44 — so a raw
+  `GROUP BY party` reports they did not contest 2019 and appeared from nowhere with 840,993 votes,
+  destroying the real finding that their vote nearly TRIPLED. Merges are evidence-only and
+  disclosed on the page; Maverick/Marijuana/PC Party are deliberately NOT merged (`NOT_MERGED`
+  carries the reason for each). KB #302084.
+  ⚠️ **TWO ELECTIONS IS THE SOURCE'S CEILING, not our query's** — CKAN publishes exactly three
+  voting-results datasets and GE42's files sit on the disallowed host. The page says so in its
+  lede rather than presenting two points as a trend, and does not score "promises" (no dataset).
+  ⚠️ **`margin_pct` is rounded to 2dp in SQL, deliberately** (#3087). At 1dp a 12-vote win in
+  57,349 becomes exactly 0.0, the template's `<0.1%` guard is `> 0`, and the closest race in the
+  country rendered "12 (0.0%)". Display rounding belongs in the template; the query must not
+  destroy the distinction first.
+  ⚠️ `/parties` excludes candidates whose party could not be derived and SAYS SO on the page (GE44:
+  1 candidate, 52 votes — a one-candidate party gives the parser no second name to find the
+  person/party boundary). Without that note the tile totals and the table disagree by one row
+  with nothing explaining it.
 - **CRITICAL**: NEVER pass `WTF_TECH_URL` to browser JS — always add server-side proxy route first (KB #267314).
 - **Hub**: `tools/wtf_hub/wtf_hub.html` extends base.html, teal `#00ffff`. Hub dispatch: `bias_analysis`→B.I.A.S., `fact_check`→V.E.R.I.F.Y., `geo_extraction`→L.O.C.A.L.
 - **WTF Hub Inbox** (cont-110): Inbox tab in `/tools/wtf-hub` + `/api/mail/*` routes — per-mailbox News-dept agent mail over Stalwart IMAP (read + AI triage + drafts per box), mirrors the CREED Command mail pattern; send gated on explicit human click.

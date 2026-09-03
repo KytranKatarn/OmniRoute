@@ -5,25 +5,38 @@
 {% endblock %}
 {% block content %}
 <style>
+/* Two confirmed exact-value token matches (evidence-backed, not guessed):
+   #f59e0b === var(--wtf-developing), #0d1117 === var(--wtf-bg), byte for
+   byte, across every occurrence below. 'Orbitron' is never loaded by this
+   app's base.html (same bug already fixed 3x this session) so it now uses
+   var(--wtf-font-mono). Every other color here has no confirmed exact
+   token match and stays a page-local literal. The design-handoff's
+   wtf-markets.html target is a DIFFERENT feature (generic stock-quote
+   overview vs this page's real "federal contractors" data model) so its
+   class scheme/layout is deliberately not adopted here — see the coder-doc
+   for this PR.  */
+.mk-kicker { font-size:10px; color:#4b5563; letter-spacing:1px; text-transform:uppercase; margin:16px 0 6px; }
+.mk-h1 { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 6px; }
 .mk-intro { font-size:11px; color:#6b7280; line-height:1.7; max-width:640px; margin-bottom:14px; }
-.mk-total { font-size:11px; color:#f59e0b; letter-spacing:.04em; margin-bottom:16px; }
+.mk-total { font-size:11px; color:var(--wtf-developing); letter-spacing:.04em; margin-bottom:16px; }
 .mk-row { display:flex; align-items:center; gap:12px; padding:11px 13px; margin-bottom:8px;
-          background:#0d1117; border:1px solid #0d1f2d; border-left:3px solid #f59e0b;
+          background:var(--wtf-bg); border:1px solid #0d1f2d; border-left:3px solid var(--wtf-developing);
           border-radius:8px; text-decoration:none; }
 .mk-row:hover { border-color:#1e3a52; border-left-color:#fbbf24; }
-.mk-rank { font-family:'Orbitron',sans-serif; font-size:13px; color:#4b5563; min-width:26px; text-align:right; }
+.mk-rank { font-family:var(--wtf-font-mono); font-size:13px; color:#4b5563; min-width:26px; text-align:right; }
 .mk-name { flex:1; min-width:0; }
 .mk-name-main { font-size:14px; color:#e5e7eb; }
 .mk-jv { display:block; font-size:9px; color:#6b7280; margin-top:2px; }
 .mk-ticker { font-size:11px; color:#38bdf8; margin-top:2px; font-family:'IBM Plex Mono',monospace; }
 .mk-fig { text-align:right; white-space:nowrap; }
-.mk-num { font-size:15px; color:#f59e0b; font-weight:700; }
+.mk-num { font-size:15px; color:var(--wtf-developing); font-weight:700; }
 .mk-awards { font-size:10px; color:#4b5563; }
 .mk-note { font-size:9px; color:#374151; margin-top:18px; line-height:1.6; max-width:680px; }
+.mk-empty { color:#6b7280; font-size:12px; padding:24px 0; }
 </style>
 
-<div style="font-size:10px;color:#4b5563;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px;">📈 Shared Entity Graph · Cross-Watch</div>
-<h1 style="font-family:'Orbitron',sans-serif;font-size:18px;color:#e5e7eb;margin:0 0 6px;">📈 Publicly traded federal contractors</h1>
+<div class="mk-kicker">📈 Shared Entity Graph · Cross-Watch</div>
+<h1 class="mk-h1">📈 Publicly traded federal contractors</h1>
 <p class="mk-intro">
   TSX-listed companies that are also federal contractors — ranked by the cumulative value of federal
   contracts they've won. Where public money meets the markets. Open any company for its full
@@ -49,7 +62,7 @@
   {% endfor %}
 </div>
 {% else %}
-<div style="color:#6b7280;font-size:12px;padding:24px 0;">No publicly-traded contractors resolved yet.</div>
+<div class="mk-empty">No publicly-traded contractors resolved yet.</div>
 {% endif %}
 
 <div class="mk-note">

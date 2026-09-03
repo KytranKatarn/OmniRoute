@@ -1309,3 +1309,97 @@ p { text-wrap: pretty; }
 /* The out-of-view count is a caveat, not decoration — it reads like the other
    legend notes rather than like an error. */
 .wtf-map-legend-note.is-offscreen { color: var(--wtf-text-muted, #7d8590); font-style: italic; }
+
+/* ── /score — design-handoff Phase 2 ────────────────────────────────────────
+   Tokens only. The lean band is rendered by lean_pill() so it cannot drift from
+   the --wtf-left..--wtf-right scale the rest of the site uses; the only literal
+   colours here are the FACT-CHECK verdict scale, which is its own vocabulary
+   and deliberately not folded into the story chips. */
+.wtf-score { max-width: 720px; margin: 0 auto; padding: 40px 16px 64px; }
+.wtf-score-head { margin-bottom: 28px; }
+.wtf-score-eyebrow {
+  font-size: .58rem; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--wtf-text-muted); margin-bottom: 8px;
+}
+.wtf-score h1 { font-family: var(--wtf-font-serif); font-size: 1.9rem; color: var(--wtf-text); margin: 0 0 10px; }
+.wtf-score-lede { color: var(--wtf-text-2); font-size: .85rem; line-height: 1.65; margin: 0; max-width: 60ch; }
+
+/* ⚠️ NOT --wtf-contested. That is a story verdict chip; a form error is not a
+   verdict, and reusing the token would let a chip colour assert a judgement the
+   page never made. Neutral border + accent rule instead. */
+.wtf-score-error {
+  background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border);
+  border-left: 3px solid var(--wtf-accent); border-radius: var(--wtf-r-sm);
+  padding: 12px 16px; margin-bottom: 20px; color: var(--wtf-text); font-size: .8rem;
+}
+
+.wtf-score-result {
+  background: var(--wtf-bg-card); border: 1px solid var(--wtf-border);
+  border-radius: var(--wtf-r-md); padding: 22px; margin-bottom: 24px;
+}
+.wtf-score-band { margin-bottom: 16px; }
+.wtf-score-unscored { color: var(--wtf-text-muted); }
+
+.wtf-score-block { margin-top: 20px; }
+.wtf-score-block h2 {
+  font-size: .6rem; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--wtf-text-muted); margin: 0 0 8px; font-weight: 600;
+}
+.wtf-score-block p { color: var(--wtf-text-2); font-size: .82rem; line-height: 1.65; margin: 0; }
+
+.wtf-score-phrases { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
+.wtf-score-phrases li {
+  background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border);
+  border-radius: var(--wtf-r-sm); padding: 3px 9px; font-size: .72rem; color: var(--wtf-text-2);
+}
+
+.wtf-score-claims { list-style: none; margin: 0; padding: 0; }
+.wtf-score-claim {
+  border-left: 2px solid var(--wtf-border); background: var(--wtf-bg-panel);
+  border-radius: 0 var(--wtf-r-sm) var(--wtf-r-sm) 0;
+  padding: 7px 11px; margin-bottom: 5px;
+}
+.wtf-score-verdict {
+  font-size: .62rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--wtf-text-muted); margin-right: 8px;
+}
+.wtf-score-claim-text { color: var(--wtf-text-2); font-size: .78rem; }
+/* fact-check rubric — see consumer/templates/score.html */
+.wtf-score-claim.is-verified     { border-left-color: #4ade80; }
+.wtf-score-claim.is-verified     .wtf-score-verdict { color: #4ade80; }
+.wtf-score-claim.is-mostly-true  { border-left-color: #a3e635; }
+.wtf-score-claim.is-mostly-true  .wtf-score-verdict { color: #a3e635; }
+.wtf-score-claim.is-mixed        { border-left-color: #fbbf24; }
+.wtf-score-claim.is-mixed        .wtf-score-verdict { color: #fbbf24; }
+.wtf-score-claim.is-disputed,
+.wtf-score-claim.is-false        { border-left-color: #f87171; }
+.wtf-score-claim.is-disputed .wtf-score-verdict,
+.wtf-score-claim.is-false        .wtf-score-verdict { color: #f87171; }
+
+.wtf-score-form label {
+  display: block; font-size: .65rem; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--wtf-text-2); margin: 16px 0 6px;
+}
+.wtf-score-form label span { color: var(--wtf-text-muted); letter-spacing: 0; text-transform: none; }
+.wtf-score-form input,
+.wtf-score-form textarea {
+  width: 100%; box-sizing: border-box;
+  background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border);
+  color: var(--wtf-text); border-radius: var(--wtf-r-sm);
+  padding: 11px 14px; font-size: .82rem; font-family: inherit; line-height: 1.6;
+}
+.wtf-score-form textarea { resize: vertical; }
+.wtf-score-form input:focus,
+.wtf-score-form textarea:focus { outline: 2px solid var(--wtf-accent); outline-offset: 1px; }
+.wtf-score-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+.wtf-score-form button {
+  background: var(--wtf-accent); color: #fff; border: none;
+  padding: 12px 26px; border-radius: var(--wtf-r-sm);
+  font-size: .85rem; font-family: inherit; cursor: pointer; letter-spacing: .4px;
+}
+.wtf-score-hint { font-size: .68rem; color: var(--wtf-text-muted); }
+
+@media (max-width: 600px) {
+  .wtf-score { padding: 24px 14px 48px; }
+  .wtf-score h1 { font-size: 1.5rem; }
+}

@@ -16,7 +16,6 @@ import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from psycopg2.extras import RealDictCursor
-import requests
 import json
 from db import get_db
 

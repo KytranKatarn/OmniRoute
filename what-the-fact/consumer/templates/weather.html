@@ -155,6 +155,35 @@
   #wtf-wx-map { height:320px; }
 }
 
+/* ── layer provenance cards + data tables (#6149 Phase 4, slice 1) ──────────
+   Extracted from inline styles into classes — value-preserving, same pixels
+   as before. Matches the design-handoff's .layercard / table.wx structural
+   pattern; also removes the exact th/td styling duplicated between the two
+   tables below. Per-column colours kept exactly as they were (including the
+   fire_provinces vs windiest "province" cell colour mismatch — #e5e7eb vs
+   #6b7280 — which is a real inconsistency in the current page but not one
+   this slice decided to silently resolve; a class-based fix belongs in its
+   own reviewed change, not folded into an inline-style extraction). */
+.wtf-wx-layercard-row { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+.wtf-wx-layercard { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:9px 13px; min-width:190px; }
+.wtf-wx-layercard.is-stale { border-color:var(--wtf-developing); }
+.wtf-wx-layercard-label { font-size:9px; letter-spacing:1.5px; color:#6b7280; text-transform:uppercase; }
+.wtf-wx-layercard-n { font-size:15px; font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; color:var(--wtf-text); margin-top:3px; }
+.wtf-wx-layercard-n.is-stale { color:var(--wtf-developing); }
+.wtf-wx-layercard-meta { font-size:9px; color:#6b7280; margin-top:4px; line-height:1.5; }
+.wtf-wx-layercard-stale-flag { color:var(--wtf-developing); }
+.wtf-wx-layercard-dataset { color:#4b5563; }
+
+.wtf-wx-table-wrap { overflow-x:auto; margin-bottom:20px; }
+.wtf-wx-table { width:100%; border-collapse:collapse; font-size:12px; }
+.wtf-wx-table th { text-align:left; font-size:9px; color:#4b5563; text-transform:uppercase; letter-spacing:1px; padding:6px 8px; border-bottom:1px solid #1a3a5a; }
+.wtf-wx-table th.wtf-wx-num { text-align:right; }
+.wtf-wx-table td { padding:6px 8px; border-bottom:1px solid #0f1620; }
+.wtf-wx-table td.wtf-wx-num { text-align:right; }
+.wtf-wx-table td.wtf-wx-hl { color:#60a5fa; }
+.wtf-wx-table td.wtf-wx-muted { color:#6b7280; }
+.wtf-wx-table td.wtf-wx-txt { color:#e5e7eb; }
+
 </style>
 
 <div class="wtf-wx-header">
@@ -306,18 +335,18 @@
       {% if layers %}
       <div class="wtf-wx-section-title">Wildfire &amp; fire-weather — live layers</div>
 
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
+      <div class="wtf-wx-layercard-row">
         {% for L in layers %}
-        <div style="background:#060d14;border:1px solid {% if L.is_stale %}var(--wtf-developing){% else %}#1a3a5a{% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
-          <div style="font-size:9px;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">{{ L.layer_label }}</div>
-          <div style="font-size:15px;font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums;color:{% if L.is_stale %}var(--wtf-developing){% else %}var(--wtf-text){% endif %};margin-top:3px;">
+        <div class="wtf-wx-layercard{{ ' is-stale' if L.is_stale else '' }}">
+          <div class="wtf-wx-layercard-label">{{ L.layer_label }}</div>
+          <div class="wtf-wx-layercard-n{{ ' is-stale' if L.is_stale else '' }}">
             {{ '{:,}'.format(L.record_count or 0) }}
           </div>
-          <div style="font-size:9px;color:#6b7280;margin-top:4px;line-height:1.5;">
+          <div class="wtf-wx-layercard-meta">
             {{ L.issuing_body }}<br>
-            <span style="color:#4b5563;">{{ L.dataset_id }}</span><br>
+            <span class="wtf-wx-layercard-dataset">{{ L.dataset_id }}</span><br>
             {% if L.is_stale %}
-            <span style="color:var(--wtf-developing);">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
+            <span class="wtf-wx-layercard-stale-flag">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
             {% else %}
             pulled {{ L.last_pull.strftime('%Y-%m-%d %H:%M') }} UTC
             {% endif %}
@@ -335,19 +364,19 @@
       {% endif %}
 
       {% if fire_provinces %}
-      <div style="overflow-x:auto;margin-bottom:20px;">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <div class="wtf-wx-table-wrap">
+        <table class="wtf-wx-table">
           <thead><tr>
-            <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Province</th>
-            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Hotspots (72h)</th>
-            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Peak fire-weather index</th>
+            <th>Province</th>
+            <th class="wtf-wx-num">Hotspots (72h)</th>
+            <th class="wtf-wx-num">Peak fire-weather index</th>
           </tr></thead>
           <tbody>
             {% for f in fire_provinces %}
             <tr>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#e5e7eb;">{{ f.prov }}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#60a5fa;">{{ '{:,}'.format(f.hotspots) }}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(f.max_fwi) if f.max_fwi is not none else '—' }}</td>
+              <td class="wtf-wx-txt">{{ f.prov }}</td>
+              <td class="wtf-wx-num wtf-wx-hl">{{ '{:,}'.format(f.hotspots) }}</td>
+              <td class="wtf-wx-num wtf-wx-muted">{{ '%.1f'|format(f.max_fwi) if f.max_fwi is not none else '—' }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -359,25 +388,25 @@
 
       {% if windiest %}
       <div class="wtf-wx-section-title">Strongest winds at fire-weather stations</div>
-      <div style="overflow-x:auto;margin-bottom:22px;">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <div class="wtf-wx-table-wrap">
+        <table class="wtf-wx-table">
           <thead><tr>
-            <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Station</th>
-            <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Prov</th>
-            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Wind</th>
-            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Gust</th>
-            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Temp</th>
-            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">FWI</th>
+            <th>Station</th>
+            <th>Prov</th>
+            <th class="wtf-wx-num">Wind</th>
+            <th class="wtf-wx-num">Gust</th>
+            <th class="wtf-wx-num">Temp</th>
+            <th class="wtf-wx-num">FWI</th>
           </tr></thead>
           <tbody>
             {% for w in windiest %}
             <tr>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#e5e7eb;">{{ w.station_name or '—' }}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#6b7280;">{{ w.prov or '—' }}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#60a5fa;">{{ '%.0f'|format(w.wind_speed_kmh) }} km/h</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.0f'|format(w.wind_gust_kmh) if w.wind_gust_kmh is not none else '—' }}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(w.temp_c) if w.temp_c is not none else '—' }}</td>
-              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(w.fwi) if w.fwi is not none else '—' }}</td>
+              <td class="wtf-wx-txt">{{ w.station_name or '—' }}</td>
+              <td class="wtf-wx-muted">{{ w.prov or '—' }}</td>
+              <td class="wtf-wx-num wtf-wx-hl">{{ '%.0f'|format(w.wind_speed_kmh) }} km/h</td>
+              <td class="wtf-wx-num wtf-wx-muted">{{ '%.0f'|format(w.wind_gust_kmh) if w.wind_gust_kmh is not none else '—' }}</td>
+              <td class="wtf-wx-num wtf-wx-muted">{{ '%.1f'|format(w.temp_c) if w.temp_c is not none else '—' }}</td>
+              <td class="wtf-wx-num wtf-wx-muted">{{ '%.1f'|format(w.fwi) if w.fwi is not none else '—' }}</td>
             </tr>
             {% endfor %}
           </tbody>

@@ -184,14 +184,28 @@ def test_is_stale_provenance_card_resolves_from_developing_token():
     """Positive-shape check for fix #2: BOTH the card border and the STALE
     text must resolve through var(--wtf-developing) — the same token this
     file's own JS-driven .wtf-wx-age-stale / .wtf-wx-citycard.is-stale rules
-    already use for the identical semantic."""
+    already use for the identical semantic.
+
+    Was a literal match on the inline-conditional-style string this fix
+    landed as (`{% if L.is_stale %}var(--wtf-developing){% else %}...`).
+    The #6149 Phase 4 slice 1 refactor (PR #3110) extracted the layer-
+    provenance card from inline styles into classes — verified visually
+    identical via a stashed-vs-unstashed rendered-text diff — so the
+    literal inline string no longer exists. This now pins the class-based
+    rule instead, same semantic: is_stale -> var(--wtf-developing), both
+    for the card border and for the STALE label text.
+    """
     src = WEATHER.read_text(encoding="utf-8")
     assert (
-        "{% if L.is_stale %}var(--wtf-developing){% else %}#1a3a5a{% endif %}"
+        ".wtf-wx-layercard.is-stale { border-color:var(--wtf-developing); }"
         in src
     ), "is_stale provenance-card border does not resolve via var(--wtf-developing)"
-    assert 'color:var(--wtf-developing);">⚠ STALE' in src, (
-        "STALE label text does not resolve via var(--wtf-developing)"
+    assert (
+        ".wtf-wx-layercard-stale-flag { color:var(--wtf-developing); }"
+        in src
+    ), "STALE label text does not resolve via var(--wtf-developing)"
+    assert 'class="wtf-wx-layercard-stale-flag">⚠ STALE' in src, (
+        "STALE label markup no longer uses the stale-flag class"
     )
 
 

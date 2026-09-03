@@ -567,7 +567,7 @@ a { color: inherit; }
   position: relative;
 }
 .wtf-team-card--coming { opacity: 0.7; }
-.wtf-team-card--teaser { border-color: #7c3aed; border-style: dashed; }
+.wtf-team-card--teaser { border-color: var(--wtf-aurora); border-style: dashed; }
 
 .wtf-team-portrait {
   width: 72px;

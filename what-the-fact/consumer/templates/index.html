@@ -256,7 +256,10 @@ function buildActivityItem(ev) {
     "I.N.K.":      "#ec4899",
     "D.R.A.F.T.":  "#06b6d4",
     "P.U.B.L.I.S.H.":"#f97316",
-    "A.U.R.O.R.A.":"#7c3aed",
+    // var(--wtf-aurora) tracks style.css — the other 4 tokened agents above
+    // (FACT/BIAS/VERIFY/LOCAL) already match --wtf-fact/-bias/-verify/-local;
+    // this one was still the pre-correction literal (task #6314).
+    "A.U.R.O.R.A.":"var(--wtf-aurora)",
   };
   var AGENT_TOOLTIPS = {
     "F.A.C.T.":    "F.A.C.T. — Article Ingestion. Fetches and indexes articles from 46+ Canadian news sources.",

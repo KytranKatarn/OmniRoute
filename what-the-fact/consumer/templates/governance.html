@@ -10,9 +10,9 @@
     <p style="color:#6b7280;font-size:0.78rem;margin:0;line-height:1.6;">
       What The Fact is produced by an AI newsroom. Every editorial action our agents take —
       bias scoring, fact-checking, publishing — emits a governance event to
-      <a href="https://creed-ai.org" style="color:#7c3aed;">C.R.E.E.D.</a>, an independent ethics
+      <a href="https://creed-ai.org" style="color:var(--wtf-aurora);">C.R.E.E.D.</a>, an independent ethics
       layer. This page shows the <strong style="color:#9ca3af;">live score of our own newsroom</strong>
-      (the <code style="color:#7c3aed;">what-the-fact</code> organization) — not a self-audit, and
+      (the <code style="color:var(--wtf-aurora);">what-the-fact</code> organization) — not a self-audit, and
       not C.R.E.E.D.'s score of itself.
     </p>
   </div>
@@ -20,8 +20,8 @@
   {% if scan %}
   <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:6px;padding:20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
     <div>
-      <div style="font-size:2.6rem;font-family:Georgia,serif;color:#c4b5fd;line-height:1;">{{ scan.overall }}<span style="font-size:1.2rem;color:#7c3aed;">/100</span></div>
-      <div style="font-size:0.6rem;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-top:4px;">Grade <strong style="color:#a78bfa;">{{ scan.grade }}</strong></div>
+      <div style="font-size:2.6rem;font-family:Georgia,serif;color:#c4b5fd;line-height:1;">{{ scan.overall }}<span style="font-size:1.2rem;color:var(--wtf-aurora);">/100</span></div>
+      <div style="font-size:0.6rem;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-top:4px;">Grade <strong style="color:var(--wtf-aurora);">{{ scan.grade }}</strong></div>
     </div>
     <div style="flex:1;min-width:200px;color:#6b7280;font-size:0.72rem;line-height:1.7;">
       <div>{{ "{:,}".format(scan.event_count) }} governance events tracked</div>
@@ -29,7 +29,7 @@
       <div>{{ "{:,}".format(scan.freshness.events_30d) }} events in the last 30 days</div>
       {% endif %}
       {% if scan.overall_categories %}
-      <div>Overall is computed from pillars with &ge;100 events: <span style="color:#a78bfa;text-transform:capitalize;">{{ scan.overall_categories | join(', ') }}</span></div>
+      <div>Overall is computed from pillars with &ge;100 events: <span style="color:var(--wtf-aurora);text-transform:capitalize;">{{ scan.overall_categories | join(', ') }}</span></div>
       {% endif %}
     </div>
     <img src="/api/creed-badge" alt="C.R.E.E.D. what-the-fact badge" style="height:22px;">
@@ -41,7 +41,7 @@
     <div style="background:#0a0e18;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;">
       <div style="display:flex;align-items:baseline;justify-content:space-between;">
         <span style="color:#9ca3af;font-size:0.72rem;text-transform:capitalize;font-weight:600;">{{ cat }}</span>
-        <span style="color:#a78bfa;font-family:Georgia,serif;font-size:1.05rem;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}<span style="font-size:0.65rem;color:#6b7280;">/100</span></span>
+        <span style="color:var(--wtf-aurora);font-family:Georgia,serif;font-size:1.05rem;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}<span style="font-size:0.65rem;color:#6b7280;">/100</span></span>
       </div>
       {% if pv is mapping %}
       <div style="margin-top:6px;color:#4b5563;font-size:0.62rem;line-height:1.5;">
@@ -59,9 +59,9 @@
   <p style="color:#4b5563;font-size:0.65rem;line-height:1.7;">
     Pillars under 100 events are marked <em>provisional</em> and excluded from the overall —
     a low-volume pillar never inflates (or fakes) confidence. Methodology:
-    <a href="https://what-the-fact.tech/transparency" style="color:#7c3aed;">what-the-fact.tech/transparency</a> ·
-    Watch the agents work live on the <a href="/activity" style="color:#7c3aed;">Activity Log</a> ·
-    Meet the team on <a href="/team" style="color:#7c3aed;">Team</a>.
+    <a href="https://what-the-fact.tech/transparency" style="color:var(--wtf-aurora);">what-the-fact.tech/transparency</a> ·
+    Watch the agents work live on the <a href="/activity" style="color:var(--wtf-aurora);">Activity Log</a> ·
+    Meet the team on <a href="/team" style="color:var(--wtf-aurora);">Team</a>.
   </p>
   {% else %}
   <div style="background:#0a0e18;border:1px solid #1a2a3a;border-radius:4px;padding:20px;color:#6b7280;font-size:0.78rem;">

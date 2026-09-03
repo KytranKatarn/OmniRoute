@@ -33,10 +33,10 @@
      transparency is public by design, like the badge + /api/public/score (#3358). #}
   {% if creed_scan %}
   <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <a href="/governance" style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
-    <span style="color:#a78bfa;font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
+    <a href="/governance" style="color:var(--wtf-aurora);font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
+    <span style="color:var(--wtf-aurora);font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
     <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
-    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:#a78bfa;">{{ creed_scan.overall }}%</strong></span>
+    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:var(--wtf-aurora);">{{ creed_scan.overall }}%</strong></span>
     {% if creed_scan.event_count %}
     <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
     <span style="color:#6b7280;font-size:0.65rem;">{{ creed_scan.event_count }} events tracked</span>
@@ -46,7 +46,7 @@
       {# pillar values are dicts {score, grade, events, provisional, note} — the old
          "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
       {% for cat, pv in creed_scan.by_category.items() %}
-      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
+      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:var(--wtf-aurora);">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
       {% endfor %}
     </span>
     {% endif %}
@@ -94,7 +94,7 @@
       <div style="font-family:var(--wtf-font-mono);font-size:0.68rem;letter-spacing:.1em;color:#e0e0e0;">{{ a.name }}</div>
       <div style="font-size:0.63rem;color:#6b7280;margin-bottom:7px;">{{ a.what }}</div>
       <div style="display:flex;align-items:baseline;gap:5px;">
-        <span style="font-family:var(--wtf-font-mono);font-size:1.32rem;color:#a78bfa;">{{ a.per_hour if a.per_hour is not none else '—' }}</span>
+        <span style="font-family:var(--wtf-font-mono);font-size:1.32rem;color:var(--wtf-aurora);">{{ a.per_hour if a.per_hour is not none else '—' }}</span>
         <span style="font-size:0.62rem;color:#6b7280;">/hour</span>
       </div>
       <div style="font-size:0.62rem;color:#6b7280;margin-top:5px;">
@@ -121,7 +121,7 @@
     <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b style="color:#9ca3af;">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
     <span title="S.C.O.U.T. body rescues completed in last 24h"><b style="color:#10b981;">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
     {% if stats.scout_body_failed > 0 %}<span title="Scout = body text scraper. Failed = couldn't extract full article text."><b style="color:#ef4444;">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
-    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b style="color:#a78bfa;">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
+    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b style="color:var(--wtf-aurora);">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
     {% if stats.tier2_failed > 0 %}<span title="Tier-2 = deep AI analysis (bias + fact-check). Failed = hub timeout or model error."><b style="color:#ef4444;">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
   </div>
   {% set n = stats.total_articles %}
@@ -422,10 +422,10 @@
 
   {% if creed_scan %}
   <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <a href="/governance" style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
-    <span style="color:#a78bfa;font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
+    <a href="/governance" style="color:var(--wtf-aurora);font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
+    <span style="color:var(--wtf-aurora);font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
     <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
-    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:#a78bfa;">{{ creed_scan.overall }}%</strong></span>
+    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:var(--wtf-aurora);">{{ creed_scan.overall }}%</strong></span>
     {% if creed_scan.event_count %}
     <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
     <span style="color:#6b7280;font-size:0.65rem;">{{ creed_scan.event_count }} events tracked</span>
@@ -435,7 +435,7 @@
       {# pillar values are dicts {score, grade, events, provisional, note} — the old
          "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
       {% for cat, pv in creed_scan.by_category.items() %}
-      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
+      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:var(--wtf-aurora);">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
       {% endfor %}
     </span>
     {% endif %}

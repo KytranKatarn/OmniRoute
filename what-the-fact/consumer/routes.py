@@ -329,7 +329,10 @@ TEAM_AGENTS = [
         "description": "Tracks climate and severe-weather coverage across our Canadian news sources — because in Canada, the weather IS the news.",
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-30/7b1193b5-868.png",
-        "accent_colour": "#7c3aed",
+        # var(--wtf-aurora) tracks style.css — was the pre-correction literal
+        # #7c3aed (git history: "--wtf-aurora corrected #7c3aed -> #8b5cf6 per
+        # the spec"), which never got propagated here (task #6314).
+        "accent_colour": "var(--wtf-aurora)",
     },
 ]
 

@@ -8,16 +8,26 @@
 {% endblock %}
 {% block content %}
 <style>
+  /* Two confirmed fixes (evidence-backed, not guessed): 'Orbitron' is never
+     loaded by this app's base.html — same bug already fixed on rates.html
+     this session — so the title silently fell back to its 2nd fallback;
+     and kicker/cta colors now match the exact var(--wtf-accent)/var(--wtf-local)
+     choices confirmed by reading design-handoff/wtf-cost.html's
+     .wtf-cs-kick/.wtf-cs-cta rules. Title/lede/panel colors have no confirmed
+     token equivalent, so they stay as page-local literals rather than a guess —
+     see the coder-doc for this PR for the full color-mapping evidence.
+     cost.js's runtime palette is deliberately untouched (separate, larger,
+     financial-data-sensitive scope). */
   .cost-wrap { max-width: 1000px; margin: 0 auto; padding: 8px 4px 40px; }
-  .cost-kicker { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #ef4444; margin: 18px 0 6px; }
-  .cost-title { font-family: 'Orbitron', Georgia, serif; font-size: clamp(22px, 4.5vw, 34px); color: #e5e7eb; margin: 0 0 8px; line-height: 1.15; }
+  .cost-kicker { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--wtf-accent); margin: 18px 0 6px; }
+  .cost-title { font-family: var(--wtf-font-serif); font-size: clamp(22px, 4.5vw, 34px); color: #e5e7eb; margin: 0 0 8px; line-height: 1.15; }
   .cost-lede { font-size: 13px; color: #9ca3af; line-height: 1.75; max-width: 640px; margin: 0 0 22px; }
   .cost-headline { padding: 20px 0 6px; }
   .cost-panel { background: rgba(148,163,184,0.05); border: 1px solid rgba(148,163,184,0.16); border-radius: 10px; padding: 20px; margin: 18px 0; }
   .cost-panel-h { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin: 0 0 4px; }
   .cost-stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
-  .cost-cta { display: inline-block; margin-top: 8px; font-size: 12px; color: #0af; text-decoration: none; border: 1px solid #0af; padding: 9px 18px; border-radius: 4px; letter-spacing: .04em; }
-  .cost-cta:hover { background: rgba(0,170,255,0.1); }
+  .cost-cta { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--wtf-local); text-decoration: none; border: 1px solid var(--wtf-local); padding: 9px 18px; border-radius: 4px; letter-spacing: .04em; }
+  .cost-cta:hover { background: rgba(59,130,246,0.1); }
   @media (max-width: 560px) { .cost-panel { padding: 16px 14px; } }
 </style>
 

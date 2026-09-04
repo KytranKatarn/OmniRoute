@@ -60,6 +60,9 @@ def recompute_outlet_bias(engine) -> dict:
                       -- the difference between reporting the outlet as
                       -- "center" and "center-left". Migration 065.
                       AND a.content_type <> 'wire'
+                      -- #6244: a suppressed duplicate/non-article/publisher-suffix
+                      -- row must not vote on the outlet's published lean either.
+                      AND a.suppressed_reason IS NULL
                     GROUP BY a.source_id
                 """)
             ).fetchall()

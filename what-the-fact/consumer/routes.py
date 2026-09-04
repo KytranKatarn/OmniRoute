@@ -250,6 +250,23 @@ def _schema():
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
+def _active_source_count(c, S, hours: int = 48) -> int:
+    """Distinct sources with a VISIBLE article ingested in the last `hours` hours.
+
+    Consolidates 14 byte-identical inline copies of this query across this file
+    (#6244) — every one of them independently omitted the suppressed_reason
+    filter, so a source whose only recent article was a suppressed duplicate
+    refetch still counted as "active." `hours` is only ever a fixed literal
+    from this file's own call sites, never user input.
+    """
+    return c.execute(text(f"""
+        SELECT COUNT(DISTINCT s.id) FROM {S}.sources s
+        JOIN {S}.articles a ON a.source_id = s.id
+         AND a.ingested_at > NOW() - INTERVAL '{hours} hours'
+         AND a.suppressed_reason IS NULL
+    """)).scalar() or 0
+
+
 TEAM_AGENTS = [
     {
         "name": "F.A.C.T.",
@@ -371,11 +388,9 @@ def api_stats():
 def join():
     S = _schema()
     with _db().begin() as c:
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
         total_articles = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.articles")
+            text(f"SELECT COUNT(*) FROM {S}.articles WHERE suppressed_reason IS NULL")
         ).scalar() or 0
     return render_template("connect.html", source_count=source_count,
                            total_articles=total_articles)
@@ -479,9 +494,7 @@ def news():
         # correlated-subquery cost estimate keeps JIT triggered even after
         # the rewrite below). Transaction-scoped, read-only-safe. #5719
         c.execute(text("SET LOCAL jit = off"))
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
         params = {}
         # Keyed by axis so a per-axis facet WHERE ("every filter except this
         # one") is a one-line dict comprehension instead of a hand-picked
@@ -679,7 +692,7 @@ def news():
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
             LEFT JOIN (
                 SELECT source_id, COUNT(*) AS article_count
-                FROM {S}.articles GROUP BY source_id
+                FROM {S}.articles WHERE suppressed_reason IS NULL GROUP BY source_id
             ) ac ON ac.source_id = s.id
             ORDER BY COALESCE(ac.article_count, 0) DESC
         """)).mappings().all()
@@ -763,20 +776,16 @@ def weather():
         """)).mappings().all()
 
         climate_count = c.execute(text(
-            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'climate'"
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'climate' AND suppressed_reason IS NULL"
         )).scalar() or 0
         sci_count = c.execute(text(
-            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'science-tech'"
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'science-tech' AND suppressed_reason IS NULL"
         )).scalar() or 0
         # base.html's nav renders "LIVE · {{ source_count }} SOURCES". This page
         # was a standalone document until 2026-08-18 and never supplied it, so
         # inheriting the shell without this would render "LIVE · 0 SOURCES".
         # Same definition every other page uses: distinct sources seen in 48h.
-        source_count = c.execute(text(
-            f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s "
-            f"JOIN {S}.articles a ON a.source_id = s.id "
-            f"AND a.ingested_at > NOW() - INTERVAL '48 hours'"
-        )).scalar() or 0
+        source_count = _active_source_count(c, S)
 
         # A.U.R.O.R.A. environmental layers (project #393). Every panel below is
         # rendered from these rows, and the provenance strip LOOPS
@@ -990,13 +999,13 @@ def economy():
         """)).mappings().all()
 
         economy_count = c.execute(text(
-            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'economy'"
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'economy' AND suppressed_reason IS NULL"
         )).scalar() or 0
         business_count = c.execute(text(
-            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'business'"
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'business' AND suppressed_reason IS NULL"
         )).scalar() or 0
         foreign_count = c.execute(text(
-            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'foreign-policy'"
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'foreign-policy' AND suppressed_reason IS NULL"
         )).scalar() or 0
 
     return render_template("economy.html",
@@ -1037,7 +1046,7 @@ def municipal():
         """), params).mappings().all()
 
         total = c.execute(text(
-            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'municipal'"
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'municipal' AND suppressed_reason IS NULL"
         )).scalar() or 0
 
         # City facets — only cities with real coverage (>=2) to keep the
@@ -1046,6 +1055,7 @@ def municipal():
             SELECT a.city, COUNT(*) AS n
             FROM {S}.articles a
             WHERE a.beat = 'municipal' AND a.city IS NOT NULL AND a.city <> ''
+              AND a.suppressed_reason IS NULL
             GROUP BY a.city
             HAVING COUNT(*) >= 2
             ORDER BY n DESC
@@ -1164,13 +1174,17 @@ def _newsroom_agents(S):
                    SUM(CASE WHEN task = 'bias'       THEN n ELSE 0 END)::bigint AS bias_scores
               FROM (
                 SELECT COALESCE(agent_name, '') AS agent, 'fact-check' AS task, COUNT(*) AS n
-                  FROM {S}.fact_checks
+                  FROM {S}.fact_checks fc
                  WHERE checked_at > NOW() - INTERVAL '24 hours'
+                   AND EXISTS (SELECT 1 FROM {S}.articles a
+                                WHERE a.id = fc.article_id AND a.suppressed_reason IS NULL)
                  GROUP BY 1
                 UNION ALL
                 SELECT COALESCE(agent_name, ''), 'bias', COUNT(*)
-                  FROM {S}.bias_scores
+                  FROM {S}.bias_scores bs
                  WHERE computed_at > NOW() - INTERVAL '24 hours'
+                   AND EXISTS (SELECT 1 FROM {S}.articles a
+                                WHERE a.id = bs.article_id AND a.suppressed_reason IS NULL)
                  GROUP BY 1
               ) t
              GROUP BY agent
@@ -1302,9 +1316,7 @@ def _activity_bundle(S, force: bool = False):
         _newsroom = {"agents": [], "unattributed": 0, "attributed": 0, "error": str(_exc)[:120]}
     with _db().begin() as c:
         c.execute(text("SET LOCAL jit = off"))
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
         stats = c.execute(text(f"""
             SELECT
               -- Transparency page: the one place a wrong count is worst.
@@ -1325,11 +1337,16 @@ def _activity_bundle(S, force: bool = False):
               (SELECT COUNT(DISTINCT f.article_id) FROM {S}.fact_checks f
                  JOIN {S}.articles a ON a.id = f.article_id
                 WHERE a.suppressed_reason IS NULL) AS fact_checked_articles,
-              (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL) AS geo_mapped,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested') AS fact_ingested,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested' AND created_at > NOW() - INTERVAL '24 hours') AS articles_24h,
-              (SELECT COUNT(*) FROM {S}.bias_scores WHERE computed_at > NOW() - INTERVAL '24 hours') AS bias_24h,
-              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks WHERE checked_at > NOW() - INTERVAL '24 hours') AS verify_24h,
+              (SELECT COUNT(*) FROM {S}.bias_scores bs24
+                 JOIN {S}.articles a ON a.id = bs24.article_id
+                WHERE bs24.computed_at > NOW() - INTERVAL '24 hours'
+                  AND a.suppressed_reason IS NULL) AS bias_24h,
+              (SELECT COUNT(DISTINCT fc24.article_id) FROM {S}.fact_checks fc24
+                 JOIN {S}.articles a ON a.id = fc24.article_id
+                WHERE fc24.checked_at > NOW() - INTERVAL '24 hours'
+                  AND a.suppressed_reason IS NULL) AS verify_24h,
               (SELECT COUNT(*) FROM {S}.summaries WHERE created_at > NOW() - INTERVAL '24 hours') AS draft_24h,
               (SELECT COUNT(*) FROM {S}.story_clusters WHERE created_at > NOW() - INTERVAL '24 hours') AS ink_24h,
               (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed_at > NOW() - INTERVAL '24 hours'
@@ -1351,30 +1368,53 @@ def _activity_bundle(S, force: bool = False):
                  AND suppressed_reason IS NULL) AS tier_quick_v1,
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1+full'
                  AND suppressed_reason IS NULL) AS tier_quick_v1_full,
-              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier IN ('quick_v1_failed', 'quick_v1_failed+full', 'quick_v1+failed')) AS tier_quick_v1_failed,
-              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true) AS tier2_pending_count,
-              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS verify_total,
-              (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL OR country_code IS NOT NULL) AS geo_mapped,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier IN ('quick_v1_failed', 'quick_v1_failed+full', 'quick_v1+failed')
+                 AND suppressed_reason IS NULL) AS tier_quick_v1_failed,
+              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true
+                 AND suppressed_reason IS NULL) AS tier2_pending_count,
+              (SELECT COUNT(DISTINCT fct.article_id) FROM {S}.fact_checks fct
+                 JOIN {S}.articles a ON a.id = fct.article_id
+                WHERE a.suppressed_reason IS NULL) AS verify_total,
+              -- ⚠️ geo_mapped is intentionally defined ONCE, here — an identically-named
+              -- second definition further down this SELECT (narrower: province_code only,
+              -- no suppressed_reason filter) silently shadowed this one; removed as part
+              -- of #6244 rather than left as dead, inconsistent duplicate SQL.
+              (SELECT COUNT(*) FROM {S}.articles WHERE (province_code IS NOT NULL OR country_code IS NOT NULL)
+                 AND suppressed_reason IS NULL) AS geo_mapped,
               -- Pipeline health counters (#2955) — surfaces skipped/backlog
               -- alongside the done/failed split workers already log to stdout.
               (SELECT COUNT(*) FROM {S}.failed_ingest
                  WHERE created_at > NOW() - INTERVAL '24 hours') AS failed_ingest_24h,
               (SELECT COUNT(*) FROM {S}.failed_ingest) AS failed_ingest_total,
               (SELECT COUNT(*) FROM {S}.articles
-                 WHERE province_code IS NULL AND geo_scope != 'unmappable') AS geo_pending,
-              (SELECT COUNT(*) FROM {S}.articles WHERE NOT ai_analyzed) AS llm_pending,
+                 WHERE province_code IS NULL AND geo_scope != 'unmappable'
+                   AND suppressed_reason IS NULL) AS geo_pending,
+              (SELECT COUNT(*) FROM {S}.articles WHERE NOT ai_analyzed
+                 AND suppressed_reason IS NULL) AS llm_pending,
               (SELECT COUNT(*) FROM {S}.scout_body_jobs WHERE status='failed') AS scout_body_failed,
               (SELECT COUNT(*) FROM {S}.scout_body_jobs
                  WHERE status='completed' AND completed_at > NOW() - INTERVAL '24 hours') AS scout_body_done_24h,
-              (SELECT COUNT(*) FROM {S}.articles WHERE geo_scope = 'unmappable') AS geo_unmappable,
+              (SELECT COUNT(*) FROM {S}.articles WHERE geo_scope = 'unmappable'
+                 AND suppressed_reason IS NULL) AS geo_unmappable,
               (SELECT COUNT(*) FROM {S}.articles
-                 WHERE geo_scope = 'unmappable' AND published_at > NOW() - INTERVAL '24 hours') AS geo_unmappable_24h,
-              (SELECT COUNT(*) FROM {S}.articles WHERE bias_v2_score IS NOT NULL) AS bias_v2_scored,
-              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_failures > 0) AS tier2_failed,
+                 WHERE geo_scope = 'unmappable' AND published_at > NOW() - INTERVAL '24 hours'
+                   AND suppressed_reason IS NULL) AS geo_unmappable_24h,
+              (SELECT COUNT(*) FROM {S}.articles WHERE bias_v2_score IS NOT NULL
+                 AND suppressed_reason IS NULL) AS bias_v2_scored,
+              (SELECT COUNT(*) FROM {S}.articles WHERE tier2_failures > 0
+                 AND suppressed_reason IS NULL) AS tier2_failed,
               -- 24h trend: yesterday window (24-48h ago) for delta calculation
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested' AND created_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS articles_yesterday,
-              (SELECT COUNT(*) FROM {S}.bias_scores WHERE computed_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS bias_yesterday,
-              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks WHERE checked_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours') AS verify_yesterday
+              -- Must share bias_24h/verify_24h's suppressed_reason filter above, or the
+              -- trend %% compares a filtered count to an unfiltered one (#6244).
+              (SELECT COUNT(*) FROM {S}.bias_scores bsy
+                 JOIN {S}.articles a ON a.id = bsy.article_id
+                WHERE bsy.computed_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours'
+                  AND a.suppressed_reason IS NULL) AS bias_yesterday,
+              (SELECT COUNT(DISTINCT fcy.article_id) FROM {S}.fact_checks fcy
+                 JOIN {S}.articles a ON a.id = fcy.article_id
+                WHERE fcy.checked_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '24 hours'
+                  AND a.suppressed_reason IS NULL) AS verify_yesterday
         """)).mappings().first()
 
         # --- Extra analytics queries (activity page enrichments) ---
@@ -1391,6 +1431,7 @@ def _activity_bundle(S, force: bool = False):
             beat_rows = c.execute(text(f"""
                 SELECT COALESCE(beat,'unknown') AS beat, COUNT(*) AS cnt
                 FROM {S}.articles WHERE beat IS NOT NULL AND beat != ''
+                  AND suppressed_reason IS NULL
                 GROUP BY beat ORDER BY cnt DESC LIMIT 12
             """)).mappings().all()
             beat_breakdown = [{"beat": r["beat"], "cnt": int(r["cnt"])} for r in beat_rows]
@@ -1402,6 +1443,7 @@ def _activity_bundle(S, force: bool = False):
                 JOIN {S}.articles a ON a.cluster_id = sc.id
                 JOIN {S}.sources s ON s.id = a.source_id
                 WHERE a.published_at > NOW() - INTERVAL '24 hours'
+                  AND a.suppressed_reason IS NULL
                   AND sc.representative_title IS NOT NULL
                 GROUP BY sc.id, sc.representative_title
                 ORDER BY article_count DESC, outlet_count DESC LIMIT 5
@@ -1410,11 +1452,13 @@ def _activity_bundle(S, force: bool = False):
                             "outlets": int(r["outlet_count"]), "id": r["cluster_id"]} for r in top_story_rows]
 
             sparkline_rows = c.execute(text(f"""
-                SELECT date_trunc('hour', completed_at) -
-                       MOD(EXTRACT(HOUR FROM completed_at)::int, 2) * INTERVAL '1 hour' AS bucket,
+                SELECT date_trunc('hour', la.completed_at) -
+                       MOD(EXTRACT(HOUR FROM la.completed_at)::int, 2) * INTERVAL '1 hour' AS bucket,
                        COUNT(*) AS cnt
-                FROM {S}.llm_analyses
-                WHERE completed_at > NOW() - INTERVAL '24 hours'
+                FROM {S}.llm_analyses la
+                JOIN {S}.articles a ON a.id = la.article_id
+                WHERE la.completed_at > NOW() - INTERVAL '24 hours'
+                  AND a.suppressed_reason IS NULL
                 GROUP BY bucket ORDER BY bucket
             """)).mappings().all()
             throughput_sparkline = [{"t": r["bucket"].isoformat(), "cnt": int(r["cnt"])} for r in sparkline_rows]
@@ -1436,8 +1480,10 @@ def _activity_bundle(S, force: bool = False):
             # broken metric can no longer zero a working one. (#6263)
             llm_rate = float(c.execute(text(f"""
                 SELECT COUNT(*) / 6.0 AS llm_hr
-                FROM {S}.llm_analyses
-                WHERE completed_at > NOW() - INTERVAL '6 hours'
+                FROM {S}.llm_analyses la
+                JOIN {S}.articles a ON a.id = la.article_id
+                WHERE la.completed_at > NOW() - INTERVAL '6 hours'
+                  AND a.suppressed_reason IS NULL
             """)).scalar() or 0)
         except Exception as _e:
             import logging; logging.getLogger(__name__).warning("Extra analytics queries failed: %s", _e)
@@ -1473,13 +1519,17 @@ def _activity_bundle(S, force: bool = False):
                 GROUP BY 1
             """),
             "B.I.A.S.": _daily(f"""
-                SELECT computed_at::date AS d, COUNT(*) FROM {S}.bias_scores
-                WHERE computed_at > CURRENT_DATE - INTERVAL '7 days'
+                SELECT bs.computed_at::date AS d, COUNT(*) FROM {S}.bias_scores bs
+                JOIN {S}.articles a ON a.id = bs.article_id
+                WHERE bs.computed_at > CURRENT_DATE - INTERVAL '7 days'
+                  AND a.suppressed_reason IS NULL
                 GROUP BY 1
             """),
             "V.E.R.I.F.Y.": _daily(f"""
-                SELECT checked_at::date AS d, COUNT(DISTINCT article_id) FROM {S}.fact_checks
-                WHERE checked_at > CURRENT_DATE - INTERVAL '7 days'
+                SELECT fc.checked_at::date AS d, COUNT(DISTINCT fc.article_id) FROM {S}.fact_checks fc
+                JOIN {S}.articles a ON a.id = fc.article_id
+                WHERE fc.checked_at > CURRENT_DATE - INTERVAL '7 days'
+                  AND a.suppressed_reason IS NULL
                 GROUP BY 1
             """),
             "D.R.A.F.T.": _daily(f"""
@@ -1495,6 +1545,7 @@ def _activity_bundle(S, force: bool = False):
             "LLM Analyzed": _daily(f"""
                 SELECT ai_analyzed_at::date AS d, COUNT(*) FROM {S}.articles
                 WHERE ai_analyzed_at > CURRENT_DATE - INTERVAL '7 days'
+                  AND suppressed_reason IS NULL
                 GROUP BY 1
             """),
             # L.O.C.A.L. omitted — no timestamp on province_code being set.
@@ -1512,7 +1563,7 @@ def _activity_bundle(S, force: bool = False):
                 COUNT(a.id) FILTER (WHERE LENGTH(a.body) >= 100) AS articles_with_body,
                 MAX(a.published_at)::date AS last_article
             FROM {S}.sources s
-            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id AND a.suppressed_reason IS NULL
             GROUP BY s.id, s.slug, s.bias_lean, s.owner_name, s.owner_type
             ORDER BY articles_7d DESC NULLS LAST, articles_total DESC NULLS LAST
         """)).mappings().all()
@@ -1859,9 +1910,7 @@ def activity_live():
 def team():
     S = _schema()
     with _db().begin() as c:
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
     portrait_lookup = _get_portrait_lookup()
     welfare_lookup = _get_welfare_lookup()
     agents = []
@@ -1886,9 +1935,7 @@ def cost_of_parliament():
     """
     S = _schema()
     with _db().begin() as c:
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
     return render_template("cost.html", source_count=source_count,
                            is_subscriber=is_subscriber())
 
@@ -1975,9 +2022,7 @@ def index():
                   AND a.published_at <= NOW() + INTERVAL '2 hours'
             ORDER BY a.published_at DESC LIMIT 50
         """)).mappings().all()
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
     sub = is_subscriber()
     return render_template("index.html", articles=rows,
                            top_stories=_home_top_stories(rows, is_sub=sub),
@@ -2046,9 +2091,7 @@ def governance_page():
     source_count = 0
     try:
         with _db().begin() as c:
-            source_count = c.execute(
-                text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-            ).scalar() or 0
+            source_count = _active_source_count(c, S)
     except Exception:
         pass
     return render_template(
@@ -2120,7 +2163,7 @@ def proxy_articles_geo():
     with _db().begin() as c:
         if scope == "world":
             # Country aggregate (accurate totals, no LIMIT)
-            agg_where = ["a.lat IS NOT NULL", "a.country_code IS NOT NULL"]
+            agg_where = ["a.lat IS NOT NULL", "a.country_code IS NOT NULL", "a.suppressed_reason IS NULL"]
             if beat and beat != "all":
                 agg_where.append("a.beat = :beat")
             agg_rows = c.execute(text(f"""
@@ -2140,7 +2183,7 @@ def proxy_articles_geo():
             } for r in agg_rows}
         else:
             # Province aggregate for Canada mode
-            prov_where = [f"a.province_code IN {_PROVINCE_SQL_LIST}", "a.lat IS NOT NULL"]
+            prov_where = [f"a.province_code IN {_PROVINCE_SQL_LIST}", "a.lat IS NOT NULL", "a.suppressed_reason IS NULL"]
             if beat and beat != "all":
                 prov_where.append("a.beat = :beat")
             if province:
@@ -2895,7 +2938,7 @@ def sources_list():
                    COUNT(a.id) FILTER (WHERE a.published_at > NOW() - INTERVAL '7 days') AS articles_7d
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
-            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id AND a.suppressed_reason IS NULL
             GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type, obs.avg_score, obs.band
             ORDER BY COUNT(a.id) DESC
         """)).mappings().all()
@@ -2918,7 +2961,7 @@ def source_profile(slug: str):
                    COUNT(a.id) FILTER (WHERE a.published_at > NOW() - INTERVAL '7 days') AS articles_7d
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
-            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id AND a.suppressed_reason IS NULL
             WHERE s.slug = :slug
             GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.country,
                      s.language, s.owner_name, s.owner_type, obs.avg_score, obs.band
@@ -2930,7 +2973,7 @@ def source_profile(slug: str):
             SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
             FROM {S}.articles a
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE a.source_id = :sid
+            WHERE a.source_id = :sid AND a.suppressed_reason IS NULL
             GROUP BY 1 ORDER BY 2 DESC
         """), {"sid": src["id"]}).mappings().all()
         recent = c.execute(text(f"""
@@ -3564,9 +3607,7 @@ def cluster_comparison(cluster_id: int):
         """), {"cid": cluster_id}).mappings().first()
         cluster_summary = dict(summary_row) if summary_row else None
 
-        source_count = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        source_count = _active_source_count(c, S)
         distinct_source_count = len({a["source_name"] for a in articles})
 
         # Coverage Gap Score — distinct bias_lean bands that covered this cluster (#3010)
@@ -3636,6 +3677,7 @@ def outlet_bias_trend(source_id: int):
             WHERE a.source_id = :sid
               AND a.published_at >= NOW() - INTERVAL '12 months'
               AND bs.signal_detected IS NOT FALSE
+              AND a.suppressed_reason IS NULL
             GROUP BY DATE_TRUNC('month', a.published_at)
             ORDER BY 1 ASC
         """), {"sid": source_id}).mappings().all()
@@ -3802,7 +3844,7 @@ def crtc_decisions():
         """.format("WHERE decision_type = :dtype" if dtype != "all" else "")
         params = {"dtype": dtype} if dtype != "all" else {}
         rows = c.execute(text(query), params).mappings().all()
-        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        source_count = _active_source_count(c, S)
 
         # Ownership concentration data for the CRTC panel
         owner_rows = c.execute(text(f"""
@@ -4167,7 +4209,7 @@ def mps_listing():
         provinces = c.execute(text(
             "SELECT DISTINCT province_code FROM parliament.mps WHERE is_current=true AND province_code IS NOT NULL ORDER BY province_code"
         )).scalars().all()
-        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        source_count = _active_source_count(c, S)
         # The seat-distribution bar's majority line needs the REAL total seat
         # count, unconditionally — NOT len(mps), which is party/province-
         # FILTERED when those query params are set, and NOT a hardcoded 338/343:
@@ -4366,7 +4408,7 @@ def mp_profile(slug: str):
             LIMIT 15
         """), {"mp_id": mp["id"]}).mappings().all()
 
-        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        source_count = _active_source_count(c, S)
 
     stats = {r["ballot"]: r["cnt"] for r in vote_stats}
     total_votes = sum(stats.values())
@@ -4528,8 +4570,9 @@ def journalists_listing():
         rows = c.execute(text(f"""
             SELECT e.id, e.canonical_name, e.slug,
                    (SELECT count(DISTINCT em.content_id) FROM {SH}.entity_mentions em
+                     JOIN {S}.articles art ON art.id::text = em.content_id
                      WHERE em.entity_id=e.id AND em.product='wtf'
-                       AND em.content_type='article') AS article_count
+                       AND em.content_type='article' AND art.suppressed_reason IS NULL) AS article_count
               FROM {SH}.entities e
              WHERE e.entity_type='journalist'
                AND (:q='' OR lower(e.canonical_name) LIKE :like
@@ -4560,7 +4603,8 @@ def journalist_profile(entity_id):
         ent = dict(ent)
         # a.id::text = content_id (never cast content_id->int, a stray value would 500)
         join = (f"FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id "
-                f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'")
+                f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article' "
+                f"AND a.suppressed_reason IS NULL")
         article_count = c.execute(
             text(f"SELECT count(DISTINCT a.id) {join}"), {"e": entity_id}
         ).scalar() or 0
@@ -4569,6 +4613,7 @@ def journalist_profile(entity_id):
               FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id
               JOIN {S}.sources src ON src.id=a.source_id
              WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
+               AND a.suppressed_reason IS NULL
              GROUP BY src.slug, src.name ORDER BY n DESC LIMIT 10
         """), {"e": entity_id}).mappings().all()
         recent = c.execute(text(f"""
@@ -4592,6 +4637,7 @@ def journalist_profile(entity_id):
             co = c.execute(text(f"""
                 SELECT e2.id, e2.canonical_name, e2.entity_type, count(DISTINCT em2.content_id) n
                   FROM {SH}.entity_mentions em1
+                  JOIN {S}.articles a ON a.id::text = em1.content_id AND a.suppressed_reason IS NULL
                   JOIN {SH}.entity_mentions em2 ON em2.content_id=em1.content_id
                        AND em2.product='wtf' AND em2.content_type='article'
                        AND em2.entity_id<>em1.entity_id
@@ -4693,6 +4739,7 @@ def entity_profile_page(entity_id):
             co = c.execute(text(f"""
                 SELECT e2.id, e2.canonical_name, e2.entity_type, count(DISTINCT em2.content_id) n
                   FROM {SH}.entity_mentions em1
+                  JOIN {S}.articles a ON a.id::text = em1.content_id AND a.suppressed_reason IS NULL
                   JOIN {SH}.entity_mentions em2 ON em2.content_id=em1.content_id
                        AND em2.product='wtf' AND em2.content_type='article'
                        AND em2.entity_id<>em1.entity_id
@@ -4882,7 +4929,7 @@ def score_url():
     source_count = 0
     try:
         with _db().begin() as c:
-            source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+            source_count = _active_source_count(c, S)
     except Exception:
         pass
     return render_template("score.html", subscribed=subscribed, result=result,
@@ -4904,7 +4951,7 @@ def search():
     source_count = 0
     with _db().begin() as c:
         c.execute(text("SET LOCAL jit = off"))
-        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        source_count = _active_source_count(c, S)
         if q:
             # The WHERE expression must stay byte-identical to the expression
             # GIN index idx_articles_fts (migration 051) or the planner falls
@@ -5101,7 +5148,7 @@ def featured_story():
                    sc.coverage_gap_score, sc.certainty_label, sc.latest_published_at,
                    sm.headline, sm.brief
             FROM {S}.story_clusters sc
-            JOIN {S}.articles a ON a.cluster_id = sc.id
+            JOIN {S}.articles a ON a.cluster_id = sc.id AND a.suppressed_reason IS NULL
             LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
             WHERE sc.latest_published_at > NOW() - INTERVAL '24 hours'
               AND sc.article_count >= 3
@@ -5499,7 +5546,7 @@ def api_v1_bias_distribution():
             SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
             FROM {S}.articles a
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE a.published_at > {floor_clause}
+            WHERE a.published_at > {floor_clause} AND a.suppressed_reason IS NULL
             GROUP BY 1 ORDER BY 2 DESC
         """), params).mappings().all()
         by_source = c.execute(text(f"""
@@ -5510,7 +5557,7 @@ def api_v1_bias_distribution():
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE a.published_at > {floor_clause}
+            WHERE a.published_at > {floor_clause} AND a.suppressed_reason IS NULL
             GROUP BY s.slug, s.bias_lean
             ORDER BY articles DESC
         """), params).mappings().all()
@@ -5724,6 +5771,7 @@ def api_v1_divergence():
                 LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
                 WHERE a.cluster_id IS NOT NULL
                   AND a.published_at >= NOW() - INTERVAL '1 day' * :days
+                  AND a.suppressed_reason IS NULL
                 GROUP BY a.cluster_id
             )
             SELECT
@@ -6192,7 +6240,7 @@ def edu_api_articles():
 
     offset = (page - 1) * limit
     S = _schema()
-    where = ["a.published_at > NOW() - :days * INTERVAL '1 day'"]
+    where = ["a.published_at > NOW() - :days * INTERVAL '1 day'", "a.suppressed_reason IS NULL"]
     params: dict = {"limit": limit, "offset": offset, "days": days}
 
     if beat:
@@ -6277,7 +6325,7 @@ def edu_api_sources():
                    COUNT(a.id) AS outlet_count
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
-            LEFT JOIN {S}.articles a ON a.source_id = s.id
+            LEFT JOIN {S}.articles a ON a.source_id = s.id AND a.suppressed_reason IS NULL
             GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name,
                      s.owner_type, s.country, s.language, obs.avg_score, obs.band
             ORDER BY s.name
@@ -6431,18 +6479,17 @@ def edu_api_stats():
 
     S = _schema()
     with _db().begin() as c:
-        total_sources = c.execute(
-            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
-        ).scalar() or 0
+        total_sources = _active_source_count(c, S)
 
         total_articles = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.articles")
+            text(f"SELECT COUNT(*) FROM {S}.articles WHERE suppressed_reason IS NULL")
         ).scalar() or 0
 
         band_rows = c.execute(text(f"""
             SELECT b.band, COUNT(*) AS n
             FROM {S}.bias_scores b
-            WHERE b.band IS NOT NULL
+            JOIN {S}.articles a ON a.id = b.article_id
+            WHERE b.band IS NOT NULL AND a.suppressed_reason IS NULL
             GROUP BY b.band
             ORDER BY n DESC
         """)).mappings().all()

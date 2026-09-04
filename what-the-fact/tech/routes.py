@@ -40,10 +40,13 @@ def index():
                 text(f"""
                     SELECT
                         (SELECT COUNT(*) FROM {S}.sources) AS sources,
-                        (SELECT COUNT(*) FROM {S}.articles) AS articles,
-                        (SELECT COUNT(DISTINCT beat) FROM {S}.articles WHERE beat IS NOT NULL) AS beats,
                         (SELECT COUNT(*) FROM {S}.articles
-                         WHERE published_at >= NOW() - INTERVAL '1 day') AS articles_today
+                          WHERE suppressed_reason IS NULL) AS articles,
+                        (SELECT COUNT(DISTINCT beat) FROM {S}.articles
+                          WHERE beat IS NOT NULL AND suppressed_reason IS NULL) AS beats,
+                        (SELECT COUNT(*) FROM {S}.articles
+                         WHERE published_at >= NOW() - INTERVAL '1 day'
+                           AND suppressed_reason IS NULL) AS articles_today
                 """)
             ).fetchone()
             if row:
@@ -71,6 +74,7 @@ def methodology():
                 (SELECT COUNT(*) FROM {S}.sources) AS total_sources
             FROM {S}.articles
             WHERE published_at >= NOW() - INTERVAL '7 days'
+              AND suppressed_reason IS NULL
         """)).fetchone()
     return render_template("methodology.html", stats=stats)
 
@@ -200,6 +204,7 @@ def map_data():
             LEFT JOIN {S}.sources s ON s.id = a.source_id
             WHERE a.published_at >= NOW() - INTERVAL '24 hours'
               AND a.province_code IS NOT NULL
+              AND a.suppressed_reason IS NULL
             GROUP BY a.province_code
         """)).fetchall()
 
@@ -207,6 +212,7 @@ def map_data():
             SELECT COUNT(*) FROM {S}.articles
             WHERE published_at >= NOW() - INTERVAL '24 hours'
               AND geo_scope = 'national'
+              AND suppressed_reason IS NULL
         """)).scalar() or 0
 
         intl_rows = c.execute(text(f"""
@@ -219,6 +225,7 @@ def map_data():
               AND a.geo_scope = 'international'
               AND a.country_code IS NOT NULL
               AND a.lat IS NOT NULL
+              AND a.suppressed_reason IS NULL
             GROUP BY a.country_code
             ORDER BY cnt DESC
         """)).fetchall()

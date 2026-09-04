@@ -76,6 +76,7 @@ def compute_cluster_metrics(engine) -> dict:
                     FROM {S}.articles a
                     LEFT JOIN {S}.fact_checks fc ON fc.article_id = a.id
                     WHERE a.cluster_id IS NOT NULL
+                      AND a.suppressed_reason IS NULL
                     GROUP BY a.cluster_id
                 """)
             ).fetchall()

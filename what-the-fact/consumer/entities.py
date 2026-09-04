@@ -42,12 +42,23 @@ def _parl():
 
 def _coverage_pct(conn):
     """Share of the WTF corpus with any entity attribution (honesty marker so consumers
-    never mistake partial data for complete). Milestone B grows the numerator."""
-    total = conn.execute(text(f"SELECT count(*) FROM {_wtf()}.articles")).scalar() or 0
+    never mistake partial data for complete). Milestone B grows the numerator.
+
+    Both halves of the ratio must describe the same population — a suppressed
+    article (duplicate refetch, non-article stream, publisher-suffix title) is
+    excluded from `total`, so `attributed` must join through to articles and
+    exclude it too, or a mention on a suppressed article would inflate the
+    numerator against a denominator that no longer counts it.
+    """
+    total = conn.execute(
+        text(f"SELECT count(*) FROM {_wtf()}.articles WHERE suppressed_reason IS NULL")
+    ).scalar() or 0
     attributed = conn.execute(
         text(
-            f"SELECT count(DISTINCT content_id) FROM {_shared()}.entity_mentions "
-            f"WHERE product='wtf' AND content_type='article'"
+            f"SELECT count(DISTINCT em.content_id) FROM {_shared()}.entity_mentions em "
+            f"JOIN {_wtf()}.articles a ON a.id::text = em.content_id "
+            f"WHERE em.product='wtf' AND em.content_type='article' "
+            f"AND a.suppressed_reason IS NULL"
         )
     ).scalar() or 0
     return round(100.0 * attributed / total, 1) if total else 0.0
@@ -81,7 +92,9 @@ def search_entities():
         f"""
         SELECT e.id, e.canonical_name, e.slug,
                (SELECT count(DISTINCT em.content_id) FROM {s}.entity_mentions em
-                 WHERE em.entity_id=e.id AND em.product='wtf' AND em.content_type='article')
+                 JOIN {_wtf()}.articles art ON art.id::text = em.content_id
+                 WHERE em.entity_id=e.id AND em.product='wtf' AND em.content_type='article'
+                   AND art.suppressed_reason IS NULL)
                  AS article_count
           FROM {s}.entities e
          WHERE {type_clause}
@@ -124,7 +137,8 @@ def entity_coverage(entity_id):
     # so a stray non-numeric content_id can never raise and 500 the request.
     join = (
         f"FROM {s}.entity_mentions em JOIN {w}.articles a ON a.id::text = em.content_id "
-        f"WHERE em.entity_id=:eid AND em.product='wtf' AND em.content_type='article'{date_clause}"
+        f"WHERE em.entity_id=:eid AND em.product='wtf' AND em.content_type='article' "
+        f"AND a.suppressed_reason IS NULL{date_clause}"
     )
     with _eng().connect() as c:
         ent = c.execute(
@@ -153,7 +167,8 @@ def entity_coverage(entity_id):
                 f"SELECT src.slug, src.name, count(DISTINCT a.id) n "
                 f"FROM {s}.entity_mentions em JOIN {w}.articles a ON a.id::text=em.content_id "
                 f"JOIN {w}.sources src ON src.id=a.source_id "
-                f"WHERE em.entity_id=:eid AND em.product='wtf' AND em.content_type='article'"
+                f"WHERE em.entity_id=:eid AND em.product='wtf' AND em.content_type='article' "
+                f"AND a.suppressed_reason IS NULL"
                 f"{date_clause} GROUP BY src.slug, src.name ORDER BY n DESC LIMIT 10"
             ),
             params,
@@ -233,7 +248,8 @@ def entity_profile(entity_id):
             return jsonify({"error": "journalist not found"}), 404
         join = (
             f"FROM {s}.entity_mentions em JOIN {w}.articles a ON a.id::text = em.content_id "
-            f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'"
+            f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article' "
+            f"AND a.suppressed_reason IS NULL"
         )
         count = c.execute(text(f"SELECT count(DISTINCT a.id) {join}"), {"e": entity_id}).scalar()
         bias = c.execute(
@@ -256,6 +272,7 @@ def entity_profile(entity_id):
                 f"FROM {s}.entity_mentions em JOIN {w}.articles a ON a.id::text=em.content_id "
                 f"JOIN {w}.sources src ON src.id=a.source_id "
                 f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article' "
+                f"AND a.suppressed_reason IS NULL "
                 f"GROUP BY src.slug, src.name ORDER BY n DESC LIMIT 10"
             ),
             {"e": entity_id},
@@ -265,6 +282,7 @@ def entity_profile(entity_id):
             text(
                 f"SELECT e2.id, e2.canonical_name, e2.entity_type, count(DISTINCT em2.content_id) n "
                 f"FROM {s}.entity_mentions em1 "
+                f"JOIN {w}.articles a ON a.id::text = em1.content_id AND a.suppressed_reason IS NULL "
                 f"JOIN {s}.entity_mentions em2 ON em2.content_id=em1.content_id "
                 f"  AND em2.product='wtf' AND em2.content_type='article' AND em2.entity_id<>em1.entity_id "
                 f"JOIN {s}.entities e2 ON e2.id=em2.entity_id "

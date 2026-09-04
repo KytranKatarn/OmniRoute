@@ -47,11 +47,15 @@ def _fetch_digest_data(engine, schema: str) -> dict:
         stats = c.execute(text(f"""
             SELECT
               (SELECT COUNT(*) FROM {schema}.articles
-               WHERE published_at > NOW() - INTERVAL '7 days') AS total_articles,
+               WHERE published_at > NOW() - INTERVAL '7 days'
+                 AND suppressed_reason IS NULL) AS total_articles,
               (SELECT COUNT(*) FROM {schema}.articles
-               WHERE ai_analyzed=TRUE AND published_at > NOW() - INTERVAL '7 days') AS analyzed,
-              (SELECT COUNT(DISTINCT article_id) FROM {schema}.fact_checks
-               WHERE checked_at > NOW() - INTERVAL '7 days') AS fact_checked
+               WHERE ai_analyzed=TRUE AND published_at > NOW() - INTERVAL '7 days'
+                 AND suppressed_reason IS NULL) AS analyzed,
+              (SELECT COUNT(DISTINCT fc.article_id) FROM {schema}.fact_checks fc
+                 JOIN {schema}.articles a ON a.id = fc.article_id
+               WHERE fc.checked_at > NOW() - INTERVAL '7 days'
+                 AND a.suppressed_reason IS NULL) AS fact_checked
         """)).mappings().first()
 
         band_counts = c.execute(text(f"""
@@ -59,6 +63,7 @@ def _fetch_digest_data(engine, schema: str) -> dict:
             FROM {schema}.articles a
             LEFT JOIN {schema}.bias_scores b ON b.article_id = a.id
             WHERE a.published_at > NOW() - INTERVAL '7 days'
+              AND a.suppressed_reason IS NULL
             GROUP BY 1 ORDER BY 2 DESC
         """)).mappings().all()
 
@@ -69,6 +74,7 @@ def _fetch_digest_data(engine, schema: str) -> dict:
             JOIN {schema}.sources s ON s.id = a.source_id
             LEFT JOIN {schema}.bias_scores b ON b.article_id = a.id
             WHERE a.ai_analyzed=TRUE AND a.published_at > NOW() - INTERVAL '7 days'
+              AND a.suppressed_reason IS NULL
             ORDER BY b.score DESC NULLS LAST
             LIMIT 10
         """)).mappings().all()

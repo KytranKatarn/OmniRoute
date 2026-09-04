@@ -184,6 +184,20 @@
 .wtf-wx-table td.wtf-wx-muted { color:#6b7280; }
 .wtf-wx-table td.wtf-wx-txt { color:#e5e7eb; }
 
+/* ── inline-style extraction (Phase 6 slice, #6149 style-token cleanup) ─────
+   Value-preserving: same literal hex/values as the inline styles they
+   replace. No exact-match --wtf-* token exists for any of these — see the
+   PR notes — so nothing here was swapped to a token. */
+.wtf-wx-city-note { color:#4b5563; font-size:10px; text-transform:none; letter-spacing:0; }
+.wtf-wx-band { color:#6b7280; }
+.wtf-wx-cluster-link { color:#0af; font-size:9px; text-decoration:none; }
+.wtf-wx-more-links { margin-top:20px; text-align:center; }
+.wtf-wx-more-links a { color:var(--wtf-aurora); font-size:10px; letter-spacing:1px; text-decoration:none; }
+.wtf-wx-more-links a:not(:last-child) { margin-right:16px; }
+.wtf-wx-fire-summary { font-size:11px; color:#6b7280; margin-bottom:16px; line-height:1.7; }
+.wtf-wx-fire-summary-n { color:#e5e7eb; }
+.wtf-wx-fire-summary-note { color:#4b5563; }
+
 </style>
 
 <div class="wtf-wx-header">
@@ -268,7 +282,7 @@
       {% if aurora_cities and aurora_cities.cities %}
       <div class="wtf-wx-section-title">
         City conditions
-        <span style="color:#4b5563;font-size:10px;text-transform:none;letter-spacing:0;">
+        <span class="wtf-wx-city-note">
           — {{ aurora_cities.reporting }} of {{ aurora_cities.count }} reporting
           across {{ aurora_cities.provinces | length }} provinces &amp; territories
         </span>
@@ -289,12 +303,12 @@
             <a href="#" class="wtf-wx-outlet-link">{{ a.source or '' }}</a>
             {% if a.province_code %}<span class="wtf-wx-province-tag">{{ a.province_code }}</span>{% endif %}
             <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
-            {% if a.band %}<span style="color:#6b7280">{{ a.band.upper() }}</span>{% endif %}
+            {% if a.band %}<span class="wtf-wx-band">{{ a.band.upper() }}</span>{% endif %}
           </div>
           <a href="/article/{{ a.id }}" class="wtf-wx-card-title">{{ a.title }}</a>
           {% if a.cluster_size and a.cluster_size > 1 %}
           <div class="wtf-wx-card-footer">
-            <a href="/cluster/{{ a.cluster_id }}" style="color:#0af;font-size:9px;text-decoration:none;">📰 {{ a.cluster_size }} outlets covering this</a>
+            <a href="/cluster/{{ a.cluster_id }}" class="wtf-wx-cluster-link">📰 {{ a.cluster_size }} outlets covering this</a>
           </div>
           {% endif %}
         </div>
@@ -306,9 +320,9 @@
         </div>
         {% endif %}
       </div>
-      <div style="margin-top:20px;text-align:center;">
-        <a href="/news?beat=climate" style="color:var(--wtf-aurora);font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Climate →</a>
-        <a href="/news?beat=science-tech" style="color:var(--wtf-aurora);font-size:10px;letter-spacing:1px;text-decoration:none;">All Science & Tech →</a>
+      <div class="wtf-wx-more-links">
+        <a href="/news?beat=climate">All Climate →</a>
+        <a href="/news?beat=science-tech">All Science & Tech →</a>
       </div>
   </div>
 
@@ -356,10 +370,10 @@
       </div>
 
       {% if fire_summary %}
-      <div style="font-size:11px;color:#6b7280;margin-bottom:16px;line-height:1.7;">
-        <strong style="color:#e5e7eb;">{{ '{:,}'.format(fire_summary.perimeter_count) }}</strong> active fire perimeters mapped nationally
+      <div class="wtf-wx-fire-summary">
+        <strong class="wtf-wx-fire-summary-n">{{ '{:,}'.format(fire_summary.perimeter_count) }}</strong> active fire perimeters mapped nationally
         {% if fire_summary.earliest_start %}· earliest still burning since {{ fire_summary.earliest_start.strftime('%b %-d, %Y') }}{% endif %}
-        <br><span style="color:#4b5563;">The source publishes no fire name, province or cause on this layer, so none is shown.</span>
+        <br><span class="wtf-wx-fire-summary-note">The source publishes no fire name, province or cause on this layer, so none is shown.</span>
       </div>
       {% endif %}
 

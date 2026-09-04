@@ -171,12 +171,25 @@ def test_aurora_styling_resolves_from_css_token():
     m = re.search(r"\.wtf-wx-aurora-badge\s*\{[^}]*\}", src, re.S)
     assert m and "color:var(--wtf-aurora)" in m.group(0), "aurora badge text"
 
+    # Was a literal match on the inline `style="color:var(--wtf-aurora)...`
+    # string this fix landed as. The #6149 Phase 6 inline-style-extraction
+    # slice moved both footer links off inline styles onto a shared
+    # `.wtf-wx-more-links a` class (same rationale as the is_stale
+    # provenance-card test below) — verified visually identical via a
+    # stashed-vs-unstashed rendered-text diff. This now pins the
+    # class-based rule instead, same semantic: both links resolve through
+    # var(--wtf-aurora), no longer via a per-element inline style.
+    m = re.search(r"\.wtf-wx-more-links a\s*\{[^}]*\}", src)
+    assert m and "color:var(--wtf-aurora)" in m.group(0), (
+        "footer-links rule (.wtf-wx-more-links a) does not resolve via "
+        "var(--wtf-aurora)"
+    )
     footer_links = re.findall(
-        r'<a href="/news\?beat=[\w-]+"[^>]*style="color:var\(--wtf-aurora\)', src
+        r'<a href="/news\?beat=[\w-]+">', src
     )
     assert len(footer_links) == 2, (
-        f"expected both climate-beat footer links to resolve via "
-        f"var(--wtf-aurora), found {len(footer_links)}"
+        f"expected both climate-beat footer links inside .wtf-wx-more-links, "
+        f"found {len(footer_links)}"
     )
 
 

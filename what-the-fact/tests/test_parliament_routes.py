@@ -284,6 +284,6 @@ def test_senator_profile_with_no_province_renders_the_em_dash_fallback(
     r = client.get(f"/senator/{real_senator_missing_province['slug']}")
     assert r.status_code == 200
     body = r.data.decode("utf-8")
-    assert re.search(r'<strong style="color:#e5e7eb;">\s*—\s*</strong>', body), (
+    assert re.search(r'<strong class="wtf-sen-strong">\s*—\s*</strong>', body), (
         "expected the em-dash fallback for a senator with no province on file"
     )

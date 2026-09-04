@@ -215,7 +215,7 @@ def chain_entity(slug):
 
     payload = {
         "entity": {
-            "slug": ent["slug"], "canonical_name": ent["canonical_name"],
+            "id": ent["id"], "slug": ent["slug"], "canonical_name": ent["canonical_name"],
             "entity_type": ent["entity_type"], "roles": ent["roles"],
             "status": ent["status"],
         },

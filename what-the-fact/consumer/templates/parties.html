@@ -42,6 +42,7 @@
   .wtf-pt-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 20px;
                  line-height: 1.55; max-width: 74ch; }
   .wtf-pt-note code { font-size: 0.95em; }
+  .wtf-pt-hint-gap { margin-top: 10px; }
 </style>
 <div class="wtf-pt">
   <h1>Political parties</h1>
@@ -127,7 +128,7 @@
                  ('Vote share', 'num'), ('Seats', 'num'), ('Seat share', 'num'),
                  ('Gap', 'num'), ('Votes change', 'num'), ('Seats change', 'num')],
                 trows, empty='No party results for this election.') }}
-  <p class="wtf-pt-hint" style="margin-top:10px;">
+  <p class="wtf-pt-hint wtf-pt-hint-gap">
     An em dash in a change column means the party fielded no candidates in the
     earlier election under any name we can match &mdash; not that it received
     zero votes.

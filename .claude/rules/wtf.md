@@ -165,6 +165,14 @@ OAuth SSO via Kytran Empowerment identity provider (same as other Watch products
   `mostly_true` = attributed + internally consistent. `_parse_llm_json`
   tolerates fence-wrapped model JSON. After `archie_platform` restart the
   endpoint needs ~3-5 min warmup (boot-race 500s are noise).
+- **Bank of Canada overnight rate (#6272, PR #3174, 2026-09-04)**: `ingest/market/boc_rates.py`
+  `run_boc_rates(engine)` now runs **weekly** in `ingest/run.py` (reuses the `_elec_week`
+  ISO-week cadence key) and writes a `parliament.ingest_log` heartbeat, registered in
+  `ingest/parliament/drift_guard.py` `_MAX_AGE_DAYS` (10d) + `_REQUIRED_TASKS` (brand-new
+  puller, must alarm on zero rows not just staleness). Before this it was a manual
+  one-off script with no schedule and no heartbeat — `market_watch.boc_rate_decisions`
+  silently went 5 months stale (stuck at 2026-04-01) with nothing watching it. Feeds the
+  `/economy` page's one real indicator card + the existing `/rates` page.
 - Clustering: Jaccard similarity on headlines/keywords
 - Summarization: extractive (no LLM required for basic)
 - Bias scoring: `wtf.bias_scores` + `wtf.outlet_bias_scores` aggregate

@@ -5773,39 +5773,21 @@ def api_v1_blindspot():
 # FR/EN Divergence Alert (#3003) — Different stories in French vs English
 # ───────────────────────────────────────────────────────────────────────────
 
-
-@bp.get("/divergence")
-def divergence_page():
-    """French-English coverage divergence page."""
-    return render_template("divergence.html",
-                           source_count=46,
-                           is_subscriber=is_subscriber())
+_DIVERGENCE_WINDOWS = (7, 30, 60, 90)
 
 
-@bp.get("/api/v1/divergence")
-def api_v1_divergence():
-    """#3003 — Clusters where French and English outlets tell a different story.
+def _divergence_rows(days=30, limit=20, min_div=0.1):
+    """Rows behind BOTH /divergence and /api/v1/divergence.
 
-    Three divergence types:
+    Extracted so the page and the API cannot drift, same reasoning as
+    _blindspot_rows above. Three divergence types:
     - en_only: story exists in English press but not French
     - fr_only: story exists in French press but not English
     - bias_gap: both cover it, but avg bias scores differ significantly
-
-    Query params:
-      limit          int   default 20   max 100
-      days           int   default 30   look-back window
-      min_divergence float default 0.1  minimum |en_score - fr_score|
     """
-    _rl = _api_rate_check()
-    if _rl is not None:
-        return _rl
-    from flask import request as _req
-    limit = min(int(_req.args.get("limit", 20)), 100)
-    days = min(int(_req.args.get("days", 30)), 90)
-    min_div = float(_req.args.get("min_divergence", 0.1))
     S = _schema()
     with _db().begin() as c:
-        rows = c.execute(text(f"""
+        return c.execute(text(f"""
             WITH cluster_lang AS (
                 SELECT
                     a.cluster_id,
@@ -5852,6 +5834,52 @@ def api_v1_divergence():
             ORDER BY divergence_score DESC, sc.latest_published_at DESC
             LIMIT :n
         """), {"days": days, "min_div": min_div, "n": limit}).mappings().all()
+
+
+@bp.get("/divergence")
+def divergence_page():
+    """French-English coverage divergence page — rendered SERVER-SIDE.
+
+    ⚠️ This page shipped with an empty <div id="div-list"> and 4 window
+    filter buttons carrying data-days attributes but no click handler
+    anywhere in static/js/ — /api/v1/divergence had real rows the whole
+    time. Same defect shape as /blindspot before #5767: page nav links to
+    a page that renders a heading, dead filter buttons, and nothing else.
+    Rendered from the shared helper (_divergence_rows) needs no client JS;
+    the window buttons are now plain links (?days=N).
+    """
+    from flask import request as _req
+    try:
+        days = int(_req.args.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    if days not in _DIVERGENCE_WINDOWS:
+        days = 30
+    return render_template("divergence.html",
+                           divergences=_divergence_rows(days=days),
+                           days=days,
+                           windows=_DIVERGENCE_WINDOWS,
+                           is_subscriber=is_subscriber())
+
+
+@bp.get("/api/v1/divergence")
+def api_v1_divergence():
+    """#3003 — Clusters where French and English outlets tell a different story.
+
+    Query params:
+      limit          int   default 20   max 100
+      days           int   default 30   look-back window
+      min_divergence float default 0.1  minimum |en_score - fr_score|
+    """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
+    from flask import request as _req
+    limit = min(int(_req.args.get("limit", 20)), 100)
+    days = min(int(_req.args.get("days", 30)), 90)
+    min_div = float(_req.args.get("min_divergence", 0.1))
+    # Same helper the PAGE renders from — the two cannot drift apart.
+    rows = _divergence_rows(days=days, limit=limit, min_div=min_div)
     return _api_cors_response({
         "ok": True,
         "days": days,

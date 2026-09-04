@@ -178,7 +178,14 @@ class TestPageAndApiShareOneQuery:
         src = (ROOT / "consumer" / "routes.py").read_text()
         assert src.count("def _blindspot_rows(") == 1
         api_start = src.index("def api_v1_blindspot():")
-        api_body = src[api_start:src.index("\n@bp.", api_start)]
+        # Bound the slice at whichever comes first: the next route OR the
+        # next top-level def/helper — an unrelated function inserted right
+        # after api_v1_blindspot() (e.g. a later page's own shared-rows
+        # helper) must not get swept into this function's body.
+        next_bp = src.index("\n@bp.", api_start)
+        next_def = src.index("\ndef ", api_start)
+        api_end = min(next_bp, next_def)
+        api_body = src[api_start:api_end]
         assert "_blindspot_rows(" in api_body, "API no longer shares the helper"
         assert "story_clusters" not in api_body, "API re-inlined its own SQL — it can drift"
 

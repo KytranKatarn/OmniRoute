@@ -3,57 +3,55 @@
 {% block content %}
 
 <!-- Hero -->
-<div style="background:linear-gradient(180deg,#050d1a 0%,#080f1c 100%);border-bottom:1px solid #112233;padding:72px 16px 56px;text-align:center;">
-  <div style="font-size:0.6rem;letter-spacing:3px;color:var(--wtf-accent);margin-bottom:18px;text-transform:uppercase;">
+<div class="wtf-cn-hero">
+  <div class="wtf-cn-live-label">
     <span class="wtf-live-dot"></span> &nbsp; Canadian AI Newsroom
   </div>
-  <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:2.6rem;color:#f0f0f0;letter-spacing:2px;margin:0 0 20px;line-height:1.2;">THE NEWS, UNFILTERED.<br>THE BIAS, EXPOSED.</h1>
-  <p style="color:#6b7280;font-size:0.88rem;max-width:520px;margin:0 auto 16px;line-height:1.9;">
+  <h1 class="wtf-cn-h1">THE NEWS, UNFILTERED.<br>THE BIAS, EXPOSED.</h1>
+  <p class="wtf-cn-hero-p">
     What The Fact is Canada's AI-powered newsroom. Every article scored for bias. Every claim fact-checked. Every outlet mapped across the political spectrum. No spin. No agenda. Just data.
   </p>
-  <p style="color:#444;font-size:0.75rem;margin:0 auto 40px;">Part of the <a href="/join#watch-series" style="color:var(--wtf-accent);text-decoration:none;">Kytran Watch Series</a>.</p>
-  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-    <a href="/billing/checkout/starter"
-       style="background:var(--wtf-accent);color:#fff;padding:14px 36px;border-radius:5px;text-decoration:none;font-family:Georgia,serif;font-size:0.9rem;letter-spacing:1px;font-weight:600;">
+  <p class="wtf-cn-hero-sub">Part of the <a href="/join#watch-series" class="wtf-cn-link">Kytran Watch Series</a>.</p>
+  <div class="wtf-cn-btn-row">
+    <a href="/billing/checkout/starter" class="wtf-cn-btn-hero">
       Subscribe Now — $4.99/mo →
     </a>
-    <a href="/login"
-       style="background:transparent;border:1px solid #334455;color:#9ca3af;padding:14px 28px;border-radius:5px;text-decoration:none;font-size:0.85rem;">
+    <a href="/login" class="wtf-cn-btn-signin">
       Sign In
     </a>
   </div>
 </div>
 
 <!-- Stats bar -->
-<div style="background:#060d14;border-bottom:1px solid #112233;padding:22px 16px;">
-  <div style="display:flex;justify-content:center;gap:48px;flex-wrap:wrap;max-width:800px;margin:0 auto;">
-    <div style="text-align:center;">
-      <div id="live-sources" style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">{{ source_count }}</div>
-      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Canadian outlets monitored</div>
+<div class="wtf-cn-statsbar">
+  <div class="wtf-cn-stats-row">
+    <div class="wtf-cn-stat">
+      <div id="live-sources" class="wtf-cn-stat-num">{{ source_count }}</div>
+      <div class="wtf-cn-stat-label">Canadian outlets monitored</div>
     </div>
-    <div style="text-align:center;">
-      <div id="live-articles" style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">{{ total_articles }}</div>
-      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Articles scored</div>
+    <div class="wtf-cn-stat">
+      <div id="live-articles" class="wtf-cn-stat-num">{{ total_articles }}</div>
+      <div class="wtf-cn-stat-label">Articles scored</div>
     </div>
-    <div style="text-align:center;">
-      <div id="live-clusters" style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">—</div>
-      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Story clusters</div>
+    <div class="wtf-cn-stat">
+      <div id="live-clusters" class="wtf-cn-stat-num">—</div>
+      <div class="wtf-cn-stat-label">Story clusters</div>
     </div>
-    <div style="text-align:center;">
-      <div style="font-family:Georgia,serif;font-size:1.7rem;color:#e0e0e0;font-weight:700;">24 / 7</div>
-      <div style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Live ingest pipeline</div>
+    <div class="wtf-cn-stat">
+      <div class="wtf-cn-stat-num">24 / 7</div>
+      <div class="wtf-cn-stat-label">Live ingest pipeline</div>
     </div>
   </div>
 </div>
 
 <!-- What's included -->
-<div style="max-width:860px;margin:0 auto;padding:56px 16px 0;">
-  <div style="text-align:center;margin-bottom:40px;">
-    <div style="font-size:0.58rem;letter-spacing:3px;color:#555;text-transform:uppercase;margin-bottom:10px;">What you get</div>
-    <h2 style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;margin:0;">Full access. Every feature. One subscription.</h2>
+<div class="wtf-cn-section">
+  <div class="wtf-cn-sec-head">
+    <div class="wtf-cn-eyebrow">What you get</div>
+    <h2 class="wtf-cn-h2">Full access. Every feature. One subscription.</h2>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:52px;">
+  <div class="wtf-cn-features-grid">
     {% set features = [
       ('🗞️', 'Live News Feed', 'Real-time articles from ' ~ source_count ~ ' Canadian outlets — Global News, CBC, La Presse, Toronto Star, National Post and more.'),
       ('⚖️', 'Bias Scoring', 'Every article scored Left → Right by B.I.A.S. Heuristic tier runs instantly. Full LLM analysis on priority stories.'),
@@ -84,31 +82,29 @@
   </div>
 
   <!-- Pricing CTA -->
-  <div style="background:#0a0f1a;border:1px solid rgba(220,38,38,0.25);border-radius:8px;padding:40px;text-align:center;margin-bottom:52px;">
-    <div style="font-size:0.6rem;letter-spacing:2px;color:var(--wtf-accent);text-transform:uppercase;margin-bottom:12px;">What The Fact — Starter</div>
-    <div style="font-family:Georgia,serif;font-size:2.2rem;color:#f0f0f0;font-weight:700;margin:0 0 4px;">$4.99 <span style="font-size:1rem;color:#6b7280;">CAD / month</span></div>
-    <p style="color:#555;font-size:0.72rem;margin:0 0 6px;">Full access. Every feature. Cancel anytime.</p>
-    <p style="color:#444;font-size:0.65rem;margin:0 0 28px;">Secure checkout powered by Stripe.</p>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-      <a href="/billing/checkout/starter"
-         style="background:var(--wtf-accent);color:#fff;padding:13px 32px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:1px;">
+  <div class="wtf-cn-pricing-box">
+    <div class="wtf-cn-pricing-label">What The Fact — Starter</div>
+    <div class="wtf-cn-price">$4.99 <span class="wtf-cn-price-unit">CAD / month</span></div>
+    <p class="wtf-cn-price-sub">Full access. Every feature. Cancel anytime.</p>
+    <p class="wtf-cn-price-sub2">Secure checkout powered by Stripe.</p>
+    <div class="wtf-cn-btn-row">
+      <a href="/billing/checkout/starter" class="wtf-cn-btn-price">
         Subscribe Now →
       </a>
-      <a href="https://business.kytranempowerment.com"
-         style="background:transparent;border:1px solid #334455;color:#6b7280;padding:13px 24px;border-radius:5px;text-decoration:none;font-size:0.82rem;">
+      <a href="https://business.kytranempowerment.com" class="wtf-cn-btn-outline">
         Business Plans
       </a>
     </div>
   </div>
 
   <!-- Watch Series -->
-  <div id="watch-series" style="margin-bottom:52px;">
-    <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:0.58rem;letter-spacing:3px;color:#555;text-transform:uppercase;margin-bottom:10px;">Kytran Watch Series</div>
-      <h2 style="font-family:Georgia,serif;font-size:1.4rem;color:#e0e0e0;margin:0;">AI intelligence across every dimension of Canadian life.</h2>
-      <p style="color:#555;font-size:0.72rem;margin:10px 0 0;">Subscribe to one or bundle all five.</p>
+  <div id="watch-series" class="wtf-cn-watch-series">
+    <div class="wtf-cn-sec-head-sm">
+      <div class="wtf-cn-eyebrow">Kytran Watch Series</div>
+      <h2 class="wtf-cn-h2-sm">AI intelligence across every dimension of Canadian life.</h2>
+      <p class="wtf-cn-subtitle">Subscribe to one or bundle all five.</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;">
+    <div class="wtf-cn-watches-grid">
       {% set watches = [
         ('What The Fact', 'https://what-the-fact.com', 'AI bias scoring + fact-checking for Canadian news', '#dc2626', '🗞️'),
         ('Civic Watch', 'https://civic.kytranempowerment.com', 'City council, municipal decisions + local government', '#3b82f6', '🏛️'),
@@ -117,21 +113,20 @@
         ('Market Watch', 'https://market.kytranempowerment.com', 'Canadian market intelligence + economic signals', '#f59e0b', '📈'),
       ] %}
       {% for name, url, desc, col, icon in watches %}
-      <a href="{{ url }}" target="_blank" style="background:#0a0f1a;border:1px solid {{ col }}33;border-radius:5px;padding:18px;text-decoration:none;display:block;">
-        <div style="font-size:1.2rem;margin-bottom:8px;">{{ icon }}</div>
-        <div style="font-size:0.65rem;color:{{ col }};letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">{{ name }}</div>
-        <div style="font-size:0.68rem;color:#6b7280;line-height:1.5;">{{ desc }}</div>
+      <a href="{{ url }}" target="_blank" class="wtf-cn-watch-card" style="border:1px solid {{ col }}33;">
+        <div class="wtf-cn-watch-icon">{{ icon }}</div>
+        <div class="wtf-cn-watch-name" style="color:{{ col }};">{{ name }}</div>
+        <div class="wtf-cn-watch-desc">{{ desc }}</div>
       </a>
       {% endfor %}
     </div>
   </div>
 
   <!-- Bottom CTA -->
-  <div style="text-align:center;padding:48px 16px 64px;">
-    <h3 style="font-family:Georgia,serif;font-size:1.3rem;color:#e0e0e0;margin:0 0 10px;">The news doesn't have an agenda.<br>But your newsroom might.</h3>
-    <p style="color:#555;font-size:0.72rem;margin:0 0 28px;">Subscribe to What The Fact. Know how your news is being told.</p>
-    <a href="/billing/checkout/starter"
-       style="background:var(--wtf-accent);color:#fff;padding:14px 40px;border-radius:5px;text-decoration:none;font-size:0.82rem;letter-spacing:1px;">
+  <div class="wtf-cn-bottom">
+    <h3 class="wtf-cn-h3">The news doesn't have an agenda.<br>But your newsroom might.</h3>
+    <p class="wtf-cn-bottom-p">Subscribe to What The Fact. Know how your news is being told.</p>
+    <a href="/billing/checkout/starter" class="wtf-cn-btn-bottom">
       Subscribe Now — $4.99/mo →
     </a>
   </div>
@@ -151,7 +146,7 @@
 }
 .wtf-feat-icon { font-size: 2rem; line-height: 1; }
 .wtf-feat-title {
-  font-family: Georgia, serif;
+  font-family: var(--wtf-font-serif);
   font-size: 0.85rem;
   color: #e0e0e0;
   font-weight: 600;
@@ -160,6 +155,212 @@
   font-size: 0.68rem;
   color: #6b7280;
   line-height: 1.65;
+}
+
+/* ── /connect (aka /join) — extracted from inline styles, values preserved ── */
+.wtf-cn-hero {
+  background: linear-gradient(180deg, #050d1a 0%, #080f1c 100%);
+  border-bottom: 1px solid #112233;
+  padding: 72px 16px 56px;
+  text-align: center;
+}
+.wtf-cn-live-label {
+  font-size: 0.6rem;
+  letter-spacing: 3px;
+  color: var(--wtf-accent);
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+.wtf-cn-h1 {
+  font-family: var(--wtf-font-serif);
+  font-size: 2.6rem;
+  color: #f0f0f0;
+  letter-spacing: 2px;
+  margin: 0 0 20px;
+  line-height: 1.2;
+}
+.wtf-cn-hero-p {
+  color: #6b7280;
+  font-size: 0.88rem;
+  max-width: 520px;
+  margin: 0 auto 16px;
+  line-height: 1.9;
+}
+.wtf-cn-hero-sub {
+  color: #444;
+  font-size: 0.75rem;
+  margin: 0 auto 40px;
+}
+.wtf-cn-link {
+  color: var(--wtf-accent);
+  text-decoration: none;
+}
+.wtf-cn-btn-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.wtf-cn-btn-hero {
+  background: var(--wtf-accent);
+  color: #fff;
+  padding: 14px 36px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-family: var(--wtf-font-serif);
+  font-size: 0.9rem;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+.wtf-cn-btn-signin {
+  background: transparent;
+  border: 1px solid #334455;
+  color: #9ca3af;
+  padding: 14px 28px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.wtf-cn-statsbar {
+  background: #060d14;
+  border-bottom: 1px solid #112233;
+  padding: 22px 16px;
+}
+.wtf-cn-stats-row {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  flex-wrap: wrap;
+  max-width: 800px;
+  margin: 0 auto;
+}
+.wtf-cn-stat { text-align: center; }
+.wtf-cn-stat-num {
+  font-family: var(--wtf-font-serif);
+  font-size: 1.7rem;
+  color: #e0e0e0;
+  font-weight: 700;
+}
+.wtf-cn-stat-label {
+  font-size: 0.58rem;
+  color: #555;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.wtf-cn-section {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 56px 16px 0;
+}
+.wtf-cn-sec-head { text-align: center; margin-bottom: 40px; }
+.wtf-cn-sec-head-sm { text-align: center; margin-bottom: 28px; }
+.wtf-cn-eyebrow {
+  font-size: 0.58rem;
+  letter-spacing: 3px;
+  color: #555;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.wtf-cn-h2 {
+  font-family: var(--wtf-font-serif);
+  font-size: 1.6rem;
+  color: #e0e0e0;
+  margin: 0;
+}
+.wtf-cn-h2-sm {
+  font-family: var(--wtf-font-serif);
+  font-size: 1.4rem;
+  color: #e0e0e0;
+  margin: 0;
+}
+.wtf-cn-h3 {
+  font-family: var(--wtf-font-serif);
+  font-size: 1.3rem;
+  color: #e0e0e0;
+  margin: 0 0 10px;
+}
+.wtf-cn-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 52px;
+}
+.wtf-cn-pricing-box {
+  background: #0a0f1a;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  padding: 40px;
+  text-align: center;
+  margin-bottom: 52px;
+}
+.wtf-cn-pricing-label {
+  font-size: 0.6rem;
+  letter-spacing: 2px;
+  color: var(--wtf-accent);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.wtf-cn-price {
+  font-family: var(--wtf-font-serif);
+  font-size: 2.2rem;
+  color: #f0f0f0;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.wtf-cn-price-unit { font-size: 1rem; color: #6b7280; }
+.wtf-cn-price-sub { color: #555; font-size: 0.72rem; margin: 0 0 6px; }
+.wtf-cn-price-sub2 { color: #444; font-size: 0.65rem; margin: 0 0 28px; }
+.wtf-cn-btn-price {
+  background: var(--wtf-accent);
+  color: #fff;
+  padding: 13px 32px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 0.82rem;
+  letter-spacing: 1px;
+}
+.wtf-cn-btn-outline {
+  background: transparent;
+  border: 1px solid #334455;
+  color: #6b7280;
+  padding: 13px 24px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 0.82rem;
+}
+.wtf-cn-watch-series { margin-bottom: 52px; }
+.wtf-cn-subtitle { color: #555; font-size: 0.72rem; margin: 10px 0 0; }
+.wtf-cn-watches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+.wtf-cn-watch-card {
+  background: #0a0f1a;
+  border-radius: 5px;
+  padding: 18px;
+  text-decoration: none;
+  display: block;
+}
+.wtf-cn-watch-icon { font-size: 1.2rem; margin-bottom: 8px; }
+.wtf-cn-watch-name {
+  font-size: 0.65rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.wtf-cn-watch-desc { font-size: 0.68rem; color: #6b7280; line-height: 1.5; }
+.wtf-cn-bottom { text-align: center; padding: 48px 16px 64px; }
+.wtf-cn-bottom-p { color: #555; font-size: 0.72rem; margin: 0 0 28px; }
+.wtf-cn-btn-bottom {
+  background: var(--wtf-accent);
+  color: #fff;
+  padding: 14px 40px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-size: 0.82rem;
+  letter-spacing: 1px;
 }
 </style>
 

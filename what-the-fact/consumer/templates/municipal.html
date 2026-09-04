@@ -25,6 +25,28 @@
    (a "silent cities" coverage-gap panel + a council/ward table) backed by
    static hardcoded JS sample data, not a DB query — deliberately NOT
    ported; out of scope for a styling-debt pass. #}
+{# Batch 11 (2026-09-04): the "silent cities" panel and council/ward table
+   above are STILL deferred, for the same reason — no canonical Canadian
+   city/province registry or council-structure reference table exists in
+   this DB, and this pass does not build one (that is a schema + ingest
+   project, not a template edit). Same for the mockup's full CITY_LIST
+   filter chips (routes.py deliberately shows only cities clearing >=2 real
+   articles — "keep the filter honest while municipal geo-tagging is still
+   expanding"; widening it needs the same missing registry). The "why
+   municipal coverage is thin" editorial panel is also deferred: it is two
+   paragraphs of opinion, not a query, and adding uncredited editorial copy
+   is a content/product decision for the newsroom, not a data-integration
+   fix.
+   The ONE piece that IS real and live: the mockup's "Election coverage
+   readiness →" link targets wtf-elections.html#coverage, which is not a
+   route that exists (base.html's own Elections nav already links
+   /elections#coverage to nothing — a pre-existing dead link, not
+   introduced here, and out of scope to fix from this template). What DOES
+   exist and is DB-backed: /races (federal riding results, PRs
+   #3084/#3086) and /parties (vote share vs seat share, PR #3087) — see
+   .claude/rules/wtf.md's Elections section. Cross-linking to those, named
+   for what they actually are rather than borrowing the mockup's
+   "readiness" language, is the honest version of that connection. #}
 <style>
 .wtf-mu-page-header { margin-bottom:28px }
 .wtf-mu-muni-label { font-size:9px;letter-spacing:2px;color:#0ea5e9;text-transform:uppercase;margin-bottom:6px }
@@ -55,8 +77,10 @@
 .wtf-mu-band { color:#6b7280 }
 .wtf-mu-cluster-link { color:#0af;font-size:9px;text-decoration:none }
 .wtf-mu-back-link { color:#0ea5e9 }
-.wtf-mu-footer { margin-top:20px;text-align:center }
+.wtf-mu-footer { margin-top:20px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center }
 .wtf-mu-all-link { color:#0ea5e9;font-size:10px;letter-spacing:1px;text-decoration:none }
+.wtf-mu-elections-link { color:#6b7280;font-size:9px;letter-spacing:.5px;text-decoration:none }
+.wtf-mu-elections-link:hover { color:#0ea5e9 }
 @media(max-width:600px){main{padding:20px 12px}.wtf-mu-stats-row{gap:10px}}
 </style>
 
@@ -126,5 +150,6 @@
 
   <div class="wtf-mu-footer">
     <a href="/news?beat=municipal" class="wtf-mu-all-link">All Municipal Coverage →</a>
+    <a href="/races" class="wtf-mu-elections-link">See also: federal riding results &amp; races →</a>
   </div>
 {% endblock %}

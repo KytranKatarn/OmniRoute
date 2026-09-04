@@ -108,6 +108,7 @@
   border-left:3px solid var(--wtf-local);
   border-radius:5px; padding:13px 14px;
   transition:border-color 140ms ease, transform 140ms ease;
+  display:block; text-decoration:none; color:inherit;
 }
 .wtf-wx-citycard:hover { border-color:var(--wtf-text-muted); transform:translateY(-1px); }
 /* Freshness is PER CARD — one blanket "updated N min ago" would be a single
@@ -784,7 +785,8 @@
       wrap.appendChild(d); return;
     }
     list.forEach(function (c) {
-      var card = document.createElement("div");
+      var card = document.createElement("a");
+      card.href = "/weather/city/" + encodeURIComponent(c.name);
       // Three states, three different facts: reporting / stale / silent.
       // A city MSC stopped publishing must not look like a fresh reading.
       var stale = c.age_min !== null && c.age_min > 180;

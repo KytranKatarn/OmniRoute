@@ -915,6 +915,91 @@ def weather():
                            is_subscriber=is_subscriber())
 
 
+@bp.get("/weather/city/<name>")
+def weather_city(name: str):
+    """Per-city weather detail — design-handoff/wtf-city.html, SCOPED DOWN to
+    what wtf.aurora_city_obs/_city_forecast actually holds.
+
+    ⚠️ The design mockup is NOT buildable as drawn. Its JS carries a 61-city
+    fabricated dataset (hand-authored temp/wind/humidity/cloud/rain per city)
+    that does not match our real 25-city MSC ingest, and a whole layer of
+    sections with no backing data at all: an hourly-forecast bar chart, a
+    14-day daily outlook + precipitation chart, an AQI dial, and a 30-day
+    "confidence-decaying" A.U.R.O.R.A. outlook. None of that is ingested —
+    wtf.aurora_city_forecast holds exactly ONE MSC citypage issue with 4
+    periods (Today/Tonight/Tomorrow/Tomorrow night-shaped), not an hourly or
+    14-day series. Building the mockup's version of those sections would mean
+    inventing numbers, the exact failure this whole rollout exists to remove
+    (see the ECCC gust-vs-absence and fire-hotspot-vs-station notes on
+    /weather itself). Sun/moon times were left out too, even though they are
+    real astronomy rather than fabricated data — getting sunrise/sunset math
+    wrong is its own factual error, and this route ships only fields already
+    proven correct by /weather's own city cards.
+
+    What's real and shown here: current conditions (temp, condition, RH,
+    wind + gust + direction, humidex, pressure, observation age/staleness)
+    and the newest 4-period forecast issue — the SAME _aurora_city_payload()
+    fields /weather's city grid already renders, for exactly one city.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        source_count = _active_source_count(c, S)
+        city_rows = c.execute(text("""
+            SELECT s.site_code, s.name_en, s.display_name, s.source_prov,
+                   s.lat, s.lon, s.last_obs_status,
+                   o.observed_utc, o.temp_c, o.condition_text, o.rel_humidity_pct,
+                   o.wind_speed_kmh, o.wind_is_calm, o.wind_gust_kmh, o.wind_dir,
+                   o.humidex, o.pressure_kpa,
+                   EXTRACT(EPOCH FROM (now() - o.observed_utc))/60 AS age_min
+            FROM wtf.aurora_city_site s
+            LEFT JOIN LATERAL (
+                SELECT * FROM wtf.aurora_city_obs x
+                WHERE x.site_code = s.site_code
+                ORDER BY x.observed_utc DESC LIMIT 1
+            ) o ON true
+            WHERE s.is_city
+            ORDER BY s.sort_order, s.name_en
+        """)).mappings().all()
+        forecast_rows = c.execute(text("""
+            SELECT f.site_code, f.period_index, f.period_label,
+                   f.temp_high_c, f.temp_low_c, f.pop_pct,
+                   f.abbrev_summary, f.text_summary
+            FROM wtf.aurora_city_forecast f
+            JOIN (SELECT site_code, max(issued_utc) AS latest
+                  FROM wtf.aurora_city_forecast GROUP BY site_code) m
+              ON m.site_code = f.site_code AND m.latest = f.issued_utc
+            ORDER BY f.site_code, f.period_index
+        """)).mappings().all()
+        layers = c.execute(text("""
+            SELECT layer_key, stale_after_hours FROM wtf.aurora_layer_status
+        """)).mappings().all()
+
+    city_payload = _aurora_city_payload(city_rows, forecast_rows)
+    all_cities = city_payload["cities"]
+    # Case-insensitive match on the same display_name/name_en coalesce the
+    # payload builder already applies — 25 real cities, verified no two share
+    # a lowercased name, so this is unambiguous.
+    _want = name.strip().lower()
+    city = next((c for c in all_cities if c["name"].lower() == _want), None)
+    if city is None:
+        abort(404)
+
+    _city_stale_min = 180
+    for _l in layers:
+        if _l["layer_key"] == "city_obs" and _l["stale_after_hours"]:
+            _city_stale_min = int(_l["stale_after_hours"]) * 60
+            break
+
+    return render_template(
+        "weather_city.html",
+        city=city,
+        cities=sorted(all_cities, key=lambda c: c["name"]),
+        city_stale_min=_city_stale_min,
+        source_count=source_count,
+        is_subscriber=is_subscriber(),
+    )
+
+
 @bp.get("/weather/accuracy")
 def weather_accuracy():
     """A.U.R.O.R.A. — how accurate the forecast actually turned out to be.

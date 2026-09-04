@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import measurement %}
+{% block title %}{{ city.name }} weather — What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Current conditions and forecast for {{ city.name }}, {{ city.prov }} — from Environment and Climate Change Canada, via What The Fact.">
+{% endblock %}
+{% block content %}
+{# Scoped-down /weather/city/<name> — see the route's own docstring in
+   routes.py for the full list of design-mockup sections (hourly forecast,
+   14-day outlook, precipitation chart, AQI, sun/moon, 30-day A.U.R.O.R.A.
+   outlook) deliberately NOT built here: none of them are backed by real
+   ingest, and the mockup's numbers for all of them are fabricated. This
+   page renders only what wtf.aurora_city_obs/_city_forecast actually hold —
+   the same fields /weather's own city cards already render honestly. #}
+<style>
+.wtf-wxc-top { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.wtf-wxc-pick { background:#0a1520; border:1px solid #1a3a5a; border-radius:7px; color:#e5e7eb;
+  font-family:var(--wtf-font-body); font-size:13px; padding:9px 12px; }
+.wtf-wxc-back { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.11em; text-transform:uppercase;
+  padding:8px 15px; border-radius:999px; border:1px solid #1a3a5a; background:#0a1520; color:#9ca3af; text-decoration:none; }
+.wtf-wxc-hero { display:flex; flex-wrap:wrap; gap:20px; align-items:center; padding:20px 0; border-bottom:1px solid #1a3a5a; margin-bottom:20px; }
+.wtf-wxc-eyebrow { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:#6b7280; }
+.wtf-wxc-title { font-family:var(--wtf-font-serif); font-size:32px; font-weight:600; margin:5px 0 12px; color:#e5e7eb; }
+.wtf-wxc-temp { font-family:var(--wtf-font-mono); font-size:56px; font-weight:600; color:#e5e7eb; line-height:1; }
+.wtf-wxc-temp.is-absent { font-size:24px; color:#6b7280; }
+.wtf-wxc-u { font-size:24px; color:#9ca3af; font-weight:400; }
+.wtf-wxc-cond { font-size:15px; color:#9ca3af; margin-top:4px; }
+.wtf-wxc-age { font-family:var(--wtf-font-mono); font-size:10.5px; color:#6b7280; margin-top:6px; }
+.wtf-wxc-age.is-stale { color:#f59e0b; }
+.wtf-wxc-section { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin:24px 0 12px; padding-bottom:6px; border-bottom:1px solid #0d1f2d; }
+.wtf-wxc-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+.wtf-wxc-kv { background:#0a1520; border:1px solid #1a3a5a; border-radius:8px; padding:11px 12px; }
+.wtf-wxc-k { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.11em; text-transform:uppercase; color:#6b7280; margin-bottom:4px; }
+.wtf-wxc-v { font-family:var(--wtf-font-mono); font-size:15px; color:#e5e7eb; }
+.wtf-wxc-fc-row { display:flex; gap:14px; align-items:baseline; padding:10px 0; border-bottom:1px solid #060d14; }
+.wtf-wxc-fc-label { font-size:12.5px; color:#e5e7eb; font-weight:600; min-width:130px; }
+.wtf-wxc-fc-temps { font-family:var(--wtf-font-mono); font-size:13px; color:#9ca3af; min-width:90px; }
+.wtf-wxc-fc-pop { font-family:var(--wtf-font-mono); font-size:11px; color:#38bdf8; min-width:44px; }
+.wtf-wxc-fc-summary { font-size:12px; color:#9ca3af; flex:1; min-width:180px; }
+.wtf-wxc-note { font-size:11px; color:#6b7280; line-height:1.6; margin-top:18px; }
+.wtf-wxc-badge { font-size:9.5px; padding:2px 8px; border-radius:10px; background:#78350f22; color:#f59e0b; border:1px solid #78350f44; margin-left:8px; vertical-align:middle; }
+</style>
+
+<div class="wtf-wxc-top">
+  <label style="display:flex;align-items:center;gap:9px">
+    <span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#6b7280">City</span>
+    <select class="wtf-wxc-pick" id="wtf-wxc-pick" aria-label="Choose a city" onchange="if(this.value) location.href='/weather/city/' + encodeURIComponent(this.value);">
+      {% for c in cities %}
+      <option value="{{ c.name }}" {% if c.name == city.name %}selected{% endif %}>{{ c.name }}, {{ c.prov or '—' }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <a href="/weather" class="wtf-wxc-back">All of Canada &rarr;</a>
+</div>
+
+<div class="wtf-wxc-hero">
+  <div>
+    <div class="wtf-wxc-eyebrow">{{ city.prov or 'Canada' }}{% if city.is_capital %} &middot; Provincial capital{% endif %}</div>
+    <h1 class="wtf-wxc-title">{{ city.name }} weather</h1>
+  </div>
+  <div>
+    {% if city.temp is not none %}
+    <span class="wtf-wxc-temp">{{ city.temp }}<span class="wtf-wxc-u">&deg;C</span></span>
+    {% else %}
+    <span class="wtf-wxc-temp is-absent">&mdash;</span>
+    {% endif %}
+    <div class="wtf-wxc-cond">{{ city.condition or 'No condition reported' }}</div>
+    {% if city.age_min is not none %}
+    <div class="wtf-wxc-age{% if city.age_min > city_stale_min %} is-stale{% endif %}">
+      {% if city.age_min > city_stale_min %}&#9888; reading {{ (city.age_min / 60) | round(1) }}h old &mdash; shown as stale
+      {% else %}observed {{ city.age_min | int }} min ago{% endif %}
+    </div>
+    {% else %}
+    <div class="wtf-wxc-age">no reading available</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="wtf-wxc-section">Current conditions</div>
+<div class="wtf-wxc-grid">
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Temperature</div><div class="wtf-wxc-v">{{ measurement(city.temp, "&deg;C") }}</div></div>
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Feels like</div><div class="wtf-wxc-v">{{ measurement(city.humidex, "&deg;C") }}</div></div>
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Humidity</div><div class="wtf-wxc-v">{{ measurement(city.humidity, "%") }}</div></div>
+  <div class="wtf-wxc-kv">
+    <div class="wtf-wxc-k">Wind</div>
+    <div class="wtf-wxc-v">
+      {% if city.calm %}Calm{% else %}{{ measurement(city.wind, " km/h") }}{% endif %}
+    </div>
+    {% if not city.calm and city.dir %}<div class="wtf-wxc-k" style="margin-top:4px">from {{ city.dir }}{% if city.gust is not none %} &middot; gust {{ city.gust }}{% endif %}</div>{% endif %}
+  </div>
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Pressure</div><div class="wtf-wxc-v">{{ measurement(city.pressure, " kPa") }}</div></div>
+</div>
+
+{% if city.forecast %}
+<div class="wtf-wxc-section">Forecast</div>
+<div>
+  {% for p in city.forecast %}
+  <div class="wtf-wxc-fc-row">
+    <span class="wtf-wxc-fc-label">{{ p.label }}</span>
+    <span class="wtf-wxc-fc-temps">{% if p.high is not none %}{{ p.high }}&deg;{% endif %}{% if p.low is not none %} <span style="color:#6b7280">/ {{ p.low }}&deg;</span>{% endif %}</span>
+    {# p.pop resolves to dict.pop() in Jinja (attribute lookup wins over item
+       lookup for a name that collides with a real dict method) — use
+       bracket access so the "pop" KEY is read, not the built-in method. #}
+    <span class="wtf-wxc-fc-pop">{% if p['pop'] is not none and p['pop'] > 0 %}{{ p['pop'] }}% PoP{% endif %}</span>
+    <span class="wtf-wxc-fc-summary">{{ p.summary or '' }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<p class="wtf-wxc-note">
+  Observations and forecast: Environment and Climate Change Canada (MSC Datamart citypage feed).
+  This page shows only what is actually ingested — current conditions and the newest forecast
+  issue. For the national wildfire and fire-weather picture, coverage sources, and every
+  province's station count, see <a href="/weather" style="color:#38bdf8">the full weather &amp; climate page &rarr;</a>.
+</p>
+{% endblock %}

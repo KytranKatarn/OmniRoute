@@ -4848,11 +4848,36 @@ def journalists_listing():
                   AND art.suppressed_reason IS NULL
                   AND em.entity_id IN (SELECT id FROM candidates)
                 GROUP BY em.entity_id
+            ),
+            -- Per-journalist outlet counts, same join shape as visible_counts
+            -- (candidates already narrowed, same tables) plus one join to
+            -- {S}.sources — not a second slow correlated-subquery pass.
+            -- Lean is attributed to the OUTLET (sources.bias_lean, the
+            -- site's existing stable per-source vocabulary everywhere else),
+            -- never to the person — a journalist writing for one outlet does
+            -- not inherit an individual bias score just from that byline.
+            outlet_counts AS (
+                SELECT em.entity_id, src.name AS outlet_name, src.bias_lean AS outlet_lean,
+                       count(DISTINCT em.content_id) AS n
+                FROM {SH}.entity_mentions em
+                JOIN {S}.articles art ON art.id::text = em.content_id
+                JOIN {S}.sources src ON src.id = art.source_id
+                WHERE em.product='wtf' AND em.content_type='article'
+                  AND art.suppressed_reason IS NULL
+                  AND em.entity_id IN (SELECT id FROM candidates)
+                GROUP BY em.entity_id, src.name, src.bias_lean
+            ),
+            top_outlet AS (
+                SELECT DISTINCT ON (entity_id) entity_id, outlet_name, outlet_lean
+                FROM outlet_counts
+                ORDER BY entity_id, n DESC
             )
             SELECT c.id, c.canonical_name, c.slug,
-                   COALESCE(vc.article_count, 0) AS article_count
+                   COALESCE(vc.article_count, 0) AS article_count,
+                   t.outlet_name, t.outlet_lean
               FROM candidates c
               LEFT JOIN visible_counts vc ON vc.entity_id = c.id
+              LEFT JOIN top_outlet t ON t.entity_id = c.id
              WHERE (:q='' OR lower(c.canonical_name) LIKE :like
                     OR EXISTS (SELECT 1 FROM unnest(c.aliases) al WHERE lower(al) LIKE :like))
              ORDER BY article_count DESC NULLS LAST, c.canonical_name ASC

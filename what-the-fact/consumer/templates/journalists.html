@@ -28,10 +28,18 @@
 {% if journalists %}
 <div class="wtf-a-grid">
   {% for j in journalists %}
+  {% set sub = (j.article_count or 0)|string ~ ' article' ~ ('' if j.article_count == 1 else 's') %}
+  {% if j.outlet_name %}{% set sub = sub ~ ' · ' ~ j.outlet_name %}{% endif %}
+  {# Lean is the OUTLET's registered band (sources.bias_lean) — the site's
+     existing stable per-source vocabulary — never a per-journalist score.
+     No |safe anywhere: sub is auto-escaped normally (this is a real literal
+     middot character, not an HTML entity, so escaping never touches it). #}
   {{ person_card(
        name=j.canonical_name,
-       sub=(j.article_count or 0)|string ~ ' article' ~ ('' if j.article_count == 1 else 's'),
-       href='/journalist/' ~ j.id) }}
+       sub=sub,
+       href='/journalist/' ~ j.id,
+       spine_token=('--wtf-' ~ j.outlet_lean) if j.outlet_lean else None,
+       right=(j.outlet_lean | replace('-', ' ') | title) if j.outlet_lean else None) }}
   {% endfor %}
 </div>
 {% if journalists|length >= 200 %}

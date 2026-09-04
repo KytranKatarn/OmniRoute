@@ -1,14 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
-<div style="max-width:560px;margin:60px auto;padding:0 16px;text-align:center;">
+<style>
+.wtf-un-wrap  { max-width: 560px; margin: 60px auto; padding: 0 16px; text-align: center; }
+.wtf-un-title { font-size: 22px; color: #f0f0f0; }
+.wtf-un-body  { color: #9ca3af; font-size: 14px; }
+.wtf-un-link  { color: #60a5fa; }
+</style>
+<div class="wtf-un-wrap">
   {% if ok %}
-  <h1 style="font-size:22px;color:#f0f0f0;">You're unsubscribed.</h1>
-  <p style="color:#9ca3af;font-size:14px;">No more weekly digests will be sent to this address.
+  <h1 class="wtf-un-title">You're unsubscribed.</h1>
+  <p class="wtf-un-body">No more weekly digests will be sent to this address.
      Changed your mind? Re-subscribe anytime from the footer of
-     <a href="/" style="color:#60a5fa;">what-the-fact.com</a>.</p>
+     <a href="/" class="wtf-un-link">what-the-fact.com</a>.</p>
   {% else %}
-  <h1 style="font-size:22px;color:#f0f0f0;">Link invalid or already used.</h1>
-  <p style="color:#9ca3af;font-size:14px;">If you unsubscribed earlier, you're already off the list.
+  <h1 class="wtf-un-title">Link invalid or already used.</h1>
+  <p class="wtf-un-body">If you unsubscribed earlier, you're already off the list.
      Otherwise the link may be incomplete — try the unsubscribe link from your latest digest email.</p>
   {% endif %}
 </div>

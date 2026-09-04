@@ -2987,13 +2987,18 @@ _BAND_WEIGHTS = {
 }
 
 
-@bp.get("/literacy")
-def literacy_page():
-    """Personal media-literacy dashboard. Subscriber-gated."""
+@bp.get("/literacy/score")
+def literacy_score_page():
+    """Personal media-literacy dashboard. Subscriber-gated.
+
+    Relocated from /literacy (#6272, Batch 9) — the design handoff wants a
+    PUBLIC tips page at /literacy (see literacy_page() below), which cannot
+    coexist with this gated personal dashboard at the same URL. Owner
+    decision: this page moves, the design gets the URL."""
     from flask import redirect
     email = _user_email()
     if not email:
-        return redirect("/login?next=/literacy")
+        return redirect("/login?next=/literacy/score")
     if not is_subscriber():
         return redirect("/connect?gated=literacy")
 
@@ -3045,13 +3050,30 @@ def literacy_page():
     else:
         score = None
 
-    return render_template("literacy.html",
+    return render_template("literacy_score.html",
                            user_email=email,
                            score=score,
                            total_scored=total_articles,
                            total_views=sum(int(r["views"] or 0) for r in rows),
                            distribution=distribution,
                            recent=[dict(r) for r in recent])
+
+
+@bp.get("/literacy")
+def literacy_page():
+    """Public media-literacy tips page (#6272, Batch 9) — entirely static
+    editorial content ported from design-handoff/wtf-literacy.html, no login
+    or subscription required. Was blocked on this URL by the gated personal
+    dashboard now at /literacy/score (see literacy_score_page() above);
+    owner decision moved that page so this one could take /literacy."""
+    S = _schema()
+    source_count = 0
+    try:
+        with _db().begin() as c:
+            source_count = _active_source_count(c, S)
+    except Exception:
+        pass
+    return render_template("literacy.html", source_count=source_count, is_subscriber=is_subscriber())
 
 
 @bp.get("/account")
@@ -5221,7 +5243,7 @@ def robots_txt():
         "Allow: /\n"
         "Disallow: /account\n"
         "Disallow: /alerts\n"
-        "Disallow: /literacy\n"
+        "Disallow: /literacy/score\n"
         "Disallow: /auth/\n"
         "Disallow: /billing/\n"
         # Faceted /news (any query string: band/province/beat/scope/riding/page

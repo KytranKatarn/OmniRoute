@@ -1,193 +1,82 @@
 {% extends "base.html" %}
-{% block title %}Media Literacy Score — What The Fact{% endblock %}
+{% block title %}Media literacy — What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="A short set of habits that make this site — and any news site — easier to read critically. None of them require trusting us.">
+{% endblock %}
 {% block content %}
 <style>
-/* Design-handoff scoping: own <style> block, 8 hex-color values across the
-   page. 3 are byte-for-byte token matches (#10b981===var(--wtf-established)/
-   var(--wtf-verify), #f59e0b===var(--wtf-developing)/var(--wtf-bias),
-   #dc2626===var(--wtf-accent)/var(--wtf-fact)) but NONE are adopted — each
-   hits a real, documented reason, not styling debt:
-     - #10b981/#f59e0b paint the numeric literacy SCORE (score>=80 / >=60)
-       and the "Browse News" CTA button. Their token pair is explicitly
-       commented in style.css "Verdict chips (informative, never a score)" —
-       using them to color an actual numeric score is exactly the usage that
-       comment forbids.
-     - #dc2626/#f97316/#22c55e/#0ea5e9/#2563eb (bias-distribution bars +
-       recent-reads band chips) are, verbatim, style.css's own documented
-       "previous ramp" for the lean scale — explicitly RETIRED in favour of
-       var(--wtf-left)..var(--wtf-right) for colour-vision-deficiency and
-       editorial-neutrality reasons (green-at-centre reading as "quality").
-       Swapping only #dc2626 (the single byte-coincidental match, to
-       var(--wtf-accent)/var(--wtf-fact)) would misattribute a retired lean
-       colour to an unrelated token while leaving its 4 siblings unswapped —
-       partial and misleading. Migrating this page onto the real
-       var(--wtf-left..right) scale is a genuine value change (5 new
-       colours, needs visual re-verification) — out of scope for a
-       token-debt pass, same discipline as crtc.html's TYPE_COLOURS /
-       markets.html this session.
-   #ef4444 (score<60) has no confirmed token match and stays literal, as do
-   #050d1a/#1a2a3a/#9ca3af/#e0e0e0/#6b7280/#4b5563/#060d14/#0a0f0a/#0a1520/
-   #7fbf7f. The 3 'IBM Plex Mono', monospace font-family literals are
-   normalized to var(--wtf-font-mono) (same primary face, richer fallback
-   chain) — same convergence crtc.html did this session. 'Orbitron' does not
-   appear anywhere in this page or in base.html (WTF's own font stack is IBM
-   Plex Sans/Mono + Newsreader, unrelated to the platform admin's
-   Orbitron/JetBrains Mono pair) — nothing to fix here. No in-page paywall
-   gate block exists: /literacy is gated at the ROUTE (redirect to /connect
-   before render), not via the shared paywall() macro. */
-.wtf-lt-live-email { font-size:.7rem; letter-spacing:2px; color:#7fbf7f; }
-.wtf-lt-title { font-size:1.6rem; }
-.wtf-lt-subtitle { font-size:.85rem; color:#9ca3af; max-width:680px; margin-top:8px; }
-.wtf-lt-wrap { max-width:1000px; margin:0 auto; padding:16px 16px 24px; }
-.wtf-lt-empty { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:24px; text-align:center; color:#9ca3af; }
-.wtf-lt-empty-title { font-size:1.2rem; color:#e0e0e0; margin-bottom:8px; }
-.wtf-lt-empty-desc { font-size:.8rem; }
-.wtf-lt-browse-btn { display:inline-block; margin-top:12px; padding:6px 14px; background:#10b981; color:#0a0f0a; text-decoration:none; border-radius:3px; font-size:.75rem; }
-.wtf-lt-hero-card { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:24px; margin-bottom:20px; text-align:center; }
-.wtf-lt-eyebrow { color:#9ca3af; font-size:.6rem; letter-spacing:2px; text-transform:uppercase; }
-.wtf-lt-mb8 { margin-bottom:8px; }
-.wtf-lt-mb10 { margin-bottom:10px; }
-.wtf-lt-mb14 { margin-bottom:14px; }
-.wtf-lt-score-num { font-size:4rem; font-weight:700; line-height:1; font-family:var(--wtf-font-mono); }
-.wtf-lt-score-good { color:#10b981; }
-.wtf-lt-score-mid { color:#f59e0b; }
-.wtf-lt-score-bad { color:#ef4444; }
-.wtf-lt-score-suffix { font-size:1.5rem; color:#6b7280; }
-.wtf-lt-score-meta { color:#6b7280; font-size:.75rem; margin-top:8px; }
-.wtf-lt-score-desc { font-size:.8rem; color:#9ca3af; margin-top:14px; max-width:520px; margin-left:auto; margin-right:auto; }
-.wtf-lt-dist-card { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:14px; margin-bottom:20px; }
-.wtf-lt-band-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:.72rem; color:#9ca3af; }
-.wtf-lt-band-label { width:120px; flex-shrink:0; text-transform:uppercase; font-size:.65rem; letter-spacing:1px; }
-.wtf-lt-band-track { flex:1; background:#060d14; border-radius:2px; height:18px; }
-.wtf-lt-band-fill { height:18px; border-radius:2px; transition:width .4s ease; }
-.wtf-lt-band-count { width:60px; text-align:right; color:#e0e0e0; font-family:var(--wtf-font-mono); }
-.wtf-lt-dist-note { font-size:.6rem; color:#4b5563; margin-top:10px; }
-.wtf-lt-recent-card { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:14px; }
-.wtf-lt-recent-empty { color:#6b7280; font-size:.75rem; font-style:italic; text-align:center; padding:12px 0; }
-.wtf-lt-recent-table { width:100%; border-collapse:collapse; font-size:.7rem; }
-.wtf-lt-recent-row { border-bottom:1px solid #0a1520; }
-.wtf-lt-recent-title-cell { padding:6px 8px; color:#e0e0e0; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.wtf-lt-recent-link { color:inherit; text-decoration:none; }
-.wtf-lt-recent-source-cell { padding:6px 8px; color:#9ca3af; font-size:.65rem; }
-.wtf-lt-recent-band-cell { padding:6px 8px; }
-.wtf-lt-band-chip { font-size:.6rem; padding:1px 6px; border-radius:2px; color:#0a0f0a; }
-.wtf-lt-band-chip-left { background:#dc2626; }
-.wtf-lt-band-chip-centerleft { background:#f97316; }
-.wtf-lt-band-chip-center { background:#22c55e; }
-.wtf-lt-band-chip-centerright { background:#0ea5e9; }
-.wtf-lt-band-chip-right { background:#2563eb; }
-.wtf-lt-band-unscored { color:#4b5563; font-size:.6rem; }
-.wtf-lt-recent-time-cell { padding:6px 8px; color:#6b7280; font-size:.6rem; text-align:right; font-family:var(--wtf-font-mono); }
-.wtf-lt-footer-note { margin-top:14px; font-size:.6rem; color:#4b5563; text-align:center; }
+/* Public tips page, ported from design-handoff/wtf-literacy.html (#6272,
+   Batch 9) — this is the page that now owns /literacy after the gated
+   personal dashboard relocated to /literacy/score (see literacy_score.html).
+   Entirely static editorial content in the design source (5 numbered tips +
+   a "where this site can mislead you" sidebar) — no fabricated data to
+   triage, unlike governance.html/weather_city.html. The design's ONE numeric
+   claim ("Our index is 40 sources") is made dynamic here via source_count
+   rather than left as a hardcoded figure that drifts from the real count.
+
+   New namespace (wtf-lt2-*, not wtf-lt-*) — wtf-lt-* already belongs to
+   literacy_score.html and the two pages are visually and structurally
+   unrelated; reusing the prefix would make a future edit to one page's CSS
+   silently bleed into the other. */
+.wtf-lt2-wrap { max-width:900px; margin:0 auto; padding:16px 16px 32px; }
+.wtf-lt2-header { text-align:center; max-width:70ch; margin:0 auto 24px; }
+.wtf-lt2-eyebrow { font-size:0.55rem; letter-spacing:3px; color:var(--wtf-aurora); text-transform:uppercase; margin-bottom:8px; }
+.wtf-lt2-title { font-family:Georgia,serif; font-size:1.8rem; color:#f0f0f0; margin:0 0 10px; }
+.wtf-lt2-lede { color:#6b7280; font-size:0.8rem; line-height:1.7; margin:0; }
+.wtf-lt2-grid { display:grid; grid-template-columns:2fr 1fr; gap:16px; align-items:start; }
+@media (max-width:760px) { .wtf-lt2-grid { grid-template-columns:1fr; } }
+.wtf-lt2-tips { display:flex; flex-direction:column; gap:12px; }
+.wtf-lt2-tip { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:14px 16px; }
+.wtf-lt2-tip-h { font-family:Georgia,serif; font-size:1.05rem; color:#e5e7eb; margin:0 0 7px; }
+.wtf-lt2-tip-p { font-size:0.76rem; color:#9ca3af; line-height:1.7; margin:0; }
+.wtf-lt2-tip-p a { color:var(--wtf-aurora); }
+.wtf-lt2-aside { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:14px 16px; }
+.wtf-lt2-aside-label { font-size:0.55rem; letter-spacing:2px; color:#4b5563; text-transform:uppercase; margin:0 0 12px; }
+.wtf-lt2-aside-p { font-size:0.72rem; color:#6b7280; line-height:1.7; margin:0 0 11px; }
+.wtf-lt2-aside-p:last-child { margin-bottom:0; }
 </style>
 
-<div class="wtf-team-hero">
-  <div class="wtf-team-hero-live">
-    <span class="wtf-live-pulse"></span>
-    <span class="wtf-lt-live-email">{{ user_email }}</span>
-  </div>
-  <h1 class="wtf-lt-title">MEDIA LITERACY SCORE</h1>
-  <p class="wtf-lt-subtitle">
-    Your reading diet across the bias spectrum. Score reflects how
-    balanced your sourcing is — perfectly balanced reader scores 100,
-    one-sided reader scores closer to 0.
-  </p>
-</div>
+<div class="wtf-lt2-wrap">
 
-<div class="wtf-lt-wrap">
-
-  {% if score is none %}
-  <div class="wtf-lt-empty">
-    <div class="wtf-lt-empty-title">No data yet</div>
-    <div class="wtf-lt-empty-desc">Read a few scored articles and check back. We track every article you open while signed in.</div>
-    <a href="/" class="wtf-lt-browse-btn">Browse News</a>
-  </div>
-  {% else %}
-
-  <!-- Score hero -->
-  <div class="wtf-lt-hero-card">
-    <div class="wtf-lt-eyebrow wtf-lt-mb8">
-      Your Score
-    </div>
-    <div class="wtf-lt-score-num {% if score >= 80 %}wtf-lt-score-good{% elif score >= 60 %}wtf-lt-score-mid{% else %}wtf-lt-score-bad{% endif %}">
-      {{ score }}<span class="wtf-lt-score-suffix"> / 100</span>
-    </div>
-    <div class="wtf-lt-score-meta">
-      Based on {{ "{:,}".format(total_scored) }} scored article(s)
-      &middot; {{ "{:,}".format(total_views) }} total view(s)
-    </div>
-    <div class="wtf-lt-score-desc">
-      {% if score >= 90 %}
-        ⚖ Exceptional balance — you read across the political spectrum.
-      {% elif score >= 75 %}
-        ✓ Well-balanced. You read across the spectrum with mild lean.
-      {% elif score >= 50 %}
-        ⚠ Moderate skew — consider broadening to opposite-band sources.
-      {% else %}
-        ⚠ Strong one-sided reading pattern. Try outlets across the spectrum.
-      {% endif %}
-    </div>
+  <div class="wtf-lt2-header">
+    <div class="wtf-lt2-eyebrow">Read better, not just more</div>
+    <h1 class="wtf-lt2-title">Media literacy</h1>
+    <p class="wtf-lt2-lede">
+      A short set of habits that make this site — and any news site — easier to read
+      critically. None of them require trusting us.
+    </p>
   </div>
 
-  <!-- Bias distribution chart -->
-  <div class="wtf-lt-dist-card">
-    <div class="wtf-lt-eyebrow wtf-lt-mb14">
-      Your bias distribution
-    </div>
-    {% set max_n = distribution.values()|max %}
-    {% for band, color in [('left', '#dc2626'), ('center-left', '#f97316'), ('center', '#22c55e'), ('center-right', '#0ea5e9'), ('right', '#2563eb'), ('unscored', '#6b7280')] %}
-    {% set n = distribution.get(band, 0) %}
-    {% set pct = ((n / max_n * 100) | int) if max_n else 0 %}
-    <div class="wtf-lt-band-row">
-      <div class="wtf-lt-band-label">{{ band }}</div>
-      <div class="wtf-lt-band-track">
-        <div class="wtf-lt-band-fill" style="background:{{ color }};width:{{ pct }}%;"></div>
+  <div class="wtf-lt2-grid">
+    <div class="wtf-lt2-tips">
+      <div class="wtf-lt2-tip">
+        <div class="wtf-lt2-tip-h">1. Read the cluster, not the article</div>
+        <p class="wtf-lt2-tip-p">One account of an event is one framing of it. Open the cluster and the omissions become visible immediately: what led here that was buried there, whose words were quoted directly and whose were paraphrased.</p>
       </div>
-      <div class="wtf-lt-band-count">{{ "{:,}".format(n) }}</div>
+      <div class="wtf-lt2-tip">
+        <div class="wtf-lt2-tip-h">2. Check who is quoted directly</div>
+        <p class="wtf-lt2-tip-p">Direct quotation is an editorial choice. The people quoted in their own words are the people the outlet is treating as credible; the people paraphrased are being summarised by someone with a view.</p>
+      </div>
+      <div class="wtf-lt2-tip">
+        <div class="wtf-lt2-tip-h">3. Separate the fact from the frame</div>
+        <p class="wtf-lt2-tip-p">Two outlets can agree completely on what happened and disagree completely on what it means. Divergence on facts is checkable. Divergence on meaning is a matter for you.</p>
+      </div>
+      <div class="wtf-lt2-tip">
+        <div class="wtf-lt2-tip-h">4. Notice the absence</div>
+        <p class="wtf-lt2-tip-p">A story that is everywhere on one side and nowhere on the other is telling you something about both sides. That is what the <a href="/blindspot">blindspot page</a> is for.</p>
+      </div>
+      <div class="wtf-lt2-tip">
+        <div class="wtf-lt2-tip-h">5. Distrust a single number</div>
+        <p class="wtf-lt2-tip-p">A figure quoted without its release date and its source table cannot be checked. If a number matters to the argument, find the table.</p>
+      </div>
     </div>
-    {% endfor %}
-    <div class="wtf-lt-dist-note">
-      Unscored articles don't count toward your score — those are pieces
-      where B.I.A.S. hasn't run yet (Tier-1 only or pending).
-      WTF uses three independent bias signals: heuristic keyword analysis,
-      LLM tier-1 (qwen2.5:1.5b), and ML v2 (DistilBERT zero-shot).
-      The ensemble average of all available signals is the displayed band.
-    </div>
-  </div>
 
-  <!-- Recent reads strip -->
-  <div class="wtf-lt-recent-card">
-    <div class="wtf-lt-eyebrow wtf-lt-mb10">
-      Recent reading ({{ recent|length }})
-    </div>
-    {% if not recent %}
-    <div class="wtf-lt-recent-empty">No reads yet.</div>
-    {% else %}
-    <table class="wtf-lt-recent-table">
-      <tbody>
-        {% for r in recent %}
-        <tr class="wtf-lt-recent-row">
-          <td class="wtf-lt-recent-title-cell">
-            <a href="/article/{{ r.id }}" class="wtf-lt-recent-link">{{ r.title }}</a>
-          </td>
-          <td class="wtf-lt-recent-source-cell">{{ r.source_name }}</td>
-          <td class="wtf-lt-recent-band-cell">
-            {% if r.band %}
-            <span class="wtf-lt-band-chip {% if r.band == 'left' %}wtf-lt-band-chip-left{% elif r.band == 'center-left' %}wtf-lt-band-chip-centerleft{% elif r.band == 'center' %}wtf-lt-band-chip-center{% elif r.band == 'center-right' %}wtf-lt-band-chip-centerright{% else %}wtf-lt-band-chip-right{% endif %}">{{ r.band }}</span>
-            {% else %}<span class="wtf-lt-band-unscored">unscored</span>{% endif %}
-          </td>
-          <td class="wtf-lt-recent-time-cell">{{ r.last_view_at.strftime('%m-%d %H:%M') }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-  </div>
-
-  {% endif %}
-
-  <div class="wtf-lt-footer-note">
-    Privacy: reading history is logged only for signed-in users. Anonymous visits are not tracked.
+    <aside class="wtf-lt2-aside">
+      <div class="wtf-lt2-aside-label">Where this site can mislead you</div>
+      <p class="wtf-lt2-aside-p">A five-band scale flattens a lot. An article can be scored Center because it is evenly hedged, or because it genuinely has no angle, and the band cannot tell you which.</p>
+      <p class="wtf-lt2-aside-p">Cluster size reflects how many outlets we index, not how important a story is. A story covered by two outlets can matter more than one covered by twenty.</p>
+      <p class="wtf-lt2-aside-p">Our index is {{ source_count }} sources. Canadian journalism is much larger than that.</p>
+    </aside>
   </div>
 
 </div>

@@ -2,7 +2,9 @@
    Six sections replacing a flat wall of links, per design-reference/
    MobileNav.dc.html. Every destination below was probed live and returns 200 —
    a regrouped nav full of 404s would be worse than the one it replaces.
-   /literacy and /alerts stay behind the auth gate they already had. #}
+   /alerts stays behind the auth gate it already had. /literacy is public
+   (#6272, Batch 9) — the gated personal dashboard that used to be here moved
+   to /literacy/score. #}
 {% set _news = [('/', 'Latest news'), ('/archive', 'Full archive'), ('/activity', 'Activity log'),
                 ('/weather', 'Weather'), ('/blindspot', 'Blindspot'),
                 ('/divergence', 'Divergence'), ('/clusters', 'Clusters')] %}
@@ -27,15 +29,15 @@
                 ('/search', 'Search everything')] %}
 {% set _about = [('/methodology', 'Methodology'), ('/team', 'The newsroom'),
                  ('/governance', 'Governance & ethics'), ('/creed', 'C.R.E.E.D.'),
-                 ('/score', 'Score an article')] %}
+                 ('/literacy', 'Media literacy'), ('/score', 'Score an article')] %}
 {% if session.get('wtf_authenticated') %}
   {% set _ = _news.append(('/alerts', 'My alerts')) %}
-  {# /literacy stays gated. The handoff's About group lists it unconditionally, but
-     the route has always required auth, so showing it signed-out sends readers to a
-     login redirect from a nav that otherwise only ever returns 200. Deliberate
-     divergence from _nav.html; revisit if /literacy ever gets a public view. #}
-  {% set _ = _about.append(('/literacy', 'Media literacy')) %}
 {% endif %}
+{# /literacy is now public (#6272, Batch 9) — the design handoff's About group has
+   always listed it unconditionally; it previously diverged here only because the
+   route was gated. The personal dashboard that used to live at /literacy moved to
+   /literacy/score and stays account-surface-only (account.html, article.html),
+   matching /alerts' pattern of not needing its own top-nav slot beyond signed-in News. #}
 {% set nav_sections = [('News', _news), ('Politics', _politics), ('Elections', _elections),
                        ('Money', _money), ('Media', _media), ('Data', _data), ('About', _about)] %}
 

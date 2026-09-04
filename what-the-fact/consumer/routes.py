@@ -4567,13 +4567,26 @@ def journalists_listing():
         total = c.execute(
             text(f"SELECT count(*) FROM {SH}.entities WHERE entity_type='journalist'")
         ).scalar() or 0
+        # ⚠️ A per-row correlated subquery joining {SH}.entity_mentions (2.15M
+        # rows) to {S}.articles here — evaluated once per candidate journalist,
+        # unbounded by any shared index on the text-cast join — measured >30s
+        # and hung under load (#6244 follow-up). Restructured as ONE bulk
+        # CTE (single hash join + GROUP BY over entity_mentions, ~1.4s
+        # measured via EXPLAIN ANALYZE) LEFT JOINed to the entity list, so the
+        # expensive join runs once total instead of once per row.
         rows = c.execute(text(f"""
+            WITH visible_counts AS (
+                SELECT em.entity_id, count(DISTINCT em.content_id) AS article_count
+                FROM {SH}.entity_mentions em
+                JOIN {S}.articles art ON art.id::text = em.content_id
+                WHERE em.product='wtf' AND em.content_type='article'
+                  AND art.suppressed_reason IS NULL
+                GROUP BY em.entity_id
+            )
             SELECT e.id, e.canonical_name, e.slug,
-                   (SELECT count(DISTINCT em.content_id) FROM {SH}.entity_mentions em
-                     JOIN {S}.articles art ON art.id::text = em.content_id
-                     WHERE em.entity_id=e.id AND em.product='wtf'
-                       AND em.content_type='article' AND art.suppressed_reason IS NULL) AS article_count
+                   COALESCE(vc.article_count, 0) AS article_count
               FROM {SH}.entities e
+              LEFT JOIN visible_counts vc ON vc.entity_id = e.id
              WHERE e.entity_type='journalist'
                AND (:q='' OR lower(e.canonical_name) LIKE :like
                     OR EXISTS (SELECT 1 FROM unnest(e.aliases) al WHERE lower(al) LIKE :like))

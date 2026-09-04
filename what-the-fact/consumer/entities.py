@@ -88,15 +88,25 @@ def search_entities():
     else:
         type_clause = "e.entity_type='journalist'"
     like = f"%{q.lower()}%"
+    # ⚠️ A per-row correlated subquery joining entity_mentions (2.15M rows) to
+    # articles here — evaluated once per candidate entity — measured >30s and
+    # hung under load (#6244 follow-up). Restructured as ONE bulk CTE (single
+    # hash join + GROUP BY, ~1.4s measured via EXPLAIN ANALYZE) LEFT JOINed to
+    # the entity list, so the expensive join runs once total, not per row.
     sql = text(
         f"""
+        WITH visible_counts AS (
+            SELECT em.entity_id, count(DISTINCT em.content_id) AS article_count
+            FROM {s}.entity_mentions em
+            JOIN {_wtf()}.articles art ON art.id::text = em.content_id
+            WHERE em.product='wtf' AND em.content_type='article'
+              AND art.suppressed_reason IS NULL
+            GROUP BY em.entity_id
+        )
         SELECT e.id, e.canonical_name, e.slug,
-               (SELECT count(DISTINCT em.content_id) FROM {s}.entity_mentions em
-                 JOIN {_wtf()}.articles art ON art.id::text = em.content_id
-                 WHERE em.entity_id=e.id AND em.product='wtf' AND em.content_type='article'
-                   AND art.suppressed_reason IS NULL)
-                 AS article_count
+               COALESCE(vc.article_count, 0) AS article_count
           FROM {s}.entities e
+          LEFT JOIN visible_counts vc ON vc.entity_id = e.id
          WHERE {type_clause}
            AND (:q='' OR lower(e.canonical_name) LIKE :like
                 OR EXISTS (SELECT 1 FROM unnest(e.aliases) a WHERE lower(a) LIKE :like))

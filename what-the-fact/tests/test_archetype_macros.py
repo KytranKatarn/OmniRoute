@@ -197,8 +197,11 @@ class TestPaywallLockIsNeverEmoji:
     never emoji (design-handoff/wtf-archive.html LOCK_SVG is the reference)."""
 
     TEMPLATES_WITH_A_GATE = [
+        # map.html removed 2026-09-04: no paywall gate anymore (was over-gating
+        # the entire base map with no premium enhancement behind it — see the
+        # design-integration audit, KB vault_note #304357).
         "source.html", "journalist.html", "senator.html", "lobbying.html",
-        "activity.html", "map.html", "crtc.html", "entity.html", "article.html",
+        "activity.html", "crtc.html", "entity.html", "article.html",
         "account.html",
     ]
 

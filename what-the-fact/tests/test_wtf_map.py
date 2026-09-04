@@ -272,3 +272,16 @@ def test_map_page_legend_counts_what_was_drawn_not_what_was_handed_in():
     assert "onRender" in src
     assert "drawLegend(r.drawn, r.offscreen)" in src
     assert "drawn.forEach" in src, "tally must be computed from the drawn list"
+
+
+def test_map_has_no_paywall_gate():
+    """2026-09-04 (KB vault_note #304357): the whole map+legend used to sit
+    inside {% if is_subscriber %}, blocking the ENTIRE page for every
+    signed-out reader even though nothing premium was built behind the gate
+    (no city-level pins, no history scrubber, no per-outlet breakdown — those
+    are still just design-mockup ideas, not shipped features). Gate a real
+    enhancement specifically if one is ever built; don't gate the base map."""
+    src = (TPL / "map.html").read_text(encoding="utf-8")
+    assert "is_subscriber" not in src, "map.html must not gate the base map"
+    assert "paywall(" not in src
+    assert 'id="wtfMap"' in src, "the map div itself must be unconditionally present"

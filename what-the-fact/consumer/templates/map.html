@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall %}
 {% block title %}News Map — What The Fact{% endblock %}
 {% block content %}
 {# ARCHETYPE 4 (MAP / GEO). Migrated 2026-09-02 from a private inline Leaflet
@@ -63,7 +62,12 @@
                  font-size:.62rem; line-height:1.5; }
 </style>
 
-{% if is_subscriber %}
+{# No paywall here: the map has no premium-only enhancement built yet (no
+   city-level pins, no history scrubber, no per-outlet breakdown — see the
+   2026-09-04 design-integration audit, KB vault_note #304357). Gating the
+   base map behind Starter+ blocked the entire page for every signed-out
+   reader with nothing extra behind the paywall to justify it. If a real
+   enhancement is built later, gate THAT specifically — not the base map. #}
 <div class="wtf-nm-container">
   <div id="wtfMap" class="wtf-nm-mapbox"></div>
   <!-- The legend is BUILT FROM THE PINS DRAWN (see drawLegend), not hand-written.
@@ -214,10 +218,4 @@
   }
 })();
 </script>
-{% else %}
-{{ paywall(
-     "News Map — Starter+",
-     "Geographic coverage map — where Canadian and international stories originate, sized by article volume.",
-     "/map") }}
-{% endif %}
 {% endblock %}

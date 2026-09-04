@@ -1406,6 +1406,234 @@ p { text-wrap: pretty; }
   .wtf-weather-card:hover, .wtf-map-index-row:hover { transform: none !important; }
 }
 
+/* ── index.html remaining inline styles (Phase 6 token-migration rollout) ───
+   Value-preserving extraction, NOT a redesign. The Phase 2 HOMEPAGE block
+   above already styles the bands (#wtf-beat-strip, #wtf-featured-strip,
+   #wtf-map-zone, #wtf-main, article cards, weather/fire cards, map index).
+   These rules cover everything Phase 2 left inline: labels, chip links, the
+   province dropdown, the signed-out gate's inner text, and the footer.
+
+   ⚠️ #wtf-beat-banner / #wtf-province-banner / #wtf-featured-strip KEEP
+   their `style="display:none;"` in the template — JS toggles it directly via
+   `.style.display`, and tests/test_home_design_markup.py::
+   test_the_js_display_hook_survives_on_every_toggled_band pins that. Do not
+   "finish the job" by moving it here; the test exists because someone
+   already tried and it broke visibility. */
+
+#wtf-beat-banner-label,
+#wtf-province-banner-label {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+#wtf-beat-banner-label { color: #fff; }      /* JS overrides .style.color per beat */
+#wtf-province-banner-label { color: #0af; }  /* static — never touched by JS */
+
+.wtf-h-banner-sub { color: #9ca3af; font-size: 9px; }
+
+#wtf-beat-banner-link {
+  color: #fff;
+  text-decoration: none;
+  border: 1px solid currentColor;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 9px;
+  white-space: nowrap;
+  opacity: 0.85;
+  /* JS overrides .style.color / .style.borderColor per beat on show */
+}
+
+.wtf-h-clear-btn {
+  background: none;
+  border: 1px solid #0af6;
+  color: #0af;
+  font-family: inherit;
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+/* Featured story strip */
+.wtf-h-featured-row { display: flex; align-items: baseline; gap: 10px; }
+.wtf-h-featured-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--wtf-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#wtf-featured-headline {
+  font-family: var(--wtf-font-serif);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wtf-text);
+  text-decoration: none;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.wtf-h-featured-meta { margin-top: 4px; display: flex; gap: 10px; align-items: center; }
+#wtf-featured-sources { font-size: 10px; color: #6b7280; }
+#wtf-featured-brief {
+  font-size: 10px;
+  color: #94a3b8;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+/* Weather + wildfire strip headers */
+.wtf-h-wx-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  flex-wrap: wrap;
+}
+.wtf-h-wx-link {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--wtf-text-muted);
+  text-decoration: none;
+}
+.wtf-h-fire-header-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 14px 0 8px;
+  flex-wrap: wrap;
+}
+/* Compound selectors so each wins over .wtf-section-label's own color by
+   specificity, not by source order. */
+.wtf-section-label.wtf-section-label--aurora { color: var(--wtf-aurora); }
+.wtf-section-label.wtf-section-label--fact { margin-top: 10px; color: var(--wtf-fact); }
+
+/* Map zone header + province dropdown */
+.wtf-h-row-between { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.wtf-h-row-between-mt { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+/* Compound ID selector: #wtf-map-zone h2 (Phase 2, above) already sets
+   margin: 0 0 9px — this beats it on specificity so the label keeps its own
+   margin:0, exactly matching the inline style it replaces. */
+#wtf-map-zone #wtf-map-label { margin: 0; }
+.wtf-h-map-controls { display: flex; align-items: center; gap: 6px; }
+#wtf-province-selector { position: relative; }
+#wtf-province-dropdown {
+  display: none;   /* toggled by toggleProvinceDropdown() via .style.display */
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--wtf-bg-panel);
+  border: 1px solid var(--wtf-border);
+  border-radius: var(--wtf-r-sm);
+  z-index: 9999;
+  min-width: 160px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: var(--wtf-shadow-raised);
+}
+.wtf-h-province-dd-all {
+  padding: 7px 12px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  color: var(--wtf-text-muted);
+  border-bottom: 1px solid var(--wtf-border);
+}
+
+/* Relative publish time — the page's own JS already selects this class via
+   document.querySelectorAll('.wtf-ago'); it had no CSS rule of its own,
+   only the inline style on the one server-rendered instance. */
+.wtf-ago { color: #6b7280; font-size: 10px; margin-left: 6px; white-space: nowrap; }
+
+.wtf-h-viewall-link {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: #6b7280;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+#wtf-activity-feed { max-height: 400px; overflow-y: auto; }
+.wtf-activity-item.wtf-activity-item--loading { color: #555; font-size: 11px; }
+
+.wtf-h-feed-links-row { display: flex; gap: 10px; align-items: center; }
+.wtf-h-blindspot-link {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: #ef4444;
+  text-decoration: none;
+  text-transform: uppercase;
+  border: 1px solid #ef444440;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.wtf-h-divergence-link {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: #a855f7;
+  text-decoration: none;
+  text-transform: uppercase;
+  border: 1px solid #a855f740;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+#wtf-feed-articles { max-height: 900px; overflow-y: auto; }
+.wtf-h-loading { color: #555; font-size: 11px; padding: 8px 0; }
+
+/* Signed-out gate — the .wtf-gate card itself is already styled (Phase 2
+   above); only its inner text/CTA were inline. NOT converged onto
+   _archetypes.html's paywall() macro: the shapes differ (CTA target /join
+   vs the macro's /login?next=, a separate "Sign in" link the macro has no
+   slot for, no "See plans" link here). */
+.wtf-h-gate-title {
+  font-family: var(--wtf-font-mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--wtf-developing);
+  margin-bottom: 6px;
+}
+.wtf-h-gate-desc { font-size: 11px; color: #9ca3af; margin-bottom: 10px; }
+/* NOT var(--wtf-developing) or var(--wtf-bias), even though both equal
+   #f59e0b byte-for-byte — both tokens' own comments restrict them (verdict
+   chip / agent identity), and neither means "CTA button". An exact hex
+   match is not adoption grounds when the token's documented use forbids it. */
+.wtf-h-gate-cta {
+  display: inline-block;
+  background: #f59e0b;
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 20px;
+  border-radius: 4px;
+  text-decoration: none;
+}
+.wtf-h-gate-signin-wrap { margin-left: 10px; }
+.wtf-h-gate-signin-link { font-size: 10px; color: #6b7280; text-decoration: none; }
+
+/* Footer */
+.wtf-h-footer {
+  border-top: 1px solid #1f2937;
+  padding: 20px 24px;
+  margin-top: 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: #6b7280;
+}
+.wtf-h-footer-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.wtf-h-footer-link { color: #6b7280; text-decoration: none; }
+
 /* ── shared map component (wtf-map.js, d3-geo renderer) ──────────────────────
    Replaced Leaflet 2026-09-02. There is no third-party stylesheet behind these
    any more, so every rule the map needs lives here. */

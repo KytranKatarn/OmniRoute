@@ -24,27 +24,27 @@
 
 <!-- Beat context banner — shown when a non-ALL beat is active -->
 <div id="wtf-beat-banner" style="display:none;">
-  <span id="wtf-beat-banner-label" style="font-weight:700;letter-spacing:0.08em;color:#fff;"></span>
-  <span style="color:#9ca3af;font-size:9px;">Showing filtered results — map + feed updated</span>
-  <a id="wtf-beat-banner-link" href="#" style="color:#fff;text-decoration:none;border:1px solid currentColor;padding:2px 8px;border-radius:3px;font-size:9px;white-space:nowrap;opacity:0.85;">View full feed →</a>
+  <span id="wtf-beat-banner-label"></span>
+  <span class="wtf-h-banner-sub">Showing filtered results — map + feed updated</span>
+  <a id="wtf-beat-banner-link" href="#">View full feed →</a>
 </div>
 
 <!-- Province context banner — shown when a province is selected -->
 <div id="wtf-province-banner" style="display:none;">
-  <span id="wtf-province-banner-label" style="font-weight:700;letter-spacing:0.08em;color:#0af;"></span>
-  <span style="color:#9ca3af;font-size:9px;">Map + feed filtered to this province</span>
-  <button onclick="clearProvince()" style="background:none;border:1px solid #0af6;color:#0af;font-family:inherit;font-size:9px;padding:2px 8px;border-radius:3px;cursor:pointer;">✕ Clear</button>
+  <span id="wtf-province-banner-label"></span>
+  <span class="wtf-h-banner-sub">Map + feed filtered to this province</span>
+  <button onclick="clearProvince()" class="wtf-h-clear-btn">✕ Clear</button>
 </div>
 
 <!-- Featured Story Strip -->
 <div id="wtf-featured-strip" style="display:none;">
-  <div style="display:flex;align-items:baseline;gap:10px;">
-    <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--wtf-accent);white-space:nowrap;flex-shrink:0;">TODAY'S TOP STORY</span>
-    <a id="wtf-featured-headline" href="#" style="font-family:var(--wtf-font-serif);font-size:14px;font-weight:600;color:var(--wtf-text);text-decoration:none;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"></a>
+  <div class="wtf-h-featured-row">
+    <span class="wtf-h-featured-eyebrow">TODAY'S TOP STORY</span>
+    <a id="wtf-featured-headline" href="#"></a>
   </div>
-  <div style="margin-top:4px;display:flex;gap:10px;align-items:center;">
-    <span id="wtf-featured-sources" style="font-size:10px;color:#6b7280;"></span>
-    <span id="wtf-featured-brief" style="font-size:10px;color:#94a3b8;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:60%;"></span>
+  <div class="wtf-h-featured-meta">
+    <span id="wtf-featured-sources"></span>
+    <span id="wtf-featured-brief"></span>
   </div>
 </div>
 <script>
@@ -77,9 +77,9 @@
      per province, not IP-derived — this site has no per-visitor geolocation. -->
 {% if weather_strip.cities %}
 <div id="wtf-weather-strip">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;flex-wrap:wrap;">
+  <div class="wtf-h-wx-header-row">
     <span class="wtf-section-label">Weather across Canada</span>
-    <a href="/weather" style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted);text-decoration:none;">A.U.R.O.R.A. &rarr;</a>
+    <a href="/weather" class="wtf-h-wx-link">A.U.R.O.R.A. &rarr;</a>
   </div>
   <div class="wtf-weather-cards">
     {% for city in weather_strip.cities %}
@@ -92,8 +92,8 @@
   </div>
 
   {% if weather_strip.fire_provinces %}
-  <div style="display:flex;align-items:baseline;gap:10px;margin:14px 0 8px;flex-wrap:wrap;">
-    <span class="wtf-section-label" style="color:var(--wtf-aurora);">Wildfire activity, last 3 days</span>
+  <div class="wtf-h-fire-header-row">
+    <span class="wtf-section-label wtf-section-label--aurora">Wildfire activity, last 3 days</span>
   </div>
   <div class="wtf-fire-grid">
     {% for p in weather_strip.fire_provinces %}
@@ -110,14 +110,14 @@
 
 <!-- Zone 1: Canada Map -->
 <div id="wtf-map-zone">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-    <h2 id="wtf-map-label" style="margin:0;">LIVE — CANADA NEWS MAP</h2>
-    <div style="display:flex;align-items:center;gap:6px;">
+  <div class="wtf-h-row-between">
+    <h2 id="wtf-map-label">LIVE — CANADA NEWS MAP</h2>
+    <div class="wtf-h-map-controls">
       <!-- Province selector -->
-      <div style="position:relative;" id="wtf-province-selector">
+      <div id="wtf-province-selector">
         <button id="wtf-province-btn" class="wtf-map-btn" onclick="toggleProvinceDropdown(event)">📍 PROVINCE ▾</button>
-        <div id="wtf-province-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:var(--wtf-r-sm);z-index:9999;min-width:160px;max-height:220px;overflow-y:auto;box-shadow:var(--wtf-shadow-raised);">
-          <div onclick="clearProvince()" style="padding:7px 12px;font-size:9px;letter-spacing:1px;cursor:pointer;color:var(--wtf-text-muted);border-bottom:1px solid var(--wtf-border);" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
+        <div id="wtf-province-dropdown">
+          <div onclick="clearProvince()" class="wtf-h-province-dd-all" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
         </div>
       </div>
       <div class="wtf-map-toggle">
@@ -142,7 +142,7 @@
   <div id="wtf-editorial">
     <div class="wtf-section-label">EDITORIAL DESK</div>
 
-    <div class="wtf-section-label" style="margin-top:10px;color:#dc2626;">F.A.C.T. TOP STORIES</div>
+    <div class="wtf-section-label wtf-section-label--fact">F.A.C.T. TOP STORIES</div>
     <div id="wtf-top-stories">
       {# top_stories: recency for signed-in readers (unchanged), ranked by
          framing spread for signed-out ones. Built in _home_top_stories();
@@ -150,41 +150,41 @@
       {% for a in top_stories %}
       <div class="wtf-top-story">
         <a href="/article/{{ a.id }}">{{ a.title[:80] }}</a>
-        {% if a.published_at %}<span class="wtf-ago" data-ts="{{ a.published_at.isoformat() }}" style="color:#6b7280;font-size:10px;margin-left:6px;white-space:nowrap;"></span>{% endif %}
+        {% if a.published_at %}<span class="wtf-ago" data-ts="{{ a.published_at.isoformat() }}"></span>{% endif %}
       </div>
       {% endfor %}
     </div>
 
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;">
+    <div class="wtf-h-row-between-mt">
       <div class="wtf-section-label">LIVE AGENT ACTIVITY</div>
-      <a href="/activity" style="font-size:0.6rem;letter-spacing:1px;color:#6b7280;text-decoration:none;text-transform:uppercase;">View all &rarr;</a>
+      <a href="/activity" class="wtf-h-viewall-link">View all &rarr;</a>
     </div>
-    <div id="wtf-activity-feed" style="max-height:400px;overflow-y:auto;">
-      <div class="wtf-activity-item" style="color:#555;font-size:11px;">Loading agent activity...</div>
+    <div id="wtf-activity-feed">
+      <div class="wtf-activity-item wtf-activity-item--loading">Loading agent activity...</div>
     </div>
   </div>
 
   <!-- Zone 3: News Feed -->
   <div id="wtf-feed">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div class="wtf-h-row-between">
       <div class="wtf-section-label">LATEST NEWS</div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <a href="/news" style="font-size:0.6rem;letter-spacing:1px;color:#6b7280;text-decoration:none;text-transform:uppercase;">View all &rarr;</a>
-        <a href="/blindspot" style="font-size:0.6rem;letter-spacing:1px;color:#ef4444;text-decoration:none;text-transform:uppercase;border:1px solid #ef444440;padding:1px 6px;border-radius:3px;">👁 Blindspot</a>
-        <a href="/divergence" style="font-size:0.6rem;letter-spacing:1px;color:#a855f7;text-decoration:none;text-transform:uppercase;border:1px solid #a855f740;padding:1px 6px;border-radius:3px;">🇨🇦 FR/EN</a>
+      <div class="wtf-h-feed-links-row">
+        <a href="/news" class="wtf-h-viewall-link">View all &rarr;</a>
+        <a href="/blindspot" class="wtf-h-blindspot-link">👁 Blindspot</a>
+        <a href="/divergence" class="wtf-h-divergence-link">🇨🇦 FR/EN</a>
       </div>
     </div>
-    <div id="wtf-feed-articles" style="max-height:900px;overflow-y:auto;">
-      <div style="color:#555;font-size:11px;padding:8px 0;">Loading...</div>
+    <div id="wtf-feed-articles">
+      <div class="wtf-h-loading">Loading...</div>
     </div>
     {% if not is_subscriber %}
     {# The handoff's `.gate` treatment, applied to the upsell box we already
        render — card surface, token border, amber accent on the left edge. #}
     <div class="wtf-gate">
-      <div style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--wtf-developing);margin-bottom:6px;">Unlock AI analysis</div>
-      <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">Bias scoring · Fact-check · MP mentions · Source deep-dive</div>
-      <a href="/join" style="display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none;">Start with Starter →</a>
-      <span style="margin-left:10px;"><a href="/login" style="font-size:10px;color:#6b7280;text-decoration:none;">Sign in</a></span>
+      <div class="wtf-h-gate-title">Unlock AI analysis</div>
+      <div class="wtf-h-gate-desc">Bias scoring · Fact-check · MP mentions · Source deep-dive</div>
+      <a href="/join" class="wtf-h-gate-cta">Start with Starter →</a>
+      <span class="wtf-h-gate-signin-wrap"><a href="/login" class="wtf-h-gate-signin-link">Sign in</a></span>
     </div>
     {% endif %}
   </div>
@@ -954,18 +954,18 @@ document.querySelectorAll('.wtf-ago').forEach(function(el) {
 });
 </script>
 
-<footer style="border-top:1px solid #1f2937;padding:20px 24px;margin-top:40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6b7280;">
+<footer class="wtf-h-footer">
   <div>WHAT·THE·FACT &copy; 2026 — Canadian AI Newsroom</div>
-  <div style="display:flex;gap:16px;flex-wrap:wrap;">
-    <a href="/news" style="color:#6b7280;text-decoration:none;">News</a>
-    <a href="/weather" style="color:#6b7280;text-decoration:none;">Weather</a>
-    <a href="/economy" style="color:#6b7280;text-decoration:none;">Economy</a>
-    <a href="/blindspot" style="color:#6b7280;text-decoration:none;">Blindspot</a>
-    <a href="/divergence" style="color:#6b7280;text-decoration:none;">Divergence</a>
-    <a href="/owners" style="color:#6b7280;text-decoration:none;">Owners</a>
-    <a href="/sources" style="color:#6b7280;text-decoration:none;">Sources</a>
-    <a href="/activity" style="color:#6b7280;text-decoration:none;">Activity</a>
-    <a href="https://what-the-fact.tech/transparency" style="color:#6b7280;text-decoration:none;">Methodology</a>
+  <div class="wtf-h-footer-links">
+    <a href="/news" class="wtf-h-footer-link">News</a>
+    <a href="/weather" class="wtf-h-footer-link">Weather</a>
+    <a href="/economy" class="wtf-h-footer-link">Economy</a>
+    <a href="/blindspot" class="wtf-h-footer-link">Blindspot</a>
+    <a href="/divergence" class="wtf-h-footer-link">Divergence</a>
+    <a href="/owners" class="wtf-h-footer-link">Owners</a>
+    <a href="/sources" class="wtf-h-footer-link">Sources</a>
+    <a href="/activity" class="wtf-h-footer-link">Activity</a>
+    <a href="https://what-the-fact.tech/transparency" class="wtf-h-footer-link">Methodology</a>
   </div>
 </footer>
 {% endblock %}

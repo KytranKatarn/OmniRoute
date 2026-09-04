@@ -167,6 +167,11 @@
       <span class="wtf-mp-cabinet-badge">
         {{ mp.cabinet_role }}
       </span>
+      {% else %}
+      {# Mockup's own fallback (wtf-mp.js L194 else-branch) — otherwise a
+         non-cabinet MP's hero silently shows nothing where the cabinet
+         badge would be. #}
+      <span class="wtf-mp-cabinet-badge" style="background:transparent;color:#6b7280;border:1px solid #374151;">Backbench</span>
       {% endif %}
     </div>
     <div class="wtf-mp-hero-riding">{{ mp.riding_name or '' }}</div>
@@ -174,6 +179,15 @@
       {% if mp.openparl_url %}
       <a class="wtf-mp-hero-link" href="{{ mp.openparl_url }}" target="_blank" rel="noopener">OpenParliament ↗</a>
       {% endif %}
+      {% if mp.hoc_member_id %}
+      {# ourcommons.ca/members/en/<slug> (the mockup's own pattern) silently
+         redirects to the generic member-search page for every MP — verified
+         live 2026-09-04. The numeric-id form below is the one confirmed to
+         load the actual profile (KB vault_note #304357). #}
+      <a class="wtf-mp-hero-link" href="https://www.ourcommons.ca/Members/en/{{ mp.hoc_member_id }}" target="_blank" rel="noopener">House of Commons ↗</a>
+      {% endif %}
+      <a class="wtf-mp-hero-link" href="/search?q={{ mp.name | urlencode }}">Coverage of {{ mp.name }} →</a>
+      <a class="wtf-mp-hero-link" href="/races">Races and nominations →</a>
       {% if mp.twitter %}
       <a class="wtf-mp-hero-link" href="https://twitter.com/{{ mp.twitter }}" target="_blank" rel="noopener">@{{ mp.twitter }}</a>
       {% endif %}

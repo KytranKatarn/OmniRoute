@@ -4645,6 +4645,17 @@ def mp_profile(slug: str):
     if mp.get("photo_url") and not mp["photo_url"].startswith("http"):
         mp["photo_url"] = _OPENPARL_BASE + mp["photo_url"]
     mp["party_colour"] = _party_colour(mp.get("party") or "")
+    # parl_mp_id is stored as the literal text "['88515']" (a stringified
+    # Python list from the ingest script, not an actual array column —
+    # confirmed via \d parliament.mps: character varying). 337/337 current
+    # MPs match this single-numeric-id pattern (verified 2026-09-04). The
+    # mockup's own slug-based House of Commons URL
+    # (ourcommons.ca/members/en/<slug>) was tested live and silently
+    # redirects to the generic member-search page for every MP — the
+    # numeric-id form (ourcommons.ca/Members/en/<id>) is the one confirmed
+    # to load the actual profile.
+    _hoc_id_match = re.search(r"\d+", mp.get("parl_mp_id") or "")
+    mp["hoc_member_id"] = _hoc_id_match.group(0) if _hoc_id_match else None
 
     with _db().begin() as c:
         # Recent votes

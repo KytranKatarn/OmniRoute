@@ -3244,23 +3244,117 @@ def account_page():
                            has_stripe=has_stripe)
 
 
+# ── /sources — MIN_N honesty floor + real fact-checked count (#6272 batch 11) ──
+# MIN_N: `outlet_bias_scores.article_count` is the number of articles inside the
+# ROLLING SCORING WINDOW that actually fed `avg_score`/`band` — NOT the same
+# number as `total_articles` below (every article ever ingested from that
+# outlet, scored or not; can run into the thousands while the scoring window
+# holds a handful). A one- or two-article average is not a reliable outlet
+# lean and must not render as if it were — same honesty principle as
+# rate_policy.py's non-decreasing invariant and the MIN_N floors already used
+# elsewhere on this site.
+_SOURCES_MIN_N = 5
+
+_SOURCES_SORTS = {
+    "articles": "total_articles DESC",
+    "name": "s.name ASC",
+}
+
+_SOURCES_FC_CACHE: dict = {}  # 'counts' -> (expiry, {source_id: count})
+_SOURCES_FC_CACHE_TTL = int(os.environ.get("WTF_SOURCES_FC_CACHE_TTL", "300"))
+
+
+def _sources_fact_checked_counts(S) -> dict:
+    """Per-source count of DISTINCT articles carrying at least one fact-check.
+
+    Cached — same TTL-dict pattern as `_NAV_SOURCE_CACHE`/`_ACTIVITY_CACHE`
+    above, and for the same reason: `fact_checks` has 400k+ rows with NO
+    unique constraint on `article_id` (up to 8 claims per article — see the
+    #5719 comment above), so an uncached per-request join here repeats the
+    exact "~40 whole-table COUNTs ... measured 20-36s per page view" mistake
+    the activity-page cache was built to fix. Measured cold: ~800ms with a
+    DISTINCT-first CTE (a naive COUNT(DISTINCT article_id) GROUP BY measured
+    2-3.5s instead). A failed computation degrades to "0 for every outlet"
+    rather than taking the page down.
+    """
+    hit = _SOURCES_FC_CACHE.get("counts")
+    now = time.time()
+    if hit and hit[0] > now:
+        return hit[1]
+    counts: dict = {}
+    try:
+        with _db().begin() as c:
+            rows = c.execute(text(f"""
+                SELECT a2.source_id, COUNT(*) AS n
+                FROM (SELECT DISTINCT article_id FROM {S}.fact_checks) fca
+                JOIN {S}.articles a2 ON a2.id = fca.article_id
+                    AND a2.suppressed_reason IS NULL
+                GROUP BY a2.source_id
+            """)).all()
+        counts = {int(r[0]): int(r[1]) for r in rows}
+    except Exception:
+        logger.exception("sources: fact-checked-count computation failed")
+    _SOURCES_FC_CACHE["counts"] = (now + _SOURCES_FC_CACHE_TTL, counts)
+    return counts
+
+
 @bp.get("/sources")
 def sources_list():
-    """All tracked outlets sorted by article count."""
+    """All tracked outlets — searchable by name, sortable, with the MIN_N
+    honesty floor on the averaged band and a real per-outlet fact-checked
+    count (#6272 batch 11).
+
+    DEFERRED (documented, not half-built — see the PR description for the
+    reasons): the mockup's 6 clickable stat-tile filters, the up-to-3 compare
+    tray, and the visual band-range scale bar all need real client-side
+    interactive state, and the mockup's "filed first" (which outlet published
+    first in a multi-source story cluster) is real, computable data
+    (`articles.cluster_id` + `published_at`) but measured 400ms-3.5s as a live
+    query with no supporting index for that access pattern — this public
+    directory page cannot carry that cost on every request; it needs a
+    scheduled/materialized aggregate, not a page-load query.
+    """
     S = _schema()
+    q = (request.args.get("q") or "").strip()
+    sort = request.args.get("sort") or "articles"
+    if sort not in _SOURCES_SORTS:
+        sort = "articles"
+    params: dict = {}
+    where = ""
+    if q:
+        where = "WHERE s.name ILIKE :q"
+        params["q"] = f"%{q}%"
     with _db().begin() as c:
         rows = c.execute(text(f"""
-            SELECT s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
+            SELECT s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
                    obs.avg_score, obs.band AS rolling_band,
+                   COALESCE(obs.article_count, 0) AS scored_article_count,
                    COUNT(a.id) AS total_articles,
                    COUNT(a.id) FILTER (WHERE a.published_at > NOW() - INTERVAL '7 days') AS articles_7d
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
             LEFT JOIN {S}.articles a ON a.source_id = s.id AND a.suppressed_reason IS NULL
-            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type, obs.avg_score, obs.band
-            ORDER BY COUNT(a.id) DESC
-        """)).mappings().all()
-    return render_template("sources.html", sources=[dict(r) for r in rows])
+            {where}
+            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
+                     obs.avg_score, obs.band, obs.article_count
+            ORDER BY {_SOURCES_SORTS[sort]}
+        """), params).mappings().all()
+    fc_counts = _sources_fact_checked_counts(S)
+    sources = []
+    for r in rows:
+        d = dict(r)
+        below_min_n = int(d.get("scored_article_count") or 0) < _SOURCES_MIN_N
+        if below_min_n:
+            # Statistical-honesty floor — do not render an average computed
+            # from too few articles as if it were a reliable measurement.
+            d["avg_score"] = None
+            d["rolling_band"] = None
+        d["below_min_n"] = below_min_n
+        d["fact_checked_count"] = fc_counts.get(d["id"], 0)
+        sources.append(d)
+    return render_template(
+        "sources.html", sources=sources, q=q, sort=sort, min_n=_SOURCES_MIN_N,
+    )
 
 
 @bp.get("/source/<slug>")

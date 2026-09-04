@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import lean_pill %}
+{% from "_archetypes.html" import lean_pill, segment %}
 {% block title %}Canadian News Sources — Bias Profiles · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Bias profiles for 46 Canadian news outlets tracked by What The Fact. See rolling bias scores, article counts, and ownership for CBC, Globe and Mail, National Post, and more.">
@@ -28,7 +28,16 @@
 
    Both are now structurally impossible: BANDS below is the single list, and the
    cards and the legend BOTH render from it, through lean_pill, through the
-   tokens. A future divergence would require editing one list. #}
+   tokens. A future divergence would require editing one list.
+
+   #6272 batch 11 — added: a bare-GET search form + 2 sort options (mirrors the
+   /gic search-form pattern), the MIN_N=5 statistical-honesty floor (routes.py
+   nulls avg_score/rolling_band server-side for outlets below it; this template
+   only decides how to LABEL that), a real per-outlet fact-checked count, and a
+   static footer methodology note. Deliberately NOT added here (see routes.py
+   docstring for why each needs a larger build): the 6 clickable stat-tile
+   filters, the up-to-3 compare tray, the visual band-range scale bar, and the
+   mockup's "filed first" metric. #}
 {% set BANDS = ['left', 'center-left', 'center', 'center-right', 'right'] %}
 {% set BAND_TOKEN = {'left': '--wtf-left', 'center-left': '--wtf-center-left',
                      'center': '--wtf-center', 'center-right': '--wtf-center-right',
@@ -38,12 +47,43 @@
   <div style="margin-bottom:26px;">
     <div class="wtf-a-tile-l" style="margin-bottom:8px;">What The Fact</div>
     <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 8px;">Canadian news sources</h1>
-    <p class="wtf-a-tile-d" style="margin:0;">{{ sources|length }} outlets tracked · bias scored by AI on every article</p>
+    <p class="wtf-a-tile-d" style="margin:0;">
+      {%- if q -%}
+        {{ sources|length }} outlet{{ '' if sources|length == 1 else 's' }} match &ldquo;{{ q }}&rdquo;
+      {%- else -%}
+        {{ sources|length }} outlets tracked · bias scored by AI on every article
+      {%- endif -%}
+    </p>
   </div>
+
+  {# Plain GET form, works without JavaScript — same pattern as /gic. No
+     is_subscriber gate: this page has never had a paywall, and adding one to
+     search would be a monetization decision, not a polish fix. #}
+  <form method="get" action="/sources" style="margin:0 0 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+    {% if sort != 'articles' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="Search outlets by name…"
+           aria-label="Search outlets"
+           style="flex:1 1 220px;min-width:180px;padding:7px 10px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
+  </form>
+
+  <div class="wtf-a-layers" style="margin:0 0 20px;">
+    {{ segment('Most articles', '/sources?sort=articles' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'articles')) }}
+    {{ segment('Name A–Z', '/sources?sort=name' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'name')) }}
+  </div>
+
+  {% if q and not sources %}
+  <p class="wtf-a-tile-d" style="padding:20px 0;">No outlets match &ldquo;{{ q }}&rdquo;. <a href="/sources">Clear search</a></p>
+  {% endif %}
 
   <div class="wtf-a-grid">
     {% for s in sources %}
-    {% set band = s.rolling_band or s.bias_lean or 'unscored' %}
+    {# below_min_n is decided server-side (routes.py) from the count of
+       articles that actually fed the rolling average — never re-derived here.
+       While below the floor the spine stays muted grey (no colour without a
+       real measurement behind it) and the pill is replaced with an explicit
+       honesty label instead of falling through to a stale/unrelated
+       `bias_lean`. #}
+    {% set band = 'unscored' if s.below_min_n else (s.rolling_band or s.bias_lean or 'unscored') %}
     {# Colour NEVER appears without its text label — the spine is accompanied by
        the band name in the pill, per the lean-scale rule. #}
     <a class="wtf-a-pcard" href="/source/{{ s.slug }}">
@@ -51,12 +91,19 @@
       <span style="flex:1;min-width:0;">
         <span class="wtf-a-prow" style="align-items:flex-start;margin-bottom:6px;">
           <span class="wtf-a-pname" style="font-size:16px;">{{ s.name }}</span>
-          {% if band in BANDS %}{{ lean_pill(band) }}{% else %}<span class="wtf-a-chip">Unscored</span>{% endif %}
+          {% if s.below_min_n %}
+            <span class="wtf-a-chip" title="Fewer than {{ min_n }} articles in the current scoring window">Not enough to average</span>
+          {% elif band in BANDS %}
+            {{ lean_pill(band) }}
+          {% else %}
+            <span class="wtf-a-chip">Unscored</span>
+          {% endif %}
         </span>
-        <span class="wtf-a-tile-d" style="display:flex;gap:14px;">
+        <span class="wtf-a-tile-d" style="display:flex;flex-wrap:wrap;gap:14px;">
           {% if s.owner_name %}<span>{{ s.owner_name }}</span>{% endif %}
           <span style="margin-left:auto;">{{ s.total_articles | default(0) }} articles</span>
           {% if s.articles_7d %}<span>{{ s.articles_7d }}/7d</span>{% endif %}
+          {% if s.fact_checked_count %}<span>{{ s.fact_checked_count }} fact-checked</span>{% endif %}
         </span>
       </span>
     </a>
@@ -69,5 +116,15 @@
     <span class="wtf-a-tile-l">Bias bands</span>
     {% for b in BANDS %}{{ lean_pill(b) }}{% endfor %}
   </div>
+
+  <p class="wtf-a-tile-d" style="margin-top:16px;max-width:640px;line-height:1.5;">
+    Each outlet's band is a rolling average across its recently AI-scored articles —
+    a range compressed into one label, not a single fixed measurement, and it can
+    shift as new articles are scored. Outlets with fewer than {{ min_n }} scored
+    articles in the current window show &ldquo;Not enough to average&rdquo; instead
+    of a band, because an average of that few articles is not a reliable read on an
+    outlet's lean. &ldquo;Fact-checked&rdquo; counts articles with at least one
+    recorded fact-check claim, not every article published.
+  </p>
 </div>
 {% endblock %}

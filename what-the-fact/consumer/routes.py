@@ -15,6 +15,7 @@ from flask import (
 from sqlalchemy import create_engine, text
 from . import rate_limit as _rate_limit  # shared bucket store (#5747/#5748)
 from . import rate_policy as _rate_policy  # pure, stdlib-only decision logic
+from . import echo_data as _echo_data  # pure series math for /echo (#6272 follow-up)
 from .auth import is_subscriber
 
 import logging
@@ -7053,15 +7054,7 @@ _COMING_SOON = {
         "Waiting on fiscal aggregates. Departmental contracts are ingested, "
         "but revenue, total programme spending and the debt series are not.",
     ),
-    "echo": (
-        "Echo — slogans, phrases and who keeps saying them",
-        "Echo",
-        "How often a slogan, a phrase or a name repeats across Canadian "
-        "coverage — when it was first heard, when it peaked, and which outlets "
-        "carry it.",
-        "Waiting on phrase extraction. The article corpus is here; the "
-        "repeated-phrase index this page reads is not built.",
-    ),
+    # "echo" graduated to a real page — see echo() below (#6272 follow-up).
     # "methodology" graduated to a real page — see methodology() below. Its
     # placeholder is DELETED rather than disabled: a page that exists must not
     # also be advertised as unbuilt. The content this stub promised ("brought
@@ -7094,6 +7087,41 @@ def _register_coming_soon(slug, title, h1, lede, blocker):
 
 for _slug, _copy in _COMING_SOON.items():
     _register_coming_soon(_slug, *_copy)
+
+
+@bp.get("/echo")
+def echo():
+    """Echo — real slogan/phrase and word-frequency counts (#6272 follow-up).
+
+    Graduated from `_COMING_SOON` in a REDUCED form vs. the design mockup
+    (wtf-echo.html): a slogan table and a word-frequency panel, both backed
+    by real counts from `wtf.articles`' full-text index. Dropped entirely:
+    the "pickup" metric, the "who posts most" social-cadence panel, and the
+    "fed by the Watch series" cross-link teaser — see echo_data.py's module
+    docstring for why each was cut rather than shipped with invented values.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        slogans = _echo_data.build_slogan_rows(c, S)
+        words = _echo_data.build_word_rows(c, S)
+
+    slogans_sorted_by_uses = sorted(slogans, key=lambda r: r["uses"], reverse=True)
+    most_used = slogans_sorted_by_uses[0] if slogans_sorted_by_uses else None
+    fading_candidates = [r for r in slogans if r["trend"] == "fading"]
+    fading = min(fading_candidates, key=lambda r: r["trend_pct"]) if fading_candidates else None
+    total_uses = sum(r["uses"] for r in slogans)
+
+    return render_template(
+        "echo.html",
+        slogans=slogans,
+        words=words,
+        most_used=most_used,
+        fading=fading,
+        total_uses=total_uses,
+        window_weeks=_echo_data.SLOGAN_WINDOW_WEEKS,
+        word_window_days=_echo_data.WORD_WINDOW_DAYS,
+        is_subscriber=is_subscriber(),
+    )
 
 
 @bp.get("/methodology")

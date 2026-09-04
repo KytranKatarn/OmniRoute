@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Echo — slogans &amp; phrases · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="How often a slogan or phrase repeats across Canadian coverage, and which words the news cannot stop using — real counts from the article corpus, {{ window_weeks }} weeks / {{ word_window_days }} days.">
+{% endblock %}
+{% block content %}
+{# Converted off design-handoff/wtf-echo.html in REDUCED form (#6272 follow-up,
+   Batch 9 cleanup). Real, all counts backed by wtf.articles' existing FTS
+   index (see consumer/echo_data.py). Dropped from the mockup entirely:
+   the "pickup" (outlet-vs-speaker) metric, the "who posts most" social-
+   cadence panel, and the "fed by the Watch series" cross-link teaser — none
+   have a data source. See echo_data.py's module docstring for the full
+   rationale. Every --wtf-* token below is a CONFIRMED real match against
+   consumer/static/style.css (unlike /economy, which needed literal-hex
+   fallbacks) — grep '^\s*--wtf-' consumer/static/style.css. #}
+<style>
+  .wtf-eh-header { margin-bottom: 24px; max-width: 82ch }
+  .wtf-eh-eyebrow { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--wtf-aurora); margin-bottom: 6px }
+  .wtf-eh-h1 { font-family: var(--wtf-font-serif); font-size: 1.9rem; color: var(--wtf-text); margin: 0 0 10px }
+  .wtf-eh-lede { font-size: 13px; color: var(--wtf-text-2); line-height: 1.7 }
+  .wtf-eh-stats { display: flex; gap: 16px; flex-wrap: wrap; margin: 22px 0 26px }
+  .wtf-eh-stat { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-left: 3px solid var(--wtf-aurora); border-radius: var(--wtf-r-md); padding: 12px 16px; min-width: 130px }
+  .wtf-eh-stat-n { font-family: var(--wtf-font-mono); font-size: 1.15rem; color: var(--wtf-text) }
+  .wtf-eh-stat-l { font-size: 9px; color: var(--wtf-text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px }
+  .wtf-eh-panel { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-lg); padding: 16px 18px; margin-top: 18px }
+  .wtf-eh-psec { font-size: 10px; letter-spacing: 2px; color: var(--wtf-text-muted); text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+  .wtf-eh-seg { display: inline-flex; border: 1px solid var(--wtf-border); border-radius: 999px; overflow: hidden; margin-left: auto }
+  .wtf-eh-seg button { font-family: var(--wtf-font-mono); font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase; padding: 6px 12px; border: 0; background: none; color: var(--wtf-text-muted); cursor: pointer }
+  .wtf-eh-seg button.on { background: var(--wtf-bg-panel); color: var(--wtf-text) }
+  .wtf-eh-tbl { width: 100%; border-collapse: collapse }
+  .wtf-eh-tbl th { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--wtf-text-muted); text-align: left; padding: 0 10px 9px; border-bottom: 1px solid var(--wtf-border) }
+  .wtf-eh-tbl td { padding: 9px 10px; border-bottom: 1px solid var(--wtf-border); font-size: 12.5px; color: var(--wtf-text-2); vertical-align: top }
+  .wtf-eh-tbl .n { text-align: right; font-family: var(--wtf-font-mono); font-variant-numeric: tabular-nums }
+  .wtf-eh-tbl th.n { text-align: right }
+  .wtf-eh-q { font-family: var(--wtf-font-serif); font-size: 14px; color: var(--wtf-text); font-style: italic }
+  .wtf-eh-who { font-size: 9px; color: var(--wtf-text-muted); margin-top: 3px }
+  .wtf-eh-who i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: -1px }
+  .wtf-eh-life { display: inline-flex; gap: 2px; align-items: flex-end; height: 18px }
+  .wtf-eh-life i { width: 4px; background: var(--wtf-aurora); border-radius: 1px; display: block; opacity: .85 }
+  .wtf-eh-tag { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid }
+  .wtf-eh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 11px }
+  .wtf-eh-card { background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-md); padding: 14px 15px }
+  .wtf-eh-ih { display: flex; justify-content: space-between; align-items: baseline; gap: 8px }
+  .wtf-eh-in { font-family: var(--wtf-font-serif); font-size: 15px; color: var(--wtf-text); font-weight: 600 }
+  .wtf-eh-iv { font-family: var(--wtf-font-mono); font-size: 18px; color: var(--wtf-text); font-variant-numeric: tabular-nums }
+  .wtf-eh-im { font-family: var(--wtf-font-mono); font-size: 9px; color: var(--wtf-text-muted); margin-top: 2px; line-height: 1.6 }
+  .wtf-eh-note { font-size: 11px; color: var(--wtf-text-muted); line-height: 1.7; margin-top: 10px }
+  .wtf-eh-honesty { border-left: 3px solid var(--wtf-developing) }
+  .wtf-eh-honesty .wtf-eh-psec { color: var(--wtf-developing) }
+  .wtf-eh-honesty p { font-size: 12.5px; line-height: 1.75; color: var(--wtf-text-2); margin: 0; max-width: 78ch }
+  .wtf-eh-empty { text-align: center; padding: 30px; color: var(--wtf-text-muted); font-size: 11px; line-height: 1.8 }
+  @media (max-width: 600px) { .wtf-eh-stats { gap: 10px } }
+</style>
+
+<header class="wtf-eh-header">
+  <div class="wtf-eh-eyebrow">Media &middot; repetition, measured</div>
+  <h1 class="wtf-eh-h1">Echo</h1>
+  <p class="wtf-eh-lede">
+    How often a slogan or phrase repeats across Canadian news coverage, and which words
+    the corpus cannot stop using. Counts of usage, never of merit — a phrase that echoes
+    is not a phrase that is true. Slogan counts cover the last {{ window_weeks }} weeks;
+    word counts cover the last {{ word_window_days }} days.
+  </p>
+</header>
+
+<div class="wtf-eh-stats">
+  <div class="wtf-eh-stat">
+    <div class="wtf-eh-stat-n">{{ slogans|length }}</div>
+    <div class="wtf-eh-stat-l">Slogans tracked</div>
+  </div>
+  <div class="wtf-eh-stat">
+    <div class="wtf-eh-stat-n">{{ '{:,}'.format(total_uses) }}</div>
+    <div class="wtf-eh-stat-l">Uses, {{ window_weeks }} weeks</div>
+  </div>
+  {% if most_used and most_used.uses > 0 %}
+  <div class="wtf-eh-stat">
+    <div class="wtf-eh-stat-n" style="font-size:13px">&ldquo;{{ most_used.phrase }}&rdquo;</div>
+    <div class="wtf-eh-stat-l">Most repeated</div>
+  </div>
+  {% endif %}
+  {% if fading %}
+  <div class="wtf-eh-stat">
+    <div class="wtf-eh-stat-n" style="font-size:13px">&ldquo;{{ fading.phrase }}&rdquo;</div>
+    <div class="wtf-eh-stat-l">Fading fastest</div>
+  </div>
+  {% endif %}
+</div>
+
+<div class="wtf-eh-panel">
+  <div class="wtf-eh-psec">
+    Slogans in circulation &middot; last {{ window_weeks }} weeks
+    <span class="wtf-eh-seg" id="eh-sort">
+      <button class="on" data-s="uses">Most used</button>
+      <button data-s="newest">Newest</button>
+      <button data-s="fading">Fading</button>
+    </span>
+  </div>
+  {% if slogans %}
+  <div style="overflow-x:auto"><table class="wtf-eh-tbl" id="eh-slogans">
+    <thead><tr><th>Phrase</th><th>Lifecycle &middot; weekly</th><th class="n">Uses</th><th>Trend</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="wtf-eh-note">
+    A slogan is counted when the phrase appears in an article (stopword-tolerant,
+    adjacency-based full-text match — not a raw substring search). "Associated with"
+    is an editorial label naming who commonly uses the phrase, not something derived
+    from the query. The lifecycle bars are real weekly counts, oldest to newest, within
+    the {{ window_weeks }}-week window this page searches — "first seen" means first
+    seen in THAT window, not first ever said.
+  </p>
+  {% else %}
+  <div class="wtf-eh-empty">No slogan data available right now.</div>
+  {% endif %}
+</div>
+
+<div class="wtf-eh-panel">
+  <div class="wtf-eh-psec">Words the news cannot stop using &middot; mentions per day, {{ word_window_days }} days</div>
+  {% if words %}
+  <div class="wtf-eh-grid">
+    {% for w in words %}
+    <div class="wtf-eh-card">
+      <div class="wtf-eh-ih">
+        <span class="wtf-eh-in">{{ w.label }}</span>
+        <span class="wtf-eh-iv">{{ w.today }}<span style="font-size:9px;color:var(--wtf-text-muted)">/day</span></span>
+      </div>
+      <div class="wtf-eh-im">{{ w.total }} mentions this window &middot; trend: {{ w.trend }}</div>
+      <div style="margin-top:8px" data-echo-chart="{{ loop.index0 }}"></div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="wtf-eh-note">
+    Across the {{ words|length }} tracked terms, counted the same way as the slogans
+    above. A mention is a mention: a story about a tariff and a story against one both
+    count once.
+  </p>
+  {% else %}
+  <div class="wtf-eh-empty">No word-frequency data available right now.</div>
+  {% endif %}
+</div>
+
+<div class="wtf-eh-panel wtf-eh-honesty">
+  <div class="wtf-eh-psec">What this page will not say</div>
+  <p>
+    It will not say a slogan is effective, honest or good — it reports how often the
+    phrase appears and by whom it is commonly used. A phrase repeated by many outlets
+    may be quotable, may be false and need rebutting, or may just be what happened that
+    day; this page cannot tell those apart. It also cannot tell you who first said a
+    phrase repeated it verbatim versus paraphrased it — a text match either found the
+    phrase or it didn't.
+  </p>
+</div>
+
+<script>
+(function () {
+  var SLOGANS = {{ slogans|tojson }};
+  var WORDS = {{ words|tojson }};
+
+  function uses(s) { return s.uses; }
+  function weeksAgo(s) { return s.weeks_since_first_seen; }
+  function fadingRank(s) { return s.trend_pct === null ? 0 : s.trend_pct; }
+
+  var sort = 'uses';
+  function renderSlogans() {
+    var rows = SLOGANS.slice().sort(function (a, b) {
+      if (sort === 'uses') return uses(b) - uses(a);
+      if (sort === 'newest') return weeksAgo(a) - weeksAgo(b);
+      return fadingRank(a) - fadingRank(b); // most negative (fading) first
+    });
+    var mx = 1;
+    SLOGANS.forEach(function (s) { s.weekly.forEach(function (v) { if (v > mx) mx = v; }); });
+    var tagColor = { rising: 'var(--wtf-developing)', fading: 'var(--wtf-text-muted)', steady: 'var(--wtf-text-2)', quiet: 'var(--wtf-text-muted)' };
+    var html = rows.map(function (s) {
+      var bars = s.weekly.map(function (v) {
+        return '<i style="height:' + Math.max(2, Math.round(v / mx * 18)) + 'px"></i>';
+      }).join('');
+      var seenNote = s.weeks_since_first_seen >= {{ window_weeks - 1 }}
+        ? 'seen across the window'
+        : 'first seen ' + s.weeks_since_first_seen + 'w ago';
+      var color = tagColor[s.trend] || 'var(--wtf-text-2)';
+      return '<tr><td><span class="wtf-eh-q">“' + s.phrase + '”</span>' +
+        '<div class="wtf-eh-who"><i style="background:' + s.colour + '"></i>' + s.who + '</div>' +
+        '<div class="wtf-eh-who">' + seenNote + '</div></td>' +
+        '<td><span class="wtf-eh-life" aria-label="weekly counts">' + bars + '</span></td>' +
+        '<td class="n" style="color:var(--wtf-text)">' + s.uses + '</td>' +
+        '<td><span class="wtf-eh-tag" style="color:' + color + ';border-color:' + color + '66">' + s.trend + '</span></td></tr>';
+    }).join('');
+    document.querySelector('#eh-slogans tbody').innerHTML = html;
+  }
+  var sortSeg = document.getElementById('eh-sort');
+  if (sortSeg) {
+    sortSeg.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      sort = b.dataset.s;
+      sortSeg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      renderSlogans();
+    });
+  }
+  if (SLOGANS.length) renderSlogans();
+
+  function lineChart(vals, color) {
+    var W = 300, H = 64, pad = 4;
+    var hi = Math.max.apply(null, vals.concat([1]));
+    var x = function (i) { return pad + i / (vals.length - 1) * (W - pad * 2); };
+    var y = function (v) { return H - pad - v / hi * (H - pad * 2); };
+    var path = vals.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block">' +
+      '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<circle cx="' + x(vals.length - 1) + '" cy="' + y(vals[vals.length - 1]) + '" r="2.6" fill="' + color + '"/></svg>';
+  }
+  WORDS.forEach(function (w, i) {
+    var el = document.querySelector('[data-echo-chart="' + i + '"]');
+    if (el) el.innerHTML = lineChart(w.daily, w.colour);
+  });
+})();
+</script>
+{% endblock %}

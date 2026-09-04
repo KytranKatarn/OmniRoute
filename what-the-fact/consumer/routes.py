@@ -1093,11 +1093,30 @@ def economy():
             f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'foreign-policy' AND suppressed_reason IS NULL"
         )).scalar() or 0
 
+        # One real economic indicator (#6272, Batch 9) — the design wants six
+        # (CPI, unemployment, GDP, FX, housing starts, overnight rate); only
+        # this one has an ingested source on the platform today
+        # (market_watch.boc_rate_decisions, same table /rates already reads).
+        # The other five are NOT shown with invented numbers — see
+        # design-handoff/wtf-economy.html's IND array, which is a hardcoded
+        # const, not a fetch. Best-effort: this page must render even if the
+        # table is briefly unreachable.
+        boc_current = None
+        try:
+            boc_current = c.execute(text("""
+                SELECT rate_pct, decision_date
+                FROM market_watch.boc_rate_decisions
+                ORDER BY decision_date DESC LIMIT 1
+            """)).mappings().first()
+        except Exception:
+            pass
+
     return render_template("economy.html",
                            articles=rows,
                            economy_count=economy_count,
                            business_count=business_count,
                            foreign_count=foreign_count,
+                           boc_current=dict(boc_current) if boc_current else None,
                            is_subscriber=is_subscriber())
 
 

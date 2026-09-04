@@ -61,6 +61,15 @@
 .wtf-ec-stats-row { gap:10px }
 .wtf-ec-market-cta { flex-direction:column }
 @media(max-width:600px){main{padding:20px 12px}.wtf-ec-stats-row{gap:10px}.wtf-ec-market-cta{flex-direction:column}}
+
+/* Economic indicators (#6272, Batch 9) — see the routes.py comment on
+   economy() for why this is ONE card, not the design's six. Reuses the
+   established .wtf-ec-stat-box shape rather than inventing a second card
+   style for a single indicator. */
+.wtf-ec-indicator-box { text-decoration:none; display:block; transition:border-color .15s }
+.wtf-ec-indicator-box:hover { border-color:var(--wtf-developing) }
+.wtf-ec-indicator-asof { font-size:8px;color:#374151;margin-top:2px }
+.wtf-ec-indicators-note { font-size:9px;color:#374151;line-height:1.7;margin-top:8px;max-width:640px }
 </style>
 
 <div class="wtf-ec-page-header">
@@ -91,6 +100,26 @@
       <div class="wtf-ec-stat-lbl">Outlets tracked</div>
     </div>
   </div>
+
+  <div class="wtf-ec-section-title">Economic indicators</div>
+  <div class="wtf-ec-stats-row">
+    {% if boc_current %}
+    <a href="/rates" class="wtf-ec-stat-box wtf-ec-indicator-box">
+      <div class="wtf-ec-stat-num">{{ boc_current.rate_pct }}%</div>
+      <div class="wtf-ec-stat-lbl">Bank of Canada overnight rate</div>
+      <div class="wtf-ec-indicator-asof">as of {{ boc_current.decision_date }} &rarr; full history</div>
+    </a>
+    {% else %}
+    <div class="wtf-ec-stat-box">
+      <div class="wtf-ec-stat-lbl">Bank of Canada overnight rate — temporarily unavailable</div>
+    </div>
+    {% endif %}
+  </div>
+  <p class="wtf-ec-indicators-note">
+    Live from the Bank of Canada — the only one of six planned indicators (alongside CPI,
+    unemployment, GDP, exchange rate and housing starts) with a real ingested source on this
+    platform today. The other five aren't shown rather than shown with invented numbers.
+  </p>
 
   <div class="wtf-ec-section-title">Recent economy, business &amp; foreign-policy stories</div>
 

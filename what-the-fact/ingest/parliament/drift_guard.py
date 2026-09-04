@@ -93,6 +93,12 @@ _MAX_AGE_DAYS = {
     # alarms roughly three days after a single missed Monday while tolerating a
     # late run; 21 would let three consecutive Mondays fail before anyone heard.
     "weekly_digest": int(os.environ.get("WTF_DRIFT_DIGEST_DAYS", "10")),
+    # BoC overnight rate decisions (#6272, Batch 9). Same shape as
+    # elections_results: BoC decides on a fixed ~8/year schedule, so this
+    # window measures the WEEKLY job in ingest/run.py still running and the
+    # Valet API still fetching/parsing, not data freshness per se. 10 days
+    # for the same reason as elections_results — weekly cadence plus slack.
+    "boc_rates": int(os.environ.get("WTF_DRIFT_BOC_DAYS", "10")),
 }
 
 # Tasks that MUST have run at least once. The freshness loop below skips a task
@@ -113,7 +119,13 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # Safe to require: WTF_WEEKLY_DIGEST_ENABLED=true in prod (verified
                    # on Citadel). If the digest is ever deliberately turned OFF, remove
                    # it from here too, or this alarms honestly but uselessly forever.
-                   "weekly_digest"}
+                   "weekly_digest",
+                   # boc_rates is a brand-new puller (#6272) — the prior manual-only
+                   # script never wrote to parliament.ingest_log at all, so this has
+                   # zero rows until the first scheduled run lands. Required for the
+                   # same reason as weekly_digest: a puller that never fires must
+                   # alarm, not report green-by-omission forever.
+                   "boc_rates"}
 
 
 def _source_freshness(engine) -> list:

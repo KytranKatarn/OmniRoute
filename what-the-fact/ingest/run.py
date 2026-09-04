@@ -398,6 +398,7 @@ def main():
     _last_drift_date = None     # parliamentary cost/funds drift guard (daily)
     _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
     _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
+    _last_boc_week = None        # BoC overnight rate decisions (weekly) — #6272, Batch 9
     while True:
         _cycle_started = time.monotonic()
         # Weekly geo report on Mondays.
@@ -607,6 +608,23 @@ def main():
             except Exception:
                 log.exception("elections results crashed")
             _last_elections_week = _elec_week
+
+        # Bank of Canada overnight rate decisions — WEEKLY, not daily (#6272,
+        # Batch 9). BoC announces on ~8 fixed dates/year; a daily poll would
+        # buy nothing between decisions. This mirrors elections_results
+        # exactly: a one-off 2026-05-18 backfill sat with no scheduled
+        # follow-up and went ~5 months stale before the /economy design-
+        # handoff scoping pass caught it. run_boc_rates never raises and
+        # writes its own parliament.ingest_log heartbeat on both the success
+        # and swallowed-error paths, so drift_guard can watch it the same
+        # way it already watches elections_results.
+        if _last_boc_week != _elec_week:
+            try:
+                from ingest.market.boc_rates import run_boc_rates
+                log.info("boc rates: %s", run_boc_rates(engine))
+            except Exception:
+                log.exception("boc rates crashed")
+            _last_boc_week = _elec_week
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

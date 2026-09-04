@@ -1921,7 +1921,54 @@ def team():
             a["portrait_url"] = live_url
         a["welfare"] = welfare_lookup.get(agent["name"])  # None if unavailable
         agents.append(a)
-    return render_template("team.html", agents=agents, source_count=source_count)
+
+    # ── "the rest of the department" + "who actually did the work" ──
+    # design-handoff/wtf-team.html's #tm-dept and #tm-roster sections. Both
+    # read from data that already exists: _get_welfare_lookup() (this file,
+    # ~L204) already fetches the FULL live News & Media roster from the hub
+    # (not just the 8 named agents), and _newsroom_agents() (~L1148) already
+    # computes fact-check/bias-score attribution for the last 24h — it was
+    # built for the Activity Log and reused here rather than re-queried.
+    #
+    # Deliberately NOT shown: a per-agent "title" (e.g. "Fact-check
+    # specialist"). The hub's fleet-agents payload carries no such field
+    # (verified live — display_name/department/shift_state/welfare metrics
+    # only), and the design's own comment on this section says "nothing here
+    # is invented to fill a gap." Real 24h task counts stand in instead.
+    named_names = {a["name"] for a in TEAM_AGENTS}
+    try:
+        newsroom = _newsroom_agents(S)
+    except Exception:
+        newsroom = {"agents": [], "unattributed": 0, "attributed": 0}
+    events_by_agent = {a["agent"]: int(a["events"]) for a in newsroom["agents"]}
+
+    dept_agents = []
+    for name, w in welfare_lookup.items():
+        if name in named_names:
+            continue
+        dept_agents.append({
+            "name": name,
+            "shift_state": (w or {}).get("shift_state") or "",
+            "events_24h": events_by_agent.get(name, 0),
+        })
+    dept_agents.sort(key=lambda a: a["events_24h"], reverse=True)
+
+    roster_rows = [
+        {"label": a["agent"], "value": int(a["events"])}
+        for a in newsroom["agents"]
+    ]
+    if newsroom["unattributed"]:
+        roster_rows.append({"label": "unattributed", "value": int(newsroom["unattributed"])})
+
+    return render_template(
+        "team.html",
+        agents=agents,
+        source_count=source_count,
+        dept_agents=dept_agents,
+        roster_rows=roster_rows,
+        dept_total=len(welfare_lookup),
+        named_count=len(TEAM_AGENTS),
+    )
 
 
 @bp.get("/cost")

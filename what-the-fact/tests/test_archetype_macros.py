@@ -187,3 +187,34 @@ class TestSourcesBiasLegendMatchesCards:
         for tok in ["--wtf-left", "--wtf-center-left", "--wtf-center",
                     "--wtf-center-right", "--wtf-right"]:
             assert tok in src, f"{tok} missing — band no longer tracks the palette"
+
+
+class TestPaywallLockIsNeverEmoji:
+    """The paywall() macro's own comment described a "lock + title / blurb /
+    CTA / see plans" four-part block, but the code only ever rendered three —
+    the lock was never actually coded, so all 14+ callers baked their own 🔒
+    emoji into the title string instead. House rule: a stroked SVG padlock,
+    never emoji (design-handoff/wtf-archive.html LOCK_SVG is the reference)."""
+
+    TEMPLATES_WITH_A_GATE = [
+        "source.html", "journalist.html", "senator.html", "lobbying.html",
+        "activity.html", "map.html", "crtc.html", "entity.html", "article.html",
+        "account.html",
+    ]
+
+    def test_paywall_macro_renders_an_svg_not_an_emoji(self, env):
+        html = render(env, 'paywall("Gate — Starter+", "blurb", "/x")')
+        assert "<svg" in html
+        assert "🔒" not in html
+
+    @pytest.mark.parametrize("fname", TEMPLATES_WITH_A_GATE)
+    def test_no_rendered_template_still_uses_the_emoji(self, fname):
+        """Source-grepped, not rendered: some of these gates are hand-rolled
+        (never call paywall()), so this is the only check that covers every
+        instance regardless of which markup pattern the page uses. Excludes
+        Jinja comment blocks, which legitimately discuss the old emoji as
+        history."""
+        import re
+        src = (TPL / fname).read_text(encoding="utf-8")
+        code = re.sub(r"\{#.*?#\}", "", src, flags=re.S)
+        assert "🔒" not in code, f"{fname} still renders the emoji lock"

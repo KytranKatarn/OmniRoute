@@ -376,7 +376,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     <h1 class="wtf-art-title">{{ a.title }}</h1>
     {% if a.url %}
     <a href="{{ a.url }}" target="_blank" rel="noopener" class="wtf-art-original-link">Original article &#x2197;</a>
-    {% if is_paywalled %}<span class="wtf-art-paywalled-note">🔒 Paywalled source — limited preview available</span>{% endif %}
+    {% if is_paywalled %}<span class="wtf-art-paywalled-note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Paywalled source — limited preview available</span>{% endif %}
     {% endif %}
   </div>
 
@@ -535,7 +535,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       {% endif %}
     {% elif a.bias_rationale or a.trigger_phrases %}
     <div class="wtf-paywall-inline">
-      🔒 <a href="/login?next=/article/{{ a.id }}">Sign in</a> or
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><a href="/login?next=/article/{{ a.id }}">Sign in</a> or
       <a href="/billing/checkout/starter">Subscribe</a>
       to unlock B.I.A.S. rationale &amp; trigger phrases
     </div>
@@ -646,7 +646,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     </div>
     {% else %}
     <div class="wtf-paywall-panel">
-      <div class="wtf-paywall-panel-icon">🔒</div>
+      <div class="wtf-paywall-panel-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
       <div class="wtf-paywall-panel-text">
         V.E.R.I.F.Y. has fact-checked this article.<br>
         Subscribe to see claim-by-claim verdicts and reasoning.
@@ -933,7 +933,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
         <div class="wtf-art-clustercmp-locked-title">{{ cluster_articles|length }} outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story</div>
         <div class="wtf-art-clustercmp-locked-sub">Side-by-side comparison · bias by outlet · framing analysis</div>
       </div>
-      <a href="/login?next=/cluster/{{ a.cluster_id }}" class="wtf-art-clustercmp-unlock-btn">🔒 Unlock — Starter+</a>
+      <a href="/login?next=/cluster/{{ a.cluster_id }}" class="wtf-art-clustercmp-unlock-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Unlock — Starter+</a>
     </div>
     {% endif %}
   </div>

@@ -6,7 +6,7 @@
 {% block content %}
 <style>
 .wtf-mps-header { padding:16px 0 12px; border-bottom:1px solid #1a3a5a; margin-bottom:20px; }
-.wtf-mps-title { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-mps-title { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-mps-filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
 .wtf-mps-filters select { background:#060d14; border:1px solid #1a3a5a; color:#9ca3af; font-size:11px; padding:5px 10px; border-radius:3px; font-family:inherit; }
 .wtf-mps-filters select:focus { outline:none; border-color:#0af; }
@@ -37,11 +37,37 @@
 .wtf-mp-leader { animation: wtf-leader-pulse 2s ease-in-out infinite; }
 .wtf-mp-leader-badge { font-size:9px; color:#f59e0b; letter-spacing:.06em; text-transform:uppercase; font-weight:700; }
 @keyframes wtf-halo-pulse { 0%,100%{fill-opacity:.2;r:7;} 50%{fill-opacity:.5;r:10;} }
+
+/* Extracted from inline style="" attributes (value-preserving — same literals, moved to classes).
+   Dynamic per-row values ({{ col }} party/caucus colours, incl. alpha-suffixed "{{ col }}22")
+   and the two JS-toggled display:none states (HoC/Senate tab panels) stay inline — see mps.html
+   pipeline notes. */
+.wtf-mps-subtitle { font-size:11px; color:#6b7280; }
+.wtf-mps-seating-wrap { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:14px 16px; margin-bottom:20px; }
+.wtf-mps-seating-label { font-size:10px; color:#9ca3af; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; display:flex; align-items:center; gap:10px; }
+.wtf-mps-map-toggle { background:none; border:1px solid #1a3a5a; color:#6b7280; padding:2px 8px; border-radius:2px; font-size:10px; cursor:pointer; font-family:inherit; }
+.wtf-mps-svg { width:100%; max-width:700px; display:block; margin:0 auto; }
+.wtf-mps-legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; justify-content:center; font-size:10px; color:#9ca3af; }
+.wtf-mps-tip { position:fixed; background:#0a1520; border:1px solid #1a3a5a; border-radius:3px; padding:5px 9px; font-size:11px; color:#e5e7eb; pointer-events:none; display:none; z-index:9999; max-width:220px; line-height:1.6; }
+.wtf-mps-tip-senate { background:#0a0505; border-color:#4b0000; }
+.wtf-mps-seatbar-wrap { margin-top:10px; }
+.wtf-mps-section-top { margin-top:20px; }
+.wtf-mps-group-count { color:#4b5563; font-size:9px; }
+.wtf-mp-photo-placeholder.wtf-mp-ph-initial-hide { display:none; }
+.wtf-mp-badge-cabinet { background:#78350f; color:#f59e0b; }
+.wtf-mps-empty { color:#6b7280; font-size:13px; padding:40px 0; text-align:center; }
+.wtf-mps-empty-link { color:#0af; }
+.wtf-mps-senate-panel { background:#060d14; border:1px solid #4b0000; border-radius:4px; padding:14px 16px; margin-bottom:16px; }
+.wtf-mps-senate-heading { font-size:10px; color:#ef4444; text-transform:uppercase; letter-spacing:.08em; margin-bottom:8px; }
+.wtf-mps-senate-desc { font-size:12px; color:#9ca3af; line-height:1.7; margin-bottom:12px; }
+.wtf-mps-senate-legend { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.wtf-mps-senate-source { font-size:9px; color:#374151; margin-top:8px; }
+.wtf-mps-senate-source-link { color:#4b0000; }
 </style>
 
 <div class="wtf-mps-header">
   <h1 class="wtf-mps-title">🏛 Members of Parliament</h1>
-  <div style="font-size:11px;color:#6b7280;">{{ mps|length }} current MPs tracked · votes, media coverage, accountability intelligence</div>
+  <div class="wtf-mps-subtitle">{{ mps|length }} current MPs tracked · votes, media coverage, accountability intelligence</div>
 </div>
 
 <div class="wtf-mps-tabs">
@@ -76,21 +102,21 @@ function wtfTab(name, btn) {
 </form>
 
 <!-- Parliament Seating Map -->
-<div id="wtf-seating-wrap" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
-  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:10px;">
+<div id="wtf-seating-wrap" class="wtf-mps-seating-wrap">
+  <div class="wtf-mps-seating-label">
     🏛 Seating Map
     <button onclick="var w=document.getElementById('wtf-seating-svg-wrap');var shown=w.style.display!=='none';w.style.display=shown?'none':'block';this.textContent=shown?'Show map':'Hide map';"
-      style="background:none;border:1px solid #1a3a5a;color:#6b7280;padding:2px 8px;border-radius:2px;font-size:10px;cursor:pointer;font-family:inherit;">Hide map</button>
+      class="wtf-mps-map-toggle">Hide map</button>
   </div>
   <div id="wtf-seating-svg-wrap">
-    <svg id="wtf-parl-svg" viewBox="0 0 700 330" style="width:100%;max-width:700px;display:block;margin:0 auto;" xmlns="http://www.w3.org/2000/svg">
+    <svg id="wtf-parl-svg" viewBox="0 0 700 330" class="wtf-mps-svg" xmlns="http://www.w3.org/2000/svg">
       <g id="wtf-seats"></g>
       <rect x="336" y="305" width="28" height="14" rx="2" fill="#1a3a5a"/>
       <text x="350" y="315" text-anchor="middle" font-size="7" fill="#6b7280" font-family="monospace">SPEAKER</text>
     </svg>
-    <div id="wtf-parl-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;justify-content:center;font-size:10px;color:#9ca3af;"></div>
-    <div id="wtf-seat-tip" style="position:fixed;background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 9px;font-size:11px;color:#e5e7eb;pointer-events:none;display:none;z-index:9999;max-width:220px;line-height:1.6;"></div>
-    <div id="wtf-seat-bar" style="margin-top:10px;"></div>
+    <div id="wtf-parl-legend" class="wtf-mps-legend"></div>
+    <div id="wtf-seat-tip" class="wtf-mps-tip"></div>
+    <div id="wtf-seat-bar" class="wtf-mps-seatbar-wrap"></div>
   </div>
 </div>
 <script>
@@ -403,7 +429,7 @@ function wtfShowSenatorCard(s, cx, cy) {
 </script>
 
 <!-- Party Grid (under HoC tab) -->
-<div id="wtf-party-grid-section" style="margin-top:20px;">
+<div id="wtf-party-grid-section" class="wtf-mps-section-top">
 {% set LEADERS = {'mark-carney':'Prime Minister','pierre-poilievre':'Opposition Leader','yves-francois-blanchet':'Bloc Leader','elizabeth-may':'Green Leader','don-davies':'NDP House Leader'} %}
 {% for party_name, party_mps_list in mps | groupby('party') %}
   {% set first_mp = party_mps_list | first %}
@@ -412,7 +438,7 @@ function wtfShowSenatorCard(s, cx, cy) {
     <div class="wtf-party-header">
       <span class="wtf-party-dot" style="background:{{ col }};"></span>
       {{ party_name or 'Unknown' }}
-      <span style="color:#4b5563;font-size:9px;">({{ party_mps_list | list | length }})</span>
+      <span class="wtf-mps-group-count">({{ party_mps_list | list | length }})</span>
     </div>
     <div class="wtf-mp-grid">
       {% for mp in party_mps_list %}
@@ -424,14 +450,14 @@ function wtfShowSenatorCard(s, cx, cy) {
              style="{% if leader_title %}color:{{ col }};{% endif %}"
              src="{{ mp.photo_url }}" alt="{{ mp.name }}" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-        <div class="wtf-mp-photo-placeholder" style="display:none;">👤</div>
+        <div class="wtf-mp-photo-placeholder wtf-mp-ph-initial-hide">👤</div>
         {% else %}
         <div class="wtf-mp-photo-placeholder">👤</div>
         {% endif %}
         {% if leader_title %}
         <div class="wtf-mp-leader-badge">⭐ {{ leader_title }}</div>
         {% elif mp.cabinet_role %}
-        <div class="wtf-mp-leader-badge" style="background:#78350f;color:#f59e0b;">🏛 {{ mp.cabinet_role[:28] }}{% if mp.cabinet_role|length > 28 %}…{% endif %}</div>
+        <div class="wtf-mp-leader-badge wtf-mp-badge-cabinet">🏛 {{ mp.cabinet_role[:28] }}{% if mp.cabinet_role|length > 28 %}…{% endif %}</div>
         {% endif %}
         <div class="wtf-mp-name">{{ mp.name }}</div>
         <span class="wtf-mp-party-badge" style="background:{{ col }}22;color:{{ col }};border:1px solid {{ col }}44;">{{ party_name or '—' }}</span>
@@ -445,8 +471,8 @@ function wtfShowSenatorCard(s, cx, cy) {
   </div>
 {% endfor %}
 {% if not mps %}
-<div style="color:#6b7280;font-size:13px;padding:40px 0;text-align:center;">
-  No MPs found for this filter. <a href="/mps" style="color:#0af;">Reset filters →</a>
+<div class="wtf-mps-empty">
+  No MPs found for this filter. <a href="/mps" class="wtf-mps-empty-link">Reset filters →</a>
 </div>
 {% endif %}
 </div><!-- /wtf-party-grid-section -->
@@ -454,22 +480,22 @@ function wtfShowSenatorCard(s, cx, cy) {
 
 <!-- Senate Tab -->
 <div id="wtf-tab-senate" style="display:none;">
-  <div style="background:#060d14;border:1px solid #4b0000;border-radius:4px;padding:14px 16px;margin-bottom:16px;">
-    <div style="font-size:10px;color:#ef4444;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">🔴 Senate of Canada — The Red Chamber</div>
-    <div style="font-size:12px;color:#9ca3af;line-height:1.7;margin-bottom:12px;">
+  <div class="wtf-mps-senate-panel">
+    <div class="wtf-mps-senate-heading">🔴 Senate of Canada — The Red Chamber</div>
+    <div class="wtf-mps-senate-desc">
       96 current senators appointed until age 75. Six caucus groups sit in a red-upholstered horseshoe chamber.
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;" id="senate-legend"></div>
-    <svg id="wtf-senate-svg" viewBox="0 0 700 300" style="width:100%;max-width:700px;display:block;margin:0 auto;">
+    <div class="wtf-mps-senate-legend" id="senate-legend"></div>
+    <svg id="wtf-senate-svg" viewBox="0 0 700 300" class="wtf-mps-svg">
       <g id="wtf-senate-seats"></g>
       <rect x="333" y="278" width="34" height="14" rx="2" fill="#1a0000"/>
       <text x="350" y="288" text-anchor="middle" font-size="7" fill="#6b7280" font-family="monospace">SPEAKER</text>
     </svg>
-    <div id="wtf-senate-tip" style="position:fixed;background:#0a0505;border:1px solid #4b0000;border-radius:3px;padding:5px 9px;font-size:11px;color:#e5e7eb;pointer-events:none;display:none;z-index:9999;max-width:220px;line-height:1.6;"></div>
-    <div style="font-size:9px;color:#374151;margin-top:8px;">Source: <a href="https://sencanada.ca/en/senators/?v=list" target="_blank" rel="noopener" style="color:#4b0000;">Senate of Canada</a> · Data as of May 2026</div>
+    <div id="wtf-senate-tip" class="wtf-mps-tip wtf-mps-tip-senate"></div>
+    <div class="wtf-mps-senate-source">Source: <a href="https://sencanada.ca/en/senators/?v=list" target="_blank" rel="noopener" class="wtf-mps-senate-source-link">Senate of Canada</a> · Data as of May 2026</div>
   </div>
 <!-- Senator Grid inside Senate tab -->
-<div id="wtf-senate-grid-section" style="margin-top:20px;">
+<div id="wtf-senate-grid-section" class="wtf-mps-section-top">
 {% set SEN_COLOURS = {'C':'#3b82f6','ISG':'#cc0000','CSG':'#059669','PSG':'#7c3aed','GRO':'#b45309','Non-affiliated':'#888888'} %}
 {% for caucus_name, caucus_senators in senators | groupby('caucus') %}
   {% set col = SEN_COLOURS.get(caucus_name, '#888888') %}
@@ -477,7 +503,7 @@ function wtfShowSenatorCard(s, cx, cy) {
     <div class="wtf-party-header">
       <span class="wtf-party-dot" style="background:{{ col }};"></span>
       {{ caucus_name or 'Unknown' }}
-      <span style="color:#4b5563;font-size:9px;">({{ caucus_senators | list | length }})</span>
+      <span class="wtf-mps-group-count">({{ caucus_senators | list | length }})</span>
     </div>
     <div class="wtf-mp-grid">
       {% for s in caucus_senators %}
@@ -485,7 +511,7 @@ function wtfShowSenatorCard(s, cx, cy) {
         {% if s.photo_url %}
         <img class="wtf-mp-photo" src="{{ s.photo_url }}" alt="{{ s.name }}" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-        <div class="wtf-mp-photo-placeholder" style="display:none;">👤</div>
+        <div class="wtf-mp-photo-placeholder wtf-mp-ph-initial-hide">👤</div>
         {% else %}
         <div class="wtf-mp-photo-placeholder">👤</div>
         {% endif %}

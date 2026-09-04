@@ -8,13 +8,13 @@
     <span class="wtf-live-dot"></span>
     LIVE &middot; AI NEWSROOM
   </div>
-  <h1 style="font-size:1.6rem;">LATEST NEWS</h1>
+  <h1 class="wtf-nw-h1">LATEST NEWS</h1>
   <p>{{ total }} articles from {{ source_count }} Canadian sources — sorted by most recent.</p>
 </div>
 
 <!-- Source bar -->
-<div style="overflow-x:auto;padding:16px 0;border-bottom:1px solid #112233;background:#050d1a;">
-  <div style="display:flex;gap:12px;padding:0 16px;min-width:max-content;">
+<div class="wtf-nw-srcbar">
+  <div class="wtf-nw-srcbar-row">
     {% for s in sources if s.article_count %}
     {% set lean = s.bias_lean or s.bias_band or 'center' %}
     {% set lean_cls = lean | replace(' ', '-') | lower %}
@@ -27,7 +27,7 @@
       'center-right': '--wtf-center-right', 'right': '--wtf-right'
     } %}
     {% set col = 'var(%s)' % _lean_tok.get(lean_cls, '--wtf-center') %}
-    <div style="text-align:center;min-width:72px;cursor:pointer;"
+    <div class="wtf-nw-src-item"
          onclick="window.location='/news?band={{ lean_cls }}&page=1'" title="{{ s.name }}">
       <div class="wtf-news-favicon" style="border-color:{{ col }};">
         {# ⚠️ SERVED LOCALLY. This used to be google.com/s2/favicons?domain=… — one
@@ -41,29 +41,29 @@
         <img src="/static/favicons/{{ s.slug }}.png"
              width="24" height="24" alt="" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-        <span style="display:none;color:{{ col }};font-size:0.7rem;font-weight:700;">
+        <span class="wtf-nw-src-fallback" style="color:{{ col }};">
           {{ s.name[:2] | upper }}
         </span>
       </div>
-      <div style="font-size:0.58rem;color:#9ca3af;white-space:nowrap;max-width:72px;overflow:hidden;text-overflow:ellipsis;">
+      <div class="wtf-nw-src-name">
         {{ s.name | replace('Top Stories','') | replace('English','') | truncate(14, true, '') }}
       </div>
-      <div style="font-size:0.55rem;color:{{ col }};letter-spacing:0.5px;text-transform:uppercase;margin-top:2px;">
+      <div class="wtf-nw-src-lean" style="color:{{ col }};">
         {{ lean_cls }}
       </div>
-      <div style="font-size:0.55rem;color:#555;margin-top:1px;">{{ s.article_count }}</div>
+      <div class="wtf-nw-src-count">{{ s.article_count }}</div>
     </div>
     {% endfor %}
   </div>
 </div>
 
-<div style="max-width:900px;margin:0 auto;padding:16px 16px 24px;">
+<div class="wtf-nw-container">
 
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-    <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
+  <div class="wtf-nw-toprow">
+    <div class="wtf-nw-count-label">
       {{ total }} articles &middot; page {{ page }} / {{ total_pages }}
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+    <div class="wtf-nw-band-row">
       {% set bands = [('all','All',''),('left','Left','#dc2626'),('center-left','Ctr-Left','#f97316'),('center','Center',''),('center-right','Ctr-Right','#0ea5e9'),('right','Right','#2563eb')] %}
       {# Counts on every band EXCEPT 'all' come from band_facets — computed
          server-side with the band filter itself excluded from its own WHERE
@@ -73,8 +73,8 @@
       {% for val, label, col in bands %}
       {% set _n = band_facets.get(val) if val != 'all' else None %}
       <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
-         class="wtf-act-filter {% if band_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
-         style="text-decoration:none;{% if col %}color:{{ col }};{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
+         class="wtf-act-filter wtf-nw-nodeco {% if band_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
+         {% if col %}style="color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
       {% endfor %}
     </div>
   </div>
@@ -110,50 +110,46 @@
      excluding only its own filter). 'all' carries no count on every row,
      same reasoning as band's 'all' — see routes.py. #}
   <!-- Province filter -->
-  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">
+  <div class="wtf-nw-chiprow">
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
     {% for val, label in provinces %}
     {% set _n = province_facets.get(val) if val != 'all' else None %}
     <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
-       class="wtf-act-filter {% if province_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
+       class="wtf-act-filter wtf-nw-chip-link {% if province_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
 
   <!-- Geo scope filter -->
-  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;">
-    <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">SCOPE</span>
+  <div class="wtf-nw-chiprow-c">
+    <span class="wtf-nw-chip-label">SCOPE</span>
     {% for val, label in [('all','🌐 All'), ('national','🇨🇦 National'), ('provincial','📍 Provincial'), ('international','🌍 International')] %}
     {% set _n = scope_facets.get(val) if val != 'all' else None %}
     <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&page=1"
-       class="wtf-act-filter {% if scope_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
+       class="wtf-act-filter wtf-nw-chip-link {% if scope_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
 
   <!-- Beat / category filter -->
-  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;">
-    <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">BEAT</span>
+  <div class="wtf-nw-chiprow-c">
+    <span class="wtf-nw-chip-label">BEAT</span>
     {% for val, label, col in beat_meta %}
     {% set _n = beat_facets.get(val) if val != 'all' else None %}
     <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
-       class="wtf-act-filter {% if beat_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;{% if col and beat_filter == val %}color:{{ col }};border-color:{{ col }};{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
+       class="wtf-act-filter wtf-nw-chip-link {% if beat_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
+       {% if col and beat_filter == val %}style="color:{{ col }};border-color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
 
   <!-- Riding / constituency filter (T3005) -->
   {% if ridings %}
-  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px;align-items:center;">
-    <span style="font-size:0.6rem;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-right:4px;">RIDING</span>
+  <div class="wtf-nw-chiprow-riding">
+    <span class="wtf-nw-chip-label">RIDING</span>
     <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&page=1"
-       class="wtf-act-filter {% if riding_filter == 'all' %}wtf-act-filter--active{% endif %}"
-       style="text-decoration:none;font-size:0.62rem;">All</a>
+       class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
     {% for r in ridings %}
     <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&page=1"
-       class="wtf-act-filter {% if riding_filter == r.riding_name %}wtf-act-filter--active{% endif %}"
-       title="{{ r.riding_name }} ({{ r.province_code }}) — {{ r.article_count }} articles"
-       style="text-decoration:none;font-size:0.62rem;">{{ r.riding_name }}</a>
+       class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == r.riding_name %}wtf-act-filter--active{% endif %}"
+       title="{{ r.riding_name }} ({{ r.province_code }}) — {{ r.article_count }} articles">{{ r.riding_name }}</a>
     {% endfor %}
   </div>
   {% endif %}
@@ -164,24 +160,24 @@
   <div class="wtf-article-card wtf-article-card--{{ band }}" data-article-id="{{ a.id }}">
     <div class="wtf-card-meta">
       <span>{{ a.source or '' }}{% if a.province_code %} &middot; {{ a.province_code }}{% endif %}</span>
-      <span style="color:#555;font-size:0.65rem;">{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
+      <span class="wtf-nw-card-time">{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
       {%- set _dot_pos = {'left': '5%', 'center-left': '30%', 'center': '50%', 'center-right': '70%', 'right': '95%'}.get(band, '50%') -%}
-      <span title="{{ band.upper() }}" style="display:inline-block;width:50px;height:6px;border-radius:3px;background:linear-gradient(to right,#3b82f6,#94a3b8,#ef4444);position:relative;vertical-align:middle;" aria-label="Bias: {{ band }}">
-        <span style="position:absolute;top:50%;left:{{ _dot_pos }};transform:translate(-50%,-50%);width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 2px rgba(0,0,0,0.6);"></span>
+      <span title="{{ band.upper() }}" class="wtf-nw-bias-dial" aria-label="Bias: {{ band }}">
+        <span class="wtf-nw-bias-dot" style="left:{{ _dot_pos }};"></span>
       </span>
     </div>
     <a class="wtf-card-title" href="/article/{{ a.id }}" data-news-open="{{ a.id }}">{{ a.title }}</a>
-    <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+    <div class="wtf-nw-card-badges">
       {% if a.ai_analyzed and is_subscriber %}
       <span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>
       {% else %}
       <span class="wtf-card-badge wtf-badge-quick">Quick Score</span>
       {% endif %}
       {% if a.cluster_size and a.cluster_size > 1 %}
-      <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af33;text-decoration:none;" title="{{ a.cluster_size }} Canadian outlets are covering this story">📰 {{ a.cluster_size }} sources</a>
+      <a href="/cluster/{{ a.cluster_id }}" class="wtf-card-badge wtf-nw-cluster-badge" title="{{ a.cluster_size }} Canadian outlets are covering this story">📰 {{ a.cluster_size }} sources</a>
       {% endif %}
       {% if a.mp_mentions %}
-      <span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
+      <span class="wtf-card-badge wtf-nw-mp-badge" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
       {% endif %}
       {% if a.overall_verdict and a.overall_verdict != 'descriptive_reporting' %}
       {# Positive set widened (#4898 tuning): the checker emits variants like
@@ -206,13 +202,13 @@
 
 
   {% if total_pages > 1 %}
-  <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px 0;">
+  <div class="wtf-nw-pager">
     {% if page > 1 %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page - 1 }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
     {% endif %}
-    <span style="color:#6b7280;font-size:0.7rem;">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
+    <span class="wtf-nw-pager-label">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
     {% if page < total_pages %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page + 1 }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
     {% endif %}
   </div>
   {% endif %}
@@ -220,6 +216,34 @@
 </div>
 
 <style>
+/* ── Extracted inline styles (Phase 6 token-migration pass) — value-preserving ── */
+.wtf-nw-h1 { font-size: 1.6rem; }
+.wtf-nw-srcbar { overflow-x: auto; padding: 16px 0; border-bottom: 1px solid #112233; background: #050d1a; }
+.wtf-nw-srcbar-row { display: flex; gap: 12px; padding: 0 16px; min-width: max-content; }
+.wtf-nw-src-item { text-align: center; min-width: 72px; cursor: pointer; }
+.wtf-nw-src-fallback { display: none; font-size: 0.7rem; font-weight: 700; }
+.wtf-nw-src-name { font-size: 0.58rem; color: #9ca3af; white-space: nowrap; max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+.wtf-nw-src-lean { font-size: 0.55rem; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 2px; }
+.wtf-nw-src-count { font-size: 0.55rem; color: #555; margin-top: 1px; }
+.wtf-nw-container { max-width: 900px; margin: 0 auto; padding: 16px 16px 24px; }
+.wtf-nw-toprow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+.wtf-nw-count-label { color: #6b7280; font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; }
+.wtf-nw-band-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.wtf-nw-nodeco { text-decoration: none; }
+.wtf-nw-chiprow { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.wtf-nw-chip-link { text-decoration: none; font-size: 0.62rem; }
+.wtf-nw-chiprow-c { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; align-items: center; }
+.wtf-nw-chip-label { font-size: 0.6rem; color: #6b7280; letter-spacing: 1px; text-transform: uppercase; margin-right: 4px; }
+.wtf-nw-chiprow-riding { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; align-items: center; }
+.wtf-nw-card-time { color: #555; font-size: 0.65rem; }
+.wtf-nw-bias-dial { display: inline-block; width: 50px; height: 6px; border-radius: 3px; background: linear-gradient(to right,#3b82f6,#94a3b8,#ef4444); position: relative; vertical-align: middle; }
+.wtf-nw-bias-dot { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 2px rgba(0,0,0,0.6); }
+.wtf-nw-card-badges { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.wtf-nw-cluster-badge { background: #0a2a3a; color: #0af; border: 1px solid #0af33; text-decoration: none; }
+.wtf-nw-mp-badge { background: #0a1a2a; color: #a78bfa; border: 1px solid #4c1d9544; font-size: 9px; }
+.wtf-nw-pager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px 0; }
+.wtf-nw-pager-label { color: #6b7280; font-size: 0.7rem; }
+
 .wtf-act-filter {
   background: #0a0f1a; border: 1px solid #1a2a3a; color: #6b7280;
   padding: 4px 12px; border-radius: 3px; font-size: 0.65rem;

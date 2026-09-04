@@ -50,6 +50,9 @@
 .wtf-features-list li::before { content: "✓ "; color: #0af; }
 
 .wtf-section-label   { font-size: 10px; letter-spacing: 2px; color: #0af; margin: 20px 0 10px; }
+
+.wtf-beat-empty      { color: #555; font-size: 13px; }
+.wtf-paywall-signin  { color: #0af; }
 </style>
 
 <div class="wtf-beat-container">
@@ -99,7 +102,7 @@
       </div>
     {% endfor %}
   {% else %}
-    <p style="color:#555;font-size:13px;">No recent stories tagged to this beat yet — check back soon.</p>
+    <p class="wtf-beat-empty">No recent stories tagged to this beat yet — check back soon.</p>
   {% endif %}
 
   <!-- Paywall CTA (non-subscribers only) -->
@@ -121,7 +124,7 @@
         Subscribe for $2/mo CAD — {{ beat.name }}
       </a>
       <div class="wtf-paywall-note">
-        Already have a full subscription? <a href="/login" style="color:#0af;">Sign in</a> to access all beats.
+        Already have a full subscription? <a href="/login" class="wtf-paywall-signin">Sign in</a> to access all beats.
       </div>
     </div>
   {% endif %}

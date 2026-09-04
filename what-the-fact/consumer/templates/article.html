@@ -34,6 +34,23 @@
 <meta name="twitter:description" content="{{ _desc }}">
 {% endblock %}
 {% block content %}
+{# Two of this page's paywall CTAs are byte-identical, two more share a class
+   and differ only in label — extracted here to stop the drift risk of hand-
+   editing 4 copies. The other 3 CTAs on this page are genuinely NOT
+   duplicates (different classes/text/targets) and are left as literals.
+   None of the 7 converge onto _archetypes.html's paywall() macro: that
+   macro's CTA always targets /login?next=<current_page>, but this page's
+   subscribe links correctly go straight to /billing/checkout/starter, which
+   already self-redirects through login for anonymous visitors
+   (consumer/billing.py checkout()) and drops straight to Stripe for
+   logged-in ones — routing through the macro would send a subscribing
+   reader back to the article after login instead of on to checkout. #}
+{% macro deep_dive_subscribe_cta() -%}
+<a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
+{%- endmacro %}
+{% macro deep_dive_signin_cta(next_url, label) -%}
+<a href="/login?next={{ next_url }}" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; {{ label }}</a>
+{%- endmacro %}
 <style>
 /* Article page — dark theme */
 .wtf-art-container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
@@ -651,14 +668,14 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       <div class="wtf-byline wtf-art-byline-local">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
       {% else %}
       <div class="wtf-byline wtf-art-byline-quick">&#x26A1; Quick Score &mdash; full analysis ready</div>
-      <a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
+      {{ deep_dive_subscribe_cta() }}
       {% endif %}
     {% elif a.analysis_tier == 'quick_v1' %}
       <div class="wtf-byline wtf-art-byline-tier1">&#x26A1; Tier 1 &mdash; quick triage (band + claims via qwen2.5:1.5b)</div>
       {% if is_subscriber %}
       <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="upgradeTier2({{ a.id }})">&#x1F50D; Upgrade to Full Analysis &mdash; B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts</button>
       {% else %}
-      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Sign in to Upgrade</a>
+      {{ deep_dive_signin_cta('/article/' ~ a.id, 'Sign in to Upgrade') }}
       {% endif %}
     {% elif a.ai_analyzed %}
       {% if is_subscriber %}
@@ -667,14 +684,14 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       <div class="wtf-byline wtf-art-byline-local">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
       {% else %}
       <div class="wtf-byline wtf-art-byline-quick">&#x26A1; Quick Score &mdash; full analysis ready</div>
-      <a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
+      {{ deep_dive_subscribe_cta() }}
       {% endif %}
     {% else %}
       <div class="wtf-byline wtf-art-byline-quick">&#x26A1; Quick Score &mdash; not yet AI analyzed</div>
       {% if is_subscriber %}
       <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="deepDive({{ a.id }})">&#x1F50D; Deep Dive &mdash; Full AI Analysis</button>
       {% else %}
-      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Sign in to Deep Dive</a>
+      {{ deep_dive_signin_cta('/article/' ~ a.id, 'Sign in to Deep Dive') }}
       {% endif %}
     {% endif %}
   </div>

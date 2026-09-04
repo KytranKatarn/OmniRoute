@@ -5,6 +5,22 @@
 <meta name="description" content="Canada's 8 Officers of Parliament — independent accountability watchdogs including the Auditor General, Ethics Commissioner, and Commissioner of Lobbying.">
 {% endblock %}
 {% block content %}
+<style>
+{# Design-handoff Phase 6 scoping: own <style> block. Zero hex-color literals
+   anywhere on this page — every value already routes through a --wtf-*
+   token (border/bg/text/font-serif), so there is nothing to check against
+   style.css for an exact match. 'Orbitron' is not referenced anywhere in
+   this template either (the comment two lines down describes the OLD
+   bespoke block this file replaced, not current code) — nothing to
+   tokenize. This pass is purely a value-preserving inline-style extraction
+   into wtf-of-* classes. #}
+.wtf-of-head { padding:16px 0; border-bottom:1px solid var(--wtf-border); margin-bottom:20px; }
+.wtf-of-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; margin:0 0 4px; }
+.wtf-of-sub { margin:0; max-width:70ch; }
+.wtf-of-about { margin-top:28px; padding:16px 18px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; }
+.wtf-of-about-label { margin-bottom:8px; }
+.wtf-of-about-body { font-size:13px; color:var(--wtf-text-2); line-height:1.75; margin:0 0 12px; }
+</style>
 {# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY), record-card variant.
    Was a bespoke .wtf-off-* block: 20 hardcoded hexes, an 'Orbitron' heading (a
    font this site has never loaded, so it rendered as generic sans), an emoji
@@ -28,9 +44,9 @@
   'market-watch': 'Market Watch'
 } %}
 
-<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:20px;">
-  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Officers of Parliament</h1>
-  <p class="wtf-a-tile-d" style="margin:0;max-width:70ch;">
+<div class="wtf-of-head">
+  <h1 class="wtf-of-title">Officers of Parliament</h1>
+  <p class="wtf-a-tile-d wtf-of-sub">
     {{ officers|length }} independent watchdogs who report directly to Parliament — not to the government of the day.
     Their findings and rulings are among the most consequential accountability events in Canada.
   </p>
@@ -74,9 +90,9 @@
      next_url='/parliament/officers') }}
 {% endif %}
 
-<div style="margin-top:28px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
-  <div class="wtf-a-tile-l" style="margin-bottom:8px;">Why Officers of Parliament matter</div>
-  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
+<div class="wtf-of-about">
+  <div class="wtf-a-tile-l wtf-of-about-label">Why Officers of Parliament matter</div>
+  <p class="wtf-of-about-body">
     Unlike ministers or departments, Officers of Parliament serve fixed terms and cannot be removed by the Prime Minister.
     They report directly to the House of Commons or Senate — creating a firewall between their findings and political interference.
     When the Auditor General flags waste, or the Ethics Commissioner rules on a conflict of interest, it becomes a formal parliamentary record.

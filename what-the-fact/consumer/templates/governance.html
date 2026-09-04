@@ -58,6 +58,39 @@
 
 .wtf-gv-footnote { color:#4b5563; font-size:0.65rem; line-height:1.7; }
 .wtf-gv-unavailable { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:20px; color:#6b7280; font-size:0.78rem; }
+
+/* "The scale the badge uses" + "How this newsroom participates" — ported from
+   design-handoff/wtf-governance.html's two STATIC sections only (#gv-scale's
+   band list + the 4-card participation grid). The design's other two missing
+   sections ("Why the grade is failing" and "Recent governance events") are
+   deliberately NOT ported: both are built from an explicitly-fabricated sample
+   SCAN/EVENTS fallback in the design file's own JS, not from anything
+   `_fetch_creed_scan()` actually returns — there is no live per-event feed to
+   read, and inventing a "why" narrative for whichever pillar is lowest would
+   be exactly the kind of fabrication this rollout has avoided everywhere else
+   (see weather_city.html's dropped hourly/AQI/sun-moon sections for the same
+   discipline). The badge thresholds and rule-pack count below ARE real and
+   match .claude/rules/security-network.md / compliance-standards.md verbatim
+   (5 rule packs, 51+30+30+27+40=178 rules, 6h scan cadence). */
+.wtf-gv-panel { border:1px solid #1a2a3a; border-radius:4px; padding:16px 18px; margin-top:16px; }
+.wtf-gv-panel-label { font-size:0.55rem; letter-spacing:2px; color:#4b5563; text-transform:uppercase; margin:0 0 12px; }
+.wtf-gv-scale-row { display:flex; flex-wrap:wrap; gap:8px; }
+.wtf-gv-scale-pill { display:inline-flex; align-items:center; gap:7px; font-family:var(--wtf-font-mono); font-size:10px; padding:5px 11px; border-radius:999px; border:1px solid #1a2a3a; color:#6b7280; }
+.wtf-gv-scale-pill.is-current.is-green  { border-color:var(--wtf-established); color:var(--wtf-established); }
+.wtf-gv-scale-pill.is-current.is-blue   { border-color:var(--wtf-local);       color:var(--wtf-local); }
+.wtf-gv-scale-pill.is-current.is-yellow { border-color:var(--wtf-developing);  color:var(--wtf-developing); }
+.wtf-gv-scale-pill.is-current.is-red    { border-color:var(--wtf-contested);   color:var(--wtf-contested); }
+.wtf-gv-scale-dot { width:8px; height:8px; border-radius:50%; background:#6b7280; }
+.wtf-gv-scale-pill.is-green  .wtf-gv-scale-dot { background:var(--wtf-established); }
+.wtf-gv-scale-pill.is-blue   .wtf-gv-scale-dot { background:var(--wtf-local); }
+.wtf-gv-scale-pill.is-yellow .wtf-gv-scale-dot { background:var(--wtf-developing); }
+.wtf-gv-scale-pill.is-red    .wtf-gv-scale-dot { background:var(--wtf-contested); }
+.wtf-gv-scale-note { margin-top:10px; color:#6b7280; font-size:0.7rem; line-height:1.7; }
+.wtf-gv-part-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+.wtf-gv-part-card { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; }
+.wtf-gv-part-head { color:#9ca3af; font-size:0.72rem; font-weight:600; margin-bottom:5px; }
+.wtf-gv-part-note { color:#6b7280; font-size:0.68rem; line-height:1.6; }
+.wtf-gv-part-links { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
 </style>
 
 <div class="wtf-gv-wrap">
@@ -121,6 +154,52 @@
     Watch the agents work live on the <a href="/activity" class="wtf-gv-link">Activity Log</a> ·
     Meet the team on <a href="/team" class="wtf-gv-link">Team</a>.
   </p>
+
+  {% set gv_bands = [('≥ 90%', 'Green', 'is-green', 90), ('≥ 80%', 'Blue', 'is-blue', 80), ('≥ 70%', 'Yellow', 'is-yellow', 70), ('< 60%', 'Red', 'is-red', 0)] %}
+  {% set gv_current = (['is-green'] if scan.overall >= 90 else ['is-blue'] if scan.overall >= 80 else ['is-yellow'] if scan.overall >= 70 else ['is-red'])[0] %}
+  <div class="wtf-gv-panel">
+    <div class="wtf-gv-panel-label">The scale the badge uses · C.R.E.E.D.'s published thresholds</div>
+    <div class="wtf-gv-scale-row">
+      {% for label, name, cls, _min in gv_bands %}
+      <span class="wtf-gv-scale-pill {{ cls }}{{ ' is-current' if cls == gv_current else '' }}">
+        <i class="wtf-gv-scale-dot"></i>{{ name }} {{ label }}{{ ' · current' if cls == gv_current else '' }}
+      </span>
+      {% endfor %}
+    </div>
+    <p class="wtf-gv-scale-note">
+      Badge colour is set by C.R.E.E.D. from the score, not by us: green at 90% and above, blue
+      at 80%, yellow at 70%, red below 60%. The scan runs every six hours against 178 compliance
+      rules in five rule packs; every result is public through a no-auth API, which is how a
+      reader can check the figure on this page against the source.
+    </p>
+  </div>
+
+  <div class="wtf-gv-panel">
+    <div class="wtf-gv-panel-label">How this newsroom participates</div>
+    <div class="wtf-gv-part-grid">
+      <div class="wtf-gv-part-card">
+        <div class="wtf-gv-part-head">Every action emits an event</div>
+        <div class="wtf-gv-part-note">Bias scores, verdicts, summaries and publishes each send a governance event to C.R.E.E.D., where it is scored against the rule packs. Nothing is sampled.</div>
+      </div>
+      <div class="wtf-gv-part-card">
+        <div class="wtf-gv-part-head">Every agent publishes a model card</div>
+        <div class="wtf-gv-part-note">B.I.A.S., V.E.R.I.F.Y., D.R.A.F.T. and the rest disclose their model, prompt and known limitations, so a reader sees which system shaped a story and how it can fail.</div>
+      </div>
+      <div class="wtf-gv-part-card">
+        <div class="wtf-gv-part-head">Method is disclosed, not just results</div>
+        <div class="wtf-gv-part-note">Lean scoring follows a published methodology with outlet-level and article-level breakdowns, so the public can challenge the scoring itself — the standard C.R.E.E.D. asks of every monitored system.</div>
+      </div>
+      <div class="wtf-gv-part-card">
+        <div class="wtf-gv-part-head">The grade is theirs, and it is public</div>
+        <div class="wtf-gv-part-note">C.R.E.E.D. scores the <code class="wtf-gv-code">what-the-fact</code> organization; we display the result. A failing pillar stays on the page until the events say otherwise.</div>
+      </div>
+    </div>
+    <div class="wtf-gv-part-links">
+      <a href="/creed" class="wtf-gv-link">About C.R.E.E.D. →</a>
+      <a href="https://creed-ai.org" target="_blank" rel="noopener" class="wtf-gv-footnote">creed-ai.org ↗</a>
+      <a href="/activity" class="wtf-gv-footnote">Activity log →</a>
+    </div>
+  </div>
   {% else %}
   <div class="wtf-gv-unavailable">
     Governance data is temporarily unavailable — the C.R.E.E.D. scoring service could not be

@@ -12,7 +12,7 @@
 .wtf-mp-hero-photo { width:96px; height:96px; border-radius:50%; object-fit:cover; background:#0a1520; border:2px solid #1a3a5a; flex-shrink:0; }
 .wtf-mp-hero-placeholder { width:96px; height:96px; border-radius:50%; background:#0a1520; border:2px solid #1a3a5a; display:flex; align-items:center; justify-content:center; font-size:40px; color:#374151; flex-shrink:0; }
 .wtf-mp-hero-info { flex:1; min-width:200px; }
-.wtf-mp-hero-name { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 8px; }
+.wtf-mp-hero-name { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 8px; }
 .wtf-mp-hero-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
 .wtf-mp-party-pill { font-size:11px; padding:3px 10px; border-radius:10px; font-weight:600; }
 .wtf-mp-hero-riding { font-size:12px; color:#9ca3af; }
@@ -22,7 +22,7 @@
 
 .wtf-mp-stats-row { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
 .wtf-mp-stat { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:10px 14px; text-align:center; min-width:80px; }
-.wtf-mp-stat-num { font-size:22px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+.wtf-mp-stat-num { font-size:22px; font-weight:700; font-family:var(--wtf-font-mono); }
 .wtf-mp-stat-label { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
 
 .wtf-mp-section { margin-bottom:24px; }
@@ -49,29 +49,121 @@
 
 .wtf-vote-bar { height:6px; border-radius:3px; background:#0a1520; position:relative; overflow:hidden; margin-bottom:6px; }
 .wtf-vote-bar-yes { height:100%; background:#22c55e; border-radius:3px; position:absolute; left:0; top:0; }
+
+/* Extracted from inline style="" — value-preserving unless noted (token migration pass) */
+.wtf-mp-back { font-size:11px; color:#6b7280; margin-bottom:4px; }
+.wtf-mp-back-link { color:#6b7280; text-decoration:none; }
+.wtf-mp-province { font-size:11px; color:#6b7280; }
+/* NOT swapped to var(--wtf-developing): this is a cabinet-role badge, not a
+   fact-check verdict chip — that token's documented usage (style.css) is
+   "verdict chips, informative, never a score" and is semantically owned by
+   the established/developing/contested trio elsewhere in the app. */
+.wtf-mp-cabinet-badge { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:600; background:#78350f22; color:#f59e0b; border:1px solid #78350f66; }
+
+.wtf-mp-stat-yes { color:#22c55e; }
+.wtf-mp-stat-no { color:#ef4444; }
+/* NOT swapped to var(--wtf-developing) — this is a vote-tally NUMBER, and the
+   token is explicitly documented "never a score" (style.css). Same trap as
+   the /literacy.html precedent this session. */
+.wtf-mp-stat-paired { color:#f59e0b; }
+.wtf-mp-stat-total { color:#9ca3af; }
+.wtf-mp-stat-media { color:#0af; }
+
+.wtf-mp-yesrate { margin-bottom:16px; }
+.wtf-mp-yesrate-label { font-size:10px; color:#6b7280; margin-bottom:4px; }
+
+.wtf-mp-cost-loading { font-size:12px; color:#9ca3af; }
+
+.wtf-mp-chip-row { display:flex; flex-wrap:wrap; gap:8px; }
+.wtf-mp-chip-link { background:#0a1520; border:1px solid #1a3a5a; border-radius:3px; padding:5px 12px; font-size:11px; color:#9ca3af; text-decoration:none; }
+.wtf-mp-chip-role { color:#0af; }
+.wtf-mp-chip-arrow { color:#4b5563; margin-left:4px; }
+
+.wtf-mp-source { font-size:9px; color:#374151; margin-top:8px; }
+.wtf-mp-source-link { color:#374151; }
+.wtf-mp-source-inherit { color:inherit; text-decoration:none; }
+
+.wtf-mp-vote-body { flex:1; }
+.wtf-mp-bill-num { font-size:10px; color:#6b7280; margin-left:6px; }
+
+.wtf-mp-votes-empty { color:#6b7280; font-size:12px; padding:20px 0; }
+.wtf-mp-articles-empty { color:#6b7280; font-size:12px; padding:16px 0; }
+.wtf-mp-funding-empty { color:#6b7280; font-size:12px; padding:12px 0; }
+
+.wtf-mp-note { margin-top:10px; font-size:11px; color:#6b7280; }
+
+.wtf-mp-funding-block { margin-bottom:14px; }
+.wtf-mp-funding-label { font-size:10px; color:#6b7280; margin-bottom:8px; }
+.wtf-mp-funding-note { color:#4b5563; }
+.wtf-mp-funding-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid #060d14; font-size:11px; }
+.wtf-mp-funding-right { text-align:right; }
+.wtf-mp-funding-amount { color:#22c55e; font-family:var(--wtf-font-mono); }
+
+.wtf-mp-donor-row { display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-bottom:1px solid #060d14; font-size:11px; }
+/* NOT swapped to var(--wtf-developing) — this is a donation-amount FIGURE
+   ("never a score" per the token's own comment in style.css). */
+.wtf-mp-donor-amount { color:#f59e0b; font-family:var(--wtf-font-mono); flex-shrink:0; margin-left:10px; }
+
+.wtf-mp-t-ccc { color:#ccc; }
+.wtf-mp-t-dim { font-size:9px; color:#4b5563; margin-left:6px; }
+
+.wtf-mp-table-wrap { overflow-x:auto; }
+.wtf-mp-table { width:100%; border-collapse:collapse; font-size:11px; }
+.wtf-mp-thead-row { color:#6b7280; text-align:left; border-bottom:1px solid #1a3a5a; }
+.wtf-mp-th { padding:4px 8px 8px 0; }
+.wtf-mp-th-r { padding:4px 8px 8px 0; text-align:right; }
+.wtf-mp-th-r-last { padding:4px 0 8px 0; text-align:right; }
+.wtf-mp-tr { border-bottom:1px solid #060d14; }
+.wtf-mp-td-date { padding:6px 8px 6px 0; color:#6b7280; white-space:nowrap; }
+.wtf-mp-td-name { padding:6px 8px 6px 0; color:#e5e7eb; }
+.wtf-mp-td-org { padding:6px 0; color:#9ca3af; }
+.wtf-mp-org-link { color:#60a5fa; text-decoration:none; }
+.wtf-mp-td-period { padding:6px 8px 6px 0; color:#9ca3af; }
+.wtf-mp-td-num { padding:6px 8px 6px 0; color:#e5e7eb; text-align:right; }
+.wtf-mp-td-total { padding:6px 0; color:#0af; text-align:right; font-weight:600; }
+
+.wtf-mp-promises-note { font-size:10px; color:#6b7280; margin-bottom:10px; }
+/* Card border-left colour stays inline — it is chosen per-promise from
+   p.status (kept/broken/partial/unknown) via a Jinja if/elif chain, a
+   genuinely dynamic per-iteration value. Static siblings extracted here. */
+.wtf-mp-promise-card { background:#060d14; border-left-width:3px; border-left-style:solid; padding:10px 12px; margin-bottom:8px; border-radius:0 3px 3px 0; }
+.wtf-mp-promise-text { font-size:12px; color:#e5e7eb; line-height:1.6; }
+.wtf-mp-promise-meta { font-size:10px; color:#4b5563; margin-top:4px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+/* Chip background/colour stay inline (same per-status Jinja chain as above). */
+.wtf-mp-promise-chip { padding:1px 6px; border-radius:3px; font-size:9px; }
+.wtf-mp-promise-source-link { color:#0af; text-decoration:none; }
+
+.wtf-mp-hidden { display:none; }
+
+.wtf-mp-paywall { background:#0a0505; border:1px solid #1f2937; border-radius:8px; padding:24px; text-align:center; margin:20px 0; }
+.wtf-mp-paywall-title { font-family:var(--wtf-font-mono); font-size:13px; color:#e5e7eb; margin-bottom:8px; }
+.wtf-mp-paywall-blurb { font-size:12px; color:#9ca3af; margin-bottom:16px; }
+.wtf-mp-paywall-cta { display:inline-block; background:#ef4444; color:#fff; font-size:12px; font-weight:700; padding:10px 24px; border-radius:4px; text-decoration:none; }
+.wtf-mp-paywall-plans-wrap { margin-top:12px; }
+.wtf-mp-paywall-plans-link { font-size:11px; color:#6b7280; text-decoration:none; }
 </style>
 
 <div class="wtf-mp-header">
   {% if mp.photo_url %}
   <img class="wtf-mp-hero-photo" src="{{ mp.photo_url }}" alt="{{ mp.name }}"
        onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-  <div class="wtf-mp-hero-placeholder" style="display:none;">👤</div>
+  <div class="wtf-mp-hero-placeholder wtf-mp-hidden">👤</div>
   {% else %}
   <div class="wtf-mp-hero-placeholder">👤</div>
   {% endif %}
 
   <div class="wtf-mp-hero-info">
-    <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">← <a href="/mps" style="color:#6b7280;text-decoration:none;">All MPs</a></div>
+    <div class="wtf-mp-back">← <a href="/mps" class="wtf-mp-back-link">All MPs</a></div>
     <h1 class="wtf-mp-hero-name">{{ mp.name }}</h1>
     <div class="wtf-mp-hero-meta">
       <span class="wtf-mp-party-pill" style="background:{{ mp.party_colour }}22;color:{{ mp.party_colour }};border:1px solid {{ mp.party_colour }}44;">
         {{ mp.party or 'Independent' }}
       </span>
       {% if mp.province_code %}
-      <span style="font-size:11px;color:#6b7280;">{{ mp.province_code }}</span>
+      <span class="wtf-mp-province">{{ mp.province_code }}</span>
       {% endif %}
       {% if mp.cabinet_role %}
-      <span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;background:#78350f22;color:#f59e0b;border:1px solid #78350f66;">
+      <span class="wtf-mp-cabinet-badge">
         {{ mp.cabinet_role }}
       </span>
       {% endif %}
@@ -97,32 +189,32 @@
 {% set yes_pct = ((yes_count / total_votes * 100) | round | int) if total_votes else 0 %}
 <div class="wtf-mp-stats-row">
   <div class="wtf-mp-stat">
-    <div class="wtf-mp-stat-num" style="color:#22c55e;">{{ yes_count }}</div>
+    <div class="wtf-mp-stat-num wtf-mp-stat-yes">{{ yes_count }}</div>
     <div class="wtf-mp-stat-label">Voted Yes</div>
   </div>
   <div class="wtf-mp-stat">
-    <div class="wtf-mp-stat-num" style="color:#ef4444;">{{ no_count }}</div>
+    <div class="wtf-mp-stat-num wtf-mp-stat-no">{{ no_count }}</div>
     <div class="wtf-mp-stat-label">Voted No</div>
   </div>
   {% if stats.get('Paired') %}
   <div class="wtf-mp-stat">
-    <div class="wtf-mp-stat-num" style="color:#f59e0b;">{{ stats.get('Paired', 0) }}</div>
+    <div class="wtf-mp-stat-num wtf-mp-stat-paired">{{ stats.get('Paired', 0) }}</div>
     <div class="wtf-mp-stat-label">Paired</div>
   </div>
   {% endif %}
   <div class="wtf-mp-stat">
-    <div class="wtf-mp-stat-num" style="color:#9ca3af;">{{ total_votes }}</div>
+    <div class="wtf-mp-stat-num wtf-mp-stat-total">{{ total_votes }}</div>
     <div class="wtf-mp-stat-label">Total Votes</div>
   </div>
   <div class="wtf-mp-stat">
-    <div class="wtf-mp-stat-num" style="color:#0af;">{{ articles|length }}</div>
+    <div class="wtf-mp-stat-num wtf-mp-stat-media">{{ articles|length }}</div>
     <div class="wtf-mp-stat-label">Media mentions</div>
   </div>
 </div>
 
 {% if total_votes %}
-<div style="margin-bottom:16px;">
-  <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Yes rate — {{ yes_pct }}%</div>
+<div class="wtf-mp-yesrate">
+  <div class="wtf-mp-yesrate-label">Yes rate — {{ yes_pct }}%</div>
   <div class="wtf-vote-bar">
     <div class="wtf-vote-bar-yes" style="width:{{ yes_pct }}%;"></div>
   </div>
@@ -133,7 +225,7 @@
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">💵 Cost to taxpayers — approximate</div>
   <div data-cost-member data-kind="mp" data-id="{{ mp.id }}"
-       style="font-size:12px;color:#9ca3af;">Loading cost figures…</div>
+       class="wtf-mp-cost-loading">Loading cost figures…</div>
 </div>
 <script src="{{ url_for('static', filename='js/cost.js') }}"></script>
 
@@ -144,17 +236,17 @@
 {% if committees %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">🏛 House committees — current memberships</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+  <div class="wtf-mp-chip-row">
     {% for cm in committees %}
     <a href="https://www.ourcommons.ca/Committees/en/{{ cm.committee_abbr }}" target="_blank" rel="noopener"
-       style="background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 12px;font-size:11px;color:#9ca3af;text-decoration:none;">
-      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span style="color:#0af;">{{ cm.role|capitalize }}</span>{% endif %}
-      <span style="color:#4b5563;margin-left:4px;">↗</span>
+       class="wtf-mp-chip-link">
+      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span class="wtf-mp-chip-role">{{ cm.role|capitalize }}</span>{% endif %}
+      <span class="wtf-mp-chip-arrow">↗</span>
     </a>
     {% endfor %}
   </div>
-  <div style="font-size:9px;color:#374151;margin-top:8px;">
-    Source: House of Commons · <a href="https://www.ourcommons.ca/Committees/en/List" target="_blank" rel="noopener" style="color:#374151;">ourcommons.ca/Committees</a>
+  <div class="wtf-mp-source">
+    Source: House of Commons · <a href="https://www.ourcommons.ca/Committees/en/List" target="_blank" rel="noopener" class="wtf-mp-source-link">ourcommons.ca/Committees</a>
   </div>
 </div>
 {% endif %}
@@ -173,11 +265,11 @@
     {% set ballot_icon = '✓' if v.ballot == 'Yes' else '✗' if v.ballot == 'No' else '⇌' if v.ballot == 'Paired' else '—' %}
     <div class="wtf-vote-row">
       <div class="wtf-vote-ballot {{ ballot_class }}" title="{{ v.ballot }}">{{ ballot_icon }}</div>
-      <div style="flex:1;">
+      <div class="wtf-mp-vote-body">
         <div class="wtf-vote-desc">
           {{ (v.description_en or 'Motion')[:140] }}{% if (v.description_en or '')|length > 140 %}…{% endif %}
           {% if v.bill_number %}
-          <span style="font-size:10px;color:#6b7280;margin-left:6px;">{{ v.bill_number }}</span>
+          <span class="wtf-mp-bill-num">{{ v.bill_number }}</span>
           {% endif %}
         </div>
         <div class="wtf-vote-meta">
@@ -194,7 +286,7 @@
     </div>
     {% endfor %}
   {% else %}
-  <div style="color:#6b7280;font-size:12px;padding:20px 0;">
+  <div class="wtf-mp-votes-empty">
     Vote ballots load on the first Sunday sync. Check back soon.
   </div>
   {% endif %}
@@ -211,16 +303,16 @@
       <div class="wtf-mp-article-info">
         <a class="wtf-mp-article-title" href="/article/{{ a.id }}">{{ a.title or 'Untitled' }}</a>
         <div class="wtf-mp-article-meta">
-          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
+          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" class="wtf-mp-source-inherit">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
           {% if a.published_at %}· {{ a.published_at.strftime('%b %-d') if a.published_at.strftime is defined else (a.published_at or '')[:10] }}{% endif %}
           {% if a.bias_band %}· <span style="color:{{ BAND_COLOURS.get(a.bias_band, '#6b7280') }};">{{ a.bias_band.replace('-',' ') }}</span>{% endif %}
         </div>
       </div>
     </div>
     {% endfor %}
-    <div style="margin-top:10px;font-size:11px;color:#6b7280;">Article tagging improves weekly as more articles are analyzed.</div>
+    <div class="wtf-mp-note">Article tagging improves weekly as more articles are analyzed.</div>
   {% else %}
-  <div style="color:#6b7280;font-size:12px;padding:16px 0;">
+  <div class="wtf-mp-articles-empty">
     No articles linked yet — article tagging runs weekly. Check back after the next Sunday sync.
   </div>
   {% endif %}
@@ -232,20 +324,20 @@
   <div class="wtf-mp-section-title">💰 Riding funding — Elections Canada data</div>
 
   {% if riding_donor_totals %}
-  <div style="margin-bottom:14px;">
-    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Total raised by {{ mp.riding_name or 'riding' }} association + candidate
-      <span style="color:#4b5563;">· association returns are annual — the current year appears once Elections Canada publishes it</span></div>
+  <div class="wtf-mp-funding-block">
+    <div class="wtf-mp-funding-label">Total raised by {{ mp.riding_name or 'riding' }} association + candidate
+      <span class="wtf-mp-funding-note">· association returns are annual — the current year appears once Elections Canada publishes it</span></div>
     {% for r in riding_donor_totals %}
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #060d14;font-size:11px;">
+    <div class="wtf-mp-funding-row">
       <div>
-        <span style="color:#ccc;">{{ r.electoral_event or '—' }}</span>
-        <span style="font-size:9px;color:#4b5563;margin-left:6px;">{{ r.political_entity }}</span>
+        <span class="wtf-mp-t-ccc">{{ r.electoral_event or '—' }}</span>
+        <span class="wtf-mp-t-dim">{{ r.political_entity }}</span>
       </div>
-      <div style="text-align:right;">
-        <span style="color:#22c55e;font-family:'IBM Plex Mono',monospace;">
+      <div class="wtf-mp-funding-right">
+        <span class="wtf-mp-funding-amount">
           ${{ "{:,.0f}".format(r.total_raised | float) }}
         </span>
-        <span style="font-size:9px;color:#4b5563;margin-left:6px;">{{ r.donation_count }} donations</span>
+        <span class="wtf-mp-t-dim">{{ r.donation_count }} donations</span>
       </div>
     </div>
     {% endfor %}
@@ -254,23 +346,23 @@
 
   {% if top_named_donors %}
   <div>
-    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">
+    <div class="wtf-mp-funding-label">
       Named individual donors (≥$200) — Elections Canada public disclosure
     </div>
     {% for d in top_named_donors %}
-    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid #060d14;font-size:11px;">
+    <div class="wtf-mp-donor-row">
       <div>
-        <span style="color:#ccc;">{{ d.contributor_name }}</span>
+        <span class="wtf-mp-t-ccc">{{ d.contributor_name }}</span>
         {% if d.contributor_city %}
-        <span style="font-size:9px;color:#4b5563;margin-left:6px;">{{ d.contributor_city }}{% if d.contributor_province %}, {{ d.contributor_province }}{% endif %}</span>
+        <span class="wtf-mp-t-dim">{{ d.contributor_city }}{% if d.contributor_province %}, {{ d.contributor_province }}{% endif %}</span>
         {% endif %}
       </div>
-      <span style="color:#f59e0b;font-family:'IBM Plex Mono',monospace;flex-shrink:0;margin-left:10px;">
+      <span class="wtf-mp-donor-amount">
         ${{ "{:,.0f}".format(d.total_given | float) }}
       </span>
     </div>
     {% endfor %}
-    <div style="font-size:9px;color:#374151;margin-top:8px;">
+    <div class="wtf-mp-source">
       Source: Elections Canada Open Data · Donations &lt;$200 are anonymized by law.
     </div>
   </div>
@@ -279,7 +371,7 @@
 {% else %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">💰 Riding funding</div>
-  <div style="color:#6b7280;font-size:12px;padding:12px 0;">
+  <div class="wtf-mp-funding-empty">
     Elections Canada donation data loads on the first Sunday sync.
   </div>
 </div>
@@ -288,34 +380,34 @@
 {% if lobbying_contacts %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">🏢 Lobbying contacts — who has met with this MP</div>
-  <div style="overflow-x:auto;">
-  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+  <div class="wtf-mp-table-wrap">
+  <table class="wtf-mp-table">
     <thead>
-      <tr style="color:#6b7280;text-align:left;border-bottom:1px solid #1a3a5a;">
-        <th style="padding:4px 8px 8px 0;">Date</th>
-        <th style="padding:4px 8px 8px 0;">Lobbyist</th>
-        <th style="padding:4px 8px 8px 0;">Organization</th>
+      <tr class="wtf-mp-thead-row">
+        <th class="wtf-mp-th">Date</th>
+        <th class="wtf-mp-th">Lobbyist</th>
+        <th class="wtf-mp-th">Organization</th>
       </tr>
     </thead>
     <tbody>
       {% for lc in lobbying_contacts %}
-      <tr style="border-bottom:1px solid #060d14;">
-        <td style="padding:6px 8px 6px 0;color:#6b7280;white-space:nowrap;">
+      <tr class="wtf-mp-tr">
+        <td class="wtf-mp-td-date">
           {{ lc.communication_date.strftime('%b %-d, %Y') if lc.communication_date else '—' }}
         </td>
-        <td style="padding:6px 8px 6px 0;color:#e5e7eb;">
+        <td class="wtf-mp-td-name">
           {{ lc.lobbyist_first }} {{ lc.lobbyist_last }}
         </td>
-        <td style="padding:6px 0;color:#9ca3af;">
-          {% if lc.client_org %}<a href="/lobbying?org={{ lc.client_org | upper | trim | urlencode }}" style="color:#60a5fa;text-decoration:none;">{{ lc.client_org[:60] }}</a>{% endif %}
+        <td class="wtf-mp-td-org">
+          {% if lc.client_org %}<a href="/lobbying?org={{ lc.client_org | upper | trim | urlencode }}" class="wtf-mp-org-link">{{ lc.client_org[:60] }}</a>{% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
   </div>
-  <div style="font-size:9px;color:#374151;margin-top:8px;">
-    Source: Office of the Commissioner of Lobbying of Canada · <a href="https://lobbycanada.gc.ca" target="_blank" rel="noopener" style="color:#374151;">lobbycanada.gc.ca</a>
+  <div class="wtf-mp-source">
+    Source: Office of the Commissioner of Lobbying of Canada · <a href="https://lobbycanada.gc.ca" target="_blank" rel="noopener" class="wtf-mp-source-link">lobbycanada.gc.ca</a>
   </div>
 </div>
 {% endif %}
@@ -323,31 +415,31 @@
 {% if expense_periods %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">💳 Quarterly expenses — public money spent</div>
-  <div style="overflow-x:auto;">
-  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+  <div class="wtf-mp-table-wrap">
+  <table class="wtf-mp-table">
     <thead>
-      <tr style="color:#6b7280;text-align:left;border-bottom:1px solid #1a3a5a;">
-        <th style="padding:4px 8px 8px 0;">Period</th>
-        <th style="padding:4px 8px 8px 0;text-align:right;">Travel</th>
-        <th style="padding:4px 8px 8px 0;text-align:right;">Hospitality</th>
-        <th style="padding:4px 8px 8px 0;text-align:right;">Contracts</th>
-        <th style="padding:4px 0 8px 0;text-align:right;">Total</th>
+      <tr class="wtf-mp-thead-row">
+        <th class="wtf-mp-th">Period</th>
+        <th class="wtf-mp-th-r">Travel</th>
+        <th class="wtf-mp-th-r">Hospitality</th>
+        <th class="wtf-mp-th-r">Contracts</th>
+        <th class="wtf-mp-th-r-last">Total</th>
       </tr>
     </thead>
     <tbody>
       {% for ep in expense_periods %}
-      <tr style="border-bottom:1px solid #060d14;">
-        <td style="padding:6px 8px 6px 0;color:#9ca3af;">{{ ep.period }}</td>
-        <td style="padding:6px 8px 6px 0;color:#e5e7eb;text-align:right;">
+      <tr class="wtf-mp-tr">
+        <td class="wtf-mp-td-period">{{ ep.period }}</td>
+        <td class="wtf-mp-td-num">
           {% if ep.travel_cad %}${{ '{:,.0f}'.format(ep.travel_cad) }}{% else %}—{% endif %}
         </td>
-        <td style="padding:6px 8px 6px 0;color:#e5e7eb;text-align:right;">
+        <td class="wtf-mp-td-num">
           {% if ep.hospitality_cad %}${{ '{:,.0f}'.format(ep.hospitality_cad) }}{% else %}—{% endif %}
         </td>
-        <td style="padding:6px 8px 6px 0;color:#e5e7eb;text-align:right;">
+        <td class="wtf-mp-td-num">
           {% if ep.contracts_cad %}${{ '{:,.0f}'.format(ep.contracts_cad) }}{% else %}—{% endif %}
         </td>
-        <td style="padding:6px 0;color:#0af;text-align:right;font-weight:600;">
+        <td class="wtf-mp-td-total">
           {% if ep.total_cad %}${{ '{:,.0f}'.format(ep.total_cad) }}{% else %}—{% endif %}
         </td>
       </tr>
@@ -355,8 +447,8 @@
     </tbody>
   </table>
   </div>
-  <div style="font-size:9px;color:#374151;margin-top:8px;">
-    Source: Our Commons proactive disclosure · <a href="https://www.ourcommons.ca/ProactiveDisclosure/en/members" target="_blank" rel="noopener" style="color:#374151;">ourcommons.ca</a>
+  <div class="wtf-mp-source">
+    Source: Our Commons proactive disclosure · <a href="https://www.ourcommons.ca/ProactiveDisclosure/en/members" target="_blank" rel="noopener" class="wtf-mp-source-link">ourcommons.ca</a>
   </div>
 </div>
 {% endif %}
@@ -365,17 +457,17 @@
 {% if disclosures %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">⚖️ Ethics Commissioner — disclosure documents</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+  <div class="wtf-mp-chip-row">
     {% for d in disclosures %}
     <a href="{{ d.disclosure_url }}" target="_blank" rel="noopener"
-       style="background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 12px;font-size:11px;color:#9ca3af;text-decoration:none;">
+       class="wtf-mp-chip-link">
       {{ d.disclosure_type|capitalize }} {{ d.disclosure_year or '' }}
-      <span style="color:#4b5563;margin-left:4px;">↗</span>
+      <span class="wtf-mp-chip-arrow">↗</span>
     </a>
     {% endfor %}
   </div>
-  <div style="font-size:9px;color:#374151;margin-top:8px;">
-    Source: Conflict of Interest and Ethics Commissioner · <a href="https://www.ethicscanada.ca/en/public-registry" target="_blank" rel="noopener" style="color:#374151;">ethicscanada.ca</a>
+  <div class="wtf-mp-source">
+    Source: Conflict of Interest and Ethics Commissioner · <a href="https://www.ethicscanada.ca/en/public-registry" target="_blank" rel="noopener" class="wtf-mp-source-link">ethicscanada.ca</a>
   </div>
 </div>
 {% endif %}
@@ -383,23 +475,21 @@
 {% if promises %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">📋 Promise tracker — commitments detected in news</div>
-  <div style="font-size:10px;color:#6b7280;margin-bottom:10px;">Extracted from news articles using keyword detection. V.E.R.I.F.Y. scoring coming soon.</div>
+  <div class="wtf-mp-promises-note">Extracted from news articles using keyword detection. V.E.R.I.F.Y. scoring coming soon.</div>
   {% for p in promises %}
-  <div style="background:#060d14;border-left:3px solid
+  <div class="wtf-mp-promise-card" style="border-left-color:
     {% if p.status == 'kept' %}#22c55e
     {% elif p.status == 'broken' %}#ef4444
     {% elif p.status == 'partial' %}#f59e0b
-    {% else %}#374151{% endif %};
-    padding:10px 12px;margin-bottom:8px;border-radius:0 3px 3px 0;">
-    <div style="font-size:12px;color:#e5e7eb;line-height:1.6;">{{ p.promise_text }}</div>
-    <div style="font-size:10px;color:#4b5563;margin-top:4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-      <span style="background:{% if p.status == 'kept' %}#052e16{% elif p.status == 'broken' %}#3b0000{% elif p.status == 'partial' %}#1c1a00{% else %}#111{% endif %};
-            color:{% if p.status == 'kept' %}#22c55e{% elif p.status == 'broken' %}#ef4444{% elif p.status == 'partial' %}#f59e0b{% else %}#6b7280{% endif %};
-            padding:1px 6px;border-radius:3px;font-size:9px;">
+    {% else %}#374151{% endif %};">
+    <div class="wtf-mp-promise-text">{{ p.promise_text }}</div>
+    <div class="wtf-mp-promise-meta">
+      <span class="wtf-mp-promise-chip" style="background:{% if p.status == 'kept' %}#052e16{% elif p.status == 'broken' %}#3b0000{% elif p.status == 'partial' %}#1c1a00{% else %}#111{% endif %};
+            color:{% if p.status == 'kept' %}#22c55e{% elif p.status == 'broken' %}#ef4444{% elif p.status == 'partial' %}#f59e0b{% else %}#6b7280{% endif %};">
         {{ p.status|upper }}
       </span>
       {% if p.published_at %}<span>{{ p.published_at.strftime('%b %-d, %Y') }}</span>{% endif %}
-      {% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener nofollow" style="color:#0af;text-decoration:none;">Source ↗</a>{% endif %}
+      {% if p.source_url %}<a href="{{ p.source_url }}" target="_blank" rel="noopener nofollow" class="wtf-mp-promise-source-link">Source ↗</a>{% endif %}
     </div>
   </div>
   {% endfor %}
@@ -407,16 +497,22 @@
 {% endif %}
 
 {% else %}
-{# ── Paywall gate ─────────────────────────────────────────────────────── #}
-<div style="background:#0a0505;border:1px solid #1f2937;border-radius:8px;padding:24px;text-align:center;margin:20px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Full Profile — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">
+{# ── Paywall gate ─────────────────────────────────────────────────────────
+   Hand-rolled deliberately, NOT converged onto _archetypes.html's paywall()
+   macro: the blurb below contains a literal <br> line break, and the macro
+   renders its blurb argument through {{ blurb }} (Jinja auto-escaping) —
+   passing HTML through would print the literal text "<br>" instead of
+   breaking the line. Same shape as entity.html's decision this session not
+   to converge for the same reason. #}
+<div class="wtf-mp-paywall">
+  <div class="wtf-mp-paywall-title">🔒 Full Profile — Starter+</div>
+  <div class="wtf-mp-paywall-blurb">
     Voting record, media mentions, Elections Canada donor data, lobbying contacts,<br>
     quarterly expenses, and ethics disclosures are available to subscribers.
   </div>
-  <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:12px;">
-    <a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a>
+  <a href="/login?next={{ request.path }}" class="wtf-mp-paywall-cta">Unlock with Starter →</a>
+  <div class="wtf-mp-paywall-plans-wrap">
+    <a href="/join" class="wtf-mp-paywall-plans-link">See plans</a>
   </div>
 </div>
 {% endif %}

@@ -63,6 +63,28 @@
 .wtf-mps-senate-legend { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .wtf-mps-senate-source { font-size:9px; color:#374151; margin-top:8px; }
 .wtf-mps-senate-source-link { color:#4b0000; }
+
+/* Ridings tab (rd- sub-namespace, mirrors the design's own naming) — a
+   searchable riding->MP list built entirely from data mps_listing() already
+   fetches (parliament.mps.riding_name, 337/337 populated on the live
+   roster, measured 2026-09-04). This is DELIBERATELY smaller than
+   design-handoff/wtf-mps.html's Ridings tab, which wants a Lambert-
+   projection map of 338 riding boundary polygons plus postal-code search —
+   neither the boundary geometry nor a postal-code geocoder exists on this
+   platform, and the design's own prose admits its sample build has no
+   riding-to-member join either. That map+geocode version stays out of
+   scope (same blocker as the standalone /ridings page). This tab ships
+   only what's real: name the riding, name who holds it, right now. */
+.rd-search { width:100%; max-width:420px; background:#060d14; border:1px solid #1a3a5a; color:#e5e7eb; font-size:12px; padding:8px 12px; border-radius:4px; font-family:inherit; margin-bottom:14px; }
+.rd-search:focus { outline:none; border-color:#0af; }
+.rd-count { font-size:10px; color:#6b7280; margin-bottom:12px; }
+.rd-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:8px; }
+.rd-row { display:flex; align-items:center; gap:10px; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:9px 12px; text-decoration:none; transition:border-color .15s; }
+.rd-row:hover { border-color:#0af; }
+.rd-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.rd-riding { font-size:11px; color:#e5e7eb; font-weight:600; line-height:1.4; }
+.rd-mp { font-size:10px; color:#6b7280; line-height:1.4; }
+.rd-empty { color:#6b7280; font-size:12px; padding:30px 0; text-align:center; }
 </style>
 
 <div class="wtf-mps-header">
@@ -73,10 +95,11 @@
 <div class="wtf-mps-tabs">
   <button class="wtf-mps-tab active" onclick="wtfTab('hoc',this)">🏛 House of Commons</button>
   <button class="wtf-mps-tab" onclick="wtfTab('senate',this)">🔴 Senate</button>
+  <button class="wtf-mps-tab" onclick="wtfTab('ridings',this)">🗺 Ridings</button>
 </div>
 <script>
 function wtfTab(name, btn) {
-  ['hoc','senate','parties'].forEach(function(t){
+  ['hoc','senate','parties','ridings'].forEach(function(t){
     var el = document.getElementById('wtf-tab-'+t);
     if (el) el.style.display = t===name ? '' : 'none';
   });
@@ -616,6 +639,71 @@ function wtfShowSenatorCard(s, cx, cy) {
     chip.appendChild(dot);chip.appendChild(document.createTextNode((CAUCUS_LABELS[s.caucus]||s.caucus)+' ('+cnt+')'));
     legEl.appendChild(chip);
   });
+})();
+</script>
+
+<!-- Ridings Tab -->
+<div id="wtf-tab-ridings" style="display:none;">
+  <p class="wtf-mps-senate-desc" style="max-width:74ch">
+    Every federal riding with its current MP — {{ mps|length }} tracked. This is a search
+    over the roster, not a map: riding boundary data and a postal-code lookup aren't part of
+    this build, so nothing here is plotted geographically or guessed from a location.
+  </p>
+  <input type="search" id="rd-search-input" class="rd-search"
+         placeholder="Search by riding name or MP name…" aria-label="Search ridings">
+  <div id="rd-count" class="rd-count"></div>
+  <div id="rd-list" class="rd-list"></div>
+  <div id="rd-empty" class="rd-empty" style="display:none;">No riding or MP matches that search.</div>
+</div><!-- /wtf-tab-ridings -->
+<script>
+(function(){
+  var RD_MPS = {{ mps | tojson }};
+  RD_MPS.sort(function(a,b){ return (a.riding_name||'').localeCompare(b.riding_name||''); });
+
+  var listEl = document.getElementById('rd-list');
+  var countEl = document.getElementById('rd-count');
+  var emptyEl = document.getElementById('rd-empty');
+  var searchEl = document.getElementById('rd-search-input');
+
+  function render(filter) {
+    var q = (filter||'').trim().toLowerCase();
+    var matches = q ? RD_MPS.filter(function(mp){
+      return (mp.riding_name||'').toLowerCase().indexOf(q) !== -1 ||
+             (mp.name||'').toLowerCase().indexOf(q) !== -1;
+    }) : RD_MPS;
+
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+    countEl.textContent = matches.length + ' of ' + RD_MPS.length + ' ridings';
+    emptyEl.style.display = matches.length ? 'none' : 'block';
+
+    matches.forEach(function(mp){
+      var row = document.createElement('a');
+      row.className = 'rd-row';
+      row.href = '/mp/' + mp.slug;
+
+      var dot = document.createElement('span');
+      dot.className = 'rd-dot';
+      dot.style.background = mp.party_colour || '#6b7280';
+      row.appendChild(dot);
+
+      var textWrap = document.createElement('div');
+      var riding = document.createElement('div');
+      riding.className = 'rd-riding';
+      riding.textContent = mp.riding_name || 'Riding not recorded';
+      textWrap.appendChild(riding);
+
+      var mpLine = document.createElement('div');
+      mpLine.className = 'rd-mp';
+      mpLine.textContent = (mp.name || '—') + (mp.party ? ' · ' + mp.party : '') + (mp.province_code ? ' · ' + mp.province_code : '');
+      textWrap.appendChild(mpLine);
+
+      row.appendChild(textWrap);
+      listEl.appendChild(row);
+    });
+  }
+
+  render('');
+  searchEl.addEventListener('input', function(){ render(searchEl.value); });
 })();
 </script>
 

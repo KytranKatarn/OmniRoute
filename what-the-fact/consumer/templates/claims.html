@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles %}
 {% block title %}Election Claim Tracker — What The Fact{% endblock %}
 {% block content %}
 <style>
@@ -64,6 +65,13 @@
     <div class="wtf-claims-subtitle">TRACKING MP PROMISES AND STATEMENTS</div>
     {% endif %}
   </div>
+
+  {% if politician_slug is not defined and claim_stats %}
+  <!-- Aggregate stat row (#6284 batch 11) — sitewide totals, index page only.
+       Real values from claim_tracker; with 0 rows platform-wide (2026-09)
+       this honestly renders "0" / "0%" until real fact-check data lands. -->
+  {{ stat_tiles(claim_stats) }}
+  {% endif %}
 
   {% if politician_slug is not defined %}
   <!-- Filter bar — only on the index page -->

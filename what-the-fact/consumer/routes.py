@@ -2915,6 +2915,47 @@ def article(article_id: int):
 # Election Claim Tracker — public pages (#3013)
 # ───────────────────────────────────────────────────────────────────────────
 
+
+# Real, non-pending status values (claim_tracker_status_check) in a fixed,
+# deliberate display order. NOT the mockup's Established/Contested/Developing
+# taxonomy — that vocabulary does not exist in this schema (no "Established",
+# no "Developing" state at all), and inventing a mapping onto it here would be
+# exactly the fabrication this file exists to avoid. #6284 batch 11: defer any
+# real taxonomy change to an owner decision; this enumerates what is actually
+# stored.
+_CLAIM_STATUSES = ("verified_true", "partially_true", "misleading", "false", "contested")
+
+
+def _claim_stat_tiles(c, S: str) -> list:
+    """Aggregate stat-row tiles for the claims index — sitewide, independent
+    of any ?status= filter (a "N claims checked" figure that changes when you
+    click a filter chip would be a confusing thing to show as a totals row).
+
+    Returns [] on any query failure so the caller's existing empty-fallback
+    behavior is unchanged; the caller decides whether to render the row.
+    """
+    status_rows = c.execute(
+        text(f"SELECT status, COUNT(*) AS n FROM {S}.claim_tracker "
+             "WHERE status != 'pending' GROUP BY status")
+    ).mappings().all()
+    counts = {r["status"]: r["n"] for r in status_rows}
+    total_checked = sum(counts.values())
+    tiles = [{
+        "label": "Claims checked",
+        "value": total_checked,
+        "detail": None,
+    }]
+    for st in _CLAIM_STATUSES:
+        n = counts.get(st, 0)
+        pct = round(n / total_checked * 100) if total_checked else 0
+        tiles.append({
+            "label": st.replace("_", " ").title(),
+            "value": f"{pct}%",
+            "detail": f"{n} claim{'' if n == 1 else 's'}",
+        })
+    return tiles
+
+
 @bp.get("/claims")
 def claims_index():
     S = _schema()
@@ -2924,6 +2965,7 @@ def claims_index():
     if status_filter and status_filter != "all":
         where += " AND ct.status = :status"
         params["status"] = status_filter
+    claim_stats = []
     try:
         with _db().begin() as c:
             rows = c.execute(
@@ -2939,6 +2981,7 @@ def claims_index():
                 ),
                 params,
             ).mappings().all()
+            claim_stats = _claim_stat_tiles(c, S)
         claims = []
         for r in rows:
             d = dict(r)
@@ -2947,10 +2990,12 @@ def claims_index():
             claims.append(d)
     except Exception:
         claims = []
+        claim_stats = []
     subscribed = is_subscriber()
     return render_template("claims.html", claims=claims,
                            is_subscriber=subscribed,
-                           active_status=status_filter or "all")
+                           active_status=status_filter or "all",
+                           claim_stats=claim_stats)
 
 
 @bp.get("/claims/<slug>")

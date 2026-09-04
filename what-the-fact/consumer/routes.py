@@ -4161,7 +4161,21 @@ def owners_listing():
                     ) ORDER BY s.name
                 )                                        AS outlets,
                 ROUND(AVG(obs.avg_score)::numeric, 2)    AS avg_bias,
-                MIN(s.bias_lean)                         AS sample_lean
+                MIN(s.bias_lean)                         AS sample_lean,
+                -- bias_band mirrors ingest/outlet_bias.py's _BANDS thresholds
+                -- (-0.6/-0.2/0.2/0.6, less-than wins, else 'right') — same
+                -- pattern as /crtc's owner-concentration panel. Without this,
+                -- owners.html's is-bias-band-set Jinja check was always false
+                -- (the column never existed) and the aggregate lean pill
+                -- silently never rendered for any owner.
+                CASE
+                    WHEN AVG(obs.avg_score) IS NULL THEN NULL
+                    WHEN AVG(obs.avg_score) < -0.6 THEN 'left'
+                    WHEN AVG(obs.avg_score) < -0.2 THEN 'center-left'
+                    WHEN AVG(obs.avg_score) < 0.2  THEN 'center'
+                    WHEN AVG(obs.avg_score) < 0.6  THEN 'center-right'
+                    ELSE 'right'
+                END                                       AS bias_band
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
             WHERE s.owner_name IS NOT NULL

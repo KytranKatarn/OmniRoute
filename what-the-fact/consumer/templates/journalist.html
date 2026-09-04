@@ -105,8 +105,8 @@
   <div class="wtf-jr-section-title">📈 Volume by month</div>
   {% for t in trend %}
   <div class="wtf-jr-trend-row">
-    <span class="wtf-jr-trend-month">{{ t.month }}</span>
-    <span class="wtf-jr-num-blue">{{ t.count }}</span>
+    <span class="wtf-jr-trend-month">{{ t.m }}</span>
+    <span class="wtf-jr-num-blue">{{ t.n }}</span>
   </div>
   {% endfor %}
 </div>
@@ -118,7 +118,7 @@
   <div class="wtf-jr-section-title">🔗 Who they cover — co-mentioned in their articles</div>
   <div class="wtf-jr-wrap">
     {% for c in co_mentioned %}
-    <span class="wtf-jr-chip">{{ c.name }} <span class="wtf-jr-co-type">{{ c.type }}</span> <span class="wtf-jr-num-blue">{{ c.count if c.count is defined else c.n }}</span></span>
+    <span class="wtf-jr-chip">{{ c.canonical_name }} <span class="wtf-jr-co-type">{{ c.entity_type }}</span> <span class="wtf-jr-num-blue">{{ c.n }}</span></span>
     {% endfor %}
   </div>
 </div>

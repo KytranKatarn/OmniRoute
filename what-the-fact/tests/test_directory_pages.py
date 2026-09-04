@@ -388,3 +388,33 @@ class TestOwnersPageShape:
         assert "Orbitron" not in html
         hexes = set(re.findall(r"#[0-9a-fA-F]{6}\b", html))
         assert not hexes, f"owners.html hardcodes {sorted(hexes)}"
+
+
+class TestOwnersRouteWiring:
+    """owners.html reads o.bias_band — a field the OWNERS mock above always
+    supplies, so the template-only tests above cannot catch the route itself
+    failing to compute it. That's exactly what shipped: the real /owners SQL
+    grouped by owner and returned avg_bias + sample_lean, but never a
+    bias_band column, so `{% if o.bias_band %}` was always false and the
+    aggregate lean pill silently never rendered for any real owner — the
+    per-outlet pills (driven by the JSON `outlets` array, which DOES carry
+    bias_lean) kept working, so nothing looked broken in a page-load check.
+
+    Source-grepped rather than DB-driven: this repo's tests run without a
+    live DB (42 DB-less errors is the accepted baseline), and the owner
+    query's SELECT list is unambiguous to search for directly.
+    """
+
+    ROUTES = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "routes.py"
+
+    def test_owners_query_selects_bias_band(self):
+        src = self.ROUTES.read_text(encoding="utf-8")
+        # Anchor on the owners_listing function specifically, not any query
+        # anywhere in the file — a match elsewhere would be a false pass.
+        start = src.index("def owners_listing")
+        end = src.index("\n@bp.get", start + 1)
+        body = src[start:end]
+        assert "AS bias_band" in body, (
+            "owners_listing()'s owner query must alias a bias_band column — "
+            "without it, owners.html's aggregate lean pill silently never renders"
+        )

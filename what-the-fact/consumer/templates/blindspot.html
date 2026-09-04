@@ -5,6 +5,28 @@
 <meta name="description" content="Stories carried by only one side of the Canadian media spectrum.">
 {% endblock %}
 {% block content %}
+<style>
+/* Design-handoff scoping: 8 inline styles extracted into wtf-bs-* classes,
+   value-preserving (same literals, moved from style="" into these rules).
+   No hex-color literals exist anywhere on this page — every color/
+   background/border/font-family already reads a var(--wtf-*) token
+   (--wtf-border, --wtf-font-serif, --wtf-bg-card, --wtf-text-2), so there is
+   nothing to swap. No display-font mismatch on this page either — WTF's own
+   stack is IBM Plex Sans/Mono + Newsreader, and this page references neither
+   a mismatched face nor an unloaded one. (See TestNoPrivateStyling in
+   test_blindspot_page.py, which greps the RENDERED page — including this
+   comment — for that font's name literally, so it is deliberately not
+   spelled out here.) The Starter+ paywall gate below already calls the
+   shared paywall() macro from _archetypes.html — nothing to converge. */
+.wtf-bs-header { padding:16px 0; border-bottom:1px solid var(--wtf-border); margin-bottom:16px; }
+.wtf-bs-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; margin:0 0 4px; }
+.wtf-bs-lede { margin:0; max-width:72ch; }
+.wtf-bs-window { margin:16px 0; }
+.wtf-bs-empty { padding:28px 0; }
+.wtf-bs-methodology { margin-top:26px; padding:16px 18px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; }
+.wtf-bs-method-title { margin-bottom:8px; }
+.wtf-bs-method-body { font-size:13px; color:var(--wtf-text-2); line-height:1.75; margin:0 0 12px; }
+</style>
 {# #6149 phase 3 — ARCHETYPE 3 (DATA EXPLORER).
 
    ⚠️ THIS PAGE WAS DEAD IN PRODUCTION. It shipped as an empty
@@ -21,9 +43,9 @@
    Gap severity carries a TEXT label, never colour alone — the rule the lean
    scale is built on. Data: blindspots[], days, windows[], is_subscriber. #}
 
-<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
-  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Coverage blind spots</h1>
-  <p class="wtf-a-tile-d" style="margin:0;max-width:72ch;">
+<div class="wtf-bs-header">
+  <h1 class="wtf-bs-title">Coverage blind spots</h1>
+  <p class="wtf-a-tile-d wtf-bs-lede">
     Stories covered by only one or two outlets while the rest of the Canadian press stays silent.
     A lower coverage score means more of the press ignored it — these are the stories editors didn&rsquo;t assign.
   </p>
@@ -41,7 +63,7 @@
       'detail': 'share of tracked outlets that ran it'},
 ]) }}
 
-<div class="wtf-a-layers" style="margin:16px 0;" role="group" aria-label="Time window">
+<div class="wtf-a-layers wtf-bs-window" role="group" aria-label="Time window">
   {% for w in windows %}{{ segment(w ~ ' days', '/blindspot?days=' ~ w, active=(w == days)) }}{% endfor %}
 </div>
 
@@ -65,7 +87,7 @@
     {{ record_links([('Read the cluster →', '/cluster/' ~ b.id, False)]) }}
   {% endcall %}
 {% else %}
-  <p class="wtf-a-nodata" style="padding:28px 0;">
+  <p class="wtf-a-nodata wtf-bs-empty">
     No blind spots in the last {{ days }} days. Every tracked story reached more than 15% of outlets.
   </p>
 {% endfor %}
@@ -77,9 +99,9 @@
      next_url='/blindspot') }}
 {% endif %}
 
-<div style="margin-top:26px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
-  <div class="wtf-a-tile-l" style="margin-bottom:8px;">How a blind spot is identified</div>
-  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
+<div class="wtf-bs-methodology">
+  <div class="wtf-a-tile-l wtf-bs-method-title">How a blind spot is identified</div>
+  <p class="wtf-bs-method-body">
     Every story is clustered across the outlets we track. A cluster's coverage score is the share of
     those outlets that published on it. Scores at or below 15% — with at least two articles, and at
     least one Canadian national or provincial item — surface here. A low score is a measure of how

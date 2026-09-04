@@ -36,8 +36,11 @@
 
 <style>
 .wtf-cluster-header { padding: 20px 0 14px; border-bottom: 1px solid #1a3a5a; margin-bottom: 16px; }
-.wtf-cluster-title { font-family: 'Orbitron', sans-serif; font-size: 16px; color: #e5e7eb; margin: 0 0 6px; line-height: 1.4; }
+.wtf-cluster-title { font-family: var(--wtf-font-mono); font-size: 16px; color: #e5e7eb; margin: 0 0 6px; line-height: 1.4; }
 .wtf-cluster-meta { font-size: 11px; color: #6b7280; }
+.wtf-cluster-back-link { color: #6b7280; text-decoration: none; }
+.wtf-cluster-subrow { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.wtf-cluster-share-btn { background: none; border: 1px solid #1a3a5a; color: #6b7280; font-size: 10px; padding: 3px 10px; border-radius: 3px; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .wtf-cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .wtf-cluster-card { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .wtf-cluster-card-source { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 6px; }
@@ -50,37 +53,75 @@
 .wtf-cluster-card-date { font-size: 10px; color: #4b5563; }
 .wtf-cluster-card-link { font-size: 11px; color: #0af; text-decoration: none; margin-top: auto; }
 .wtf-cluster-card-link:hover { text-decoration: underline; }
+.wtf-cluster-card-links { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+.wtf-cluster-audit-link { font-size: 10px; color: #a0f; text-decoration: none; }
+.wtf-cluster-source-link { font-size: 10px; color: #4b5563; text-decoration: none; }
 .wtf-bias-bar-mini { height: 4px; border-radius: 2px; background: linear-gradient(to right,#dc2626,#f97316,#22c55e,#0ea5e9,#2563eb); position: relative; margin: 4px 0; }
 .wtf-bias-dot { position: absolute; top: -3px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid #060d14; transform: translateX(-50%); }
 @media (max-width: 600px) { .wtf-cluster-grid { grid-template-columns: 1fr; } }
 .wtf-cluster-grid > *:last-child:nth-child(odd) { grid-column: 1 / -1; max-width: 420px; }
 .wtf-lang-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: #0a1a2a; color: #6b7280; border: 1px solid #1a3a5a; }
+.wtf-cluster-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.wtf-cluster-dot-sm { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.wtf-cluster-link-plain { color: inherit; text-decoration: none; }
+.wtf-cluster-band-tag { font-size: 9px; font-weight: 700; }
 /* AI Summary box */
 .wtf-cluster-summary { background: #060d14; border: 1px solid #1a3a5a; border-left: 3px solid #22c55e; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
+.wtf-cluster-summary-label { font-size: 10px; color: #22c55e; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.wtf-cluster-summary-headline { font-size: 13px; color: #e5e7eb; font-weight: 600; line-height: 1.5; margin-bottom: 4px; }
+.wtf-cluster-summary-body { font-size: 12px; color: #9ca3af; line-height: 1.6; }
 /* Coverage section */
 .wtf-coverage-section { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 14px 16px; margin-bottom: 16px; }
+.wtf-coverage-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
 .wtf-coverage-outlets { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 8px; }
 .wtf-outlet-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 10px; border-radius: 10px; background: #0a1520; border: 1px solid #1a3a5a; color: #d1d5db; }
 .wtf-coverage-gap-note { font-size: 10px; color: #6b7280; margin-top: 6px; }
 .wtf-perspectives { display: flex; gap: 4px; margin-top: 8px; }
 .wtf-perspective-band { height: 4px; flex: 1; border-radius: 2px; }
+/* Coverage timeline */
+.wtf-cluster-timeline { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 12px 16px; margin-top: 16px; }
+.wtf-cluster-timeline-label { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+.wtf-cluster-timeline-row { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.wtf-cluster-timeline-item { display: flex; align-items: center; gap: 6px; }
+.wtf-cluster-timeline-dot-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.wtf-cluster-timeline-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 2px solid #0a1520; }
+.wtf-cluster-timeline-time { font-size: 9px; color: #6b7280; white-space: nowrap; }
+.wtf-cluster-timeline-source { font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; }
+.wtf-cluster-timeline-arrow { color: #1a3a5a; margin: 0 8px; font-size: 12px; }
+.wtf-cluster-timeline-gap { font-size: 10px; color: #4b5563; margin-top: 8px; }
+.wtf-cluster-timeline-name { color: #9ca3af; }
 /* F.A.C.T. framing panel — collapsible */
 .wtf-framing-details { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; margin-top: 20px; }
 .wtf-framing-summary-toggle { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; padding: 12px 16px; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
 .wtf-framing-summary-toggle::-webkit-details-marker { display: none; }
-.wtf-framing-body { padding: 0 16px 14px; border-top: 1px solid #1a3a5a; }
+.wtf-framing-expand-hint { color: #4b5563; font-size: 9px; margin-left: 4px; }
+.wtf-framing-body { padding: 12px 16px 14px; border-top: 1px solid #1a3a5a; }
+.wtf-framing-text { font-size: 13px; color: #e5e7eb; line-height: 1.7; }
+.wtf-framing-text-empty { font-size: 12px; color: #6b7280; line-height: 1.6; }
+.wtf-framing-meta { font-size: 10px; color: #374151; margin-top: 8px; }
+.wtf-framing-link { color: #0af; text-decoration: none; }
+.wtf-framing-generate-wrap { margin-top: 10px; }
+.wtf-framing-generate-btn { background: #0a2a3a; border: 1px solid #0af; color: #0af; padding: 7px 16px; border-radius: 3px; font-size: 11px; cursor: pointer; font-family: inherit; }
+/* Non-subscriber upsell */
+.wtf-cluster-upsell { background: #060d14; border: 1px solid #1a3a5a; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 20px; }
+.wtf-cluster-upsell-icon { font-size: 18px; margin-bottom: 8px; }
+.wtf-cluster-upsell-title { font-family: var(--wtf-font-mono); font-size: 13px; color: #e5e7eb; margin-bottom: 8px; }
+.wtf-cluster-upsell-blurb { font-size: 12px; color: #9ca3af; margin-bottom: 16px; }
+.wtf-cluster-upsell-cta { display: inline-block; background: #0af; color: #000; font-size: 12px; font-weight: 700; padding: 10px 24px; border-radius: 4px; text-decoration: none; }
+.wtf-cluster-upsell-plans-wrap { margin-top: 10px; }
+.wtf-cluster-upsell-plans-link { font-size: 11px; color: #6b7280; text-decoration: none; }
 </style>
 
 <!-- ── HEADER ─────────────────────────────────────────────────────── -->
 <div class="wtf-cluster-header">
   <div class="wtf-cluster-meta">
-    <a href="/news" style="color:#6b7280;text-decoration:none;">← Back to News</a>
+    <a href="/news" class="wtf-cluster-back-link">← Back to News</a>
     &nbsp;·&nbsp; {{ distinct_source_count }} outlet{{ 's' if distinct_source_count != 1 else '' }} · Story cluster #{{ cluster.id }}
   </div>
   <h1 class="wtf-cluster-title">{{ cluster.representative_title or 'Story Cluster' }}</h1>
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:6px;">
+  <div class="wtf-cluster-subrow">
     <div class="wtf-cluster-meta">How different outlets framed the same story — bias, verdict, and framing side by side.</div>
-    <button onclick="navigator.clipboard.writeText(window.location.href).then(function(){this.textContent='✓ Copied!';setTimeout(function(){document.querySelector('[data-share]').textContent='Share comparison ↗';},2000)}.bind(this))" data-share style="background:none;border:1px solid #1a3a5a;color:#6b7280;font-size:10px;padding:3px 10px;border-radius:3px;cursor:pointer;font-family:inherit;white-space:nowrap;">Share comparison ↗</button>
+    <button onclick="navigator.clipboard.writeText(window.location.href).then(function(){this.textContent='✓ Copied!';setTimeout(function(){document.querySelector('[data-share]').textContent='Share comparison ↗';},2000)}.bind(this))" data-share class="wtf-cluster-share-btn">Share comparison ↗</button>
   </div>
 </div>
 
@@ -91,12 +132,12 @@
 {% set _brief_ok = _brief|length > 80 and _brief != _headline and _brief[:40] != _headline[:40] %}
 {% if _brief_ok or (_headline and _headline|length > 20 and _headline != cluster.representative_title) %}
 <div class="wtf-cluster-summary">
-  <div style="font-size:10px;color:#22c55e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">🤖 D.R.A.F.T. Summary</div>
+  <div class="wtf-cluster-summary-label">🤖 D.R.A.F.T. Summary</div>
   {% if _headline and _headline != cluster.representative_title %}
-  <div style="font-size:13px;color:#e5e7eb;font-weight:600;line-height:1.5;margin-bottom:4px;">{{ _headline }}</div>
+  <div class="wtf-cluster-summary-headline">{{ _headline }}</div>
   {% endif %}
   {% if _brief_ok %}
-  <div style="font-size:12px;color:#9ca3af;line-height:1.6;">{{ _brief }}</div>
+  <div class="wtf-cluster-summary-body">{{ _brief }}</div>
   {% endif %}
 </div>
 {% endif %}
@@ -112,17 +153,17 @@
   ('right',        'R',  'Right'),
 ] %}
 <div class="wtf-coverage-section">
-  <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;">Outlets covering this story</div>
+  <div class="wtf-coverage-label">Outlets covering this story</div>
 
   <div class="wtf-coverage-outlets">
     {% for art in articles %}
     {% set bc = BAND_COLOURS.get(art.bias_band or '', '#6b7280') %}
     <span class="wtf-outlet-pill" style="border-color:{{ bc }}44;">
-      <span style="width:7px;height:7px;border-radius:50%;background:{{ bc }};flex-shrink:0;display:inline-block;"></span>
+      <span class="wtf-cluster-dot-sm" style="background:{{ bc }};"></span>
       {% if art.source_slug %}
-      <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
+      <a href="/source/{{ art.source_slug }}" class="wtf-cluster-link-plain">{{ art.source_name or art.source_slug }}</a>
       {% else %}{{ art.source_name or '—' }}{% endif %}
-      {% if art.bias_band %}<span style="font-size:9px;color:{{ bc }};font-weight:700;">{{ art.bias_band.replace('-',' ').upper() }}</span>{% endif %}
+      {% if art.bias_band %}<span class="wtf-cluster-band-tag" style="color:{{ bc }};">{{ art.bias_band.replace('-',' ').upper() }}</span>{% endif %}
     </span>
     {% endfor %}
   </div>
@@ -163,9 +204,9 @@
   {% set pct = [[(score + 1) / 2 * 100, 5]|max, 95]|min %}
   <div class="wtf-cluster-card">
     <div class="wtf-cluster-card-source">
-      <span style="width:8px;height:8px;border-radius:50%;background:{{ band_colour }};flex-shrink:0;display:inline-block;"></span>
+      <span class="wtf-cluster-dot" style="background:{{ band_colour }};"></span>
       {% if art.source_slug %}
-      <a href="/source/{{ art.source_slug }}" style="color:inherit;text-decoration:none;">{{ art.source_name or art.source_slug }}</a>
+      <a href="/source/{{ art.source_slug }}" class="wtf-cluster-link-plain">{{ art.source_name or art.source_slug }}</a>
       {% else %}{{ art.source_name or '—' }}{% endif %}
       {% if art.source_language and art.source_language != 'en' %}
       <span class="wtf-lang-badge">🇫🇷 FR</span>
@@ -192,10 +233,10 @@
       <span class="wtf-cluster-card-date">{{ art.published_at.strftime('%b %-d · %H:%M') if art.published_at else '—' }}</span>
     </div>
 
-    <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+    <div class="wtf-cluster-card-links">
       <a class="wtf-cluster-card-link" href="/article/{{ art.id }}">Read full analysis →</a>
-      <a href="https://what-the-fact.tech/transparency/{{ art.id }}" target="_blank" rel="noopener" style="font-size:10px;color:#a0f;text-decoration:none;">Audit trail ↗</a>
-      <a href="{{ art.url }}" target="_blank" rel="nofollow noopener" style="font-size:10px;color:#4b5563;text-decoration:none;">Source ↗</a>
+      <a href="https://what-the-fact.tech/transparency/{{ art.id }}" target="_blank" rel="noopener" class="wtf-cluster-audit-link">Audit trail ↗</a>
+      <a href="{{ art.url }}" target="_blank" rel="nofollow noopener" class="wtf-cluster-source-link">Source ↗</a>
     </div>
   </div>
   {% endfor %}
@@ -205,18 +246,18 @@
 {% if articles|length > 1 %}
 {% set first = articles[0] %}
 {% set last = articles[-1] %}
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 16px;margin-top:16px;">
-  <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">⏱ Coverage Spread</div>
-  <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;">
+<div class="wtf-cluster-timeline">
+  <div class="wtf-cluster-timeline-label">⏱ Coverage Spread</div>
+  <div class="wtf-cluster-timeline-row">
     {% for art in articles %}
     {% set bc = BAND_COLOURS.get(art.bias_band or '', '#6b7280') %}
-    <div style="display:flex;align-items:center;gap:6px;{% if not loop.last %}margin-right:0;{% endif %}">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-        <span style="width:10px;height:10px;border-radius:50%;background:{{ bc }};display:inline-block;border:2px solid #0a1520;"></span>
-        <span style="font-size:9px;color:#6b7280;white-space:nowrap;">{{ art.published_at.strftime('%H:%M') if art.published_at else '—' }}</span>
+    <div class="wtf-cluster-timeline-item">
+      <div class="wtf-cluster-timeline-dot-wrap">
+        <span class="wtf-cluster-timeline-dot" style="background:{{ bc }};"></span>
+        <span class="wtf-cluster-timeline-time">{{ art.published_at.strftime('%H:%M') if art.published_at else '—' }}</span>
       </div>
-      <span style="font-size:10px;color:#9ca3af;font-weight:600;white-space:nowrap;">{{ art.source_name or '?' }}</span>
-      {% if not loop.last %}<span style="color:#1a3a5a;margin:0 8px;font-size:12px;">→</span>{% endif %}
+      <span class="wtf-cluster-timeline-source">{{ art.source_name or '?' }}</span>
+      {% if not loop.last %}<span class="wtf-cluster-timeline-arrow">→</span>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -224,8 +265,8 @@
   {% set gap_secs = (last.published_at - first.published_at).total_seconds()|int %}
   {% set gap_h = (gap_secs // 3600)|int %}
   {% set gap_m = ((gap_secs % 3600) // 60)|int %}
-  <div style="font-size:10px;color:#4b5563;margin-top:8px;">
-    First reported by <strong style="color:#9ca3af;">{{ first.source_name }}</strong>
+  <div class="wtf-cluster-timeline-gap">
+    First reported by <strong class="wtf-cluster-timeline-name">{{ first.source_name }}</strong>
     {% if gap_h > 0 %} — {{ last.source_name }} followed {{ gap_h }}h{{ ' ' + gap_m|string + 'm' if gap_m else '' }} later{% endif %}
   </div>
   {% endif %}
@@ -236,16 +277,16 @@
 <details class="wtf-framing-details">
   <summary class="wtf-framing-summary-toggle">
     <span>🤖</span> F.A.C.T. Framing Analysis
-    <span style="color:#4b5563;font-size:9px;margin-left:4px;">▸ expand</span>
+    <span class="wtf-framing-expand-hint">▸ expand</span>
   </summary>
-  <div class="wtf-framing-body" style="padding-top:12px;">
+  <div class="wtf-framing-body">
     {% if framing_summary %}
-    <div id="wtf-framing-text" style="font-size:13px;color:#e5e7eb;line-height:1.7;">{{ framing_summary }}</div>
-    <div style="font-size:10px;color:#374151;margin-top:8px;">Generated by F.A.C.T. · <a onclick="wtfReframe()" href="#" style="color:#0af;text-decoration:none;">Regenerate</a></div>
+    <div id="wtf-framing-text" class="wtf-framing-text">{{ framing_summary }}</div>
+    <div class="wtf-framing-meta">Generated by F.A.C.T. · <a onclick="wtfReframe()" href="#" class="wtf-framing-link">Regenerate</a></div>
     {% else %}
-    <div id="wtf-framing-text" style="font-size:12px;color:#6b7280;line-height:1.6;">Compare how different outlets framed this story — emphasis, language, what was highlighted or left out.</div>
-    <div style="margin-top:10px;">
-      <button id="wtf-frame-btn" onclick="wtfReframe()" style="background:#0a2a3a;border:1px solid #0af;color:#0af;padding:7px 16px;border-radius:3px;font-size:11px;cursor:pointer;font-family:inherit;">🤖 Generate framing comparison</button>
+    <div id="wtf-framing-text" class="wtf-framing-text-empty">Compare how different outlets framed this story — emphasis, language, what was highlighted or left out.</div>
+    <div class="wtf-framing-generate-wrap">
+      <button id="wtf-frame-btn" onclick="wtfReframe()" class="wtf-framing-generate-btn">🤖 Generate framing comparison</button>
     </div>
     {% endif %}
   </div>
@@ -275,12 +316,12 @@ async function wtfReframe() {
 
 {% else %}
 <!-- Non-subscriber upsell -->
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin-bottom:20px;">
-  <div style="font-size:18px;margin-bottom:8px;">📰</div>
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">Side-by-Side Outlet Comparison — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">See how {{ distinct_source_count }} outlets framed this story — bias by source, F.A.C.T. framing analysis, and verdict side by side.</div>
-  <a href="/login?next=/cluster/{{ cluster.id }}" style="display:inline-block;background:#0af;color:#000;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+<div class="wtf-cluster-upsell">
+  <div class="wtf-cluster-upsell-icon">📰</div>
+  <div class="wtf-cluster-upsell-title">Side-by-Side Outlet Comparison — Starter+</div>
+  <div class="wtf-cluster-upsell-blurb">See how {{ distinct_source_count }} outlets framed this story — bias by source, F.A.C.T. framing analysis, and verdict side by side.</div>
+  <a href="/login?next=/cluster/{{ cluster.id }}" class="wtf-cluster-upsell-cta">Unlock with Starter →</a>
+  <div class="wtf-cluster-upsell-plans-wrap"><a href="/join" class="wtf-cluster-upsell-plans-link">See plans</a></div>
 </div>
 {% endif %}
 

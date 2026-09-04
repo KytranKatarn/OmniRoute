@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import record_card, record_links, segment, paywall %}
+{% from "_archetypes.html" import record_card, record_links, segment, paywall, stat_tiles %}
 {% block title %}GIC Appointments — Governor in Council Patronage · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Every Governor in Council appointment in Canada — judges, Crown corp executives, regulatory boards, and federal tribunals. Patronage tracking via Orders-in-Council.">
@@ -13,20 +13,40 @@
    Each row carries its own Orders-in-Council link, so record_card, not
    person_card. stack=True gives the denser row rhythm this list had.
 
-   Data contract unchanged: appointments[], depts[], dept, is_subscriber. #}
+   Data contract: appointments[], depts[], dept, q, organisations_count,
+   departments_count, is_subscriber.
+
+   2026-09-04 (KB vault_note #304357): added the stat row + search box the
+   mockup calls for. Deliberately NOT added: a "Vacant posts" panel — no
+   gov_watch.gic_vacancies (or equivalent) table exists anywhere in this
+   codebase, and the mockup's vacancy list is mock-corpus-only data. #}
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Governor in Council appointments</h1>
   <p class="wtf-a-tile-d" style="margin:0;">
-    {{ appointments|length }} appointments · Orders-in-Council · Privy Council Office
+    Orders-in-Council · Privy Council Office
   </p>
 </div>
 
+{{ stat_tiles([
+     {'label': 'Appointments in window', 'value': '{:,}'.format(appointments|length)},
+     {'label': 'Organisations', 'value': '{:,}'.format(organisations_count)},
+     {'label': 'Departments', 'value': '{:,}'.format(departments_count)},
+]) }}
+
 {% if is_subscriber %}
-<div class="wtf-a-layers" style="margin-bottom:16px;">
+<div class="wtf-a-layers" style="margin:16px 0;">
   {{ segment('All', '/gic', active=(dept == 'all')) }}
   {% for d in depts %}{{ segment(d, '/gic?dept=' ~ d, active=(dept == d)) }}{% endfor %}
 </div>
+
+{# Plain GET form, works without JavaScript — same pattern as archive.html. #}
+<form method="get" action="/gic" style="margin:0 0 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+  <input type="hidden" name="dept" value="{{ dept }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Appointee, organisation, order number…"
+         aria-label="Search appointments"
+         style="flex:1 1 220px;min-width:180px;padding:7px 10px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
+</form>
 
 {% for a in appointments %}
   {% set meta %}
@@ -64,6 +84,8 @@
   {{ record_links([
        ('Privy Council OIC database', 'https://orders-in-council.canada.ca/', True),
        ('Officers of Parliament →', '/parliament/officers', False),
-       ('Ethics rulings →', '/ethics', False)]) }}
+       ('Ethics rulings →', '/ethics', False),
+       ('Lobbying registry →', '/lobbying', False),
+       ('Cross-Watch →', '/cross-watch', False)]) }}
 </div>
 {% endblock %}

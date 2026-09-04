@@ -117,8 +117,12 @@ def officers_html(env, *, subscriber):
 
 
 def gic_html(env, *, subscriber):
+    # organisations_count/departments_count mirror what gic_appointments()
+    # itself computes from these exact fixtures (2026-09-04, KB #304357):
+    # 1 distinct non-null organization, 2 departments.
     return env.get_template("gic.html").render(
-        appointments=GIC, depts=["Justice", "Finance"], dept="all", is_subscriber=subscriber)
+        appointments=GIC, depts=["Justice", "Finance"], dept="all", q="",
+        organisations_count=1, departments_count=2, is_subscriber=subscriber)
 
 
 class TestSubscriberBranchRenders:

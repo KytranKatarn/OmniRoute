@@ -4121,26 +4121,45 @@ def gic_appointments():
     """Governor in Council appointments — patronage tracking via Orders-in-Council."""
     from flask import request as _req
     dept = _req.args.get("dept", "all")
+    q = (_req.args.get("q") or "").strip()
     with _db().begin() as c:
-        query = """
+        clauses = []
+        params = {}
+        if dept != "all":
+            clauses.append("department ILIKE :dept")
+            params["dept"] = f"%{dept}%"
+        if q:
+            clauses.append(
+                "(appointee_name ILIKE :q OR organization ILIKE :q OR pc_number ILIKE :q)"
+            )
+            params["q"] = f"%{q}%"
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        query = f"""
             SELECT pc_number, oic_date, department, subject, precis,
                    oic_url, appointee_name, organization
             FROM gov_watch.gic_appointments
-            {}
+            {where}
             ORDER BY oic_date DESC, pc_number DESC
             LIMIT 200
-        """.format("WHERE department ILIKE :dept" if dept != "all" else "")
-        params = {"dept": f"%{dept}%"} if dept != "all" else {}
+        """
         rows = c.execute(text(query), params).mappings().all()
         depts = c.execute(text("""
             SELECT DISTINCT department FROM gov_watch.gic_appointments
             WHERE department IS NOT NULL ORDER BY department
         """)).scalars().all()
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    # Header stats — computed from the rows/depts already fetched above, no
+    # new query. "Vacant posts" from the mockup is deliberately NOT here: no
+    # gov_watch.gic_vacancies (or equivalent) table exists anywhere in this
+    # codebase, so a vacancy count would be fabricated (KB vault_note #304357).
+    organisations_count = len({r["organization"] for r in rows if r["organization"]})
     return render_template("gic.html",
                            appointments=[dict(r) for r in rows],
                            depts=list(depts),
                            dept=dept,
+                           q=q,
+                           organisations_count=organisations_count,
+                           departments_count=len(depts),
                            source_count=source_count,
                            is_subscriber=is_subscriber())
 

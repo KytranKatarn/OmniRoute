@@ -13,28 +13,56 @@
 .wtf-jr-section { margin-bottom:22px; }
 .wtf-jr-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #0d1f2d; }
 .wtf-jr-chip { background:#0a1520; border:1px solid #1a3a5a; border-radius:3px; padding:5px 12px; font-size:11px; color:#9ca3af; text-decoration:none; }
+.wtf-jr-crumb { font-size:11px; color:#6b7280; margin:14px 0 4px; }
+.wtf-jr-crumb-link { color:#6b7280; text-decoration:none; }
+.wtf-jr-title { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 4px; }
+.wtf-jr-declared { font-size:11px; color:#6b7280; margin-bottom:12px; }
+.wtf-jr-stats-row { display:flex; gap:14px; flex-wrap:wrap; margin:14px 0 20px; }
+.wtf-jr-num-blue { color:#0af; }
+.wtf-jr-num-green { color:#22c55e; }
+.wtf-jr-wrap { display:flex; flex-wrap:wrap; gap:8px; }
+.wtf-jr-empty { color:#6b7280; font-size:12px; }
+.wtf-jr-row { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid #060d14; align-items:flex-start; }
+.wtf-jr-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.wtf-jr-row-body { flex:1; }
+.wtf-jr-row-title { font-size:12px; color:#ccc; text-decoration:none; line-height:1.4; }
+.wtf-jr-row-meta { font-size:10px; color:#4b5563; margin-top:2px; }
+.wtf-jr-row-src { color:inherit; text-decoration:none; }
+.wtf-jr-bias-row { display:flex; align-items:center; gap:10px; padding:3px 0; font-size:11px; }
+.wtf-jr-bias-label { width:96px; color:#9ca3af; }
+.wtf-jr-bias-count { font-family:'IBM Plex Mono',monospace; }
+.wtf-jr-trend-row { display:flex; align-items:center; gap:10px; padding:2px 0; font-size:11px; }
+.wtf-jr-trend-month { width:64px; color:#6b7280; font-family:'IBM Plex Mono',monospace; }
+.wtf-jr-co-type { color:#4b5563; }
+.wtf-jr-paywall { background:#0a0505; border:1px solid #1f2937; border-radius:8px; padding:24px; text-align:center; margin:20px 0; }
+.wtf-jr-paywall-title { font-family:var(--wtf-font-mono); font-size:13px; color:#e5e7eb; margin-bottom:8px; }
+.wtf-jr-paywall-body { font-size:12px; color:#9ca3af; margin-bottom:16px; }
+.wtf-jr-paywall-cta { display:inline-block; background:#ef4444; color:#fff; font-size:12px; font-weight:700; padding:10px 24px; border-radius:4px; text-decoration:none; }
+.wtf-jr-paywall-plans { margin-top:12px; }
+.wtf-jr-paywall-plans-link { font-size:11px; color:#6b7280; text-decoration:none; }
+.wtf-jr-footnote { font-size:9px; color:#374151; margin-top:18px; }
 </style>
 
-<div style="font-size:11px;color:#6b7280;margin:14px 0 4px;">← <a href="/journalists" style="color:#6b7280;text-decoration:none;">All journalists</a></div>
-<h1 style="font-family:'Orbitron',sans-serif;font-size:18px;color:#e5e7eb;margin:0 0 4px;">📝 {{ j.canonical_name }}</h1>
+<div class="wtf-jr-crumb">← <a href="/journalists" class="wtf-jr-crumb-link">All journalists</a></div>
+<h1 class="wtf-jr-title">📝 {{ j.canonical_name }}</h1>
 {% set declared = (j.metadata or {}).get('outlets') %}
-{% if declared %}<div style="font-size:11px;color:#6b7280;margin-bottom:12px;">Declared outlets: {{ declared | join(', ') }}</div>{% endif %}
+{% if declared %}<div class="wtf-jr-declared">Declared outlets: {{ declared | join(', ') }}</div>{% endif %}
 
-<div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 20px;">
-  <div class="wtf-jr-stat"><div class="wtf-jr-stat-num" style="color:#0af;">{{ article_count }}</div><div class="wtf-jr-stat-label">Articles</div></div>
-  <div class="wtf-jr-stat"><div class="wtf-jr-stat-num" style="color:#22c55e;">{{ outlets|length }}</div><div class="wtf-jr-stat-label">Outlets</div></div>
+<div class="wtf-jr-stats-row">
+  <div class="wtf-jr-stat"><div class="wtf-jr-stat-num wtf-jr-num-blue">{{ article_count }}</div><div class="wtf-jr-stat-label">Articles</div></div>
+  <div class="wtf-jr-stat"><div class="wtf-jr-stat-num wtf-jr-num-green">{{ outlets|length }}</div><div class="wtf-jr-stat-label">Outlets</div></div>
 </div>
 
 {# ── Outlets (free) ── #}
 <div class="wtf-jr-section">
   <div class="wtf-jr-section-title">📰 Outlets — where they publish</div>
   {% if outlets %}
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+  <div class="wtf-jr-wrap">
     {% for o in outlets %}
-    <a class="wtf-jr-chip" href="/source/{{ o.slug }}">{{ o.name }} <span style="color:#0af;">{{ o.n }}</span></a>
+    <a class="wtf-jr-chip" href="/source/{{ o.slug }}">{{ o.name }} <span class="wtf-jr-num-blue">{{ o.n }}</span></a>
     {% endfor %}
   </div>
-  {% else %}<div style="color:#6b7280;font-size:12px;">No outlet data yet.</div>{% endif %}
+  {% else %}<div class="wtf-jr-empty">No outlet data yet.</div>{% endif %}
 </div>
 
 {# ── Recent coverage (free) ── #}
@@ -43,18 +71,18 @@
   {% if recent %}
     {% set BANDS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb'} %}
     {% for a in recent %}
-    <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #060d14;align-items:flex-start;">
-      <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:{{ BANDS.get(a.bias_band or '','#6b7280') }};"></div>
-      <div style="flex:1;">
-        <a href="/article/{{ a.id }}" style="font-size:12px;color:#ccc;text-decoration:none;line-height:1.4;">{{ a.title or 'Untitled' }}</a>
-        <div style="font-size:10px;color:#4b5563;margin-top:2px;">
-          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
+    <div class="wtf-jr-row">
+      <div class="wtf-jr-dot" style="background:{{ BANDS.get(a.bias_band or '','#6b7280') }};"></div>
+      <div class="wtf-jr-row-body">
+        <a href="/article/{{ a.id }}" class="wtf-jr-row-title">{{ a.title or 'Untitled' }}</a>
+        <div class="wtf-jr-row-meta">
+          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" class="wtf-jr-row-src">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
           {% if a.published_at %}· {{ a.published_at.strftime('%b %-d') if a.published_at.strftime is defined else (a.published_at or '')[:10] }}{% endif %}
         </div>
       </div>
     </div>
     {% endfor %}
-  {% else %}<div style="color:#6b7280;font-size:12px;">No linked articles yet — byline tagging runs as articles are ingested.</div>{% endif %}
+  {% else %}<div class="wtf-jr-empty">No linked articles yet — byline tagging runs as articles are ingested.</div>{% endif %}
 </div>
 
 {% if is_subscriber %}
@@ -64,12 +92,12 @@
   {% if bias %}
     {% set BANDS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb','unknown':'#6b7280'} %}
     {% for b in bias %}
-    <div style="display:flex;align-items:center;gap:10px;padding:3px 0;font-size:11px;">
-      <span style="width:96px;color:#9ca3af;">{{ b.band.replace('-',' ') }}</span>
-      <span style="color:{{ BANDS.get(b.band,'#6b7280') }};font-family:'IBM Plex Mono',monospace;">{{ b.n }}</span>
+    <div class="wtf-jr-bias-row">
+      <span class="wtf-jr-bias-label">{{ b.band.replace('-',' ') }}</span>
+      <span class="wtf-jr-bias-count" style="color:{{ BANDS.get(b.band,'#6b7280') }};">{{ b.n }}</span>
     </div>
     {% endfor %}
-  {% else %}<div style="color:#6b7280;font-size:12px;">Not enough analyzed articles yet.</div>{% endif %}
+  {% else %}<div class="wtf-jr-empty">Not enough analyzed articles yet.</div>{% endif %}
 </div>
 
 {% if trend %}
@@ -77,9 +105,9 @@
 <div class="wtf-jr-section">
   <div class="wtf-jr-section-title">📈 Volume by month</div>
   {% for t in trend %}
-  <div style="display:flex;align-items:center;gap:10px;padding:2px 0;font-size:11px;">
-    <span style="width:64px;color:#6b7280;font-family:'IBM Plex Mono',monospace;">{{ t.month }}</span>
-    <span style="color:#0af;">{{ t.count }}</span>
+  <div class="wtf-jr-trend-row">
+    <span class="wtf-jr-trend-month">{{ t.month }}</span>
+    <span class="wtf-jr-num-blue">{{ t.count }}</span>
   </div>
   {% endfor %}
 </div>
@@ -89,9 +117,9 @@
 {# ── Co-mentioned (premium) ── #}
 <div class="wtf-jr-section">
   <div class="wtf-jr-section-title">🔗 Who they cover — co-mentioned in their articles</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+  <div class="wtf-jr-wrap">
     {% for c in co_mentioned %}
-    <span class="wtf-jr-chip">{{ c.name }} <span style="color:#4b5563;">{{ c.type }}</span> <span style="color:#0af;">{{ c.count if c.count is defined else c.n }}</span></span>
+    <span class="wtf-jr-chip">{{ c.name }} <span class="wtf-jr-co-type">{{ c.type }}</span> <span class="wtf-jr-num-blue">{{ c.count if c.count is defined else c.n }}</span></span>
     {% endfor %}
   </div>
 </div>
@@ -99,16 +127,21 @@
 
 {% else %}
 {# ── Paywall gate ── #}
-<div style="background:#0a0505;border:1px solid #1f2937;border-radius:8px;padding:24px;text-align:center;margin:20px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Coverage analysis — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">
+{# Not converged onto _archetypes.html's paywall() macro: the blurb below carries a
+   literal <br> line break, and the macro renders its blurb param through Jinja
+   autoescaping ({{ blurb }} in a <p>), which would print "&lt;br&gt;" as visible text
+   instead of a line break. Same reasoning as entity.html's documented decision this
+   session — kept hand-rolled, styles extracted to classes only. #}
+<div class="wtf-jr-paywall">
+  <div class="wtf-jr-paywall-title">🔒 Coverage analysis — Starter+</div>
+  <div class="wtf-jr-paywall-body">
     Bias lean, volume trends, and who this journalist covers (co-mentioned MPs &amp; entities)<br>
     are available to subscribers.
   </div>
-  <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:12px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+  <a href="/login?next={{ request.path }}" class="wtf-jr-paywall-cta">Unlock with Starter →</a>
+  <div class="wtf-jr-paywall-plans"><a href="/join" class="wtf-jr-paywall-plans-link">See plans</a></div>
 </div>
 {% endif %}
 
-<div style="font-size:9px;color:#374151;margin-top:18px;">Bylines captured from RSS feeds as articles are ingested; coverage grows over time.</div>
+<div class="wtf-jr-footnote">Bylines captured from RSS feeds as articles are ingested; coverage grows over time.</div>
 {% endblock %}

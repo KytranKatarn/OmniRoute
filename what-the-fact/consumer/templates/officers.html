@@ -52,23 +52,31 @@
   </p>
 </div>
 
-{% if is_subscriber %}
-  {% for o in officers %}
-    {% set tags = [] %}
+{# Deliberate divergence from the pre-existing gating, per the design handoff
+   README ("One deliberate divergence from live: /parliament/officers"): a
+   mandate is a public statutory fact — gating it hid the evidence for the
+   page's own "why they matter" argument. title/mandate_summary are free for
+   all 8 offices; only current_holder/appointed_at/report/cross_links (the
+   newsroom's own tracking work) stay Starter+. #}
+{% for o in officers %}
+  {% set holder %}
+    {%- if is_subscriber and o.current_holder -%}
+      {{ o.current_holder }}
+      {%- if o.appointed_at %} · appointed
+        {{- ' ' }}{{ o.appointed_at.strftime('%B %Y') if o.appointed_at.strftime is defined else o.appointed_at }}
+      {%- endif -%}
+    {%- endif -%}
+  {% endset %}
+
+  {% set tags = [] %}
+  {% if is_subscriber %}
     {% for link in (o.cross_links or []) %}
       {% if tags.append(TAG_LABEL.get(link, link)) %}{% endif %}
     {% endfor %}
+  {% endif %}
 
-    {% set holder %}
-      {%- if o.current_holder -%}
-        {{ o.current_holder }}
-        {%- if o.appointed_at %} · appointed
-          {{- ' ' }}{{ o.appointed_at.strftime('%B %Y') if o.appointed_at.strftime is defined else o.appointed_at }}
-        {%- endif -%}
-      {%- endif -%}
-    {% endset %}
-
-    {% set links = [] %}
+  {% set links = [] %}
+  {% if is_subscriber %}
     {% if o.website_url %}
       {% if links.append(('Official site', o.website_url, True)) %}{% endif %}
     {% endif %}
@@ -76,17 +84,19 @@
       {% set rlabel %}Latest report{% if o.report_title %}: {{ o.report_title[:40] }}{% if o.report_title|length > 40 %}…{% endif %}{% endif %}{% endset %}
       {% if links.append((rlabel, o.report_url, True)) %}{% endif %}
     {% endif %}
+  {% endif %}
 
-    {% call record_card(title=o.title, meta=holder|trim or None, chips=tags or None,
-                        spine_token='--wtf-accent') %}
-      <p class="wtf-a-rbody">{{ o.mandate_summary }}</p>
-      {% if links %}{{ record_links(links) }}{% endif %}
-    {% endcall %}
-  {% endfor %}
-{% else %}
+  {% call record_card(title=o.title, meta=holder|trim or None, chips=tags or None,
+                      spine_token='--wtf-accent') %}
+    <p class="wtf-a-rbody">{{ o.mandate_summary }}</p>
+    {% if links %}{{ record_links(links) }}{% endif %}
+  {% endcall %}
+{% endfor %}
+
+{% if not is_subscriber %}
 {{ paywall(
      title='Officers of Parliament — Starter+',
-     blurb="Full profiles of Canada's 8 independent accountability watchdogs — mandates, current holders, and cross-product intelligence links.",
+     blurb="Who holds each office right now, when they were appointed, their latest tabled report, and the coverage each finding generated.",
      next_url='/parliament/officers') }}
 {% endif %}
 

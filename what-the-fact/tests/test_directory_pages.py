@@ -156,18 +156,31 @@ class TestPaywallBranchRenders:
         html = gic_html(env, subscriber=False)
         assert "wtf-a-pay" in html and "/login?next=/gic" in html
 
-    @pytest.mark.parametrize("page", ["officers", "gic"])
-    def test_gated_content_never_leaks_to_anonymous(self, env, page):
-        # Assert on values that appear ONLY in gated records. "Auditor General"
-        # is NOT one of them — the always-public explainer says "When the
-        # Auditor General flags waste", so matching it would fail on correct
-        # markup. A probe must name the thing it actually measures.
-        html = officers_html(env, subscriber=False) if page == "officers" \
-            else gic_html(env, subscriber=False)
-        for secret in ("Karen Hogan", "Jane Doe", "Federal Court",
-                       "Auditor General of Canada", "PC 2026-0421",
-                       "Administers the Lobbying Act"):
-            assert secret not in html, f"{page}: gated record {secret!r} leaked to anonymous"
+    def test_gic_gated_content_never_leaks_to_anonymous(self, env):
+        html = gic_html(env, subscriber=False)
+        for secret in ("Jane Doe", "Federal Court", "PC 2026-0421"):
+            assert secret not in html, f"gic: gated record {secret!r} leaked to anonymous"
+
+    def test_officers_holder_fields_never_leak_to_anonymous(self, env):
+        # Deliberate divergence from the old "gate the whole record" rule (see
+        # design-handoff/README.md "One deliberate divergence from live:
+        # /parliament/officers"): title and mandate_summary are now FREE for
+        # all 8 offices — a mandate is a public statutory fact, and the old
+        # gate hid the evidence for the page's own "why they matter" argument.
+        # Only the newsroom's own tracking work — current_holder, appointed_at,
+        # report_url/title, and cross-product links — stays Starter+.
+        html = officers_html(env, subscriber=False)
+        for secret in ("Karen Hogan", "appointed June 2020", "Official site",
+                       "Gov Watch", "WTF"):
+            assert secret not in html, f"officers: gated field {secret!r} leaked to anonymous"
+
+    def test_officers_title_and_mandate_are_free_for_anonymous(self, env):
+        # The other half of the same divergence: these must NOT be hidden.
+        # A regression here would silently re-gate a public statutory fact.
+        html = officers_html(env, subscriber=False)
+        assert "Auditor General of Canada" in html
+        assert "Commissioner of Lobbying" in html
+        assert "Administers the Lobbying Act." in html
 
 
 class TestNoNestedAnchors:
@@ -210,8 +223,13 @@ class TestNoPrivateStyling:
 
 
 class TestExternalTextIsEscaped:
-    def test_mandate_summary_is_escaped(self, env):
-        html = officers_html(env, subscriber=True)
+    @pytest.mark.parametrize("subscriber", [True, False])
+    def test_mandate_summary_is_escaped(self, env, subscriber):
+        # mandate_summary is now free (subscriber=False renders it too — the
+        # deliberate divergence documented above), so both branches must
+        # escape it; a hostile mandate string is scraped external text either
+        # way.
+        html = officers_html(env, subscriber=subscriber)
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
         assert "<script>alert(1)" not in html
 

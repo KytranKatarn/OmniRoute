@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall %}
 {% block title %}Ethics Commissioner Rulings — Conflict of Interest Reports · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="All Ethics Commissioner investigation reports on Canadian MPs, ministers, and public officials. Conflict of interest findings 2015–2026.">
@@ -48,7 +47,9 @@
   </div>
 </div>
 
-{% if is_subscriber %}
+{# Per the design handoff README's paywall contract: "/ethics — Everything —
+   no gate." These are public Ethics Commissioner findings; the previous gate
+   here had no counterpart in the design at all. #}
 <div class="wtf-eth-list">
 {% for r in rulings %}
 <div class="wtf-eth-row">
@@ -72,13 +73,6 @@
 </div>
 {% endfor %}
 </div>
-{% else %}
-{{ paywall(
-     '🔒 Ethics Rulings — Starter+',
-     '30 investigation reports on Canadian MPs, ministers, and public officials — from Trudeau III to Fox (2015–2026).',
-     '/ethics'
-) }}
-{% endif %}
 
 <div class="wtf-eth-about">
   <strong class="wtf-eth-about-h">About ethics investigations</strong><br>

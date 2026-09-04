@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall, lean_pill, lean_token %}
 {% block title %}{{ mp.name }} — MP Profile · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{{ mp.name }} ({{ mp.party }}, {{ mp.riding_name }}) — vote record, media coverage analysis by What The Fact.">
@@ -296,16 +297,15 @@
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">📰 In the media</div>
   {% if articles %}
-    {% set BAND_COLOURS = {'left': '#ef4444', 'center-left': '#f97316', 'center': '#22c55e', 'center-right': '#0ea5e9', 'right': '#2563eb'} %}
     {% for a in articles %}
     <div class="wtf-mp-article">
-      <div class="wtf-mp-article-band" style="background:{{ BAND_COLOURS.get(a.bias_band or '', '#6b7280') }};"></div>
+      <div class="wtf-mp-article-band" style="background:var({{ lean_token(a.bias_band or '', '#6b7280') }});"></div>
       <div class="wtf-mp-article-info">
         <a class="wtf-mp-article-title" href="/article/{{ a.id }}">{{ a.title or 'Untitled' }}</a>
         <div class="wtf-mp-article-meta">
           {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" class="wtf-mp-source-inherit">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
           {% if a.published_at %}· {{ a.published_at.strftime('%b %-d') if a.published_at.strftime is defined else (a.published_at or '')[:10] }}{% endif %}
-          {% if a.bias_band %}· <span style="color:{{ BAND_COLOURS.get(a.bias_band, '#6b7280') }};">{{ a.bias_band.replace('-',' ') }}</span>{% endif %}
+          {% if a.bias_band %}· {{ lean_pill(a.bias_band) }}{% endif %}
         </div>
       </div>
     </div>
@@ -497,24 +497,9 @@
 {% endif %}
 
 {% else %}
-{# ── Paywall gate ─────────────────────────────────────────────────────────
-   Hand-rolled deliberately, NOT converged onto _archetypes.html's paywall()
-   macro: the blurb below contains a literal <br> line break, and the macro
-   renders its blurb argument through {{ blurb }} (Jinja auto-escaping) —
-   passing HTML through would print the literal text "<br>" instead of
-   breaking the line. Same shape as entity.html's decision this session not
-   to converge for the same reason. #}
-<div class="wtf-mp-paywall">
-  <div class="wtf-mp-paywall-title">🔒 Full Profile — Starter+</div>
-  <div class="wtf-mp-paywall-blurb">
-    Voting record, media mentions, Elections Canada donor data, lobbying contacts,<br>
-    quarterly expenses, and ethics disclosures are available to subscribers.
-  </div>
-  <a href="/login?next={{ request.path }}" class="wtf-mp-paywall-cta">Unlock with Starter →</a>
-  <div class="wtf-mp-paywall-plans-wrap">
-    <a href="/join" class="wtf-mp-paywall-plans-link">See plans</a>
-  </div>
-</div>
+{{ paywall('Full Profile — Starter+',
+   'Voting record, media mentions, Elections Canada donor data, lobbying contacts, quarterly expenses, and ethics disclosures are available to subscribers.',
+   request.path) }}
 {% endif %}
 
 {% endblock %}

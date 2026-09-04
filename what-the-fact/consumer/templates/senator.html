@@ -106,6 +106,12 @@
     <strong>{{ senator.years_until_retirement }}y</strong>until retirement
   </div>
   {% endif %}
+  {# Constitution Act, 1867 s.29(2) (as amended 1965): senators hold office
+     until age 75 — a fixed constitutional fact, not a per-senator figure,
+     shown alongside the dates it's derived from so the two can't disagree. #}
+  <div class="wtf-sen-stat">
+    <strong>75</strong>retirement age
+  </div>
 </div>
 {% endif %}
 
@@ -120,8 +126,11 @@
 {# ── Paywalled detail section ───────────────────────────────────────────── #}
 {% if is_subscriber %}
 
-  {# Contact info #}
-  {% if senator.office_phone or senator.office_email or senator.twitter_handle %}
+  {# Contact info. The Chamber address is a fixed fact (the Senate's public
+     mailing address on Parliament Hill) and only shown for SITTING senators —
+     a former senator no longer holds that office, so stating it for them
+     would misrepresent their current standing. #}
+  {% if senator.office_phone or senator.office_email or senator.twitter_handle or senator.is_current %}
   <div class="wtf-sen-section">
     <div class="wtf-sen-section-title">📞 Contact</div>
     <div class="wtf-sen-contact-list">
@@ -134,6 +143,9 @@
       {% if senator.twitter_handle %}
       🐦 <a href="https://twitter.com/{{ senator.twitter_handle }}" target="_blank" rel="noopener" class="wtf-sen-contact-link">@{{ senator.twitter_handle }}</a><br>
       {% endif %}
+      {% if senator.is_current %}
+      🏛 Senate of Canada, Ottawa ON K1A 0A4
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -144,11 +156,13 @@
     <div class="wtf-sen-section-title">🏛 Committee Memberships ({{ senator.committees | length }})</div>
     <div>
       {% for c in senator.committees %}
-      <span class="wtf-committee-chip {{ 'chair' if c.role in ('chair','deputy_chair') else '' }}"
-            title="{{ c.role | replace('_',' ') | title }}">
+      <a class="wtf-committee-chip {{ 'chair' if c.role in ('chair','deputy_chair') else '' }}"
+         href="https://sencanada.ca/en/committees/{{ c.committee_abbr }}/" target="_blank" rel="noopener"
+         title="{{ c.role | replace('_',' ') | title }}">
         <strong>{{ c.committee_abbr }}</strong> {{ c.committee_name }}
         {% if c.role == 'chair' %} · Chair{% elif c.role == 'deputy_chair' %} · Deputy Chair{% endif %}
-      </span>
+        <span class="wtf-sen-link-muted">↗</span>
+      </a>
       {% endfor %}
     </div>
   </div>

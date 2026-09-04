@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}{{ src.name }} — Bias Profile · What The Fact{% endblock %}
 {% block meta %}
 {% set _band = src.rolling_band or src.bias_lean or 'unscored' %}
@@ -23,66 +24,152 @@
 {% set band = src.rolling_band or src.bias_lean or 'unscored' %}
 {% set colour = BAND_COLOURS.get(band, '#6b7280') %}
 
-<div style="max-width:760px;margin:48px auto;padding:0 16px;">
+<style>
+/* Extracted all ~45 inline style="..." attributes on this page into namespaced
+   wtf-src- classes — value-preserving, same hex/rem/px literals throughout. No
+   pre-existing <style> block or class= attributes existed here before this pass
+   (checked against consumer/static/style.css first — no unused source-page
+   classes exist there to duplicate or reuse).
+
+   No hex literal on this page is a byte-identical match to any --wtf-* token in
+   style.css (checked #4b5563, #f0f0f0, #6b7280, #4a9eff, #0a0f1a, #1f2937,
+   #e0e0e0, #111827, #9ca3af, #d1d5db, #1a2030, #060d14, #1a3a5a, #e5e7eb,
+   #ef4444, #fff, #374151, #f97316, #22c55e, #0ea5e9, #2563eb individually —
+   none equal a token value, e.g. #0a0f1a is close to but not byte-identical to
+   --wtf-bg #0d1117, and #ef4444 is close to but not byte-identical to
+   --wtf-accent #dc2626), so none are swapped.
+
+   BAND_COLOURS (the Jinja dict above) and its JS mirror `BC` inside the trend-
+   chart <script> are the SAME kind of value even where they happen to equal a
+   Tailwind-style hex — every consumer appends a runtime alpha suffix
+   ("{{ colour }}22", "{{ colour }}66", JS `c+'33'`), which var(--wtf-xxx)
+   cannot take. Left as literals; a CSS var() reference cannot carry an
+   appended alpha suffix. Same trap documented on /crtc and /cross_watch this
+   session.
+
+   font-family:Georgia,serif (4 occurrences: h1 title, 3 stat values) is
+   deliberately LEFT literal — Georgia,serif is not byte-identical to the
+   --wtf-font-serif token value ('Newsreader', Georgia, 'Times New Roman',
+   serif), so swapping it would silently change the rendered font stack (same
+   reasoning as /governance this session).
+
+   'Orbitron' (paywall title) WAS the never-loaded-font bug — base.html's <head>
+   loads only Newsreader + IBM Plex Sans + IBM Plex Mono via Google Fonts
+   (grep confirms no Orbitron <link> anywhere in base.html), so it silently
+   fell back to a generic sans. That whole block is now replaced by the shared
+   paywall() macro (see below), which uses var(--wtf-font-mono) for its title —
+   no literal 'Orbitron' remains on this page.
+
+   The trend-chart <script> block builds bar styles via JS `.style.cssText=`
+   (computed height + per-band colour + alpha suffix) — genuinely dynamic
+   per-datapoint values, left untouched; this pass covers HTML style="..."
+   attributes in the template, not JS-authored cssText strings.
+
+   Paywall gate — converged onto the shared paywall() macro (same behaviour:
+   Starter+, /login?next=<this page's path>, "Unlock with Starter" CTA, /join
+   plans link). The hand-rolled block had no extra elements (no separate
+   sign-in link, no literal <br> in the blurb) so the shape matches exactly —
+   unlike /entity this session, which kept its hand-rolled block for a blurb
+   shape the macro's auto-escaping would have broken. */
+.wtf-src-wrap { max-width:760px; margin:48px auto; padding:0 16px; }
+
+.wtf-src-header { margin-bottom:28px; }
+.wtf-src-eyebrow { font-size:0.55rem; letter-spacing:3px; color:#4b5563; text-transform:uppercase; margin-bottom:8px; }
+.wtf-src-eyebrow-link { color:#4b5563; text-decoration:none; }
+.wtf-src-title { font-family:Georgia,serif; font-size:1.9rem; color:#f0f0f0; margin:0 0 6px; }
+.wtf-src-meta-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.wtf-src-chip { font-size:0.65rem; border-radius:3px; padding:2px 10px; text-transform:uppercase; letter-spacing:1px; font-weight:600; }
+.wtf-src-owner-type { font-size:0.65rem; color:#6b7280; }
+.wtf-src-owner-name { font-size:0.65rem; color:#4b5563; }
+.wtf-src-url { font-size:0.65rem; color:#4a9eff; text-decoration:none; }
+
+.wtf-src-stats-row { display:flex; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
+.wtf-src-stat-card { background:#0a0f1a; border:1px solid #1f2937; border-radius:6px; padding:16px 22px; text-align:center; min-width:110px; }
+.wtf-src-stat-value { font-family:Georgia,serif; font-size:1.6rem; font-weight:700; }
+.wtf-src-stat-label { font-size:0.55rem; color:#4b5563; letter-spacing:1.5px; text-transform:uppercase; margin-top:2px; }
+
+.wtf-src-panel { background:#0a0f1a; border:1px solid #1f2937; border-radius:6px; padding:18px; margin-bottom:24px; }
+.wtf-src-panel-title { font-size:0.55rem; letter-spacing:2px; color:#4b5563; text-transform:uppercase; margin-bottom:12px; }
+
+.wtf-src-dist-row { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.wtf-src-dist-label { width:80px; font-size:0.65rem; color:#9ca3af; text-align:right; text-transform:uppercase; }
+.wtf-src-dist-track { flex:1; background:#111827; border-radius:2px; height:8px; }
+.wtf-src-dist-fill { border-radius:2px; height:8px; }
+.wtf-src-dist-count { width:40px; font-size:0.65rem; color:#6b7280; text-align:right; }
+
+.wtf-src-trend-chart { height:80px; display:flex; align-items:flex-end; gap:3px; overflow:hidden; }
+.wtf-src-trend-labels { display:flex; gap:3px; margin-top:4px; }
+
+.wtf-src-recent-wrap { margin-bottom:8px; }
+.wtf-src-article-row { display:block; padding:9px 12px; margin-bottom:4px; background:#0a0f1a; border:1px solid #1a2030; border-radius:4px; text-decoration:none; }
+.wtf-src-article-title { font-size:0.78rem; color:#d1d5db; line-height:1.4; margin-bottom:3px; }
+.wtf-src-article-meta { font-size:0.62rem; color:#4b5563; }
+.wtf-src-empty { color:#4b5563; font-size:0.75rem; padding:12px; }
+
+.wtf-src-back-wrap { margin-top:20px; }
+.wtf-src-back-link { font-size:0.7rem; color:#4b5563; text-decoration:none; }
+</style>
+
+<div class="wtf-src-wrap">
 
   <!-- Header -->
-  <div style="margin-bottom:28px;">
-    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">
-      <a href="/" style="color:#4b5563;text-decoration:none;">What The Fact</a> / Source Profile
+  <div class="wtf-src-header">
+    <div class="wtf-src-eyebrow">
+      <a href="/" class="wtf-src-eyebrow-link">What The Fact</a> / Source Profile
     </div>
-    <h1 style="font-family:Georgia,serif;font-size:1.9rem;color:#f0f0f0;margin:0 0 6px;">{{ src.name }}</h1>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-      <span style="font-size:0.65rem;background:{{ colour }}22;color:{{ colour }};border:1px solid {{ colour }}66;border-radius:3px;padding:2px 10px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">{{ band.replace('-', ' ') }}</span>
-      {% if src.owner_type %}<span style="font-size:0.65rem;color:#6b7280;">{{ src.owner_type | capitalize }}</span>{% endif %}
-      {% if src.owner_name %}<span style="font-size:0.65rem;color:#4b5563;">{{ src.owner_name }}</span>{% endif %}
-      {% if src.url %}<a href="{{ src.url }}" target="_blank" rel="nofollow noopener" style="font-size:0.65rem;color:#4a9eff;text-decoration:none;">{{ src.url.replace('https://','').replace('http://','').rstrip('/') }} ↗</a>{% endif %}
+    <h1 class="wtf-src-title">{{ src.name }}</h1>
+    <div class="wtf-src-meta-row">
+      <span class="wtf-src-chip" style="background:{{ colour }}22;color:{{ colour }};border:1px solid {{ colour }}66;">{{ band.replace('-', ' ') }}</span>
+      {% if src.owner_type %}<span class="wtf-src-owner-type">{{ src.owner_type | capitalize }}</span>{% endif %}
+      {% if src.owner_name %}<span class="wtf-src-owner-name">{{ src.owner_name }}</span>{% endif %}
+      {% if src.url %}<a href="{{ src.url }}" target="_blank" rel="nofollow noopener" class="wtf-src-url">{{ src.url.replace('https://','').replace('http://','').rstrip('/') }} ↗</a>{% endif %}
     </div>
   </div>
 
   {% if is_subscriber %}
   <!-- Stats row -->
-  <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:24px;">
-    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
-      <div style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;font-weight:700;">{{ src.total_articles | default(0) }}</div>
-      <div style="font-size:0.55rem;color:#4b5563;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Total Articles</div>
+  <div class="wtf-src-stats-row">
+    <div class="wtf-src-stat-card">
+      <div class="wtf-src-stat-value" style="color:#e0e0e0;">{{ src.total_articles | default(0) }}</div>
+      <div class="wtf-src-stat-label">Total Articles</div>
     </div>
-    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
-      <div style="font-family:Georgia,serif;font-size:1.6rem;color:#e0e0e0;font-weight:700;">{{ src.articles_7d | default(0) }}</div>
-      <div style="font-size:0.55rem;color:#4b5563;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Last 7 Days</div>
+    <div class="wtf-src-stat-card">
+      <div class="wtf-src-stat-value" style="color:#e0e0e0;">{{ src.articles_7d | default(0) }}</div>
+      <div class="wtf-src-stat-label">Last 7 Days</div>
     </div>
     {% if src.avg_score is not none %}
-    <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:16px 22px;text-align:center;min-width:110px;">
-      <div style="font-family:Georgia,serif;font-size:1.6rem;color:{{ colour }};font-weight:700;">{{ "%.2f"|format(src.avg_score | float) }}</div>
-      <div style="font-size:0.55rem;color:#4b5563;letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Avg Bias Score</div>
+    <div class="wtf-src-stat-card">
+      <div class="wtf-src-stat-value" style="color:{{ colour }};">{{ "%.2f"|format(src.avg_score | float) }}</div>
+      <div class="wtf-src-stat-label">Avg Bias Score</div>
     </div>
     {% endif %}
   </div>
 
   <!-- Bias distribution -->
   {% if band_counts %}
-  <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:18px;margin-bottom:24px;">
-    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Article Bias Distribution</div>
+  <div class="wtf-src-panel">
+    <div class="wtf-src-panel-title">Article Bias Distribution</div>
     {% set total_scored = namespace(n=0) %}
     {% for bc in band_counts %}{% set total_scored.n = total_scored.n + bc.n %}{% endfor %}
     {% for bc in band_counts %}
     {% set bc_colour = BAND_COLOURS.get(bc.band, '#6b7280') %}
     {% set pct = (bc.n / total_scored.n * 100) | int if total_scored.n > 0 else 0 %}
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-      <div style="width:80px;font-size:0.65rem;color:#9ca3af;text-align:right;text-transform:uppercase;">{{ bc.band }}</div>
-      <div style="flex:1;background:#111827;border-radius:2px;height:8px;">
-        <div style="width:{{ pct }}%;background:{{ bc_colour }};border-radius:2px;height:8px;"></div>
+    <div class="wtf-src-dist-row">
+      <div class="wtf-src-dist-label">{{ bc.band }}</div>
+      <div class="wtf-src-dist-track">
+        <div class="wtf-src-dist-fill" style="width:{{ pct }}%;background:{{ bc_colour }};"></div>
       </div>
-      <div style="width:40px;font-size:0.65rem;color:#6b7280;text-align:right;">{{ bc.n }}</div>
+      <div class="wtf-src-dist-count">{{ bc.n }}</div>
     </div>
     {% endfor %}
   </div>
   {% endif %}
 
   <!-- T3007 — Bias Drift Tracker -->
-  <div style="background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;padding:18px;margin-bottom:24px;">
-    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Bias Drift — Last 12 Months</div>
-    <div id="wtf-trend-chart" style="height:80px;display:flex;align-items:flex-end;gap:3px;overflow:hidden;"></div>
-    <div id="wtf-trend-labels" style="display:flex;gap:3px;margin-top:4px;"></div>
+  <div class="wtf-src-panel">
+    <div class="wtf-src-panel-title">Bias Drift — Last 12 Months</div>
+    <div id="wtf-trend-chart" class="wtf-src-trend-chart"></div>
+    <div id="wtf-trend-labels" class="wtf-src-trend-labels"></div>
   </div>
   <script>
   (function(){
@@ -115,14 +202,14 @@
   </script>
 
   <!-- Recent articles -->
-  <div style="margin-bottom:8px;">
-    <div style="font-size:0.55rem;letter-spacing:2px;color:#4b5563;text-transform:uppercase;margin-bottom:12px;">Recent Articles</div>
+  <div class="wtf-src-recent-wrap">
+    <div class="wtf-src-panel-title">Recent Articles</div>
     {% for art in recent %}
     {% set art_band = art.band or 'unscored' %}
     {% set art_colour = BAND_COLOURS.get(art_band, '#6b7280') %}
-    <a href="/article/{{ art.id }}" style="display:block;padding:9px 12px;margin-bottom:4px;background:#0a0f1a;border:1px solid #1a2030;border-radius:4px;text-decoration:none;border-left:2px solid {{ art_colour }};">
-      <div style="font-size:0.78rem;color:#d1d5db;line-height:1.4;margin-bottom:3px;">{{ art.title[:120] }}</div>
-      <div style="font-size:0.62rem;color:#4b5563;">
+    <a href="/article/{{ art.id }}" class="wtf-src-article-row" style="border-left:2px solid {{ art_colour }};">
+      <div class="wtf-src-article-title">{{ art.title[:120] }}</div>
+      <div class="wtf-src-article-meta">
         <span style="color:{{ art_colour }}">{{ art_band.upper() }}</span>
         {% if art.score %}&nbsp;·&nbsp;{{ "%.2f"|format(art.score | float) }}{% endif %}
         {% if art.published_at %}&nbsp;·&nbsp;{{ art.published_at.strftime('%b %d') }}{% endif %}
@@ -130,20 +217,19 @@
     </a>
     {% endfor %}
     {% if not recent %}
-    <div style="color:#4b5563;font-size:0.75rem;padding:12px;">No articles tracked yet.</div>
+    <div class="wtf-src-empty">No articles tracked yet.</div>
     {% endif %}
   </div>
 
-  <div style="margin-top:20px;">
-    <a href="/news" style="font-size:0.7rem;color:#4b5563;text-decoration:none;">← Back to news feed</a>
+  <div class="wtf-src-back-wrap">
+    <a href="/news" class="wtf-src-back-link">← Back to news feed</a>
   </div>
   {% else %}
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;margin-top:16px;">
-    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Bias Profile — Starter+</div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Bias distribution, article history, and score breakdown for {{ src.name }}.</div>
-    <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-  </div>
+  {{ paywall(
+       '🔒 Bias Profile — Starter+',
+       'Bias distribution, article history, and score breakdown for ' ~ src.name ~ '.',
+       request.path
+  ) }}
   {% endif %}
 
 </div>

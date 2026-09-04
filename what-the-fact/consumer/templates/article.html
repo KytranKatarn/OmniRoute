@@ -162,6 +162,175 @@
 /* The background was already --wtf-developing at 18%; only the text colour had
    drifted to a neighbouring amber. Same token now, so the two cannot diverge. */
 mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-developing); border-radius: 2px; padding: 0 2px; text-decoration: underline; text-decoration-color: rgba(245,158,11,0.4); }
+
+/* Header / meta row */
+.wtf-art-src-link { color:inherit;text-decoration:none; }
+.wtf-art-owner-badge { font-size:9px;color:#4b5563;background:var(--wtf-bg);border:1px solid #1f2937;border-radius:2px;padding:1px 5px; }
+.wtf-art-readtime { color:#4b5563; }
+.wtf-art-opinion-badge { font-size:9px;color:#f59e0b;background:#1c1000;border:1px solid #78350f;border-radius:2px;padding:1px 5px; }
+.wtf-art-audit-link { font-size:10px;color:#a0f;text-decoration:none;white-space:nowrap; }
+.wtf-art-creed-badge { height:18px;vertical-align:middle; }
+.wtf-art-original-link { font-size:11px;color:#555; }
+.wtf-art-paywalled-note { font-size:10px;color:#6b7280;margin-left:8px; }
+
+/* Press-release / wire panel */
+.wtf-art-wire-panel { background:var(--wtf-bg);border:1px solid #2a2a1a;border-radius:4px;padding:13px;margin-bottom:14px; }
+.wtf-art-wire-label { font-size:10px;letter-spacing:1.5px;color:#a89050;text-transform:uppercase;margin-bottom:6px; }
+.wtf-art-wire-body { font-size:11.5px;color:#8b949e;line-height:1.6; }
+.wtf-art-wire-strong { color:#c9d6e2; }
+
+/* Shared side-panel shell (tickers / entities / key figures) */
+.wtf-art-side-panel { background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px; }
+.wtf-art-panel-heading { font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px; }
+.wtf-art-panel-heading-lg { font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px; }
+.wtf-art-panel-footnote { font-size:9px;color:#374151;margin-top:4px; }
+.wtf-art-ticker-chip { display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#0af;border:1px solid #123;background:#0a1520;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0; }
+.wtf-art-entity-chip { display:inline-block;font-size:11.5px;color:#9ca3af;border:1px solid #1f2937;background:#0b1219;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0;text-decoration:none; }
+.wtf-art-entity-dot { color:#22c55e;margin-left:5px; }
+.wtf-art-crosswatch-mark { color:#22c55e; }
+.wtf-art-keyfig-quote { font-size:12px;color:#9ca3af;line-height:1.55;padding:5px 0 5px 9px;border-left:2px solid #1f2937;margin-bottom:5px; }
+
+/* Bias panel additions */
+.wtf-art-band-nd { color:#6b7280;border-color:#374151; }
+.wtf-art-bar-dim { opacity:.28; }
+.wtf-art-bar-full { width:100%; }
+.wtf-art-bar-legend { display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-bottom:6px; }
+.wtf-art-nosignal-note { font-size:10px;color:#9ca3af;margin-bottom:6px;padding:6px 8px;background:#0a0a0a;border-radius:3px;border-left:2px solid #6b7280; }
+.wtf-art-bar-legend-2 { display:flex;justify-content:space-between;font-size:9px;color:#555;margin-bottom:6px; }
+.wtf-art-mb6 { margin-bottom:6px; }
+.wtf-art-mt6 { margin-top:6px; }
+.wtf-art-details-summary { font-size:10px;color:#4b5563;cursor:pointer; }
+.wtf-art-signal-grid { margin-top:6px;display:grid;gap:4px;font-size:10px; }
+.wtf-art-score-row { display:flex;justify-content:space-between;color:#6b7280;padding:3px 0;border-bottom:1px solid #0a1520; }
+.wtf-art-mono { font-family:'IBM Plex Mono',monospace; }
+.wtf-art-muted { color:#9ca3af; }
+.wtf-art-score-row-strong { display:flex;justify-content:space-between;color:#9ca3af;padding:3px 0;font-weight:bold; }
+.wtf-art-limited-note { font-size:10px;color:#555;margin-top:6px;padding:6px 8px;background:#0a0a0a;border-radius:3px;border-left:2px solid #1f2937; }
+
+/* Source Intelligence card */
+.wtf-art-source-panel { background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-source-heading { font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px; }
+.wtf-art-source-row { display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap; }
+.wtf-art-source-col { flex:1;min-width:160px; }
+.wtf-art-source-name { font-size:13px;color:#e5e7eb;margin-bottom:4px; }
+.wtf-art-source-name-link { color:#e5e7eb;text-decoration:none; }
+.wtf-art-source-owner { font-size:11px;color:#6b7280;margin-bottom:2px; }
+.wtf-art-source-meta { font-size:10px;color:#4b5563; }
+.wtf-art-source-right { text-align:right;flex-shrink:0; }
+.wtf-art-rolling-label { font-size:10px;color:#6b7280;margin-bottom:4px; }
+.wtf-art-outlet-avg { font-size:10px;color:#4b5563;font-family:'IBM Plex Mono',monospace; }
+.wtf-art-outlet-count { font-size:10px;color:#374151;margin-top:4px; }
+.wtf-art-mt10 { margin-top:10px; }
+.wtf-art-sparkline-label { font-size:9px;color:#4b5563;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em; }
+.wtf-art-sparkline-svg { width:140px;height:32px;display:block; }
+.wtf-art-sparkline-legend { display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-top:2px; }
+.wtf-art-sparkline-center { color:#6b7280; }
+
+/* Fact-check panel additions */
+.wtf-art-verdict-line { margin-bottom:8px;font-size:12px;color:#aaa; }
+.wtf-art-verdict-note { font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5; }
+
+/* Agent bylines + Deep Dive */
+.wtf-art-byline-bias { border-left:2px solid #f80; }
+.wtf-art-byline-verify { border-left:2px solid #4a9; }
+.wtf-art-byline-local { border-left:2px solid #0af; }
+.wtf-art-byline-quick { border-left:2px solid #555; }
+.wtf-art-nounderline { text-decoration:none; }
+.wtf-art-byline-tier1 { border-left:2px solid #3b82f6; }
+.wtf-art-deepdive-result { display:none;background:#060d14;border:1px solid #0af;border-radius:4px;padding:12px;margin-bottom:14px;font-size:11px;color:#ccc; }
+
+/* Intelligence Feed / Gov Tenders / Parliament Votes / Civic Events sections */
+.wtf-art-intel-section { display:none;background:#060a14;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-section-heading-teal { font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;font-weight:600; }
+.wtf-art-ul-reset { list-style:none;margin:0;padding:0; }
+.wtf-art-section-footnote { font-size:10px;color:#4b5563;margin-top:6px; }
+.wtf-art-tenders-section { display:none;background:#06100a;border:1px solid #1a3a2a;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-section-heading-green { font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600; }
+.wtf-art-votes-section { display:none;background:#0a0614;border:1px solid #2a1a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-section-heading-purple { font-size:10px;letter-spacing:1.5px;color:#a78bfa;text-transform:uppercase;margin-bottom:8px;font-weight:600; }
+.wtf-art-civic-section { display:none;background:#060a10;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+
+/* MP Election Claims panel */
+.wtf-art-mpclaims-panel-style { background:#0a0e14;border:1px solid #1a2a1a;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-mpclaim-row { background:#060d08;border-radius:3px;padding:8px 10px;margin-bottom:6px;border-left-width:3px; }
+.wtf-art-mpclaim-head { display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap; }
+.wtf-art-mpclaim-pol-link { font-size:10px;color:#38bdf8;text-decoration:none;font-weight:bold; }
+.wtf-art-mpclaim-verdict-sm { font-size:9px;letter-spacing:1px; }
+.wtf-art-mpclaim-text { font-size:11px;color:#ccc;margin:0 0 4px; }
+.wtf-art-mpclaim-summary { font-size:10px;color:#a0aec0;margin:4px 0 0;border-left:2px solid #1a2a1a;padding-left:8px; }
+.wtf-art-mpclaim-locked { font-size:10px;color:#4b5563;margin:4px 0 0; }
+.wtf-art-mpclaim-more { font-size:10px;color:#4ade80;text-decoration:none; }
+
+/* Cross-Watch teaser panel */
+.wtf-art-crosswatch-panel-style { background:#0a0e14;border:1px solid #143047;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-crosswatch-heading { font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:3px;font-weight:600; }
+.wtf-art-crosswatch-sub { font-size:10px;color:#6b7280;margin-bottom:8px; }
+.wtf-art-crosswatch-row { display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #060d14; }
+.wtf-art-crosswatch-entity { font-size:11px;color:#e5e7eb;text-decoration:none;font-weight:600; }
+.wtf-art-crosswatch-entity-type { color:#4b5563;font-weight:400; }
+.wtf-art-crosswatch-chips { display:flex;gap:4px;flex-wrap:wrap; }
+.wtf-art-crosswatch-chip { font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:2px;background:#060d14; }
+
+/* Third-party (GoogleFCT) fact-checks */
+.wtf-art-gfct-panel { background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px; }
+.wtf-art-gfct-heading { font-size:10px;letter-spacing:1.5px;color:#4a9eff;text-transform:uppercase;margin-bottom:8px;font-weight:600; }
+.wtf-art-gfct-row-label { font-size:10px;color:#9ca3af;margin-bottom:3px; }
+.wtf-art-gfct-claim { font-size:11px;color:#c0c8d8;line-height:1.5; }
+.wtf-art-gfct-link { font-size:10px;color:#4a9eff;text-decoration:none; }
+.wtf-art-gfct-footnote { font-size:10px;color:#4b5563;margin-top:4px; }
+
+/* Article body / excerpt */
+.wtf-art-limitedbody-panel { background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:16px;margin-bottom:14px;text-align:center; }
+.wtf-art-limitedbody-icon { font-size:18px;margin-bottom:6px; }
+.wtf-art-limitedbody-text { font-size:12px;color:#6b7280;margin-bottom:10px;line-height:1.6; }
+.wtf-art-readfull-btn { font-size:11px;background:#0a1f3a;border:1px solid #0af;color:#0af;padding:6px 14px;border-radius:3px;text-decoration:none; }
+.wtf-art-bodyexcerpt-panel { background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:14px; }
+.wtf-art-body-text { margin-bottom:10px;white-space:pre-line; }
+.wtf-art-blue-link { font-size:11px;color:#0af;text-decoration:none; }
+
+/* Local coverage */
+.wtf-art-localcov-panel { background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px; }
+.wtf-art-localcov-row { padding:7px 0;border-bottom:1px solid #131f2b; }
+.wtf-art-localcov-row--last { border-bottom:none; }
+.wtf-art-localcov-link { font-size:12.5px;color:#c9d6e2;text-decoration:none;line-height:1.45;display:block; }
+.wtf-art-localcov-meta { font-size:10px;color:#4b5563;margin-top:3px; }
+.wtf-art-localcov-footnote { font-size:9px;color:#374151;margin-top:8px; }
+.wtf-art-mt8 { margin-top:8px; }
+
+/* How-we-scored / Analysis provenance footer */
+.wtf-art-purple-link { color:#a0f; }
+.wtf-art-provenance-footer { margin-top:16px;padding:10px 14px;background:#040a10;border-top:1px solid #0d1f2d;border-radius:0 0 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center; }
+.wtf-art-provenance-label { font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.06em; }
+.wtf-art-provenance-bias { font-size:10px;color:#0af;font-family:'IBM Plex Mono',monospace; }
+.wtf-art-provenance-verify { font-size:10px;color:var(--wtf-verify);font-family:'IBM Plex Mono',monospace; }
+.wtf-art-provenance-local { font-size:10px;color:var(--wtf-local);font-family:'IBM Plex Mono',monospace; }
+.wtf-art-provenance-tier { font-size:9px;color:#374151;background:#0a0a0a;border:1px solid #1f2937;border-radius:2px;padding:1px 5px;margin-left:2px; }
+.wtf-art-provenance-date { font-size:10px;color:#374151;margin-left:auto; }
+
+/* Flag incorrect analysis */
+.wtf-art-flag-row { margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap; }
+.wtf-art-report-btn { background:none;border:none;color:#374151;font-size:11px;cursor:pointer;padding:0;font-family:inherit; }
+.wtf-art-literacy-link { font-size:11px;color:#6b7280;text-decoration:none; }
+.wtf-art-flagform-panel { background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px;margin-top:8px; }
+.wtf-art-flagform-label { font-size:11px;color:#9ca3af;margin-bottom:8px; }
+.wtf-art-flagform-buttons { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px; }
+.wtf-art-flagform-result { font-size:11px;color:#6b7280;display:none; }
+
+/* Cross-source outlet comparison */
+.wtf-art-clustercmp-panel { background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px; }
+.wtf-art-clustercmp-heading { font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px; }
+.wtf-art-clustercmp-row { display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #0d1f2d; }
+.wtf-art-clustercmp-row--last { border-bottom:none; }
+.wtf-art-clustercmp-link { color:#ccc;text-decoration:none;font-size:12px;flex:1;line-height:1.4; }
+.wtf-art-clustercmp-source { font-size:10px;color:#6b7280;flex-shrink:0; }
+.wtf-art-clustercmp-more { margin-top:8px;font-size:11px;color:#6b7280; }
+.wtf-art-clustercmp-cta { display:inline-block;margin-top:10px;font-size:11px;color:#0af;text-decoration:none; }
+.wtf-art-clustercmp-locked-row { display:flex;align-items:center;gap:10px; }
+.wtf-art-clustercmp-icon { font-size:20px; }
+.wtf-art-clustercmp-locked-title { font-size:12px;color:#e5e7eb;font-weight:600; }
+.wtf-art-clustercmp-locked-sub { font-size:11px;color:#6b7280;margin-top:2px; }
+.wtf-art-clustercmp-unlock-btn { margin-left:auto;background:#0a2a3a;border:1px solid #0af;color:#0af;font-size:11px;font-weight:700;padding:6px 14px;border-radius:3px;text-decoration:none;white-space:nowrap; }
+.wtf-art-mt12 { margin-top:12px; }
 </style>
 
 <div class="wtf-art-container">
@@ -169,12 +338,12 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   <!-- Header -->
   <div class="wtf-art-header">
     <div class="wtf-art-meta">
-      {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;" title="{{ a.source_name }} bias profile">{{ a.source_name or '' }}</a>{% else %}{{ a.source_name or '' }}{% endif %}
-      {% if a.owner_name %}<span style="font-size:9px;color:#4b5563;background:#0d1117;border:1px solid #1f2937;border-radius:2px;padding:1px 5px;">{% if a.owner_type == 'corporate' %}🏢{% elif a.owner_type == 'state' %}🏛{% elif a.owner_type == 'independent' %}👤{% else %}📰{% endif %} {{ a.owner_name }}</span>{% endif %}
+      {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" class="wtf-art-src-link" title="{{ a.source_name }} bias profile">{{ a.source_name or '' }}</a>{% else %}{{ a.source_name or '' }}{% endif %}
+      {% if a.owner_name %}<span class="wtf-art-owner-badge">{% if a.owner_type == 'corporate' %}🏢{% elif a.owner_type == 'state' %}🏛{% elif a.owner_type == 'independent' %}👤{% else %}📰{% endif %} {{ a.owner_name }}</span>{% endif %}
       {% if a.province_code %}<span>📍 {{ a.province_code }}</span>{% endif %}
       {% if a.published_at %}<span>{{ a.published_at.strftime('%b %-d, %Y') if a.published_at and a.published_at.strftime is defined else (a.published_at or '')[:10] }}</span>{% endif %}
-      <span style="color:#4b5563;">· {{ reading_time_min }} min read</span>
-      {% if article_type == 'opinion' %}<span style="font-size:9px;color:#f59e0b;background:#1c1000;border:1px solid #78350f;border-radius:2px;padding:1px 5px;">✍ Opinion</span>{% endif %}
+      <span class="wtf-art-readtime">· {{ reading_time_min }} min read</span>
+      {% if article_type == 'opinion' %}<span class="wtf-art-opinion-badge">✍ Opinion</span>{% endif %}
       {% if a.ai_analyzed %}
         <span class="wtf-art-badge wtf-badge-ai">AI Analyzed</span>
       {% else %}
@@ -184,13 +353,13 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       {% set _cv_lbl = '✓ Established' if a.overall_verdict in ('verified','mostly_true') else '⚡ Developing' if a.overall_verdict == 'mixed' else '⚠ Contested' if a.overall_verdict == 'disputed' else '○ Unverifiable' %}
       <span class="wtf-verdict {{ verdict_class(a.overall_verdict) }}" title="Certainty: {{ a.overall_verdict.replace('_',' ').title() }}">{{ _cv_lbl }}</span>
       {% endif %}
-      <a href="https://what-the-fact.tech/transparency/{{ a.id }}" target="_blank" rel="noopener" style="font-size:10px;color:#a0f;text-decoration:none;white-space:nowrap;">View full audit trail &#x2192;</a>
-      <img src="/api/creed-badge" alt="C.R.E.E.D. audited" style="height:18px;vertical-align:middle;">
+      <a href="https://what-the-fact.tech/transparency/{{ a.id }}" target="_blank" rel="noopener" class="wtf-art-audit-link">View full audit trail &#x2192;</a>
+      <img src="/api/creed-badge" alt="C.R.E.E.D. audited" class="wtf-art-creed-badge">
     </div>
     <h1 class="wtf-art-title">{{ a.title }}</h1>
     {% if a.url %}
-    <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;color:#555;">Original article &#x2197;</a>
-    {% if is_paywalled %}<span style="font-size:10px;color:#6b7280;margin-left:8px;">🔒 Paywalled source — limited preview available</span>{% endif %}
+    <a href="{{ a.url }}" target="_blank" rel="noopener" class="wtf-art-original-link">Original article &#x2197;</a>
+    {% if is_paywalled %}<span class="wtf-art-paywalled-note">🔒 Paywalled source — limited preview available</span>{% endif %}
     {% endif %}
   </div>
 
@@ -202,11 +371,11 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      published -0.107). Showing the label instead of the score is the honest
      version of what we actually know about this item. #}
   {% if is_wire %}
-  <div style="background:#0d1117;border:1px solid #2a2a1a;border-radius:4px;padding:13px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#a89050;text-transform:uppercase;margin-bottom:6px;">📰 Press release · not journalism</div>
-    <div style="font-size:11.5px;color:#8b949e;line-height:1.6;">
+  <div class="wtf-art-wire-panel">
+    <div class="wtf-art-wire-label">📰 Press release · not journalism</div>
+    <div class="wtf-art-wire-body">
       This item was distributed by a newswire on behalf of its subject, and carried by
-      {{ a.source_name or 'the outlet' }} as supplied content. <strong style="color:#c9d6e2;">No political bias score is shown</strong> —
+      {{ a.source_name or 'the outlet' }} as supplied content. <strong class="wtf-art-wire-strong">No political bias score is shown</strong> —
       a company announcement has no partisan lean to measure. It is also excluded from
       {{ a.source_name or 'the outlet' }}'s rolling bias average, so promotional copy cannot
       move an outlet's measured position.
@@ -215,12 +384,12 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   {% endif %}
 
   {% if tickers %}
-  <div class="wtf-art-rail-item" style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Listed securities named in this item</div>
+  <div class="wtf-art-rail-item wtf-art-side-panel">
+    <div class="wtf-art-panel-heading">Listed securities named in this item</div>
     {% for tk in tickers %}
-    <span style="display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#0af;border:1px solid #123;background:#0a1520;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0;">{{ tk }}</span>
+    <span class="wtf-art-ticker-chip">{{ tk }}</span>
     {% endfor %}
-    <div style="font-size:9px;color:#374151;margin-top:4px;">Extracted from the article text.</div>
+    <div class="wtf-art-panel-footnote">Extracted from the article text.</div>
   </div>
   {% endif %}
 
@@ -229,15 +398,15 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      Shipped only after the #3032 purge made the underlying tags grounded; before
      it, 66% of these named an entity absent from the article entirely. #}
   {% if article_entities %}
-  <div class="wtf-art-rail-item" style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Named in this story</div>
+  <div class="wtf-art-rail-item wtf-art-side-panel">
+    <div class="wtf-art-panel-heading">Named in this story</div>
     {% for ent in article_entities %}
-    <a href="/entity/{{ ent.id }}" style="display:inline-block;font-size:11.5px;color:#9ca3af;border:1px solid #1f2937;background:#0b1219;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0;text-decoration:none;">{{ ent.name
-      }}{% if ent.in_other_watch %}<span style="color:#22c55e;margin-left:5px;" title="Also appears in another Watch product">&#x25CF;</span>{% endif %}</a>
+    <a href="/entity/{{ ent.id }}" class="wtf-art-entity-chip">{{ ent.name
+      }}{% if ent.in_other_watch %}<span class="wtf-art-entity-dot" title="Also appears in another Watch product">&#x25CF;</span>{% endif %}</a>
     {% endfor %}
-    <div style="font-size:9px;color:#374151;margin-top:4px;">
+    <div class="wtf-art-panel-footnote">
       Matched by name against the article text.
-      {% if article_entities | selectattr('in_other_watch') | list %}<span style="color:#22c55e;">&#x25CF;</span> also tracked in another Watch product.{% endif %}
+      {% if article_entities | selectattr('in_other_watch') | list %}<span class="wtf-art-crosswatch-mark">&#x25CF;</span> also tracked in another Watch product.{% endif %}
     </div>
   </div>
   {% endif %}
@@ -246,12 +415,12 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      Every string is copied out of the article so the reader can check it against
      the source; nothing here is generated. Empty => no panel. #}
   {% if key_figures %}
-  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Key figures</div>
+  <div class="wtf-art-side-panel">
+    <div class="wtf-art-panel-heading">Key figures</div>
     {% for kf in key_figures %}
-    <div style="font-size:12px;color:#9ca3af;line-height:1.55;padding:5px 0 5px 9px;border-left:2px solid #1f2937;margin-bottom:5px;">{{ kf }}</div>
+    <div class="wtf-art-keyfig-quote">{{ kf }}</div>
     {% endfor %}
-    <div style="font-size:9px;color:#374151;margin-top:4px;">Quoted verbatim from the article — not summarised.</div>
+    <div class="wtf-art-panel-footnote">Quoted verbatim from the article — not summarised.</div>
   </div>
   {% endif %}
 
@@ -273,15 +442,15 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     {% set has_ensemble = a.bias_ensemble_score is not none %}
     {% set no_signal = (a.bias_signal_detected is false) and not has_ensemble %}
     {% if no_signal %}
-    <div class="wtf-band-label" style="color:#6b7280;border-color:#374151;">NOT DETERMINED</div>
-    <div class="wtf-bias-bar-wrap" style="opacity:.28;">
-      <div class="wtf-bias-bar" style="width:100%"></div>
+    <div class="wtf-band-label wtf-art-band-nd">NOT DETERMINED</div>
+    <div class="wtf-bias-bar-wrap wtf-art-bar-dim">
+      <div class="wtf-bias-bar wtf-art-bar-full"></div>
       {# deliberately NO marker — there is no position to plot #}
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-bottom:6px;">
+    <div class="wtf-art-bar-legend">
       <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
     </div>
-    <div style="font-size:10px;color:#9ca3af;margin-bottom:6px;padding:6px 8px;background:#0a0a0a;border-radius:3px;border-left:2px solid #6b7280;">
+    <div class="wtf-art-nosignal-note">
       No bias signal detected in this article — <strong>this is not a finding of neutrality</strong>.
       The detector looks for loaded political vocabulary and found none here.
     </div>
@@ -299,40 +468,40 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
                         else (a.bias_score if a.bias_score is not none else 0))|float %}
     {% set pct = ((score_val + 1) / 2 * 100)|int %}
     <div class="wtf-bias-bar-wrap">
-      <div class="wtf-bias-bar" style="width:100%"></div>
+      <div class="wtf-bias-bar wtf-art-bar-full"></div>
       <div class="wtf-bias-marker" style="left:{{ pct }}%"></div>
     </div>
-    <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;margin-bottom:6px;">
+    <div class="wtf-art-bar-legend-2">
       <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
     </div>
     {% endif %}
     {% if a.bias_v2_score is not none or a.bias_score is not none %}
-    <details style="margin-bottom:6px;">
-      <summary style="font-size:10px;color:#4b5563;cursor:pointer;">Signal breakdown</summary>
-      <div style="margin-top:6px;display:grid;gap:4px;font-size:10px;">
+    <details class="wtf-art-mb6">
+      <summary class="wtf-art-details-summary">Signal breakdown</summary>
+      <div class="wtf-art-signal-grid">
         {% if a.bias_score is not none %}
-        <div style="display:flex;justify-content:space-between;color:#6b7280;padding:3px 0;border-bottom:1px solid #0a1520;">
+        <div class="wtf-art-score-row">
           <span>Heuristic (v1/v3)</span>
-          <span style="font-family:'IBM Plex Mono',monospace;">{{ "%.2f"|format(a.bias_score|float) }} · <span style="color:#9ca3af;">{{ (a.bias_band or '—').upper() }}</span></span>
+          <span class="wtf-art-mono">{{ "%.2f"|format(a.bias_score|float) }} · <span class="wtf-art-muted">{{ (a.bias_band or '—').upper() }}</span></span>
         </div>
         {% endif %}
         {% if a.bias_v2_score is not none %}
-        <div style="display:flex;justify-content:space-between;color:#6b7280;padding:3px 0;border-bottom:1px solid #0a1520;">
+        <div class="wtf-art-score-row">
           <span>ML v2 (DistilBERT)</span>
-          <span style="font-family:'IBM Plex Mono',monospace;">{{ "%.3f"|format(a.bias_v2_score|float) }} · <span style="color:#9ca3af;">{{ (a.bias_v2_label or '—').upper() }}</span></span>
+          <span class="wtf-art-mono">{{ "%.3f"|format(a.bias_v2_score|float) }} · <span class="wtf-art-muted">{{ (a.bias_v2_label or '—').upper() }}</span></span>
         </div>
         {% endif %}
         {% if a.bias_ensemble_score is not none %}
-        <div style="display:flex;justify-content:space-between;color:#9ca3af;padding:3px 0;font-weight:bold;">
+        <div class="wtf-art-score-row-strong">
           <span>Ensemble</span>
-          <span style="font-family:'IBM Plex Mono',monospace;">{{ "%.3f"|format(a.bias_ensemble_score|float) }} · <span>{{ display_band.upper().replace('-',' ') }}</span></span>
+          <span class="wtf-art-mono">{{ "%.3f"|format(a.bias_ensemble_score|float) }} · <span>{{ display_band.upper().replace('-',' ') }}</span></span>
         </div>
         {% endif %}
       </div>
     </details>
     {% endif %}
     {% if is_limited_body and not a.ai_analyzed %}
-    <div style="font-size:10px;color:#555;margin-top:6px;padding:6px 8px;background:#0a0a0a;border-radius:3px;border-left:2px solid #1f2937;">
+    <div class="wtf-art-limited-note">
       ⚠ Limited content available — score is a heuristic default, not a measured bias signal.
     </div>
     {% endif %}
@@ -341,7 +510,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       <div class="wtf-rationale">{{ a.bias_rationale }}</div>
       {% endif %}
       {% if a.trigger_phrases %}
-      <div style="margin-top:6px;">
+      <div class="wtf-art-mt6">
         {% for phrase in a.trigger_phrases %}
         <span class="wtf-trigger-phrase">{{ phrase }}</span>
         {% endfor %}
@@ -359,45 +528,45 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- Source Intelligence Card -->
   {% if a.source_name %}
-  <div class="wtf-art-rail-item" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">🏦 Source Intelligence</div>
-    <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:160px;">
-        <div style="font-size:13px;color:#e5e7eb;margin-bottom:4px;">
-          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:#e5e7eb;text-decoration:none;">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
+  <div class="wtf-art-rail-item wtf-art-source-panel">
+    <div class="wtf-art-source-heading">🏦 Source Intelligence</div>
+    <div class="wtf-art-source-row">
+      <div class="wtf-art-source-col">
+        <div class="wtf-art-source-name">
+          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" class="wtf-art-source-name-link">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
         </div>
         {% if a.owner_name %}
-        <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">
+        <div class="wtf-art-source-owner">
           {% if a.owner_type == 'corporate' %}🏢 Corporate{% elif a.owner_type == 'state' %}🏛 State{% elif a.owner_type == 'independent' %}👤 Independent{% elif a.owner_type == 'nonprofit' %}🤝 Non-profit{% else %}📰 Media{% endif %}
           · {{ a.owner_name }}
         </div>
         {% endif %}
-        {% if a.source_country %}<div style="font-size:10px;color:#4b5563;">{{ a.source_country }}</div>{% endif %}
+        {% if a.source_country %}<div class="wtf-art-source-meta">{{ a.source_country }}</div>{% endif %}
       </div>
-      <div style="text-align:right;flex-shrink:0;">
+      <div class="wtf-art-source-right">
         {% set ob = a.outlet_rolling_band or a.source_bias_lean or '' %}
         {% if ob %}
-        <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Rolling outlet bias</div>
+        <div class="wtf-art-rolling-label">Rolling outlet bias</div>
         <div style="font-size:13px;font-weight:600;color:var({{ lean_token(ob) }});">{{ ob.upper().replace('-',' ') }}</div>
         {% if a.outlet_avg_score is not none %}
-        <div style="font-size:10px;color:#4b5563;font-family:'IBM Plex Mono',monospace;">avg {{ "%.3f"|format(a.outlet_avg_score|float) }}</div>
+        <div class="wtf-art-outlet-avg">avg {{ "%.3f"|format(a.outlet_avg_score|float) }}</div>
         {# The sample the average was actually built from — NOT the lifetime
            count below. Both were shown as one figure until 2026-08-31, which
            advertised 6x the evidence the reading has. #}
         {% if a.outlet_sample_count %}
-        <div style="font-size:10px;color:#4b5563;">from {{ "{:,}".format(a.outlet_sample_count|int) }} scored articles · last {{ a.outlet_window_days|int }}d</div>
+        <div class="wtf-art-source-meta">from {{ "{:,}".format(a.outlet_sample_count|int) }} scored articles · last {{ a.outlet_window_days|int }}d</div>
         {% endif %}
         {% endif %}
         {% endif %}
         {% if a.outlet_article_count %}
-        <div style="font-size:10px;color:#374151;margin-top:4px;">{{ "{:,}".format(a.outlet_article_count|int) }} articles tracked all-time</div>
+        <div class="wtf-art-outlet-count">{{ "{:,}".format(a.outlet_article_count|int) }} articles tracked all-time</div>
         {% endif %}
       </div>
     </div>
     {% if sparkline %}
-    <div style="margin-top:10px;">
-      <div style="font-size:9px;color:#4b5563;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;">7-day bias trend</div>
-      <svg viewBox="0 0 140 32" style="width:140px;height:32px;display:block;" preserveAspectRatio="none">
+    <div class="wtf-art-mt10">
+      <div class="wtf-art-sparkline-label">7-day bias trend</div>
+      <svg viewBox="0 0 140 32" class="wtf-art-sparkline-svg" preserveAspectRatio="none">
         <line x1="0" y1="16" x2="140" y2="16" stroke="#0d1f2d" stroke-width="1"/>
         {% set n = sparkline|length %}
         {% if n > 1 %}
@@ -415,8 +584,8 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
           style="fill: var({{ lean_token(pt.band) }});"/>
         {% endfor %}
       </svg>
-      <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-top:2px;">
-        <span>L</span><span style="color:#6b7280;">center</span><span>R</span>
+      <div class="wtf-art-sparkline-legend">
+        <span>L</span><span class="wtf-art-sparkline-center">center</span><span>R</span>
       </div>
     </div>
     {% endif %}
@@ -430,19 +599,19 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
       {% if a.overall_verdict %}
       {% set verdict_display = 'Descriptive Reporting' if a.overall_verdict == 'descriptive_reporting' else (a.overall_verdict.replace('_',' ').title() if a.overall_verdict else '') %}
-      <div style="margin-bottom:8px;font-size:12px;color:#aaa;">
+      <div class="wtf-art-verdict-line">
         Overall: <strong class="wtf-verdict-text {{ verdict_class(a.overall_verdict) }}">{{ verdict_display }}</strong>
         {% if a.overall_verdict == 'descriptive_reporting' %}
-        <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
+        <div class="wtf-art-verdict-note">
           Descriptive reporting — V.E.R.I.F.Y. found no specific factual claims to check. Wire copy, market summaries, and sports dispatches typically have no verifiable assertions. This is not a quality judgment.
         </div>
         {% elif a.overall_verdict == 'unverifiable' and article_type == 'opinion' %}
-        <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
+        <div class="wtf-art-verdict-note">
           This is an opinion/letter piece. V.E.R.I.F.Y. found no specific factual claims to check — expected for editorial content.
         </div>
         {% elif a.overall_verdict == 'unverifiable' %}
-        <div style="font-size:10px;color:#6b7280;margin-top:4px;line-height:1.5;">
-          V.E.R.I.F.Y. found claims but could not independently verify them with available evidence. This does <em style="color:#9ca3af;">not</em> mean the article is inaccurate.
+        <div class="wtf-art-verdict-note">
+          V.E.R.I.F.Y. found claims but could not independently verify them with available evidence. This does <em class="wtf-art-muted">not</em> mean the article is inaccurate.
         </div>
         {% endif %}
       </div>
@@ -477,88 +646,86 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   <div class="wtf-bylines">
     {% if a.analysis_tier == 'quick_v1+full' %}
       {% if is_subscriber %}
-      <div class="wtf-byline" style="border-left:2px solid #f80;">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst (full)</div>
-      <div class="wtf-byline" style="border-left:2px solid #4a9;">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker (full)</div>
-      <div class="wtf-byline" style="border-left:2px solid #0af;">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
+      <div class="wtf-byline wtf-art-byline-bias">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst (full)</div>
+      <div class="wtf-byline wtf-art-byline-verify">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker (full)</div>
+      <div class="wtf-byline wtf-art-byline-local">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
       {% else %}
-      <div class="wtf-byline" style="border-left:2px solid #555;">&#x26A1; Quick Score &mdash; full analysis ready</div>
-      <a href="/billing/checkout/starter" class="wtf-deep-dive-btn" style="text-decoration:none;">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
+      <div class="wtf-byline wtf-art-byline-quick">&#x26A1; Quick Score &mdash; full analysis ready</div>
+      <a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
       {% endif %}
     {% elif a.analysis_tier == 'quick_v1' %}
-      <div class="wtf-byline" style="border-left:2px solid #3b82f6;">&#x26A1; Tier 1 &mdash; quick triage (band + claims via qwen2.5:1.5b)</div>
+      <div class="wtf-byline wtf-art-byline-tier1">&#x26A1; Tier 1 &mdash; quick triage (band + claims via qwen2.5:1.5b)</div>
       {% if is_subscriber %}
       <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="upgradeTier2({{ a.id }})">&#x1F50D; Upgrade to Full Analysis &mdash; B.I.A.S. + V.E.R.I.F.Y. rationale + verdicts</button>
       {% else %}
-      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn" style="text-decoration:none;">&#x1F512; Sign in to Upgrade</a>
+      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Sign in to Upgrade</a>
       {% endif %}
     {% elif a.ai_analyzed %}
       {% if is_subscriber %}
-      <div class="wtf-byline" style="border-left:2px solid #f80;">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst</div>
-      <div class="wtf-byline" style="border-left:2px solid #4a9;">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker</div>
-      <div class="wtf-byline" style="border-left:2px solid #0af;">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
+      <div class="wtf-byline wtf-art-byline-bias">&#x1F916; <strong>B.I.A.S.</strong> &mdash; Bias Analyst</div>
+      <div class="wtf-byline wtf-art-byline-verify">&#x2713; <strong>V.E.R.I.F.Y.</strong> &mdash; Fact-Checker</div>
+      <div class="wtf-byline wtf-art-byline-local">&#x1F4CD; <strong>L.O.C.A.L.</strong> &mdash; Geo Analyst</div>
       {% else %}
-      <div class="wtf-byline" style="border-left:2px solid #555;">&#x26A1; Quick Score &mdash; full analysis ready</div>
-      <a href="/billing/checkout/starter" class="wtf-deep-dive-btn" style="text-decoration:none;">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
+      <div class="wtf-byline wtf-art-byline-quick">&#x26A1; Quick Score &mdash; full analysis ready</div>
+      <a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
       {% endif %}
     {% else %}
-      <div class="wtf-byline" style="border-left:2px solid #555;">&#x26A1; Quick Score &mdash; not yet AI analyzed</div>
+      <div class="wtf-byline wtf-art-byline-quick">&#x26A1; Quick Score &mdash; not yet AI analyzed</div>
       {% if is_subscriber %}
       <button class="wtf-deep-dive-btn" id="wtf-dive-btn" onclick="deepDive({{ a.id }})">&#x1F50D; Deep Dive &mdash; Full AI Analysis</button>
       {% else %}
-      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn" style="text-decoration:none;">&#x1F512; Sign in to Deep Dive</a>
+      <a href="/login?next=/article/{{ a.id }}" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Sign in to Deep Dive</a>
       {% endif %}
     {% endif %}
   </div>
 
   <!-- Deep Dive result area -->
-  <div id="wtf-deep-dive-result" style="display:none;background:#060d14;border:1px solid #0af;border-radius:4px;padding:12px;margin-bottom:14px;font-size:11px;color:#ccc;"></div>
+  <div id="wtf-deep-dive-result" class="wtf-art-deepdive-result"></div>
 
   <!-- Intelligence Feed — unified cross-watch search (#3128) -->
-  <div id="wtf-intel-section" style="display:none;background:#060a14;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F50D; Intelligence Feed</div>
-    <ul id="wtf-intel-list" style="list-style:none;margin:0;padding:0;"></ul>
-    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Cross-Watch · Gov · Parliament · Legal · Civic</div>
+  <div id="wtf-intel-section" class="wtf-art-intel-section">
+    <div class="wtf-art-section-heading-teal">&#x1F50D; Intelligence Feed</div>
+    <ul id="wtf-intel-list" class="wtf-art-ul-reset"></ul>
+    <div class="wtf-art-section-footnote">Cross-Watch · Gov · Parliament · Legal · Civic</div>
   </div>
 
   <!-- Related Gov Tenders — cross-watch procurement intelligence (#3019) -->
-  <div id="wtf-tenders-section" style="display:none;background:#06100a;border:1px solid #1a3a2a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F4C4; Related Gov Tenders</div>
-    <ul id="wtf-tenders-list" style="list-style:none;margin:0;padding:0;"></ul>
-    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Gov Watch · CanadaBuys + PSPC tenders</div>
+  <div id="wtf-tenders-section" class="wtf-art-tenders-section">
+    <div class="wtf-art-section-heading-green">&#x1F4C4; Related Gov Tenders</div>
+    <ul id="wtf-tenders-list" class="wtf-art-ul-reset"></ul>
+    <div class="wtf-art-section-footnote">Via Gov Watch · CanadaBuys + PSPC tenders</div>
   </div>
 
   <!-- Related Parliament Votes — civic-watch cross-link -->
-  <div id="wtf-votes-section" style="display:none;background:#0a0614;border:1px solid #2a1a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#a78bfa;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F3DB; Related Parliament Votes</div>
-    <ul id="wtf-votes-list" style="list-style:none;margin:0;padding:0;"></ul>
-    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Civic Watch · OpenParliament.ca</div>
+  <div id="wtf-votes-section" class="wtf-art-votes-section">
+    <div class="wtf-art-section-heading-purple">&#x1F3DB; Related Parliament Votes</div>
+    <ul id="wtf-votes-list" class="wtf-art-ul-reset"></ul>
+    <div class="wtf-art-section-footnote">Via Civic Watch · OpenParliament.ca</div>
   </div>
 
   <!-- MP Election Claims — claim_tracker cross-link (#3013) -->
   {% if mp_claims %}
-  <div class="wtf-mp-claims-panel" style="background:#0a0e14;border:1px solid #1a2a1a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4ade80;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F4CB; Tracked Claims</div>
+  <div class="wtf-mp-claims-panel wtf-art-mpclaims-panel-style">
+    <div class="wtf-art-section-heading-green">&#x1F4CB; Tracked Claims</div>
     {% for claim in mp_claims[:3] %}
     {# The claim_tracker vocabulary is a FOURTH copy of the verdict map with its
        own hex, so the same epistemic state rendered differently here and in the
        V.E.R.I.F.Y. panel above. verdict_class() now knows both vocabularies. #}
-    <div class="wtf-fc-row {{ verdict_class(claim.status) }}"
-         style="background:#060d08;border-radius:3px;padding:8px 10px;margin-bottom:6px;border-left-width:3px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;gap:8px;flex-wrap:wrap;">
-        <a href="/claims/{{ claim.politician_slug }}" style="font-size:10px;color:#38bdf8;text-decoration:none;font-weight:bold;">{{ claim.politician_name }}</a>
-        <span class="wtf-verdict {{ verdict_class(claim.status) }}"
-              style="font-size:9px;letter-spacing:1px;">{{ claim.status.replace('_', ' ').title() }}</span>
+    <div class="wtf-fc-row {{ verdict_class(claim.status) }} wtf-art-mpclaim-row">
+      <div class="wtf-art-mpclaim-head">
+        <a href="/claims/{{ claim.politician_slug }}" class="wtf-art-mpclaim-pol-link">{{ claim.politician_name }}</a>
+        <span class="wtf-verdict {{ verdict_class(claim.status) }} wtf-art-mpclaim-verdict-sm">{{ claim.status.replace('_', ' ').title() }}</span>
       </div>
-      <p style="font-size:11px;color:#ccc;margin:0 0 4px;">{{ claim.claim_text[:150] }}{% if claim.claim_text | length > 150 %}&hellip;{% endif %}</p>
+      <p class="wtf-art-mpclaim-text">{{ claim.claim_text[:150] }}{% if claim.claim_text | length > 150 %}&hellip;{% endif %}</p>
       {% if claim.verdict_summary and is_subscriber %}
-      <p style="font-size:10px;color:#a0aec0;margin:4px 0 0;border-left:2px solid #1a2a1a;padding-left:8px;">{{ claim.verdict_summary }}</p>
+      <p class="wtf-art-mpclaim-summary">{{ claim.verdict_summary }}</p>
       {% elif claim.verdict_summary %}
-      <p style="font-size:10px;color:#4b5563;margin:4px 0 0;">&#x1F512; Full verdict &mdash; Deep Dive subscribers only</p>
+      <p class="wtf-art-mpclaim-locked">&#x1F512; Full verdict &mdash; Deep Dive subscribers only</p>
       {% endif %}
     </div>
     {% endfor %}
     {% if mp_claims | length > 3 %}
-    <a href="/claims/{{ mp_claims[0].politician_slug }}" style="font-size:10px;color:#4ade80;text-decoration:none;">+{{ mp_claims | length - 3 }} more &rarr;</a>
+    <a href="/claims/{{ mp_claims[0].politician_slug }}" class="wtf-art-mpclaim-more">+{{ mp_claims | length - 3 }} more &rarr;</a>
     {% endif %}
   </div>
   {% endif %}
@@ -566,16 +733,16 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   <!-- Cross-Watch teaser — entities in this story also tracked in other Watch products (#3331 1b) -->
   {% if cross_watch_entities %}
   {% set CWP = {'gov-watch':{'l':'Gov','c':'#0ea5e9'},'civic-watch':{'l':'Civic','c':'#22c55e'},'legal-watch':{'l':'Legal','c':'#a78bfa'},'market-watch':{'l':'Market','c':'#f59e0b'},'parliament':{'l':'Parliament','c':'#ef4444'}} %}
-  <div class="wtf-crosswatch-panel" style="background:#0a0e14;border:1px solid #143047;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:3px;font-weight:600;">&#x1F517; Cross-Watch</div>
-    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Named in this story &mdash; also tracked across the Watch Series.</div>
+  <div class="wtf-crosswatch-panel wtf-art-crosswatch-panel-style">
+    <div class="wtf-art-crosswatch-heading">&#x1F517; Cross-Watch</div>
+    <div class="wtf-art-crosswatch-sub">Named in this story &mdash; also tracked across the Watch Series.</div>
     {% for ce in cross_watch_entities %}
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #060d14;">
-      <a href="/entity/{{ ce.id }}" style="font-size:11px;color:#e5e7eb;text-decoration:none;font-weight:600;">{{ ce.name }} <span style="color:#4b5563;font-weight:400;">{{ ce.type }}</span></a>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+    <div class="wtf-art-crosswatch-row">
+      <a href="/entity/{{ ce.id }}" class="wtf-art-crosswatch-entity">{{ ce.name }} <span class="wtf-art-crosswatch-entity-type">{{ ce.type }}</span></a>
+      <div class="wtf-art-crosswatch-chips">
         {% for p in ce.products %}
         {% set m = CWP.get(p, {'l': p, 'c': '#6b7280'}) %}
-        <span style="font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:2px;background:#060d14;color:{{ m.c }};border:1px solid {{ m.c }}33;">{{ m.l }}</span>
+        <span class="wtf-art-crosswatch-chip" style="color:{{ m.c }};border:1px solid {{ m.c }}33;">{{ m.l }}</span>
         {% endfor %}
       </div>
     </div>
@@ -584,38 +751,38 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   {% endif %}
 
   <!-- Related Civic Events — civic-watch municipal crossover (#3021) -->
-  <div id="wtf-civic-section" style="display:none;background:#060a10;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F3D9; Related Municipal Events</div>
-    <ul id="wtf-civic-list" style="list-style:none;margin:0;padding:0;"></ul>
-    <div style="font-size:10px;color:#4b5563;margin-top:6px;">Via Civic Watch · City council, bylaws &amp; permits</div>
+  <div id="wtf-civic-section" class="wtf-art-civic-section">
+    <div class="wtf-art-section-heading-teal">&#x1F3D9; Related Municipal Events</div>
+    <ul id="wtf-civic-list" class="wtf-art-ul-reset"></ul>
+    <div class="wtf-art-section-footnote">Via Civic Watch · City council, bylaws &amp; permits</div>
   </div>
 
   <!-- GoogleFCT partner fact-checks — free, always visible -->
   {% if google_fact_checks %}
-  <div class="wtf-art-rail-item" style="background:#060b14;border:1px solid #1e3a5f;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4a9eff;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x2713; Third-Party Fact-Checks</div>
+  <div class="wtf-art-rail-item wtf-art-gfct-panel">
+    <div class="wtf-art-gfct-heading">&#x2713; Third-Party Fact-Checks</div>
     {% for gfc in google_fact_checks %}
     {% set pub = gfc.checker.replace('GoogleFCT:', '') %}
     <div class="wtf-fc-row {{ verdict_class(gfc.verdict) }}">
-      <div style="font-size:10px;color:#9ca3af;margin-bottom:3px;">
+      <div class="wtf-art-gfct-row-label">
         <span class="wtf-fc-verdict">{{ gfc.verdict.replace('_', ' ') }}</span>
         &nbsp;·&nbsp; {{ pub }}
       </div>
-      <div style="font-size:11px;color:#c0c8d8;line-height:1.5;">{{ gfc.claim[:200] }}</div>
+      <div class="wtf-art-gfct-claim">{{ gfc.claim[:200] }}</div>
       {% if gfc.evidence %}
-      <a href="{{ gfc.evidence }}" target="_blank" rel="nofollow noopener" style="font-size:10px;color:#4a9eff;text-decoration:none;">Read fact-check →</a>
+      <a href="{{ gfc.evidence }}" target="_blank" rel="nofollow noopener" class="wtf-art-gfct-link">Read fact-check →</a>
       {% endif %}
     </div>
     {% endfor %}
-    <div style="font-size:10px;color:#4b5563;margin-top:4px;">Via Google Fact Check Tools API · PolitiFact, Reuters, AFP, Snopes and others.</div>
+    <div class="wtf-art-gfct-footnote">Via Google Fact Check Tools API · PolitiFact, Reuters, AFP, Snopes and others.</div>
   </div>
   {% endif %}
 
   <!-- Article Body / Excerpt -->
   {% if is_limited_body %}
-  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:16px;margin-bottom:14px;text-align:center;">
-    <div style="font-size:18px;margin-bottom:6px;">📰</div>
-    <div style="font-size:12px;color:#6b7280;margin-bottom:10px;line-height:1.6;">
+  <div class="wtf-art-limitedbody-panel">
+    <div class="wtf-art-limitedbody-icon">📰</div>
+    <div class="wtf-art-limitedbody-text">
       {% if is_paywalled %}
         This source provides limited RSS previews. The full article is behind a paywall at {{ a.source_name or 'the publisher' }}.
       {% else %}
@@ -623,14 +790,14 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       {% endif %}
     </div>
     {% if a.url %}
-    <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;background:#0a1f3a;border:1px solid #0af;color:#0af;padding:6px 14px;border-radius:3px;text-decoration:none;">
+    <a href="{{ a.url }}" target="_blank" rel="noopener" class="wtf-art-readfull-btn">
       Read full article at {{ a.source_name or 'source' }} ↗
     </a>
     {% endif %}
   </div>
   {% elif a.body %}
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">Article Excerpt</div>
+  <div class="wtf-art-bodyexcerpt-panel">
+    <div class="wtf-art-panel-heading-lg">Article Excerpt</div>
     {# 2,500 chars, cut on a WORD boundary (truncate killwords=False) rather than
        mid-word as the old a.body[:600] slice did. The stored body is untouched
        and complete — this caps DISPLAY only, so the full text stays available
@@ -642,9 +809,9 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
        fix hold ZERO newlines (the old " ".join(text.split()) collapsed them),
        so those still render as one block until re-captured — pre-line is
        forward-looking, not retroactive. #}
-    <div class="wtf-art-body" style="margin-bottom:10px;white-space:pre-line;">{{ a.body|truncate(2500, False, '…') }}</div>
+    <div class="wtf-art-body wtf-art-body-text">{{ a.body|truncate(2500, False, '…') }}</div>
     {% if a.url %}
-    <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;color:#0af;text-decoration:none;">Read full article at {{ a.source_name or 'source' }} ↗</a>
+    <a href="{{ a.url }}" target="_blank" rel="noopener" class="wtf-art-blue-link">Read full article at {{ a.source_name or 'source' }} ↗</a>
     {% endif %}
   </div>
   {% endif %}
@@ -655,19 +822,19 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      made. Titles use textContent-equivalent Jinja autoescaping (never |safe) —
      these are external headlines. #}
   {% if local_articles %}
-  <div class="wtf-art-rail-item" style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
-    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-art-rail-item wtf-art-localcov-panel">
+    <div class="wtf-art-panel-heading-lg">
       Local coverage · {{ local_place }}
     </div>
     {% for la in local_articles %}
-    <div style="padding:7px 0;{% if not loop.last %}border-bottom:1px solid #131f2b;{% endif %}">
-      <a href="/article/{{ la.id }}" style="font-size:12.5px;color:#c9d6e2;text-decoration:none;line-height:1.45;display:block;">{{ la.title }}</a>
-      <div style="font-size:10px;color:#4b5563;margin-top:3px;">
+    <div class="wtf-art-localcov-row{% if loop.last %} wtf-art-localcov-row--last{% endif %}">
+      <a href="/article/{{ la.id }}" class="wtf-art-localcov-link">{{ la.title }}</a>
+      <div class="wtf-art-localcov-meta">
         {{ la.source_name }}{% if la.published_at %} · {{ la.published_at.strftime('%b %-d') }}{% endif %}
       </div>
     </div>
     {% endfor %}
-    <div style="font-size:9px;color:#374151;margin-top:8px;">
+    <div class="wtf-art-localcov-footnote">
       Last 14 days, matched on {{ 'city' if a.city else 'province' }}.
     </div>
   </div>
@@ -676,22 +843,22 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   <!-- How We Scored This -->
   <details class="wtf-how-scored">
     <summary>How we scored this article</summary>
-    <p style="margin-top:8px;">WTF uses a two-tier system: every article gets a heuristic bias score from keyword analysis, and priority articles (high overlap across 3+ outlets or strong heuristic signal) get full LLM analysis from B.I.A.S. and V.E.R.I.F.Y.</p>
-    <p><a href="https://what-the-fact.tech/transparency/{{ a.id }}" style="color:#a0f;">Full audit trail for this article &#x2192;</a></p>
+    <p class="wtf-art-mt8">WTF uses a two-tier system: every article gets a heuristic bias score from keyword analysis, and priority articles (high overlap across 3+ outlets or strong heuristic signal) get full LLM analysis from B.I.A.S. and V.E.R.I.F.Y.</p>
+    <p><a href="https://what-the-fact.tech/transparency/{{ a.id }}" class="wtf-art-purple-link">Full audit trail for this article &#x2192;</a></p>
   </details>
 
   <!-- Analysis Provenance Footer -->
   {% if a.ai_analyzed %}
-  <div class="wtf-art-rail-item" style="margin-top:16px;padding:10px 14px;background:#040a10;border-top:1px solid #0d1f2d;border-radius:0 0 4px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-    <div style="font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.06em;">Analyzed by</div>
-    <span style="font-size:10px;color:#0af;font-family:'IBM Plex Mono',monospace;">B.I.A.S.</span>
-    <span style="font-size:10px;color:#10b981;font-family:'IBM Plex Mono',monospace;">V.E.R.I.F.Y.</span>
-    <span style="font-size:10px;color:#3b82f6;font-family:'IBM Plex Mono',monospace;">L.O.C.A.L.</span>
+  <div class="wtf-art-rail-item wtf-art-provenance-footer">
+    <div class="wtf-art-provenance-label">Analyzed by</div>
+    <span class="wtf-art-provenance-bias">B.I.A.S.</span>
+    <span class="wtf-art-provenance-verify">V.E.R.I.F.Y.</span>
+    <span class="wtf-art-provenance-local">L.O.C.A.L.</span>
     {% if a.analysis_tier %}
-    <span style="font-size:9px;color:#374151;background:#0a0a0a;border:1px solid #1f2937;border-radius:2px;padding:1px 5px;margin-left:2px;">{{ a.analysis_tier.replace('_',' ').replace('+',' + ') }}</span>
+    <span class="wtf-art-provenance-tier">{{ a.analysis_tier.replace('_',' ').replace('+',' + ') }}</span>
     {% endif %}
     {% if a.ai_analyzed_at %}
-    <span style="font-size:10px;color:#374151;margin-left:auto;">
+    <span class="wtf-art-provenance-date">
       {{ a.ai_analyzed_at.strftime('%b %-d, %Y') if a.ai_analyzed_at and a.ai_analyzed_at.strftime is defined else '' }}
     </span>
     {% endif %}
@@ -699,32 +866,32 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   {% endif %}
 
   <!-- Flag incorrect analysis -->
-  <div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <button onclick="wtfToggleFlag()" style="background:none;border:none;color:#374151;font-size:11px;cursor:pointer;padding:0;font-family:inherit;">🚩 Report incorrect analysis</button>
+  <div class="wtf-art-flag-row">
+    <button onclick="wtfToggleFlag()" class="wtf-art-report-btn">🚩 Report incorrect analysis</button>
     {% if is_subscriber %}
-    <a href="/literacy" style="font-size:11px;color:#6b7280;text-decoration:none;">📊 Your media literacy score →</a>
+    <a href="/literacy" class="wtf-art-literacy-link">📊 Your media literacy score →</a>
     {% endif %}
   </div>
-  <div id="wtf-flag-form" style="display:none;background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px;margin-top:8px;">
-    <div style="font-size:11px;color:#9ca3af;margin-bottom:8px;">What's wrong with this analysis?</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+  <div id="wtf-flag-form" class="wtf-art-flagform-panel" style="display:none;">
+    <div class="wtf-art-flagform-label">What's wrong with this analysis?</div>
+    <div class="wtf-art-flagform-buttons">
       <button onclick="wtfSubmitFlag('bias_wrong')" class="wtf-flag-btn">Bias score wrong</button>
       <button onclick="wtfSubmitFlag('factcheck_wrong')" class="wtf-flag-btn">Fact-check wrong</button>
       <button onclick="wtfSubmitFlag('geo_wrong')" class="wtf-flag-btn">Wrong location</button>
       <button onclick="wtfSubmitFlag('other')" class="wtf-flag-btn">Other</button>
     </div>
-    <div id="wtf-flag-result" style="font-size:11px;color:#6b7280;display:none;"></div>
+    <div id="wtf-flag-result" class="wtf-art-flagform-result"></div>
   </div>
 
   <!-- Cross-source outlet comparison (#3069) -->
   {% if cluster_articles %}
-  <div class="wtf-art-rail-item" style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px;">
+  <div class="wtf-art-rail-item wtf-art-clustercmp-panel">
     {% if is_subscriber %}
-    <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
+    <div class="wtf-art-clustercmp-heading">
       📰 {{ cluster_articles|length }} other outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story
     </div>
     {% for ca in cluster_articles[:5] %}
-    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #0d1f2d;{% if loop.last %}border-bottom:none;{% endif %}">
+    <div class="wtf-art-clustercmp-row{% if loop.last %} wtf-art-clustercmp-row--last{% endif %}">
       {% set _cb = ca.bias_band or '' %}
       {# A bare colour swatch with no label is exactly what lean_pill's docstring
          forbids, and this one had GREEN at the midpoint. Kept as a dot because
@@ -732,30 +899,30 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
          the one lean map and an unscored outlet reads muted, not centre. #}
       <span class="wtf-lean-dot" style="background: var({{ lean_token(_cb) }});"
             title="{{ (_cb or 'unscored')|replace('-', ' ')|title }}"></span>
-      <a href="/article/{{ ca.id }}" style="color:#ccc;text-decoration:none;font-size:12px;flex:1;line-height:1.4;">{{ (ca.title or '')[:90] }}{% if (ca.title or '')|length > 90 %}…{% endif %}</a>
-      <span style="font-size:10px;color:#6b7280;flex-shrink:0;">{{ ca.source_name or '' }}</span>
+      <a href="/article/{{ ca.id }}" class="wtf-art-clustercmp-link">{{ (ca.title or '')[:90] }}{% if (ca.title or '')|length > 90 %}…{% endif %}</a>
+      <span class="wtf-art-clustercmp-source">{{ ca.source_name or '' }}</span>
     </div>
     {% endfor %}
     {% if cluster_articles|length > 5 %}
-    <div style="margin-top:8px;font-size:11px;color:#6b7280;">+ {{ cluster_articles|length - 5 }} more</div>
+    <div class="wtf-art-clustercmp-more">+ {{ cluster_articles|length - 5 }} more</div>
     {% endif %}
-    <a href="/cluster/{{ a.cluster_id }}" style="display:inline-block;margin-top:10px;font-size:11px;color:#0af;text-decoration:none;">
+    <a href="/cluster/{{ a.cluster_id }}" class="wtf-art-clustercmp-cta">
       See full side-by-side comparison &#x2192;
     </a>
     {% else %}
-    <div style="display:flex;align-items:center;gap:10px;">
-      <span style="font-size:20px;">📰</span>
+    <div class="wtf-art-clustercmp-locked-row">
+      <span class="wtf-art-clustercmp-icon">📰</span>
       <div>
-        <div style="font-size:12px;color:#e5e7eb;font-weight:600;">{{ cluster_articles|length }} outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story</div>
-        <div style="font-size:11px;color:#6b7280;margin-top:2px;">Side-by-side comparison · bias by outlet · framing analysis</div>
+        <div class="wtf-art-clustercmp-locked-title">{{ cluster_articles|length }} outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story</div>
+        <div class="wtf-art-clustercmp-locked-sub">Side-by-side comparison · bias by outlet · framing analysis</div>
       </div>
-      <a href="/login?next=/cluster/{{ a.cluster_id }}" style="margin-left:auto;background:#0a2a3a;border:1px solid #0af;color:#0af;font-size:11px;font-weight:700;padding:6px 14px;border-radius:3px;text-decoration:none;white-space:nowrap;">🔒 Unlock — Starter+</a>
+      <a href="/login?next=/cluster/{{ a.cluster_id }}" class="wtf-art-clustercmp-unlock-btn">🔒 Unlock — Starter+</a>
     </div>
     {% endif %}
   </div>
   {% elif a.cluster_id and is_subscriber %}
-  <div class="wtf-art-rail-item" style="margin-top:12px;">
-    <a style="font-size:11px;color:#0af;text-decoration:none;" href="/cluster/{{ a.cluster_id }}">
+  <div class="wtf-art-rail-item wtf-art-mt12">
+    <a class="wtf-art-blue-link" href="/cluster/{{ a.cluster_id }}">
       Compare with other outlets covering this story &#x2192;
     </a>
   </div>

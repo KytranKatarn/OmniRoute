@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import lean_token, verdict_class %}
+{% from "_archetypes.html" import lean_token, verdict_class, stat_tiles %}
 {% block title %}{{ a.title }} — What The Fact{% endblock %}
 {% block meta %}
 {% set _desc = (a.source_name or '') + ' · ' + (a.bias_band or 'unscored') + ' bias' %}
@@ -348,6 +348,25 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 .wtf-art-clustercmp-locked-sub { font-size:11px;color:#6b7280;margin-top:2px; }
 .wtf-art-clustercmp-unlock-btn { margin-left:auto;background:#0a2a3a;border:1px solid #0af;color:#0af;font-size:11px;font-weight:700;padding:6px 14px;border-radius:3px;text-decoration:none;white-space:nowrap; }
 .wtf-art-mt12 { margin-top:12px; }
+
+/* Pickup order (#6153) */
+.wtf-art-pickup-panel { background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:12px 14px;margin-top:14px; }
+.wtf-art-pickup-heading { font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px; }
+.wtf-art-pickup-row { display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid #0d1f2d; }
+.wtf-art-pickup-row--last { border-bottom:none; }
+.wtf-art-pickup-row--current { background:rgba(0,170,255,0.06); margin:0 -6px; padding:5px 6px; border-radius:3px; }
+.wtf-art-pickup-offset { font-size:10px;color:#6b7280;flex-shrink:0;min-width:52px;font-variant-numeric:tabular-nums; }
+.wtf-art-pickup-offset--first { color:#0af;font-weight:700; }
+.wtf-art-pickup-source { color:#ccc;font-size:12px;flex:1;line-height:1.4; }
+.wtf-art-pickup-source strong { color:#e5e7eb; }
+
+/* Cite this analysis (#6153) */
+.wtf-art-cite-buttons { display:flex;gap:6px;margin-bottom:8px; }
+.wtf-art-cite-btn { background:#0a1520;border:1px solid #1a3a5a;color:#9ca3af;font-size:11px;font-weight:600;padding:5px 10px;border-radius:3px;cursor:pointer; }
+.wtf-art-cite-btn.is-active { border-color:#0af;color:#0af; }
+.wtf-art-cite-output { width:100%;box-sizing:border-box;background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;color:#ccc;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:8px;resize:vertical;margin-bottom:8px; }
+.wtf-art-cite-actions { display:flex;gap:8px;align-items:center; }
+.wtf-art-cite-copybtn { background:#0a2a3a;border:1px solid #0af;color:#0af;font-size:11px;font-weight:700;padding:5px 12px;border-radius:3px;cursor:pointer; }
 </style>
 
 <div class="wtf-art-container">
@@ -379,6 +398,25 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     {% if is_paywalled %}<span class="wtf-art-paywalled-note"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Paywalled source — limited preview available</span>{% endif %}
     {% endif %}
   </div>
+
+  {# "What we measured" — a coverage summary computed entirely from data the
+     route already fetched (cluster_articles + this article's own band), the
+     same pattern owners.html's concentration tiles use. Renders ONLY when at
+     least one real bias band was recorded for the story — an empty summary
+     asserts nothing, so it does not render at all rather than showing zeros.
+     Free to everyone: it names a COUNT and a SPREAD, never which outlet said
+     what — the per-outlet detail stays behind the existing subscriber gate
+     below (cluster_articles panel), unchanged by this addition. #}
+  {% if coverage_stats %}
+  <div class="wtf-art-rail-item wtf-art-side-panel">
+    <div class="wtf-art-panel-heading">What we measured</div>
+    {{ stat_tiles([
+      {'label': 'Outlets covering', 'value': coverage_stats.outlets_covering},
+      {'label': 'Lean bands spanned', 'value': coverage_stats.bands_spanned},
+      {'label': 'Widest spread', 'value': coverage_stats.widest_label},
+    ]) }}
+  </div>
+  {% endif %}
 
   {# Press release / newswire copy: say what it is, and do NOT show a partisan
      reading. A corporate announcement has no lean to measure, so a "CENTER"
@@ -882,6 +920,34 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   </div>
   {% endif %}
 
+  {# Cite this analysis (#6153) — pure client-side citation generator. No new
+     data: title/source/date/permalink are all already free-to-everyone
+     fields shown elsewhere on this page. Values reach the DOM ONLY via
+     Jinja-autoescaped data-* attributes (never |safe) and JS reads them
+     with .dataset + writes the result with .value on the output textarea —
+     never innerHTML, per the site's XSS rule. Author is deliberately the
+     PUBLISHER, not an invented byline: this app has no journalist-author
+     field on articles, and organization-as-author is a standard, valid
+     citation form (APA 7 §9.11) — not a fabrication. #}
+  <div id="wtf-cite-panel" class="wtf-art-rail-item wtf-art-side-panel"
+       data-cite-title="{{ a.title }}"
+       data-cite-source="{{ a.source_name or 'What The Fact' }}"
+       data-cite-date="{{ a.published_at.strftime('%Y-%m-%d') if a.published_at and a.published_at.strftime is defined else '' }}"
+       data-cite-permalink="https://what-the-fact.com/article/{{ a.id }}">
+    <div class="wtf-art-panel-heading">Cite this analysis</div>
+    <div class="wtf-art-cite-buttons">
+      <button type="button" class="wtf-art-cite-btn is-active" data-cite-style="apa">APA</button>
+      <button type="button" class="wtf-art-cite-btn" data-cite-style="chicago">Chicago</button>
+      <button type="button" class="wtf-art-cite-btn" data-cite-style="permalink">Permalink</button>
+    </div>
+    <textarea id="wtf-cite-output" class="wtf-art-cite-output" readonly rows="3" aria-label="Citation text"></textarea>
+    <div class="wtf-art-cite-actions">
+      <button type="button" id="wtf-cite-copy" class="wtf-art-cite-copybtn">Copy</button>
+      <button type="button" id="wtf-cite-print" class="wtf-art-cite-copybtn">Print</button>
+    </div>
+    <div id="wtf-cite-result" class="wtf-art-flagform-result"></div>
+  </div>
+
   <!-- Flag incorrect analysis -->
   <div class="wtf-art-flag-row">
     <button onclick="wtfToggleFlag()" class="wtf-art-report-btn">🚩 Report incorrect analysis</button>
@@ -942,6 +1008,29 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     <a class="wtf-art-blue-link" href="/cluster/{{ a.cluster_id }}">
       Compare with other outlets covering this story &#x2192;
     </a>
+  </div>
+  {% endif %}
+
+  {# Pickup order (#6153) — who filed first, and the hour-offset of each
+     follow-on outlet. Built server-side from the SAME cluster_articles rows
+     as the comparison panel above — no new query, no invented timing. Gated
+     the same way as that panel (is_subscriber): it is a companion view of
+     the identical per-outlet data, so a free reader seeing exact filing
+     times here would be the paywall-scope change this batch is explicitly
+     told not to make. Renders only when there are 2+ timestamped entries —
+     a single-row "pickup order" says nothing. #}
+  {% if pickup_order and is_subscriber %}
+  <div class="wtf-art-rail-item wtf-art-pickup-panel">
+    <div class="wtf-art-pickup-heading">Pickup order</div>
+    {% for p in pickup_order %}
+    <div class="wtf-art-pickup-row{% if loop.last %} wtf-art-pickup-row--last{% endif %}{% if p.is_current %} wtf-art-pickup-row--current{% endif %}">
+      <span class="wtf-art-pickup-offset{% if loop.first %} wtf-art-pickup-offset--first{% endif %}">{{ p.offset_label }}</span>
+      <span class="wtf-art-pickup-source">
+        {% if p.is_current %}<strong>{{ p.source_name or 'This article' }}</strong> (this article)
+        {% else %}<a href="/article/{{ p.id }}" class="wtf-art-clustercmp-link">{{ p.source_name or (p.title or '')[:60] }}</a>{% endif %}
+      </span>
+    </div>
+    {% endfor %}
   </div>
   {% endif %}
 
@@ -1303,6 +1392,77 @@ async function wtfSubmitFlag(flagType) {
       });
     });
   });
+})();
+
+// Cite this analysis (#6153) — reads article metadata from the panel's own
+// data-* attributes (Jinja-autoescaped on write) and writes formatted text
+// with .value on a <textarea>, never innerHTML. No fetch, no fabricated
+// author — organization-as-author (the publisher) is a valid citation form.
+(function() {
+  var panel = document.getElementById('wtf-cite-panel');
+  var output = document.getElementById('wtf-cite-output');
+  if (!panel || !output) return;
+  var data = {
+    title: panel.dataset.citeTitle || '',
+    source: panel.dataset.citeSource || 'What The Fact',
+    date: panel.dataset.citeDate || '',
+    permalink: panel.dataset.citePermalink || ''
+  };
+  var result = document.getElementById('wtf-cite-result');
+  var buttons = panel.querySelectorAll('.wtf-art-cite-btn');
+
+  function build(style) {
+    if (style === 'permalink') return data.permalink;
+    var pub = data.date ? new Date(data.date + 'T00:00:00') : null;
+    var accessed = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    if (style === 'chicago') {
+      var pubStr = pub ? pub.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'n.d.';
+      return data.source + '. "' + data.title + '." What The Fact. ' + pubStr + '. ' + data.permalink + '.';
+    }
+    // APA 7 (organization-as-author, §9.11)
+    var year = pub ? pub.getFullYear() : 'n.d.';
+    var monthDay = pub ? pub.toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : '';
+    return data.source + '. (' + year + (monthDay ? ', ' + monthDay : '') + '). ' + data.title +
+      '. What The Fact. Retrieved ' + accessed + ', from ' + data.permalink;
+  }
+
+  function setActive(style) {
+    buttons.forEach(function(b) { b.classList.toggle('is-active', b.dataset.citeStyle === style); });
+  }
+
+  buttons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      output.value = build(btn.dataset.citeStyle);
+      setActive(btn.dataset.citeStyle);
+      if (result) result.style.display = 'none';
+    });
+  });
+  output.value = build('apa');
+
+  var copyBtn = document.getElementById('wtf-cite-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      function done(ok) {
+        if (!result) return;
+        result.textContent = ok ? 'Copied to clipboard.' : 'Could not copy — select the text and copy manually.';
+        result.style.display = 'block';
+      }
+      function fallback() {
+        output.focus();
+        output.select();
+        try { done(document.execCommand('copy')); } catch (e) { done(false); }
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(output.value).then(function() { done(true); }, fallback);
+      } else {
+        fallback();
+      }
+    });
+  }
+  var printBtn = document.getElementById('wtf-cite-print');
+  if (printBtn) {
+    printBtn.addEventListener('click', function() { window.print(); });
+  }
 })();
 </script>
 {% endblock %}

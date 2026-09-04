@@ -2641,6 +2641,75 @@ def article(article_id: int):
             """), {"cid": a["cluster_id"], "aid": article_id}).mappings().all()
         cluster_articles = [dict(r) for r in siblings]
 
+    # ------------------------------------------------------------------
+    # Pickup order — who filed on this story first, and how far behind
+    # each follow-on outlet published. Built from the SAME cluster_articles
+    # rows fetched above (no new query) plus this article's own timestamp,
+    # sorted ASCENDING (the comparison panel above is deliberately DESC —
+    # "who filed first" only reads correctly earliest-first). #6153.
+    def _fmt_pickup_offset(hours: float) -> str:
+        if hours < 0.05:
+            return "Same time"
+        if hours < 24:
+            return f"+{max(1, round(hours))}h"
+        days = int(hours // 24)
+        rem_h = round(hours - days * 24)
+        if rem_h >= 24:
+            days, rem_h = days + 1, 0
+        return f"+{days}d {rem_h}h" if rem_h else f"+{days}d"
+
+    pickup_order = []
+    coverage_stats = None
+    if cluster_articles:
+        _entries = [{
+            "id": a["id"], "title": a.get("title"),
+            "source_name": a.get("source_name"), "published_at": a.get("published_at"),
+            "is_current": True,
+        }]
+        for _ca in cluster_articles:
+            _entries.append({
+                "id": _ca["id"], "title": _ca.get("title"),
+                "source_name": _ca.get("source_name"),
+                "published_at": _ca.get("published_at"), "is_current": False,
+            })
+        _entries = [e for e in _entries if e.get("published_at")]
+        _entries.sort(key=lambda e: e["published_at"])
+        if len(_entries) >= 2:
+            _first_ts = _entries[0]["published_at"]
+            for _i, _e in enumerate(_entries):
+                if _i == 0:
+                    _e["offset_label"] = "First to report"
+                else:
+                    _hours = max(0.0, (_e["published_at"] - _first_ts).total_seconds() / 3600.0)
+                    _e["offset_label"] = _fmt_pickup_offset(_hours)
+            pickup_order = _entries
+
+        # "What we measured" — a coverage summary computed from the SAME
+        # rows: the real bias bands actually recorded for this story, never
+        # an invented spread. Reuses the module-level _BAND_ORDER / _band_label
+        # (declared once, below, precisely so a second copy cannot drift from
+        # it) rather than a private re-encoding of the same 5-band vocabulary.
+        # An outlet with no recorded band (bias not yet scored, or a wire item
+        # where bias is deliberately suppressed) is excluded — an absent band
+        # is not a "center" band.
+        _current_band = a.get("bias_ensemble_band") or a.get("bias_band")
+        _seen_bands = {_current_band} if _current_band else set()
+        for _ca in cluster_articles:
+            if _ca.get("bias_band"):
+                _seen_bands.add(_ca["bias_band"])
+        _spanned = [b for b in _BAND_ORDER if b in _seen_bands]
+        if _spanned:
+            if len(_spanned) > 1:
+                _widest = (f"{_band_label(_BAND_ORDER.index(_spanned[0]))} "
+                           f"→ {_band_label(_BAND_ORDER.index(_spanned[-1]))}")
+            else:
+                _widest = _band_label(_BAND_ORDER.index(_spanned[0]))
+            coverage_stats = {
+                "outlets_covering": 1 + len(cluster_articles),
+                "bands_spanned": len(_spanned),
+                "widest_label": _widest,
+            }
+
     # Outlet sparkline — daily avg bias score over the outlet's last 7 days of COVERAGE.
     #
     # ⚠️ Buckets by a.published_at, NOT bs.computed_at. computed_at is when the
@@ -2908,7 +2977,9 @@ def article(article_id: int):
                            tickers=tickers,
                            is_wire=(a.get("content_type") == "wire"),
                            mp_claims=mp_claims,
-                           cross_watch_entities=cross_watch_entities)
+                           cross_watch_entities=cross_watch_entities,
+                           pickup_order=pickup_order,
+                           coverage_stats=coverage_stats)
 
 
 # ───────────────────────────────────────────────────────────────────────────

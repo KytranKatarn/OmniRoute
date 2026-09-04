@@ -4498,12 +4498,48 @@ def mps_listing():
         senators = c.execute(text("""
             SELECT slug, name, given_name, family_name,
                    COALESCE(caucus, 'Non-affiliated') AS caucus,
-                   province, photo_url, profile_url, appointed_at
+                   province, photo_url, profile_url, appointed_at, date_of_birth
             FROM parliament.senators WHERE is_current = true
             ORDER BY COALESCE(caucus, 'Non-affiliated'), name
         """)).mappings().all()
 
-    senators_list = [dict(s) for s in senators]
+    # Retirement-wave chart (#batch11): senators face MANDATORY retirement
+    # the calendar year they turn 75 (year-only — same simplification the
+    # individual /senator/<slug> page already makes for its own countdown;
+    # it ignores exact month/day). Computed here, BEFORE date_of_birth is
+    # dropped from senators_list below: the roster page's JSON/HTML has no
+    # reason to ship every sitting senator's exact birthdate to the browser
+    # just to show a bar chart — only the derived retirement YEAR is needed
+    # client-side (added back per-senator as retirement_year further down,
+    # for the "retiring soonest" sort).
+    senators_dicts = [dict(s) for s in senators]
+    senators_missing_dob = sum(1 for s in senators_dicts if not s.get("date_of_birth"))
+    _retirement_counts: dict = {}
+    for _s in senators_dicts:
+        _dob = _s.get("date_of_birth")
+        if not _dob:
+            continue
+        _yr = _dob.year + 75
+        _retirement_counts[_yr] = _retirement_counts.get(_yr, 0) + 1
+    if _retirement_counts:
+        _yr_lo, _yr_hi = min(_retirement_counts), max(_retirement_counts)
+        # Fill every year in the span, not just years with a retirement —
+        # a gap year with 0 is real information (no forced turnover that
+        # year), not a row to silently drop.
+        retirement_wave = [
+            {"year": y, "count": _retirement_counts.get(y, 0)}
+            for y in range(_yr_lo, _yr_hi + 1)
+        ]
+    else:
+        retirement_wave = []
+    max_retirement_count = max((p["count"] for p in retirement_wave), default=0)
+
+    senators_list = []
+    for _s in senators_dicts:
+        _row = {k: v for k, v in _s.items() if k != "date_of_birth"}
+        _dob = _s.get("date_of_birth")
+        _row["retirement_year"] = (_dob.year + 75) if _dob else None
+        senators_list.append(_row)
 
     mps = []
     for r in rows:
@@ -4513,10 +4549,42 @@ def mps_listing():
         mp["party_colour"] = _party_colour(mp.get("party") or "")
         mps.append(mp)
 
+    # Seats-by-province panel (#batch11) — a plain count over the SAME `mps`
+    # list this request already fetched (so it respects whatever party/
+    # province filter is active, same as every other panel on this page) —
+    # never a second query. Province/territory full names are a fixed,
+    # well-established public fact table (there are exactly 13), not
+    # derived from any DB row.
+    _PROVINCE_NAMES = {
+        "AB": "Alberta", "BC": "British Columbia", "MB": "Manitoba",
+        "NB": "New Brunswick", "NL": "Newfoundland and Labrador",
+        "NS": "Nova Scotia", "NT": "Northwest Territories", "NU": "Nunavut",
+        "ON": "Ontario", "PE": "Prince Edward Island", "QC": "Quebec",
+        "SK": "Saskatchewan", "YT": "Yukon",
+    }
+    _province_counts: dict = {}
+    for mp in mps:
+        _code = mp.get("province_code")
+        if not _code:
+            continue
+        _province_counts[_code] = _province_counts.get(_code, 0) + 1
+    province_seats = sorted(
+        (
+            {"code": code, "name": _PROVINCE_NAMES.get(code, code), "count": cnt}
+            for code, cnt in _province_counts.items()
+        ),
+        key=lambda p: p["count"],
+        reverse=True,
+    )
+
     return render_template("mps.html", mps=mps, parties=list(parties),
                            provinces=list(provinces), party_filter=party_filter,
                            province_filter=province_filter, source_count=source_count,
-                           senators=senators_list, total_seats=total_seats)
+                           senators=senators_list, total_seats=total_seats,
+                           retirement_wave=retirement_wave,
+                           max_retirement_count=max_retirement_count,
+                           senators_missing_dob=senators_missing_dob,
+                           province_seats=province_seats)
 
 
 @bp.get("/senator/<slug>")

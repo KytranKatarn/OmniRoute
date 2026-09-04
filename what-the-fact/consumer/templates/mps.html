@@ -85,6 +85,36 @@
 .rd-riding { font-size:11px; color:#e5e7eb; font-weight:600; line-height:1.4; }
 .rd-mp { font-size:10px; color:#6b7280; line-height:1.4; }
 .rd-empty { color:#6b7280; font-size:12px; padding:30px 0; text-align:center; }
+
+/* Batch 11 additions: HoC/Senate live search+sort toolbars, the seats-by-
+   province panel, the retirement-wave chart and the A-Z riding jump nav —
+   all client-side over data the route already fetches, no new query. */
+.wtf-mps-livebar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.wtf-mps-sort-select { background:#060d14; border:1px solid #1a3a5a; color:#9ca3af; font-size:11px; padding:6px 10px; border-radius:4px; font-family:inherit; }
+.wtf-mps-sort-select:focus { outline:none; border-color:#0af; }
+.wtf-mps-live-count { font-size:10px; color:#6b7280; }
+.wtf-mps-methodology-heading { color:#0af; }
+
+.rw-chart { display:flex; align-items:flex-end; gap:3px; height:120px; margin:14px 0 6px; overflow-x:auto; padding-bottom:4px; }
+.rw-bar-col { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; flex:1 0 20px; min-width:20px; height:100%; }
+.rw-bar { width:70%; background:#8b2020; border-radius:2px 2px 0 0; min-height:1px; }
+.rw-bar-col:hover .rw-bar { background:#ef4444; }
+.rw-bar-count { font-size:8px; color:#9ca3af; margin-top:2px; min-height:9px; }
+.rw-bar-year { font-size:7px; color:#6b7280; margin-top:2px; white-space:nowrap; }
+.rw-note { font-size:9px; color:#374151; margin-top:8px; }
+
+.ps-chart { display:flex; flex-direction:column; gap:6px; margin-top:6px; }
+.ps-row { display:grid; grid-template-columns:170px 1fr 32px; align-items:center; gap:8px; font-size:11px; color:#9ca3af; }
+.ps-label { text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ps-bar-track { background:#0a1520; border-radius:3px; height:14px; overflow:hidden; }
+.ps-bar-fill { background:#0af; height:100%; border-radius:3px; }
+.ps-count { color:#e5e7eb; font-weight:600; text-align:right; }
+@media (max-width:600px) { .ps-row { grid-template-columns:88px 1fr 26px; font-size:10px; } }
+
+.rd-az-nav { display:flex; flex-wrap:wrap; gap:3px; margin-bottom:12px; }
+.rd-az-btn { background:#060d14; border:1px solid #1a3a5a; color:#9ca3af; font-size:10px; width:22px; height:22px; border-radius:3px; cursor:pointer; font-family:inherit; }
+.rd-az-btn:hover:not(:disabled) { border-color:#0af; color:#0af; }
+.rd-az-btn:disabled { color:#2a3441; border-color:#0d1a26; cursor:default; }
 </style>
 
 <div class="wtf-mps-header">
@@ -451,6 +481,20 @@ function wtfShowSenatorCard(s, cx, cy) {
 })();
 </script>
 
+<!-- Live search + sort (batch 11) — filters/reorders the MPs already
+     fetched by this request; the grouped view below is the default,
+     any search text or a non-default sort swaps in the flat view. -->
+<div class="wtf-mps-livebar wtf-mps-section-top">
+  <input type="search" id="hoc-search-input" class="rd-search" style="margin-bottom:0;max-width:280px;"
+         placeholder="Search MPs by name or riding…" aria-label="Search MPs">
+  <select id="hoc-sort-select" class="wtf-mps-sort-select" aria-label="Sort MPs">
+    <option value="party">Grouped by party</option>
+    <option value="name">Name (A–Z)</option>
+    <option value="covered">Most covered</option>
+  </select>
+  <span id="hoc-live-count" class="wtf-mps-live-count"></span>
+</div>
+
 <!-- Party Grid (under HoC tab) -->
 <div id="wtf-party-grid-section" class="wtf-mps-section-top">
 {% set LEADERS = {'mark-carney':'Prime Minister','pierre-poilievre':'Opposition Leader','yves-francois-blanchet':'Bloc Leader','elizabeth-may':'Green Leader','don-davies':'NDP House Leader'} %}
@@ -499,7 +543,127 @@ function wtfShowSenatorCard(s, cx, cy) {
 </div>
 {% endif %}
 </div><!-- /wtf-party-grid-section -->
+
+<!-- Flat search/sort view (batch 11) — hidden unless a search is typed or
+     a non-default sort is picked; built client-side from the same MPs. -->
+<div id="hoc-flat-wrap" class="wtf-mps-section-top" style="display:none;">
+  <div id="hoc-flat-grid" class="wtf-mp-grid"></div>
+  <div id="hoc-flat-empty" class="wtf-mps-empty" style="display:none;">
+    No MPs match that search.
+  </div>
+</div>
+
+<div class="wtf-mps-senate-panel wtf-mps-section-top" style="border-color:#1a3a5a;">
+  <div class="wtf-mps-senate-heading wtf-mps-methodology-heading">ℹ What the coverage counts are not</div>
+  <div class="wtf-mps-senate-desc">
+    The article count on an MP's card is how many articles in our corpus name them —
+    it is not a measure of how effective, controversial, or well-regarded they are.
+    Cabinet ministers and party leaders accumulate higher counts because of the office
+    they hold, not necessarily anything they did that week, so comparing a minister's
+    count to a backbencher's measures the job, not the person. A count of zero means we
+    haven't tagged a mention yet, not that nothing was written.
+  </div>
+</div>
 </div><!-- /wtf-tab-hoc -->
+<script>
+(function(){
+  var HOC_MPS = {{ mps | tojson }};
+  var searchEl = document.getElementById('hoc-search-input');
+  var sortEl = document.getElementById('hoc-sort-select');
+  var countEl = document.getElementById('hoc-live-count');
+  var groupedEl = document.getElementById('wtf-party-grid-section');
+  var flatWrap = document.getElementById('hoc-flat-wrap');
+  var flatGrid = document.getElementById('hoc-flat-grid');
+  var flatEmpty = document.getElementById('hoc-flat-empty');
+  if (!searchEl || !sortEl) return;
+
+  function buildCard(mp) {
+    var a = document.createElement('a');
+    a.className = 'wtf-mp-card';
+    a.href = '/mp/' + mp.slug;
+    if (mp.photo_url) {
+      var img = document.createElement('img');
+      img.className = 'wtf-mp-photo';
+      img.loading = 'lazy';
+      img.alt = mp.name || '';
+      img.src = mp.photo_url;
+      img.onerror = function () {
+        this.style.display = 'none';
+        if (this.nextElementSibling) this.nextElementSibling.style.display = 'flex';
+      };
+      a.appendChild(img);
+      var ph = document.createElement('div');
+      ph.className = 'wtf-mp-photo-placeholder';
+      ph.style.display = 'none';
+      ph.textContent = '👤';
+      a.appendChild(ph);
+    } else {
+      var ph2 = document.createElement('div');
+      ph2.className = 'wtf-mp-photo-placeholder';
+      ph2.textContent = '👤';
+      a.appendChild(ph2);
+    }
+    if (mp.cabinet_role) {
+      var cb = document.createElement('div');
+      cb.className = 'wtf-mp-leader-badge wtf-mp-badge-cabinet';
+      var role = mp.cabinet_role.length > 28 ? mp.cabinet_role.slice(0, 28) + '…' : mp.cabinet_role;
+      cb.textContent = '🏛 ' + role;
+      a.appendChild(cb);
+    }
+    var nm = document.createElement('div');
+    nm.className = 'wtf-mp-name';
+    nm.textContent = mp.name || '';
+    a.appendChild(nm);
+    var col = mp.party_colour || '#6b7280';
+    var badge = document.createElement('span');
+    badge.className = 'wtf-mp-party-badge';
+    badge.style.cssText = 'background:' + col + '22;color:' + col + ';border:1px solid ' + col + '44;';
+    badge.textContent = mp.party || '—';
+    a.appendChild(badge);
+    var riding = document.createElement('div');
+    riding.className = 'wtf-mp-riding';
+    var rname = mp.riding_name || '';
+    riding.textContent = rname.slice(0, 40) + (rname.length > 40 ? '…' : '');
+    a.appendChild(riding);
+    if (mp.mention_count) {
+      var stat = document.createElement('div');
+      stat.className = 'wtf-mp-stats';
+      stat.textContent = mp.mention_count + ' article' + (mp.mention_count !== 1 ? 's' : '');
+      a.appendChild(stat);
+    }
+    return a;
+  }
+
+  function render() {
+    var q = (searchEl.value || '').trim().toLowerCase();
+    var sort = sortEl.value;
+    var useFlat = sort !== 'party' || !!q;
+
+    groupedEl.style.display = useFlat ? 'none' : '';
+    flatWrap.style.display = useFlat ? '' : 'none';
+    if (!useFlat) { countEl.textContent = ''; return; }
+
+    var list = HOC_MPS.filter(function (mp) {
+      if (!q) return true;
+      return (mp.name || '').toLowerCase().indexOf(q) !== -1 ||
+             (mp.riding_name || '').toLowerCase().indexOf(q) !== -1;
+    });
+    if (sort === 'covered') {
+      list.sort(function (a, b) { return (b.mention_count || 0) - (a.mention_count || 0); });
+    } else {
+      list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+    }
+
+    while (flatGrid.firstChild) flatGrid.removeChild(flatGrid.firstChild);
+    list.forEach(function (mp) { flatGrid.appendChild(buildCard(mp)); });
+    countEl.textContent = list.length + ' of ' + HOC_MPS.length + ' MPs';
+    flatEmpty.style.display = list.length ? 'none' : 'block';
+  }
+
+  searchEl.addEventListener('input', render);
+  sortEl.addEventListener('change', render);
+})();
+</script>
 
 <!-- Senate Tab -->
 <div id="wtf-tab-senate" style="display:none;">
@@ -517,6 +681,58 @@ function wtfShowSenatorCard(s, cx, cy) {
     <div id="wtf-senate-tip" class="wtf-mps-tip wtf-mps-tip-senate"></div>
     <div class="wtf-mps-senate-source">Source: <a href="https://sencanada.ca/en/senators/?v=list" target="_blank" rel="noopener" class="wtf-mps-senate-source-link">Senate of Canada</a> · Data as of May 2026</div>
   </div>
+
+<!-- Retirement-wave chart (batch 11) — senators face mandatory retirement
+     the year they turn 75; year+75 is computed from date_of_birth
+     server-side (routes.py), never re-derived or guessed here. -->
+<div class="wtf-mps-senate-panel">
+  <div class="wtf-mps-senate-heading">📉 Forced Turnover — Mandatory Retirement at 75</div>
+  <div class="wtf-mps-senate-desc">
+    A senator must retire the calendar year they turn 75 — there is no re-appointment.
+    Grouped by that year (year only, not the exact birthdate) for the
+    {{ senators|length - (senators_missing_dob | default(0)) }} of {{ senators|length }} sitting senators
+    with a recorded date of birth{% if senators_missing_dob %} ({{ senators_missing_dob }}
+    not on record, excluded below){% endif %}.
+  </div>
+  {% if retirement_wave %}
+  <div class="rw-chart">
+    {% for pt in retirement_wave %}
+    <div class="rw-bar-col" title="{{ pt.year }}: {{ pt.count }} senator{{ 's' if pt.count != 1 else '' }} retiring">
+      <div class="rw-bar-count">{{ pt.count if pt.count else '' }}</div>
+      <div class="rw-bar" style="height:{{ ((pt.count / max_retirement_count * 100) if max_retirement_count else 0)|round(1) }}%;"></div>
+      <div class="rw-bar-year">{{ pt.year }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="rw-note">{{ retirement_wave[0].year }}–{{ retirement_wave[-1].year }} · bars are senators retiring in that calendar year, not a cumulative total</div>
+  {% else %}
+  <div class="wtf-mps-empty">No senator on record has a date of birth to chart.</div>
+  {% endif %}
+</div>
+
+<!-- Live search + caucus filter + sort (batch 11) -->
+<div class="wtf-mps-livebar wtf-mps-section-top">
+  <input type="search" id="sen-search-input" class="rd-search" style="margin-bottom:0;max-width:260px;"
+         placeholder="Search senators by name or province…" aria-label="Search senators">
+  <select id="sen-caucus-filter" class="wtf-mps-sort-select" aria-label="Filter by caucus">
+    <option value="all">All caucuses</option>
+    {% for caucus_name, caucus_group in senators | groupby('caucus') %}
+    <option value="{{ caucus_name }}">{{ caucus_name }} ({{ caucus_group | list | length }})</option>
+    {% endfor %}
+  </select>
+  <select id="sen-sort-select" class="wtf-mps-sort-select" aria-label="Sort senators">
+    <option value="caucus">Grouped by caucus</option>
+    <option value="retiring">Retiring soonest</option>
+    <option value="tenure">Longest serving</option>
+    <option value="name">Alphabetical</option>
+  </select>
+  <span id="sen-live-count" class="wtf-mps-live-count"></span>
+</div>
+<div class="wtf-mps-senate-source" style="margin:-8px 0 12px;">
+  "Most covered" isn't offered here — coverage tags are tracked per-MP only; no equivalent
+  per-senator mention count exists yet.
+</div>
+
 <!-- Senator Grid inside Senate tab -->
 <div id="wtf-senate-grid-section" class="wtf-mps-section-top">
 {% set SEN_COLOURS = {'C':'#3b82f6','ISG':'#cc0000','CSG':'#059669','PSG':'#7c3aed','GRO':'#b45309','Non-affiliated':'#888888'} %}
@@ -546,6 +762,14 @@ function wtfShowSenatorCard(s, cx, cy) {
     </div>
   </div>
 {% endfor %}
+</div>
+
+<!-- Flat search/filter/sort view (batch 11) -->
+<div id="sen-flat-wrap" class="wtf-mps-section-top" style="display:none;">
+  <div id="sen-flat-grid" class="wtf-mp-grid"></div>
+  <div id="sen-flat-empty" class="wtf-mps-empty" style="display:none;">
+    No senator matches that search.
+  </div>
 </div>
 </div><!-- /wtf-tab-senate -->
 <script>
@@ -642,6 +866,125 @@ function wtfShowSenatorCard(s, cx, cy) {
 })();
 </script>
 
+<script>
+(function(){
+  var SEN_MPS = {{ senators | tojson }};
+  var searchEl = document.getElementById('sen-search-input');
+  var caucusEl = document.getElementById('sen-caucus-filter');
+  var sortEl = document.getElementById('sen-sort-select');
+  var countEl = document.getElementById('sen-live-count');
+  var groupedEl = document.getElementById('wtf-senate-grid-section');
+  var flatWrap = document.getElementById('sen-flat-wrap');
+  var flatGrid = document.getElementById('sen-flat-grid');
+  var flatEmpty = document.getElementById('sen-flat-empty');
+  if (!searchEl || !sortEl) return;
+  var CAUCUS_ORDER = ['C', 'ISG', 'CSG', 'PSG', 'GRO', 'Non-affiliated'];
+  var CAUCUS_COLOURS = {
+    'C': '#3b82f6', 'ISG': '#cc0000', 'CSG': '#059669',
+    'PSG': '#7c3aed', 'GRO': '#b45309', 'Non-affiliated': '#888888'
+  };
+
+  function buildCard(s) {
+    var col = CAUCUS_COLOURS[s.caucus] || '#888888';
+    var a = document.createElement('a');
+    a.className = 'wtf-mp-card';
+    a.href = '/senator/' + s.slug;
+    a.style.borderColor = col + '22';
+    if (s.photo_url) {
+      var img = document.createElement('img');
+      img.className = 'wtf-mp-photo';
+      img.loading = 'lazy';
+      img.alt = s.name || '';
+      img.src = s.photo_url;
+      img.onerror = function () {
+        this.style.display = 'none';
+        if (this.nextElementSibling) this.nextElementSibling.style.display = 'flex';
+      };
+      a.appendChild(img);
+      var ph = document.createElement('div');
+      ph.className = 'wtf-mp-photo-placeholder';
+      ph.style.display = 'none';
+      ph.textContent = '👤';
+      a.appendChild(ph);
+    } else {
+      var ph2 = document.createElement('div');
+      ph2.className = 'wtf-mp-photo-placeholder';
+      ph2.textContent = '👤';
+      a.appendChild(ph2);
+    }
+    var nm = document.createElement('div');
+    nm.className = 'wtf-mp-name';
+    nm.textContent = s.name || '';
+    a.appendChild(nm);
+    var badge = document.createElement('span');
+    badge.className = 'wtf-mp-party-badge';
+    badge.style.cssText = 'background:' + col + '22;color:' + col + ';border:1px solid ' + col + '44;';
+    badge.textContent = s.caucus || '—';
+    a.appendChild(badge);
+    var prov = document.createElement('div');
+    prov.className = 'wtf-mp-riding';
+    prov.textContent = s.province || '—';
+    a.appendChild(prov);
+    return a;
+  }
+
+  function render() {
+    var q = (searchEl.value || '').trim().toLowerCase();
+    var caucus = caucusEl.value;
+    var sort = sortEl.value;
+    var useFlat = sort !== 'caucus' || !!q || caucus !== 'all';
+
+    groupedEl.style.display = useFlat ? 'none' : '';
+    flatWrap.style.display = useFlat ? '' : 'none';
+    if (!useFlat) { countEl.textContent = ''; return; }
+
+    var list = SEN_MPS.filter(function (s) {
+      if (caucus !== 'all' && s.caucus !== caucus) return false;
+      if (!q) return true;
+      return (s.name || '').toLowerCase().indexOf(q) !== -1 ||
+             (s.province || '').toLowerCase().indexOf(q) !== -1;
+    });
+
+    if (sort === 'retiring') {
+      list.sort(function (a, b) {
+        var ay = a.retirement_year, by = b.retirement_year;
+        if (ay == null && by == null) return (a.name || '').localeCompare(b.name || '');
+        if (ay == null) return 1;
+        if (by == null) return -1;
+        return ay - by;
+      });
+    } else if (sort === 'tenure') {
+      list.sort(function (a, b) {
+        var aa = a.appointed_at || '9999-99-99', ba = b.appointed_at || '9999-99-99';
+        return aa < ba ? -1 : (aa > ba ? 1 : 0);
+      });
+    } else if (sort === 'name') {
+      list.sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+    } else {
+      // 'caucus' sort reached only via search/caucus-filter (grouped view
+      // handles the unfiltered default) — cluster by the same caucus order
+      // as the legend, then name, so it still reads as "grouped".
+      list.sort(function (a, b) {
+        var ai = CAUCUS_ORDER.indexOf(a.caucus), bi = CAUCUS_ORDER.indexOf(b.caucus);
+        if (ai === -1) ai = CAUCUS_ORDER.length;
+        if (bi === -1) bi = CAUCUS_ORDER.length;
+        if (ai !== bi) return ai - bi;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    }
+
+    while (flatGrid.firstChild) flatGrid.removeChild(flatGrid.firstChild);
+    list.forEach(function (s) { flatGrid.appendChild(buildCard(s)); });
+    countEl.textContent = list.length + ' of ' + SEN_MPS.length + ' senators';
+    flatEmpty.style.display = list.length ? 'none' : 'block';
+  }
+
+  searchEl.addEventListener('input', render);
+  caucusEl.addEventListener('change', render);
+  sortEl.addEventListener('change', render);
+})();
+</script>
+
 <!-- Ridings Tab -->
 <div id="wtf-tab-ridings" style="display:none;">
   <p class="wtf-mps-senate-desc" style="max-width:74ch">
@@ -649,6 +992,23 @@ function wtfShowSenatorCard(s, cx, cy) {
     over the roster, not a map: riding boundary data and a postal-code lookup aren't part of
     this build, so nothing here is plotted geographically or guessed from a location.
   </p>
+
+  {% if province_seats %}
+  <div class="wtf-mps-senate-panel" style="border-color:#1a3a5a;">
+    <div class="wtf-mps-senate-heading wtf-mps-methodology-heading">📊 Seats by Province &amp; Territory</div>
+    <div class="ps-chart">
+      {% for p in province_seats %}
+      <div class="ps-row">
+        <div class="ps-label">{{ p.name }}</div>
+        <div class="ps-bar-track"><div class="ps-bar-fill" style="width:{{ (p.count / province_seats[0].count * 100)|round(1) }}%;"></div></div>
+        <div class="ps-count">{{ p.count }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="rd-az-nav" class="rd-az-nav" aria-label="Jump to riding name starting with"></div>
   <input type="search" id="rd-search-input" class="rd-search"
          placeholder="Search by riding name or MP name…" aria-label="Search ridings">
   <div id="rd-count" class="rd-count"></div>
@@ -664,6 +1024,35 @@ function wtfShowSenatorCard(s, cx, cy) {
   var countEl = document.getElementById('rd-count');
   var emptyEl = document.getElementById('rd-empty');
   var searchEl = document.getElementById('rd-search-input');
+  var azEl = document.getElementById('rd-az-nav');
+  var ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+  function letterOf(ridingName) {
+    var c = (ridingName || '').trim().charAt(0).toUpperCase();
+    return /[A-Z]/.test(c) ? c : '#';
+  }
+
+  function renderAZ(matches) {
+    if (!azEl) return;
+    var present = {};
+    matches.forEach(function (mp) { present[letterOf(mp.riding_name)] = true; });
+    while (azEl.firstChild) azEl.removeChild(azEl.firstChild);
+    ALPHABET.forEach(function (L) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'rd-az-btn';
+      btn.textContent = L;
+      if (present[L]) {
+        btn.addEventListener('click', function () {
+          var target = document.getElementById('rd-letter-' + L);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      } else {
+        btn.disabled = true;
+      }
+      azEl.appendChild(btn);
+    });
+  }
 
   function render(filter) {
     var q = (filter||'').trim().toLowerCase();
@@ -675,11 +1064,15 @@ function wtfShowSenatorCard(s, cx, cy) {
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
     countEl.textContent = matches.length + ' of ' + RD_MPS.length + ' ridings';
     emptyEl.style.display = matches.length ? 'none' : 'block';
+    renderAZ(matches);
 
+    var seenLetters = {};
     matches.forEach(function(mp){
       var row = document.createElement('a');
       row.className = 'rd-row';
       row.href = '/mp/' + mp.slug;
+      var L = letterOf(mp.riding_name);
+      if (!seenLetters[L]) { row.id = 'rd-letter-' + L; seenLetters[L] = true; }
 
       var dot = document.createElement('span');
       dot.className = 'rd-dot';

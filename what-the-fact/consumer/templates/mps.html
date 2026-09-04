@@ -506,7 +506,7 @@ function wtfShowSenatorCard(s, cx, cy) {
   <div class="wtf-mps-senate-panel">
     <div class="wtf-mps-senate-heading">🔴 Senate of Canada — The Red Chamber</div>
     <div class="wtf-mps-senate-desc">
-      96 current senators appointed until age 75. Six caucus groups sit in a red-upholstered horseshoe chamber.
+      {{ senators|length }} current senators appointed until age 75. Six caucus groups sit in a red-upholstered horseshoe chamber.
     </div>
     <div class="wtf-mps-senate-legend" id="senate-legend"></div>
     <svg id="wtf-senate-svg" viewBox="0 0 700 300" class="wtf-mps-svg">

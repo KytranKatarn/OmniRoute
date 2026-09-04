@@ -4041,12 +4041,21 @@ def crtc_decisions():
                    description, decision_type, decision_url, wtf_source_slug
             FROM legal_watch.crtc_decisions
             {}
-            ORDER BY decision_number DESC
-            LIMIT 200
+            ORDER BY decision_year DESC, (split_part(decision_number, '-', 2))::integer DESC
+            LIMIT 500
         """.format("WHERE decision_type = :dtype" if dtype != "all" else "")
         params = {"dtype": dtype} if dtype != "all" else {}
         rows = c.execute(text(query), params).mappings().all()
         source_count = _active_source_count(c, S)
+        # Unfiltered total for the paywall promo copy — decision_number is
+        # "<year>-<seq>" (280/280 rows match, confirmed 2026-09-04), so ORDER BY
+        # now sorts numerically instead of lexicographically (was letting
+        # '2024-100' sort below '2024-99'). LIMIT 500 comfortably covers the
+        # real 280-row table with room to grow; decisions|length in the
+        # template is only accurate once the LIMIT isn't truncating it.
+        total_rulings = c.execute(
+            text("SELECT COUNT(*) FROM legal_watch.crtc_decisions")
+        ).scalar()
 
         # Ownership concentration data for the CRTC panel.
         # bias_band mirrors ingest/outlet_bias.py's _BANDS thresholds exactly
@@ -4082,6 +4091,7 @@ def crtc_decisions():
                            decisions=[dict(r) for r in rows],
                            dtype=dtype,
                            source_count=source_count,
+                           total_rulings=total_rulings,
                            owners_summary=owners_summary,
                            concentration_badge=concentration_badge,
                            is_subscriber=is_subscriber())

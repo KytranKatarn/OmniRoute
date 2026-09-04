@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% block title %}Methodology — What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Every number on this site comes from somewhere — bias scoring, fact-check verdicts, geolocation, agent model cards, known limitations, and coverage gaps, all documented in plain language.">
+{% endblock %}
+{% block content %}
+{# Ported from tech/templates/methodology.html (served there at /transparency,
+   matching what-the-fact.tech/transparency — see consumer/routes.py's
+   methodology() for why). Real documentation, not a mockup: content kept
+   verbatim, only the extends target and title/meta blocks changed to fit
+   this app's base.html. #}
+<style>
+.wtf-trans-hero { background: #050d1a; padding: 30px 20px; text-align: center; border-bottom: 2px solid #a0f; margin: -20px -20px 0; }
+.wtf-trans-hero h1 { font-size: 22px; letter-spacing: 3px; color: #a0f; margin: 0 0 8px; }
+.wtf-trans-hero p { font-size: 12px; color: #666; max-width: 600px; margin: 0 auto; line-height: 1.6; }
+.wtf-trans-stats { display: flex; gap: 0; border-bottom: 1px solid #112233; }
+.wtf-stat { flex: 1; padding: 20px; text-align: center; border-right: 1px solid #112233; }
+.wtf-stat:last-child { border-right: none; }
+.wtf-stat-num { font-size: 28px; color: #0af; font-weight: bold; }
+.wtf-stat-label { font-size: 10px; color: #555; letter-spacing: 1px; margin-top: 4px; }
+.wtf-trans-container { max-width: 860px; margin: 0 auto; padding: 30px 16px; }
+.wtf-section { margin-bottom: 36px; }
+.wtf-section-title { font-size: 14px; letter-spacing: 2px; color: #a0f; border-bottom: 1px solid #1a0a3a; padding-bottom: 8px; margin-bottom: 16px; }
+.wtf-method-block { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 16px; margin-bottom: 12px; }
+.wtf-method-block h4 { font-size: 12px; color: #0af; margin: 0 0 8px; }
+.wtf-method-block p, .wtf-method-block li { font-size: 11px; color: #888; line-height: 1.7; }
+.wtf-method-block ul { margin: 0; padding-left: 16px; }
+.wtf-code { background: #050e18; border: 1px solid #1a2a3a; border-radius: 3px; padding: 10px; font-family: monospace; font-size: 10px; color: #4a9; overflow-x: auto; margin: 8px 0; }
+.wtf-band-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; font-size: 11px; }
+.wtf-band-chip { width: 70px; padding: 2px 6px; border-radius: 2px; font-size: 9px; text-align: center; flex-shrink: 0; }
+.wtf-agent-card { background: #060d14; border: 1px solid #1a3a5a; border-radius: 4px; padding: 12px; margin-bottom: 10px; }
+.wtf-agent-card h4 { color: #f80; font-size: 12px; margin: 0 0 4px; }
+.wtf-agent-card .model { color: #4a9; font-size: 10px; font-family: monospace; margin-bottom: 8px; }
+.wtf-agent-card .prompt-preview { background: #050e18; border-radius: 3px; padding: 8px; font-size: 10px; color: #666; font-style: italic; line-height: 1.5; }
+.wtf-flag-box { background: #0a1020; border: 1px solid #a0f; border-radius: 4px; padding: 16px; text-align: center; }
+.wtf-flag-box h4 { color: #a0f; font-size: 13px; margin: 0 0 8px; }
+.wtf-flag-box p { font-size: 11px; color: #888; margin-bottom: 12px; }
+.wtf-flag-btn { background: #1a0a3a; border: 1px solid #a0f; color: #a0f; padding: 8px 16px; border-radius: 3px; text-decoration: none; font-size: 11px; font-family: inherit; cursor: pointer; }
+.wtf-remediation-link { display: inline-block; margin-left: 6px; font-size: 0.78em; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #8b5cf6; text-decoration: none; white-space: nowrap; }
+.wtf-remediation-link:hover { text-decoration: underline; }
+</style>
+
+<div class="wtf-trans-hero">
+  <h1>RADICAL TRANSPARENCY</h1>
+  <p>We publish exactly how we score every article — every trigger term, every threshold, every prompt. If you think we got it wrong, tell us.</p>
+</div>
+
+<div class="wtf-trans-stats">
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.total_articles or 0 }}</div>
+    <div class="wtf-stat-label">ARTICLES (7 DAYS)</div>
+  </div>
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.ai_analyzed or 0 }}</div>
+    <div class="wtf-stat-label">AI ANALYZED</div>
+  </div>
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.geolocated or 0 }}</div>
+    <div class="wtf-stat-label">GEOLOCATED</div>
+  </div>
+  <div class="wtf-stat">
+    <div class="wtf-stat-num">{{ stats.total_sources or 0 }}</div>
+    <div class="wtf-stat-label">SOURCES MONITORED</div>
+  </div>
+</div>
+
+<div class="wtf-trans-container">
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">BIAS SCORING METHODOLOGY</div>
+
+    <div class="wtf-method-block">
+      <h4>Three-Signal System</h4>
+      <p>Every article receives up to three independent bias signals. The ensemble average is the displayed band — more signals = more defensible measurement.</p>
+      <ul>
+        <li><strong>Signal 1 — Heuristic (v3):</strong> 80+ Canadian loaded-language triggers — framing terms, charged adjectives and partisan word-choice pairs — matched against title + body, with <strong>headline matches weighted 3&times;</strong> (a headline sets the frame). Fast, deterministic, runs on every article at ingest. Re-scored across the back catalogue on 2026-06-01.</li>
+        <li><strong>Signal 2 — LLM Tier-1:</strong> B.I.A.S. (qwen2.5:7b via DHQ) reads title + body and returns a structured score with rationale and trigger phrases. Uses Canadian political context (Liberal/NDP/Conservative spectrum). Runs on priority articles.</li>
+        <li><strong>Signal 3 — ML v2 (DistilBERT zero-shot):</strong> <code style="font-size:9px;">valhalla/distilbart-mnli-12-3</code> runs NLI classification against left/center/right labels. CPU-only, independent of the LLM path. Backlog worker scores ~50 articles per 30-min cycle. US-trained — Canadian political framing (NDP/Liberal/Conservative) may not map cleanly; treated as a second opinion, not ground truth.</li>
+        <li><strong>Ensemble:</strong> <code style="font-size:9px;">0.5 &times; heuristic_score + 0.5 &times; ml_v2_score</code> (where both are available). Band derived from same thresholds as single-signal scoring.</li>
+      </ul>
+    </div>
+
+    <div class="wtf-method-block">
+      <h4>Bias Band Thresholds</h4>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2d0a0a;color:#dc2626">LEFT</span><span style="color:#888">score &lt; &minus;0.6 &mdash; NDP, labour, progressive</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#2d1100;color:#f97316">CENTER-LEFT</span><span style="color:#888">&minus;0.6 &le; score &lt; &minus;0.2 &mdash; Liberal, CBC framing</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a2010;color:#22c55e">CENTER</span><span style="color:#888">&minus;0.2 &le; score &lt; 0.2 &mdash; neutral/factual reporting</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#062030;color:#0ea5e9">CENTER-RIGHT</span><span style="color:#888">0.2 &le; score &lt; 0.6 &mdash; fiscal conservatism, business</span></div>
+      <div class="wtf-band-row"><span class="wtf-band-chip" style="background:#0a1540;color:#2563eb">RIGHT</span><span style="color:#888">score &ge; 0.6 &mdash; Conservative base, Postmedia editorial</span></div>
+    </div>
+
+    <div class="wtf-method-block">
+      <h4>F.A.C.T. Priority Scoring</h4>
+      <p>F.A.C.T. (gemma3:12b) assigns a priority score to each article each cycle. Articles scoring &ge; 1 join the AI analysis queue (up to 20 per cycle):</p>
+      <div class="wtf-code">score += 3  # same story in 3+ outlets
+score += 2  # heuristic bias |score| &gt; 0.5
+score += 1  # breaking keyword in title</div>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">FACT-CHECK METHODOLOGY</div>
+    <div class="wtf-method-block">
+      <h4>V.E.R.I.F.Y. Claim Extraction</h4>
+      <p>V.E.R.I.F.Y. (gemma2:9b) reads priority articles and extracts verifiable factual claims. Each claim receives a verdict:</p>
+      <ul>
+        <li><strong>verified</strong> — claim confirmed by public record or widely accepted source</li>
+        <li><strong>mixed</strong> — claim is partly true or requires context</li>
+        <li><strong>disputed</strong> — claim contradicts known evidence</li>
+        <li><strong>unverifiable</strong> — specific claim exists but cannot be checked with available evidence</li>
+        <li><strong>descriptive_reporting</strong> — article contains no specific factual assertions (market summaries, sports scores, breaking dispatches). This is not a quality judgment.</li>
+      </ul>
+      <p>V.E.R.I.F.Y. does not have internet access. Verdicts are based on the model's training data (cutoff 2024). We flag this limitation prominently on every article.</p>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">GEOLOCATION METHODOLOGY</div>
+    <div class="wtf-method-block">
+      <h4>L.O.C.A.L. Geo Extraction</h4>
+      <p>L.O.C.A.L. (llama3.2:3b) runs on every article and extracts the primary Canadian province and city. If the agent returns no confident result, a heuristic regex fallback scans for province names and city names in the title and first 500 characters of body text.</p>
+      <p>Coverage goal: &ge; 80% of articles have <code>province_code</code> populated within 24 hours of ingest.</p>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">AGENT MODEL CARDS</div>
+
+    <div class="wtf-agent-card">
+      <h4>F.A.C.T. &mdash; Orchestrator</h4>
+      <div class="model">gemma3:12b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"You are F.A.C.T. (Factual Analysis, Credibility &amp; Transparency), orchestrator of the What The Fact AI newsroom. Score each article for priority analysis&hellip;"</div>
+    </div>
+
+    <div class="wtf-agent-card" style="border-color:#f80;">
+      <h4 style="color:#f80;">B.I.A.S. &mdash; Bias Analyst</h4>
+      <div class="model">qwen2.5:7b &middot; News &amp; Media dept &middot; upgraded 2026-05-28</div>
+      <div class="prompt-preview">"You are a Canadian political bias analyst. Score this article's political framing on the Canadian spectrum (LEFT=NDP/labour, CENTER-LEFT=Liberal/CBC, CENTER=neutral, CENTER-RIGHT=fiscal conservative, RIGHT=Conservative/Postmedia). Avoid defaulting to 0.0 — make a decision even if uncertain. Return ONLY valid JSON: {score, band, rationale, trigger_phrases, confidence}"</div>
+    </div>
+
+    <div class="wtf-agent-card" style="border-color:#4a9;">
+      <h4 style="color:#4a9;">V.E.R.I.F.Y. &mdash; Fact-Checker</h4>
+      <div class="model">gemma2:9b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"Extract FACTUAL ASSERTIONS only (statistics, historical events, attributed quotes, study results). SKIP opinions and descriptive reporting. If article contains no factual claims, return overall_verdict='descriptive_reporting'. Return ONLY valid JSON: {claims: [{text, verdict, reasoning, confidence}], overall_verdict, confidence}"</div>
+    </div>
+
+    <div class="wtf-agent-card">
+      <h4>L.O.C.A.L. &mdash; Geographic Intelligence Analyst</h4>
+      <div class="model">llama3.2:3b &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"Extract the primary Canadian location from this news article. Return ONLY valid JSON: {province_code, city, lat, lng, geo_scope, geo_confidence}"</div>
+    </div>
+
+    <div class="wtf-agent-card" style="border-color:#ec4899;">
+      <h4 style="color:#ec4899;">I.N.K. &mdash; Story Clustering &amp; Investigation</h4>
+      <div class="model">dolphin3:latest &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"You are I.N.K. (Investigative News &amp; Knowledge), a News Investigator. Group related coverage from multiple outlets into a single story cluster and surface the connective thread &mdash; who is covering it, and how the framing differs across sources&hellip;"</div>
+    </div>
+
+    <div class="wtf-agent-card" style="border-color:#06b6d4;">
+      <h4 style="color:#06b6d4;">D.R.A.F.T. &mdash; Summarization</h4>
+      <div class="model">dolphin3:latest &middot; News &amp; Media dept</div>
+      <div class="prompt-preview">"You are D.R.A.F.T. (Data Reduction &amp; Factual Translation), a Staff Writer. Condense an article or story cluster into a concise, neutral summary that preserves the facts without adding interpretation or opinion&hellip;"</div>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">KNOWN LIMITATIONS</div>
+    <div class="wtf-method-block">
+      <p style="margin-bottom:12px;">Each limitation links to its entry in the independent
+        <a href="https://creed.kytranempowerment.com/remediation" target="_blank" rel="noopener" style="color:#8b5cf6;">C.R.E.E.D. Remediation Registry</a>,
+        which records our governance position and what we are doing about it.</p>
+      <ul>
+        <li id="limit-llm-cutoff">LLM analysis is based on training data (cutoff 2024) &mdash; models do not have internet access or real-time fact databases.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-llm-training-cutoff" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-bias-consensus">Bias scoring reflects the LLM's interpretation of language patterns; it may not match human expert consensus in all cases.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-bias-vs-human-consensus" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-geolocation">Geolocation uses source province as fallback when AI confidence is low (&lt;0.5).<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-geolocation-province-fallback" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-coverage">Not all articles receive full AI analysis &mdash; only priority articles (top 20/cycle) get LLM treatment; all others receive heuristic + source-editorial bias scoring.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-priority-article-coverage" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-outlet-bias">Outlet bias profiles are rolling averages; new outlets are seeded from editorial stance data and refined over time.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-outlet-bias-rolling-average" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-paywall">Paywalled articles (Postmedia, Torstar) have limited body text — AI analysis relies on title + Open Graph description only.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-paywalled-body-text" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+        <li id="limit-distilbert">DistilBERT Signal 3 (US-trained NLI model) may not map cleanly to Canadian political framing; treated as a second opinion, not ground truth.<a class="wtf-remediation-link" href="https://creed.kytranempowerment.com/remediation#wtf-distilbert-canadian-framing" target="_blank" rel="noopener">Remediation &#8599;</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">COVERAGE GAPS — OUTLETS WE CANNOT MONITOR</div>
+    <div class="wtf-method-block">
+      <h4>Why this matters</h4>
+      <p>WTF can only analyze outlets that publish open RSS feeds. Several major Canadian news operations have discontinued public RSS access, making their journalism invisible to independent algorithmic scrutiny. We document every gap — because transparency about what we <em>cannot</em> see is as important as what we can.</p>
+    </div>
+
+    <div class="wtf-method-block" style="border-color:#4a9;">
+      <h4 style="color:#4a9;">CTV News — Bell Media &#10003; ACTIVE</h4>
+      <p><strong>Status:</strong> <strong style="color:#4a9;">Restored and active</strong> as of 2026-05. CTV News RSS feeds are functional and ingesting successfully (~867 articles/week).</p>
+      <p><strong>Coverage note:</strong> CTV News is Canada&rsquo;s largest private broadcaster. Bell Media (parent) also operates BNN Bloomberg, TSN, and 35+ radio stations. CTV articles receive full B.I.A.S. + V.E.R.I.F.Y. analysis. Outlet editorial stance: center.</p>
+    </div>
+
+    <div class="wtf-method-block" style="border-color:#fa0;">
+      <h4 style="color:#fa0;">La Presse</h4>
+      <p><strong>Status:</strong> RSS discontinued. All feed URLs return 404 as of 2026-04-29.</p>
+      <p><strong>Why it matters:</strong> La Presse is the dominant French-language daily in Quebec &mdash; the largest French-speaking market in North America. Without La Presse, WTF has a significant blind spot in Quebec journalism and French-Canadian political coverage.</p>
+      <p><strong>Likely reason:</strong> La Presse went app-first in 2018 (La Presse+), an ad-supported tablet app. RSS access would bypass their app distribution entirely.</p>
+      <p><strong>What we&rsquo;re investigating:</strong> Radio-Canada RSS (CBC French) as a partial replacement for Quebec coverage.</p>
+    </div>
+
+    <div class="wtf-method-block" style="border-color:#fa0;">
+      <h4 style="color:#fa0;">Toronto Star</h4>
+      <p><strong>Status:</strong> RSS URLs return HTTP 200 but serve HTML, not XML. Feed is effectively non-functional as of 2026-04-29.</p>
+      <p><strong>Why it matters:</strong> The Toronto Star is Canada&rsquo;s highest-circulation print newspaper and a historically progressive voice. Its absence creates a gap in center-left Ontario coverage.</p>
+      <p><strong>Likely reason:</strong> Torstar went behind a hard paywall in 2020. Open RSS would let readers access headlines for free, undermining subscriptions.</p>
+    </div>
+
+    <div class="wtf-method-block">
+      <h4>Active sources (as of 2026-05-28)</h4>
+      <p>WTF currently ingests from <strong style="color:#0af;">{{ stats.total_sources or 46 }} active Canadian sources</strong> across English and French, spanning major metro dailies, public broadcasters, regional outlets, Indigenous press, and independent investigative media.</p>
+      <p style="font-size:10px;color:#666;">Sources span the full political spectrum: left (Halifax Examiner, Ricochet, NB Media Co-op, PressProgress), center-left (CBC English/French, Radio-Canada, Le Devoir, Toronto Star), center (Globe and Mail, Global News, The Tyee, Canadaland), center-right (National Post, BNN Bloomberg, Financial Post, Postmedia regional), and right (National Post editorial). 18 beats monitored including Parliament, climate, crime, healthcare, and Indigenous affairs.</p>
+      <p style="color:#555;font-size:10px;">Seeking additional sources: Quebec French-language press (Le Soleil, Journal de Montréal), Atlantic regional, and Northern/Indigenous-owned media. Contact <a href="mailto:press@what-the-fact.com" style="color:#a0f;">press@what-the-fact.com</a> if you represent a Canadian outlet with an open RSS feed.</p>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">FLAG A SCORE</div>
+    <div class="wtf-flag-box">
+      <h4>Think we got it wrong?</h4>
+      <p>Flag any article score you believe is inaccurate. All flags are reviewed by V.E.R.I.F.Y. and factored into model improvement.</p>
+      <p style="font-size:10px;color:#555;">Use the "Flag this score" button on any article page, or POST to <code style="color:#a0f;">/api/v1/flag</code></p>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">LIVE ARTICLE SCORER</div>
+    <div class="wtf-method-block">
+      <h4>Score any text</h4>
+      <p>Submit any news text to the WTF pipeline and get a full bias + fact-check + geo analysis. Rate limit: 5 requests/day per IP.</p>
+      <p><a href="/score" style="color:#a0f;">Try the live scorer &rarr;</a></p>
+    </div>
+  </div>
+
+  <div class="wtf-section">
+    <div class="wtf-section-title">GOVERNANCE</div>
+    <div class="wtf-flag-box" style="text-align:left;">
+      <h4>C.R.E.E.D. Institute Oversight</h4>
+      <p>WTF AI agents operate under C.R.E.E.D. Institute governance — an independent AI ethics body.</p>
+      <div class="wtf-trans-stats" style="border-top:1px solid #1a0a3a;border-bottom:none;margin-top:12px;">
+        <div class="wtf-stat">
+          <div class="wtf-stat-num" id="creed-score" style="color:#a0f;">99.5</div>
+          <div class="wtf-stat-label">ETHICS SCORE</div>
+        </div>
+        <div class="wtf-stat">
+          <div class="wtf-stat-num" id="creed-grade" style="color:#a0f;">A+</div>
+          <div class="wtf-stat-label">GRADE</div>
+        </div>
+        <div class="wtf-stat">
+          <div class="wtf-stat-num" id="creed-events">0</div>
+          <div class="wtf-stat-label">EVENTS TODAY</div>
+        </div>
+        <div class="wtf-stat" style="border-right:none;">
+          <div class="wtf-stat-num" id="creed-categories">0</div>
+          <div class="wtf-stat-label">ACTIVE CATEGORIES</div>
+        </div>
+      </div>
+      <p style="margin-top:14px;margin-bottom:0;">
+        <a href="https://creed-ai.org/public" class="wtf-flag-btn" target="_blank" rel="noopener">View C.R.E.E.D. public dashboard &rarr;</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    function setText(id, val) {
+      var el = document.getElementById(id);
+      if (el && val !== undefined && val !== null) {
+        el.textContent = String(val);
+      }
+    }
+    try {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 8000);
+      fetch('https://creed.kytranempowerment.com/api/public/score', { signal: ctrl.signal })
+        .then(function (resp) {
+          clearTimeout(timer);
+          if (!resp.ok) { return null; }
+          return resp.json();
+        })
+        .then(function (data) {
+          if (!data) { return; }
+          setText('creed-score', data.score);
+          setText('creed-grade', data.grade);
+          setText('creed-events', data.events_today);
+          setText('creed-categories', data.active_categories);
+        })
+        .catch(function () { /* leave static fallback in place */ });
+    } catch (e) { /* leave static fallback in place */ }
+  })();
+  </script>
+
+</div>
+{% endblock %}

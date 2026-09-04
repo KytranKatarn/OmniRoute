@@ -7002,15 +7002,13 @@ _COMING_SOON = {
         "Waiting on phrase extraction. The article corpus is here; the "
         "repeated-phrase index this page reads is not built.",
     ),
-    "methodology": (
-        "Methodology",
-        "Methodology",
-        "Every number on this site comes from somewhere, and every method here "
-        "can be argued with. This is the plain-language summary.",
-        "The full methodology currently lives at "
-        "what-the-fact.tech/transparency and is being brought onto this site. "
-        "Until it is, that page remains the complete version.",
-    ),
+    # "methodology" graduated to a real page — see methodology() below. Its
+    # placeholder is DELETED rather than disabled: a page that exists must not
+    # also be advertised as unbuilt. The content this stub promised ("brought
+    # onto this site" from what-the-fact.tech/transparency) already existed,
+    # fully written, in tech/templates/methodology.html — ported here rather
+    # than rewritten, since it is real documentation (prompts, thresholds,
+    # known limitations with live remediation-registry links), not a mockup.
     "creed": (
         "C.R.E.E.D. — the ethics layer this newsroom answers to",
         "C.R.E.E.D.",
@@ -7042,6 +7040,32 @@ def _register_coming_soon(slug, title, h1, lede, blocker):
 
 for _slug, _copy in _COMING_SOON.items():
     _register_coming_soon(_slug, *_copy)
+
+
+@bp.get("/methodology")
+def methodology():
+    """Public methodology / radical transparency page.
+
+    Ported from tech/routes.py's methodology() (served there at /transparency,
+    matching what-the-fact.tech/transparency) — same stats query, same real
+    content (prompts, thresholds, known limitations with live C.R.E.E.D.
+    remediation-registry links). Not a rewrite: this documentation was already
+    accurate and live, just on the other app in this monorepo.
+    """
+    S = _schema()
+    with _db().connect() as c:
+        stats = c.execute(text(f"""
+            SELECT
+                COUNT(*) AS total_articles,
+                COUNT(*) FILTER (WHERE ai_analyzed = TRUE) AS ai_analyzed,
+                COUNT(*) FILTER (WHERE province_code IS NOT NULL) AS geolocated,
+                (SELECT COUNT(*) FROM {S}.sources) AS total_sources
+            FROM {S}.articles
+            WHERE published_at >= NOW() - INTERVAL '7 days'
+              AND suppressed_reason IS NULL
+        """)).mappings().first()
+    return render_template("methodology.html", stats=stats or {},
+                           is_subscriber=is_subscriber())
 
 
 # ---------------------------------------------------------------------------

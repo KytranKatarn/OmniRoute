@@ -11,7 +11,7 @@
   .wtf-ak-card { border: 1px solid rgba(127,127,127,.28); border-radius: 8px;
                  padding: .85rem 1rem; margin-bottom: .7rem; }
   .wtf-ak-row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: baseline; justify-content: space-between; }
-  .wtf-ak-prefix { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+  .wtf-ak-prefix { font-family: var(--wtf-font-mono); font-size: .9rem; }
   .wtf-ak-meta { font-size: .8rem; opacity: .7; }
   .wtf-ak-revoked { opacity: .45; }
   .wtf-ak-btn { padding: .4rem .8rem; border-radius: 6px; border: 1px solid rgba(127,127,127,.4);
@@ -22,10 +22,11 @@
                   border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; font: inherit; }
   .wtf-ak-reveal { margin: 1rem 0; padding: .9rem 1rem; border-radius: 8px;
                    border: 1px solid rgba(200,160,40,.6); background: rgba(200,160,40,.1); }
-  .wtf-ak-key { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  .wtf-ak-key { display: block; font-family: var(--wtf-font-mono);
                 word-break: break-all; margin: .5rem 0; font-size: .9rem; }
   .wtf-ak-err { color: #c0392b; font-size: .88rem; margin-top: .5rem; }
   .wtf-ak-empty { opacity: .7; font-style: italic; }
+  .wtf-ak-h2 { font-size: 1.05rem; margin: 1.5rem 0 .6rem; }
 </style>
 <div class="wtf-ak-wrap">
   <h1>API keys</h1>
@@ -51,7 +52,7 @@
     <span class="wtf-ak-meta">We store only a hash, so we genuinely cannot show it to you again. Lost it? Revoke and create another.</span>
   </div>
 
-  <h2 style="font-size:1.05rem;margin:1.5rem 0 .6rem;">Your keys
+  <h2 class="wtf-ak-h2">Your keys
     <span class="wtf-ak-meta">({{ keys | selectattr('revoked', 'equalto', false) | list | length }} active of {{ max_keys }})</span>
   </h2>
   <div id="wtf-ak-list">

@@ -46,10 +46,10 @@
    logged-in ones — routing through the macro would send a subscribing
    reader back to the article after login instead of on to checkout. #}
 {% macro deep_dive_subscribe_cta() -%}
-<a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
+<a href="/billing/checkout/starter" class="wtf-deep-dive-btn wtf-art-nounderline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Full analysis ready &mdash; subscribe to unlock ($4.99/mo)</a>
 {%- endmacro %}
 {% macro deep_dive_signin_cta(next_url, label) -%}
-<a href="/login?next={{ next_url }}" class="wtf-deep-dive-btn wtf-art-nounderline">&#x1F512; {{ label }}</a>
+<a href="/login?next={{ next_url }}" class="wtf-deep-dive-btn wtf-art-nounderline"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>{{ label }}</a>
 {%- endmacro %}
 <style>
 /* Article page — dark theme */
@@ -737,7 +737,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       {% if claim.verdict_summary and is_subscriber %}
       <p class="wtf-art-mpclaim-summary">{{ claim.verdict_summary }}</p>
       {% elif claim.verdict_summary %}
-      <p class="wtf-art-mpclaim-locked">&#x1F512; Full verdict &mdash; Deep Dive subscribers only</p>
+      <p class="wtf-art-mpclaim-locked"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-1px;margin-right:4px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Full verdict &mdash; Deep Dive subscribers only</p>
       {% endif %}
     </div>
     {% endfor %}

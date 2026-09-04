@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}{{ senator.name }} — Senator Profile · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{{ senator.name }} ({{ senator.caucus_label }}, {{ senator.province }}) — Senate of Canada profile on What The Fact.">
@@ -39,10 +40,6 @@
 .wtf-sen-link-back { color:#ef4444; text-decoration:none; font-size:11px; }
 .wtf-sen-link-muted { color:#6b7280; font-size:11px; }
 .wtf-sen-back { position:absolute; top:20px; left:0; font-size:11px; color:#6b7280; text-decoration:none; }
-.wtf-paywall { background:#0a0505; border:1px solid #4b0000; border-radius:8px; padding:20px; text-align:center; margin:16px 0; }
-.wtf-paywall h3 { font-family:var(--wtf-font-mono); font-size:13px; color:#e5e7eb; margin:0 0 8px; }
-.wtf-paywall p { font-size:12px; color:#9ca3af; margin:0 0 12px; }
-.wtf-paywall a { display:inline-block; background:#cc0000; color:#fff; font-size:11px; font-weight:700; padding:8px 20px; border-radius:4px; text-decoration:none; }
 </style>
 
 <div class="wtf-sen-header">
@@ -191,12 +188,7 @@
   {% endif %}
 
 {% else %}
-  {# Paywall gate #}
-  <div class="wtf-paywall">
-    <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Full Profile — Starter+</h3>
-    <p>Contact information, committee memberships, full biography, and voting record are available to subscribers.</p>
-    <a href="/login?next={{ request.path }}">Unlock with Starter →</a>
-  </div>
+  {{ paywall("Full Profile — Starter+", "Contact information, committee memberships, full biography, and voting record are available to subscribers.", request.path) }}
 {% endif %}
 
 {# ── About the Senate ─────────────────────────────────────────────────── #}

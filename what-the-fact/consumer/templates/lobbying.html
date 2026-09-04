@@ -87,6 +87,21 @@
 
 {% if detail %}
 {# ── per-organization drill-down ─────────────────────────────────────────── #}
+{% if monthly %}
+{# Real communication_date data, no new schema — a plain CSS bar chart,
+   consistent with this page having no client JS anywhere else. #}
+{% set max_n = (monthly | map(attribute='n') | list | max) %}
+<div class="wtf-lob-section">
+  <div class="wtf-lob-section-title">Filings by month — last 24 months</div>
+  <div style="display:flex;align-items:flex-end;gap:2px;height:60px;">
+    {% for row in monthly %}
+    <div title="{{ row.month }}: {{ row.n }} filing{{ '' if row.n == 1 else 's' }}"
+         style="flex:1;min-width:3px;height:{{ ((row.n / max_n) * 100) | round(0, 'ceil') | int }}%;background:#60a5fa;border-radius:1px 1px 0 0;"></div>
+    {% endfor %}
+  </div>
+  <div class="wtf-lob-stat-l" style="margin-top:4px;">{{ monthly[0].month }} – {{ monthly[-1].month }}, peak {{ monthly | map(attribute='n') | max }} in one month</div>
+</div>
+{% endif %}
 <div class="wtf-lob-section">
   <div class="wtf-lob-section-title">MPs lobbied by this organization</div>
   <div class="wtf-lob-scroll">
@@ -137,6 +152,16 @@
 {# ── index ──────────────────────────────────────────────────────────────── #}
 <div class="wtf-lob-section">
   <div class="wtf-lob-section-title">Most active organizations — all time</div>
+  {# Plain GET form, works without JavaScript — same pattern as archive.html
+     and gic.html. No sector filter here: subject_matter/sector has no
+     backing data in parliament.lobbyist_contacts (see the route's own
+     docstring) — a filter over a column that doesn't exist would be a
+     fabrication, not a feature. #}
+  <form method="get" action="/lobbying" style="margin:0 0 10px;">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search organizations…"
+           aria-label="Search organizations"
+           style="width:100%;max-width:320px;padding:7px 10px;background:#060d14;border:1px solid #0a1a2a;border-radius:4px;color:#e5e7eb;font-size:12px;">
+  </form>
   <div class="wtf-lob-scroll">
   <table class="wtf-lob-table">
     <thead><tr><th>Organization</th><th class="wtf-lob-num-h">Communications</th><th class="wtf-lob-num-h">MPs</th><th>Most recent</th></tr></thead>
@@ -148,6 +173,8 @@
         <td class="wtf-lob-num">{{ o.mps }}</td>
         <td>{{ o.last_seen or '—' }}</td>
       </tr>
+      {% else %}
+      <tr><td colspan="4">No organizations match &ldquo;{{ q }}&rdquo;.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -4236,19 +4236,20 @@ def lobbying_tracker():
     """
     from flask import request as _req
     org = (_req.args.get("org") or "").strip()
-    cache_key = ("org", org.lower()) if org else ("index",)
+    q = (_req.args.get("q") or "").strip()
+    cache_key = ("org", org.lower()) if org else ("index", q.lower())
     hit = _LOBBY_CACHE.get(cache_key)
     now = time.time()
     if hit and hit[0] > now:
         payload = hit[1]
     else:
-        payload = _lobbying_payload(org)
+        payload = _lobbying_payload(org, q)
         _LOBBY_CACHE[cache_key] = (now + _LOBBY_CACHE_TTL, payload)
-    return render_template("lobbying.html", org=org, **payload,
+    return render_template("lobbying.html", org=org, q=q, **payload,
                            is_subscriber=is_subscriber())
 
 
-def _lobbying_payload(org: str) -> dict:
+def _lobbying_payload(org: str, q: str = "") -> dict:
     """One DB round-trip for the /lobbying page (cached by the caller)."""
     with _db().begin() as c:
         stats = dict(c.execute(text(f"""
@@ -4300,9 +4301,22 @@ def _lobbying_payload(org: str) -> dict:
                 ORDER BY lc.communication_date DESC NULLS LAST, lc.id DESC
                 LIMIT 100
             """), {"org": org}).mappings().all()
+            # Monthly filing counts, real communication_date data already in
+            # this table — no new schema. 24-month window keeps the bar chart
+            # readable; a shorter real history renders fewer, honest bars.
+            monthly = c.execute(text(f"""
+                SELECT to_char(date_trunc('month', lc.communication_date), 'YYYY-MM') AS month,
+                       count(*) AS n
+                FROM parliament.lobbyist_contacts lc
+                WHERE upper(btrim(lc.client_org)) = upper(:org) AND {_LOBBY_ORG_FILTER}
+                  AND lc.communication_date >= CURRENT_DATE - INTERVAL '24 months'
+                GROUP BY date_trunc('month', lc.communication_date)
+                ORDER BY 1
+            """), {"org": org}).mappings().all()
             return {"stats": stats, "detail": dict(detail),
                     "org_mps": [dict(r) for r in org_mps],
                     "contacts": [dict(r) for r in contacts],
+                    "monthly": [dict(r) for r in monthly],
                     "top_orgs": [], "top_mps": [], "recent": []}
 
         top_orgs = c.execute(text(f"""
@@ -4312,10 +4326,11 @@ def _lobbying_payload(org: str) -> dict:
                    max(lc.communication_date) AS last_seen
             FROM parliament.lobbyist_contacts lc
             WHERE {_LOBBY_ORG_FILTER}
+                  {"AND lc.client_org ILIKE :q" if q else ""}
             GROUP BY upper(btrim(lc.client_org))
             ORDER BY count(*) DESC
             LIMIT 40
-        """)).mappings().all()
+        """), ({"q": f"%{q}%"} if q else {})).mappings().all()
 
         top_mps = c.execute(text(f"""
             SELECT m.slug, m.name, m.party, m.riding_name,
@@ -4341,7 +4356,7 @@ def _lobbying_payload(org: str) -> dict:
             LIMIT 50
         """)).mappings().all()
 
-    return {"stats": stats, "detail": None, "org_mps": [], "contacts": [],
+    return {"stats": stats, "detail": None, "org_mps": [], "contacts": [], "monthly": [],
             "top_orgs": [dict(r) for r in top_orgs],
             "top_mps": [dict(r) for r in top_mps],
             "recent": [dict(r) for r in recent]}

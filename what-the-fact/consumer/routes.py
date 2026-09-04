@@ -4717,12 +4717,37 @@ _CROSSWATCH_CACHE_TTL = 300  # 5 min — cross-product membership changes slowly
 
 
 def _crosswatch_top(c, SH):
-    """Cached ranked list of entities spanning >=2 Watch products. The ranking
-    GROUP BY over entity_mentions is ~670ms, so cache it (per-worker TTL) — never
-    run it uncached on every page hit (the 2026-06-15 shared-gunicorn DoS lesson)."""
+    """Ranked list of entities spanning >=2 Watch products, shared across every
+    gunicorn worker via wtf.cross_watch_snapshot (migration 075, #6166).
+
+    The ranking GROUP BY over entity_mentions now measures 5.47s SOLO on an
+    idle DB (~8x its ~670ms cost when this cache was first written — the
+    #5799 entity-graph backfill grew entity_mentions to ~2.15M rows). A plain
+    in-process dict here meant 4 independent per-worker caches (wtf-consumer
+    runs --workers 4 --max-requests), so a worker recycle — or simply 4
+    concurrent cold workers each running the same 5.47s scan against the one
+    hub DB — could turn a 5.47s solo query into the >25s client timeout
+    measured during the #6149 regression sweeps (the 2026-06-15
+    shared-gunicorn DoS lesson, recurring). A tiny in-process read-through
+    layer stays on top (this dict) purely to skip even the snapshot-table
+    round trip on the hottest path; the shared DB row is what stops the
+    4-workers-recompute-independently multiplication.
+    """
     now = time.time()
     if _CROSSWATCH_CACHE.get("ts", 0) + _CROSSWATCH_CACHE_TTL > now:
         return _CROSSWATCH_CACHE.get("data", [])
+
+    from . import cross_watch_snapshot as _cwsnap
+    try:
+        _shared = _cwsnap.read_snapshot(c)
+    except Exception:
+        _shared = None
+    if _shared is not None:
+        _CROSSWATCH_CACHE["ts"] = now
+        _CROSSWATCH_CACHE["data"] = _shared
+        return _shared
+
+    _started = time.time()
     rows = c.execute(text(f"""
         SELECT e.id, e.entity_type, e.canonical_name,
                array_agg(DISTINCT m.product) AS products, count(*) AS mentions
@@ -4736,6 +4761,10 @@ def _crosswatch_top(c, SH):
     """)).mappings().all()
     data = [{"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"],
              "products": list(r["products"] or []), "mentions": int(r["mentions"])} for r in rows]
+    try:
+        _cwsnap.write_snapshot(c, data, duration_ms=int((time.time() - _started) * 1000))
+    except Exception:
+        pass  # optimisation only — the page already has its answer
     _CROSSWATCH_CACHE["ts"] = now
     _CROSSWATCH_CACHE["data"] = data
     return data

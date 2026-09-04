@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall %}
+{% from "_archetypes.html" import paywall, lean_pill %}
 {% block title %}CRTC Decisions — Broadcasting & Telecom Rulings · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Canadian Radio-television and Telecommunications Commission decisions 2024–2026. Broadcasting licences, telecom rulings, and enforcement actions.">
@@ -92,7 +92,7 @@
     </div>
     <div class="wtf-crtc-own-stat">
       {{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }}
-      {% if o.avg_bias is not none %}· <span style="color:{{ '#ef4444' if (o.avg_bias|float) > 0.15 else ('#3b82f6' if (o.avg_bias|float) < -0.15 else '#22c55e') }};">{{ '%+.2f'|format(o.avg_bias|float) }}</span>{% endif %}
+      {% if o.avg_bias is not none and o.bias_band %}· {{ '%+.2f'|format(o.avg_bias|float) }} {{ lean_pill(o.bias_band) }}{% endif %}
     </div>
   </div>
   {% endfor %}

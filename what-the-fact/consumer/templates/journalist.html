@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall, lean_pill, lean_token %}
 {% block title %}{{ j.canonical_name }} — Journalist · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{{ j.canonical_name }} — outlets, beats, and coverage analysis by What The Fact.">
@@ -69,15 +70,14 @@
 <div class="wtf-jr-section">
   <div class="wtf-jr-section-title">🗞 Recent coverage</div>
   {% if recent %}
-    {% set BANDS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb'} %}
     {% for a in recent %}
     <div class="wtf-jr-row">
-      <div class="wtf-jr-dot" style="background:{{ BANDS.get(a.bias_band or '','#6b7280') }};"></div>
       <div class="wtf-jr-row-body">
         <a href="/article/{{ a.id }}" class="wtf-jr-row-title">{{ a.title or 'Untitled' }}</a>
         <div class="wtf-jr-row-meta">
           {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" class="wtf-jr-row-src">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
           {% if a.published_at %}· {{ a.published_at.strftime('%b %-d') if a.published_at.strftime is defined else (a.published_at or '')[:10] }}{% endif %}
+          {% if a.bias_band %}· {{ lean_pill(a.bias_band) }}{% endif %}
         </div>
       </div>
     </div>
@@ -90,11 +90,10 @@
 <div class="wtf-jr-section">
   <div class="wtf-jr-section-title">⚖️ Bias lean — outlet bias of their coverage</div>
   {% if bias %}
-    {% set BANDS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb','unknown':'#6b7280'} %}
     {% for b in bias %}
     <div class="wtf-jr-bias-row">
       <span class="wtf-jr-bias-label">{{ b.band.replace('-',' ') }}</span>
-      <span class="wtf-jr-bias-count" style="color:{{ BANDS.get(b.band,'#6b7280') }};">{{ b.n }}</span>
+      <span class="wtf-jr-bias-count" style="color:var({{ lean_token(b.band) }});">{{ b.n }}</span>
     </div>
     {% endfor %}
   {% else %}<div class="wtf-jr-empty">Not enough analyzed articles yet.</div>{% endif %}

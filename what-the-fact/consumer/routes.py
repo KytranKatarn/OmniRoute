@@ -3846,14 +3846,25 @@ def crtc_decisions():
         rows = c.execute(text(query), params).mappings().all()
         source_count = _active_source_count(c, S)
 
-        # Ownership concentration data for the CRTC panel
+        # Ownership concentration data for the CRTC panel.
+        # bias_band mirrors ingest/outlet_bias.py's _BANDS thresholds exactly
+        # (-0.6/-0.2/0.2/0.6, < wins, else 'right') — that module owns avg_score,
+        # so its bucketing is the source of truth, not a re-derived one here.
         owner_rows = c.execute(text(f"""
             SELECT
                 s.owner_name,
                 s.owner_type,
                 COUNT(s.id)                           AS outlet_count,
                 ROUND(AVG(obs.avg_score)::numeric, 2) AS avg_bias,
-                MIN(s.bias_lean)                      AS sample_lean
+                MIN(s.bias_lean)                      AS sample_lean,
+                CASE
+                    WHEN AVG(obs.avg_score) IS NULL THEN NULL
+                    WHEN AVG(obs.avg_score) < -0.6 THEN 'left'
+                    WHEN AVG(obs.avg_score) < -0.2 THEN 'center-left'
+                    WHEN AVG(obs.avg_score) < 0.2  THEN 'center'
+                    WHEN AVG(obs.avg_score) < 0.6  THEN 'center-right'
+                    ELSE 'right'
+                END                                    AS bias_band
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
             WHERE s.owner_name IS NOT NULL

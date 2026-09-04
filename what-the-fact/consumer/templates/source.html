@@ -13,12 +13,20 @@
 {% endblock %}
 {% block content %}
 
+{# Diverging scale — matches --wtf-left/center-left/center/center-right/right in
+   style.css (red pole / neutral slate centre / blue pole). Kept as raw hex
+   rather than var() because every consumer below appends a runtime alpha
+   suffix (see the comment further down) — but the VALUES must still be the
+   current diverging scale, not the retired 5-band ramp that put green at the
+   centre (reads as "centre = good", an editorial claim this site must not
+   make). Corrected 2026-09-04 — this dict had kept the old ramp's hex even
+   after the alpha-blend rationale below was written. #}
 {% set BAND_COLOURS = {
-  'left': '#ef4444',
-  'center-left': '#f97316',
-  'center': '#22c55e',
-  'center-right': '#0ea5e9',
-  'right': '#2563eb',
+  'left': '#d84b47',
+  'center-left': '#cf8b80',
+  'center': '#929aa5',
+  'center-right': '#7fa3cf',
+  'right': '#4a72d8',
   'unscored': '#6b7280'
 } %}
 {% set band = src.rolling_band or src.bias_lean or 'unscored' %}
@@ -173,7 +181,7 @@
   </div>
   <script>
   (function(){
-    var BC={'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb','unscored':'#374151'};
+    var BC={'left':'#d84b47','center-left':'#cf8b80','center':'#929aa5','center-right':'#7fa3cf','right':'#4a72d8','unscored':'#374151'};
     var chart=document.getElementById('wtf-trend-chart');
     var labelsEl=document.getElementById('wtf-trend-labels');
     function showMsg(msg){var d=document.createElement('div');d.style.cssText='color:#4b5563;font-size:0.65rem;padding:8px;';d.textContent=msg;chart.appendChild(d);}

@@ -124,14 +124,31 @@ class TestHonestEmptyState:
     never with a fabricated roster or a 500."""
 
     def test_both_new_sections_disappear_together(self, env):
-        html = _render(env, dept_agents=[], roster_rows=[], dept_total=0)
+        html = _render(env, dept_agents=[], roster_rows=[], dept_total=None)
         assert "the rest of the department" not in html.lower()
         assert "who actually did the work" not in html.lower()
         assert "wtf-a-ranked" not in html
 
     def test_the_named_grid_still_renders_when_the_hub_is_down(self, env):
-        html = _render(env, dept_agents=[], roster_rows=[], dept_total=0)
+        html = _render(env, dept_agents=[], roster_rows=[], dept_total=None)
         assert "F.A.C.T." in html
+
+    def test_a_cold_welfare_cache_does_not_claim_zero_agents(self, env):
+        """Regression for a real live defect (2026-09-04): _newsroom_agents()
+        is a pure DB query, independent of the hub-mesh welfare fetch, so
+        roster_rows can be genuinely populated on the SAME request where the
+        welfare lookup is cold (dept_agents=[], dept_total=None) — e.g. right
+        after a container restart, before _get_welfare_lookup()'s
+        stale-while-revalidate cache has a first value. Observed live on
+        what-the-fact.com: the roster section rendered real names with the
+        prose claiming "News & Media has 0 agents" — a confident false
+        count, not an honest unknown. dept_total=None (never 0) is how the
+        route already signals this; the template must not turn it into "0".
+        """
+        html = _render(env, dept_agents=[], roster_rows=ROSTER_ROWS, dept_total=None)
+        assert "0 agents" not in html
+        assert "wtf-a-ranked" in html  # the roster itself must still render
+        assert "V.E.R.I.F.Y." in html
 
 
 class TestTeamRouteWiring:

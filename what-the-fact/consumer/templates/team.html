@@ -87,8 +87,9 @@
 {% if roster_rows %}
 <div class="wtf-section-label" style="margin:26px 0 6px">Who actually did the work &middot; last 24 hours</div>
 <p class="wtf-team-section-note">
-  The eight above are the newsroom's public faces. News &amp; Media has {{ dept_total }} agents, and
-  dispatch selects by capability — with welfare gating routing around a busy agent by design — so a
+  The eight above are the newsroom's public faces.
+  {% if dept_total %}News &amp; Media has {{ dept_total }} agents, and dispatch{% else %}Dispatch{% endif %}
+  selects by capability — with welfare gating routing around a busy agent by design — so a
   single named agent rarely does all of a task type's work. This is read from the fact-check and
   bias-score attribution data, not a fixed list.
 </p>

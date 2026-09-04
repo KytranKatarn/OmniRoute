@@ -1960,13 +1960,24 @@ def team():
     if newsroom["unattributed"]:
         roster_rows.append({"label": "unattributed", "value": int(newsroom["unattributed"])})
 
+    # dept_total=None (not 0) when the hub roster is genuinely unknown — on a
+    # cold cache right after a container restart, _get_welfare_lookup()'s
+    # stale-while-revalidate returns {} for the FIRST request before its
+    # background refresh lands (observed live: /team's first hit after
+    # deploy briefly said "News & Media has 0 agents", a confident false
+    # claim, before self-correcting on the very next request). 0 must mean
+    # "confirmed empty," never "haven't heard back yet" — the same rule the
+    # welfare pill above already follows by omitting itself rather than
+    # rendering a fabricated score.
+    dept_total = len(welfare_lookup) if welfare_lookup else None
+
     return render_template(
         "team.html",
         agents=agents,
         source_count=source_count,
         dept_agents=dept_agents,
         roster_rows=roster_rows,
-        dept_total=len(welfare_lookup),
+        dept_total=dept_total,
         named_count=len(TEAM_AGENTS),
     )
 

@@ -85,6 +85,27 @@
         </div>
         {% endif %}
 
+        {% if result.geo %}
+        {# 2026-09-04 (KB vault_note #304357): L.O.C.A.L.'s geo result was
+           already fetched by /api/v1/score and thrown away — this template
+           never read it. Schema: province_code/country_code/city/lat/lng/
+           geo_scope/geo_confidence (tools/wtf_hub/routes.py). Honest
+           fallback when every field is null, never a guessed location. #}
+        {% set geo = result.geo %}
+        <div class="wtf-score-block">
+          <h2>L.O.C.A.L. — where this is about</h2>
+          {% set geo_parts = [geo.city, geo.province_code, geo.country_code] | select | list %}
+          {% if geo_parts %}
+          <p>
+            {{ geo_parts | join(', ') }}
+            {%- if geo.geo_scope %} &middot; {{ geo.geo_scope | replace('_', ' ') | title }}{% endif %}
+          </p>
+          {% else %}
+          <p class="wtf-score-unscored">Location not identified.</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
         {% if result.factcheck and result.factcheck.claims %}
         <div class="wtf-score-block">
           <h2>Claims</h2>

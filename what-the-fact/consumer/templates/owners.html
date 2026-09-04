@@ -47,6 +47,28 @@
 {% endfor %}
 {{ stat_tiles(tiles) }}
 
+{# ── concentration stats (2026-09-04, KB vault_note #304357) ────────────────
+   Computed entirely from the already-fetched owners[] — no new query, same
+   pattern as the TYPE tiles above. These measure CONCENTRATION (how much of
+   the tracked outlet population sits with one owner), a different question
+   than the type breakdown tiles. #}
+{% set max_outlets = (owners | map(attribute='outlet_count') | list | max) if owners else 0 %}
+{% set largest_pct = ((max_outlets / source_count * 100) | round(0) | int) if source_count else 0 %}
+{% set single_outlet_count = owners | selectattr('outlet_count', 'equalto', 1) | list | length %}
+{% set span_ns = namespace(n=0) %}
+{% for o in owners %}
+  {% set bands = o.outlets | map(attribute='bias_lean') | select | unique | list %}
+  {% if bands | length >= 2 %}{% set span_ns.n = span_ns.n + 1 %}{% endif %}
+{% endfor %}
+{{ stat_tiles([
+     {'label': 'Largest share', 'value': largest_pct ~ '%',
+      'detail': 'of tracked outlets held by one owner'},
+     {'label': 'Span 2+ bands', 'value': span_ns.n,
+      'detail': 'owner' ~ ('' if span_ns.n == 1 else 's') ~ ' whose outlets cross more than one bias band'},
+     {'label': 'Single-outlet', 'value': single_outlet_count,
+      'detail': 'owner' ~ ('' if single_outlet_count == 1 else 's') ~ ' with exactly one tracked outlet'},
+]) }}
+
 <div class="wtf-a-layers" style="margin:18px 0 16px;">
   {{ segment('All', '/owners', active=True) }}
   {% for key in ['corporate', 'public', 'non_profit', 'independent'] %}

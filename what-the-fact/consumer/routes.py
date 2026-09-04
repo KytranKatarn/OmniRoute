@@ -7000,10 +7000,12 @@ _COMING_SOON = {
         "Did they do what they said?",
         "Every commitment quoted from the platform that made it, with the "
         "document it came from and the evidence for where it now stands.",
-        "Waiting on platform documents. `parliament.mp_promises` holds 5,561 "
-        "rows of member commitments, but nothing yet links them to the "
-        "platform text they came from, which is what this page is built to "
-        "quote.",
+        "Waiting on real promise extraction linked to platform documents. "
+        "`parliament.mp_promises` holds 5,561 rows, but they are naive "
+        "keyword-matched article snippets, not verified commitments — "
+        "sampled rows include ad boilerplate and comment-widget footer "
+        "text, not quotes from platform documents. Nothing here can "
+        "honestly be shown as a tracked commitment yet.",
     ),
     "elections": (
         "Elections — federal, provincial and municipal",

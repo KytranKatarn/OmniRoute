@@ -8,45 +8,45 @@
     <span class="wtf-live-dot"></span>
     LIVE &middot; AI NEWSROOM
   </div>
-  <h1 style="font-size:1.6rem;">AGENT ACTIVITY LOG</h1>
+  <h1 class="wtf-act-h1">AGENT ACTIVITY LOG</h1>
   <p>Every action across all 6 agents — ingests, scores, verdicts, geo-maps, summaries, clusters.</p>
 </div>
 
-<div style="max-width:1100px;margin:0 auto;padding:16px 16px 0;">
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:0.7rem;color:#9ca3af;">
-    <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;" title="Trends (↑↓) compare to the previous 24h window">Last 24 hours <span style="font-size:0.55rem;color:#374151;letter-spacing:0;text-transform:none;font-weight:400;">(↕ vs prev. day)</span></span>
+<div class="wtf-act-wrap">
+  <div class="wtf-act-card--stats">
+    <span class="wtf-act-label-inline" title="Trends (↑↓) compare to the previous 24h window">Last 24 hours <span class="wtf-act-substat">(↕ vs prev. day)</span></span>
     {#- Staleness disclosure. These counts are precomputed off the request path
         (migration 072) and refresh once per ~30-min ingest cycle, so the page
         states WHEN they were measured instead of implying live. margin-left:auto
         parks it at the far end of the flex bar, away from the numbers. Hidden
         entirely when unknown — no label beats a wrong one. -#}
-    {% if stats_as_of %}<span style="margin-left:auto;color:#4b5563;font-size:0.6rem;" title="Counts are exact, and measured once per ingest cycle rather than on every page load">as of {{ stats_as_of }}</span>{% endif %}
-    <span><b class="lv-num" data-lv="articles_24h" style="color:#dc2626;">{{ "{:,}".format(stats.articles_24h) }}</b><span class="lv-bump" data-lv-bump="articles_24h" aria-hidden="true"></span> ingested{% if trends.ingested is not none and trends.ingested > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.ingested }}%</span>{% elif trends.ingested is not none and trends.ingested < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.ingested }}%</span>{% endif %}</span>
-    <span><b class="lv-num" data-lv="bias_24h" style="color:#f59e0b;">{{ "{:,}".format(stats.bias_24h) }}</b><span class="lv-bump" data-lv-bump="bias_24h" aria-hidden="true"></span> bias-scored{% if trends.bias is not none and trends.bias > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.bias }}%</span>{% elif trends.bias is not none and trends.bias < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.bias }}%</span>{% endif %}</span>
-    <span><b class="lv-num" data-lv="verify_24h" style="color:#10b981;">{{ "{:,}".format(stats.verify_24h) }}</b><span class="lv-bump" data-lv-bump="verify_24h" aria-hidden="true"></span> fact-checked{% if trends.verify is not none and trends.verify > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.verify }}%</span>{% elif trends.verify is not none and trends.verify < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.verify }}%</span>{% endif %}</span>
-    <span><b class="lv-num" data-lv="draft_24h" style="color:#3b82f6;">{{ "{:,}".format(stats.draft_24h) }}</b><span class="lv-bump" data-lv-bump="draft_24h" aria-hidden="true"></span> summarized</span>
-    <span><b class="lv-num" data-lv="ink_24h" style="color:#9ca3af;">{{ "{:,}".format(stats.ink_24h) }}</b><span class="lv-bump" data-lv-bump="ink_24h" aria-hidden="true"></span> new clusters</span>
-    <span><b class="lv-num" data-lv="llm_24h" style="color:#dc2626;">{{ "{:,}".format(stats.llm_24h) }}</b><span class="lv-bump" data-lv-bump="llm_24h" aria-hidden="true"></span> LLM-analyzed</span>
+    {% if stats_as_of %}<span class="wtf-act-asof" title="Counts are exact, and measured once per ingest cycle rather than on every page load">as of {{ stats_as_of }}</span>{% endif %}
+    <span><b class="lv-num wtf-act-c-crimson" data-lv="articles_24h">{{ "{:,}".format(stats.articles_24h) }}</b><span class="lv-bump" data-lv-bump="articles_24h" aria-hidden="true"></span> ingested{% if trends.ingested is not none and trends.ingested > 10 %} <span class="wtf-act-green65">↑ +{{ trends.ingested }}%</span>{% elif trends.ingested is not none and trends.ingested < -10 %} <span class="wtf-act-red65">↓ {{ trends.ingested }}%</span>{% endif %}</span>
+    <span><b class="lv-num wtf-act-c-amber" data-lv="bias_24h">{{ "{:,}".format(stats.bias_24h) }}</b><span class="lv-bump" data-lv-bump="bias_24h" aria-hidden="true"></span> bias-scored{% if trends.bias is not none and trends.bias > 10 %} <span class="wtf-act-green65">↑ +{{ trends.bias }}%</span>{% elif trends.bias is not none and trends.bias < -10 %} <span class="wtf-act-red65">↓ {{ trends.bias }}%</span>{% endif %}</span>
+    <span><b class="lv-num wtf-act-c-green" data-lv="verify_24h">{{ "{:,}".format(stats.verify_24h) }}</b><span class="lv-bump" data-lv-bump="verify_24h" aria-hidden="true"></span> fact-checked{% if trends.verify is not none and trends.verify > 10 %} <span class="wtf-act-green65">↑ +{{ trends.verify }}%</span>{% elif trends.verify is not none and trends.verify < -10 %} <span class="wtf-act-red65">↓ {{ trends.verify }}%</span>{% endif %}</span>
+    <span><b class="lv-num wtf-act-c-blue" data-lv="draft_24h">{{ "{:,}".format(stats.draft_24h) }}</b><span class="lv-bump" data-lv-bump="draft_24h" aria-hidden="true"></span> summarized</span>
+    <span><b class="lv-num wtf-act-c-gray" data-lv="ink_24h">{{ "{:,}".format(stats.ink_24h) }}</b><span class="lv-bump" data-lv-bump="ink_24h" aria-hidden="true"></span> new clusters</span>
+    <span><b class="lv-num wtf-act-c-crimson" data-lv="llm_24h">{{ "{:,}".format(stats.llm_24h) }}</b><span class="lv-bump" data-lv-bump="llm_24h" aria-hidden="true"></span> LLM-analyzed</span>
   </div>
 
   {# C.R.E.E.D. governance banner — PUBLIC (above the subscriber gate): governance
      transparency is public by design, like the badge + /api/public/score (#3358). #}
   {% if creed_scan %}
-  <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <a href="/governance" style="color:var(--wtf-aurora);font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
-    <span style="color:var(--wtf-aurora);font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
-    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
-    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:var(--wtf-aurora);">{{ creed_scan.overall }}%</strong></span>
+  <div class="wtf-act-governance">
+    <a href="/governance" class="wtf-act-gov-link">AI Newsroom Governance</a>
+    <span class="wtf-act-gov-grade">Grade <strong class="wtf-act-c-lilac">{{ creed_scan.grade }}</strong></span>
+    <span class="wtf-act-dim65">&middot;</span>
+    <span class="wtf-act-gov-compliance">Compliance <strong class="wtf-act-c-aurora">{{ creed_scan.overall }}%</strong></span>
     {% if creed_scan.event_count %}
-    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
-    <span style="color:#6b7280;font-size:0.65rem;">{{ creed_scan.event_count }} events tracked</span>
+    <span class="wtf-act-dim65">&middot;</span>
+    <span class="wtf-act-dim65">{{ creed_scan.event_count }} events tracked</span>
     {% endif %}
     {% if creed_scan.by_category %}
-    <span style="color:#6b7280;font-size:0.65rem;margin-left:auto;">
+    <span class="wtf-act-gov-cats">
       {# pillar values are dicts {score, grade, events, provisional, note} — the old
          "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
       {% for cat, pv in creed_scan.by_category.items() %}
-      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:var(--wtf-aurora);">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
+      <span class="wtf-act-gov-cat">{{ cat }}&nbsp;<span class="wtf-act-c-aurora">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
       {% endfor %}
     </span>
     {% endif %}
@@ -84,22 +84,22 @@
      has set. The design prototype carries all three as sample constants —
      rendering invented figures on the page that exists to show how honestly
      this newsroom reports itself would be self-defeating. #}
-  <div style="margin-bottom:8px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-    <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;">Throughput now</span>
-    <span style="color:#4b5563;font-size:0.66rem;">events per hour, measured over the window shown</span>
+  <div class="wtf-act-tp-head">
+    <span class="wtf-act-label-inline">Throughput now</span>
+    <span class="wtf-act-tp-sub">events per hour, measured over the window shown</span>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:20px;">
+  <div class="wtf-act-tp-grid">
     {% for a in agent_throughput %}
-    <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:11px 13px;">
-      <div style="font-family:var(--wtf-font-mono);font-size:0.68rem;letter-spacing:.1em;color:#e0e0e0;">{{ a.name }}</div>
-      <div style="font-size:0.63rem;color:#6b7280;margin-bottom:7px;">{{ a.what }}</div>
-      <div style="display:flex;align-items:baseline;gap:5px;">
-        <span style="font-family:var(--wtf-font-mono);font-size:1.32rem;color:var(--wtf-aurora);">{{ a.per_hour if a.per_hour is not none else '—' }}</span>
-        <span style="font-size:0.62rem;color:#6b7280;">/hour</span>
+    <div class="wtf-act-tp-card">
+      <div class="wtf-act-tp-name">{{ a.name }}</div>
+      <div class="wtf-act-tp-what">{{ a.what }}</div>
+      <div class="wtf-act-tp-rate-row">
+        <span class="wtf-act-tp-rate">{{ a.per_hour if a.per_hour is not none else '—' }}</span>
+        <span class="wtf-act-tp-unit">/hour</span>
       </div>
-      <div style="font-size:0.62rem;color:#6b7280;margin-top:5px;">
+      <div class="wtf-act-tp-events">
         {{ "{:,}".format(a.events) }} in {{ a.window_hours }}h
-        {%- if a.partial %} <span style="color:#f59e0b;" title="This agent's timestamp column is newer than 24h, so its window is shorter than the others. The rate is comparable; the raw count is not.">· short window</span>{% endif %}
+        {%- if a.partial %} <span class="wtf-act-c-amber" title="This agent's timestamp column is newer than 24h, so its window is shorter than the others. The rate is comparable; the raw count is not.">· short window</span>{% endif %}
       </div>
     </div>
     {% endfor %}
@@ -113,16 +113,16 @@
        '/activity') }}
   {% endif %}
   <!-- Pipeline health bar (#2955) -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:0.7rem;color:#9ca3af;">
+  <div class="wtf-act-card--stats">
 {% if is_subscriber %}
-    <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;">Pipeline health</span>
+    <span class="wtf-act-label-inline">Pipeline health</span>
     <span title="Articles ingest failed in last 24h"><b style="color:{% if stats.failed_ingest_24h > 0 %}#ef4444{% else %}#10b981{% endif %};">{{ "{:,}".format(stats.failed_ingest_24h) }}</b> failed ingest (24h)</span>
-    <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b style="color:#f59e0b;">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
-    <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b style="color:#9ca3af;">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
-    <span title="S.C.O.U.T. body rescues completed in last 24h"><b style="color:#10b981;">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
-    {% if stats.scout_body_failed > 0 %}<span title="Scout = body text scraper. Failed = couldn't extract full article text."><b style="color:#ef4444;">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
-    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b style="color:var(--wtf-aurora);">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
-    {% if stats.tier2_failed > 0 %}<span title="Tier-2 = deep AI analysis (bias + fact-check). Failed = hub timeout or model error."><b style="color:#ef4444;">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
+    <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b class="wtf-act-c-amber">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
+    <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b class="wtf-act-c-gray">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
+    <span title="S.C.O.U.T. body rescues completed in last 24h"><b class="wtf-act-c-green">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
+    {% if stats.scout_body_failed > 0 %}<span title="Scout = body text scraper. Failed = couldn't extract full article text."><b class="wtf-act-c-red">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
+    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b class="wtf-act-c-aurora">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
+    {% if stats.tier2_failed > 0 %}<span title="Tier-2 = deep AI analysis (bias + fact-check). Failed = hub timeout or model error."><b class="wtf-act-c-red">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
   </div>
   {% set n = stats.total_articles %}
   {% set rows = [
@@ -134,30 +134,30 @@
     ('I.N.K.', 'ink', 'Articles clustered', stats.ink_articles_clustered, n, '({:,} clusters · {:,} >30d outside window)'.format(stats.ink_clustered, n - stats.ink_articles_clustered)),
     ('LLM Analyzed', 'fact', 'Full AI analysis', stats.llm_analyzed, n, '+{:,} in last hour'.format(stats.llm_analyzed_1h)),
   ] %}
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:20px;">
+  <div class="wtf-act-agentgrid">
     {% for agent, cls, label, done, total_ref, note in rows %}
     {% set pct = ((done / total_ref * 100) | int) if total_ref else 0 %}
     {% set is_intentional = note.startswith('⚠') if note else false %}
     {% set tier_color = '#10b981' if pct == 100 else ('#f59e0b' if (pct > 50 or is_intentional) else '#ef4444') %}
-    <div style="background:#0a0f1a;border:1px solid #112233;border-radius:4px;padding:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div class="wtf-act-agentcard">
+      <div class="wtf-act-agentcard-head">
         <span class="wtf-act-agent wtf-act-agent--{{ cls }}">{{ agent }}</span>
         <span style="font-size:0.65rem;color:{{ tier_color }};">
           {{ pct }}%
         </span>
       </div>
-      <div style="font-size:0.7rem;color:#9ca3af;margin-bottom:6px;">{{ label }}</div>
-      <div style="background:#060d14;border-radius:2px;height:4px;margin-bottom:6px;">
+      <div class="wtf-act-dim70">{{ label }}</div>
+      <div class="wtf-act-meter-track4">
         <div style="background:{{ tier_color }};height:4px;border-radius:2px;width:{{ pct }}%;"></div>
       </div>
-      <div style="font-size:0.65rem;color:#6b7280;">
+      <div class="wtf-act-dim65">
         {{ "{:,}".format(done) }} / {{ "{:,}".format(total_ref) }}
-        {% if note %}<span style="color:#444;margin-left:4px;">{{ note }}</span>{% endif %}
+        {% if note %}<span class="wtf-act-c-faint">{{ note }}</span>{% endif %}
       </div>
       {# Dispatch path subtitle (#2956) — only shows when hub agent-stats has data #}
       {% set astats = agent_stats.get(agent) if agent_stats else none %}
       {% if astats %}
-      <div style="font-size:0.6rem;color:#4b5563;margin-top:3px;font-family:'IBM Plex Mono', monospace;letter-spacing:0.5px;"
+      <div class="wtf-act-dispatch-sub"
            title="Last 24h via DHQ dispatch">
         {{ astats.top_model or '—' }}@{{ astats.last_node or 'hub' }} ·
         avg {{ (astats.avg_ms // 1000) if astats.avg_ms else '—' }}s ·
@@ -170,7 +170,7 @@
       {% set spark = sparklines.get(agent) %}
       {% if spark %}
         {% set spark_max = spark|max or 1 %}
-        <div style="display:flex;align-items:flex-end;gap:1px;height:14px;margin-top:6px;" title="Daily count, 7 days (oldest → newest)">
+        <div class="wtf-act-agentspark" title="Daily count, 7 days (oldest → newest)">
           {% for v in spark %}
           <div style="flex:1;background:{{ tier_color }};height:{{ ((v / spark_max) * 100) | int }}%;min-height:1px;opacity:0.55;border-radius:1px;"></div>
           {% endfor %}
@@ -180,10 +180,10 @@
     {% endfor %}
   </div>
 
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title--flex">
       <span>Source health &middot; coverage + ownership of {{ source_health|length }} outlets</span>
-      <select id="sh-owner-filter" style="background:#060d14;color:#9ca3af;border:1px solid #1a2a3a;border-radius:3px;font-size:0.6rem;padding:2px 6px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;">
+      <select id="sh-owner-filter" class="wtf-act-sh-filter">
         <option value="">All owners</option>
         <option value="corporate">Corporate</option>
         <option value="public">Public</option>
@@ -191,25 +191,25 @@
         <option value="unknown">Unknown</option>
       </select>
     </div>
-    <div style="overflow-x:auto;">
-      <table id="sh-table" style="width:100%;border-collapse:collapse;font-size:0.7rem;color:#9ca3af;">
+    <div class="wtf-act-scrollx">
+      <table id="sh-table" class="wtf-act-sh-table">
         <thead>
-          <tr style="color:#6b7280;font-size:0.55rem;letter-spacing:1.5px;text-transform:uppercase;">
-            <th data-sh-col="status" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by status">Status</th>
-            <th data-sh-col="name" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by source name">Source</th>
-            <th data-sh-col="owner" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by owner">Owner</th>
-            <th data-sh-col="bias" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by bias">Bias</th>
-            <th data-sh-col="7d" style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by articles last 7 days">7d</th>
-            <th data-sh-col="total" style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by total articles">Total</th>
-            <th data-sh-col="body" style="text-align:right;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="% of articles with full body text extracted. Lower % = less complete analysis. Click to sort.">Body %</th>
-            <th data-sh-col="last" style="text-align:left;padding:6px 8px;border-bottom:1px solid #112233;cursor:pointer;" title="Sort by last article date">Last</th>
+          <tr class="wtf-act-sh-thr">
+            <th data-sh-col="status" class="wtf-act-th" title="Sort by status">Status</th>
+            <th data-sh-col="name" class="wtf-act-th" title="Sort by source name">Source</th>
+            <th data-sh-col="owner" class="wtf-act-th" title="Sort by owner">Owner</th>
+            <th data-sh-col="bias" class="wtf-act-th" title="Sort by bias">Bias</th>
+            <th data-sh-col="7d" class="wtf-act-th-r" title="Sort by articles last 7 days">7d</th>
+            <th data-sh-col="total" class="wtf-act-th-r" title="Sort by total articles">Total</th>
+            <th data-sh-col="body" class="wtf-act-th-r" title="% of articles with full body text extracted. Lower % = less complete analysis. Click to sort.">Body %</th>
+            <th data-sh-col="last" class="wtf-act-th" title="Sort by last article date">Last</th>
           </tr>
         </thead>
         <tbody>
           {% for src in source_health %}
           {% set status_color = '#10b981' if src.status == 'active' else ('#f59e0b' if src.status == 'stalled' else '#ef4444') %}
           {% set owner_color = '#f59e0b' if src.ownership_type == 'corporate' else ('#3b82f6' if src.ownership_type == 'public' else '#10b981') %}
-          <tr style="border-bottom:1px solid #0d1a26;"
+          <tr class="wtf-act-sh-row"
               data-status="{{ src.status }}"
               data-name="{{ src.name }}"
               data-owner-type="{{ src.ownership_type }}"
@@ -218,14 +218,14 @@
               data-total="{{ src.articles_total }}"
               data-body="{{ src.body_pct }}"
               data-last="{{ src.last_article }}">
-            <td style="padding:5px 8px;"><span title="{{ 'Active — articles ingested recently' if src.status == 'active' else ('Stalled — no new articles in 7+ days. RSS may be broken or rate-limited.' if src.status == 'stalled' else 'Dead — no articles ingested. Feed discontinued or unreachable.') }}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ status_color }};cursor:help;"></span></td>
-            <td style="padding:5px 8px;color:#e0e0e0;">{{ src.name }}</td>
-            <td style="padding:5px 8px;color:{{ owner_color }};">{{ src.owner }}</td>
-            <td style="padding:5px 8px;color:#6b7280;">{{ src.bias_lean }}</td>
-            <td style="padding:5px 8px;text-align:right;color:{% if src.articles_7d > 0 %}#e0e0e0{% else %}#444{% endif %};">{{ "{:,}".format(src.articles_7d) }}</td>
-            <td style="padding:5px 8px;text-align:right;color:#6b7280;">{{ "{:,}".format(src.articles_total) }}</td>
-            <td title="{{ src.body_pct }}% of articles have full body text extracted. {% if src.body_pct < 50 %}S.C.O.U.T. body extraction failing — likely paywall or JS-rendered page.{% elif src.body_pct < 75 %}Partial coverage — some articles may be truncated.{% else %}Good body text coverage.{% endif %}" style="padding:5px 8px;text-align:right;color:{% if src.body_pct >= 75 %}#10b981{% elif src.body_pct >= 50 %}#f59e0b{% else %}#ef4444{% endif %};cursor:help;">{{ src.body_pct }}%</td>
-            <td style="padding:5px 8px;color:#6b7280;font-size:0.65rem;">{{ src.last_article }}</td>
+            <td class="wtf-act-sh-td"><span title="{{ 'Active — articles ingested recently' if src.status == 'active' else ('Stalled — no new articles in 7+ days. RSS may be broken or rate-limited.' if src.status == 'stalled' else 'Dead — no articles ingested. Feed discontinued or unreachable.') }}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ status_color }};cursor:help;"></span></td>
+            <td class="wtf-act-sh-td wtf-act-c-off">{{ src.name }}</td>
+            <td class="wtf-act-sh-td" style="color:{{ owner_color }};">{{ src.owner }}</td>
+            <td class="wtf-act-sh-td wtf-act-c-dim">{{ src.bias_lean }}</td>
+            <td class="wtf-act-sh-td-r" style="color:{% if src.articles_7d > 0 %}#e0e0e0{% else %}#444{% endif %};">{{ "{:,}".format(src.articles_7d) }}</td>
+            <td class="wtf-act-sh-td-r wtf-act-c-dim">{{ "{:,}".format(src.articles_total) }}</td>
+            <td title="{{ src.body_pct }}% of articles have full body text extracted. {% if src.body_pct < 50 %}S.C.O.U.T. body extraction failing — likely paywall or JS-rendered page.{% elif src.body_pct < 75 %}Partial coverage — some articles may be truncated.{% else %}Good body text coverage.{% endif %}" class="wtf-act-sh-td-r" style="color:{% if src.body_pct >= 75 %}#10b981{% elif src.body_pct >= 50 %}#f59e0b{% else %}#ef4444{% endif %};cursor:help;">{{ src.body_pct }}%</td>
+            <td class="wtf-act-sh-td wtf-act-dim65">{{ src.last_article }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -236,8 +236,8 @@
   <!-- Pipeline Health (#2955) — surfaces "skipped" / backlog the workers log to stdout
        but never persisted. These are queryable proxies: failed_ingest, geo backlog,
        LLM-pending articles, scout_body paywall rescues. -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
       Pipeline Health &middot; backlog &amp; skipped counters
     </div>
     {% set scout_total = (stats.scout_body_done_24h or 0) + (stats.scout_body_failed or 0) %}
@@ -248,22 +248,22 @@
       ('Failed ingest (24h)',     stats.failed_ingest_24h,    '#ef4444', '({:,} total ever)'.format(stats.failed_ingest_total or 0)),
       ('Scout body rescues',      stats.scout_body_done_24h,  '#10b981', 'paywall scrapes succeeded last 24h ({:,} failed total)'.format(stats.scout_body_failed or 0)),
     ] %}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
-      <div style="width:160px;flex-shrink:0;">{{ label }}</div>
-      <div style="flex:1;background:#060d14;border-radius:2px;height:14px;min-width:80px;">
+    <div class="wtf-act-meter-row">
+      <div class="wtf-act-w160">{{ label }}</div>
+      <div class="wtf-act-meter-track14">
         {% set max_v = [stats.llm_pending or 0, stats.geo_pending or 0, stats.failed_ingest_24h or 0, stats.scout_body_done_24h or 0] | max %}
         {% set pct = ((value or 0) / max_v * 100) | int if max_v else 0 %}
         <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ pct }}%;"></div>
       </div>
-      <div style="width:60px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(value or 0) }}</div>
-      <div style="width:240px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
+      <div class="wtf-act-w60">{{ "{:,}".format(value or 0) }}</div>
+      <div class="wtf-act-hint240">{{ hint }}</div>
     </div>
     {% endfor %}
   </div>
 
   <!-- Tier distribution (Phase C #2943) — how many articles got quick-tier vs full -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
       Analysis tier distribution &middot; quick vs full LLM depth
     </div>
     {% set tier_total = (stats.tier_pending or 0) + (stats.tier_quick_v1 or 0) + (stats.tier_quick_v1_full or 0) + (stats.tier_quick_v1_failed or 0) %}
@@ -277,23 +277,23 @@
     ] %}
     {% if count %}
     {% set pct = ((count / tier_total * 100) | int) if tier_total else 0 %}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
-      <div style="width:160px;flex-shrink:0;">{{ label }}</div>
-      <div style="flex:1;background:#060d14;border-radius:2px;height:14px;min-width:80px;">
+    <div class="wtf-act-meter-row">
+      <div class="wtf-act-w160">{{ label }}</div>
+      <div class="wtf-act-meter-track14">
         <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ [pct, 2] | max }}%;"></div>
       </div>
-      <div style="width:60px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(count or 0) }}</div>
-      <div style="width:200px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
+      <div class="wtf-act-w60">{{ "{:,}".format(count or 0) }}</div>
+      <div class="wtf-act-hint200">{{ hint }}</div>
     </div>
     {% endif %}
     {% endfor %}
   </div>
 
   <!-- COVERAGE PROGRESS + ESTIMATED COMPLETION -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
       Coverage progress &middot; pipeline completeness
-      {% if llm_hours_left %}<span style="float:right;color:#f59e0b;font-size:0.6rem;">⏱ {{ llm_rate }}/hr &middot; ~{{ llm_hours_left }}h to clear {{ "{:,}".format(llm_pending_count) }} queued</span>{% elif llm_days_left %}<span style="float:right;color:#f59e0b;font-size:0.6rem;">⏱ LLM ~{{ llm_days_left }}d remaining at {{ llm_rate }}/hr</span>{% endif %}
+      {% if llm_hours_left %}<span class="wtf-act-eta">⏱ {{ llm_rate }}/hr &middot; ~{{ llm_hours_left }}h to clear {{ "{:,}".format(llm_pending_count) }} queued</span>{% elif llm_days_left %}<span class="wtf-act-eta">⏱ LLM ~{{ llm_days_left }}d remaining at {{ llm_rate }}/hr</span>{% endif %}
     </div>
     {% set total_arts = [(stats.tier_pending or 0) + (stats.tier_quick_v1 or 0) + (stats.tier_quick_v1_full or 0) + (stats.tier_quick_v1_failed or 0), 1] | max %}
     {% for label, done, color, hint in [
@@ -305,14 +305,14 @@
     ] %}
     {% if done %}
     {% set pct = [(done / total_arts * 100) | int, 100] | min %}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
-      <div style="width:120px;flex-shrink:0;">{{ label }}</div>
-      <div style="flex:1;background:#060d14;border-radius:2px;height:10px;">
+    <div class="wtf-act-meter-row">
+      <div class="wtf-act-w120">{{ label }}</div>
+      <div class="wtf-act-meter-track10">
         <div style="background:{{ color }};height:10px;border-radius:2px;width:{{ pct }}%;transition:width 0.5s;"></div>
       </div>
-      <div style="width:40px;text-align:right;color:#e0e0e0;font-size:0.65rem;">{{ pct }}%</div>
-      <div style="width:50px;text-align:right;color:#6b7280;font-size:0.62rem;">{{ "{:,}".format(done) }}</div>
-      <div style="width:160px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
+      <div class="wtf-act-pct40">{{ pct }}%</div>
+      <div class="wtf-act-done50">{{ "{:,}".format(done) }}</div>
+      <div class="wtf-act-hint160">{{ hint }}</div>
     </div>
     {% endif %}
     {% endfor %}
@@ -320,13 +320,13 @@
 
   <!-- THROUGHPUT SPARKLINE — dispatches per 2h bucket last 24h -->
   {% if throughput_sparkline and throughput_sparkline|length > 2 %}
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title--tight">
       LLM throughput &middot; analyses per 2h — last 24h
-      <span style="float:right;color:#10b981;font-size:0.6rem;">{{ llm_rate }}/hr current</span>
+      <span class="wtf-act-eta-green">{{ llm_rate }}/hr current</span>
     </div>
     {% set spark_max = throughput_sparkline | map(attribute='cnt') | max %}
-    <div style="display:flex;align-items:flex-end;gap:3px;height:40px;">
+    <div class="wtf-act-tspark">
       {% for bucket in throughput_sparkline %}
       {% set h = ((bucket.cnt / spark_max * 38) | int) if spark_max else 2 %}
       <div style="flex:1;background:rgba(0,220,170,0.6);border-radius:2px 2px 0 0;height:{{ [h,2]|max }}px;" title="{{ bucket.cnt }} analyses"></div>
@@ -337,15 +337,15 @@
 
   <!-- TOP STORIES TODAY -->
   {% if top_stories %}
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
       Top stories today &middot; most covered in last 24h
     </div>
     {% for story in top_stories %}
-    <div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid #0d1f2d;font-size:0.72rem;">
-      <span style="color:#6b7280;width:16px;text-align:right;flex-shrink:0;">{{ loop.index }}</span>
-      <span style="flex:1;color:#e0e0e0;">{{ story.headline }}</span>
-      <span style="color:#3b82f6;font-size:0.65rem;white-space:nowrap;">{{ story.articles }} articles · {{ story.outlets }} outlets</span>
+    <div class="wtf-act-storyrow">
+      <span class="wtf-act-storyrank">{{ loop.index }}</span>
+      <span class="wtf-act-storytitle">{{ story.headline }}</span>
+      <span class="wtf-act-blue65">{{ story.articles }} articles · {{ story.outlets }} outlets</span>
     </div>
     {% endfor %}
   </div>
@@ -353,19 +353,19 @@
 
   <!-- BEAT BREAKDOWN -->
   {% if beat_breakdown %}
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
       Beat breakdown &middot; articles by topic
     </div>
     {% set beat_max = beat_breakdown[0].cnt %}
     {% for b in beat_breakdown %}
     {% set pct = ((b.cnt / beat_max * 100) | int) if beat_max else 0 %}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:0.68rem;color:#9ca3af;">
-      <div style="width:100px;flex-shrink:0;text-transform:capitalize;">{{ b.beat }}</div>
-      <div style="flex:1;background:#060d14;border-radius:2px;height:10px;">
+    <div class="wtf-act-meter-row-sm">
+      <div class="wtf-act-w100cap">{{ b.beat }}</div>
+      <div class="wtf-act-meter-track10">
         <div style="background:rgba(59,130,246,0.5);height:10px;border-radius:2px;width:{{ pct }}%;"></div>
       </div>
-      <div style="width:50px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(b.cnt) }}</div>
+      <div class="wtf-act-done50">{{ "{:,}".format(b.cnt) }}</div>
     </div>
     {% endfor %}
   </div>
@@ -373,8 +373,8 @@
 
   <!-- SOURCE BIAS SPECTRUM -->
   {% if bias_spectrum %}
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
       Source bias spectrum &middot; outlet editorial lean distribution
     </div>
     {% set spectrum_total = bias_spectrum | map(attribute='cnt') | sum %}
@@ -382,20 +382,20 @@
     {% for b in bias_spectrum %}
     {% set pct = ((b.cnt / spectrum_total * 100) | round(1)) if spectrum_total else 0 %}
     {% set color = lean_colors.get(b.lean, '#6b7280') %}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;font-size:0.68rem;color:#9ca3af;">
-      <div style="width:100px;flex-shrink:0;text-transform:capitalize;">{{ b.lean }}</div>
-      <div style="flex:1;background:#060d14;border-radius:2px;height:12px;">
+    <div class="wtf-act-meter-row-sm">
+      <div class="wtf-act-w100cap">{{ b.lean }}</div>
+      <div class="wtf-act-meter-track12">
         <div style="background:{{ color }};height:12px;border-radius:2px;width:{{ [pct|int, 2]|max }}%;opacity:0.7;"></div>
       </div>
-      <div style="width:30px;text-align:right;color:#e0e0e0;">{{ b.cnt }}</div>
-      <div style="width:40px;text-align:right;color:#6b7280;font-size:0.6rem;">{{ pct }}%</div>
+      <div class="wtf-act-cnt30">{{ b.cnt }}</div>
+      <div class="wtf-act-pct40b">{{ pct }}%</div>
     </div>
     {% endfor %}
   </div>
   {% endif %}
 
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:20px;">
-    <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
+  <div class="wtf-act-card--wide">
+    <div class="wtf-act-card-title">
       Story cluster sizes &middot; how many outlets cover each story
     </div>
     {% set max_bucket = [stats.cluster_singletons, stats.cluster_small, stats.cluster_medium, stats.cluster_large] | max %}
@@ -406,72 +406,72 @@
       ('10+ articles', stats.cluster_large, 'major shared stories'),
     ] %}
     {% set pct = ((count / max_bucket * 100) | int) if max_bucket else 0 %}
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:0.7rem;color:#9ca3af;">
-      <div style="width:160px;flex-shrink:0;">{{ label }}</div>
-      <div style="flex:1;background:#060d14;border-radius:2px;height:14px;min-width:80px;">
+    <div class="wtf-act-meter-row">
+      <div class="wtf-act-w160">{{ label }}</div>
+      <div class="wtf-act-meter-track14">
         <div style="background:#9ca3af;height:14px;border-radius:2px;width:{{ pct }}%;"></div>
       </div>
-      <div style="width:60px;text-align:right;color:#e0e0e0;">{{ "{:,}".format(count) }}</div>
-      <div style="width:200px;color:#6b7280;font-size:0.6rem;">{{ hint }}</div>
+      <div class="wtf-act-w60">{{ "{:,}".format(count) }}</div>
+      <div class="wtf-act-hint200">{{ hint }}</div>
     </div>
     {% endfor %}
   </div>
 </div>
 
-<div style="max-width:1100px;margin:0 auto;padding:0 16px 24px;">
+<div class="wtf-act-wrap--btm">
 
   {% if creed_scan %}
-  <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <a href="/governance" style="color:var(--wtf-aurora);font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
-    <span style="color:var(--wtf-aurora);font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
-    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
-    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:var(--wtf-aurora);">{{ creed_scan.overall }}%</strong></span>
+  <div class="wtf-act-governance">
+    <a href="/governance" class="wtf-act-gov-link">AI Newsroom Governance</a>
+    <span class="wtf-act-gov-grade">Grade <strong class="wtf-act-c-lilac">{{ creed_scan.grade }}</strong></span>
+    <span class="wtf-act-dim65">&middot;</span>
+    <span class="wtf-act-gov-compliance">Compliance <strong class="wtf-act-c-aurora">{{ creed_scan.overall }}%</strong></span>
     {% if creed_scan.event_count %}
-    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
-    <span style="color:#6b7280;font-size:0.65rem;">{{ creed_scan.event_count }} events tracked</span>
+    <span class="wtf-act-dim65">&middot;</span>
+    <span class="wtf-act-dim65">{{ creed_scan.event_count }} events tracked</span>
     {% endif %}
     {% if creed_scan.by_category %}
-    <span style="color:#6b7280;font-size:0.65rem;margin-left:auto;">
+    <span class="wtf-act-gov-cats">
       {# pillar values are dicts {score, grade, events, provisional, note} — the old
          "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
       {% for cat, pv in creed_scan.by_category.items() %}
-      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:var(--wtf-aurora);">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
+      <span class="wtf-act-gov-cat">{{ cat }}&nbsp;<span class="wtf-act-c-aurora">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
       {% endfor %}
     </span>
     {% endif %}
   </div>
   {% endif %}
 
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-    <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
+  <div class="wtf-act-toprow">
+    <div class="wtf-act-toprow-count">
       {{ total }} events &middot; page {{ page }} / {{ total_pages }}
     </div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+    <div class="wtf-act-filterbar">
   <!-- Newsroom roster — LOOPED FROM THE DATA. The six "agents" above are
        pipeline STAGES whose names were hardcoded as SQL literals; News & Media
        has 22 agents and dispatch picks by capability, so V.E.R.I.F.Y. performed
        only 19% of fact_checks over 7 days while seven other agents did the rest
        and were all published as "V.E.R.I.F.Y.". Never hardcode this list. -->
-  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin:0 0 14px;">
-    <div style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;margin-bottom:8px;">
+  <div class="wtf-act-card">
+    <div class="wtf-act-label-inline">
       Newsroom · who did the work (last 24h)
     </div>
     {% set nr = newsroom or {} %}
     {% if nr.agents %}
-    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;">
+    <div class="wtf-act-roster">
       {% for a in nr.agents %}
-      <span style="font-size:0.7rem;color:#9ca3af;background:#060d14;border:1px solid #1a2a3a;border-radius:3px;padding:3px 8px;">
-        <b style="color:#e5e7eb;">{{ a.agent }}</b>
-        <span style="color:#6b7280;">{{ "{:,}".format(a.events) }}</span>
-        {% if a.fact_checks %}<span style="color:#10b981;font-size:0.6rem;" title="fact-checks">✓{{ a.fact_checks }}</span>{% endif %}
-        {% if a.bias_scores %}<span style="color:#f59e0b;font-size:0.6rem;" title="bias scores">◐{{ a.bias_scores }}</span>{% endif %}
+      <span class="wtf-act-rosterpill">
+        <b class="wtf-act-c-bright">{{ a.agent }}</b>
+        <span class="wtf-act-c-dim">{{ "{:,}".format(a.events) }}</span>
+        {% if a.fact_checks %}<span class="wtf-act-checkmark" title="fact-checks">✓{{ a.fact_checks }}</span>{% endif %}
+        {% if a.bias_scores %}<span class="wtf-act-halfcirc" title="bias scores">◐{{ a.bias_scores }}</span>{% endif %}
       </span>
       {% endfor %}
     </div>
     {% else %}
-    <div style="font-size:0.7rem;color:#6b7280;">No attributed work yet in this window.</div>
+    <div class="wtf-act-dim70">No attributed work yet in this window.</div>
     {% endif %}
-    <div style="font-size:0.6rem;color:#4b5563;margin-top:8px;">
+    <div class="wtf-act-rosterfoot">
       {{ "{:,}".format(nr.attributed or 0) }} attributed
       {% if nr.unattributed %}
         · {{ "{:,}".format(nr.unattributed) }} not recorded
@@ -483,13 +483,12 @@
       {% set agents = [('all','All'),('F.A.C.T.','F.A.C.T.'),('B.I.A.S.','B.I.A.S.'),('V.E.R.I.F.Y.','V.E.R.I.F.Y.'),('L.O.C.A.L.','L.O.C.A.L.'),('D.R.A.F.T.','D.R.A.F.T.'),('I.N.K.','I.N.K.')] %}
       {% for val, label in agents %}
       <a href="/activity?agent={{ val }}&page=1"
-         class="wtf-act-filter {% if agent_filter == val %}wtf-act-filter--active{% endif %}"
-         style="text-decoration:none;">{{ label }}</a>
+         class="wtf-act-filter {% if agent_filter == val %}wtf-act-filter--active{% endif %} wtf-act-nodeco">{{ label }}</a>
       {% endfor %}
     </div>
   </div>
 
-  <div style="overflow-x:auto;">
+  <div class="wtf-act-scrollx">
     <table class="wtf-act-table" id="wtf-act-table">
       <thead>
         <tr>
@@ -511,9 +510,9 @@
           </td>
           <td>
             {% if ev.performed_by %}
-              <span style="color:#e5e7eb;font-weight:600;">{{ ev.performed_by }}</span>
+              <span class="wtf-act-performer">{{ ev.performed_by }}</span>
             {% else %}
-              <span style="color:#4b5563;" title="Performer not recorded — this row predates agent attribution. Not attributed to anyone rather than guessed.">—</span>
+              <span class="wtf-act-c-mute" title="Performer not recorded — this row predates agent attribution. Not attributed to anyone rather than guessed.">—</span>
             {% endif %}
           </td>
           <td>
@@ -523,13 +522,13 @@
             <span class="wtf-act-title">{{ ev.title }}</span>
             {% endif %}
           </td>
-          <td style="color:#6b7280;font-size:0.7rem;white-space:nowrap;">{{ ev.source }}</td>
+          <td class="wtf-act-source-cell">{{ ev.source }}</td>
           <td>
             <span class="wtf-act-result wtf-act-result--{{ (ev.result or 'unknown')|replace(' ', '-')|lower }}">
               {{ ev.result or '—' }}
             </span>
           </td>
-          <td style="color:#555;font-size:0.7rem;white-space:nowrap;" data-ts="{{ ev.ts or '' }}">
+          <td class="wtf-act-when-cell" data-ts="{{ ev.ts or '' }}">
             {{ ev.ts[:16].replace('T',' ') if ev.ts else '—' }}
           </td>
         </tr>
@@ -539,17 +538,17 @@
   </div>
 
   {% if not events %}
-  <div style="color:#555;text-align:center;padding:48px;font-size:0.8rem;">No activity recorded yet.</div>
+  <div class="wtf-act-empty">No activity recorded yet.</div>
   {% endif %}
 
   {% if total_pages > 1 %}
-  <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:24px 0;">
+  <div class="wtf-act-pagination">
     {% if page > 1 %}
-    <a href="/activity?agent={{ agent_filter }}&page={{ page - 1 }}" class="wtf-act-filter" style="text-decoration:none;">← Prev</a>
+    <a href="/activity?agent={{ agent_filter }}&page={{ page - 1 }}" class="wtf-act-filter wtf-act-nodeco">← Prev</a>
     {% endif %}
-    <span style="color:#6b7280;font-size:0.7rem;">Page {{ page }} of {{ total_pages }} &middot; {{ total }} events</span>
+    <span class="wtf-act-dim65">Page {{ page }} of {{ total_pages }} &middot; {{ total }} events</span>
     {% if page < total_pages %}
-    <a href="/activity?agent={{ agent_filter }}&page={{ page + 1 }}" class="wtf-act-filter" style="text-decoration:none;">Next →</a>
+    <a href="/activity?agent={{ agent_filter }}&page={{ page + 1 }}" class="wtf-act-filter wtf-act-nodeco">Next →</a>
     {% endif %}
   </div>
   {% endif %}
@@ -557,16 +556,198 @@
 </div>
 
 {% else %}
-<div style="max-width:800px;margin:0 auto;padding:16px;">
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;">
-    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Activity Log — Starter+</div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Full pipeline analytics — per-agent processing rates, source health, bias coverage, and the live event log.</div>
-    <a href="/login?next=/activity" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-  </div>
+<div class="wtf-act-gate-wrap">
+  {{ paywall(
+       '🔒 Activity Log — Starter+',
+       'Full pipeline analytics — per-agent processing rates, source health, bias coverage, and the live event log.',
+       '/activity') }}
 </div>
 {% endif %}
 <style>
+/* Extracted 177 inline style="..." attributes into namespaced wtf-act-* classes,
+   value-preserving throughout (same hex/px/rem literals). Fixed the never-loaded
+   'Orbitron' bug on the paywall gate title (base.html loads only Newsreader /
+   IBM Plex Sans / IBM Plex Mono — Orbitron was never fetched, so it silently
+   fell back to sans-serif) -> var(--wtf-font-mono), matching the fix already
+   applied 8+ times this session. Also normalized the already-correct
+   'IBM Plex Mono' literal (dispatch-path subtitle) to the same token.
+
+   Converged the full-page Starter+ gate onto the shared paywall() macro from
+   _archetypes.html — same title/blurb/CTA/next-url as the hand-rolled block,
+   matching the sitewide convergence already done on crtc/lobbying/source/
+   ethics/divergence/municipal this session (byte-for-byte same content, only
+   the wrapper markup/colours change to the macro's canonical --wtf-accent
+   styling). The inner "Throughput now" paywall usage (already on the macro
+   before this pass) is untouched.
+
+   TOKEN AUDIT (Step 2 — every hex literal in this file grepped against
+   style.css's --wtf-* custom properties for an exact byte match):
+     - ADOPTED: `.wtf-act-agent--fact/--bias/--verify/--local` colours
+       (#dc2626/#f59e0b/#10b981/#3b82f6) are byte-identical to the "Agent
+       identity" token block (--wtf-fact/--wtf-bias/--wtf-verify/--wtf-local)
+       and are genuinely agent-identity badges — a perfect semantic fit, zero
+       visual change. These 4 tokens are otherwise unused anywhere in the
+       codebase; this is their first adoption.
+     - NOT adopted, despite exact byte matches, each for a documented reason:
+         · the completion-percentage `tier_color` ternary and the
+           `astats.success_rate` / `stats.failed_ingest_24h` conditional
+           colours (#10b981/#f59e0b/#ef4444) colour a SCORE or a raw
+           operational count. --wtf-established/--wtf-developing are
+           commented in style.css "Verdict chips (informative, never a
+           score)" — using them here is exactly the usage that comment
+           forbids (same reasoning as literacy.html/score.html this session).
+         · `.wtf-act-result--verified/--mixed/--disputed/--unverifiable`
+           (#10b981/#f59e0b/#ef4444/#6b7280) render the raw FACT-CHECK
+           vocabulary (verified/mixed/disputed/unverifiable). score.html's
+           own comment: "deliberately not mapped onto --wtf-established /
+           developing / contested: those are the homepage's informative
+           story chips, a different vocabulary, and collapsing the two would
+           let a chip colour assert a fact-check verdict it never made."
+         · `lean_colors` (bias spectrum: #dc2626/#f97316/#22c55e/#0ea5e9/
+           #2563eb) is, verbatim, style.css's own documented RETIRED
+           "previous ramp" for the lean scale. Swapping only the coincidental
+           #dc2626 match would misattribute a retired lean colour to an
+           unrelated token while leaving its 4 siblings unswapped — the same
+           partial-swap trap literacy.html avoided. A real migration onto
+           var(--wtf-left..right) is a genuine value/redesign change, out of
+           scope for a token-preserving pass.
+         · `owner_color` / `status_color` (source-health table) colour
+           OWNERSHIP TYPE and FEED STATUS respectively — unrelated concepts
+           to agent identity or verdict chips despite coincidental byte
+           matches on 2 of 3 branches each.
+         · the 6-way stats-bar metric colours (line "ingested / bias-scored /
+           fact-checked / summarized / new clusters / LLM-analyzed") are a
+           plain distinct-colour palette, not a 1:1 agent mapping (e.g.
+           "summarized" is blue but is D.R.A.F.T.'s work, not L.O.C.A.L.'s) —
+           swapping would attach the wrong agent's identity to the wrong stat.
+   All Jinja-set dict/tuple literal colours (`lean_colors`, `owner_color`,
+   `status_color`, the per-row `color`/`tier_color` variables used inside
+   the for-loops) are left INLINE — they are computed per-iteration and
+   several are the exact "dict value interpolated later" pattern this session's
+   brief warned about; extracting only their STATIC sibling properties
+   (height/border-radius/etc.) into classes below, same as every other large
+   Phase 6 page this session. */
+
+.wtf-act-h1 { font-size:1.6rem; }
+.wtf-act-wrap { max-width:1100px; margin:0 auto; padding:16px 16px 0; }
+.wtf-act-wrap--btm { max-width:1100px; margin:0 auto; padding:0 16px 24px; }
+
+.wtf-act-card { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; margin-bottom:14px; }
+.wtf-act-card--wide { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; margin-bottom:20px; }
+.wtf-act-card--stats { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:10px 14px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; font-size:0.7rem; color:#9ca3af; }
+.wtf-act-card-title { color:#9ca3af; font-size:0.6rem; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; }
+.wtf-act-card-title--flex { color:#9ca3af; font-size:0.6rem; letter-spacing:2px; text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.wtf-act-card-title--tight { color:#9ca3af; font-size:0.6rem; letter-spacing:2px; text-transform:uppercase; margin-bottom:6px; }
+.wtf-act-label-inline { color:#6b7280; letter-spacing:2px; text-transform:uppercase; font-size:0.6rem; }
+.wtf-act-substat { font-size:0.55rem; color:#374151; letter-spacing:0; text-transform:none; font-weight:400; }
+.wtf-act-asof { margin-left:auto; color:#4b5563; font-size:0.6rem; }
+
+/* atomic colour/size utilities — reused across the stat bar, meters + badges */
+.wtf-act-c-red { color:#ef4444; }
+.wtf-act-c-amber { color:#f59e0b; }
+.wtf-act-c-green { color:#10b981; }
+.wtf-act-c-blue { color:#3b82f6; }
+.wtf-act-c-gray { color:#9ca3af; }
+.wtf-act-c-dim { color:#6b7280; }
+.wtf-act-c-mute { color:#4b5563; }
+.wtf-act-c-faint { color:#444; }
+.wtf-act-c-crimson { color:#dc2626; }
+.wtf-act-c-aurora { color:var(--wtf-aurora); }
+.wtf-act-c-lilac { color:#c4b5fd; }
+.wtf-act-c-off { color:#e0e0e0; }
+.wtf-act-c-bright { color:#e5e7eb; }
+.wtf-act-red65 { color:#ef4444; font-size:0.65rem; }
+.wtf-act-green65 { color:#4ade80; font-size:0.65rem; }
+.wtf-act-dim65 { color:#6b7280; font-size:0.65rem; }
+.wtf-act-dim70 { color:#6b7280; font-size:0.7rem; }
+.wtf-act-blue65 { color:#3b82f6; font-size:0.65rem; white-space:nowrap; }
+
+/* governance banner (public, above the subscriber gate — appears twice) */
+.wtf-act-governance { background:#0d0a1a; border:1px solid #4c1d95; border-radius:4px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.wtf-act-gov-link { color:var(--wtf-aurora); font-size:0.55rem; letter-spacing:2px; text-transform:uppercase; font-weight:700; flex-shrink:0; text-decoration:none; }
+.wtf-act-gov-grade { color:var(--wtf-aurora); font-size:0.7rem; }
+.wtf-act-gov-compliance { color:#9ca3af; font-size:0.7rem; }
+.wtf-act-gov-events { color:#6b7280; font-size:0.65rem; }
+.wtf-act-gov-cats { color:#6b7280; font-size:0.65rem; margin-left:auto; }
+.wtf-act-gov-cat { margin-right:8px; text-transform:capitalize; }
+
+/* throughput-now cards */
+.wtf-act-tp-head { margin-bottom:8px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.wtf-act-tp-sub { color:#4b5563; font-size:0.66rem; }
+.wtf-act-tp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; margin-bottom:20px; }
+.wtf-act-tp-card { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:11px 13px; }
+.wtf-act-tp-name { font-family:var(--wtf-font-mono); font-size:0.68rem; letter-spacing:.1em; color:#e0e0e0; }
+.wtf-act-tp-what { font-size:0.63rem; color:#6b7280; margin-bottom:7px; }
+.wtf-act-tp-rate-row { display:flex; align-items:baseline; gap:5px; }
+.wtf-act-tp-rate { font-family:var(--wtf-font-mono); font-size:1.32rem; color:var(--wtf-aurora); }
+.wtf-act-tp-unit { font-size:0.62rem; color:#6b7280; }
+.wtf-act-tp-events { font-size:0.62rem; color:#6b7280; margin-top:5px; }
+
+/* pipeline-health / meter rows (shared across 4 sections) */
+.wtf-act-meter-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; font-size:0.7rem; color:#9ca3af; }
+.wtf-act-meter-row-sm { display:flex; align-items:center; gap:8px; margin-bottom:3px; font-size:0.68rem; color:#9ca3af; }
+.wtf-act-meter-track4 { background:#060d14; border-radius:2px; height:4px; margin-bottom:6px; }
+.wtf-act-meter-track10 { flex:1; background:#060d14; border-radius:2px; height:10px; }
+.wtf-act-meter-track12 { flex:1; background:#060d14; border-radius:2px; height:12px; }
+.wtf-act-meter-track14 { flex:1; background:#060d14; border-radius:2px; height:14px; min-width:80px; }
+.wtf-act-w60 { width:60px; text-align:right; color:#e0e0e0; }
+.wtf-act-w100cap { width:100px; flex-shrink:0; text-transform:capitalize; }
+.wtf-act-w120 { width:120px; flex-shrink:0; }
+.wtf-act-w160 { width:160px; flex-shrink:0; }
+.wtf-act-hint160 { width:160px; color:#6b7280; font-size:0.6rem; }
+.wtf-act-hint200 { width:200px; color:#6b7280; font-size:0.6rem; }
+.wtf-act-hint240 { width:240px; color:#6b7280; font-size:0.6rem; }
+.wtf-act-pct40 { width:40px; text-align:right; color:#e0e0e0; font-size:0.65rem; }
+.wtf-act-pct40b { width:40px; text-align:right; color:#6b7280; font-size:0.6rem; }
+.wtf-act-done50 { width:50px; text-align:right; color:#e0e0e0; }
+.wtf-act-cnt30 { width:30px; text-align:right; color:#e0e0e0; }
+.wtf-act-eta { float:right; color:#f59e0b; font-size:0.6rem; }
+.wtf-act-eta-green { float:right; color:#10b981; font-size:0.6rem; }
+
+/* agent coverage grid (7 pipeline-stage cards) */
+.wtf-act-agentgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:10px; margin-bottom:20px; }
+.wtf-act-agentcard { background:#0a0f1a; border:1px solid #112233; border-radius:4px; padding:12px; }
+.wtf-act-agentcard-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.wtf-act-dispatch-sub { font-size:0.6rem; color:#4b5563; margin-top:3px; font-family:var(--wtf-font-mono); letter-spacing:0.5px; }
+.wtf-act-agentspark { display:flex; align-items:flex-end; gap:1px; height:14px; margin-top:6px; }
+
+/* source-health table */
+.wtf-act-scrollx { overflow-x:auto; }
+.wtf-act-sh-filter { background:#060d14; color:#9ca3af; border:1px solid #1a2a3a; border-radius:3px; font-size:0.6rem; padding:2px 6px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
+.wtf-act-sh-table { width:100%; border-collapse:collapse; font-size:0.7rem; color:#9ca3af; }
+.wtf-act-sh-thr { color:#6b7280; font-size:0.55rem; letter-spacing:1.5px; text-transform:uppercase; }
+.wtf-act-th { text-align:left; padding:6px 8px; border-bottom:1px solid #112233; cursor:pointer; }
+.wtf-act-th-r { text-align:right; padding:6px 8px; border-bottom:1px solid #112233; cursor:pointer; }
+.wtf-act-sh-row { border-bottom:1px solid #0d1a26; }
+.wtf-act-sh-td { padding:5px 8px; }
+.wtf-act-sh-td-r { padding:5px 8px; text-align:right; }
+
+/* top stories / beat breakdown / bias spectrum rows */
+.wtf-act-storyrow { display:flex; align-items:center; gap:10px; padding:4px 0; border-bottom:1px solid #0d1f2d; font-size:0.72rem; }
+.wtf-act-storyrank { color:#6b7280; width:16px; text-align:right; flex-shrink:0; }
+.wtf-act-storytitle { flex:1; color:#e0e0e0; }
+.wtf-act-tspark { display:flex; align-items:flex-end; gap:3px; height:40px; }
+
+/* newsroom roster + top row + filter bar */
+.wtf-act-toprow { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px; }
+.wtf-act-toprow-count { color:#6b7280; font-size:0.65rem; letter-spacing:2px; text-transform:uppercase; }
+.wtf-act-filterbar { display:flex; flex-wrap:wrap; gap:6px; }
+.wtf-act-roster { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:baseline; }
+.wtf-act-rosterpill { font-size:0.7rem; color:#9ca3af; background:#060d14; border:1px solid #1a2a3a; border-radius:3px; padding:3px 8px; }
+.wtf-act-rosterfoot { font-size:0.6rem; color:#4b5563; margin-top:8px; }
+.wtf-act-checkmark { color:#10b981; font-size:0.6rem; }
+.wtf-act-halfcirc { color:#f59e0b; font-size:0.6rem; }
+
+/* event table cells + pagination */
+.wtf-act-performer { color:#e5e7eb; font-weight:600; }
+.wtf-act-source-cell { color:#6b7280; font-size:0.7rem; white-space:nowrap; }
+.wtf-act-when-cell { color:#555; font-size:0.7rem; white-space:nowrap; }
+.wtf-act-empty { color:#555; text-align:center; padding:48px; font-size:0.8rem; }
+.wtf-act-pagination { display:flex; align-items:center; justify-content:center; gap:8px; padding:24px 0; }
+
+/* full-page Starter+ gate — wraps the shared paywall() macro */
+.wtf-act-gate-wrap { max-width:800px; margin:0 auto; padding:16px; }
+
 .wtf-act-filter {
   background: #0a0f1a;
   border: 1px solid #1a2a3a;
@@ -580,6 +761,7 @@
   text-transform: uppercase;
 }
 .wtf-act-filter--active { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+.wtf-act-nodeco { text-decoration: none; }
 .wtf-act-table {
   width: 100%;
   border-collapse: collapse;
@@ -604,10 +786,10 @@
   letter-spacing: 0.5px;
   white-space: nowrap;
 }
-.wtf-act-agent--fact   { background: #1a0a00; border: 1px solid #dc262644; color: #dc2626; }
-.wtf-act-agent--bias   { background: #1a1000; border: 1px solid #f59e0b44; color: #f59e0b; }
-.wtf-act-agent--verify { background: #001a10; border: 1px solid #10b98144; color: #10b981; }
-.wtf-act-agent--local  { background: #00102a; border: 1px solid #3b82f644; color: #3b82f6; }
+.wtf-act-agent--fact   { background: #1a0a00; border: 1px solid #dc262644; color: var(--wtf-fact); }
+.wtf-act-agent--bias   { background: #1a1000; border: 1px solid #f59e0b44; color: var(--wtf-bias); }
+.wtf-act-agent--verify { background: #001a10; border: 1px solid #10b98144; color: var(--wtf-verify); }
+.wtf-act-agent--local  { background: #00102a; border: 1px solid #3b82f644; color: var(--wtf-local); }
 .wtf-act-agent--draft  { background: #0d0d0d; border: 1px solid #6b728044; color: #9ca3af; }
 .wtf-act-agent--ink    { background: #0d0d0d; border: 1px solid #6b728044; color: #9ca3af; }
 .wtf-act-title { color: #e0e0e0; text-decoration: none; font-size: 0.75rem; }

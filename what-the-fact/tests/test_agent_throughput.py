@@ -74,11 +74,25 @@ def test_a_short_window_is_flagged_to_the_reader():
 def test_the_headline_number_is_a_rate_not_a_count():
     """Counts over unequal windows are not comparable; rates are. The big
     number in the card must be per_hour, with the raw count demoted to context.
+
+    The locator matches either an inline `font-size:1.32rem` declaration or a
+    class carrying that same declaration (`wtf-act-tp-rate`, extracted from
+    inline style during the #6250-family token-migration pass) — the CSS.css
+    class itself also asserted to declare 1.32rem, so a class-based rewrite
+    that drops the size would still fail this test.
     """
     card = TEMPLATE[TEMPLATE.index("Throughput now") : TEMPLATE.index("Throughput now") + 2200]
-    big = re.search(r'font-size:1\.32rem[^>]*>\{\{\s*([a-z_.]+)', card)
+    big = re.search(
+        r'(?:font-size:1\.32rem[^>]*|class="[^"]*\bwtf-act-tp-rate\b[^"]*")[^>]*>\{\{\s*([a-z_.]+)',
+        card,
+    )
     assert big, "could not find the card's headline number"
     assert big.group(1) == "a.per_hour", f"headline is {big.group(1)}, must be the rate"
+    if "wtf-act-tp-rate" in card:
+        css = (ROOT / "consumer" / "templates" / "activity.html").read_text()
+        assert re.search(r"\.wtf-act-tp-rate\s*\{[^}]*font-size:\s*1\.32rem", css), (
+            "wtf-act-tp-rate must still declare the 1.32rem headline size"
+        )
 
 
 def test_invented_metrics_are_not_rendered():

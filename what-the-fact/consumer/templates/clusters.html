@@ -25,9 +25,17 @@
    pills would sell a diversity of framing this corpus does not have.
 
    Ordered by SPREAD, not recency — spread is the page's entire claim, so the
-   ordering is stated on the page rather than left for a reader to infer.
+   ordering is stated on the page rather than left for a reader to infer
+   (though a reader can now change it — see the sort row below).
 
-   Data: clusters[], totals{qualifying,with_spread,widest}, days, windows[], shown. #}
+   #6149 batch 11 — search / beat / size / median-band filters + a named sort
+   row, all plain GET params (see `_cluster_filters`/`_cluster_qs` in
+   routes.py). DEFERRED: the mockup's expandable inline per-cluster detail
+   body (per-outlet grid, quote-flip) — still a link-out to /cluster/<id>.
+
+   Data: clusters[], totals{qualifying,with_spread,widest}, f{days,sort,q,beat,
+         size,median}, days, windows[], beats[], sizes{}, medians[], shown,
+         url_windows[], url_sorts[], url_clear. #}
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Story clusters</h1>
@@ -52,8 +60,35 @@
       'detail': 'outlets on a single story'},
 ]) }}
 
-<div class="wtf-a-layers" style="margin:16px 0;" role="group" aria-label="Time window">
-  {% for w in windows %}{{ segment(w ~ ' days', '/clusters?days=' ~ w, active=(w == days)) }}{% endfor %}
+<div class="wtf-a-layers" style="margin:16px 0 8px;" role="group" aria-label="Time window">
+  {% for w, u in url_windows %}{{ segment(w ~ ' days', u, active=(w == f.days)) }}{% endfor %}
+</div>
+
+{# ── search + filters: a plain GET form, works without JavaScript ── #}
+<form method="get" action="/clusters" style="margin:0 0 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+  <input type="hidden" name="days" value="{{ f.days }}">
+  <input type="hidden" name="sort" value="{{ f.sort }}">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Event, outlet, beat…"
+         aria-label="Search clusters"
+         style="flex:1 1 220px;min-width:180px;padding:7px 10px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
+  <select name="beat" aria-label="Beat" class="wtf-a-chip">
+    <option value="all">Every beat</option>
+    {% for b in beats %}<option value="{{ b }}"{% if f.beat == b %} selected{% endif %}>{{ b|replace('_',' ')|title }}</option>{% endfor %}
+  </select>
+  <select name="size" aria-label="Size" class="wtf-a-chip">
+    {% for key, label in sizes.items() %}<option value="{{ key }}"{% if f.size == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+  <select name="median" aria-label="Median band" class="wtf-a-chip">
+    <option value="all">Any median</option>
+    {% for b in medians %}<option value="{{ b }}"{% if f.median == b %} selected{% endif %}>{{ b|title }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="wtf-a-chip" style="cursor:pointer;">Apply</button>
+  <a class="wtf-a-chip" href="{{ url_clear }}">Clear</a>
+</form>
+
+{# ── sort: named directions, as plain links ── #}
+<div class="wtf-a-layers" style="margin:0 0 12px;" role="group" aria-label="Sort">
+  {% for key, label, u in url_sorts %}{{ segment(label, u, active=(key == f.sort)) }}{% endfor %}
 </div>
 
 {% for cl in clusters %}
@@ -78,7 +113,11 @@
   {% endcall %}
 {% else %}
   <p class="wtf-a-nodata" style="padding:28px 0;">
-    No story was carried by two or more tracked outlets in the last {{ days }} days.
+    {% if f.q or f.beat != 'all' or f.size != 'all' or f.median != 'all' %}
+      No story matches these filters in the last {{ f.days }} days — try <a href="{{ url_clear }}">clearing them</a>.
+    {% else %}
+      No story was carried by two or more tracked outlets in the last {{ f.days }} days.
+    {% endif %}
   </p>
 {% endfor %}
 

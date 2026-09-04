@@ -3477,8 +3477,66 @@ def _age_text(dt) -> str:
     return f"{int(secs // 86400)}d ago"
 
 
-def _cluster_index_rows(days: int, limit: int = _CLUSTER_LIMIT):
-    """Clusters carried by 2+ outlets, widest framing spread first.
+_CLUSTER_SIZES = {
+    "all": "Any size",
+    "big": "12+ outlets",
+    "mid": "6–11 outlets",
+    "small": "Under 6 — blindspot seeds",
+}
+_CLUSTER_SIZE_HAVING = {
+    "big": "COUNT(DISTINCT a.source_id) >= 12",
+    "mid": "COUNT(DISTINCT a.source_id) BETWEEN 6 AND 11",
+    "small": "COUNT(DISTINCT a.source_id) < 6",
+}
+
+# Named sort directions, mirroring /archive's _ARCHIVE_SORTS. "pickup" orders
+# by the wall-clock span between a cluster's FIRST article and its most recent
+# one — a real, derived measurement (never an LLM guess at "how fast this spread").
+_CLUSTER_SORTS = {
+    "spread": ("Spread",         "spread DESC NULLS LAST, m.outlets DESC, m.last_pub DESC"),
+    "size":   ("Size",           "m.outlets DESC, spread DESC NULLS LAST, m.last_pub DESC"),
+    "recent": ("Most recent",    "m.last_pub DESC"),
+    "pickup": ("Slowest pickup", "pickup_span DESC NULLS LAST, m.last_pub DESC"),
+}
+
+
+def _cluster_filters(args) -> dict:
+    """Validate every filter against a CLOSED set — same discipline as
+    /archive's `_archive_filters`. Never interpolate user text into SQL."""
+    def _one(name, allowed, default="all"):
+        v = (args.get(name) or default).strip()
+        return v if v in allowed else default
+
+    try:
+        days = int(args.get("days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    if days not in _CLUSTER_WINDOWS:
+        days = 7
+    sort = args.get("sort", "spread")
+    if sort not in _CLUSTER_SORTS:
+        sort = "spread"
+    return {
+        "days": days,
+        "sort": sort,
+        "q": (args.get("q") or "").strip()[:120],
+        "beat": _one("beat", set(VALID_BEATS) | {"all"}),
+        "size": _one("size", set(_CLUSTER_SIZES)),
+        "median": _one("median", set(_BAND_ORDER) | {"all"}),
+    }
+
+
+def _cluster_qs(f: dict, **override) -> str:
+    """Build a /clusters URL preserving current filters — mirrors `_archive_qs`."""
+    from urllib.parse import urlencode
+    merged = {k: f[k] for k in ("days", "sort", "q", "beat", "size", "median")}
+    merged.update(override)
+    keep = {k: v for k, v in merged.items() if v not in (None, "", "all")}
+    return "/clusters" + ("?" + urlencode(keep) if keep else "")
+
+
+def _cluster_index_rows(f: dict, limit: int = _CLUSTER_LIMIT):
+    """Clusters carried by 2+ outlets, filtered + sorted per `f` (`_cluster_filters`).
 
     Counts are computed LIVE from articles rather than read from the
     denormalised `story_clusters.source_count`/`article_count`, for one reason:
@@ -3486,8 +3544,50 @@ def _cluster_index_rows(days: int, limit: int = _CLUSTER_LIMIT):
     NULL`. (Spot-checked 2026-09-02: the denormalised values happen to match on
     current rows, but a metric refreshed on a different filter is exactly how
     a list page comes to disagree with the detail page it links to.)
+
+    Filters (#6149 batch 11, all against columns this query already touches):
+    `q` matches the cluster's headline, its `articles.beat`, or any outlet
+    `sources.name` inside it — the same three nouns the design mockup's
+    placeholder names ("Event, outlet, beat…"). `beat` is the SAME column
+    /archive already filters on (87% populated over a 7-day window, measured
+    2026-09-04 — nothing like the 10%/66% province/city columns ADR-020
+    excludes as too sparse to offer honestly). `size` buckets on the outlet
+    count this query already computes (0 clusters cleared 12+ in the live
+    7-day window when this was written — an honest empty bucket, not a bug).
+    `median` filters the SQL ordinal (`m.med`), never the Python display
+    fallback that paints an unscored cluster's badge "center" — filtering on
+    that fallback would put zero-score clusters under a lean they were never
+    actually assigned.
     """
     S = _schema()
+    having = ["COUNT(DISTINCT a.source_id) >= 2"]
+    outer_where = []
+    p = {"days": f["days"], "lim": limit}
+
+    if f["beat"] != "all":
+        having.append("MIN(a.beat) = :beat")
+        p["beat"] = f["beat"]
+    if f["size"] in _CLUSTER_SIZE_HAVING:
+        having.append(_CLUSTER_SIZE_HAVING[f["size"]])
+    if f["q"]:
+        outer_where.append(f"""(
+            sc.representative_title ILIKE :q
+            OR EXISTS (
+                 SELECT 1 FROM {S}.articles a2
+                 JOIN {S}.sources s2 ON s2.id = a2.source_id
+                WHERE a2.cluster_id = m.cid
+                  AND a2.suppressed_reason IS NULL
+                  AND (a2.beat ILIKE :q OR s2.name ILIKE :q)
+            )
+        )""")
+        p["q"] = f"%{f['q']}%"
+    if f["median"] != "all":
+        outer_where.append("m.med = :median_ord")
+        p["median_ord"] = _BAND_ORDER.index(f["median"])
+
+    outer_sql = (" AND " + " AND ".join(outer_where)) if outer_where else ""
+    order = _CLUSTER_SORTS[f["sort"]][1]
+
     with _db().begin() as c:
         return c.execute(text(f"""
             WITH m AS (
@@ -3495,6 +3595,7 @@ def _cluster_index_rows(days: int, limit: int = _CLUSTER_LIMIT):
                      COUNT(DISTINCT a.source_id)                          AS outlets,
                      COUNT(DISTINCT a.id)                                 AS articles,
                      MAX(a.published_at)                                  AS last_pub,
+                     MIN(a.published_at)                                  AS first_pub,
                      COUNT(b.band)                                        AS scored,
                      percentile_disc(0.5) WITHIN GROUP (
                        ORDER BY {_BAND_ORD_SQL})                          AS med,
@@ -3506,16 +3607,18 @@ def _cluster_index_rows(days: int, limit: int = _CLUSTER_LIMIT):
                  AND a.cluster_id IS NOT NULL
                  AND a.published_at > NOW() - make_interval(days => :days)
                GROUP BY a.cluster_id
-              HAVING COUNT(DISTINCT a.source_id) >= 2
+              HAVING {' AND '.join(having)}
             )
             SELECT m.cid AS id, m.outlets, m.articles, m.last_pub,
                    m.scored, m.med, m.lo, m.hi,
                    (m.hi - m.lo) AS spread,
+                   (m.last_pub - m.first_pub) AS pickup_span,
                    sc.representative_title, sc.certainty_label
               FROM m JOIN {S}.story_clusters sc ON sc.id = m.cid
-             ORDER BY (m.hi - m.lo) DESC NULLS LAST, m.outlets DESC, m.last_pub DESC
+             WHERE TRUE{outer_sql}
+             ORDER BY {order}
              LIMIT :lim
-        """), {"days": days, "lim": limit}).mappings().all()
+        """), p).mappings().all()
 
 
 def _cluster_index_totals(days: int) -> dict:
@@ -3526,6 +3629,11 @@ def _cluster_index_totals(days: int) -> dict:
     qualify and only 106 of them (19%) show any framing spread at all. A page
     that showed 40 cards each with a different lean pill would imply a
     diversity of framing this corpus does not have.
+
+    Deliberately UNFILTERED (window-only) — this is the corpus-wide honesty
+    message ("most coverage of an event shares one band"), not a per-filter
+    count. `shown` in the template carries how many of the CURRENT filter
+    selection are on screen.
     """
     S = _schema()
     with _db().begin() as c:
@@ -3559,18 +3667,20 @@ def clusters_index():
     only cluster surface was the /cluster/<id> detail page, reachable solely
     from a link on another page.
 
-    Ordered by framing SPREAD, not recency, because spread is the page's whole
-    claim. The ordering is stated on the page rather than left implicit.
+    Ordered by framing SPREAD by default, not recency, because spread is the
+    page's whole claim — but a reader can now change that (`_CLUSTER_SORTS`).
+
+    Filters + sort added #6149 batch 11 (search / beat / size / median-band,
+    named sort directions) — plain GET query params, validated against closed
+    sets in `_cluster_filters`, same house pattern as /archive. DEFERRED: the
+    design mockup's expandable inline per-cluster detail body (per-outlet
+    grid, quote-flip, "why it matters") stays a link-out to /cluster/<id> — a
+    bigger, separate build, not a filter.
     """
     from flask import request as _req
-    try:
-        days = int(_req.args.get("days", 7))
-    except (TypeError, ValueError):
-        days = 7
-    if days not in _CLUSTER_WINDOWS:
-        days = 7
+    f = _cluster_filters(_req.args)
 
-    rows = [dict(r) for r in _cluster_index_rows(days)]
+    rows = [dict(r) for r in _cluster_index_rows(f)]
     for r in rows:
         r["median_band"] = (
             _BAND_ORDER[int(r["med"])] if r["med"] is not None else "center"
@@ -3581,10 +3691,22 @@ def clusters_index():
         r["age_text"] = _age_text(r["last_pub"])
     return render_template("clusters.html",
                            clusters=rows,
-                           totals=_cluster_index_totals(days),
-                           days=days,
+                           totals=_cluster_index_totals(f["days"]),
+                           f=f,
+                           days=f["days"],
                            windows=_CLUSTER_WINDOWS,
-                           shown=len(rows))
+                           # VALID_BEATS literally contains "all" as a member
+                           # (see /news' beat_filter) — excluded here so the
+                           # dropdown's own "Every beat" option isn't doubled.
+                           beats=sorted(VALID_BEATS - {"all"}),
+                           sizes=_CLUSTER_SIZES,
+                           medians=_BAND_ORDER,
+                           shown=len(rows),
+                           url_windows=[(w, _cluster_qs(f, days=w)) for w in _CLUSTER_WINDOWS],
+                           url_sorts=[(k, s[0], _cluster_qs(f, sort=k))
+                                      for k, s in _CLUSTER_SORTS.items()],
+                           url_clear=_cluster_qs({**f, "q": "", "beat": "all",
+                                                  "size": "all", "median": "all"}))
 
 
 _HOME_TOP_N = 5

@@ -170,6 +170,44 @@ def _sha_matches(baked: str, expected: str) -> bool:
     return e.startswith(b) or b.startswith(e)
 
 
+def _path_head_is_ancestor(repo: str, path_head: str, baked: str) -> bool:
+    """True when ``path_head`` (the latest commit touching the product's path) is
+    an ancestor of ``baked`` (the running image's stamped SHA) — i.e. the image
+    contains every change up to path_head, even though it isn't built FROM
+    path_head exactly.
+
+    Why this exists (#6236): a monorepo-subtree product (wtf, media_hub) is
+    stamped with the REPO's HEAD at build time, which is routinely ahead of the
+    last commit that touched the product's own PATH — that's normal, not drift.
+    ``_sha_matches`` alone reported PERMANENT false DRIFT for these products
+    whenever a build happened with repo-HEAD != path-head, even though the image
+    demonstrably contains the product's latest code. Own-repo products (KSO,
+    KBS, the watch products) are immune by construction (their repo HEAD IS
+    their path head), so this call is a no-op for them in practice.
+
+    Uses GitHub's compare API (``behind_by`` counts commits ``baked`` is missing
+    relative to ``path_head`` — 0 means nothing is missing, i.e. path_head is an
+    ancestor). Returns False (drift stands) on any resolution failure: this is a
+    SECONDARY check over two SHAs we already have, not the primary expected-SHA
+    resolution the module's fail-open policy covers — a compare-API hiccup must
+    not silently clear a drift verdict that was otherwise correctly detected.
+    """
+    if not repo or not path_head or not baked:
+        return False
+    url = f"https://api.github.com/repos/{repo}/compare/{path_head}...{baked}"
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "archie-deploy-drift"}
+    token = _gh_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:  # noqa: S310 — GitHub API
+            data = json.loads(r.read().decode())
+            return int(data.get("behind_by", 1)) == 0
+    except Exception:  # noqa: BLE001 — unresolved ⇒ drift verdict stands
+        return False
+
+
 def _baked_sha(url: str) -> str:
     try:
         with urllib.request.urlopen(url, timeout=6) as r:  # noqa: S310 — trusted LAN endpoint
@@ -214,6 +252,8 @@ def check_products() -> list:
         if not expected or baked == "unknown" or baked.startswith("unreachable"):
             status = "fail_open"
         elif _sha_matches(bare, expected):
+            status = "in_sync"
+        elif _path_head_is_ancestor(meta.get("repo"), expected, bare):
             status = "in_sync"
         else:
             status = "drift"

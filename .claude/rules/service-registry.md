@@ -6,7 +6,7 @@
 
 # Service Registry
 
-**Collected**: 2026-08-29 09:17:51 EDT · **Provenance measured**: 2026-08-29 03:40:17 EDT
+**Collected**: 2026-09-03 22:07:36 EDT · **Provenance measured**: 2026-09-03 22:07:36 EDT
 
 49/50 hub containers running · 9 image-baked products · 0 absent.
 
@@ -19,15 +19,15 @@
 
 | Product | Drift | Baked | Expected | Endpoint |
 |---------|-------|-------|----------|----------|
-| `civic_watch` | ⚪ fail_open | `unknown` | `b69e7826f` | http://100.64.0.10:8099/version |
-| `gov_watch` | ⚪ fail_open | `unknown` | `16ac1a048` | http://100.64.0.10:8102/version |
-| `kbs` | ✅ in_sync | `adb49fb23` | `adb49fb23` | http://192.168.1.200:8091/version |
-| `kso` | 🔴 DRIFT | `6da2c50e1` | `e821ce421` | http://192.168.1.200:8085/version |
-| `legal_watch` | ✅ in_sync | `234643e48` | `234643e48` | http://100.64.0.10:8100/version |
-| `market_watch` | ✅ in_sync | `f84dddaaf` | `f84dddaaf` | http://100.64.0.10:8101/version |
-| `media_hub` | 🔴 DRIFT | `49a3fd5ab` | `141decb85` | http://192.168.1.200:8105/version |
-| `wtf_consumer` | 🔴 DRIFT | `d2ada8943` | `330bf9d5c` | http://100.64.0.10:8103/version |
-| `wtf_tech` | 🔴 DRIFT | `45cbe875f` | `330bf9d5c` | http://100.64.0.10:8104/version |
+| `civic_watch` | ⚪ fail_open | `unknown` | `0b185eb3b` | http://100.64.0.10:8099/version |
+| `gov_watch` | ⚪ fail_open | `unknown` | `7188c02ee` | http://100.64.0.10:8102/version |
+| `kbs` | ✅ in_sync | `af99a5421` | `af99a5421` | http://192.168.1.200:8091/version |
+| `kso` | ✅ in_sync | `e163d2f46` | `e163d2f46` | http://192.168.1.200:8085/version |
+| `legal_watch` | ⚪ fail_open | `unknown` | `4c85b6d15` | http://100.64.0.10:8100/version |
+| `market_watch` | ⚪ fail_open | `unknown` | `7b5116ee3` | http://100.64.0.10:8101/version |
+| `media_hub` | ✅ in_sync | `01d894128` | `f4c0fb437` | http://192.168.1.200:8105/version |
+| `wtf_consumer` | ✅ in_sync | `cc2284f77` | `cc2284f77` | http://100.64.0.10:8103/version |
+| `wtf_tech` | ✅ in_sync | `cc2284f77` | `cc2284f77` | http://100.64.0.10:8104/version |
 
 ## Hub containers
 

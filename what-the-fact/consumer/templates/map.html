@@ -29,31 +29,28 @@
 <div class="wtf-team-hero">
   <div class="wtf-team-hero-live">
     <span class="wtf-live-pulse"></span>
-    <span style="font-size:0.7rem;letter-spacing:2px;color:#7fbf7f;">LAST 7 DAYS</span>
+    <span class="wtf-nm-live-label">LAST 7 DAYS</span>
   </div>
-  <h1 style="font-size:1.6rem;">NEWS MAP</h1>
-  <p style="font-size:0.85rem;color:#9ca3af;max-width:680px;margin-top:8px;">
+  <h1 class="wtf-nm-title">NEWS MAP</h1>
+  <p class="wtf-nm-subtitle">
     Where the news happens. Circles sized by article count, on a Lambert
     conformal conic projection — the one Canadian atlases use, so the northern
     territories are not drawn several times their real size.
   </p>
 </div>
 
-{% if is_subscriber %}
-<div style="max-width:1200px;margin:0 auto;padding:8px 16px 24px;">
-  <div id="wtfMap" style="width:100%;height:560px;background:#050d0d;border:1px solid #1a2a3a;border-radius:4px;"></div>
-  <!-- The legend is BUILT FROM THE PINS DRAWN (see drawLegend), not hand-written.
-       A hardcoded list is how this page came to advertise three categories while
-       every pin rendered the same grey: articles.country_code stopped being
-       populated, so nothing was ever Canadian or International again and nobody
-       could see it from the markup. A category with no drawn pins is not shown. -->
-  <div id="wtfMapLegend" class="wtf-nm-legend"></div>
-</div>
-
 <style>
   /* Namespaced wtf-nm-* (news map). Class names are created in JS as well as
      matched here, so a rename must change BOTH — an earlier pass renamed only
-     the CSS and silently unstyled the element. */
+     the CSS and silently unstyled the element.
+     This block sits OUTSIDE the subscriber-only branch on purpose: wtf-nm-live-label
+     / wtf-nm-title / wtf-nm-subtitle style the hero above, which renders for
+     every visitor regardless of subscription status. */
+  .wtf-nm-live-label { font-size:0.7rem; letter-spacing:2px; color:#7fbf7f; }
+  .wtf-nm-title { font-size:1.6rem; }
+  .wtf-nm-subtitle { font-size:0.85rem; color:#9ca3af; max-width:680px; margin-top:8px; }
+  .wtf-nm-container { max-width:1200px; margin:0 auto; padding:8px 16px 24px; }
+  .wtf-nm-mapbox { width:100%; height:560px; background:#050d0d; border:1px solid #1a2a3a; border-radius:4px; }
   .wtf-nm-legend { display:flex; gap:14px; flex-wrap:wrap; align-items:center;
                    margin-top:10px; font-size:.7rem; color:var(--wtf-text-dim,#9ca3af); }
   .wtf-nm-dot { display:inline-block; width:8px; height:8px; border-radius:50%;
@@ -65,6 +62,17 @@
   .wtf-nm-note { flex-basis:100%; color:var(--wtf-text-faint,#6b7280);
                  font-size:.62rem; line-height:1.5; }
 </style>
+
+{% if is_subscriber %}
+<div class="wtf-nm-container">
+  <div id="wtfMap" class="wtf-nm-mapbox"></div>
+  <!-- The legend is BUILT FROM THE PINS DRAWN (see drawLegend), not hand-written.
+       A hardcoded list is how this page came to advertise three categories while
+       every pin rendered the same grey: articles.country_code stopped being
+       populated, so nothing was ever Canadian or International again and nobody
+       could see it from the markup. A category with no drawn pins is not shown. -->
+  <div id="wtfMapLegend" class="wtf-nm-legend"></div>
+</div>
 
 <script src="/static/vendor/internmap.min.js"></script>
 <script src="/static/vendor/d3-array.min.js"></script>

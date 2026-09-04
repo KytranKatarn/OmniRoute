@@ -165,6 +165,7 @@
       <span title="{{ band.upper() }}" class="wtf-nw-bias-dial" aria-label="Bias: {{ band }}">
         <span class="wtf-nw-bias-dot" style="left:{{ _dot_pos }};"></span>
       </span>
+      <span class="wtf-nw-bias-label" style="color:var({{ lean_token(band) }});">{{ band.replace('-', ' ') }}</span>
     </div>
     <a class="wtf-card-title" href="/article/{{ a.id }}" data-news-open="{{ a.id }}">{{ a.title }}</a>
     <div class="wtf-nw-card-badges">
@@ -238,6 +239,7 @@
 .wtf-nw-card-time { color: #555; font-size: 0.65rem; }
 .wtf-nw-bias-dial { display: inline-block; width: 50px; height: 6px; border-radius: 3px; background: linear-gradient(to right,#3b82f6,#94a3b8,#ef4444); position: relative; vertical-align: middle; }
 .wtf-nw-bias-dot { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 2px rgba(0,0,0,0.6); }
+.wtf-nw-bias-label { font-size: 0.5rem; letter-spacing: 0.4px; text-transform: uppercase; margin-left: 4px; vertical-align: middle; }
 .wtf-nw-card-badges { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .wtf-nw-cluster-badge { background: #0a2a3a; color: #0af; border: 1px solid #0af33; text-decoration: none; }
 .wtf-nw-mp-badge { background: #0a1a2a; color: #a78bfa; border: 1px solid #4c1d9544; font-size: 9px; }

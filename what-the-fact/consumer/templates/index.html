@@ -754,7 +754,7 @@ function loadArticleFeed_country(cc) {
         var ago = a.published_at ? ' &middot; <span style="color:#6b7280;">' + esc(timeAgo(a.published_at)) + '</span>' : '';
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
           '<div class="wtf-card-meta"><span>' + src + ' &middot; ' + esc(cc) + ago + '</span>' +
-          (IS_SUBSCRIBER ? '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' : '') + '</div>' +
+          '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' + '</div>' +
           '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a></div>';
       }).join('');
     })
@@ -869,7 +869,7 @@ function loadArticleFeed() {
         }
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
           '<div class="wtf-card-meta"><span>' + src + prov + ago + '</span>' +
-          (IS_SUBSCRIBER ? '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' : '') + '</div>' +
+          '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' + '</div>' +
           '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a>' +
           (badges ? '<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;">' + badges + '</div>' : '') +
           '</div>';

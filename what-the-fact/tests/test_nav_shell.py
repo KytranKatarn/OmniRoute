@@ -94,15 +94,16 @@ def test_every_nav_destination_has_a_route(client):
 
 
 def test_placeholder_routes_are_all_reachable(client):
-    # ⚠️ `races`, `parties` and `methodology` are deliberately ABSENT: all
-    # three graduated to real, DB-backed pages (test_races_pages.py,
-    # test_party_identity.py, test_methodology_page.py). This test asserts
-    # placeholders render with NO database, so a real page listed here fails
-    # on the engine rather than on the view — which is exactly how each
-    # graduation announced itself. Slugs move OUT of this list as they are
-    # built; a slug in both places is the bug.
+    # ⚠️ `races`, `parties`, `methodology` and `creed` are deliberately
+    # ABSENT: all four graduated to real pages (test_races_pages.py,
+    # test_party_identity.py, test_methodology_page.py,
+    # test_creed_page.py). This test asserts placeholders render with NO
+    # database, so a real page listed here fails on the engine rather than
+    # on the view — which is exactly how each graduation announced itself.
+    # Slugs move OUT of this list as they are built; a slug in both places
+    # is the bug.
     for slug in ("platforms", "elections", "global",
-                 "debt", "echo", "creed"):
+                 "debt", "echo"):
         assert client.get(f"/{slug}").status_code == 200, slug
 
 
@@ -110,7 +111,7 @@ def test_a_built_page_is_no_longer_advertised_as_a_placeholder(client):
     """The two sets must stay disjoint. A page that exists while still being
     described as unbuilt tells the reader the opposite of the truth."""
     from consumer.routes import _COMING_SOON
-    for built in ("races", "parties", "methodology"):
+    for built in ("races", "parties", "methodology", "creed"):
         assert built not in _COMING_SOON, built
 
 

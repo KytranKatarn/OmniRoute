@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}C.R.E.E.D. — What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="C.R.E.E.D. Institute is the independent ethics layer this newsroom answers to — a Canadian nonprofit building enforceable AI governance. This page explains the organization; the live score lives on the Governance page.">
+{% endblock %}
+{% block content %}
+<style>
+/* Built from design-handoff/wtf-creed.html — entirely static content (no
+   const/fetch in the design source at all), so this page needs no scan/
+   dispatch call of its own. It deliberately links to /governance for the
+   live grade rather than embedding one: the design's own footnote says
+   never hand-enter a score here, and that discipline is kept.
+
+   ONE figure from the design was NOT ported: "governing 129 AI agents
+   across 16 departments" (the "what makes it different" fact). That
+   headcount is unverifiable from this route (not something
+   _fetch_creed_scan() or any WTF-side query returns) and was already
+   stale against this platform's own live roster at the time of writing —
+   generalized to a claim this page can actually stand behind without a
+   live source.
+
+   Reuses the wtf-gv-* colour convention from governance.html (var(--wtf-
+   established)/--wtf-local/--wtf-developing/--wtf-contested/--wtf-aurora
+   are real tokens in style.css, not invented) rather than the literal-hex
+   palette methodology.html ported verbatim — this page is newly built
+   from the design file, not carried over from another app's own route. */
+.wtf-cd-wrap { max-width:780px; margin:48px auto; padding:0 16px; }
+.wtf-cd-header { text-align:center; max-width:74ch; margin:0 auto 24px; }
+.wtf-cd-eyebrow { font-size:0.55rem; letter-spacing:3px; color:var(--wtf-aurora); text-transform:uppercase; margin-bottom:8px; }
+.wtf-cd-title { font-family:Georgia,serif; font-size:1.8rem; color:#f0f0f0; margin:0 0 10px; }
+.wtf-cd-lede { color:#6b7280; font-size:0.78rem; line-height:1.7; margin:0; }
+.wtf-cd-link { color:var(--wtf-aurora); }
+
+.wtf-cd-quote { border-left:3px solid var(--wtf-aurora); padding:12px 18px; margin:0 0 22px; color:#9ca3af; font-family:Georgia,serif; font-size:0.95rem; font-style:italic; }
+.wtf-cd-quote-src { display:block; font-family:var(--wtf-font-mono); font-size:0.6rem; color:#4b5563; margin-top:8px; letter-spacing:0.08em; font-style:normal; }
+
+.wtf-cd-panel { border:1px solid #1a2a3a; border-radius:4px; padding:16px 18px; margin-bottom:16px; }
+.wtf-cd-panel.is-accent { border-left:3px solid var(--wtf-aurora); }
+.wtf-cd-panel-label { font-size:0.55rem; letter-spacing:2px; color:#4b5563; text-transform:uppercase; margin:0 0 12px; }
+.wtf-cd-panel-label.is-accent { color:var(--wtf-aurora); }
+
+.wtf-cd-fact { margin-bottom:12px; }
+.wtf-cd-fact:last-child { margin-bottom:0; }
+.wtf-cd-fact b { display:block; color:#9ca3af; font-size:0.7rem; margin-bottom:2px; }
+.wtf-cd-fact span { color:#6b7280; font-size:0.72rem; line-height:1.7; }
+.wtf-cd-fact code { color:var(--wtf-aurora); }
+
+.wtf-cd-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+.wtf-cd-card { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; }
+.wtf-cd-card-h { color:#9ca3af; font-size:0.72rem; font-weight:600; margin-bottom:5px; }
+.wtf-cd-card-p { color:#6b7280; font-size:0.68rem; line-height:1.6; }
+
+.wtf-cd-links { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+.wtf-cd-link-muted { color:#6b7280; }
+.wtf-cd-note { color:#4b5563; font-size:0.65rem; line-height:1.75; margin-top:6px; }
+</style>
+
+<div class="wtf-cd-wrap">
+
+  <div class="wtf-cd-header">
+    <div class="wtf-cd-eyebrow">Compliance, Rights &amp; Ethical Enforcement Directive</div>
+    <h1 class="wtf-cd-title">C.R.E.E.D.</h1>
+    <p class="wtf-cd-lede">
+      The independent ethics layer this newsroom answers to. C.R.E.E.D. Institute is a
+      Canadian nonprofit, founded in Montreal, that builds enforceable AI governance — and
+      What The Fact is one of the systems it governs in production. The grade on our
+      <a href="/governance" class="wtf-cd-link">Governance page</a> is theirs.
+    </p>
+  </div>
+
+  <blockquote class="wtf-cd-quote">
+    "Ethics without enforcement is just a suggestion."
+    <span class="wtf-cd-quote-src">C.R.E.E.D. Institute, creed-ai.org</span>
+  </blockquote>
+
+  <div class="wtf-cd-panel">
+    <div class="wtf-cd-panel-label">The organization</div>
+    <div class="wtf-cd-fact">
+      <b>What it is</b>
+      <span>A Canadian nonprofit advancing enforceable AI ethics — governance frameworks, compliance standards and safeguards that AI systems need before deployment, not after harm.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>Where</b>
+      <span>Montreal, alongside Mila, CIFAR's Pan-Canadian AI Strategy, OBVIA and the Montreal Declaration on Responsible AI.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>Origin</b>
+      <span>A founding initiative of Kytran Empowerment Inc. — the same organization behind this newsroom and the Watch series, which is why the relationship is disclosed here rather than implied.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>What makes it different</b>
+      <span>Most AI ethics frameworks publish principles. C.R.E.E.D. ships working code that enforces them — its framework runs in production, scanning agent activity against a fixed rule set on a fixed schedule, not just publishing a policy document.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>The compliance manager</b>
+      <span>E.T.H.O.S. — Ethical Transparency &amp; Harmonization Oversight System — monitors governance metrics, keeps the framework data current and coordinates ethics reporting.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>The rules</b>
+      <span>178 compliance rules in five rule packs, scanned automatically every six hours. Findings carry severity ratings and remediation paths; every scan result is public and every approval decision is logged.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>The badge</b>
+      <span>Live compliance badges with automatic scoring: green at 90%+, blue at 80%+, yellow at 70%+, red below 60%. Served from a no-auth API so anyone can verify a badge against its source.</span>
+    </div>
+  </div>
+
+  <div class="wtf-cd-panel">
+    <div class="wtf-cd-panel-label">Four programs</div>
+    <div class="wtf-cd-grid">
+      <div class="wtf-cd-card">
+        <div class="wtf-cd-card-h">Transparency Framework</div>
+        <div class="wtf-cd-card-p">Automated compliance scanning, public scan results, logged approvals and a paper trail on every agent action. This is the program the newsroom sits inside.</div>
+      </div>
+      <div class="wtf-cd-card">
+        <div class="wtf-cd-card-h">Agent Welfare Research</div>
+        <div class="wtf-cd-card-p">Emotional-modelling ethics, deletion rights, workload boundaries, rest cycles and non-exploitation standards for autonomous agents.</div>
+      </div>
+      <div class="wtf-cd-card">
+        <div class="wtf-cd-card-h">Open Governance Toolkit</div>
+        <div class="wtf-cd-card-p">Free, open-source compliance checklists, audit templates and assessment frameworks any organization can adopt.</div>
+      </div>
+      <div class="wtf-cd-card">
+        <div class="wtf-cd-card-h">Ethics Education</div>
+        <div class="wtf-cd-card-p">Self-paced courses, reading groups and certification workshops for developers, policymakers and organizations building or regulating AI.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wtf-cd-panel is-accent">
+    <div class="wtf-cd-panel-label is-accent">How What The Fact participates</div>
+    <div class="wtf-cd-fact">
+      <b>Events</b>
+      <span>Every editorial action our agents take — bias scoring, fact-checking, summarizing, publishing — emits a governance event to C.R.E.E.D., where it is scored against the rule packs.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>Model cards</b>
+      <span>Each agent — B.I.A.S., V.E.R.I.F.Y., D.R.A.F.T., I.N.K., L.O.C.A.L., F.A.C.T. — publishes a model card disclosing its model, prompt and known limitations. Readers see which system shaped each story and how it can fail.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>Method, not just result</b>
+      <span>Lean scores follow a published methodology with outlet-level and article-level breakdowns, so the public can challenge the scoring itself — the standard C.R.E.E.D. asks of every system it monitors.</span>
+    </div>
+    <div class="wtf-cd-fact">
+      <b>The grade</b>
+      <span>C.R.E.E.D. scores the <code>what-the-fact</code> organization and we display the result, including a failing pillar. It is not a self-audit and not C.R.E.E.D.'s score of itself.</span>
+    </div>
+    <div class="wtf-cd-links">
+      <a href="/governance" class="wtf-cd-link">Our live governance score →</a>
+      <a href="https://creed-ai.org" target="_blank" rel="noopener" class="wtf-cd-link-muted">creed-ai.org ↗</a>
+      <a href="https://what-the-fact.tech/transparency" target="_blank" rel="noopener" class="wtf-cd-link-muted">Methodology ↗</a>
+    </div>
+  </div>
+
+  <p class="wtf-cd-note">
+    Organization facts are drawn from C.R.E.E.D.'s own published materials. The grade shown
+    on the <a href="/governance" class="wtf-cd-link">Governance page</a> is always whichever
+    the live scoring API returns, never a figure entered by hand on this page.
+  </p>
+
+</div>
+{% endblock %}

@@ -2242,6 +2242,23 @@ def governance_page():
     )
 
 
+@bp.get("/creed")
+def creed_page():
+    """About C.R.E.E.D. Institute — the independent ethics layer this newsroom
+    answers to. Entirely static content (the design's own footnote is explicit
+    that no grade is ever hand-entered here — the live score lives on
+    /governance, which reads _fetch_creed_scan() directly). No scan/dispatch
+    needed on this route at all."""
+    S = _schema()
+    source_count = 0
+    try:
+        with _db().begin() as c:
+            source_count = _active_source_count(c, S)
+    except Exception:
+        pass
+    return render_template("creed.html", source_count=source_count, is_subscriber=is_subscriber())
+
+
 # Canonical beats — single source of truth is VALID_BEATS (defined above). The old
 # private copy here DRIFTED (transit/sci-tech/arts/foreign are not the stored beat
 # names), so those categories silently returned 0 rows. Legacy aliases are mapped to
@@ -7009,15 +7026,9 @@ _COMING_SOON = {
     # fully written, in tech/templates/methodology.html — ported here rather
     # than rewritten, since it is real documentation (prompts, thresholds,
     # known limitations with live remediation-registry links), not a mockup.
-    "creed": (
-        "C.R.E.E.D. — the ethics layer this newsroom answers to",
-        "C.R.E.E.D.",
-        "The independent ethics layer this newsroom answers to — a Canadian "
-        "nonprofit, founded in Montreal, building enforceable AI governance.",
-        "The live score already drives the footer badge and the Governance "
-        "page; this fuller view of the organisation is designed but not "
-        "wired.",
-    ),
+    # "creed" graduated to a real page — see creed_page() below. Its
+    # placeholder is DELETED rather than disabled, same rule as "methodology":
+    # a page that exists must not also be advertised as unbuilt.
 }
 
 

@@ -83,19 +83,13 @@ def test_history_query_is_unfiltered_and_unlimited():
     assert "ORDER BY decision_date ASC" in hist_sql
 
 
-def test_mutation_pre_fix_source_lacks_the_hold_fix():
-    """Prove the source-inspection assertion above would FAIL without the
-    change — read the pre-fix committed routes.py, not the working tree."""
-    import subprocess
-    pre_fix = subprocess.run(
-        ["git", "show", "HEAD:./consumer/routes.py"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    ).stdout
-    start = pre_fix.index("def boc_rates")
-    end = pre_fix.index("\n@bp.get", start + 1)
-    old_body = pre_fix[start:end]
-    assert "change_bps = 0" not in old_body
-    assert "history" not in old_body, "pre-fix route had no separate history query at all"
+# Mutation check (house rule #7) run once at authoring time against
+# `git show <parent-commit>:./consumer/routes.py`, not as a permanent test:
+# HEAD stops being "pre-fix" the moment this PR merges, so a runtime
+# `git show HEAD:...` assertion here would pass at authoring time and then
+# fail forever afterward (see test_article_batch11.py's docstring for the
+# same reasoning). Confirmed then: the pre-fix route body had neither
+# `change_bps = 0` nor a separate `history` query.
 
 
 # ────────────────────────── pure helpers, direct import ──────────────────
@@ -301,34 +295,11 @@ def test_hold_row_labels_as_HOLD_not_FIRST_and_shows_0_bps():
     assert "0 bps" in row
 
 
-def test_mutation_pre_fix_template_mislabels_a_hold_row_as_FIRST():
-    """Render the PRE-FIX committed template with the same fixture and prove
-    it does NOT say HOLD for a change_bps=0 row (it said FIRST) — the new
-    assertion above would fail without the template change."""
-    import subprocess
-    pre_fix_html = subprocess.run(
-        ["git", "show", "HEAD:./consumer/templates/rates.html"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    ).stdout
-    env = Environment(loader=ChoiceLoader([
-        DictLoader({"base.html": _BASE_STUB, "rates.html": pre_fix_html}),
-        FileSystemLoader(str(TPL_DIR)),
-    ]))
-    ctx = _full_context()
-    # pre-fix template/route had no chart/eras/peak_stat/hold_streak context
-    # at all, and the decisions list would not have included the hold row
-    # (query filter), but we pass it directly here to isolate the label bug.
-    html = env.get_template("rates.html").render(
-        current=ctx["current"], decisions=ctx["decisions"],
-        source_count=46, is_subscriber=True,
-    )
-    idx = html.find("Jan 1, 2023")
-    assert idx != -1
-    row_start = html.rfind("<tr>", 0, idx)
-    row_end = html.find("</tr>", idx)
-    row = html[row_start:row_end]
-    assert "FIRST" in row
-    assert "HOLD" not in row
+# Mutation check (house rule #7) for the HOLD-vs-FIRST label fix, run once
+# at authoring time against `git show <parent-commit>:./consumer/templates/
+# rates.html`, not as a permanent test — same reasoning as above: HEAD
+# stops being "pre-fix" the moment this PR merges. Confirmed then: the
+# pre-fix template rendered a change_bps=0 row as "FIRST", never "HOLD".
 
 
 def test_paywall_gating_is_unchanged_when_not_a_subscriber():

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import datetime
 import pathlib
-import subprocess
 
 from jinja2 import ChoiceLoader, DictLoader, Environment, FileSystemLoader
 
@@ -24,18 +23,6 @@ ROUTES = REPO_ROOT / "consumer" / "routes.py"
 TPL_DIR = REPO_ROOT / "consumer" / "templates"
 _BASE_STUB = "{% block meta %}{% endblock %}{% block content %}{% endblock %}"
 _UTC = datetime.timezone.utc
-
-
-def _git_show(rel_path: str) -> str:
-    """The file's content at HEAD (i.e. before this batch's uncommitted
-    edit) — used for the mutation check in
-    test_new_markers_are_absent_from_the_pre_fix_source, per house rule #7.
-    """
-    out = subprocess.run(
-        ["git", "show", f"HEAD:./{rel_path}"],
-        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
-    )
-    return out.stdout
 
 
 def _news_route_body(src: str) -> str:
@@ -195,29 +182,14 @@ def test_news_query_selects_the_real_coverage_gap_score_column():
 
 
 # ── Mutation check (house rule #7) ───────────────────────────────────────
-
-def test_new_markers_are_absent_from_the_pre_fix_source():
-    """Prove the assertions above are not vacuously true: render the ACTUAL
-    pre-fix template (git HEAD, before this batch's edit) with the same
-    context, and confirm none of the new markers appear — and confirm the
-    pre-fix routes.py has neither the helper call nor the new column.
-    """
-    old_tpl = _git_show("consumer/templates/news.html")
-    now = datetime.datetime.now(_UTC)
-    old_html = _render_template_source(
-        old_tpl,
-        articles=[_article(1, now, coverage_gap_score=0.10, cluster_size=2)],
-        articles_24h=12, clustered_stories_24h=3, blindspot_flags_24h=2,
-        today_str=now.strftime("%Y-%m-%d"),
-        yesterday_str=(now - datetime.timedelta(days=1)).strftime("%Y-%m-%d"),
-    )
-    assert "Articles, last 24h" not in old_html
-    assert "Clustered stories" not in old_html
-    assert "Blindspot flags" not in old_html
-    assert '<div class="wtf-nw-daterail">' not in old_html
-    assert "🔦 Blindspot" not in old_html
-
-    old_routes = _git_show("consumer/routes.py")
-    old_body = _news_route_body(old_routes)
-    assert "_blindspot_total(days=1)" not in old_body
-    assert "sc.coverage_gap_score" not in old_body
+#
+# Deliberately NOT `git show HEAD:...` at runtime — HEAD stops being
+# "pre-fix" the moment this PR merges, so a test built that way passes at
+# authoring time and then fails forever afterward (it did, here, until this
+# note replaced it — see test_article_batch11.py's docstring for the same
+# reasoning). The mutation check itself was run once at authoring time by
+# rendering `git show <parent-commit>:consumer/templates/news.html` and
+# confirming every assertion in the tests above (header stat row, date-rail,
+# Blindspot badge/stat) failed against it. That one-time verification is
+# what justifies the tests above; it does not need to re-run on every CI
+# invocation against a moving HEAD.

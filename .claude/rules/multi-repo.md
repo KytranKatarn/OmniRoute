@@ -96,8 +96,14 @@ missing credential. The tokens live in the `archie_platform` container.
 
   | repo | write token |
   |---|---|
-  | `archie-platform`, `archie-code`, `kytran-system-operations`, `kytran-creed` | **push + admin** |
+  | `archie-platform`, `archie-code`, `kytran-system-operations`, `kytran-creed`, `kytran-what-the-fact` | **push + admin** |
   | the 4 watch repos, `kytran-business-suite` | 404 — no access |
+
+  `kytran-what-the-fact` added 2026-09-05 — Kytran manually added it to the fine-grained PAT's
+  repository allowlist (no API exists for that step) and it was verified live the same way:
+  `admin: true, push: true` on the real token. Not yet in `GITHUB_REPOS`, so it isn't
+  auto-polled — review it explicitly via `review_pr(<pr>, repo="KytranKatarn/kytran-what-the-fact")`
+  until/unless it's added to the poll list, same as KBS/creed/KSO below.
 
   So "human-merge-only" holds for the **watch products and KBS** — but NOT for archie-code, KSO or
   creed, where the token can merge and administer. **Never reason about merge safety from assumed

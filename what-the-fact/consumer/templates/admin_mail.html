@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Admin Mail — What The Fact (admin){% endblock %}
+{% block meta %}<meta name="robots" content="noindex,nofollow">{% endblock %}
+{% block content %}
+<div class="am-wrap">
+  <div class="am-head">
+    <div class="am-eyebrow">WHAT THE FACT · ADMIN · CITADEL-RESIDENT</div>
+    <h1 class="am-title">Mail Dashboard</h1>
+    <p class="am-sub">Reads and sends the 5 what-the-fact.com business mailboxes directly over
+      Hostinger IMAP/SMTP — independent of the Hub, so mail keeps working through a Hub outage.
+      Read-only fetch (never marks messages seen); sending is always an explicit action.</p>
+  </div>
+
+  <div class="am-tabs" id="amTabs">
+    {% for box in boxes %}
+    <button class="am-tab" data-box="{{ box }}">{{ box }}<span class="am-badge" id="amBadge-{{ box }}"></span></button>
+    {% endfor %}
+  </div>
+  <div class="am-status" id="amStatus"></div>
+
+  <div class="am-body">
+    <div class="am-list" id="amList">
+      <div class="am-empty">Select a mailbox above.</div>
+    </div>
+    <div class="am-read" id="amRead">
+      <div class="am-empty">Select a message to read it.</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .am-wrap{max-width:1080px;margin:38px auto 64px;padding:0 16px;}
+  .am-eyebrow{font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;}
+  .am-title{font-family:'Orbitron',sans-serif;font-size:1.5rem;color:#e5e7eb;margin:0 0 8px;}
+  .am-sub{font-size:0.8rem;color:#9ca3af;line-height:1.6;max-width:760px;margin:0;}
+  .am-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 8px;}
+  .am-tab{background:#0a0f1a;border:1px solid #1f2937;color:#9ca3af;padding:8px 16px;border-radius:5px;
+    cursor:pointer;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;position:relative;}
+  .am-tab.active{border-color:#06b6d4;color:#e5e7eb;}
+  .am-badge{margin-left:8px;font-size:0.68rem;color:#f59e0b;}
+  .am-status{font-size:0.7rem;color:#6b7280;min-height:1.2em;margin-bottom:14px;}
+  .am-status.err{color:#f87171;}
+  .am-body{display:grid;grid-template-columns:minmax(260px,340px) 1fr;gap:16px;}
+  @media (max-width:768px){.am-body{grid-template-columns:1fr;}}
+  .am-list,.am-read{background:#0a0f1a;border:1px solid #1a2030;border-radius:6px;padding:10px;min-height:320px;}
+  .am-empty{color:#6b7280;font-size:0.78rem;padding:14px 6px;}
+  .am-msg{padding:9px 8px;border-radius:4px;cursor:pointer;border-bottom:1px solid #12172400;}
+  .am-msg:hover{background:#111826;}
+  .am-msg.unread .am-msg-subject{color:#e5e7eb;font-weight:600;}
+  .am-msg.selected{background:#0f2a33;}
+  .am-msg-subject{font-size:0.82rem;color:#c3c9d3;display:block;}
+  .am-msg-meta{font-size:0.62rem;color:#6b7280;text-transform:uppercase;letter-spacing:0.4px;display:block;margin-top:2px;}
+  .am-read-head{border-bottom:1px solid #1a2030;padding-bottom:10px;margin-bottom:10px;}
+  .am-read-subject{font-size:1rem;color:#e5e7eb;margin:0 0 6px;}
+  .am-read-meta{font-size:0.7rem;color:#8b95a5;}
+  .am-read-body{white-space:pre-wrap;font-size:0.85rem;line-height:1.6;color:#c3c9d3;max-height:420px;overflow-y:auto;}
+  .am-reply{margin-top:16px;border-top:1px solid #1a2030;padding-top:14px;}
+  .am-reply input,.am-reply textarea{width:100%;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;
+    padding:8px 10px;border-radius:5px;font-size:0.8rem;margin-bottom:8px;box-sizing:border-box;font-family:inherit;}
+  .am-reply textarea{min-height:120px;resize:vertical;}
+  .am-reply-actions{display:flex;align-items:center;gap:10px;}
+  .am-btn{background:var(--wtf-accent,#06b6d4);color:#fff;border:none;padding:8px 18px;border-radius:5px;
+    cursor:pointer;font-size:0.78rem;}
+  .am-btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .am-ai-soon{font-size:0.66rem;color:#4b5563;border:1px dashed #2a3140;border-radius:4px;padding:4px 10px;
+    text-transform:uppercase;letter-spacing:0.5px;}
+  .am-msg:focus,.am-msg:focus-visible{outline:2px solid var(--wtf-accent,#06b6d4);outline-offset:-2px;}
+  .am-reply-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+    clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+</style>
+
+<script>
+(function(){
+  var state = { box: null, uid: null, messages: [] };
+
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function setStatus(msg, isErr){
+    var s = document.getElementById('amStatus');
+    s.textContent = msg || '';
+    s.className = 'am-status' + (isErr ? ' err' : '');
+  }
+
+  function api(path){
+    return fetch(path, { credentials: 'same-origin' }).then(function(r){
+      return r.json().then(function(body){ return { ok: r.ok, status: r.status, body: body }; });
+    });
+  }
+
+  function loadStatus(){
+    api('/admin/mail/api/status').then(function(res){
+      if (!res.ok) { setStatus('status: ' + (res.body.error || res.status), true); return; }
+      (res.body.mailboxes || []).forEach(function(row){
+        var b = document.getElementById('amBadge-' + row.key);
+        if (!b) return;
+        if (row.error) { b.textContent = '!'; b.title = row.error; }
+        else if (row.unseen) { b.textContent = row.unseen; b.title = row.unseen + ' unread'; }
+        else { b.textContent = ''; b.title = ''; }
+      });
+    }).catch(function(e){ setStatus('status check failed: ' + e, true); });
+  }
+
+  function renderList(){
+    var list = document.getElementById('amList');
+    list.textContent = '';
+    if (!state.messages.length){
+      list.appendChild(el('div', 'am-empty', 'No messages.'));
+      return;
+    }
+    state.messages.forEach(function(m){
+      var row = el('div', 'am-msg' + (m.seen ? '' : ' unread') + (m.uid === state.uid ? ' selected' : ''));
+      var subjectText = m.subject || '(no subject)';
+      var metaText = (m.from || '') + ' · ' + (m.date || '');
+      row.setAttribute('tabindex', '0');
+      row.setAttribute('role', 'button');
+      row.setAttribute('aria-label', subjectText + ', ' + metaText + (m.seen ? '' : ', unread'));
+      row.appendChild(el('span', 'am-msg-subject', m.subject));
+      row.appendChild(el('span', 'am-msg-meta', metaText));
+      var activate = function(){ selectMessage(m.uid); };
+      row.addEventListener('click', activate);
+      row.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+          e.preventDefault();
+          activate();
+        }
+      });
+      list.appendChild(row);
+    });
+  }
+
+  function selectBox(box){
+    state.box = box; state.uid = null; state.messages = [];
+    document.querySelectorAll('.am-tab').forEach(function(t){
+      t.classList.toggle('active', t.getAttribute('data-box') === box);
+    });
+    document.getElementById('amRead').textContent = '';
+    document.getElementById('amRead').appendChild(el('div', 'am-empty', 'Select a message to read it.'));
+    setStatus('loading inbox…');
+    api('/admin/mail/api/inbox?box=' + encodeURIComponent(box) + '&limit=50').then(function(res){
+      if (!res.ok) { setStatus('inbox: ' + (res.body.error || res.status), true); return; }
+      state.messages = res.body.messages || [];
+      setStatus(state.messages.length + ' messages');
+      renderList();
+    }).catch(function(e){ setStatus('inbox load failed: ' + e, true); });
+  }
+
+  function selectMessage(uid){
+    state.uid = uid;
+    renderList();
+    var pane = document.getElementById('amRead');
+    pane.textContent = '';
+    pane.appendChild(el('div', 'am-empty', 'Loading…'));
+    api('/admin/mail/api/message?box=' + encodeURIComponent(state.box) + '&uid=' + encodeURIComponent(uid)).then(function(res){
+      pane.textContent = '';
+      if (!res.ok) { pane.appendChild(el('div', 'am-empty', 'Could not load message: ' + (res.body.error || res.status))); return; }
+      renderMessage(pane, res.body);
+    }).catch(function(e){ pane.textContent = ''; pane.appendChild(el('div', 'am-empty', 'Load failed: ' + e)); });
+  }
+
+  function renderMessage(pane, msg){
+    var head = el('div', 'am-read-head');
+    head.appendChild(el('h2', 'am-read-subject', msg.subject));
+    var meta = el('div', 'am-read-meta');
+    meta.appendChild(document.createTextNode('From: '));
+    meta.appendChild(el('span', null, msg.from));
+    meta.appendChild(document.createElement('br'));
+    meta.appendChild(document.createTextNode('To: '));
+    meta.appendChild(el('span', null, msg.to));
+    meta.appendChild(document.createElement('br'));
+    meta.appendChild(document.createTextNode('Date: '));
+    meta.appendChild(el('span', null, msg.date || ''));
+    head.appendChild(meta);
+    pane.appendChild(head);
+
+    // Message body is untrusted external content — ALWAYS textContent, never innerHTML.
+    pane.appendChild(el('div', 'am-read-body', msg.body || '(empty)'));
+
+    var reply = el('div', 'am-reply');
+
+    var toLabel = el('label', 'am-reply-label', 'To');
+    toLabel.setAttribute('for', 'amReplyTo');
+    var toInput = document.createElement('input');
+    toInput.type = 'email'; toInput.id = 'amReplyTo';
+    toInput.placeholder = 'To'; toInput.value = extractReplyAddress(msg.from);
+
+    var subjLabel = el('label', 'am-reply-label', 'Subject');
+    subjLabel.setAttribute('for', 'amReplySubject');
+    var subjInput = document.createElement('input');
+    subjInput.type = 'text'; subjInput.id = 'amReplySubject'; subjInput.placeholder = 'Subject';
+    subjInput.value = /^re:/i.test(msg.subject || '') ? msg.subject : ('Re: ' + (msg.subject || ''));
+
+    var bodyLabel = el('label', 'am-reply-label', 'Reply body');
+    bodyLabel.setAttribute('for', 'amReplyBody');
+    var bodyInput = document.createElement('textarea');
+    bodyInput.id = 'amReplyBody'; bodyInput.placeholder = 'Reply body…';
+
+    reply.appendChild(toLabel);
+    reply.appendChild(toInput);
+    reply.appendChild(subjLabel);
+    reply.appendChild(subjInput);
+    reply.appendChild(bodyLabel);
+    reply.appendChild(bodyInput);
+
+    var actions = el('div', 'am-reply-actions');
+    var sendBtn = el('button', 'am-btn', 'Send');
+    var sendStatus = el('span', 'am-status');
+    actions.appendChild(sendBtn);
+    actions.appendChild(el('span', 'am-ai-soon', 'AI assist (coming soon)'));
+    actions.appendChild(sendStatus);
+    reply.appendChild(actions);
+    pane.appendChild(reply);
+
+    sendBtn.addEventListener('click', function(){
+      sendBtn.disabled = true;
+      sendStatus.textContent = 'sending…';
+      fetch('/admin/mail/api/send', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          box: state.box, uid: msg.uid,
+          to: toInput.value, subject: subjInput.value, body: bodyInput.value
+        })
+      }).then(function(r){ return r.json().then(function(b){ return {ok:r.ok, body:b}; }); })
+        .then(function(res){
+          sendBtn.disabled = false;
+          if (res.ok && res.body.sent) { sendStatus.textContent = 'sent'; bodyInput.value = ''; }
+          else { sendStatus.textContent = 'failed: ' + (res.body.error || 'unknown error'); }
+        }).catch(function(e){ sendBtn.disabled = false; sendStatus.textContent = 'failed: ' + e; });
+    });
+  }
+
+  function extractReplyAddress(fromHeader){
+    if (!fromHeader) return '';
+    var m = /<([^>]+)>/.exec(fromHeader);
+    return m ? m[1] : fromHeader.trim();
+  }
+
+  document.querySelectorAll('.am-tab').forEach(function(t){
+    t.addEventListener('click', function(){ selectBox(t.getAttribute('data-box')); });
+  });
+
+  loadStatus();
+})();
+</script>
+{% endblock %}

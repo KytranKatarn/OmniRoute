@@ -68,6 +68,11 @@ def create_app():
     # "What Parliament Costs Canadians" cost API — public, read-only, cached (Phase 1: MPs, #348)
     from .cost_routes import cost_bp
     app.register_blueprint(cost_bp)
+    # Admin Mail Dashboard — Citadel-resident IMAP/SMTP reader for the 5 business
+    # mailboxes, so mail keeps working through a Hub outage. HTTP Basic-gated
+    # (see admin_mail.py) — deliberately independent of the Hub login / OAuth.
+    from .admin_mail import admin_mail_bp
+    app.register_blueprint(admin_mail_bp)
 
     @app.route("/version")
     def version():

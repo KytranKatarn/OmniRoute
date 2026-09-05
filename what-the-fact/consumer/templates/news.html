@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall, lean_token %}
+{% from "_archetypes.html" import paywall, lean_token, stat_tiles %}
 {% block title %}Latest News — What The Fact{% endblock %}
 {% block content %}
 
@@ -11,6 +11,21 @@
   <h1 class="wtf-nw-h1">LATEST NEWS</h1>
   <p>{{ total }} articles from {{ source_count }} Canadian sources — sorted by most recent.</p>
 </div>
+
+{# Header stat row (design handoff #6149 phase 4 / task #16 slice 1) — all
+   four figures come straight from news() in routes.py: the first three are
+   feed-health vitals computed alongside source_count above (unfiltered by
+   the band/province/beat/scope/riding chips below, same reasoning as that
+   count), and Blindspot flags is the /blindspot page's OWN _blindspot_total()
+   helper — same threshold, so this page can never disagree with /blindspot
+   about what counts as one. Reuses the shared stat_tiles() archetype macro
+   (no new CSS). #}
+{{ stat_tiles([
+  {"label": "Articles, last 24h", "value": articles_24h},
+  {"label": "Sources in feed", "value": source_count},
+  {"label": "Clustered stories", "value": clustered_stories_24h},
+  {"label": "Blindspot flags", "value": blindspot_flags_24h},
+]) }}
 
 <!-- Source bar -->
 <div class="wtf-nw-srcbar">
@@ -155,7 +170,26 @@
   {% endif %}
 
   <div id="wtf-news-feed">
+  {# Date-rail headers (design handoff #6149 phase 4 / task #16 slice 1) —
+     one rail per calendar day change, comparing each article's OWN
+     published_at (un-converted, same value the time badge below prints) to
+     today_str/yesterday_str computed once in routes.py. `ns.last_day` is a
+     Jinja namespace so the "day changed" check survives across for-loop
+     iterations (a plain {% set %} would rescope every pass). Articles with
+     no published_at (should not occur on this feed, but the time badge
+     below already guards it) never open a rail. #}
+  {% set ns = namespace(last_day=None) %}
   {% for a in articles %}
+  {% set _day = a.published_at.strftime('%Y-%m-%d') if a.published_at else None %}
+  {% if _day and _day != ns.last_day %}
+  {% set ns.last_day = _day %}
+  <div class="wtf-nw-daterail">
+    {% if _day == today_str %}Today
+    {% elif _day == yesterday_str %}Yesterday
+    {% else %}{{ a.published_at.strftime('%b %d, %Y') }}
+    {% endif %}
+  </div>
+  {% endif %}
   {% set band = (a.band or 'center') | replace(' ', '-') %}
   <div class="wtf-article-card wtf-article-card--{{ band }}" data-article-id="{{ a.id }}">
     <div class="wtf-card-meta">
@@ -179,6 +213,14 @@
       {% endif %}
       {% if a.mp_mentions %}
       <span class="wtf-card-badge wtf-nw-mp-badge" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
+      {% endif %}
+      {# Blindspot flag — SAME condition /blindspot's own _blindspot_rows()
+         applies (coverage_gap_score in (0, 0.15], cluster_size >= 2), just
+         evaluated per-card here instead of as a separate page. Reuses the
+         column news() already added to this query's own JOIN on
+         story_clusters — no new query, no new signal, no fabrication. #}
+      {% if a.coverage_gap_score is not none and a.coverage_gap_score > 0 and a.coverage_gap_score <= 0.15 and a.cluster_size and a.cluster_size >= 2 %}
+      <a href="/blindspot" class="wtf-card-badge" style="background:#f9731615;color:#f97316;border:1px solid #f9731633;" title="Covered by only {{ a.cluster_size }} outlet{{ 's' if a.cluster_size != 1 }} while most of the tracked press stayed silent on it.">🔦 Blindspot</a>
       {% endif %}
       {% if a.overall_verdict and a.overall_verdict != 'descriptive_reporting' %}
       {# Positive set widened (#4898 tuning): the checker emits variants like
@@ -245,6 +287,13 @@
 .wtf-nw-mp-badge { background: #0a1a2a; color: #a78bfa; border: 1px solid #4c1d9544; font-size: 9px; }
 .wtf-nw-pager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px 0; }
 .wtf-nw-pager-label { color: #6b7280; font-size: 0.7rem; }
+
+/* ── Date-rail headers (design handoff #6149 phase 4 / task #16 slice 1) ── */
+.wtf-nw-daterail {
+  color: #6b7280; font-size: 0.62rem; letter-spacing: 2px; text-transform: uppercase;
+  padding: 14px 0 6px; margin-top: 4px; border-top: 1px solid #161d29;
+}
+.wtf-nw-daterail:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 
 .wtf-act-filter {
   background: #0a0f1a; border: 1px solid #1a2a3a; color: #6b7280;

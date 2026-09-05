@@ -472,11 +472,26 @@ def news():
         return Response("Faceted /news is busy — retry shortly, or browse /news unfiltered.",
                         429, {"Retry-After": "60"})
 
+    # Date-rail headers (design handoff #6149 phase 4 / task #16 slice 1) —
+    # grouped against the SAME raw published_at values this page already
+    # renders unmodified in the per-card time badge below. This app registers
+    # NO custom Jinja filters (there is no |localtime here — see
+    # module-capability-index.md's "Consumer pages added 2026-09-02" note),
+    # so "Today"/"Yesterday" are derived in that same un-converted frame,
+    # never a separately-converted one, so a rail boundary always lines up
+    # with the timestamp printed on the card beside it. Computed fresh on
+    # every request (cheap, no DB hit) — not cached, since "today" changes at
+    # midnight regardless of the 60s article cache below.
+    _now_utc = datetime.datetime.now(datetime.timezone.utc)
+    today_str = _now_utc.strftime("%Y-%m-%d")
+    yesterday_str = (_now_utc - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
         (source_count, total, rows, sources, ridings, band_mix,
-         band_facets, province_facets, beat_facets, scope_facets) = _cached
+         band_facets, province_facets, beat_facets, scope_facets,
+         articles_24h, clustered_stories_24h, blindspot_flags_24h) = _cached
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
         return render_template("news.html", articles=rows, source_count=source_count,
                                total=total, page=page, total_pages=total_pages,
@@ -488,6 +503,10 @@ def news():
                                band_mix=band_mix, band_facets=band_facets,
                                province_facets=province_facets, beat_facets=beat_facets,
                                scope_facets=scope_facets,
+                               articles_24h=articles_24h,
+                               clustered_stories_24h=clustered_stories_24h,
+                               blindspot_flags_24h=blindspot_flags_24h,
+                               today_str=today_str, yesterday_str=yesterday_str,
                                is_subscriber=is_subscriber())
 
     with _db().begin() as c:
@@ -496,6 +515,22 @@ def news():
         # the rewrite below). Transaction-scoped, read-only-safe. #5719
         c.execute(text("SET LOCAL jit = off"))
         source_count = _active_source_count(c, S)
+
+        # Header stat row (design handoff #6149 phase 4 / task #16 slice 1).
+        # Deliberately UNFILTERED by band/province/beat/scope/riding — these
+        # are feed-health vitals, not a count of the current selection (same
+        # framing as source_count above, which is likewise filter-independent).
+        articles_24h = c.execute(text(f"""
+            SELECT COUNT(*) FROM {S}.articles a
+            WHERE a.suppressed_reason IS NULL
+              AND a.published_at >= NOW() - INTERVAL '24 hours'
+        """)).scalar() or 0
+        clustered_stories_24h = c.execute(text(f"""
+            SELECT COUNT(*) FROM {S}.story_clusters sc
+            WHERE sc.article_count >= 2
+              AND sc.latest_published_at >= NOW() - INTERVAL '24 hours'
+        """)).scalar() or 0
+
         params = {}
         # Keyed by axis so a per-axis facet WHERE ("every filter except this
         # one") is a one-line dict comprehension instead of a hand-picked
@@ -659,6 +694,7 @@ def news():
                    s.name AS source, p.source_id, p.band, p.ai_analyzed,
                    p.province_code, p.beat, p.geo_scope,
                    p.cluster_id, sc.article_count AS cluster_size,
+                   sc.coverage_gap_score,
                    fc.overall_verdict,
                    (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
                     FROM {S}.article_mp_tags tg
@@ -712,8 +748,15 @@ def news():
         ridings = [dict(r) for r in riding_rows]
 
     sources = [dict(s) for s in sources]
+    # Blindspot flags (design handoff #6149 phase 4 / task #16 slice 1) —
+    # reuses the /blindspot page's OWN helper verbatim (same threshold, same
+    # query shape) so the two pages can never disagree about what counts as
+    # a blind spot; see _blindspot_total()'s docstring below in this file.
+    # days=1 matches the "last 24h" framing of the other three stats above.
+    blindspot_flags_24h = _blindspot_total(days=1)
     _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix,
-                          band_facets, province_facets, beat_facets, scope_facets))
+                          band_facets, province_facets, beat_facets, scope_facets,
+                          articles_24h, clustered_stories_24h, blindspot_flags_24h))
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
@@ -725,6 +768,10 @@ def news():
                            band_mix=band_mix, band_facets=band_facets,
                            province_facets=province_facets, beat_facets=beat_facets,
                            scope_facets=scope_facets,
+                           articles_24h=articles_24h,
+                           clustered_stories_24h=clustered_stories_24h,
+                           blindspot_flags_24h=blindspot_flags_24h,
+                           today_str=today_str, yesterday_str=yesterday_str,
                            is_subscriber=is_subscriber())
 
 

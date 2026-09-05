@@ -21,18 +21,29 @@ a write token, and the full merge pipeline, which the standalone watch repos do 
 | Ingest, clustering, scoring | `what-the-fact/ingest/` |
 | Migrations | `what-the-fact/migrations/` |
 
-🔴 **`KytranKatarn/what-the-fact-site` is NOT the app.** It is the pre-app static marketing
-page (`website/what-the-fact.com/`, 5 files, last touched 2026-04-14), per the `*-site` naming
-convention. `what-the-fact.com` resolves to Citadel and is served by the **Flask app**, so that
-repo serves nothing. Pointing a coding agent at it means editing a dead repo.
+🟢 **`KytranKatarn/what-the-fact-site` naming trap — RESOLVED 2026-09-02 (task #6255,
+completed).** It is the pre-app static marketing page (`website/what-the-fact.com/`, 5 files,
+last touched 2026-04-14), per the `*-site` naming convention. `what-the-fact.com` resolves to
+Citadel and is served by the **Flask app**, so that repo serves nothing — but its README used
+to open with *"Official website for What The Fact"* and claim it was "hosted on Hostinger at
+what-the-fact.com", both false. A Claude Design session was connected to it for an entire WTF
+newsroom review, found no app, and had to work from the deployed site by hand instead (2026-09-01).
+The repo was actively misleading, not merely stale — a rules-file note alone was never going to
+fix it, since no external tool reads `.claude/rules/`.
 
-🔴 **CORRECTION 2026-09-02: this did NOT "nearly" happen — it HAPPENED.** A Claude Design
-session was connected to `what-the-fact-site` for the whole WTF newsroom review. Design caught
-it themselves ("this repo is the April 2026 'Coming Soon' landing page, NOT the live product")
-and worked off the live site by hand instead — so the 39-page handoff is sound, but it cost
-them the codebase and they could not push. **The bait is the README**: that repo's first line
-calls itself the *"Official website for What The Fact"*. The repo is actively misleading, not
-merely stale. Retire-or-repoint is task **#6255**.
+**Fix (commit `7b76059`, verified live via the GitHub API): the README was rewritten** with an
+unmissable "this is NOT the website" banner + a pointer to what-the-fact.com, and **the repo was
+formally archived on GitHub** (`isArchived: true` — read-only + GitHub's own banner). It
+deliberately does not name the private `archie-platform` repo; that pointer lives in
+`what-the-fact/.design-sync/conventions.md` (ships with the design-sync bundle, reaching external
+design tooling) and here. Confirmed both false claims are gone and the archive flag is live —
+re-verify with `gh repo view KytranKatarn/what-the-fact-site --json isArchived,pushedAt` before
+trusting this note, per the file's own regeneration discipline.
+
+**Not addressed by this fix, still sitting untouched (no owner decision on record):** the LOCAL
+`website/what-the-fact.com/` copy inside `archie-platform` (same 5 files, last commit 2026-04-14,
+git-clean). It isn't misleading anyone the way the GitHub repo was, but it is a real marketing
+asset — **do not delete it without an explicit owner decision.**
 
 **Point a design/coding agent at `KytranKatarn/archie-platform`, path `what-the-fact/`.**
 Now also stated in `what-the-fact/.design-sync/conventions.md`, which ships as the design-sync

@@ -102,6 +102,43 @@ services:
       # own blueprint gated by X-Internal-Key and is NOT rate-limited.
       WTF_GUNICORN_WORKERS: ${WTF_INGEST_API_WORKERS:-2}
 
+  # WTF's own dedicated Postgres instance (task: DB separation from the hub, 2026-09-05).
+  # Provisioned empty; populated via a one-time pg_dump/restore from the hub's "wtf"
+  # database, then the 4 services above are cut over to WTF_DATABASE_URL pointing here.
+  # Until that cutover, this container exists but nothing points at it yet.
+  wtf-postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    shm_size: 512m
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+      - /var/run/postgresql:size=16m
+      - /var/log:size=64m
+    mem_limit: 2g
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    environment:
+      TZ: America/Toronto
+      POSTGRES_USER: wtfuser
+      POSTGRES_PASSWORD_FILE: /run/secrets/wtf_db_password
+      POSTGRES_DB: wtf
+      POSTGRES_HOST_AUTH_METHOD: md5
+    secrets:
+      - wtf_db_password
+    volumes:
+      - wtf_pg_data:/var/lib/postgresql/data
+    networks: [default]
+    # Same stale-postmaster.pid guard as the hub's archie_database (power-cut safe restart).
+    entrypoint: ["/bin/bash", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec /usr/local/bin/docker-entrypoint.sh \"$@\"", "--"]
+
   wtf-tech:
     build:
       context: .
@@ -128,8 +165,13 @@ services:
 volumes:
   wtf_billing_data:
   hf_cache:
+  wtf_pg_data:
 
 networks:
   archie_net:
     external: true
     name: archie-outpost_archie_net
+
+secrets:
+  wtf_db_password:
+    file: ./secrets/wtf_db_password.txt

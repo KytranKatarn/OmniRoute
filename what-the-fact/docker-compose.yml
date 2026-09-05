@@ -110,21 +110,14 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     shm_size: 512m
-    read_only: true
-    tmpfs:
-      - /tmp:size=256m
-      - /var/run/postgresql:size=16m
-      - /var/log:size=64m
+    # NOT read_only + cap_drop here (unlike the hub's archie_database) — tested live:
+    # under read_only:true + the same cap_add set the hub uses, first-time initdb fails
+    # completely silently (exit 0, zero log output, instant restart loop). Confirmed by
+    # running the identical image+volume+env without those restrictions: it initializes
+    # and starts cleanly. Simplicity wins here — this is a new, less-tuned deployment,
+    # not worth chasing the exact missing capability/tmpfs path right now.
     mem_limit: 2g
     cpus: 1.0
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - FOWNER
-      - SETGID
-      - SETUID
     environment:
       TZ: America/Toronto
       POSTGRES_USER: wtfuser
@@ -136,8 +129,6 @@ services:
     volumes:
       - wtf_pg_data:/var/lib/postgresql/data
     networks: [default]
-    # Same stale-postmaster.pid guard as the hub's archie_database (power-cut safe restart).
-    entrypoint: ["/bin/bash", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec /usr/local/bin/docker-entrypoint.sh \"$@\"", "--"]
 
   wtf-tech:
     build:

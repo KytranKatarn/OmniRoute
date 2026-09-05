@@ -3553,6 +3553,15 @@ def source_profile(slug: str):
         """), {"slug": slug}).mappings().first()
     if not src:
         abort(404)
+    # #6295 batch 11 — stat tiles, coverage/peer panels, full article list,
+    # and a continuous bias gauge. Everything below is computed from THIS
+    # outlet's own rows; nothing here invents a metric the schema can't back
+    # (audit's "blindspot count" and "fact-check rate %" were dropped for
+    # exactly that reason — see the PR description).
+    show_all = request.args.get("all") == "1"
+    ARTICLE_LIST_CAP = 300
+    article_limit = ARTICLE_LIST_CAP if show_all else 20
+
     with _db().begin() as c:
         band_counts = c.execute(text(f"""
             SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
@@ -3566,12 +3575,76 @@ def source_profile(slug: str):
             FROM {S}.articles a
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             WHERE a.suppressed_reason IS NULL AND a.source_id = :sid
-            ORDER BY a.published_at DESC LIMIT 20
-        """), {"sid": src["id"]}).mappings().all()
+            ORDER BY a.published_at DESC LIMIT :lim
+        """), {"sid": src["id"], "lim": article_limit}).mappings().all()
+
+        # Fact-checked count — COUNT(DISTINCT article_id): fact_checks has no
+        # unique constraint on article_id (this file already notes up to 8
+        # duplicate rows per article near the /article route), the same
+        # dedup pattern already used at 6+ other call sites in this file.
+        fact_checked_count = c.execute(text(f"""
+            SELECT COUNT(DISTINCT fc.article_id)
+            FROM {S}.fact_checks fc
+            JOIN {S}.articles a ON a.id = fc.article_id
+            WHERE a.source_id = :sid AND a.suppressed_reason IS NULL
+        """), {"sid": src["id"]}).scalar() or 0
+
+        # Filed-first count — this outlet's article published_at equals the
+        # cluster's earliest_published_at. That column is set ONCE, at
+        # cluster creation (ingest/cluster.py never updates it as later
+        # articles join an existing cluster) — "which article the
+        # clustering pipeline saw first", the same value /clusters and the
+        # bias-trend API already read from this column, not a new
+        # definition invented here.
+        filed_first_count = c.execute(text(f"""
+            SELECT COUNT(*)
+            FROM {S}.articles a
+            JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+            WHERE a.source_id = :sid AND a.suppressed_reason IS NULL
+              AND a.published_at = sc.earliest_published_at
+        """), {"sid": src["id"]}).scalar() or 0
+
+        # Coverage profile — main beat / main region, a plain GROUP BY over
+        # this outlet's own articles. beat='none' is a real stored value
+        # meaning "no beat assigned" (42k+ rows platform-wide), not a beat,
+        # so it is excluded the same way /news's beat facets exclude it.
+        coverage = c.execute(text(f"""
+            SELECT
+                (SELECT beat FROM {S}.articles
+                  WHERE source_id = :sid AND suppressed_reason IS NULL
+                    AND beat IS NOT NULL AND beat <> 'none'
+                  GROUP BY beat ORDER BY COUNT(*) DESC LIMIT 1) AS main_beat,
+                (SELECT province_code FROM {S}.articles
+                  WHERE source_id = :sid AND suppressed_reason IS NULL
+                    AND province_code IS NOT NULL
+                  GROUP BY province_code ORDER BY COUNT(*) DESC LIMIT 1) AS main_region
+        """), {"sid": src["id"]}).mappings().first()
+
+        # Peer outlets — nearest by rolling avg_score. Only meaningful once
+        # THIS outlet has one itself (obs.avg_score, LEFT JOINed above);
+        # outlet_bias_scores has UNIQUE(source_id) (~46 rows platform-wide),
+        # so this is a cheap nearest-neighbour scan, not a heavy query.
+        peers = []
+        if src["avg_score"] is not None:
+            peers = c.execute(text(f"""
+                SELECT s.id, s.slug, s.name, obs.avg_score, obs.band
+                FROM {S}.outlet_bias_scores obs
+                JOIN {S}.sources s ON s.id = obs.source_id
+                WHERE obs.source_id != :sid
+                ORDER BY abs(obs.avg_score - :avg) ASC
+                LIMIT 5
+            """), {"sid": src["id"], "avg": src["avg_score"]}).mappings().all()
+
     return render_template("source.html",
                            src=dict(src),
                            band_counts=[dict(r) for r in band_counts],
                            recent=[dict(r) for r in recent],
+                           fact_checked_count=fact_checked_count,
+                           filed_first_count=filed_first_count,
+                           coverage=dict(coverage),
+                           peers=[dict(r) for r in peers],
+                           show_all=show_all,
+                           article_list_cap=ARTICLE_LIST_CAP,
                            is_subscriber=is_subscriber())
 
 

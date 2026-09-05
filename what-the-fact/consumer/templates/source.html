@@ -116,6 +116,33 @@
 
 .wtf-src-back-wrap { margin-top:20px; }
 .wtf-src-back-link { font-size:0.7rem; color:#4b5563; text-decoration:none; }
+
+/* #6295 batch 11 additions below — reuse only hex values already audited
+   above (#d1d5db/#6b7280/#1a2030/#9ca3af/#1f2937/#0d1117), no new literals. */
+.wtf-src-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+.wtf-src-action-btn { font-size:0.65rem; color:#9ca3af; text-decoration:none; padding:5px 12px;
+  border:1px solid #1f2937; border-radius:4px; text-transform:uppercase; letter-spacing:1px; }
+
+.wtf-src-gauge-track { position:relative; height:8px; border-radius:4px; margin:10px 0 8px; }
+.wtf-src-gauge-marker { position:absolute; top:-4px; width:3px; height:16px; border-radius:1px;
+  transform:translateX(-1.5px); box-shadow:0 0 0 2px #0d1117; }
+.wtf-src-gauge-labels { display:flex; justify-content:space-between; align-items:center;
+  font-size:0.6rem; color:#6b7280; text-transform:uppercase; letter-spacing:1px; }
+
+.wtf-src-cov-row { display:flex; gap:28px; flex-wrap:wrap; }
+.wtf-src-cov-item { font-size:0.78rem; color:#d1d5db; }
+.wtf-src-cov-label { display:block; font-size:0.55rem; color:#6b7280; text-transform:uppercase;
+  letter-spacing:1.5px; margin-bottom:3px; }
+
+.wtf-src-peer-row { display:flex; align-items:center; gap:10px; padding:8px 4px;
+  text-decoration:none; border-bottom:1px solid #1a2030; }
+.wtf-src-peer-row:last-child { border-bottom:none; }
+.wtf-src-peer-name { flex:1; font-size:0.78rem; color:#d1d5db; }
+.wtf-src-peer-band { font-size:0.6rem; text-transform:uppercase; letter-spacing:1px; }
+.wtf-src-peer-score { font-size:0.7rem; color:#6b7280; width:48px; text-align:right;
+  font-variant-numeric:tabular-nums; }
+
+.wtf-src-show-all { margin-top:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 </style>
 
 <div class="wtf-src-wrap">
@@ -131,6 +158,15 @@
       {% if src.owner_type %}<span class="wtf-src-owner-type">{{ src.owner_type | capitalize }}</span>{% endif %}
       {% if src.owner_name %}<span class="wtf-src-owner-name">{{ src.owner_name }}</span>{% endif %}
       {% if src.url %}<a href="{{ src.url }}" target="_blank" rel="nofollow noopener" class="wtf-src-url">{{ src.url.replace('https://','').replace('http://','').rstrip('/') }} ↗</a>{% endif %}
+    </div>
+    {# Mockup's "Filter the feed" deep-links to a #src= fragment /news never
+       reads — /news has no per-source filter param (checked its VALID_*
+       axes: band/province/beat/scope/riding only), and adding one is a
+       change to another route, out of this page's scope. Relabeled to a
+       real, working link instead of shipping a button that does nothing. #}
+    <div class="wtf-src-actions">
+      <a href="/sources" class="wtf-src-action-btn">← All outlets</a>
+      <a href="/news" class="wtf-src-action-btn">Full news feed →</a>
     </div>
   </div>
 
@@ -151,7 +187,57 @@
       <div class="wtf-src-stat-label">Avg Bias Score</div>
     </div>
     {% endif %}
+    <div class="wtf-src-stat-card">
+      <div class="wtf-src-stat-value" style="color:#e0e0e0;">{{ fact_checked_count | default(0) }}</div>
+      <div class="wtf-src-stat-label">Fact-Checked</div>
+    </div>
+    <div class="wtf-src-stat-card">
+      <div class="wtf-src-stat-value" style="color:#e0e0e0;">{{ filed_first_count | default(0) }}</div>
+      <div class="wtf-src-stat-label">Filed First</div>
+    </div>
   </div>
+
+  <!-- Where this outlet lands — continuous left/right bias-position gauge.
+       Built from the SAME BAND_COLOURS dict as the header chip and the
+       distribution bars below (never a second copy of the 5 hex values) and
+       the SAME src.avg_score already used by the Avg Bias Score tile above —
+       no new data, just a different rendering of it. Score domain is
+       measured [-1, 1] (SELECT min/max FROM wtf.bias_scores), so the [0,100]
+       clamp below is a display safety net, not a guess at the range. -->
+  {% if src.avg_score is not none %}
+  {% set _grad = "linear-gradient(90deg," ~ BAND_COLOURS.left ~ "," ~ BAND_COLOURS['center-left'] ~ "," ~ BAND_COLOURS.center ~ "," ~ BAND_COLOURS['center-right'] ~ "," ~ BAND_COLOURS.right ~ ")" %}
+  {% set _pos_raw = ((src.avg_score | float + 1) / 2 * 100) %}
+  {% set _pos = ([[_pos_raw, 0] | max, 100] | min) %}
+  <div class="wtf-src-panel">
+    <div class="wtf-src-panel-title">Where This Outlet Lands</div>
+    <div class="wtf-src-gauge-track" style="background:{{ _grad }};">
+      <span class="wtf-src-gauge-marker" style="left:{{ _pos }}%;background:{{ colour }};"></span>
+    </div>
+    <div class="wtf-src-gauge-labels">
+      <span>Left &minus;1.0</span>
+      <span style="color:{{ colour }};font-weight:600;">{{ "%+.2f"|format(src.avg_score | float) }}</span>
+      <span>Right +1.0</span>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Coverage profile — main beat / main region from this outlet's own
+       articles. Omitted entirely (not shown as "—") when neither is known,
+       same absent-is-absent stance as ADR-020 (no province filter over a
+       mostly-empty column) rather than asserting a measurement we lack. -->
+  {% if coverage.main_beat or coverage.main_region %}
+  <div class="wtf-src-panel">
+    <div class="wtf-src-panel-title">Coverage Profile</div>
+    <div class="wtf-src-cov-row">
+      {% if coverage.main_beat %}
+      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Main Beat</span>{{ coverage.main_beat.replace('-', ' ') | title }}</span>
+      {% endif %}
+      {% if coverage.main_region %}
+      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Main Region</span>{{ coverage.main_region }}</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Bias distribution -->
   {% if band_counts %}
@@ -209,9 +295,27 @@
   })();
   </script>
 
+  <!-- Scores closest to this one — nearest outlets by rolling avg_score.
+       Proximity of average score only; says nothing about ownership,
+       quality, or agreement on any single story (same caveat the mockup
+       states, kept here since the underlying comparison is unchanged). -->
+  {% if peers %}
+  <div class="wtf-src-panel">
+    <div class="wtf-src-panel-title">Scores Closest To This One</div>
+    {% for p in peers %}
+    {% set p_colour = BAND_COLOURS.get(p.band, '#6b7280') %}
+    <a href="/source/{{ p.slug }}" class="wtf-src-peer-row">
+      <span class="wtf-src-peer-name">{{ p.name }}</span>
+      <span class="wtf-src-peer-band" style="color:{{ p_colour }};">{{ p.band.replace('-', ' ') }}</span>
+      <span class="wtf-src-peer-score">{{ "%+.2f"|format(p.avg_score | float) }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <!-- Recent articles -->
   <div class="wtf-src-recent-wrap">
-    <div class="wtf-src-panel-title">Recent Articles</div>
+    <div class="wtf-src-panel-title">{{ 'All Articles' if show_all else 'Recent Articles' }}</div>
     {% for art in recent %}
     {% set art_band = art.band or 'unscored' %}
     {% set art_colour = BAND_COLOURS.get(art_band, '#6b7280') %}
@@ -226,6 +330,16 @@
     {% endfor %}
     {% if not recent %}
     <div class="wtf-src-empty">No articles tracked yet.</div>
+    {% endif %}
+    {% if not show_all and src.total_articles > recent|length %}
+    <div class="wtf-src-show-all">
+      <a href="{{ request.path }}?all=1" class="wtf-src-action-btn">Show all {{ src.total_articles }} articles →</a>
+    </div>
+    {% elif show_all and recent %}
+    <div class="wtf-src-show-all">
+      <span class="wtf-src-empty">Showing {{ recent|length }} of {{ src.total_articles }} articles{% if src.total_articles > article_list_cap %} (most recent {{ article_list_cap }}){% endif %}.</span>
+      <a href="{{ request.path }}" class="wtf-src-action-btn">← Show fewer</a>
+    </div>
     {% endif %}
   </div>
 

@@ -213,6 +213,63 @@ def _get_welfare_lookup() -> dict:
     return _swr(_WELFARE_CACHE, _WELFARE_CACHE_TTL, _fetch_welfare)
 
 
+# Platform shift states (CLAUDE.md): active, deployed, barracked, off_duty,
+# winding_down, cooldown.
+_SHIFT_STATE_LABELS = {
+    "active": "Active",
+    "deployed": "Deployed",
+    "barracked": "Barracked",
+    "off_duty": "Off duty",
+    "winding_down": "Winding down",
+    "cooldown": "Cooldown",
+}
+
+
+def _team_badge(welfare):
+    """(label, is_active) for a named agent's top-right card badge.
+
+    ⚠️ THE BUG THIS REPLACES: the badge was a hardcoded '{% else %}Active{%
+    endif %}' in team.html, so it read "Active" for all 8 named cards
+    regardless of the agent's real shift_state — while the welfare pill two
+    lines below it, on the SAME card, already rendered the true state.
+    Verified live 2026-09-05: F.A.C.T.'s card said "Active" at the top and
+    "winding down" in the welfare pill; I.N.K.'s said "Active" and "off
+    duty" — a self-contradiction on the newsroom's own transparency page.
+
+    Falls back to ('Active', True) ONLY when welfare is genuinely
+    unavailable (no dict, or an unrecognized shift_state string) — same
+    fail-open philosophy _get_welfare_lookup already uses elsewhere on this
+    page. It never fabricates a SPECIFIC non-active state without real data
+    behind it; it can only under-report (stay silent as 'Active') if a new
+    shift_state value is added upstream and this table isn't updated yet.
+    """
+    shift = (welfare or {}).get("shift_state") or ""
+    label = _SHIFT_STATE_LABELS.get(shift)
+    if label:
+        return label, shift == "active"
+    return "Active", True
+
+
+def _team_work_label(fact_checks: int, bias_scores: int) -> str:
+    """Human label for a dept-agent card's 24h task-count line.
+
+    Replaces the old combined "N fact-check/bias · 24h" phrasing, which
+    named neither task type cleanly. _newsroom_agents() already computes
+    fact_checks and bias_scores as separate columns in one query — this
+    was being thrown away on the way to the template (events_by_agent only
+    kept the combined total). No new query; just stops discarding data
+    that was already fetched.
+    """
+    parts = []
+    if fact_checks:
+        parts.append(f"{fact_checks:,} fact-check{'' if fact_checks == 1 else 's'}")
+    if bias_scores:
+        parts.append(f"{bias_scores:,} bias score{'' if bias_scores == 1 else 's'}")
+    if not parts:
+        return "no scored tasks · 24h"
+    return " · ".join(parts) + " · 24h"
+
+
 def _fetch_portraits() -> dict:
     """One live fetch of the platform portrait directory (raises on error)."""
     req = urllib.request.Request(
@@ -2274,6 +2331,7 @@ def team():
         if live_url:
             a["portrait_url"] = live_url
         a["welfare"] = welfare_lookup.get(agent["name"])  # None if unavailable
+        a["status_label"], a["status_is_active"] = _team_badge(a["welfare"])
         agents.append(a)
 
     # ── "the rest of the department" + "who actually did the work" ──
@@ -2294,16 +2352,29 @@ def team():
         newsroom = _newsroom_agents(S)
     except Exception:
         newsroom = {"agents": [], "unattributed": 0, "attributed": 0}
-    events_by_agent = {a["agent"]: int(a["events"]) for a in newsroom["agents"]}
+    # _newsroom_agents() already computes fact_checks/bias_scores as separate
+    # columns in one query — keep the split instead of collapsing to a single
+    # combined total (that used to feed a vague "N fact-check/bias" label
+    # that named neither task type cleanly; see _team_work_label).
+    events_by_agent = {
+        a["agent"]: {
+            "events": int(a["events"]),
+            "fact_checks": int(a["fact_checks"]),
+            "bias_scores": int(a["bias_scores"]),
+        }
+        for a in newsroom["agents"]
+    }
 
     dept_agents = []
     for name, w in welfare_lookup.items():
         if name in named_names:
             continue
+        ev = events_by_agent.get(name, {"events": 0, "fact_checks": 0, "bias_scores": 0})
         dept_agents.append({
             "name": name,
             "shift_state": (w or {}).get("shift_state") or "",
-            "events_24h": events_by_agent.get(name, 0),
+            "events_24h": ev["events"],
+            "work_label": _team_work_label(ev["fact_checks"], ev["bias_scores"]),
         })
     dept_agents.sort(key=lambda a: a["events_24h"], reverse=True)
 

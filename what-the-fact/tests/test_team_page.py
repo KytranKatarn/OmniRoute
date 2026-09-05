@@ -11,12 +11,26 @@ for the Activity Log) — and were simply never wired into /team.
 
 Mutation-checked against a reverted copy of team.html: removing the two new
 {% if %} blocks makes every new-content assertion below fail.
+
+2026-09-05 update: dept-agent cards now render `d.work_label` (a real
+fact-check/bias-score split from `_team_work_label`, see
+test_team_status_and_work_split.py) instead of inline Jinja math on
+`d.events_24h`. `DEPT_AGENTS` below now supplies `work_label` via the real
+helper so this fixture can't silently drift from what the route actually
+produces.
 """
 
 import pathlib
 
 import pytest
-from jinja2 import ChoiceLoader, DictLoader, Environment, select_autoescape, FileSystemLoader
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from consumer import routes as R  # noqa: E402
+from jinja2 import ChoiceLoader, DictLoader, Environment, select_autoescape, FileSystemLoader  # noqa: E402
 
 TPL = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "templates"
 ROUTES = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "routes.py"
@@ -41,8 +55,10 @@ NAMED_AGENT = {
 }
 
 DEPT_AGENTS = [
-    {"name": "P.R.O.O.F.", "shift_state": "active", "events_24h": 612},
-    {"name": "S.T.R.I.N.G.E.R.", "shift_state": "barracked", "events_24h": 0},
+    {"name": "P.R.O.O.F.", "shift_state": "active", "events_24h": 612,
+     "work_label": R._team_work_label(612, 0)},
+    {"name": "S.T.R.I.N.G.E.R.", "shift_state": "barracked", "events_24h": 0,
+     "work_label": R._team_work_label(0, 0)},
 ]
 
 ROSTER_ROWS = [
@@ -76,10 +92,13 @@ class TestTheDepartmentRosterRenders:
         assert "active" in html
 
     def test_a_zero_task_agent_says_zero_not_blank(self, env):
-        # STRINGER did no fact-checks/bias in the window — must read "0", not
-        # a silently-omitted count that reads as missing data.
+        # STRINGER did no fact-checks/bias in the window — must read an
+        # explicit "no scored tasks", not a silently-omitted count that
+        # reads as missing data. Phrasing updated 2026-09-05 (work_label
+        # replaced the old "0 fact-check/bias" combined-total text with a
+        # cleaner split label — see test_team_status_and_work_split.py).
         html = _render(env)
-        assert "0 fact-check" in html
+        assert "no scored tasks" in html
 
     def test_no_title_is_invented_for_a_dept_agent(self, env):
         # The hub's fleet-agents payload carries no per-agent "title" field

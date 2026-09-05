@@ -30,8 +30,10 @@
 
     {% if agent.coming_soon %}
     <span class="wtf-team-badge wtf-badge-soon">Coming Soon</span>
+    {% elif agent.status_is_active %}
+    <span class="wtf-team-badge wtf-badge-active">{{ agent.status_label }}</span>
     {% else %}
-    <span class="wtf-team-badge wtf-badge-active">Active</span>
+    <span class="wtf-team-badge wtf-badge-soon">{{ agent.status_label }}</span>
     {% endif %}
 
     {% if agent.portrait_url %}
@@ -78,7 +80,7 @@
     <span class="wtf-team-badge wtf-badge-active">{{ d.shift_state | replace('_', ' ') if d.shift_state else 'unknown' }}</span>
     <div class="wtf-team-portrait">📍</div>
     <div class="wtf-team-name">{{ d.name }}</div>
-    <span class="wtf-team-model">{{ d.events_24h }} fact-check{{ '' if d.events_24h == 1 else 's' }}/bias &middot; 24h</span>
+    <span class="wtf-team-model">{{ d.work_label }}</span>
   </div>
   {% endfor %}
 </div>

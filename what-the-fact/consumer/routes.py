@@ -325,6 +325,16 @@ def _active_source_count(c, S, hours: int = 48) -> int:
     """)).scalar() or 0
 
 
+# Each entry may optionally carry:
+#   "weak_spot": "<short, honest sentence>" — hand-curated by Kytran, shown
+#     verbatim on the agent's /team card. Absent = no weak-spot line renders
+#     for that agent (never a placeholder) — add the key whenever real text
+#     is ready, no other code change needed.
+#   "weak_spot_href": "<path>" — optional link under the text (e.g. to a
+#     page with the full detail).
+# A.U.R.O.R.A. deliberately has NEITHER key here — its weak_spot is computed
+# live in team() from real forecast-verification data (_aurora_team_weak_spot)
+# rather than hand-written, since real, self-updating data exists for it.
 TEAM_AGENTS = [
     {
         "name": "F.A.C.T.",
@@ -841,6 +851,69 @@ from .aurora_verify import (  # pure, DB-free (see module docstring)
 )
 
 
+def _aurora_forecast_pairs(c, S):
+    """Every (forecast, observed) daily-high pair we can verify — the same
+    fc/ob join `weather_accuracy()` uses, factored out so `/team`'s A.U.R.O.R.A.
+    weak-spot line (see team()) can feed the same real rows into
+    `aurora_verify.verification_payload()` without duplicating this query."""
+    return c.execute(text(f"""
+        WITH fc AS (
+            SELECT site_code,
+                   (period_index / 2) AS lead_days,
+                   temp_high_c AS forecast_c,
+                   ((issued_utc AT TIME ZONE 'UTC')::date
+                    + (period_index / 2)) AS target_day
+              FROM {S}.aurora_city_forecast
+             WHERE temp_high_c IS NOT NULL
+               AND period_index % 2 = 0
+        ),
+        ob AS (
+            SELECT site_code,
+                   (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
+                   max(temp_c) AS observed_c,
+                   max(station_name) AS station_name
+              FROM {S}.aurora_city_obs
+             WHERE temp_c IS NOT NULL
+             GROUP BY 1, 2
+        )
+        SELECT fc.site_code, fc.lead_days, fc.forecast_c,
+               ob.observed_c,
+               COALESCE(s.display_name, s.name_en, ob.station_name) AS city,
+               s.source_prov AS province, fc.target_day
+          FROM fc
+          JOIN ob ON ob.site_code = fc.site_code
+                 AND ob.obs_day  = fc.target_day
+          LEFT JOIN {S}.aurora_city_site s ON s.site_code = fc.site_code
+         WHERE fc.target_day < CURRENT_DATE
+    """)).mappings().all()
+
+
+def _aurora_weak_spot_text(summary):
+    """Pure formatting, no DB — takes an aurora_verify summarise() dict and
+    returns A.U.R.O.R.A.'s /team weak-spot sentence, or None.
+
+    Uses the longest lead-time bucket's MAE, not a plain average across all
+    leads — averaging in same-day forecasts would flatter the number, and
+    accuracy degrading with lead time is the honest, well-understood weak
+    spot of any forecaster (weather_accuracy()'s own docstring already ruled
+    out inventing a causal 'why it misses' claim; this sticks to the same
+    measured-number-only discipline). Returns None when there isn't enough
+    data yet — never a fabricated or zero-value line."""
+    mae = summary.get("longest_mae_c")
+    lead = summary.get("longest_lead_days")
+    if mae is None or lead is None:
+        return None
+    return f"Off by an average of {mae}°C at its longest forecast lead ({lead} days out)."
+
+
+def _aurora_team_weak_spot(c, S):
+    """DB-touching wrapper: real forecast/observed pairs -> the formatted
+    sentence above, or None. See _aurora_weak_spot_text for the pure logic."""
+    pairs = _aurora_forecast_pairs(c, S)
+    summary = _verification_payload(pairs)["summary"]
+    return _aurora_weak_spot_text(summary)
+
+
 @bp.get("/weather")
 def weather():
     """A.U.R.O.R.A. — Weather & Climate Intelligence page.
@@ -1150,36 +1223,7 @@ def weather_accuracy():
     """
     S = _schema()
     with _db().connect() as c:
-        pairs = c.execute(text(f"""
-            WITH fc AS (
-                SELECT site_code,
-                       (period_index / 2) AS lead_days,
-                       temp_high_c AS forecast_c,
-                       ((issued_utc AT TIME ZONE 'UTC')::date
-                        + (period_index / 2)) AS target_day
-                  FROM {S}.aurora_city_forecast
-                 WHERE temp_high_c IS NOT NULL
-                   AND period_index % 2 = 0
-            ),
-            ob AS (
-                SELECT site_code,
-                       (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
-                       max(temp_c) AS observed_c,
-                       max(station_name) AS station_name
-                  FROM {S}.aurora_city_obs
-                 WHERE temp_c IS NOT NULL
-                 GROUP BY 1, 2
-            )
-            SELECT fc.site_code, fc.lead_days, fc.forecast_c,
-                   ob.observed_c,
-                   COALESCE(s.display_name, s.name_en, ob.station_name) AS city,
-                   s.source_prov AS province, fc.target_day
-              FROM fc
-              JOIN ob ON ob.site_code = fc.site_code
-                     AND ob.obs_day  = fc.target_day
-              LEFT JOIN {S}.aurora_city_site s ON s.site_code = fc.site_code
-             WHERE fc.target_day < CURRENT_DATE
-        """)).mappings().all()
+        pairs = _aurora_forecast_pairs(c, S)
 
         persistence_rows = c.execute(text(f"""
             WITH ob AS (
@@ -2322,6 +2366,15 @@ def team():
     S = _schema()
     with _db().begin() as c:
         source_count = _active_source_count(c, S)
+        # A.U.R.O.R.A. is the one named agent with a real, already-tracked
+        # weakness metric (the SAME forecast-verification /weather/accuracy
+        # publishes) — see _aurora_team_weak_spot. Best-effort: a query hiccup
+        # here must not take down the whole team page, same principle as
+        # every other try/except on this route.
+        try:
+            aurora_weak_spot = _aurora_team_weak_spot(c, S)
+        except Exception:
+            aurora_weak_spot = None
     portrait_lookup = _get_portrait_lookup()
     welfare_lookup = _get_welfare_lookup()
     agents = []
@@ -2332,6 +2385,13 @@ def team():
             a["portrait_url"] = live_url
         a["welfare"] = welfare_lookup.get(agent["name"])  # None if unavailable
         a["status_label"], a["status_is_active"] = _team_badge(a["welfare"])
+        # The 7 other named agents' weak_spot (if any) is hand-curated text
+        # already sitting on their TEAM_AGENTS entry — see the dict above.
+        # A.U.R.O.R.A.'s is the one computed live; it has no static
+        # "weak_spot" key in TEAM_AGENTS on purpose.
+        if a["name"] == "A.U.R.O.R.A." and aurora_weak_spot:
+            a["weak_spot"] = aurora_weak_spot
+            a["weak_spot_href"] = "/weather/accuracy"
         agents.append(a)
 
     # ── "the rest of the department" + "who actually did the work" ──

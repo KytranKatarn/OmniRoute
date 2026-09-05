@@ -13,6 +13,9 @@
 .wtf-team-section-note { font-size:12.5px; line-height:1.7; color:#9ca3af; margin:0 0 14px;
   max-width:80ch; }
 .wtf-team-dept-card { padding:16px 14px 14px; }
+.wtf-team-weak { font-size:11.5px; line-height:1.55; color:var(--wtf-text-muted); margin-top:8px;
+  padding-top:8px; border-top:1px dashed var(--wtf-border); }
+.wtf-team-weak a { color:inherit; text-decoration:underline; }
 </style>
 
 <div class="wtf-team-hero">
@@ -58,6 +61,11 @@
       {% if agent.welfare.shift_state %}
       <span class="wtf-welfare-shift">{{ agent.welfare.shift_state | replace('_', ' ') }}</span>
       {% endif %}
+    </div>
+    {% endif %}
+    {% if agent.weak_spot %}
+    <div class="wtf-team-weak">
+      Weak spot: {{ agent.weak_spot }}{% if agent.weak_spot_href %} <a href="{{ agent.weak_spot_href }}">Details &rarr;</a>{% endif %}
     </div>
     {% endif %}
   </div>

@@ -99,6 +99,19 @@ _MAX_AGE_DAYS = {
     # Valet API still fetching/parsing, not data freshness per se. 10 days
     # for the same reason as elections_results — weekly cadence plus slack.
     "boc_rates": int(os.environ.get("WTF_DRIFT_BOC_DAYS", "10")),
+    # CAD/USD daily exchange rate (Batch 12, #6523). Same weekly-job shape as
+    # boc_rates — this measures the WEEKLY job in ingest/run.py still firing
+    # and the Valet API still reachable, not day-to-day FX freshness (a
+    # holiday gap in the underlying series is normal and handled by
+    # fx_rates._build_rows, not this guard).
+    "fx_rates": int(os.environ.get("WTF_DRIFT_FX_DAYS", "10")),
+    # StatCan CPI/unemployment/GDP/housing-starts (Batch 12, #6523). All four
+    # release monthly with real-world lag (StatCan itself can take 3-4 weeks
+    # after the reference period), so this measures the WEEKLY job still
+    # running, with generous slack over the underlying release calendar —
+    # same reasoning as elections_results' 10-day window over an infrequent
+    # source, just wider because the source itself is naturally slower.
+    "statcan_indicators": int(os.environ.get("WTF_DRIFT_STATCAN_DAYS", "40")),
 }
 
 # Tasks that MUST have run at least once. The freshness loop below skips a task
@@ -125,7 +138,12 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # zero rows until the first scheduled run lands. Required for the
                    # same reason as weekly_digest: a puller that never fires must
                    # alarm, not report green-by-omission forever.
-                   "boc_rates"}
+                   "boc_rates",
+                   # fx_rates and statcan_indicators are BOTH brand-new pullers
+                   # (Batch 12, #6523) — same reasoning as boc_rates: a puller
+                   # that never runs must alarm, not report green-by-omission.
+                   "fx_rates",
+                   "statcan_indicators"}
 
 
 def _source_freshness(engine) -> list:

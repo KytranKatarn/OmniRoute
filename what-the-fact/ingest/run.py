@@ -399,6 +399,8 @@ def main():
     _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
     _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
     _last_boc_week = None        # BoC overnight rate decisions (weekly) — #6272, Batch 9
+    _last_fx_week = None          # CAD/USD daily exchange rate (weekly fetch of daily obs) — Batch 12
+    _last_statcan_week = None     # StatCan CPI/unemployment/GDP/housing (weekly, monthly-release data) — Batch 12
     while True:
         _cycle_started = time.monotonic()
         # Weekly geo report on Mondays.
@@ -625,6 +627,35 @@ def main():
             except Exception:
                 log.exception("boc rates crashed")
             _last_boc_week = _elec_week
+
+        # CAD/USD daily exchange rate — WEEKLY fetch of the daily series
+        # (Batch 12, #6523). The series itself updates once per business day,
+        # but a weekly pull of `recent=800` observations is more than enough
+        # to keep a 24-month chart current — same reasoning as boc_rates'
+        # weekly cadence over an event-based series. run_fx_rates never
+        # raises and writes its own parliament.ingest_log heartbeat on both
+        # the success and swallowed-error paths.
+        if _last_fx_week != _elec_week:
+            try:
+                from ingest.market.fx_rates import run_fx_rates
+                log.info("fx rates: %s", run_fx_rates(engine))
+            except Exception:
+                log.exception("fx rates crashed")
+            _last_fx_week = _elec_week
+
+        # StatCan CPI / unemployment / GDP / housing-starts — WEEKLY (Batch
+        # 12, #6523). All four release monthly (CPI/GDP/LFS ~monthly,
+        # housing starts monthly), so weekly is ample headroom without ever
+        # missing a release. run_statcan_indicators never raises and writes
+        # its own parliament.ingest_log heartbeat on both the success and
+        # swallowed-error paths, same contract as boc_rates/fx_rates.
+        if _last_statcan_week != _elec_week:
+            try:
+                from ingest.market.statcan_indicators import run_statcan_indicators
+                log.info("statcan indicators: %s", run_statcan_indicators(engine))
+            except Exception:
+                log.exception("statcan indicators crashed")
+            _last_statcan_week = _elec_week
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

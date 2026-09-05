@@ -87,7 +87,7 @@
          6th value not worth a separate query for this pass — see routes.py). #}
       {% for val, label, col in bands %}
       {% set _n = band_facets.get(val) if val != 'all' else None %}
-      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
+      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
          class="wtf-act-filter wtf-nw-nodeco {% if band_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
          {% if col %}style="color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
       {% endfor %}
@@ -128,8 +128,8 @@
      filter is never hidden from the person who set it — band stays always
      visible above as the primary axis. Pure client-side show/hide of
      already-server-rendered chips: no new query, no data change. #}
-  {% set _filters_active = province_filter != 'all' or beat_filter != 'all' or scope_filter != 'all' or riding_filter != 'all' %}
-  {% set _active_n = ([province_filter != 'all', beat_filter != 'all', scope_filter != 'all', riding_filter != 'all']) | select | list | length %}
+  {% set _filters_active = province_filter != 'all' or beat_filter != 'all' or scope_filter != 'all' or riding_filter != 'all' or verdict_filter != 'all' %}
+  {% set _active_n = ([province_filter != 'all', beat_filter != 'all', scope_filter != 'all', riding_filter != 'all', verdict_filter != 'all']) | select | list | length %}
   <button type="button" class="wtf-act-filter wtf-nw-filters-toggle" id="wtf-news-filters-toggle"
           aria-expanded="{{ 'true' if _filters_active else 'false' }}" aria-controls="wtf-news-filters-panel">
     Filters &#9662;{% if _active_n %} <span class="wtf-act-filter-n">{{ _active_n }}</span>{% endif %}
@@ -146,7 +146,7 @@
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
     {% for val, label in provinces %}
     {% set _n = province_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if province_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -156,7 +156,7 @@
     <span class="wtf-nw-chip-label">SCOPE</span>
     {% for val, label in [('all','🌐 All'), ('national','🇨🇦 National'), ('provincial','📍 Provincial'), ('international','🌍 International')] %}
     {% set _n = scope_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if scope_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -166,7 +166,7 @@
     <span class="wtf-nw-chip-label">BEAT</span>
     {% for val, label, col in beat_meta %}
     {% set _n = beat_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if beat_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
        {% if col and beat_filter == val %}style="color:{{ col }};border-color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
@@ -176,15 +176,30 @@
   {% if ridings %}
   <div class="wtf-nw-chiprow-riding">
     <span class="wtf-nw-chip-label">RIDING</span>
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&verdict={{ verdict_filter }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
     {% for r in ridings %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&verdict={{ verdict_filter }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == r.riding_name %}wtf-act-filter--active{% endif %}"
        title="{{ r.riding_name }} ({{ r.province_code }}) — {{ r.article_count }} articles">{{ r.riding_name }}</a>
     {% endfor %}
   </div>
   {% endif %}
+
+  {# Verdict filter (task #16 follow-up, migration 078) — a.latest_verdict is
+     now a real indexed column, not a per-row correlated subquery, so this
+     filters exactly as cheaply as province/scope/beat above. 'all' carries
+     no count, same reasoning as every other row's 'all'. #}
+  <div class="wtf-nw-chiprow-c">
+    <span class="wtf-nw-chip-label">VERDICT</span>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict=all&page=1"
+       class="wtf-act-filter wtf-nw-chip-link {% if verdict_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
+    {% for val, label in verdict_meta %}
+    {% set _n = verdict_facets.get(val) %}
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ val }}&page=1"
+       class="wtf-act-filter wtf-nw-chip-link {% if verdict_filter == val %}wtf-act-filter--active{% endif %}{% if not _n %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
+    {% endfor %}
+  </div>
 
   </div>
 
@@ -278,11 +293,11 @@
   {% if total_pages > 1 %}
   <div class="wtf-nw-pager">
     {% if page > 1 %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page - 1 }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page={{ page - 1 }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
     {% endif %}
     <span class="wtf-nw-pager-label">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
     {% if page < total_pages %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&page={{ page + 1 }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page={{ page + 1 }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
     {% endif %}
   </div>
   {% endif %}

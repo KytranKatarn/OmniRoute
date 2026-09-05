@@ -43,6 +43,24 @@ _SCHEMA_PATCHES = (
     # 063 — written by ingest/persist.py alongside every bias score.
     "ALTER TABLE wtf_test.bias_scores "
     "ADD COLUMN IF NOT EXISTS signal_detected BOOLEAN",
+    # 078 — read (filtered on) by consumer/routes.py's news() verdict filter.
+    # The trigger that KEEPS this column current is deliberately NOT applied
+    # here — tests that exercise the filter set it directly on inserted rows;
+    # a dedicated fixture layers the real migration 078 on top of this schema
+    # to prove the trigger itself (see tests/test_news_verdict_filter.py).
+    "ALTER TABLE wtf_test.articles "
+    "ADD COLUMN IF NOT EXISTS latest_verdict character varying(50)",
+    # 006 — 001_wtf_schema.sql's fact_checks predates overall_verdict entirely
+    # (only `verdict` existed at the base schema). No CHECK constraint here
+    # deliberately — the test schema needs the COLUMN, not every downstream
+    # migration's tightening of its allowed values.
+    "ALTER TABLE wtf_test.fact_checks "
+    "ADD COLUMN IF NOT EXISTS overall_verdict character varying(50)",
+    # pre-078 — migration 078's idx_articles_latest_verdict predicate
+    # (WHERE suppressed_reason IS NULL) needs the column to exist; the base
+    # 001 schema predates it entirely.
+    "ALTER TABLE wtf_test.articles "
+    "ADD COLUMN IF NOT EXISTS suppressed_reason TEXT",
 )
 
 

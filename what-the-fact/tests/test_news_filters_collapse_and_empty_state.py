@@ -52,6 +52,11 @@ _STATIC_CTX = dict(
     scope_filter="all", riding_filter="all", ridings=[], beat_meta=[],
     sources=[], band_mix=[], band_facets={}, province_facets={},
     beat_facets={}, scope_facets={}, is_subscriber=True,
+    # verdict filter (task #16 follow-up, migration 078) — added after this
+    # file was written; news.html now `{% for %}`s verdict_meta, and Jinja
+    # raises on iterating an Undefined, so every test here needs these three
+    # even though none of them exercise the verdict filter itself.
+    verdict_filter="all", verdict_meta=[], verdict_facets={},
     articles_24h=12, clustered_stories_24h=3, blindspot_flags_24h=2,
     today_str="2026-09-05", yesterday_str="2026-09-04",
 )

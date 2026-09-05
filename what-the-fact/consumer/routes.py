@@ -498,6 +498,18 @@ BEAT_META = [
     ("labour",         "⚒️ Labour",      "#a3e635"),
 ]
 VALID_SCOPES = {"all", "national", "provincial", "international"}
+# Mirrors wtf.fact_checks' fact_overall_verdict_check enum verbatim (migration
+# 078) — keep both in sync if the enum ever changes.
+VALID_VERDICTS = {"all", "verified", "mostly_true", "mixed", "disputed",
+                   "unverifiable", "descriptive_reporting"}
+VERDICT_META = [
+    ("verified",              "Verified"),
+    ("mostly_true",           "Mostly True"),
+    ("mixed",                 "Mixed"),
+    ("disputed",              "Disputed"),
+    ("unverifiable",          "Unverifiable"),
+    ("descriptive_reporting", "Descriptive"),
+]
 
 
 @bp.get("/news")
@@ -513,6 +525,7 @@ def news():
     beat_filter = _req.args.get("beat", "all")
     scope_filter = _req.args.get("scope", "all")
     riding_filter = (_req.args.get("riding") or "all").strip()
+    verdict_filter = _req.args.get("verdict", "all")
     if band_filter not in VALID_BANDS:
         band_filter = "all"
     if province_filter not in VALID_PROVINCES:
@@ -521,6 +534,8 @@ def news():
         beat_filter = "all"
     if scope_filter not in VALID_SCOPES:
         scope_filter = "all"
+    if verdict_filter not in VALID_VERDICTS:
+        verdict_filter = "all"
     offset = (page - 1) * PAGE_SIZE
 
     if not _news_rate_ok(_client_ip()):
@@ -559,11 +574,12 @@ def news():
     today_str = _now_utc.strftime("%Y-%m-%d")
     yesterday_str = (_now_utc - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
-    _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
+    _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter,
+           verdict_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
         (source_count, total, rows, sources, ridings, band_mix,
-         band_facets, province_facets, beat_facets, scope_facets,
+         band_facets, province_facets, beat_facets, scope_facets, verdict_facets,
          articles_24h, clustered_stories_24h, blindspot_flags_24h) = _cached
         total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
         return render_template("news.html", articles=rows, source_count=source_count,
@@ -572,10 +588,11 @@ def news():
                                province_filter=province_filter,
                                beat_filter=beat_filter, scope_filter=scope_filter,
                                riding_filter=riding_filter, ridings=ridings,
+                               verdict_filter=verdict_filter, verdict_meta=VERDICT_META,
                                beat_meta=BEAT_META, sources=sources,
                                band_mix=band_mix, band_facets=band_facets,
                                province_facets=province_facets, beat_facets=beat_facets,
-                               scope_facets=scope_facets,
+                               scope_facets=scope_facets, verdict_facets=verdict_facets,
                                articles_24h=articles_24h,
                                clustered_stories_24h=clustered_stories_24h,
                                blindspot_flags_24h=blindspot_flags_24h,
@@ -628,6 +645,16 @@ def news():
                 " WHERE t.article_id = a.id AND m.riding_name = :riding)"
             )
             params["riding"] = riding_filter
+        if verdict_filter != "all":
+            # a.latest_verdict (migration 078) — a denormalized, indexed,
+            # trigger-maintained column, NOT a per-row correlated subquery
+            # against fact_checks. Filtering on verdict via the LATERAL the
+            # final SELECT below uses for on-card display was measured to
+            # need a 5000+ row scan for a rare verdict (mostly_true: 92 of
+            # 119,574 articles) — this is a plain indexed equality, same
+            # cost class as province/beat/scope.
+            filter_clauses["verdict"] = "a.latest_verdict = :verdict"
+            params["verdict"] = verdict_filter
 
         def _where_except(*exclude_axes):
             clauses = [c for k, c in filter_clauses.items() if k not in exclude_axes]
@@ -695,6 +722,21 @@ def news():
             GROUP BY a.geo_scope
         """), params).mappings().all()
         scope_facets = {r["geo_scope"]: r["n"] for r in scope_facet_rows}
+
+        # a.latest_verdict is the indexed column from migration 078 — same
+        # cost class as the three facet queries above, not the fact_checks
+        # correlated-subquery path. Still needs the bias_scores join for the
+        # same reason the other three do: _where_except('verdict') carries
+        # 'b.band = :band' whenever a band filter is active.
+        verdict_facet_rows = c.execute(text(f"""
+            SELECT a.latest_verdict, COUNT(*) AS n
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            WHERE 1=1 AND a.suppressed_reason IS NULL AND a.latest_verdict IS NOT NULL {_where_except('verdict')}
+            GROUP BY a.latest_verdict
+        """), params).mappings().all()
+        verdict_facets = {r["latest_verdict"]: r["n"] for r in verdict_facet_rows}
 
         # Lean-mix bar (design handoff #6149, /news Phase 3): a segmented bar +
         # named index of the CURRENT filter selection's band distribution.
@@ -829,6 +871,7 @@ def news():
     blindspot_flags_24h = _blindspot_total(days=1)
     _news_cache_set(_ck, (source_count, total, rows, sources, ridings, band_mix,
                           band_facets, province_facets, beat_facets, scope_facets,
+                          verdict_facets,
                           articles_24h, clustered_stories_24h, blindspot_flags_24h))
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
@@ -837,10 +880,11 @@ def news():
                            province_filter=province_filter,
                            beat_filter=beat_filter, scope_filter=scope_filter,
                            riding_filter=riding_filter, ridings=ridings,
+                           verdict_filter=verdict_filter, verdict_meta=VERDICT_META,
                            beat_meta=BEAT_META, sources=sources,
                            band_mix=band_mix, band_facets=band_facets,
                            province_facets=province_facets, beat_facets=beat_facets,
-                           scope_facets=scope_facets,
+                           scope_facets=scope_facets, verdict_facets=verdict_facets,
                            articles_24h=articles_24h,
                            clustered_stories_24h=clustered_stories_24h,
                            blindspot_flags_24h=blindspot_flags_24h,

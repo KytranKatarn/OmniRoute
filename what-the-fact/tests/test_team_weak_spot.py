@@ -11,6 +11,15 @@ A.U.R.O.R.A. is the one exception — a real, self-updating line computed
 from the SAME forecast-verification data /weather/accuracy already
 publishes, since a real metric exists for it and doesn't for the other 7.
 
+2026-09-05 follow-up: Kytran asked for the other 7 lines too. Checking
+first (rather than just writing them) turned up a SECOND real signal —
+V.E.R.I.F.Y.'s own verdict distribution (89.1% "unverified" of 429,804
+fact-checks, live-measured) — almost exactly what the design mockup
+GUESSED ("declines more claims than it checks") without ever measuring it.
+That one is now computed too, same pattern as A.U.R.O.R.A., no href (no
+public page currently shows this aggregate — /claims reads a different
+table, claim_tracker, not fact_checks).
+
 Everything here traces to either a pure helper on synthetic data, or a
 Jinja render with an explicit hand-built context — same pattern as the
 other /team test files.
@@ -160,3 +169,49 @@ def test_multiple_agents_mixed_weak_spot_presence():
     ])
     assert html.count("Weak spot:") == 1
     assert "Real text." in html
+
+
+# ────────────────────────── _verify_weak_spot_text ────────────────────────
+
+def test_verify_uses_the_real_measured_percentage():
+    counts = {"unverified": 382875, "true": 39235, "mixed": 4203, "false": 2326, "mostly_true": 1165}
+    text = R._verify_weak_spot_text(counts)
+    assert "89%" in text
+    assert "unverified" in text
+
+
+def test_verify_none_when_no_fact_checks_at_all():
+    assert R._verify_weak_spot_text({}) is None
+
+
+def test_verify_rounds_to_whole_percent():
+    text = R._verify_weak_spot_text({"unverified": 1, "true": 2})
+    assert "33%" in text
+
+
+def test_verify_route_computes_from_real_data():
+    body = _team_route_body()
+    assert "_verify_team_weak_spot(c, S)" in body
+    idx = body.index("_verify_team_weak_spot(c, S)")
+    assert "try:" in body[max(0, idx - 200):idx]
+
+
+def test_verify_has_no_static_weak_spot_key_in_team_agents():
+    src = ROUTES_PY.read_text(encoding="utf-8")
+    ta_start = src.index("TEAM_AGENTS = [")
+    ta_end = src.index("\n\n\ndef ", ta_start)
+    verify_start = src.index('"name": "V.E.R.I.F.Y."', ta_start, ta_end)
+    verify_end = src.index("},", verify_start)
+    assert "weak_spot" not in src[verify_start:verify_end]
+
+
+def test_verify_weak_spot_renders_with_no_link():
+    import re
+    html = _render(agents=[_agent(
+        "V.E.R.I.F.Y.",
+        weak_spot="Declines to verify roughly 89% of the claims it checks — a claim without a primary document stays unverified.",
+    )])
+    block = re.search(r'<div class="wtf-team-weak">.*?</div>', html, re.S)
+    assert block is not None
+    assert "89%" in block.group(0)
+    assert "<a href=" not in block.group(0)

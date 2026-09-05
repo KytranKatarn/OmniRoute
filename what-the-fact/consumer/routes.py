@@ -914,6 +914,36 @@ def _aurora_team_weak_spot(c, S):
     return _aurora_weak_spot_text(summary)
 
 
+def _verify_weak_spot_text(verdict_counts):
+    """Pure formatting, no DB — takes {verdict: count} and returns
+    V.E.R.I.F.Y.'s /team weak-spot sentence, or None.
+
+    Real number, not a guess: verified live 2026-09-05 at 89.1% (382,875 of
+    429,804 fact-checks) — almost exactly what the design mockup GUESSED
+    ("declines more claims than it checks, on purpose") without measuring
+    it. No href: unlike A.U.R.O.R.A., no public page currently shows this
+    aggregate verdict distribution — /claims reads claim_tracker (politician
+    claim-tracking), a different table entirely, and linking there would
+    point a reader at a number that isn't on the page they land on."""
+    total = sum(verdict_counts.values())
+    if not total:
+        return None
+    unverified = verdict_counts.get("unverified", 0)
+    pct = round(100 * unverified / total)
+    return (
+        f"Declines to verify roughly {pct}% of the claims it checks — "
+        "a claim without a primary document stays unverified."
+    )
+
+
+def _verify_team_weak_spot(c, S):
+    """DB-touching wrapper: real verdict counts -> the formatted sentence
+    above, or None. See _verify_weak_spot_text for the pure logic."""
+    rows = c.execute(text(f"SELECT verdict, count(*) AS n FROM {S}.fact_checks GROUP BY verdict")).mappings().all()
+    counts = {r["verdict"]: int(r["n"]) for r in rows if r["verdict"]}
+    return _verify_weak_spot_text(counts)
+
+
 @bp.get("/weather")
 def weather():
     """A.U.R.O.R.A. — Weather & Climate Intelligence page.
@@ -2375,6 +2405,13 @@ def team():
             aurora_weak_spot = _aurora_team_weak_spot(c, S)
         except Exception:
             aurora_weak_spot = None
+        # V.E.R.I.F.Y. is the other named agent with a real, already-stored
+        # weakness signal — its own verdict distribution (see
+        # _verify_team_weak_spot). Same best-effort principle.
+        try:
+            verify_weak_spot = _verify_team_weak_spot(c, S)
+        except Exception:
+            verify_weak_spot = None
     portrait_lookup = _get_portrait_lookup()
     welfare_lookup = _get_welfare_lookup()
     agents = []
@@ -2385,13 +2422,18 @@ def team():
             a["portrait_url"] = live_url
         a["welfare"] = welfare_lookup.get(agent["name"])  # None if unavailable
         a["status_label"], a["status_is_active"] = _team_badge(a["welfare"])
-        # The 7 other named agents' weak_spot (if any) is hand-curated text
-        # already sitting on their TEAM_AGENTS entry — see the dict above.
-        # A.U.R.O.R.A.'s is the one computed live; it has no static
-        # "weak_spot" key in TEAM_AGENTS on purpose.
+        # The remaining named agents' weak_spot (if any) is hand-curated
+        # text already sitting on their TEAM_AGENTS entry — see the dict
+        # above. A.U.R.O.R.A. and V.E.R.I.F.Y. are the two computed live;
+        # neither has a static "weak_spot" key in TEAM_AGENTS on purpose.
         if a["name"] == "A.U.R.O.R.A." and aurora_weak_spot:
             a["weak_spot"] = aurora_weak_spot
             a["weak_spot_href"] = "/weather/accuracy"
+        elif a["name"] == "V.E.R.I.F.Y." and verify_weak_spot:
+            a["weak_spot"] = verify_weak_spot
+            # No href: unlike /weather/accuracy, no public page currently
+            # shows this aggregate verdict distribution (see
+            # _verify_weak_spot_text's docstring).
         agents.append(a)
 
     # ── "the rest of the department" + "who actually did the work" ──

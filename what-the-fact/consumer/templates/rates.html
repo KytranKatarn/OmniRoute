@@ -36,21 +36,81 @@
       'detail': 'as of ' ~ (current.decision_date.strftime('%B %-d, %Y') if current.decision_date.strftime is defined else current.decision_date)
   }) %}
 {% endif %}
-{% set _ = _tiles.append({'label': 'Decisions on record', 'value': decisions|length, 'detail': '2000–2026'}) %}
+{% set _ = _tiles.append({'label': 'Decisions on record', 'value': decisions|length, 'detail': (chart.start_date.year ~ '–' ~ chart.end_date.year) if chart else '—'}) %}
+{% if peak_stat %}
+  {% set _bc = peak_stat.bps_change %}
+  {% set _ = _tiles.append({
+      'label': 'Since ' ~ (peak_stat.peak_date.strftime('%b %Y') if peak_stat.peak_date.strftime is defined else peak_stat.peak_date) ~ ' peak',
+      'value': ('−' ~ (_bc|abs) ~ ' bps') if _bc < 0 else (('+' ~ _bc ~ ' bps') if _bc > 0 else '0 bps'),
+      'detail': 'peaked at ' ~ "%.2f%%"|format(peak_stat.peak_rate|float)
+  }) %}
+{% endif %}
+{% if hold_streak and hold_streak.since %}
+  {% set _ = _tiles.append({
+      'label': 'Consecutive holds',
+      'value': hold_streak.months,
+      'detail': 'no move ≥10bps since ' ~ (hold_streak.since.strftime('%b %Y') if hold_streak.since.strftime is defined else hold_streak.since)
+  }) %}
+{% endif %}
+{% set _ = _tiles.append({'label': 'Decisions a year', 'value': 8, 'detail': 'fixed, pre-announced dates'}) %}
 {{ stat_tiles(_tiles) }}
 
+{% if chart %}
+{# Public, ungated historical rate path — a hand-rolled SVG polyline over the
+   FULL series (no client-side chart library). The gated table below only
+   ever showed the >=10bps decisions; this section shows the real monthly
+   path so the "six eras" narrative has something honest to point at. #}
+<div style="margin-top:18px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:10px;">
+    Historical background &middot; the overnight rate, {{ chart.start_date.year }}&ndash;{{ chart.end_date.year }}
+  </div>
+  <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" style="width:100%;height:auto;display:block"
+       role="img" aria-label="Bank of Canada overnight rate, {{ chart.start_date.year }} to {{ chart.end_date.year }}">
+    <polyline points="{{ chart.points }}" fill="none" stroke="var(--wtf-accent)" stroke-width="2" stroke-linejoin="round" />
+    <circle cx="{{ chart.end_x }}" cy="{{ chart.end_y }}" r="3.5" fill="var(--wtf-accent)" />
+  </svg>
+  <p class="wtf-a-tile-d" style="margin:8px 0 0;">
+    Range over the full series: {{ "%.2f"|format(chart.min_rate|float) }}%&ndash;{{ "%.2f"|format(chart.max_rate|float) }}%
+    &middot; Bank of Canada Valet API, series V122514, monthly average
+  </p>
+  {% if eras %}
+  <div class="wtf-a-tile-l" style="margin-top:16px;margin-bottom:6px;">Six eras</div>
+  {% for e in eras %}
+  <div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--wtf-border);font-size:12.5px;">
+    <span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:var(--wtf-text-2);white-space:nowrap;flex:0 0 auto;">{{ e.label }}</span>
+    <span>
+      <span style="color:var(--wtf-text);">{{ e.name }}.</span>
+      <span class="wtf-a-tile-d">{{ e.note }} ({{ "%.2f"|format(e.low|float) }}%&ndash;{{ "%.2f"|format(e.high|float) }}% observed in this series.)</span>
+    </span>
+  </div>
+  {% endfor %}
+  {% endif %}
+  <p class="note" style="margin-top:10px;">The path above is public background; the decision-by-decision record with basis-point changes is the Starter+ layer below.</p>
+</div>
+{% endif %}
+
 {% if is_subscriber %}
-  {# Direction carries a TEXT label (CUT / HIKE / FIRST), never colour alone —
-     the same rule the lean scale is built on. #}
+  {# Direction carries a TEXT label (CUT / HIKE / HOLD / FIRST), never colour
+     alone — the same rule the lean scale is built on. A literal change_bps=0
+     is a real HOLD, distinct from the very first row (no prior to diff
+     against, which has no change_bps at all). #}
   {% set _rows = [] %}
   {% for r in decisions %}
     {% set bps = r.change_bps %}
-    {% set _dir = 'CUT' if (bps and bps < 0) else ('HIKE' if (bps and bps > 0) else 'FIRST') %}
+    {% if bps is none %}
+      {% set _dir = 'FIRST' %}
+    {% elif bps < 0 %}
+      {% set _dir = 'CUT' %}
+    {% elif bps > 0 %}
+      {% set _dir = 'HIKE' %}
+    {% else %}
+      {% set _dir = 'HOLD' %}
+    {% endif %}
     {% set _ = _rows.append([
         _dir,
         (r.decision_date.strftime('%b %-d, %Y') if r.decision_date.strftime is defined else r.decision_date),
         "%.2f%%"|format(r.rate_pct|float),
-        (('−' ~ (bps * -1)|abs ~ ' bps') if (bps and bps < 0) else (('+' ~ bps ~ ' bps') if bps else '—'))
+        ('—' if bps is none else (('−' ~ (bps * -1)|abs ~ ' bps') if bps < 0 else (('+' ~ bps ~ ' bps') if bps > 0 else '0 bps')))
     ]) %}
   {% endfor %}
   {{ data_table(

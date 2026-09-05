@@ -4694,6 +4694,152 @@ def _lobbying_payload(org: str, q: str = "") -> dict:
             "recent": [dict(r) for r in recent]}
 
 
+# ── /rates support (Batch 11, #6272 follow-up) ──────────────────────────────
+# market_watch.boc_rate_decisions is a MONTHLY average of the BoC Valet
+# series V122514 (one row per calendar month), not literal per-announcement
+# rows — real BoC decisions land only 8x/year on fixed dates, but the ingest
+# (ingest/market/boc_rates.py) records the realized monthly average, which
+# drifts by a few bps even in months the Bank held. "Material move" below
+# means the SAME >=10bps threshold the decisions-table query already uses to
+# separate a real cut/hike from monthly averaging noise — reusing it (rather
+# than inventing a second threshold) keeps the stat tiles and the table
+# honestly describing the same events.
+#
+# All three helpers are pure (no DB): they take `history`, the FULL ascending
+# (decision_date, rate_pct, change_bps) series, and are anchored on the
+# dataset's own latest row rather than wall-clock time, so a stale ingest
+# cannot claim a "peak" or a "streak" that hasn't happened in the data yet.
+
+_BOC_MATERIAL_BPS = 10
+
+# Era boundaries are well-established Bank of Canada / Canadian monetary
+# policy history (dot-com bust, 2008 financial crisis, 2015 oil shock,
+# COVID-19, the 2022-23 hiking cycle) — public facts, not derived from this
+# table. The min/max rate shown for each era IS derived from the real data
+# below; the boundary years and one-line context are not.
+_BOC_ERAS = [
+    ("Dot-com bust & post-9/11 easing", 2001, 2002,
+     "Rates were cut sharply after the dot-com crash and the September 11 attacks."),
+    ("Mid-2000s tightening", 2004, 2007,
+     "A multi-year hiking cycle as the economy expanded, ending just before the 2008 crisis."),
+    ("Global financial crisis", 2008, 2009,
+     "Rates were cut aggressively toward zero as the global financial system seized up."),
+    ("Oil shock & normalization", 2015, 2018,
+     "The 2014-15 oil price collapse hit the Canadian economy; the Bank cut in 2015, "
+     "then raised rates gradually through 2018."),
+    ("Pandemic & inflation surge", 2020, 2023,
+     "Rates were slashed toward zero during COVID-19, then raised at the fastest pace "
+     "in decades to fight the inflation that followed."),
+    ("Easing cycle", 2024, None,
+     "The Bank has been lowering its policy rate as inflation cooled."),
+]
+
+
+def _boc_shift_years(d, delta_years):
+    """date +/- N years, Feb-29-safe. Every row in this table is the 1st of
+    a month, so the leap fallback never actually fires — kept for safety."""
+    try:
+        return d.replace(year=d.year + delta_years)
+    except ValueError:
+        return d.replace(month=2, day=28, year=d.year + delta_years)
+
+
+def _boc_hold_streak(history):
+    """Consecutive most-recent months with no move >= _BOC_MATERIAL_BPS,
+    counting back from the latest row. Returns None for an empty series,
+    else {'months': int, 'since': date|None} where `since` is the first
+    month of the current streak (the month right after the last material
+    move, or the first row on record if the series has never had one)."""
+    if not history:
+        return None
+    n = len(history)
+    i = n - 1
+    while i >= 0:
+        bps = history[i].get("change_bps")
+        if bps is None or abs(bps) >= _BOC_MATERIAL_BPS:
+            break
+        i -= 1
+    since_idx = i + 1
+    months = n - since_idx
+    since = history[since_idx]["decision_date"] if 0 <= since_idx < n else None
+    return {"months": months, "since": since}
+
+
+def _boc_peak_since(history, years=5):
+    """The highest reading of the current cycle (within `years` of the
+    dataset's own latest row) and the bps change from there to now. The
+    window is wide enough to hold a full hiking-to-holding cycle (the
+    2022-2024 cycle peaked ~18 months before its hold ended) while excluding
+    unrelated older peaks. Falls back to the full series if `years` finds
+    nothing (a young or sparse dataset)."""
+    if not history:
+        return None
+    latest = history[-1]
+    cutoff = _boc_shift_years(latest["decision_date"], -years)
+    window = [r for r in history if r["decision_date"] >= cutoff] or history
+    peak = max(window, key=lambda r: r["rate_pct"])
+    bps_change = round((float(latest["rate_pct"]) - float(peak["rate_pct"])) * 100)
+    return {
+        "peak_date": peak["decision_date"],
+        "peak_rate": peak["rate_pct"],
+        "current_rate": latest["rate_pct"],
+        "bps_change": bps_change,
+    }
+
+
+def _boc_eras(history):
+    """Real min/max rate observed in this table within each well-known era
+    window (see _BOC_ERAS). Skips an era entirely if the table holds no rows
+    for it (never renders a fabricated range)."""
+    if not history:
+        return []
+    latest_year = history[-1]["decision_date"].year
+    out = []
+    for name, start_year, end_year, note in _BOC_ERAS:
+        hi_year = end_year if end_year is not None else latest_year
+        window = [r for r in history if start_year <= r["decision_date"].year <= hi_year]
+        if not window:
+            continue
+        lo = min(window, key=lambda r: r["rate_pct"])
+        hi = max(window, key=lambda r: r["rate_pct"])
+        out.append({
+            "label": f"{start_year}–{end_year if end_year else ''}",
+            "name": name,
+            "note": note,
+            "low": lo["rate_pct"],
+            "high": hi["rate_pct"],
+        })
+    return out
+
+
+def _boc_rate_chart(history, width=720, height=200, pad=28):
+    """Hand-rolled SVG polyline geometry for the public rate-path chart — no
+    chart library. Returns None when there's nothing to plot (0 or 1 row,
+    which can't form a line)."""
+    if not history or len(history) < 2:
+        return None
+    dates = [r["decision_date"] for r in history]
+    rates = [float(r["rate_pct"]) for r in history]
+    t0, t1 = dates[0].toordinal(), dates[-1].toordinal()
+    span = (t1 - t0) or 1
+    lo, hi = min(rates), max(rates)
+    rspan = (hi - lo) or 1.0
+
+    def _x(d):
+        return pad + (d.toordinal() - t0) / span * (width - 2 * pad)
+
+    def _y(v):
+        return height - pad - (v - lo) / rspan * (height - 2 * pad)
+
+    points = " ".join(f"{_x(d):.1f},{_y(v):.1f}" for d, v in zip(dates, rates))
+    return {
+        "width": width, "height": height, "points": points,
+        "min_rate": lo, "max_rate": hi,
+        "start_date": dates[0], "end_date": dates[-1],
+        "end_x": round(_x(dates[-1]), 1), "end_y": round(_y(rates[-1]), 1),
+    }
+
+
 @bp.get("/rates")
 def boc_rates():
     """Bank of Canada overnight rate decisions."""
@@ -4706,15 +4852,30 @@ def boc_rates():
         decisions = c.execute(text("""
             SELECT decision_date, rate_pct, change_bps
             FROM market_watch.boc_rate_decisions
-            WHERE ABS(change_bps) >= 10 OR change_bps IS NULL
+            WHERE ABS(change_bps) >= 10 OR change_bps = 0 OR change_bps IS NULL
             ORDER BY decision_date DESC
             LIMIT 60
         """)).mappings().all()
+        # Full ascending series (no filter, no limit) for the public
+        # historical-path chart + era stats + the peak/streak tiles below.
+        # `decisions` above stays a display-limited, gated list — this is a
+        # separate, ungated read of the same table (#6272 follow-up, Batch 11).
+        history = c.execute(text("""
+            SELECT decision_date, rate_pct, change_bps
+            FROM market_watch.boc_rate_decisions
+            ORDER BY decision_date ASC
+        """)).mappings().all()
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+
+    history = [dict(r) for r in history]
     return render_template("rates.html",
                            current=dict(current) if current else {},
                            decisions=[dict(r) for r in decisions],
                            source_count=source_count,
+                           chart=_boc_rate_chart(history),
+                           eras=_boc_eras(history),
+                           peak_stat=_boc_peak_since(history),
+                           hold_streak=_boc_hold_streak(history),
                            is_subscriber=is_subscriber())
 
 

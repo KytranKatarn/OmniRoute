@@ -1,14 +1,49 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles %}
 {% block title %}Cross-Watch — Entities across the Watch Series · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Cross-Watch — people and organizations resolved across Gov, Civic, Legal & Market Watch and the news, with their cross-product accountability footprint.">
 {% endblock %}
 {% block content %}
+{# Batch 11 design-integration pass (design-handoff/wtf-cross-watch.html). Ported:
+   the #cw-stats aggregate row, the six-register legend, the "read this page
+   carefully" methodology caution, an informational (non-gating) subscriber-tier
+   note, a type/min-register server-side filter, and footer cross-links.
+
+   DELIBERATELY NOT ported (see routes.py docstring + tests/test_cross_watch_batch11.py
+   for the full reasoning):
+   - The inline #cw-detail entity-expansion / accountability-chain view — a
+     dedicated build on the scale of /chain, not a template-polish item.
+   - The full card-based per-entity layout (record_card/record_links) — the flat
+     row list stays; this is a low-risk styling pass only, per scope.
+   - A "min: in any register (1+)" option — the default/cached population is
+     PRE-FILTERED to >=2 products at query time (migration 075's snapshot), so a
+     "1+" option would either lie (silently showing the same 2+ set) or require a
+     second expensive query. Only "2+" (default) and "3+" are offered.
+
+   The mockup's own shell classes (panel/psec/eyebrow/statrow/wtf-of-*) exist in
+   NO stylesheet here (same finding as search.html's Phase 2 migration) — this
+   page keeps its own local .wtf-cw-* rules below, plus the ONE real shared
+   macro (stat_tiles, styled in static/style.css, already used by /owners). #}
 <style>
 .wtf-cw-intro { font-size:11px; color:#6b7280; line-height:1.7; max-width:640px; margin-bottom:16px; }
-.wtf-cw-search { display:flex; gap:8px; margin-bottom:18px; max-width:420px; }
-.wtf-cw-search input { flex:1; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:8px 12px; color:#e5e7eb; font-family:'IBM Plex Mono',monospace; font-size:12px; }
+.wtf-cw-note { font-size:11px; color:#9ca3af; line-height:1.7; max-width:720px; margin:0 0 18px; padding:10px 12px; border:1px solid #1a3a5a; border-radius:4px; background:#060d14; }
+.wtf-cw-panel { border:1px solid #0d1f2d; border-left:3px solid #1a3a5a; border-radius:4px; padding:14px 16px; margin-bottom:18px; max-width:760px; background:#060d14; }
+.wtf-cw-panel.is-caution { border-left-color: var(--wtf-contested, #e05252); }
+.wtf-cw-panel-title { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:#4b5563; margin-bottom:10px; }
+.wtf-cw-panel.is-caution .wtf-cw-panel-title { color: var(--wtf-contested, #e05252); }
+.wtf-cw-panel p { font-size:12px; line-height:1.8; color:#9ca3af; margin:0 0 10px; }
+.wtf-cw-panel p:last-child { margin-bottom:0; }
+.wtf-cw-legend { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px 16px; margin-top:2px; }
+.wtf-cw-legend-item { display:flex; gap:8px; align-items:flex-start; font-size:11px; color:#9ca3af; line-height:1.5; }
+.wtf-cw-swatch { width:8px; height:8px; border-radius:2px; margin-top:4px; flex-shrink:0; }
+.wtf-cw-legend-name { color:#e5e7eb; font-weight:600; }
+.wtf-cw-pending { color:#6b7280; font-size:9px; text-transform:uppercase; letter-spacing:.5px; margin-left:4px; white-space:nowrap; }
+.wtf-cw-search { display:flex; gap:8px; margin-bottom:10px; max-width:680px; flex-wrap:wrap; align-items:center; }
+.wtf-cw-search input { flex:1; min-width:180px; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:8px 12px; color:#e5e7eb; font-family:'IBM Plex Mono',monospace; font-size:12px; }
+.wtf-cw-search select { background:#0a1520; border:1px solid #1a3a5a; border-radius:4px; color:#e5e7eb; padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; }
 .wtf-cw-search button { background:#0a1520; border:1px solid #1a3a5a; border-radius:4px; color:#38bdf8; padding:8px 16px; font-size:11px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
+.wtf-cw-count { font-size:9px; color:#374151; font-family:'IBM Plex Mono',monospace; }
 .wtf-cw-row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-bottom:1px solid #0d1f2d; }
 .wtf-cw-name { font-size:12px; color:#e5e7eb; text-decoration:none; font-weight:600; }
 .wtf-cw-name:hover { color:#38bdf8; }
@@ -21,10 +56,16 @@
 .wtf-cw-clear { color:#38bdf8; text-decoration:none; }
 .wtf-cw-section-label { font-size:10px; color:#4b5563; letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }
 .wtf-cw-empty { color:#6b7280; font-size:12px; padding:24px 0; }
+.wtf-cw-footer-links { display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
+.wtf-cw-footer-link { font-size:10px; letter-spacing:.5px; text-transform:uppercase; color:#38bdf8; text-decoration:none; border:1px solid #1a3a5a; border-radius:4px; padding:8px 14px; }
+.wtf-cw-footer-link:hover { background:#0a1520; }
 .wtf-cw-footnote { font-size:9px; color:#374151; margin-top:18px; }
 </style>
 
-{% set CWP = {'gov-watch':{'l':'Gov','c':'#0ea5e9'},'civic-watch':{'l':'Civic','c':'#22c55e'},'legal-watch':{'l':'Legal','c':'#a78bfa'},'market-watch':{'l':'Market','c':'#f59e0b'},'wtf':{'l':'News','c':'#00aaff'},'parliament':{'l':'Parliament','c':'#ef4444'}} %}
+{% set type_filter = type_filter|default('') %}
+{% set min_filter = min_filter|default('2') %}
+{% set top_entities = top_entities|default([]) %}
+{% set CWP = {'gov-watch':{'l':'Gov','c':'#0ea5e9','d':'Federal procurement — CanadaBuys tenders, contract awards and proactive disclosures.'},'civic-watch':{'l':'Civic','c':'#22c55e','d':'Municipal government spending and civic transparency records.'},'legal-watch':{'l':'Legal','c':'#a78bfa','d':'Court rulings, CanLII case law and federal regulatory actions.'},'market-watch':{'l':'Market','c':'#f59e0b','d':'Securities filings tied to TSX-listed federal contractors.','pending':True},'wtf':{'l':'News','c':'#00aaff','d':'Bias-scored coverage across the ' ~ source_count ~ ' Canadian outlets we track.'},'parliament':{'l':'Parliament','c':'#ef4444','d':'House of Commons votes, bills and MP records that feed the accountability chain.','pending':True}} %}
 
 <h1 class="wtf-cw-title">🔗 Cross-Watch</h1>
 <p class="wtf-cw-intro">
@@ -32,9 +73,73 @@
   These are the names that show up in more than one place. Open any to see its cross-product accountability footprint.
 </p>
 
+<p class="wtf-cw-note">
+  Entity footprints and register badges on this page are free to everyone. Opening an entity below shows more —
+  its accountability-chain links and co-mentions across records are part of Starter+.
+</p>
+
+{# ── #cw-stats: computed ENTIRELY from the already-fetched top_entities (the
+   cache-backed _crosswatch_top() population) — no new query, same pattern as
+   /owners' concentration tiles. Independent of any active search/filter below,
+   because it describes the canonical cross-linked population, not the filtered
+   view. #}
+{% set n_top = top_entities | length %}
+{% set span_ns = namespace(max=0, ge3=0) %}
+{% for e in top_entities %}
+  {% set n = e.products | length %}
+  {% if n > span_ns.max %}{% set span_ns.max = n %}{% endif %}
+  {% if n >= 3 %}{% set span_ns.ge3 = span_ns.ge3 + 1 %}{% endif %}
+{% endfor %}
+{{ stat_tiles([
+     {'label': 'Cross-linked entities', 'value': n_top,
+      'detail': 'people & orgs in 2+ registers · top ' ~ n_top ~ ' shown'},
+     {'label': 'Most cross-linked', 'value': span_ns.max,
+      'detail': 'register' ~ ('' if span_ns.max == 1 else 's') ~ ' for the top entity below'},
+     {'label': 'In 3+ registers', 'value': span_ns.ge3,
+      'detail': 'of the top ' ~ n_top ~ ' shown'},
+]) }}
+
+<div class="wtf-cw-panel is-caution">
+  <div class="wtf-cw-panel-title">Read this page carefully</div>
+  <p><strong>A match across registers is a fact about paperwork, not a finding about a person.</strong>
+     Two records sharing a name means both records exist. It does not mean they are connected, and it does
+     not imply wrongdoing in either.</p>
+  <p>There is <strong>no score and no ranking</strong> here. Entities are ordered by how many registers they
+     appear in, which is a count of records rather than a measure of influence or of conduct.</p>
+  <p>Names are matched by exact text. Common names will produce false matches in any system that does this,
+     which is why every entity page names its specific records and their source register rather than the
+     name alone.</p>
+</div>
+
+<div class="wtf-cw-panel">
+  <div class="wtf-cw-panel-title">Six registers · every entity's badges show where it was found</div>
+  <div class="wtf-cw-legend">
+    {% for key in ['gov-watch','civic-watch','legal-watch','market-watch','wtf','parliament'] %}
+    {% set m = CWP[key] %}
+    <div class="wtf-cw-legend-item">
+      <span class="wtf-cw-swatch" style="background:{{ m.c }};"></span>
+      <span><span class="wtf-cw-legend-name">{{ m.l }}</span>{% if m.pending %}<span class="wtf-cw-pending">not yet linked</span>{% endif %} — {{ m.d }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p style="font-size:11px;color:#6b7280;margin-top:10px;">Each register is collected by one part of the Watch
+    Series. A badge tells you which collection a record came from, so a claim can be traced to a source
+    rather than to this page.</p>
+</div>
+
 <form class="wtf-cw-search" method="get" action="/cross-watch">
   <input type="text" name="q" placeholder="Search a person or organization…" value="{{ q }}" autocomplete="off">
+  <select name="type" onchange="this.form.submit()" aria-label="Entity type">
+    <option value="" {% if not type_filter %}selected{% endif %}>Any type</option>
+    <option value="person" {% if type_filter == 'person' %}selected{% endif %}>People</option>
+    <option value="organization" {% if type_filter == 'organization' %}selected{% endif %}>Organizations</option>
+  </select>
+  <select name="min" onchange="this.form.submit()" aria-label="Minimum registers">
+    <option value="2" {% if min_filter == '2' %}selected{% endif %}>In two or more</option>
+    <option value="3" {% if min_filter == '3' %}selected{% endif %}>In three or more</option>
+  </select>
   <button type="submit">Search</button>
+  <span class="wtf-cw-count">{{ entities|length }} shown</span>
 </form>
 
 {% if q %}
@@ -62,9 +167,15 @@
 </div>
 {% else %}
 <div class="wtf-cw-empty">
-  {% if q %}No cross-watch entities match &ldquo;{{ q }}&rdquo;.{% else %}No cross-product entities yet.{% endif %}
+  {% if q %}No cross-watch entities match &ldquo;{{ q }}&rdquo; with these filters.{% else %}No entities match these filters.{% endif %}
 </div>
 {% endif %}
+
+<div class="wtf-cw-footer-links">
+  <a class="wtf-cw-footer-link" href="/parliament/officers">Officers &rarr;</a>
+  <a class="wtf-cw-footer-link" href="/lobbying">Lobbying &rarr;</a>
+  <a class="wtf-cw-footer-link" href="/gic">Appointments &rarr;</a>
+</div>
 
 <div class="wtf-cw-footnote">Cross-Watch resolves the same person or organization by name across our datasets. Coverage grows as Legal &amp; Market link in.</div>
 {% endblock %}

@@ -5548,14 +5548,38 @@ def _crosswatch_top(c, SH):
 
 @bp.get("/cross-watch")
 def cross_watch_explorer():
-    """Cross-Watch explorer (#3331 1c) — browse/search entities resolved across the
-    Watch Series. Default = top entities spanning the most products (cached); ?q=
-    searches by name/alias. Public; each result links to its /entity/<id> footprint."""
+    """Cross-Watch explorer (#3331 1c, filters + stats Batch 11 #6272-series) —
+    browse/search entities resolved across the Watch Series. Default = top entities
+    spanning the most products (cached); ?q= searches by name/alias; ?type=
+    person|organization and ?min=2|3 narrow the SHOWN rows via a plain Python
+    post-filter over the already-fetched population — deliberately NOT a new SQL
+    query. A fresh GROUP BY over shared.entity_mentions (~2.15M rows) HAVING
+    count(DISTINCT product)>=N measures ~5.8s solo on an idle DB regardless of
+    whether array_agg is included (verified live, 2026-09-04) — exactly the cost
+    migration 075's cross_watch_snapshot cache exists to avoid on every request, so
+    a `min` value below the cached floor of 2 is deliberately not offered (it would
+    need a second cached population, or a live query per request).
+
+    `min_required` is also applied as the DEFAULT floor on ?q= search hits, which
+    previously had no product-count floor at all — a single-product name could
+    appear on a page titled "entities resolved across the Watch Series". Public;
+    each result links to its /entity/<id> footprint."""
     S = _schema()
     SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
     q = (request.args.get("q") or "").strip()
+    type_filter = (request.args.get("type") or "").strip().lower()
+    if type_filter not in ("person", "organization"):
+        type_filter = ""
+    min_filter = request.args.get("min") or "2"
+    if min_filter not in ("2", "3"):
+        min_filter = "2"
+    min_required = 3 if min_filter == "3" else 2
     with _db().begin() as c:
         source_count = c.execute(text(f"SELECT count(*) FROM {S}.sources")).scalar() or 0
+        # Always computed (cache-backed via _crosswatch_top -> cross_watch_snapshot) —
+        # feeds the #cw-stats aggregate row, which describes the canonical
+        # cross-linked population regardless of any active search/filter below.
+        top_entities = _crosswatch_top(c, SH)
         if q:
             like = f"%{q.lower()}%"
             rows = c.execute(text(f"""
@@ -5574,8 +5598,13 @@ def cross_watch_explorer():
                          "products": list(r["products"] or []), "mentions": int(r["mentions"])}
                         for r in rows]
         else:
-            entities = _crosswatch_top(c, SH)
+            entities = top_entities
+    if type_filter:
+        entities = [e for e in entities if e["type"] == type_filter]
+    entities = [e for e in entities if len(e["products"]) >= min_required]
     return render_template("cross_watch.html", entities=entities, q=q,
+                           type_filter=type_filter, min_filter=min_filter,
+                           top_entities=top_entities,
                            source_count=source_count, is_subscriber=is_subscriber())
 
 

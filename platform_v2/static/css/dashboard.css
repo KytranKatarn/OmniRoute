@@ -2281,6 +2281,7 @@ body.light-mode .featured-pin-btn.pinned {
 /* ─── Per-Category LCARS Frame Color Classes ─── */
 .category-frame--admin_operations  { --frame-color: #ef4444; --frame-rgb: 239,68,68; --cat-accent: #ef4444; }
 .category-frame--ai_command        { --frame-color: #00ffff; --frame-rgb: 0,255,255; --cat-accent: #00ffff; }
+.category-frame--what_the_fact     { --frame-color: #3b82f6; --frame-rgb: 59,130,246; --cat-accent: #3b82f6; }
 .category-frame--saas_services     { --frame-color: #f59e0b; --frame-rgb: 245,158,11; --cat-accent: #f59e0b; }
 .category-frame--project_knowledge { --frame-color: #00ff41; --frame-rgb: 0,255,65; --cat-accent: #00ff41; }
 .category-frame--applications_concepts { --frame-color: #0ea5e9; --frame-rgb: 14,165,233; --cat-accent: #0ea5e9; }

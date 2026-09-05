@@ -46,6 +46,7 @@ class ModuleCategory(Enum):
     MEDIA_OUTREACH = "media_outreach"  # watch products, news, creed
     CREATIVE_STUDIOS = "creative_studios"  # game_studio, media_studio
     PLACEHOLDERS_FUTURE = "placeholders_future"  # future modules
+    WHAT_THE_FACT = "what_the_fact"  # wtf_hub (orchestration) + what_the_fact (public product)
 
 
 @dataclass
@@ -501,7 +502,7 @@ MODULES: List[ModuleDefinition] = [
         name="WTF Hub",
         description="Orchestration hub for what-the-fact.com — Bridge dispatch, ingest pipeline, story clustering",
         icon="globe",
-        category=ModuleCategory.AI_COMMAND,
+        category=ModuleCategory.WHAT_THE_FACT,
         route="/tools/wtf-hub",
         blueprint_import="tools.wtf_hub:wtf_hub_bp",
         required_permissions=[],
@@ -1005,7 +1006,7 @@ MODULES: List[ModuleDefinition] = [
         name="What The Fact",
         description="AI-powered transparent news<br>Bias detection • Fact-check summaries • Audit trails",
         icon="newspaper",
-        category=ModuleCategory.MEDIA_OUTREACH,
+        category=ModuleCategory.WHAT_THE_FACT,
         route="/external/wtf",
         external_url="https://what-the-fact.com",
         priority=2,

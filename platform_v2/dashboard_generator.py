@@ -218,6 +218,13 @@ def get_categories_info() -> Dict[str, Dict]:
             "color": "#FF6B6B",
             "priority": 2,
         },
+        "what_the_fact": {
+            "name": "What The Fact",
+            "icon": "fas fa-newspaper",
+            "description": "Bridge orchestration + public product for what-the-fact.com",
+            "color": "#3b82f6",
+            "priority": 3,
+        },
         "saas_services": {
             "name": "SaaS Services",
             "icon": "fas fa-cloud",

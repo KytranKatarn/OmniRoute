@@ -1062,9 +1062,13 @@ STANDALONE_PRODUCTS = [
         "name": "wtf",
         "display_name": "What The Fact",
         "code_path": "/mnt/archie_brain/what-the-fact",
-        # WTF DB = real Postgres DB on the hub (schema "wtf" in DB "wtf").
+        # WTF DB = a separate Postgres DATABASE on the hub named "wtf" — but it is NOT
+        # WTF-only. It holds 8 schemas (wtf, parliament, shared, gov_watch, legal_watch,
+        # market_watch, securities, public) — "shared" is the cross-product entity graph
+        # that gov/legal/market-watch push into over HTTP via wtf-ingest. A single-schema
+        # dump (the old "-n wtf" behaviour) silently missed 7 of them. db_schema is
+        # intentionally ABSENT so backup_standalone() dumps the WHOLE database.
         "db_kind": "hub_schema",
-        "db_schema": "wtf",  # schema within the wtf database
         "db_name": "wtf",  # separate postgres DB — connect: psql -U archie -d wtf
         "backup_type": "full",
     },
@@ -1225,23 +1229,34 @@ def backup_standalone(standalone_name):
         if db_password:
             pg_env["PGPASSWORD"] = db_password
         try:
+            # db_host: per-product override (a product's DB can live on a different
+            # host than the platform's own "archie" DB, e.g. after a standalone
+            # migrates to its own postgres instance) — falls back to the global
+            # DB_HOST so every OTHER product's behaviour is unchanged.
+            pg_dump_cmd = [
+                "pg_dump",
+                "-h",
+                product.get("db_host") or os.getenv("DB_HOST", "192.168.1.200"),
+                "-U",
+                os.getenv("DB_USER", "archie"),
+                "-d",
+                product.get("db_name", os.getenv("DB_NAME", "archie")),
+            ]
+            # db_schema is OPTIONAL. When present, dump only that named schema
+            # (legacy behaviour, used by products that share a DB with other
+            # tenants and must not pull in someone else's schema). When absent,
+            # dump the WHOLE database — required for "wtf", whose DB holds 8
+            # schemas (wtf/parliament/shared/gov_watch/legal_watch/market_watch/
+            # securities/public), not just one; a single "-n wtf" silently missed
+            # the other 7, including the cross-product entity graph in "shared".
+            if product.get("db_schema"):
+                pg_dump_cmd += ["-n", product["db_schema"]]
+            pg_dump_cmd += ["-f", db_dump_path]
             result = subprocess.run(
-                [
-                    "pg_dump",
-                    "-h",
-                    os.getenv("DB_HOST", "192.168.1.200"),
-                    "-U",
-                    os.getenv("DB_USER", "archie"),
-                    "-d",
-                    product.get("db_name", os.getenv("DB_NAME", "archie")),
-                    "-n",
-                    product["db_schema"],
-                    "-f",
-                    db_dump_path,
-                ],
+                pg_dump_cmd,
                 env=pg_env,
                 capture_output=True,
-                timeout=120,
+                timeout=300,
             )
             if result.returncode != 0:
                 errors.append(f"pg_dump: {result.stderr.decode()[:200]}")

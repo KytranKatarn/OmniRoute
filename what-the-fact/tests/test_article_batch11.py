@@ -345,42 +345,17 @@ class TestCiteThisAnalysis:
 # pre-fix template, so a future revert of article.html is caught here too.
 # ---------------------------------------------------------------------------
 
-def _render_pre_fix():
-    """Render the template as it stood BEFORE this batch's commit(s).
-
-    Deliberately NOT `git show HEAD:...` — HEAD stops being "pre-fix" the
-    moment this branch's own commit lands (or a follow-up commit is added
-    during review), which would make this guard compare the new template
-    against itself and silently pass. `merge-base HEAD origin/main` is the
-    point this branch diverged from and does not move just because this
-    branch gains commits.
-    """
-    import subprocess
-    base = subprocess.run(
-        ["git", "merge-base", "HEAD", "origin/main"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    ).stdout.strip()
-    pre_fix_src = subprocess.run(
-        ["git", "show", f"{base}:what-the-fact/consumer/templates/article.html"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    ).stdout
-    env = Environment(loader=ChoiceLoader([
-        DictLoader({"base.html": _BASE_STUB, "article.html": pre_fix_src}),
-        FileSystemLoader(str(TPL_DIR)),
-    ]))
-    env.globals["url_for"] = lambda *a, **k: "#"
-    ctx = dict(_ARTICLE_CTX)
-    ctx.update(a=_article_row(cluster_id=9), is_subscriber=True,
-               cluster_articles=[{"id": 7, "title": "Other Story", "url": "https://x.com",
-                                   "published_at": _T0, "source_name": "Other Outlet",
-                                   "source_slug": "other", "bias_band": "center", "bias_score": 0.0}],
-               pickup_order=TestPickupOrderPanel._PICKUP,
-               coverage_stats={"outlets_covering": 2, "bands_spanned": 1, "widest_label": "Center"})
-    return env.get_template("article.html").render(**ctx)
-
-
-def test_none_of_the_three_panels_existed_before_this_change():
-    html = _render_pre_fix()
-    assert "What we measured" not in html
-    assert "Pickup order" not in html
-    assert "Cite this analysis" not in html
+# Mutation check (house rule #7) run once at authoring time. Originally
+# implemented as a runtime `git merge-base HEAD origin/main` lookup — a
+# smarter attempt than a bare `git show HEAD:...` (it survives the branch
+# gaining review commits), but it still collapses once this branch is
+# squash-merged and deleted: on `main` post-merge, HEAD and origin/main are
+# the same commit, so merge-base again resolves to the post-fix tip and the
+# check compares the new template against itself (confirmed: this is
+# exactly how it failed on the first full-suite run after merge). There is
+# no ordinary git ref that stays "pre-fix" once the fix is mainline — the
+# verification below was run once, by hand, against the true parent commit,
+# and is not re-derivable from any ref this repo keeps around afterward.
+#
+# Confirmed then: none of "What we measured", "Pickup order", or "Cite this
+# analysis" appeared anywhere in article.html before this batch's commit.

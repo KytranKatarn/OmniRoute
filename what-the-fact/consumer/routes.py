@@ -1267,21 +1267,97 @@ def economy():
             f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'foreign-policy' AND suppressed_reason IS NULL"
         )).scalar() or 0
 
-        # One real economic indicator (#6272, Batch 9) — the design wants six
-        # (CPI, unemployment, GDP, FX, housing starts, overnight rate); only
-        # this one has an ingested source on the platform today
-        # (market_watch.boc_rate_decisions, same table /rates already reads).
-        # The other five are NOT shown with invented numbers — see
-        # design-handoff/wtf-economy.html's IND array, which is a hardcoded
-        # const, not a fetch. Best-effort: this page must render even if the
-        # table is briefly unreachable.
-        boc_current = None
+        # Six real, ingested economic indicators (#6272 Batch 9 + Batch 12
+        # #6523). Each block has its own try/except — one table being
+        # briefly unreachable degrades that one card, never the whole page
+        # (the original single-indicator version already worked this way).
+        # No hardcoded/sample numbers anywhere below — every value, chart
+        # point and delta comes from a live query. See
+        # design-handoff/wtf-economy.html's IND array for the layout this
+        # replaces (that array is a hardcoded JS const, never a fetch).
+        indicators = []
+
         try:
-            boc_current = c.execute(text("""
-                SELECT rate_pct, decision_date
+            boc_rows = [dict(r) for r in c.execute(text("""
+                SELECT decision_date AS ref_date, rate_pct AS value
                 FROM market_watch.boc_rate_decisions
-                ORDER BY decision_date DESC LIMIT 1
-            """)).mappings().first()
+                ORDER BY decision_date DESC LIMIT 25
+            """)).mappings().all()]
+            boc_rows.reverse()
+            if boc_rows:
+                series = [(r["ref_date"], r["value"]) for r in boc_rows]
+                indicators.append(_econ_indicator(
+                    key="overnight_rate", name="Overnight rate target",
+                    value=boc_rows[-1]["value"], unit="%",
+                    source="BoC Valet V122514", href="/rates", series=series,
+                ))
+        except Exception:
+            pass
+
+        try:
+            fx_rows = [dict(r) for r in c.execute(text("""
+                SELECT DISTINCT ON (date_trunc('month', rate_date)::date)
+                       rate_date AS ref_date, usd_cad AS value
+                FROM market_watch.fx_rates
+                ORDER BY date_trunc('month', rate_date)::date, rate_date DESC
+            """)).mappings().all()]
+            fx_rows.sort(key=lambda r: r["ref_date"])
+            fx_rows = fx_rows[-25:]
+            if fx_rows:
+                series = [(r["ref_date"], r["value"]) for r in fx_rows]
+                indicators.append(_econ_indicator(
+                    key="cad_usd", name="CAD per USD",
+                    value=fx_rows[-1]["value"], unit="", decimals=4,
+                    source="BoC Valet FXUSDCAD", href=None, series=series,
+                ))
+        except Exception:
+            pass
+
+        try:
+            ind_rows = c.execute(text("""
+                SELECT indicator_key, ref_date, value
+                FROM market_watch.economic_indicators
+                ORDER BY indicator_key, ref_date
+            """)).mappings().all()
+            by_key = {}
+            for r in ind_rows:
+                by_key.setdefault(r["indicator_key"], []).append(dict(r))
+
+            if by_key.get("cpi_index"):
+                yoy = _econ_cpi_yoy(by_key["cpi_index"])[-24:]
+                if yoy:
+                    indicators.append(_econ_indicator(
+                        key="cpi_yoy", name="CPI, year over year",
+                        value=yoy[-1][1], unit="%",
+                        source="StatCan 18-10-0004-01", href=None, series=yoy,
+                    ))
+
+            if by_key.get("unemployment_rate"):
+                u_rows = by_key["unemployment_rate"][-25:]
+                indicators.append(_econ_indicator(
+                    key="unemployment_rate", name="Unemployment rate",
+                    value=u_rows[-1]["value"], unit="%",
+                    source="StatCan 14-10-0287-01 (LFS)", href=None,
+                    series=[(r["ref_date"], r["value"]) for r in u_rows],
+                ))
+
+            if by_key.get("gdp_level"):
+                mom = _econ_gdp_mom(by_key["gdp_level"])[-24:]
+                if mom:
+                    indicators.append(_econ_indicator(
+                        key="gdp_mom", name="Real GDP, monthly change",
+                        value=mom[-1][1], unit="%", signed=True,
+                        source="StatCan 36-10-0434-01", href=None, series=mom,
+                    ))
+
+            if by_key.get("housing_starts_saar"):
+                h_rows = by_key["housing_starts_saar"][-25:]
+                indicators.append(_econ_indicator(
+                    key="housing_starts_saar", name="Housing starts, SAAR (000s)",
+                    value=h_rows[-1]["value"], unit="", decimals=0,
+                    source="StatCan 34-10-0158-01 (CMHC starts)", href=None,
+                    series=[(r["ref_date"], r["value"]) for r in h_rows],
+                ))
         except Exception:
             pass
 
@@ -1290,7 +1366,7 @@ def economy():
                            economy_count=economy_count,
                            business_count=business_count,
                            foreign_count=foreign_count,
-                           boc_current=dict(boc_current) if boc_current else None,
+                           indicators=indicators,
                            is_subscriber=is_subscriber())
 
 
@@ -5312,6 +5388,98 @@ def _boc_rate_chart(history, width=720, height=200, pad=28):
         "min_rate": lo, "max_rate": hi,
         "start_date": dates[0], "end_date": dates[-1],
         "end_x": round(_x(dates[-1]), 1), "end_y": round(_y(rates[-1]), 1),
+    }
+
+
+def _econ_mini_chart(series, width=220, height=54, pad=4):
+    """Hand-rolled SVG polyline for a small /economy indicator-card chart —
+    same linear x/y scaling as _boc_rate_chart, generalized to any (date,
+    value) series and sized for a grid card rather than a full-page chart.
+    `series` is a list of (date, value) tuples, oldest first. Returns None
+    when there's nothing to plot (0 or 1 point, which can't form a line)."""
+    if not series or len(series) < 2:
+        return None
+    dates = [s[0] for s in series]
+    vals = [float(s[1]) for s in series]
+    t0, t1 = dates[0].toordinal(), dates[-1].toordinal()
+    span = (t1 - t0) or 1
+    lo, hi = min(vals), max(vals)
+    rspan = (hi - lo) or 1.0
+
+    def _x(d):
+        return pad + (d.toordinal() - t0) / span * (width - 2 * pad)
+
+    def _y(v):
+        return height - pad - (v - lo) / rspan * (height - 2 * pad)
+
+    points = " ".join(f"{_x(d):.1f},{_y(v):.1f}" for d, v in zip(dates, vals))
+    return {
+        "width": width, "height": height, "points": points,
+        "end_x": round(_x(dates[-1]), 1), "end_y": round(_y(vals[-1]), 1),
+    }
+
+
+def _econ_cpi_yoy(rows):
+    """Year-over-year %% change from raw StatCan CPI index rows (each a
+    dict with ref_date/value, oldest first, ref_date always the 1st of a
+    month). A point requires the same calendar month exactly 12 months
+    earlier to also be present in `rows` — returns fewer points (or [])
+    rather than guess at a rate when there isn't 12 months of history
+    behind a given row yet. The raw index is stored by the ingest; this
+    view is computed here, never baked into storage (mirrors how /rates
+    derives peak/hold-streak stats from raw rate_pct rows)."""
+    by_date = {r["ref_date"]: float(r["value"]) for r in rows}
+    out = []
+    for r in rows:
+        d = r["ref_date"]
+        prior = datetime.date(d.year - 1, d.month, 1)
+        base = by_date.get(prior)
+        if base:
+            out.append((d, (float(r["value"]) / base - 1) * 100))
+    return out
+
+
+def _econ_gdp_mom(rows):
+    """Month-over-month %% change from raw StatCan GDP level rows (each a
+    dict with ref_date/value, oldest first). Plain consecutive-row delta —
+    no synthetic first point, no fabricated value when a row is missing
+    (a gap just means one fewer point, not an interpolated one)."""
+    out = []
+    prev = None
+    for r in rows:
+        if prev is not None and prev["value"]:
+            out.append((r["ref_date"], (float(r["value"]) / float(prev["value"]) - 1) * 100))
+        prev = r
+    return out
+
+
+def _econ_indicator(*, key, name, value, unit, source, href, series, decimals=1, signed=False):
+    """Assembles one /economy indicator card's template data from a plain
+    (date, value) series (oldest first, already capped to the window the
+    caller wants shown). Formats the current value, and — only when the
+    series has 2+ points — the change from the series' own first point to
+    its last (never a synthetic baseline). `signed` puts a '+' on a
+    positive current value (used only for GDP month-over-month, which
+    fluctuates around zero and needs the sign to read at a glance — the
+    other five indicators don't carry a '+' in the design either)."""
+    value = float(value)
+    prefix = "+" if signed and value > 0 else ""
+    display_value = f"{prefix}{value:.{decimals}f}{unit}"
+    delta = None
+    if len(series) >= 2:
+        first_v, last_v = float(series[0][1]), float(series[-1][1])
+        d = round(last_v - first_v, decimals)
+        dprefix = "+" if d > 0 else ""
+        delta = {
+            "start_date": series[0][0], "end_date": series[-1][0],
+            "text": f"{dprefix}{d}{unit}",
+        }
+    return {
+        "key": key, "name": name, "value": display_value,
+        "source": source, "href": href,
+        "as_of": series[-1][0] if series else None,
+        "chart": _econ_mini_chart(series),
+        "delta": delta,
     }
 
 

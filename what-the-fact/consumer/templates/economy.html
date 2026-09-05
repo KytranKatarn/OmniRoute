@@ -62,14 +62,25 @@
 .wtf-ec-market-cta { flex-direction:column }
 @media(max-width:600px){main{padding:20px 12px}.wtf-ec-stats-row{gap:10px}.wtf-ec-market-cta{flex-direction:column}}
 
-/* Economic indicators (#6272, Batch 9) — see the routes.py comment on
-   economy() for why this is ONE card, not the design's six. Reuses the
-   established .wtf-ec-stat-box shape rather than inventing a second card
-   style for a single indicator. */
-.wtf-ec-indicator-box { text-decoration:none; display:block; transition:border-color .15s }
-.wtf-ec-indicator-box:hover { border-color:var(--wtf-developing) }
-.wtf-ec-indicator-asof { font-size:8px;color:#374151;margin-top:2px }
-.wtf-ec-indicators-note { font-size:9px;color:#374151;line-height:1.7;margin-top:8px;max-width:640px }
+/* Economic indicators grid (#6272 Batch 9 -> Batch 12 #6523). All six
+   cards now have a real ingested source (market_watch.boc_rate_decisions,
+   .fx_rates, .economic_indicators) — see the routes.py economy() comment.
+   Grid/card classes match design-handoff/wtf-economy.html's .wtf-ec-ind /
+   .wtf-ec-card / .wtf-ec-ih / .wtf-ec-in / .wtf-ec-iv / .wtf-ec-im, reusing
+   its exact token names (--wtf-bg-card/--wtf-border/--wtf-text/--wtf-text-2/
+   --wtf-text-muted/--wtf-accent), all confirmed present in style.css. */
+.wtf-ec-ind { display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:11px }
+.wtf-ec-card { background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:11px;padding:14px 15px }
+.wtf-ec-card-link { text-decoration:none;display:block;color:inherit;transition:border-color .15s }
+.wtf-ec-card-link:hover { border-color:var(--wtf-developing) }
+.wtf-ec-ih { display:flex;justify-content:space-between;align-items:baseline;gap:8px }
+.wtf-ec-in { font-size:12.5px;color:var(--wtf-text);font-weight:500 }
+.wtf-ec-iv { font-family:var(--wtf-font-mono);font-size:20px;color:var(--wtf-text);font-variant-numeric:tabular-nums;letter-spacing:-.02em }
+.wtf-ec-im { font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:2px;line-height:1.6 }
+.wtf-ec-im b { color:var(--wtf-text-2);font-weight:500 }
+.wtf-ec-chart-wrap { margin-top:8px }
+.wtf-ec-delta-row { display:flex;justify-content:space-between }
+.wtf-ec-unavailable { grid-column:1/-1;text-align:center;color:#374151;font-size:11px;padding:16px }
 </style>
 
 <div class="wtf-ec-page-header">
@@ -101,25 +112,43 @@
     </div>
   </div>
 
-  <div class="wtf-ec-section-title">Economic indicators</div>
-  <div class="wtf-ec-stats-row">
-    {% if boc_current %}
-    <a href="/rates" class="wtf-ec-stat-box wtf-ec-indicator-box">
-      <div class="wtf-ec-stat-num">{{ boc_current.rate_pct }}%</div>
-      <div class="wtf-ec-stat-lbl">Bank of Canada overnight rate</div>
-      <div class="wtf-ec-indicator-asof">as of {{ boc_current.decision_date }} &rarr; full history</div>
-    </a>
+  <div class="wtf-ec-section-title">The indicators behind the coverage &middot; live history</div>
+  <div class="wtf-ec-ind">
+    {% if indicators %}
+    {% for ind in indicators %}
+    {% set card %}
+      <div class="wtf-ec-ih">
+        <span class="wtf-ec-in">{{ ind.name }}</span>
+        <span class="wtf-ec-iv">{{ ind.value }}</span>
+      </div>
+      <div class="wtf-ec-im"><b>{{ ind.source }}</b>{% if ind.as_of %} &middot; as of {{ ind.as_of.strftime('%b %Y') if ind.as_of.day == 1 else ind.as_of.strftime('%b %d, %Y') }}{% endif %}</div>
+      {% if ind.chart %}
+      <div class="wtf-ec-chart-wrap">
+        <svg viewBox="0 0 {{ ind.chart.width }} {{ ind.chart.height }}" style="width:100%;height:auto;display:block"
+             role="img" aria-label="{{ ind.name }} history">
+          <polyline points="{{ ind.chart.points }}" fill="none" stroke="var(--wtf-accent)" stroke-width="1.6" stroke-linejoin="round" />
+          <circle cx="{{ ind.chart.end_x }}" cy="{{ ind.chart.end_y }}" r="2.8" fill="var(--wtf-accent)" />
+        </svg>
+      </div>
+      {% endif %}
+      {% if ind.delta %}
+      <div class="wtf-ec-im wtf-ec-delta-row">
+        <span>{{ ind.delta.start_date.strftime('%b %Y') }}</span>
+        <span>{{ ind.delta.text }}</span>
+        <span>{{ ind.delta.end_date.strftime('%b %Y') }}</span>
+      </div>
+      {% endif %}
+    {% endset %}
+    {% if ind.href %}
+    <a href="{{ ind.href }}" class="wtf-ec-card wtf-ec-card-link">{{ card|safe }}</a>
     {% else %}
-    <div class="wtf-ec-stat-box">
-      <div class="wtf-ec-stat-lbl">Bank of Canada overnight rate — temporarily unavailable</div>
-    </div>
+    <div class="wtf-ec-card">{{ card|safe }}</div>
+    {% endif %}
+    {% endfor %}
+    {% else %}
+    <div class="wtf-ec-unavailable">Economic indicators are temporarily unavailable — check back soon.</div>
     {% endif %}
   </div>
-  <p class="wtf-ec-indicators-note">
-    Live from the Bank of Canada — the only one of six planned indicators (alongside CPI,
-    unemployment, GDP, exchange rate and housing starts) with a real ingested source on this
-    platform today. The other five aren't shown rather than shown with invented numbers.
-  </p>
 
   <div class="wtf-ec-section-title">Recent economy, business &amp; foreign-policy stories</div>
 

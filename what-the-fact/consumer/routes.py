@@ -345,6 +345,7 @@ TEAM_AGENTS = [
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/c78a58f0-ee5.png",
         "accent_colour": "#dc2626",
+        "weak_spot": "Coordinates coverage decisions across the team, but doesn't independently verify them — a bad call upstream (e.g. a bias score) can still propagate through to publication.",
     },
     {
         "name": "B.I.A.S.",
@@ -355,6 +356,7 @@ TEAM_AGENTS = [
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/05821aee-a2e.png",
         "accent_colour": "#f59e0b",
+        "weak_spot": "Scores each article independently — it has no memory of how it scored a similar story yesterday, so its calibration can drift over a fast-moving news cycle.",
     },
     {
         "name": "V.E.R.I.F.Y.",
@@ -375,6 +377,7 @@ TEAM_AGENTS = [
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-29/7810b5ae-31f.png",
         "accent_colour": "#3b82f6",
+        "weak_spot": "Maps each story to a single province; a story naming several provinces at once is a genuinely ambiguous case for that approach.",
     },
     {
         "name": "I.N.K.",
@@ -385,6 +388,7 @@ TEAM_AGENTS = [
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/9e1efa5f-5a7.png",
         "accent_colour": "#ec4899",
+        "weak_spot": "Threads stories together by similarity; two unrelated stories that share a name or subject can occasionally get joined as one.",
     },
     {
         "name": "D.R.A.F.T.",
@@ -395,6 +399,7 @@ TEAM_AGENTS = [
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/70bc27b1-ede.png",
         "accent_colour": "#06b6d4",
+        "weak_spot": "Summarizes what's already reported — it doesn't source new facts, so a summary is only as complete as the article it's drawn from.",
     },
     {
         "name": "P.U.B.L.I.S.H.",
@@ -405,6 +410,7 @@ TEAM_AGENTS = [
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-20/e7149ec2-f73.png",
         "accent_colour": "#f97316",
+        "weak_spot": "Reports what it publishes, not how it performs — reach and engagement aren't fed back into what it prioritizes next.",
     },
     {
         "name": "A.U.R.O.R.A.",

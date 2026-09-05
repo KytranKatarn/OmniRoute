@@ -61,6 +61,28 @@
 .wtf-wx-layer-btn { background:transparent; border:1px solid #16304a; color:#6b7280; border-radius:4px;
   padding:4px 10px; font-size:10px; font-family:inherit; cursor:pointer; letter-spacing:.04em; }
 .wtf-wx-layer-btn.active { background:#1e3a5a; border-color:#2563eb; color:#93c5fd; }
+/* ── quick-win toolbar controls (task #17) ────────────────────────────── */
+.wtf-wx-toolbar-extra { display:flex; align-items:center; gap:8px; margin-left:auto; flex-wrap:wrap; }
+.wtf-wx-toolbar-label { font-size:10px; color:#6b7280; letter-spacing:.04em; white-space:nowrap; }
+.wtf-wx-city-select {
+  background:#060d14; border:1px solid #16304a; color:#9ca3af; border-radius:4px;
+  padding:4px 8px; font-size:10px; font-family:inherit; cursor:pointer; max-width:180px;
+}
+.wtf-wx-toolbar-btn { background:transparent; border:1px solid #16304a; color:#9ca3af; border-radius:4px;
+  padding:4px 10px; font-size:10px; font-family:inherit; cursor:pointer; letter-spacing:.04em; }
+.wtf-wx-toolbar-btn:hover { border-color:#2563eb; color:#e5e7eb; }
+.wtf-wx-cb-toggle { display:flex; align-items:center; gap:5px; font-size:10px; color:#9ca3af; cursor:pointer; white-space:nowrap; }
+.wtf-wx-cb-toggle input { cursor:pointer; }
+.wtf-wx-city-select:focus-visible,
+.wtf-wx-toolbar-btn:focus-visible,
+.wtf-wx-cb-toggle input:focus-visible {
+  outline:2px solid #2563eb; outline-offset:1px;
+}
+.wtf-wx-copy-status {
+  padding:4px 12px; font-size:10px; color:#22c55e; border-bottom:1px solid #0a1a2a;
+  transition:opacity .3s ease; opacity:1;
+}
+.wtf-wx-copy-status.is-fading { opacity:0; }
 .wtf-wx-maplegend { padding:8px 12px; border-top:1px solid #0a1a2a; font-size:10px; color:#6b7280; line-height:1.7; }
 .wtf-wx-legend-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
 .wtf-wx-swatch { display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:4px;
@@ -116,6 +138,9 @@
 .wtf-wx-citycard.is-stale  { border-left-color:var(--wtf-developing); }
 .wtf-wx-citycard.is-silent { border-left-color:var(--wtf-text-muted); opacity:.72; }
 .wtf-wx-citycard.is-capital { border-left-width:4px; }
+/* home-city highlight (task #17) — an outline ring so it never fights with
+   the is-stale/is-silent border-left colour coding above. */
+.wtf-wx-citycard.is-home { outline:2px solid var(--wtf-aurora); outline-offset:-2px; }
 .wtf-wx-city-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .wtf-wx-city-name { font-size:14px; font-weight:600; color:var(--wtf-text);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -255,7 +280,21 @@
           <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
           <button class="wtf-wx-layer-btn" data-layer="wx" type="button">🌡 Fire weather</button>
           <button class="wtf-wx-layer-btn" data-layer="cities" type="button">🌤 Current weather</button>
+          <div class="wtf-wx-toolbar-extra">
+            <label class="wtf-wx-toolbar-label" for="wtf-wx-city-select">My city</label>
+            <select id="wtf-wx-city-select" class="wtf-wx-city-select"
+                    aria-label="Choose your home city to highlight it in the city grid below">
+              <option value="">— choose a city —</option>
+            </select>
+            <button type="button" id="wtf-wx-copy-link" class="wtf-wx-toolbar-btn"
+                    aria-label="Copy link to this view">🔗 Copy link to this view</button>
+            <label class="wtf-wx-cb-toggle" for="wtf-wx-cb-toggle">
+              <input type="checkbox" id="wtf-wx-cb-toggle">
+              Colourblind-safe colours
+            </label>
+          </div>
         </div>
+        <div id="wtf-wx-copy-status" class="wtf-wx-copy-status" role="status" aria-live="polite" hidden></div>
         <div id="wtf-wx-map"></div>
         <div class="wtf-wx-maplegend" id="wtf-wx-legend"></div>
       </div>
@@ -478,6 +517,36 @@
   var NO_DATA = "#1b2430";   // grey = this layer does not cover the area
   var selected = null, activeLayer = "fire";
 
+  // ── Quick-win state (task #17): home city + colourblind palette ───────────
+  // Read once at load so the FIRST render already carries a stored preference
+  // — "apply the same treatment without requiring a re-select".
+  var homeCity = null;
+  try { homeCity = localStorage.getItem("wtf.homeCity") || null; } catch (e) {}
+
+  var cbOn = false;
+  try { cbOn = localStorage.getItem("wtf-cb") === "1"; } catch (e) {}
+
+  function populateCitySelect() {
+    var sel = document.getElementById("wtf-wx-city-select");
+    if (!sel || !CITIES.cities) return;
+    var list = CITIES.cities.slice().sort(function (a, b) {
+      return (a.name || "").localeCompare(b.name || "", "en");
+    });
+    list.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = c.name;
+      // Province suffix disambiguates same-named cities. textContent only —
+      // city names are third-party strings (site-wide XSS rule).
+      opt.textContent = c.name + (c.prov ? " (" + c.prov + ")" : "");
+      sel.appendChild(opt);
+    });
+    if (homeCity) sel.value = homeCity;
+  }
+  populateCitySelect();
+
+  var cbToggleEl = document.getElementById("wtf-wx-cb-toggle");
+  if (cbToggleEl) cbToggleEl.checked = cbOn;
+
   var FIRE_STOPS = [[0,"#1e3a5a","0"],[10,"#78350f","10+"],[100,"#b45309","100+"],
                     [500,"#ea580c","500+"],[2000,"#dc2626","2,000+"],[1e9,"#7f1d1d","5,000+"]];
   var FWI_STOPS  = [[5,"#1d4ed8","FWI 0-5"],[11,"#0891b2","5-11"],[21,"#ca8a04","11-21"],
@@ -487,6 +556,24 @@
   var TEMP_STOPS = [[-20,"#312e81","-20 °C"],[-10,"#3730a3","-10"],[0,"#1d4ed8","0"],
                     [8,"#0891b2","8"],[16,"#22c55e","16"],[24,"#f59e0b","24"],
                     [31,"#ea580c","31"],[1e9,"#dc2626","31+"]];
+
+  // ── Colourblind-safe twins (task #17) ──────────────────────────────────
+  // Same breakpoints + labels as the defaults directly above; only the
+  // colour in each stop changes. Blue -> yellow throughout, never
+  // red<->green, so the ramp stays legible under protanopia / deuteranopia /
+  // tritanopia (the axis colour-vision-typical viewers rely on to tell red
+  // and green apart is exactly the axis this palette never uses).
+  var FIRE_STOPS_DEFAULT = FIRE_STOPS;
+  var FWI_STOPS_DEFAULT  = FWI_STOPS;
+  var TEMP_STOPS_DEFAULT = TEMP_STOPS;
+
+  var FIRE_STOPS_CB = [[0,"#1e1b4b","0"],[10,"#1e40af","10+"],[100,"#0369a1","100+"],
+                    [500,"#0891b2","500+"],[2000,"#ca8a04","2,000+"],[1e9,"#eab308","5,000+"]];
+  var FWI_STOPS_CB  = [[5,"#1e3a8a","FWI 0-5"],[11,"#1d4ed8","5-11"],[21,"#0891b2","11-21"],
+                    [38,"#ca8a04","21-38"],[1e9,"#eab308","38+"]];
+  var TEMP_STOPS_CB = [[-20,"#1e1b4b","-20 °C"],[-10,"#312e81","-10"],[0,"#1d4ed8","0"],
+                    [8,"#0284c7","8"],[16,"#0891b2","16"],[24,"#ca8a04","24"],
+                    [31,"#eab308","31"],[1e9,"#fde047","31+"]];
 
   // A city observation older than this is shown as stale. The number is DERIVED
   // from wtf.aurora_layer_status.stale_after_hours (city_obs = 3h) and passed in
@@ -605,6 +692,9 @@
   // is the FWI scale, not this.
   var STATION_TEMP_STOPS = [[0,"#3b82f6",""],[10,"#0891b2",""],[18,"#22c55e",""],
                             [25,"#f59e0b",""],[1e9,"#dc2626",""]];
+  var STATION_TEMP_STOPS_DEFAULT = STATION_TEMP_STOPS;
+  var STATION_TEMP_STOPS_CB = [[0,"#1e3a8a",""],[10,"#0284c7",""],[18,"#0891b2",""],
+                            [25,"#ca8a04",""],[1e9,"#eab308",""]];
 
   function fireCoverage() {
     var c = A.coverage.hotspot_provinces;
@@ -637,6 +727,60 @@
       tooltip: provinceTooltip, coverageNote: cityCoverage, points: cityPoints }
   ];
 
+  // ── Colourblind-safe palette toggle (task #17) ─────────────────────────
+  function applyCbPalette(on) {
+    FIRE_STOPS = on ? FIRE_STOPS_CB : FIRE_STOPS_DEFAULT;
+    FWI_STOPS  = on ? FWI_STOPS_CB  : FWI_STOPS_DEFAULT;
+    TEMP_STOPS = on ? TEMP_STOPS_CB : TEMP_STOPS_DEFAULT;
+    STATION_TEMP_STOPS = on ? STATION_TEMP_STOPS_CB : STATION_TEMP_STOPS_DEFAULT;
+    // wtf-map.js's drawLegend() re-reads layerDef(active).ramp fresh on
+    // EVERY draw (never a snapshot taken at WTFMap.create() time) — but
+    // WX_LAYERS[i].ramp was itself set to the VALUE FIRE_STOPS/FWI_STOPS/
+    // TEMP_STOPS held at the moment this array literal was built. Reassigning
+    // the vars above does not follow through to that already-captured
+    // reference on its own — it must be re-pointed explicitly, or the legend
+    // keeps showing the old palette forever after a toggle. Verified live:
+    // without this line the province fills and point markers repaint in the
+    // new colours (they read FIRE_STOPS/etc. via closure at call time) while
+    // the legend swatches stay stuck on the original hexes.
+    WX_LAYERS[0].ramp = FIRE_STOPS;
+    WX_LAYERS[1].ramp = FWI_STOPS;
+    WX_LAYERS[2].ramp = TEMP_STOPS;
+    if (wtfmap) wtfmap.refresh();
+  }
+  applyCbPalette(cbOn);
+
+  // ── Copy-link-to-this-view hash (task #17) ─────────────────────────────
+  function writeHash() {
+    var parts = ["layer=" + encodeURIComponent(activeLayer)];
+    if (selected) parts.push("prov=" + encodeURIComponent(selected));
+    var hash = "#" + parts.join("&");
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", hash);
+    } else {
+      location.hash = hash;
+    }
+  }
+
+  function readHash() {
+    if (!wtfmap) return;
+    var h = (location.hash || "").replace(/^#/, "");
+    if (!h) return;
+    var params = {};
+    try {
+      h.split("&").forEach(function (pair) {
+        var kv = pair.split("=");
+        if (!kv[0]) return;
+        params[window.decodeURIComponent(kv[0])] = window.decodeURIComponent(kv[1] || "");
+      });
+    } catch (e) {
+      // A hand-corrupted hash (stray %) must not abort the rest of page init.
+      return;
+    }
+    if (params.layer) wtfmap.setLayer(params.layer);
+    if (params.prov) select(params.prov);
+  }
+
   wtfmap = WTFMap.create({
     el: "wtf-wx-map",
     legendEl: "wtf-wx-legend",
@@ -654,14 +798,22 @@
       if (selected) wtfmap.focusProvince(selected);
       else wtfmap.resetView();
       renderAurora(); renderCards(); renderCities();
+      writeHash();
     },
     onLayer: function (id) {
       activeLayer = id;
       document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (x) {
         x.classList.toggle("active", x.getAttribute("data-layer") === id);
       });
+      writeHash();
     }
   });
+
+  // Restore layer/province from a shared link. Must run AFTER WTFMap.create()
+  // returns (wtfmap must exist), and setLayer THEN select — a province
+  // selected on the wrong layer would highlight scope buttons that don't
+  // match the visible choropleth.
+  readHash();
 
   function restyle() { if (wtfmap) wtfmap.refresh(); }
 
@@ -782,6 +934,76 @@
     });
   });
 
+  // ── "My city" select (task #17) ────────────────────────────────────────
+  var citySelectEl = document.getElementById("wtf-wx-city-select");
+  if (citySelectEl) {
+    citySelectEl.addEventListener("change", function () {
+      homeCity = this.value || null;
+      try {
+        if (homeCity) localStorage.setItem("wtf.homeCity", homeCity);
+        else localStorage.removeItem("wtf.homeCity");
+      } catch (e) {}
+      renderCities();
+    });
+  }
+
+  // ── Copy link to this view (task #17) ──────────────────────────────────
+  function showCopiedStatus() {
+    var status = document.getElementById("wtf-wx-copy-status");
+    if (!status) return;
+    window.clearTimeout(status._hideTimer);
+    status.textContent = "Copied link to this view.";  // textContent — no innerHTML
+    status.hidden = false;
+    status.classList.remove("is-fading");
+    status._hideTimer = setTimeout(function () {
+      status.classList.add("is-fading");
+      setTimeout(function () { status.hidden = true; }, 300);
+    }, 1700);
+  }
+
+  // navigator.clipboard requires a secure context; this app is served over
+  // plain HTTP on the LAN in some deployments, where it is `undefined` —
+  // the offscreen-textarea + execCommand fallback is not optional there.
+  function fallbackCopyLink(text, cb) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "absolute";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    if (cb) cb();
+  }
+
+  function copyCurrentLink() {
+    var text = location.href;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(showCopiedStatus).catch(function () {
+        fallbackCopyLink(text, showCopiedStatus);
+      });
+    } else {
+      fallbackCopyLink(text, showCopiedStatus);
+    }
+  }
+
+  var copyLinkEl = document.getElementById("wtf-wx-copy-link");
+  if (copyLinkEl) {
+    copyLinkEl.addEventListener("click", function () {
+      writeHash();
+      copyCurrentLink();
+    });
+  }
+
+  // ── Colourblind-safe palette toggle wiring (task #17) ──────────────────
+  if (cbToggleEl) {
+    cbToggleEl.addEventListener("change", function () {
+      applyCbPalette(this.checked);
+      try { localStorage.setItem("wtf-cb", this.checked ? "1" : "0"); } catch (e) {}
+    });
+  }
+
 
   // ── city cards (Phase 2) ──────────────────────────────────────────────────
   // Rendered here rather than server-side so they follow the SAME province
@@ -805,15 +1027,20 @@
       d.textContent = "No city in this area is in the A.U.R.O.R.A. city set yet.";
       wrap.appendChild(d); return;
     }
+    var homeCard = null;
     list.forEach(function (c) {
       var card = document.createElement("a");
       card.href = "/weather/city/" + encodeURIComponent(c.name);
+      card.setAttribute("data-city", c.name || "");
       // Three states, three different facts: reporting / stale / silent.
       // A city MSC stopped publishing must not look like a fresh reading.
       var stale = c.age_min !== null && c.age_min > 180;
       var silent = c.temp === null;
+      var isHome = homeCity && c.name === homeCity;
       card.className = "wtf-wx-citycard" + (silent ? " is-silent" : (stale ? " is-stale" : ""))
-                     + (c.is_capital ? " is-capital" : "");
+                     + (c.is_capital ? " is-capital" : "")
+                     + (isHome ? " is-home" : "");
+      if (isHome) homeCard = card;
 
       var top = document.createElement("div"); top.className = "wtf-wx-city-top";
       var nm = document.createElement("span"); nm.className = "wtf-wx-city-name";
@@ -896,6 +1123,11 @@
       card.appendChild(age);
       wrap.appendChild(card);
     });
+    // Applies on every render this grid produces (initial load, province
+    // select, or a fresh home-city pick) — not just the one that set it.
+    if (homeCard) {
+      homeCard.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    }
   }
 
   function _chip(s) { var e = document.createElement("span"); e.textContent = s; return e; }

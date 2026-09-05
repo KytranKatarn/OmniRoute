@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import data_table, segment, stat_tiles, lean_pill, paywall, record_links %}
+{% from "_archetypes.html" import data_table, segment, stat_tiles, lean_pill, paywall, record_links, lock_icon, lean_token %}
 {% block title %}Full Archive · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Every article we have tracked, by story or by outlet — filterable by lean, verdict, beat, outlet and language.">
@@ -21,8 +21,29 @@
    ⚠️ The prototype's outlet control reads "All 33 outlets". There are 46
    sources. The list is built from the DB so the label cannot go stale.
 
-   Data: rows[], total, f{view,days,sort,page,q,lean,verdict,beat,lang,outlet},
-         sorts{}, windows[], outlets[], beats[], page_size, is_subscriber, gated, cap #}
+   Batch 11 additions (real, server-verified — see routes.py):
+     · Custom date range (date_from/date_to) as an alternative to the fixed
+       7/30/90/365 windows — never combined with them.
+     · CSV export (/archive/export.csv), Starter+, same filters as the page,
+       capped at _ARCHIVE_EXPORT_LIMIT rows.
+     · BLINDSPOT badge — real story_clusters.coverage_gap_score signal,
+       same threshold /blindspot already uses (0 < gap <= 0.15).
+     · Copy-link button — a plain anchor to this exact filtered view's
+       canonical URL, NOT a clipboard script: this page has a pre-existing,
+       tested "no <script> anywhere" invariant
+       (test_archive_index.py::test_the_page_works_without_javascript), so
+       the "copy" action is a right-click → Copy Link Address, same as any
+       plain link. No new state either way.
+     · Lean mix of the current page, computed from rows already in context
+       (no extra query) — NOT a corpus-wide figure, labelled as such.
+   Deferred (see PR description): saved/unread (need accounts), rollup
+   analytics view (needs a dedicated build), a second paid tier's pricing
+   (WTF has exactly one real paid tier — Starter, $4.99/mo — so a 3-tier
+   comparison would have to invent a tier that does not exist).
+
+   Data: rows[], total, f{view,days,sort,page,q,lean,verdict,beat,lang,outlet,
+         date_from,date_to}, sorts{}, windows[], outlets[], beats[], page_size,
+         is_subscriber, gated, cap, url_export, url_permalink #}
 
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
@@ -33,10 +54,15 @@
   </p>
 </div>
 
+{% if f.date_from or f.date_to %}
+  {% set window_detail = (f.date_from|string if f.date_from else 'earliest') ~ ' → ' ~ (f.date_to|string if f.date_to else 'now') %}
+{% else %}
+  {% set window_detail = 'last ' ~ f.days ~ ' days' %}
+{% endif %}
 {{ stat_tiles([
      {'label': ('Stories' if f.view == 'story' else 'Articles') ~ ' matching',
       'value': '{:,}'.format(total),
-      'detail': 'last ' ~ f.days ~ ' days · showing ' ~ rows|length},
+      'detail': window_detail ~ ' · showing ' ~ rows|length},
      {'label': 'Sorted by', 'value': sorts[f.sort][0],
       'detail': 'direction is named, not an arrow'},
      {'label': 'View', 'value': ('By story' if f.view == 'story' else 'Every article'),
@@ -49,7 +75,26 @@
   {{ segment('Every article', url_article, active=(f.view == 'article')) }}
 </div>
 <div class="wtf-a-layers" style="margin:0 0 8px;" role="group" aria-label="Time window">
-  {% for w, u in url_windows %}{{ segment(w ~ ' days', u, active=(w == f.days)) }}{% endfor %}
+  {% for w, u in url_windows %}{{ segment(w ~ ' days', u, active=(w == f.days and not (f.date_from or f.date_to))) }}{% endfor %}
+</div>
+
+{# ── permalink + CSV export (#6149 batch 11) — page tools, not filters.
+   NO <script> on this page, deliberately and by a pre-existing test
+   (test_archive_index.py::test_the_page_works_without_javascript) — this
+   page's whole design point is that every control still works with
+   scripting off. "Copy link" is therefore a plain anchor to this exact
+   filtered view's canonical URL: right-click → Copy Link Address is the
+   real copy action; a left click just reloads the same view, which is
+   itself a harmless way to confirm the link is correct.
+   Export is gated on the SAME is_subscriber the rest of the page already
+   uses — see routes.py archive_export(); this adds no new gating rule. #}
+<div class="wtf-a-layers" style="margin:0 0 8px;" role="group" aria-label="Page tools">
+  <a class="wtf-a-seg" href="{{ url_permalink }}" title="Right-click → Copy Link Address to share this exact view">Copy link</a>
+  {% if is_subscriber %}
+  <a class="wtf-a-seg" href="{{ url_export }}">Export CSV</a>
+  {% else %}
+  <a class="wtf-a-seg" href="/join?gated=export" title="CSV export is part of Starter">{{ lock_icon(11) }}Export CSV</a>
+  {% endif %}
 </div>
 
 {# ── search + filters: a plain GET form, works without JavaScript ── #}
@@ -57,6 +102,14 @@
   <input type="hidden" name="view" value="{{ f.view }}">
   <input type="hidden" name="days" value="{{ f.days }}">
   <input type="hidden" name="sort" value="{{ f.sort }}">
+  <label class="wtf-a-tile-d" style="display:flex;align-items:center;gap:4px;">From
+    <input type="date" name="date_from" value="{{ f.date_from or '' }}" aria-label="Custom range: from date"
+           style="padding:6px 8px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
+  </label>
+  <label class="wtf-a-tile-d" style="display:flex;align-items:center;gap:4px;">to
+    <input type="date" name="date_to" value="{{ f.date_to or '' }}" aria-label="Custom range: to date"
+           style="padding:6px 8px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
+  </label>
   <input type="search" name="q" value="{{ f.q }}" placeholder="Search headlines…"
          aria-label="Search headlines"
          style="flex:1 1 220px;min-width:180px;padding:7px 10px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
@@ -95,10 +148,35 @@
   {% for key, label, u in url_sorts %}{{ segment(label, u, active=(key == f.sort)) }}{% endfor %}
 </div>
 
+{# ── lean mix of the current page (#6149 batch 11) ── #}
+{# Computed from rows[] already in context — no extra query, and honestly
+   labelled "on this page" rather than implying it covers the full filtered
+   set (only page_size rows are ever fetched — see _archive_rows). #}
+{% set _bands = ['left', 'center-left', 'center', 'center-right', 'right'] %}
+{% set _scored_n = rows | selectattr('lean') | list | length %}
+{% if rows and _scored_n > 0 %}
+{% set band_counts = [] %}
+{% for band in _bands %}
+  {% set _n = rows | selectattr('lean', 'equalto', band) | list | length %}
+  {% if band_counts.append({'band': band, 'n': _n}) %}{% endif %}
+{% endfor %}
+{% set nonzero_bands = band_counts | selectattr('n', 'gt', 0) | list %}
+<div style="margin:0 0 16px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:6px;">Lean mix of what's showing here</div>
+  <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);">
+    {% for bc in nonzero_bands %}<span style="display:inline-block;width:{{ (100 * bc.n / _scored_n) | round(1) }}%;background:var({{ lean_token(bc.band) }});" title="{{ bc.band|replace('-', ' ')|title }} — {{ bc.n }}"></span>{% endfor %}
+  </div>
+  <p class="wtf-a-tile-d" style="margin:6px 0 0;">
+    {% for bc in nonzero_bands %}{{ bc.band|replace('-', ' ')|title }} {{ (100 * bc.n / _scored_n) | round | int }}%{{ ' · ' if not loop.last }}{% endfor %}
+    {%- if rows|length > _scored_n %} · {{ rows|length - _scored_n }} unscored{% endif %} on this page
+  </p>
+</div>
+{% endif %}
+
 {% set cols = [('Filed','')] + ([('Outlets','num')] if f.view == 'story' else [('Outlet','')]) + [('Headline',''),('Lean',''),('Verdict','')] %}
 {% set body = [] %}
 {% for r in rows %}
-  {% set _title %}<a href="/cluster/{{ r.cluster_id }}" style="color:var(--wtf-text);">{{ r.title }}</a>{% endset %}
+  {% set _title %}<a href="/cluster/{{ r.cluster_id }}" style="color:var(--wtf-text);">{{ r.title }}</a>{% if r.is_blindspot %} <span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.1em;color:var(--wtf-accent);border:1px solid var(--wtf-accent);border-radius:2px;padding:1px 5px;" title="Covered by very few outlets — see /blindspot">BLINDSPOT</span>{% endif %}{% endset %}
   {% set _lean %}{% if r.lean %}{{ lean_pill(r.lean) }}{% else %}<span class="wtf-a-tile-d">—</span>{% endif %}{% endset %}
   {% set _verdict %}{% if r.verdict %}{{ r.verdict|replace('_',' ')|title }}{% else %}<span class="wtf-a-tile-d">—</span>{% endif %}{% endset %}
   {% set _second = r.outlets if f.view == 'story' else r.outlet %}

@@ -4126,6 +4126,16 @@ _ARCHIVE_PAGE = 50
 # Free-tier ceilings, per the handoff spec: 10 stories or 50 articles by view.
 _ARCHIVE_FREE_STORIES = 10
 _ARCHIVE_FREE_ARTICLES = 50
+# CSV export cap (#6149 batch 11) — a subscriber exporting a broad filter
+# (365 days, no query) gets a real bulk download, not the whole table
+# through one request. Same shape as _blindspot_rows' own `limit` param.
+_ARCHIVE_EXPORT_LIMIT = 5000
+# Same threshold /blindspot and /api/v1/blindspot already use
+# (coverage_gap_score in (0, 0.15]) — a story covered by <15% of tracked
+# outlets. Kept as its own constant rather than importing _blindspot_rows'
+# default so this page never silently changes behaviour if that default
+# does; the two are documented here as intentionally identical.
+_ARCHIVE_BLINDSPOT_MAX_GAP = 0.15
 
 # Sort direction is NAMED, never a bare arrow — "Filed · newest" says which end
 # you are looking at; an arrow leaves the reader to guess.
@@ -4142,6 +4152,21 @@ _ARCHIVE_SORTS = {
 # the archive misrepresents the corpus, which is the defect class ADR-020 was
 # written about. The page says so out loud instead of quietly omitting them.
 # Re-add province once #6174 lands, and label the coverage when you do.
+
+
+def _parse_archive_date(value):
+    """Parse a date_from/date_to query param as a real calendar date, or None.
+
+    Never raises on a malformed string (#6149 batch 11) — an unparsable or
+    absent value is treated exactly like an absent one, falling back to the
+    days-window default rather than 500ing on a hand-edited query string.
+    """
+    if not value:
+        return None
+    try:
+        return datetime.date.fromisoformat(str(value).strip()[:10])
+    except (ValueError, AttributeError):
+        return None
 
 
 def _archive_filters(args) -> dict:
@@ -4163,6 +4188,16 @@ def _archive_filters(args) -> dict:
         page = max(1, int(args.get("page", 1)))
     except (TypeError, ValueError):
         page = 1
+
+    # Custom date range (#6149 batch 11) — an ALTERNATIVE to the fixed
+    # windows above, never combined with them (see _archive_where). Reversed
+    # inputs are swapped rather than rejected, so a hand-typed link never
+    # returns zero rows just because the two fields were the wrong way round.
+    date_from = _parse_archive_date(args.get("date_from"))
+    date_to = _parse_archive_date(args.get("date_to"))
+    if date_from and date_to and date_from > date_to:
+        date_from, date_to = date_to, date_from
+
     return {
         "view": _one("view", {"story", "article"}, "story"),
         "days": days,
@@ -4175,14 +4210,29 @@ def _archive_filters(args) -> dict:
         "beat": _one("beat", set(VALID_BEATS) | {"all"}),
         "lang": _one("lang", {"all", "en", "fr"}),
         "outlet": (args.get("outlet") or "all").strip()[:80],
+        "date_from": date_from,
+        "date_to": date_to,
     }
 
 
 def _archive_where(f: dict) -> tuple:
     """Build the shared WHERE fragment + bind params. Parameterised throughout."""
-    where = ["a.suppressed_reason IS NULL",
-             "a.published_at > NOW() - make_interval(days => :days)"]
-    p = {"days": f["days"]}
+    where = ["a.suppressed_reason IS NULL"]
+    p = {}
+    if f.get("date_from") or f.get("date_to"):
+        # Custom range REPLACES the days-window entirely (#6149 batch 11) —
+        # never both, so the page's own "last N days" label can never
+        # disagree with the rows a reader is actually looking at.
+        if f.get("date_from"):
+            where.append("a.published_at >= :date_from")
+            p["date_from"] = f["date_from"]
+        if f.get("date_to"):
+            # Half-open range: the whole "to" day is included.
+            where.append("a.published_at < :date_to_excl")
+            p["date_to_excl"] = f["date_to"] + datetime.timedelta(days=1)
+    else:
+        where.append("a.published_at > NOW() - make_interval(days => :days)")
+        p["days"] = f["days"]
     if f["q"]:
         # ILIKE on title only: body is large and unindexed for this, and a
         # headline search is what the spec's highlight behaviour describes.
@@ -4201,21 +4251,26 @@ def _archive_where(f: dict) -> tuple:
     return " AND ".join(where), p
 
 
-def _archive_qs(f: dict, **override) -> str:
+def _archive_qs(f: dict, base_path="/archive", **override) -> str:
     """Build an /archive URL preserving current filters, with overrides applied.
 
     Lives in Python, not the template: Jinja macros cannot take **kwargs (the
     first draft tried and raised TemplateSyntaxError at render time), and URL
     assembly is worth unit-testing. Defaults and empties are dropped so a shared
     link stays short and readable.
+
+    `base_path` (#6149 batch 11) lets the CSV export link reuse the exact same
+    filter-preserving logic against a different route (/archive/export.csv)
+    instead of duplicating the whole merge/keep dance for one caller.
     """
     from urllib.parse import urlencode
     merged = {k: f[k] for k in ("view", "days", "sort", "page", "q",
-                                "lean", "verdict", "beat", "lang", "outlet")}
+                                "lean", "verdict", "beat", "lang", "outlet",
+                                "date_from", "date_to")}
     merged.update(override)
     keep = {k: v for k, v in merged.items()
             if v not in (None, "", "all") and not (k == "page" and v == 1)}
-    return "/archive" + ("?" + urlencode(keep) if keep else "")
+    return base_path + ("?" + urlencode(keep) if keep else "")
 
 
 def _archive_rows(f: dict):
@@ -4241,6 +4296,7 @@ def _archive_rows(f: dict):
              WHERE article_id = a.id AND checker NOT LIKE 'GoogleFCT%%'
              ORDER BY created_at DESC LIMIT 1
         ) fc ON true
+        LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
         WHERE {where}
     """
     if f["view"] == "story":
@@ -4252,7 +4308,8 @@ def _archive_rows(f: dict):
                    MAX(a.published_at)                  AS last_pub,
                    MIN(b.band)                          AS lean,
                    MIN(fc.overall_verdict)              AS verdict,
-                   MIN(a.id)                            AS article_id
+                   MIN(a.id)                            AS article_id,
+                   MIN(sc.coverage_gap_score)           AS coverage_gap_score
             {base} AND a.cluster_id IS NOT NULL
             GROUP BY a.cluster_id
             ORDER BY {order} LIMIT :lim OFFSET :off
@@ -4261,7 +4318,8 @@ def _archive_rows(f: dict):
         sql = f"""
             SELECT a.cluster_id, a.title, s.name AS outlet, 1 AS outlets,
                    a.published_at AS last_pub, b.band AS lean,
-                   fc.overall_verdict AS verdict, a.id AS article_id
+                   fc.overall_verdict AS verdict, a.id AS article_id,
+                   sc.coverage_gap_score AS coverage_gap_score
             {base}
             ORDER BY {order} LIMIT :lim OFFSET :off
         """
@@ -4306,6 +4364,88 @@ def _archive_outlets(days: int):
         """), {"days": days}).mappings().all()]
 
 
+def _archive_export_rows(f: dict):
+    """Bounded, unpaginated rows for CSV export (#6149 batch 11).
+
+    Mirrors _archive_rows' SQL shape rather than sharing it — the same
+    trade-off _archive_total already makes for this page: a page/offset
+    query and a bounded "give me everything up to the cap" query are
+    different enough queries that reusing one via flags reads worse than
+    two small, obviously-correct copies.
+    """
+    S = _schema()
+    where, p = _archive_where(f)
+    order = _ARCHIVE_SORTS[f["sort"]][1]
+    p["lim"] = _ARCHIVE_EXPORT_LIMIT
+
+    base = f"""
+        FROM {S}.articles a
+        JOIN {S}.sources s ON s.id = a.source_id
+        LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+        LEFT JOIN LATERAL (
+            SELECT overall_verdict FROM {S}.fact_checks
+             WHERE article_id = a.id AND checker NOT LIKE 'GoogleFCT%%'
+             ORDER BY created_at DESC LIMIT 1
+        ) fc ON true
+        LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+        WHERE {where}
+    """
+    if f["view"] == "story":
+        sql = f"""
+            SELECT MIN(a.cluster_id) AS cluster_id, MIN(a.title) AS title,
+                   MIN(s.name) AS outlet, COUNT(DISTINCT a.source_id) AS outlets,
+                   MAX(a.published_at) AS last_pub, MIN(b.band) AS lean,
+                   MIN(fc.overall_verdict) AS verdict,
+                   MIN(sc.coverage_gap_score) AS coverage_gap_score
+            {base} AND a.cluster_id IS NOT NULL
+            GROUP BY a.cluster_id
+            ORDER BY {order} LIMIT :lim
+        """
+    else:
+        sql = f"""
+            SELECT a.cluster_id, a.title, s.name AS outlet, 1 AS outlets,
+                   a.published_at AS last_pub, b.band AS lean,
+                   fc.overall_verdict AS verdict,
+                   sc.coverage_gap_score AS coverage_gap_score
+            {base}
+            ORDER BY {order} LIMIT :lim
+        """
+    with _db().begin() as c:
+        return c.execute(text(sql), p).mappings().all()
+
+
+def _csv_filed_local(dt) -> str:
+    """Local, human time for the export (#6149 batch 11).
+
+    Storage is UTC; per timezone.md, anything user-facing renders in
+    America/Toronto with an explicit EDT/EST suffix rather than an
+    unlabelled or literally-"UTC" clock. Mirrors the one other place this
+    file already does this (the /activity stats_as_of formatter, ~L1890) —
+    same try/except-to-nothing shape: a formatting failure renders an empty
+    cell, never a wrong or half-converted time.
+    """
+    if dt is None:
+        return ""
+    try:
+        from zoneinfo import ZoneInfo
+        return dt.astimezone(ZoneInfo("America/Toronto")).strftime("%Y-%m-%d %-I:%M %p %Z")
+    except Exception:
+        return ""
+
+
+def _csv_safe(value) -> str:
+    """Defuse CSV formula injection (#6149 batch 11).
+
+    Excel/Sheets treats a cell that STARTS with =, +, -, or @ as a formula
+    to evaluate. Article titles are external RSS content this site does not
+    control, so a headline that happens to start with one of those characters
+    gets a defusing leading apostrophe rather than being handed to a
+    spreadsheet as executable input.
+    """
+    s = "" if value is None else str(value)
+    return ("'" + s) if s[:1] in ("=", "+", "-", "@") else s
+
+
 @bp.get("/archive")
 def archive_index():
     """The full archive — by story or by article (#6149 Design phase 2)."""
@@ -4314,6 +4454,10 @@ def archive_index():
     rows = [dict(r) for r in _archive_rows(f)]
     for r in rows:
         r["age_text"] = _age_text(r["last_pub"])
+        gap = r.get("coverage_gap_score")
+        # Same predicate /blindspot and /api/v1/blindspot already use
+        # (_ARCHIVE_BLINDSPOT_MAX_GAP == their max_gap default of 0.15).
+        r["is_blindspot"] = gap is not None and 0 < float(gap) <= _ARCHIVE_BLINDSPOT_MAX_GAP
     total = _archive_total(f)
 
     sub = is_subscriber()
@@ -4332,13 +4476,72 @@ def archive_index():
                            # URLs built server-side (see _archive_qs)
                            url_story=_archive_qs(f, view="story", page=1),
                            url_article=_archive_qs(f, view="article", page=1),
-                           url_windows=[(w, _archive_qs(f, days=w, page=1)) for w in _ARCHIVE_WINDOWS],
+                           # Picking a preset window clears any custom date
+                           # range — otherwise the range would silently keep
+                           # overriding the window the reader just clicked.
+                           url_windows=[(w, _archive_qs(f, days=w, page=1,
+                                                         date_from=None, date_to=None))
+                                        for w in _ARCHIVE_WINDOWS],
                            url_sorts=[(k, s[0], _archive_qs(f, sort=k, page=1))
                                       for k, s in _ARCHIVE_SORTS.items()],
                            url_clear=_archive_qs({**f, "q": "", "lean": "all", "verdict": "all",
-                                                  "beat": "all", "lang": "all", "outlet": "all"}, page=1),
+                                                  "beat": "all", "lang": "all", "outlet": "all",
+                                                  "date_from": None, "date_to": None}, page=1),
                            url_prev=_archive_qs(f, page=f["page"] - 1) if f["page"] > 1 else None,
-                           url_next=_archive_qs(f, page=f["page"] + 1))
+                           url_next=_archive_qs(f, page=f["page"] + 1),
+                           url_export=_archive_qs(f, base_path="/archive/export.csv", page=1),
+                           # This page's own "Copy link" affordance: the exact
+                           # current filter state, canonicalised the same way
+                           # every other link on the page already is.
+                           url_permalink=_archive_qs(f))
+
+
+@bp.get("/archive/export.csv")
+def archive_export():
+    """CSV export of the current /archive filter view (#6149 batch 11, Starter+).
+
+    Server-side and filter-matched — never a dump of whatever happened to be
+    rendered on screen. Gated on the SAME is_subscriber() check the page
+    itself already uses; this adds no new gating logic or tier, only a new
+    action behind the existing gate (HARD RULE: never touch paywall scope).
+    """
+    from flask import request as _req
+
+    if not is_subscriber():
+        return redirect("/join?gated=export")
+
+    f = _archive_filters(_req.args)
+    rows = [dict(r) for r in _archive_export_rows(f)]
+
+    import csv
+    import io
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    outlet_header = "Outlets" if f["view"] == "story" else "Outlet"
+    writer.writerow(["Filed", outlet_header, "Headline", "Lean", "Verdict",
+                      "Blindspot", "Link"])
+    for r in rows:
+        filed = _csv_filed_local(r.get("last_pub"))
+        verdict = (r.get("verdict") or "").replace("_", " ").title()
+        gap = r.get("coverage_gap_score")
+        is_blindspot = gap is not None and 0 < float(gap) <= _ARCHIVE_BLINDSPOT_MAX_GAP
+        link = f"https://what-the-fact.com/cluster/{r['cluster_id']}" if r.get("cluster_id") else ""
+        writer.writerow([
+            _csv_safe(filed),
+            _csv_safe(r.get("outlet") or r.get("outlets") or ""),
+            _csv_safe(r.get("title") or ""),
+            _csv_safe(r.get("lean") or ""),
+            _csv_safe(verdict),
+            "Yes" if is_blindspot else "",
+            _csv_safe(link),
+        ])
+
+    resp = Response(buf.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = (
+        f"attachment; filename=wtf-archive-{f['view']}-{f['days']}d.csv"
+    )
+    return resp
 
 
 @bp.get("/cluster/<int:cluster_id>")

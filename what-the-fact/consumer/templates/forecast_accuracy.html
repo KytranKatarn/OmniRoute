@@ -29,10 +29,20 @@
 .wtf-fa-panel { background:var(--wtf-bg);border:1px solid #1f2937;border-radius:4px;padding:20px;margin-bottom:22px }
 .wtf-fa-curve { display:flex;align-items:flex-end;gap:6px;height:170px;margin:18px 0 6px 0 }
 .wtf-fa-curve-labels { height:auto;align-items:flex-start }
-.wtf-fa-bar-wrap { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100% }
+.wtf-fa-bar-wrap { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative }
 .wtf-fa-bar-wrap-labels { height:auto }
 .wtf-fa-bar { width:100%;max-width:70px;background:#55606e;border-radius:2px 2px 0 0;position:relative }
 .wtf-fa-bar.wtf-fa-bar-last { background:#ef4444 }
+.wtf-fa-persist-line { position:absolute;left:6%;right:6%;height:0;border-top:1px dashed #6b7280;z-index:2 }
+.wtf-fa-legend { display:flex;gap:16px;align-items:center;margin:2px 0 14px 0;font-size:11px;color:#9ca3af }
+.wtf-fa-legend-swatch { display:inline-block;width:12px;height:12px;border-radius:2px;background:#55606e;vertical-align:middle;margin-right:6px }
+.wtf-fa-legend-dash { display:inline-block;width:16px;height:0;border-top:1px dashed #6b7280;vertical-align:middle;margin-right:6px }
+.wtf-fa-worst-head { font-size:15px;color:#f9fafb;margin-bottom:6px }
+.wtf-fa-worst-body { font-size:12.5px;line-height:1.6;color:#9ca3af;margin:0 0 12px 0 }
+.wtf-fa-worst-kv { display:grid;grid-template-columns:repeat(2,1fr);gap:10px }
+.wtf-fa-worst-kv > div { background:#0d1117;border:1px solid #1f2937;border-radius:4px;padding:10px 12px }
+.wtf-fa-api-link { display:inline-block;margin-top:14px;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#ef4444;text-decoration:none;border:1px solid #3a2020;border-radius:999px;padding:7px 14px }
+.wtf-fa-api-link:hover { border-color:#ef4444 }
 .wtf-fa-bar-val { font-family:var(--wtf-font-mono);font-size:11px;color:#f9fafb;margin-bottom:6px }
 .wtf-fa-bar-x { font-family:var(--wtf-font-mono);font-size:9px;color:#6b7280;margin-top:8px;text-align:center }
 .wtf-fa-bar-n { font-family:var(--wtf-font-mono);font-size:8px;color:#374151;text-align:center }
@@ -107,14 +117,26 @@
 
 <div class="wtf-fa-panel">
   <h2 class="wtf-fa-section">How accuracy decays with lead time</h2>
-  {% set max_mae = verification.skill_curve | map(attribute='mae_c') | select('!=', None) | list | max %}
+  <div class="wtf-fa-legend">
+    <span><span class="wtf-fa-legend-swatch"></span>Our forecast (average miss)</span>
+    {% if verification.persistence_curve %}
+    <span><span class="wtf-fa-legend-dash"></span>Persistence baseline — "the target day will be like the day this was issued"</span>
+    {% endif %}
+  </div>
+  {% set max_mae = verification.chart_max_mae %}
   <div class="wtf-fa-curve">
     {% for pt in verification.skill_curve %}
+    {% set p = verification.persistence_curve.get(pt.lead_days) %}
     <div class="wtf-fa-bar-wrap">
       <div class="wtf-fa-bar-val">{{ '%.2f'|format(pt.mae_c) }}°</div>
       <div class="wtf-fa-bar{% if loop.last %} wtf-fa-bar-last{% endif %}"
            style="height: {{ (pt.mae_c / max_mae * 100) | round(1) }}%"
            title="Lead {{ pt.lead_days }} days · {{ pt.pairs }} checks · average miss {{ '%.2f'|format(pt.mae_c) }}°C"></div>
+      {% if p %}
+      <span class="wtf-fa-persist-line"
+            style="bottom: {{ (p.mae_c / max_mae * 100) | round(1) }}%"
+            title="Persistence baseline at +{{ pt.lead_days }}d: average miss {{ '%.2f'|format(p.mae_c) }}°C over {{ p.pairs }} checks{% if p.thin %} (thin sample){% endif %}"></span>
+      {% endif %}
     </div>
     {% endfor %}
   </div>
@@ -126,7 +148,9 @@
     </div>
     {% endfor %}
   </div>
-  <p class="wtf-fa-note">Bars show the average miss on the daily high, in degrees Celsius. Each carries its own sample size, so a thinly-checked lead time is visible rather than presented with the same confidence as a well-sampled one.</p>
+  <p class="wtf-fa-note">Bars show the average miss on the daily high, in degrees Celsius. Each carries its own sample size, so a thinly-checked lead time is visible rather than presented with the same confidence as a well-sampled one.
+    {% if verification.persistence_curve %}The dashed line is persistence &mdash; the naive forecast that the target day turns out like the day this forecast was issued, computed independently from the observation record. A forecast bar sitting below the dashed line at that lead time is beating the naive guess; one at or above it is not adding information. Same-day (TODAY) has no persistence baseline: comparing a day to itself is not a real test.{% endif %}
+  </p>
 </div>
 
 <div class="wtf-fa-panel">
@@ -168,6 +192,22 @@
   </p>
 </div>
 
+<div class="wtf-fa-panel" style="border-left:3px solid #f59e0b">
+  <h2 class="wtf-fa-section" style="color:#f59e0b">Worst call this month</h2>
+  {% if verification.worst_miss %}
+  {% set w = verification.worst_miss %}
+  <div class="wtf-fa-worst-head">{{ w.city or w.site_code }}{% if w.province %}, {{ w.province }}{% endif %} &mdash; {{ w.target_day.strftime('%-d %B') }}</div>
+  <p class="wtf-fa-worst-body">Forecast <strong class="wtf-fa-strong">{{ '%.1f'|format(w.forecast_c) }}&deg;C</strong> at {{ w.lead_days }} day{% if w.lead_days != 1 %}s{% endif %} out. Observed <strong class="wtf-fa-strong">{{ '%.1f'|format(w.observed_c) }}&deg;C</strong>.</p>
+  <div class="wtf-fa-worst-kv">
+    <div><div class="wtf-fa-tile-l">Miss</div><div class="wtf-fa-tile-n" style="color:#f59e0b;font-size:20px">{{ '%.1f'|format(w.miss_c) }}&deg;</div></div>
+    <div><div class="wtf-fa-tile-l">Lead time</div><div class="wtf-fa-tile-n" style="font-size:20px">{{ w.lead_days }}d</div></div>
+  </div>
+  <p class="wtf-fa-note">One row per date and city &mdash; when a miss showed up at more than one lead time, only the shortest (most recent) call is counted here, so a single bad day is not tallied more than once.</p>
+  {% else %}
+  <p class="wtf-fa-note" style="border-top:0;padding-top:0;margin-top:0">No verified misses yet this month &mdash; a forecast can only be scored once its target day has ended, so this fills in as the month goes on.</p>
+  {% endif %}
+</div>
+
 <div class="wtf-fa-panel">
   <h2 class="wtf-fa-section">How this is measured</h2>
   <p class="wtf-fa-methodology">
@@ -175,11 +215,13 @@
     <strong class="wtf-fa-strong">Direction of error</strong> is the mean signed difference — whether the forecast leans cold or warm.
     Both are shown because they answer different questions: a large miss with no direction is noise, while a small miss with a steady direction is a correctable systematic error.
     A day we did not observe produces no comparison at all; it is never scored as a perfect forecast.
+    The persistence baseline above comes from the same observation series as everything else on this page — it is not a claim from any forecaster, just the naive answer of "no change".
   </p>
   <p class="wtf-fa-note">
     <span class="wtf-fa-window">Our record begins {% if s.window_start %}{{ s.window_start.strftime('%-d %B %Y') }}{% endif %} and covers {{ s.window_days }} days.</span>
     That is enough to see a bias, not enough to call it seasonal — the window is stated here rather than left for the reader to assume, and it deepens by a day every day.
   </p>
+  <a href="/api/docs" class="wtf-fa-api-link">Explore the developer API &rarr;</a>
 </div>
 {% endif %}
 {% endblock %}

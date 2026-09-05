@@ -1069,6 +1069,27 @@ def weather_accuracy():
 
     All arithmetic lives in `consumer.aurora_verify`, which is stdlib-only so
     its guard tests can never silently skip (KB #290497).
+
+    Batch 11 (#6254 audit) adds two more real, DB-computed panels on top of
+    the same fc/ob shape, both folded onto the payload here rather than
+    inside `aurora_verify` (that module is out of this batch's touch-scope):
+
+    * A **persistence baseline** — the naive "the target day will turn out
+      like the day this forecast was issued" forecast. It needs no LLM and
+      no new table: it is `aurora_city_obs` joined to itself, offset by the
+      SAME lead_days bucket as the real forecast above, so its dashed
+      reference line lands on the real skill curve's own x-axis. Lead 0 is
+      excluded on purpose — `target_day - 0 == target_day`, so a "day-0
+      persistence forecast" would compare the actual high against itself
+      (0.00 error, always), which is not a baseline, just an identity.
+    * A **worst-call-this-month** callout — the single largest miss in the
+      current calendar month, deduped to one row per (site, target_day) at
+      the shortest lead we hold for that miss (the most recent, most
+      informed call), so a story that missed at three lead times is not
+      counted three times. No causal narrative is attached: we have no
+      column that names *why* a forecast missed (see the deferred
+      "where the model is weakest" panel — not buildable from this schema),
+      so only the measured numbers are shown.
     """
     S = _schema()
     with _db().connect() as c:
@@ -1103,7 +1124,112 @@ def weather_accuracy():
              WHERE fc.target_day < CURRENT_DATE
         """)).mappings().all()
 
+        persistence_rows = c.execute(text(f"""
+            WITH ob AS (
+                SELECT site_code,
+                       (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
+                       max(temp_c) AS observed_c
+                  FROM {S}.aurora_city_obs
+                 WHERE temp_c IS NOT NULL
+                 GROUP BY 1, 2
+            ),
+            fc_days AS (
+                SELECT DISTINCT site_code,
+                       (period_index / 2) AS lead_days,
+                       ((issued_utc AT TIME ZONE 'UTC')::date
+                        + (period_index / 2)) AS target_day
+                  FROM {S}.aurora_city_forecast
+                 WHERE temp_high_c IS NOT NULL
+                   AND period_index % 2 = 0
+                   AND (period_index / 2) >= 1
+            )
+            SELECT fd.lead_days,
+                   issued_ob.observed_c AS persistence_c,
+                   target_ob.observed_c AS observed_c
+              FROM fc_days fd
+              JOIN ob issued_ob ON issued_ob.site_code = fd.site_code
+                               AND issued_ob.obs_day = fd.target_day - fd.lead_days
+              JOIN ob target_ob ON target_ob.site_code = fd.site_code
+                               AND target_ob.obs_day = fd.target_day
+             WHERE fd.target_day < CURRENT_DATE
+        """)).mappings().all()
+
+        worst_row = c.execute(text(f"""
+            WITH fc AS (
+                SELECT site_code,
+                       (period_index / 2) AS lead_days,
+                       temp_high_c AS forecast_c,
+                       ((issued_utc AT TIME ZONE 'UTC')::date
+                        + (period_index / 2)) AS target_day
+                  FROM {S}.aurora_city_forecast
+                 WHERE temp_high_c IS NOT NULL
+                   AND period_index % 2 = 0
+            ),
+            ob AS (
+                SELECT site_code,
+                       (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
+                       max(temp_c) AS observed_c
+                  FROM {S}.aurora_city_obs
+                 WHERE temp_c IS NOT NULL
+                 GROUP BY 1, 2
+            ),
+            deduped AS (
+                SELECT DISTINCT ON (fc.site_code, fc.target_day)
+                       fc.site_code, fc.lead_days, fc.forecast_c,
+                       ob.observed_c, fc.target_day
+                  FROM fc
+                  JOIN ob ON ob.site_code = fc.site_code AND ob.obs_day = fc.target_day
+                 WHERE fc.target_day < CURRENT_DATE
+                   AND fc.target_day >= date_trunc('month', CURRENT_DATE)
+                 ORDER BY fc.site_code, fc.target_day, fc.lead_days ASC
+            )
+            SELECT d.lead_days, d.forecast_c, d.observed_c, d.target_day,
+                   COALESCE(s.display_name, s.name_en) AS city,
+                   s.source_prov AS province,
+                   abs(d.forecast_c - d.observed_c) AS miss_c
+              FROM deduped d
+              LEFT JOIN {S}.aurora_city_site s ON s.site_code = d.site_code
+             ORDER BY miss_c DESC
+             LIMIT 1
+        """)).mappings().first()
+
     payload = _verification_payload([dict(r) for r in pairs])
+
+    # Same aggregation shape aurora_verify.skill_curve uses (n / bias / mae),
+    # kept local to this route rather than imported — aurora_verify is
+    # outside this batch's touch-scope and the arithmetic is a few lines.
+    _PERSIST_MIN_PAIRS = 30  # mirrors aurora_verify.MIN_PAIRS_FOR_CONFIDENCE
+    _by_lead: dict[int, list] = {}
+    for r in persistence_rows:
+        f, o = r["persistence_c"], r["observed_c"]
+        if f is None or o is None:
+            continue
+        _by_lead.setdefault(int(r["lead_days"]), []).append((f, o))
+    persistence_curve = {}
+    for lead, vals in _by_lead.items():
+        n = len(vals)
+        if n == 0:
+            continue
+        bias = sum(f - o for f, o in vals) / n
+        mae = sum(abs(f - o) for f, o in vals) / n
+        persistence_curve[lead] = {
+            "pairs": n,
+            "bias_c": round(bias, 2),
+            "mae_c": round(mae, 2),
+            "thin": n < _PERSIST_MIN_PAIRS,
+        }
+    payload["persistence_curve"] = persistence_curve
+
+    _model_maes = [pt["mae_c"] for pt in payload["skill_curve"] if pt["mae_c"] is not None]
+    _persist_maes = [v["mae_c"] for v in persistence_curve.values()]
+    _all_maes = _model_maes + _persist_maes
+    payload["chart_max_mae"] = max(_all_maes) if _all_maes else None
+
+    worst_miss = None
+    if worst_row is not None and worst_row["forecast_c"] is not None:
+        worst_miss = dict(worst_row)
+    payload["worst_miss"] = worst_miss
+
     return render_template("forecast_accuracy.html",
                            verification=payload,
                            is_subscriber=is_subscriber())

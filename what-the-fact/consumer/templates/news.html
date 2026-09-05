@@ -120,6 +120,23 @@
     <button type="button" class="wtf-act-filter" id="wtf-news-mark-read">Mark page read</button>
   </div>
 
+  {# Filters-collapsed UX (design handoff #6149, task #16) — province/scope/
+     beat/riding are real, working chip rows (see routes.py: they were never
+     the problem) but together they took a lot of vertical space by default.
+     Collapsed behind a toggle with a live count of how many of THESE FOUR
+     axes are active; auto-expanded whenever one already is, so an active
+     filter is never hidden from the person who set it — band stays always
+     visible above as the primary axis. Pure client-side show/hide of
+     already-server-rendered chips: no new query, no data change. #}
+  {% set _filters_active = province_filter != 'all' or beat_filter != 'all' or scope_filter != 'all' or riding_filter != 'all' %}
+  {% set _active_n = ([province_filter != 'all', beat_filter != 'all', scope_filter != 'all', riding_filter != 'all']) | select | list | length %}
+  <button type="button" class="wtf-act-filter wtf-nw-filters-toggle" id="wtf-news-filters-toggle"
+          aria-expanded="{{ 'true' if _filters_active else 'false' }}" aria-controls="wtf-news-filters-panel">
+    Filters &#9662;{% if _active_n %} <span class="wtf-act-filter-n">{{ _active_n }}</span>{% endif %}
+  </button>
+
+  <div id="wtf-news-filters-panel"{% if not _filters_active %} hidden{% endif %}>
+
   {# Province/scope/beat chips carry live counts the same way the band row
      does (routes.py: province_facets/scope_facets/beat_facets, each
      excluding only its own filter). 'all' carries no count on every row,
@@ -169,7 +186,21 @@
   </div>
   {% endif %}
 
+  </div>
+
   <div id="wtf-news-feed">
+  {# Empty-state (design handoff #6149, task #16) — a filter combo can
+     genuinely return zero rows (e.g. band=left&province=YT&beat=sports).
+     Previously this silently rendered nothing: same blank space as a slow
+     network, no way to tell "no results" from "still loading" or "broken".
+     `total`, not `articles|length`, is the right check — both are 0 exactly
+     together (total counts the same WHERE clause the page query uses). #}
+  {% if not articles %}
+  <div class="wtf-nw-empty">
+    <p>No articles match this filter combination.</p>
+    <a href="/news" class="wtf-act-filter wtf-nw-nodeco">Clear all filters</a>
+  </div>
+  {% endif %}
   {# Date-rail headers (design handoff #6149 phase 4 / task #16 slice 1) —
      one rail per calendar day change, comparing each article's OWN
      published_at (un-converted, same value the time badge below prints) to
@@ -287,6 +318,16 @@
 .wtf-nw-mp-badge { background: #0a1a2a; color: #a78bfa; border: 1px solid #4c1d9544; font-size: 9px; }
 .wtf-nw-pager { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px 0; }
 .wtf-nw-pager-label { color: #6b7280; font-size: 0.7rem; }
+
+/* ── Filters-collapsed toggle (design handoff #6149, task #16) ── */
+.wtf-nw-filters-toggle { margin-bottom: 10px; }
+.wtf-nw-filters-toggle[aria-expanded="true"] { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+
+/* ── Empty-state (design handoff #6149, task #16) ── */
+.wtf-nw-empty {
+  text-align: center; padding: 48px 16px; color: #6b7280; font-size: 0.8rem; line-height: 1.8;
+}
+.wtf-nw-empty p { margin: 0 0 12px; }
 
 /* ── Date-rail headers (design handoff #6149 phase 4 / task #16 slice 1) ── */
 .wtf-nw-daterail {
@@ -414,6 +455,21 @@
       try { localStorage.setItem(DENSITY_KEY, mode); } catch (e) {}
     });
   });
+
+  // Filters-collapsed toggle — pure show/hide of the already-rendered chip
+  // rows (province/scope/beat/riding), per element.hidden not style.display.
+  // No persistence needed: the panel's OPEN/CLOSED default is decided
+  // server-side (open whenever one of its own filters is active), and every
+  // filter click is a full page navigation anyway.
+  var filtersToggle = document.getElementById('wtf-news-filters-toggle');
+  var filtersPanel = document.getElementById('wtf-news-filters-panel');
+  if (filtersToggle && filtersPanel) {
+    filtersToggle.addEventListener('click', function () {
+      var willShow = filtersPanel.hidden;
+      filtersPanel.hidden = !willShow;
+      filtersToggle.setAttribute('aria-expanded', String(willShow));
+    });
+  }
 })();
 </script>
 

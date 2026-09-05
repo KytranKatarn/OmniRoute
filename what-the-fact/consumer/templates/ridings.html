@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles, segment, data_table %}
+{% block title %}Ridings directory · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Every federal riding from the last two general elections, who won it, and a link to the full result.">
+{% endblock %}
+{% block content %}
+{# ARCHETYPE 3 (DATA EXPLORER), same shape as /races and /parties.
+
+   ⚠️ THIS IS A DIRECTORY, NOT THE PROTOTYPE'S LIVE TRACKER.
+   design-handoff/wtf-ridings.html fetches live riding-boundary polygons from
+   a third-party API and says itself it carries no MP-to-riding mapping — a
+   different feature than this data supports. This page has no map, no
+   boundary geometry, and makes no "current MP" claim: it reads the SAME
+   completed-election rows /races reads (GE43+GE44 only, the same CKAN
+   ceiling documented on /parties), sorted ALPHABETICALLY so it works as a
+   lookup rather than a ranking — for the closest-margin ranking, see /races.
+
+   ⚠️ NO PARTY COLOUR — same rule as /races and /parties: colour is reserved
+   for the floor plan so it can never be misread as a lean score. #}
+<style>
+  .wtf-rd { max-width: 1100px; margin: 0 auto; padding: 22px 16px 60px; }
+  .wtf-rd h1 { font-family: var(--wtf-font-serif); font-size: 2rem; margin: 0 0 10px; color: var(--wtf-text); }
+  .wtf-rd-lede { color: var(--wtf-text-2); font-size: 0.95rem; line-height: 1.55; margin: 0 0 6px; max-width: 70ch; }
+  .wtf-rd-src { color: var(--wtf-text-muted); font-size: 0.72rem; margin: 0 0 22px; max-width: 76ch; line-height: 1.5; }
+  .wtf-rd-src a { color: var(--wtf-text-muted); }
+  .wtf-rd-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 18px 0 14px; }
+  .wtf-rd-lbl { font-family: var(--wtf-font-mono); font-size: 0.6rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin-right: 4px; }
+  .wtf-rd-sec { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin: 26px 0 10px; }
+  .wtf-rd-win { color: var(--wtf-text); }
+  .wtf-rd-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0 14px; }
+  .wtf-rd-search input[type="search"] {
+    flex: 1 1 220px; min-width: 180px; padding: 7px 10px; background: var(--wtf-bg-card);
+    border: 1px solid var(--wtf-border); border-radius: 6px; color: var(--wtf-text);
+  }
+  .wtf-rd-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
+</style>
+<div class="wtf-rd">
+  <h1>Ridings directory</h1>
+  {% if ge %}
+  <p class="wtf-rd-lede">
+    Every riding from the {{ ge }}th general election, alphabetically, with who won it
+    and by how much. Look a riding up here; the full candidate breakdown is one click
+    away.
+  </p>
+  <p class="wtf-rd-src">
+    Official results{% if election_date %}, polling day {{ election_date.strftime('%-d %B %Y') }}{% endif %} ·
+    Elections Canada via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
+    <strong>GE43 and GE44 only</strong> — CKAN's <code>elections</code> organisation publishes
+    exactly three official voting-results datasets, and the earliest is hosted on a server
+    whose robots.txt disallows automated collection, so those two elections are the ceiling
+    this page can reach. There is no map here and no "current MP" claim: this dataset carries
+    no riding-to-sitting-MP mapping, so none is shown or guessed at.
+  </p>
+
+  {{ stat_tiles(tiles) }}
+
+  {% if elections|length > 1 %}
+  <div class="wtf-rd-bar">
+    <span class="wtf-rd-lbl">Election</span>
+    {% for e in elections %}
+      {% set _href = '/ridings?ge=' ~ e.ge_number %}
+      {% if province %}{% set _href = _href ~ '&province=' ~ province %}{% endif %}
+      {% if q %}{% set _href = _href ~ '&q=' ~ q %}{% endif %}
+      {{ segment(e.ge_number ~ 'th', _href, e.ge_number == ge) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if provinces %}
+  <div class="wtf-rd-bar">
+    <span class="wtf-rd-lbl">Province</span>
+    {% set _all_href = '/ridings?ge=' ~ ge %}
+    {% if q %}{% set _all_href = _all_href ~ '&q=' ~ q %}{% endif %}
+    {{ segment('All', _all_href, not province) }}
+    {% for p in provinces %}
+      {% set _p_href = '/ridings?ge=' ~ ge ~ '&province=' ~ p %}
+      {% if q %}{% set _p_href = _p_href ~ '&q=' ~ q %}{% endif %}
+      {{ segment(p, _p_href, p == province) }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Plain GET form — no client JS, matches /archive's search input. #}
+  <form method="get" action="/ridings" class="wtf-rd-search">
+    <input type="hidden" name="ge" value="{{ ge }}">
+    {% if province %}<input type="hidden" name="province" value="{{ province }}">{% endif %}
+    <span class="wtf-rd-lbl">Riding name</span>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search riding names…"
+           aria-label="Search riding names">
+    <button type="submit" class="wtf-a-chip" style="cursor:pointer;">Search</button>
+    {% if q %}
+    <a class="wtf-a-chip" href="/ridings?ge={{ ge }}{% if province %}&province={{ province }}{% endif %}">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="wtf-rd-sec">
+    {% if province %}{{ province }} — {% endif -%}
+    {%- if q %}“{{ q }}” — {% endif -%}
+    {{ ridings|length }} of {{ total_ridings }} ridings, A to Z
+  </div>
+
+  {# Same block-set idiom /races uses: {{ cell }} renders the yielded Markup as
+     HTML, while every interpolated value inside is still autoescaped. String
+     concatenation with ~ gets both of those backwards. #}
+  {% set rows = [] %}
+  {% for r in ridings %}
+    {% set _riding %}<a href="/races/{{ r.district_number }}?ge={{ ge }}">{{ r.district_name }}</a>{% endset %}
+    {% set _won %}<span class="wtf-rd-win">{{ r.candidate_name }}</span>{% endset %}
+    {% set _ = rows.append([
+        _riding,
+        r.province,
+        _won,
+        r.party or '—',
+        ('%.1f%%' % r.vote_share) if r.vote_share is not none else '—',
+    ]) %}
+  {% endfor %}
+  {{ data_table([('Riding', ''), ('Province', ''), ('Won by', ''), ('Party', ''),
+                 ('Vote share', 'num')],
+                rows, empty=empty_msg) }}
+
+  <p class="wtf-rd-note">
+    One row per riding — the candidate the official results record as elected, the same
+    rule /races uses (cross-checked against the highest vote count, never the incumbency
+    marker). Sorted by name, not by margin: for the closest results ranked first, see
+    <a href="/races?ge={{ ge }}">Candidates and races</a>.
+  </p>
+  {% else %}
+  <p class="wtf-rd-lede">No election results have been ingested yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

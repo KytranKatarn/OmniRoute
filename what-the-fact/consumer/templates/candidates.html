@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles, segment, data_table %}
+{% block title %}Candidate search · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Search every candidate who ran in the last two federal general elections, by name or by party.">
+{% endblock %}
+{% block content %}
+{# ARCHETYPE 3 (DATA EXPLORER) — server-rendered, GET-query filtering, no
+   client JS, same shape as /ridings and /races.
+
+   ⚠️ NOT THE PROTOTYPE'S NOMINATION TRACKER.
+   design-handoff/wtf-candidates.js tracks UPCOMING, unconfirmed candidacies
+   for a future writ period — hardcoded 2026 dates, "declared" vs "confirmed"
+   candidacy status. CKAN carries completed elections only, so no such
+   dataset exists here: this is a search over COMPLETED candidacies, GE43 and
+   GE44, nothing live and nothing unconfirmed.
+
+   ⚠️ ONE ROW PER CANDIDACY, never per person. A candidate who ran in both
+   elections, or in two different ridings, produces two rows on purpose — the
+   source data carries no "candidate profile" to collapse them into, and
+   merging rows across elections/ridings would fabricate a continuity nobody
+   can verify (same discipline as shared/party_identity.py's NOT_MERGED
+   table: an unproven merge is worse than two rows a reader can compare). #}
+<style>
+  .wtf-cd { max-width: 1100px; margin: 0 auto; padding: 22px 16px 60px; }
+  .wtf-cd h1 { font-family: var(--wtf-font-serif); font-size: 2rem; margin: 0 0 10px; color: var(--wtf-text); }
+  .wtf-cd-lede { color: var(--wtf-text-2); font-size: 0.95rem; line-height: 1.55; margin: 0 0 6px; max-width: 70ch; }
+  .wtf-cd-src { color: var(--wtf-text-muted); font-size: 0.72rem; margin: 0 0 22px; max-width: 76ch; line-height: 1.5; }
+  .wtf-cd-src a { color: var(--wtf-text-muted); }
+  .wtf-cd-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0 14px; }
+  .wtf-cd-form input[type="search"] {
+    flex: 1 1 220px; min-width: 180px; padding: 7px 10px; background: var(--wtf-bg-card);
+    border: 1px solid var(--wtf-border); border-radius: 6px; color: var(--wtf-text);
+  }
+  .wtf-cd-form select { padding: 7px 10px; border-radius: 6px; }
+  .wtf-cd-sec { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-text-muted); margin: 26px 0 10px; }
+  .wtf-cd-won { color: var(--wtf-text); }
+  .wtf-cd-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
+  .wtf-cd-prompt { color: var(--wtf-text-2); font-size: 0.95rem; line-height: 1.6; max-width: 62ch;
+                   margin: 22px 0; padding: 16px 18px; background: var(--wtf-bg-card);
+                   border: 1px solid var(--wtf-border); border-radius: 6px; }
+</style>
+<div class="wtf-cd">
+  <h1>Candidate search</h1>
+  <p class="wtf-cd-lede">
+    Search everyone who ran for federal office in the last two general elections, by
+    name or by party.
+  </p>
+  <p class="wtf-cd-src">
+    Official results via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
+    <strong>GE43 and GE44 only</strong> — the same CKAN ceiling documented on
+    <a href="/parties">Political parties</a>: a third election dataset exists, but its files
+    are hosted on a server whose robots.txt disallows automated collection.
+  </p>
+
+  <form method="get" action="/candidates" class="wtf-cd-form">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search candidate names…"
+           aria-label="Search candidate names" minlength="{{ min_query_len }}">
+    <select name="party" aria-label="Party">
+      <option value="">Any party</option>
+      {% for p in parties %}
+      <option value="{{ p }}"{% if p == party %} selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="wtf-a-chip" style="cursor:pointer;">Search</button>
+    {% if has_query %}<a class="wtf-a-chip" href="/candidates">Clear</a>{% endif %}
+  </form>
+
+  {% if not has_query %}
+  <p class="wtf-cd-prompt">
+    Search {{ '{:,}'.format(total_candidates) }} candidates from GE43 and GE44 by name
+    ({{ min_query_len }} or more letters), or filter by party. Nothing is listed until you
+    search — there is no default "browse everyone" view.
+  </p>
+  {% else %}
+  <div class="wtf-cd-sec">
+    {%- if capped -%}
+    Showing first {{ cap }} of {{ '{:,}'.format(matched_total) }} matches — refine your search
+    {%- else -%}
+    {{ matched_total }} match{% if matched_total != 1 %}es{% endif %}
+    {%- endif %}
+  </div>
+
+  {% set rows = [] %}
+  {% for r in candidate_rows %}
+    {% set _name %}<a href="/races/{{ r.district_number }}?ge={{ r.ge_number }}">{{ r.candidate_name }}</a>{% endset %}
+    {% set _result %}<span class="wtf-cd-won">{% if r.elected %}Won{% else %}Lost{% endif %}</span>{% endset %}
+    {% set _ = rows.append([
+        _name,
+        r.party or '—',
+        r.district_name,
+        r.province,
+        r.ge_number ~ 'th' ~ (' · ' ~ r.election_date.year if r.election_date else ''),
+        '{:,}'.format(r.votes),
+        ('%.1f%%' % r.vote_share) if r.vote_share is not none else '—',
+        _result,
+    ]) %}
+  {% endfor %}
+  {{ data_table([('Candidate', ''), ('Party', ''), ('Riding', ''), ('Province', ''),
+                 ('Election', ''), ('Votes', 'num'), ('Share', 'num'), ('Result', '')],
+                rows, empty='No candidates match this search.') }}
+
+  <p class="wtf-cd-note">
+    One row per candidacy, not per person: a candidate who ran in both elections, or in
+    more than one riding, appears here once for each. The source data does not link those
+    rows into a single profile, so neither does this page.
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

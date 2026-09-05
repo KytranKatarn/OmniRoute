@@ -8,12 +8,20 @@
 {% set _news = [('/', 'Latest news'), ('/archive', 'Full archive'), ('/activity', 'Activity log'),
                 ('/weather', 'Weather'), ('/blindspot', 'Blindspot'),
                 ('/divergence', 'Divergence'), ('/clusters', 'Clusters')] %}
+{# ⚠️ /platforms is a placeholder (test_platforms_blocker_honesty.py pins it as
+   still a `_COMING_SOON` stub) with no real data behind it yet — both of its
+   nav entries below are removed here, deliberately and disclosed (not a
+   silent deletion): a nav link to an admittedly-unbuilt page competes for
+   attention with /ridings and /candidates, which ARE real, data-backed pages
+   as of this pass. Re-add /platforms to the nav when it graduates like
+   /races and /parties did. #}
 {% set _politics = [('/parties', 'Political parties'), ('/mps', 'MPs, Senate & ridings'),
-                    ('/platforms', 'Promise tracker'), ('/municipal', 'Municipal'),
+                    ('/municipal', 'Municipal'),
                     ('/lobbying', 'Lobbying'), ('/gic', 'Appointments'),
                     ('/ethics', 'Ethics tracker'), ('/parliament/officers', 'Officers')] %}
 {% set _elections = [('/elections', 'Election calendar'), ('/races', 'Candidates & races'),
-                     ('/platforms', 'Platforms & promises'), ('/parties', 'Party records'),
+                     ('/ridings', 'Ridings directory'), ('/candidates', 'Candidate search'),
+                     ('/parties', 'Party records'),
                      ('/elections#federal', 'Federal'), ('/elections#provincial', 'Provincial'),
                      ('/elections#municipal', 'Municipal'),
                      ('/elections#coverage', 'Coverage readiness'), ('/mps#ridings', 'Ridings')] %}

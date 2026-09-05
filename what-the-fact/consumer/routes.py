@@ -9054,3 +9054,199 @@ def parties():
                            tiles=B["tiles"], election_date=B["election_date"],
                            merged=merged_labels(), bars=bars,
                            unresolved=B["unresolved"])
+
+
+# ---------------------------------------------------------------------------
+# /ridings — historical riding-results DIRECTORY (a lookup, not a ranking).
+#
+# ⚠️ NOT THE PROTOTYPE'S LIVE TRACKER. design-handoff/wtf-ridings.html fetches
+# live riding-boundary polygons from a third-party API and says itself it
+# carries no MP-to-riding mapping — a different feature than this data
+# supports. This page has no map, no boundary geometry, and makes no
+# "current MP" claim: it reads the SAME completed-election rows /races reads
+# (GE43+GE44 only — the same CKAN ceiling documented above /parties), sorted
+# ALPHABETICALLY by riding name rather than by margin, because a directory is
+# for looking a riding up, not for ranking how close it was (that is /races'
+# job — every row here links straight to its /races/<district> detail page
+# rather than duplicating it).
+# ---------------------------------------------------------------------------
+
+_RIDINGS_CACHE: dict = {}
+_RIDINGS_CACHE_TTL = int(os.environ.get("WTF_RIDINGS_CACHE_TTL", "900"))
+
+
+def _ridings_bundle(ge_number: int) -> dict:
+    key = ("ridings", ge_number)
+    hit = _RIDINGS_CACHE.get(key)
+    if hit and hit[0] > time.time():
+        return hit[1]
+
+    canon = _party_case_sql()
+    with _db().begin() as c:
+        elections = [dict(r) for r in c.execute(text(
+            "SELECT ge_number, election_date FROM parliament.elections "
+            "ORDER BY ge_number DESC")).mappings()]
+        if not elections:
+            return {"elections": [], "ge": None, "ridings": [], "tiles": [],
+                    "election_date": None}
+
+        # One row per district — the candidate the official results record as
+        # elected. Sorted by NAME, never by margin: that ranking belongs to
+        # /races, not to a directory meant for looking a riding up.
+        rows = [dict(r) for r in c.execute(text(f"""
+            SELECT ec.district_number, ec.district_name, ec.province,
+                   ec.candidate_name, {canon} AS party, ec.vote_share
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge AND ec.elected
+             ORDER BY ec.district_name
+        """), {"ge": ge_number}).mappings()]
+
+        totals = dict(c.execute(text("""
+            SELECT count(DISTINCT ec.district_number) AS districts,
+                   count(*) AS candidates
+              FROM parliament.election_candidates ec
+              JOIN parliament.elections e ON e.id = ec.election_id
+             WHERE e.ge_number = :ge
+        """), {"ge": ge_number}).mappings().first() or {})
+
+    # Real counts from the query — never hardcoded, so a redistribution (338
+    # -> 343 seats between GE44 and the next election) needs no code change.
+    tiles = [
+        {"label": "Ridings", "value": f"{totals.get('districts', 0):,}"},
+        {"label": "Provinces",
+         "value": f"{len({r['province'] for r in rows if r['province']}):,}"},
+        {"label": "Candidates", "value": f"{totals.get('candidates', 0):,}"},
+    ]
+
+    out = {"elections": elections, "ge": ge_number, "ridings": rows, "tiles": tiles,
+           "election_date": next((e["election_date"] for e in elections
+                                  if e["ge_number"] == ge_number), None)}
+    _RIDINGS_CACHE[key] = (time.time() + _RIDINGS_CACHE_TTL, out)
+    return out
+
+
+@bp.get("/ridings")
+def ridings():
+    from flask import request as _req
+    try:
+        ge = int(_req.args.get("ge", 0))
+    except (TypeError, ValueError):
+        ge = 0
+    B = _ridings_bundle(ge) if ge else None
+    if not B or not B.get("ridings"):
+        with _db().begin() as c:
+            latest = c.execute(text(
+                "SELECT max(ge_number) FROM parliament.elections")).scalar()
+        B = _ridings_bundle(int(latest)) if latest else {
+            "elections": [], "ge": None, "ridings": [], "tiles": [],
+            "election_date": None}
+
+    province = (_req.args.get("province") or "").strip()
+    q = (_req.args.get("q") or "").strip()
+    rows = B["ridings"]
+    if province:
+        rows = [r for r in rows if r["province"] == province]
+    if q:
+        needle = q.lower()
+        rows = [r for r in rows if needle in (r["district_name"] or "").lower()]
+
+    # An empty search result says so by name — it must never look like the
+    # same bare "no filter matched" state a province-only filter would show.
+    empty_msg = (f"No ridings match “{q}”." if q
+                 else "No ridings match this filter.")
+
+    return render_template(
+        "ridings.html",
+        elections=B["elections"], ge=B["ge"], election_date=B["election_date"],
+        tiles=B["tiles"], ridings=rows, total_ridings=len(B["ridings"]),
+        provinces=sorted({r["province"] for r in B["ridings"] if r["province"]}),
+        province=province, q=q, empty_msg=empty_msg,
+    )
+
+
+# ---------------------------------------------------------------------------
+# /candidates — candidate search across the elections we hold (GE43+GE44).
+#
+# ⚠️ NOT THE PROTOTYPE'S NOMINATION TRACKER. design-handoff/wtf-candidates.js
+# tracks UPCOMING, unconfirmed candidacies for a future writ period —
+# hardcoded 2026 dates, "declared" vs "confirmed" candidacy status. CKAN
+# carries completed elections only, so no such dataset exists here: this is a
+# search over COMPLETED candidacies, GE43 and GE44, nothing live and nothing
+# unconfirmed.
+#
+# ⚠️ ONE ROW PER CANDIDACY, never per person. A candidate who ran in both
+# elections, or in two different ridings, produces two rows on purpose — the
+# source data carries no "candidate profile" to collapse them into, and
+# merging rows across elections/ridings would fabricate a continuity nobody
+# can verify (same discipline as shared/party_identity.py's NOT_MERGED table:
+# an unproven merge is worse than two rows a reader can compare themselves).
+# ---------------------------------------------------------------------------
+
+_CANDIDATE_RESULT_CAP = 200
+_CANDIDATE_MIN_QUERY_LEN = 2
+
+
+@bp.get("/candidates")
+def candidates():
+    from flask import request as _req
+
+    q = (_req.args.get("q") or "").strip()
+    party = (_req.args.get("party") or "").strip()
+    # Shorter than the minimum is IGNORED, not silently matched against
+    # everything — a single letter would otherwise return most of the table.
+    q_active = len(q) >= _CANDIDATE_MIN_QUERY_LEN
+    has_query = q_active or bool(party)
+
+    canon = _party_case_sql()
+    with _db().begin() as c:
+        total_candidates = c.execute(text(
+            "SELECT count(*) FROM parliament.election_candidates")).scalar() or 0
+
+        # Built from the data, with the SAME canonicalisation /parties uses —
+        # never a second, hand-typed party list that can drift from it.
+        parties = [r[0] for r in c.execute(text(
+            f"SELECT DISTINCT {canon} AS party FROM parliament.election_candidates ec "
+            "WHERE btrim(ec.party) <> '' ORDER BY 1"))]
+
+        rows = []
+        matched_total = 0
+        if has_query:
+            clauses = ["1 = 1"]
+            params: dict = {}
+            if q_active:
+                clauses.append("ec.candidate_name ILIKE :q")
+                params["q"] = f"%{q}%"
+            if party:
+                clauses.append(f"{canon} = :party")
+                params["party"] = party
+            where_sql = " AND ".join(clauses)
+
+            matched_total = c.execute(text(
+                f"SELECT count(*) FROM parliament.election_candidates ec "
+                f"JOIN parliament.elections e ON e.id = ec.election_id "
+                f"WHERE {where_sql}"), params).scalar() or 0
+
+            params["cap"] = _CANDIDATE_RESULT_CAP
+            rows = [dict(r) for r in c.execute(text(f"""
+                SELECT ec.candidate_name, {canon} AS party, ec.district_number,
+                       ec.district_name, ec.province, ec.votes, ec.vote_share,
+                       ec.elected, e.ge_number, e.election_date
+                  FROM parliament.election_candidates ec
+                  JOIN parliament.elections e ON e.id = ec.election_id
+                 WHERE {where_sql}
+                 ORDER BY e.ge_number DESC, ec.candidate_name
+                 LIMIT :cap
+            """), params).mappings()]
+
+    # The LIMIT already bounds `rows`; a real overflow is proven by comparing
+    # the bounded set against the unbounded count, never by len(rows)==cap
+    # alone (a search that matches exactly the cap is not a truncation).
+    capped = matched_total > len(rows)
+
+    return render_template(
+        "candidates.html",
+        q=q, party=party, parties=parties, candidate_rows=rows, has_query=has_query,
+        matched_total=matched_total, capped=capped, cap=_CANDIDATE_RESULT_CAP,
+        min_query_len=_CANDIDATE_MIN_QUERY_LEN, total_candidates=total_candidates,
+    )

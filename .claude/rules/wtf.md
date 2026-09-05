@@ -40,14 +40,35 @@ design tooling) and here. Confirmed both false claims are gone and the archive f
 re-verify with `gh repo view KytranKatarn/what-the-fact-site --json isArchived,pushedAt` before
 trusting this note, per the file's own regeneration discipline.
 
-**Not addressed by this fix, still sitting untouched (no owner decision on record):** the LOCAL
-`website/what-the-fact.com/` copy inside `archie-platform` (same 5 files, last commit 2026-04-14,
-git-clean). It isn't misleading anyone the way the GitHub repo was, but it is a real marketing
-asset — **do not delete it without an explicit owner decision.**
+**2026-09-05 — the same family had TWO more traps, resolved the same way (owner-directed
+consolidation: "we should have 1 Repo for all of the What The Fact.com").** `kytran-news`
+(private, unarchived) was the pre-consolidation "Kytran News" app prototype from the same April
+week — a real `app.py`/`auth.py` skeleton, not just a landing page, dormant since 2026-04-14
+except one incidental security-sweep commit that made it look maintained. `kytran-news-site`
+(public, unarchived) claimed to serve `thenews.kytranempowerment.com` — **that domain no longer
+resolves in DNS at all**, confirmed live, not assumed from the README. Both got the same
+treatment as `what-the-fact-site`: corrective README + archived on GitHub.
 
-**Point a design/coding agent at `KytranKatarn/archie-platform`, path `what-the-fact/`.**
-Now also stated in `what-the-fact/.design-sync/conventions.md`, which ships as the design-sync
-bundle's `readmeHeader` — so the answer travels WITH the bundle instead of living only here.
+**The LOCAL `website/what-the-fact.com/` copy inside `archie-platform`** (the item this file
+previously flagged as "do not delete without an explicit owner decision") **has now been
+consolidated, not deleted-and-lost**: its full history was preserved via `git subtree split`
+and merged into the new `KytranKatarn/kytran-what-the-fact` repo under `static-site/`, alongside
+`what-the-fact/`'s own 600-commit history (the new repo, private, 602 total commits). The
+directory is removed from `archie-platform` in the same PR as this note — check `git log
+website/what-the-fact.com` if you need the pre-move history from THIS repo's perspective; the
+full picture (including the static site's own commit) lives in the new repo.
+
+⚠️ **`kytran-what-the-fact` is a history mirror, NOT yet the deployed source** — archie-platform's
+`what-the-fact/` stays authoritative until a separate, explicitly-gated cutover (new DB instance,
+F.O.R.G.E. write-token grant on the new repo, deploy retarget). See
+`what-the-fact/.design-sync/conventions.md` for the live-vs-mirror status and
+`.claude/rules/multi-repo.md` for the repo inventory.
+
+**Point a design/coding agent at `KytranKatarn/archie-platform`, path `what-the-fact/`, for
+anything that must reach production today.** `kytran-what-the-fact` is fine for design tooling
+that needs real git history and doesn't need to deploy. Both facts are stated in
+`what-the-fact/.design-sync/conventions.md`, which ships as the design-sync bundle's
+`readmeHeader` — so the answer travels WITH the bundle instead of living only here.
 
 📦 **The Design handoff is committed at `what-the-fact/design-handoff/`** (39 pages + shell CSS
 + nav + 5 JS + logo + 3 reference docs). They are **design references in HTML, not production

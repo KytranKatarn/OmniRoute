@@ -1,4 +1,4 @@
-# Multi-Repo Workspace — FOUR git repos live under /mnt/archie_brain
+# Multi-Repo Workspace — FOUR git repos live under /mnt/archie_brain, plus a 5th on GitHub only
 
 **Established 2026-07-29 (task #5401).** `/mnt/archie_brain` is not one repository. Several
 products are their **own independent git repos nested inside it**, and almost every tool that
@@ -13,10 +13,19 @@ separate defects in one day, so it is written down.
 | `/mnt/archie_brain/kytran-business-suite` | `KytranKatarn/kytran-business-suite` | **Own repo.** KBS, :8091 |
 | `/mnt/archie_brain/kytran-creed` | own repo | C.R.E.E.D., :8086 |
 | `/mnt/archie_brain/kytran-server-manager` | `KytranKatarn/kytran-system-operations` | KSO, :8085 |
+| *(not cloned locally)* | `KytranKatarn/kytran-what-the-fact` | 🟡 **History mirror only, created 2026-09-05.** NOT yet the deployed source — `archie-platform`'s `what-the-fact/` still is, until a separate gated cutover (new DB + F.O.R.G.E. token grant + deploy retarget) happens. Full history preserved via `git subtree split` (600 app commits + the old static-landing-page history merged under `static-site/`). Exists so design tooling has a real repo to connect to. See `what-the-fact/.design-sync/conventions.md` for the live-vs-mirror status. |
 
 ⚠️ `standalone/media_hub` is **NOT** in this list — it is a *subdirectory* of archie-platform.
 That is exactly why tooling written against media_hub breaks on the other three: media_hub is
-the only image-baked product that lives inside the platform repo.
+the only image-baked product that lives inside the platform repo. `kytran-what-the-fact` is the
+same shape in reverse: don't assume editing it affects the live site until cutover is done.
+
+## Retired repos in this family — do not connect to any of these
+
+`what-the-fact-site`, `kytran-news`, `kytran-news-site` are all archived dead ends from the
+April 2026 pre-launch attempt (static "Coming Soon" page, pre-consolidation app skeleton, and a
+landing page for a domain that no longer resolves, respectively). All three carry corrective
+READMEs as of 2026-09-05. See `.claude/rules/wtf.md` for the full history.
 
 ## Trap 1 — a "repo root" derived from cwd is the WRONG repo (#5401)
 

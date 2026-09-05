@@ -2,28 +2,39 @@
 
 ## 🔴 WHERE THIS CODE LIVES — read before connecting a repo
 
-**Repo:** `KytranKatarn/archie-platform` · **Path:** `what-the-fact/`
+**Two repos exist. Only ONE is deployed. This will change, so check the date below.**
+
+| Repo | Role right now (as of 2026-09-05) |
+|---|---|
+| `KytranKatarn/archie-platform`, path `what-the-fact/` | 🟢 **THE DEPLOYED SOURCE.** what-the-fact.com runs from here. Any change meant to reach production goes here. |
+| `KytranKatarn/kytran-what-the-fact` | 🟡 **History mirror, not yet live.** Same code, full preserved history (602 commits: 600 for the app + the static landing page's history merged in under `static-site/`), created so Design tooling has a real repo with real git history to work against. **Nothing pushed here reaches what-the-fact.com until a separate, explicitly-gated cutover (new DB instance + F.O.R.G.E. token grant + deploy retarget) happens.** |
+
 Live site: `what-the-fact.com` — Flask + Jinja2 + Postgres, ~30 consumer routes.
 
 | | |
 |---|---|
-| Consumer pages/routes | `what-the-fact/consumer/routes.py` (one large file) |
-| Templates | `what-the-fact/consumer/templates/*.html` |
-| The shared shell (`css/style.css`) | `what-the-fact/consumer/static/` |
-| Ingest / clustering / scoring | `what-the-fact/ingest/` |
-| Migrations | `what-the-fact/migrations/` |
+| Consumer pages/routes | `consumer/routes.py` (one large file) |
+| Templates | `consumer/templates/*.html` |
+| The shared shell (`css/style.css`) | `consumer/static/` |
+| Ingest / clustering / scoring | `ingest/` |
+| Migrations | `migrations/` |
+| Static landing page (pre-app, retired) | `static-site/` — only in `kytran-what-the-fact`, not in archie-platform's `what-the-fact/` |
 
-🔴 **DO NOT connect `KytranKatarn/what-the-fact-site`.** It is the April 2026
-"Coming Soon" landing page — 5 static files, untouched since 2026-04-14, serving
-nothing. Its README calls itself the "Official website", which is why a Design
-session connected to it on 2026-09-01, found no app, and had to review the live
-site by hand instead. The name is the trap; believe this file, not that one.
+🔴 **DO NOT connect `KytranKatarn/what-the-fact-site`, `kytran-news`, or
+`kytran-news-site`.** All three are archived dead ends from the April 2026
+pre-launch attempt (`what-the-fact-site` = static "Coming Soon" page, `kytran-news`
+= the pre-consolidation app skeleton before it was folded into this codebase,
+`kytran-news-site` = a landing page for a domain that no longer even resolves).
+`what-the-fact-site`'s README used to call itself the "Official website", which
+is why a Design session connected to it on 2026-09-01, found no app, and had to
+review the live site by hand instead. All three now carry corrective READMEs and
+are archived — but the name is still the trap; believe this file, not theirs.
 
-⚠️ **WTF is the only watch product that is NOT its own repo.** gov / legal /
-market / civic each have one under `/mnt/standalone/`; WTF was folded in from
-`kytran_news` on 2026-04-18 and never extracted. That is deliberate today — in-tree
-it gets F.O.R.G.E. auto-review, a write token and the full merge pipeline, none of
-which the standalone watch repos have. Split decision tracked as task #6254.
+⚠️ **Until cutover, `archie-platform` stays authoritative for deploys.**
+`kytran-what-the-fact` is real and current as of the push date above, but it is
+not re-synced automatically — treat it as a snapshot for exploration/coordination,
+and verify anything load-bearing against `archie-platform`'s live `what-the-fact/`
+before assuming it reflects the current deployed state.
 
 ## Setup
 No provider or wrapper. Dark editorial ground: `css/style.css` puts `--wtf-bg`

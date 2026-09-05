@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles %}
 {% block title %}Ethics Commissioner Rulings — Conflict of Interest Reports · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="All Ethics Commissioner investigation reports on Canadian MPs, ministers, and public officials. Conflict of interest findings 2015–2026.">
@@ -38,6 +39,11 @@
 .wtf-eth-about-h { color:#9ca3af; }
 .wtf-eth-ciec-link { color:var(--wtf-developing); font-size:11px; }
 .wtf-eth-officers-link { color:#6b7280; font-size:11px; }
+.wtf-eth-search { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 14px; }
+.wtf-eth-search input[type=search] { flex:1 1 220px; min-width:180px; padding:7px 10px; background:var(--wtf-bg-card,#060d14); border:1px solid #2a1a00; border-radius:6px; color:#e5e7eb; font-family:inherit; font-size:13px; }
+.wtf-eth-clear { font-size:11px; color:#6b7280; text-decoration:none; white-space:nowrap; }
+.wtf-eth-clear:hover { text-decoration:underline; }
+.wtf-eth-none { padding:20px; text-align:center; background:#060d14; border:1px dashed #2a1a00; border-radius:6px; color:#6b7280; font-size:12px; }
 </style>
 
 <div class="wtf-eth-header">
@@ -46,6 +52,31 @@
     {{ rulings|length }} investigation reports · 2015–2026 · Conflict of Interest and Ethics Commissioner of Canada
   </div>
 </div>
+
+{# Stats + search box (missing_pieces item 1/2, WTF batch 11). Computed from
+   the rows already fetched in the route, same "window" convention /gic uses
+   — the tiles reflect the active search filter, not a separate total query.
+   Deliberately NOT added here (see the route's comment + this batch's PR
+   description): a jurisdiction filter (no column backs one — every live row
+   is a federal CIEC report), a commissioner-office dropdown (same reason —
+   one office, one value), and a per-row contravention/no-contravention
+   "kind" badge (the schema's `finding` column is NULL on all 30 live rows). #}
+{{ stat_tiles([
+     {'label': 'Reports in view', 'value': '{:,}'.format(rulings|length)},
+     {'label': 'Act examinations', 'value': '{:,}'.format(act_count), 'detail': 'Conflict of Interest Act'},
+     {'label': 'Code inquiries', 'value': '{:,}'.format(code_count), 'detail': 'Conflict of Interest Code'},
+     {'label': 'Linked to an MP profile', 'value': '{:,}'.format(mp_linked_count)},
+]) }}
+
+{# Plain GET form, works without JavaScript — same pattern as /gic and /archive. #}
+<form method="get" action="/ethics" class="wtf-eth-search">
+  <input type="search" name="q" value="{{ q }}" placeholder="Report name, subject, MP&hellip;" aria-label="Search ethics rulings">
+  {% if q %}<a href="/ethics" class="wtf-eth-clear">Clear search</a>{% endif %}
+</form>
+
+{% if q and not rulings %}
+<div class="wtf-eth-none">No ethics rulings matched &ldquo;{{ q }}&rdquo;.</div>
+{% endif %}
 
 {# Per the design handoff README's paywall contract: "/ethics — Everything —
    no gate." These are public Ethics Commissioner findings; the previous gate

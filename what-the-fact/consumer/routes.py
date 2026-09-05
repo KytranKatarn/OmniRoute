@@ -4678,18 +4678,44 @@ def crtc_decisions():
 @bp.get("/ethics")
 def ethics_rulings():
     """Ethics Commissioner investigation reports."""
+    from flask import request as _req
+    q = (_req.args.get("q") or "").strip()
     with _db().begin() as c:
-        rows = c.execute(text("""
+        clauses = []
+        params = {}
+        if q:
+            clauses.append(
+                "(e.report_name ILIKE :q OR e.subject_name ILIKE :q OR m.name ILIKE :q)"
+            )
+            params["q"] = f"%{q}%"
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = c.execute(text(f"""
             SELECT e.report_name, e.subject_name, e.ruling_date,
                    e.report_type, e.report_url, e.mp_slug,
                    m.name AS mp_name
             FROM legal_watch.ethics_rulings e
             LEFT JOIN parliament.mps m ON m.slug = e.mp_slug
+            {where}
             ORDER BY e.ruling_date DESC
-        """)).mappings().all()
+        """), params).mappings().all()
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    rulings = [dict(r) for r in rows]
+    # Header stats — computed from the rows already fetched above (WTF-11
+    # batch, KB vault_note pending). Reflects the active search filter, same
+    # "window" convention as /gic's stat row. `finding` is a real column on
+    # legal_watch.ethics_rulings but is NULL on all 30 live rows (verified via
+    # `docker exec archie_database psql -d wtf` 2026-09-04) — there is no
+    # contravention/no-contravention text to classify a per-row "kind" badge
+    # from, so none is built here; doing so would mean guessing outcomes.
+    act_count = sum(1 for r in rulings if r.get("report_type") == "act")
+    code_count = len(rulings) - act_count
+    mp_linked_count = sum(1 for r in rulings if r.get("mp_slug"))
     return render_template("ethics.html",
-                           rulings=[dict(r) for r in rows],
+                           rulings=rulings,
+                           q=q,
+                           act_count=act_count,
+                           code_count=code_count,
+                           mp_linked_count=mp_linked_count,
                            source_count=source_count,
                            is_subscriber=is_subscriber())
 

@@ -198,6 +198,13 @@
 .wtf-wx-fire-summary { font-size:11px; color:#6b7280; margin-bottom:16px; line-height:1.7; }
 .wtf-wx-fire-summary-n { color:#e5e7eb; }
 .wtf-wx-fire-summary-note { color:#4b5563; }
+/* Ph. Batch 11 (#6280): the forecast-accuracy page is real and DB-backed
+   (consumer.aurora_verify) but had zero links pointing to it from /weather —
+   see the route docstring at weather_accuracy(). This card is the fix. */
+.wtf-wx-accuracy-card { background:#060d14; border:1px solid #0a1a2a; border-radius:4px; padding:10px 12px; margin-bottom:18px; }
+.wtf-wx-accuracy-link { color:var(--wtf-aurora); font-size:12px; font-weight:600; text-decoration:none; }
+.wtf-wx-accuracy-link:hover { text-decoration:underline; }
+.wtf-wx-accuracy-note { font-size:10px; color:#6b7280; margin-top:4px; line-height:1.5; }
 
 </style>
 
@@ -342,6 +349,20 @@
         <div class="wtf-wx-stat-l">Outlets tracked</div>
       </div>
     </div>
+
+    {# The forecast-accuracy page (weather_accuracy() in routes.py) is real
+       and DB-backed — every published city forecast joined against what the
+       station actually observed, per lead time — but shipped with no link
+       pointing to it from here (Batch 11, #6280). One honest card, no new
+       ingest, no new query. #}
+    <div class="wtf-wx-accuracy-card">
+      <a href="/weather/accuracy" class="wtf-wx-accuracy-link">📊 How accurate was our forecast? →</a>
+      <div class="wtf-wx-accuracy-note">
+        Every published city forecast, checked against what the stations
+        actually recorded — broken down by how many days ahead it was made.
+      </div>
+    </div>
+
       {# ── A.U.R.O.R.A. environmental layers (project #393) ──────────────────────
          The provenance strip below LOOPS `layers`. Do NOT hardcode a source name
          here: this page previously advertised "Environment Canada + NASA EarthData

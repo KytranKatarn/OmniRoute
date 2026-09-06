@@ -260,13 +260,13 @@
       {% if a.mp_mentions %}
       <span class="wtf-card-badge wtf-nw-mp-badge" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
       {% endif %}
-      {# Blindspot flag — SAME condition /blindspot's own _blindspot_rows()
-         applies (coverage_gap_score in (0, 0.15], cluster_size >= 2), just
-         evaluated per-card here instead of as a separate page. Reuses the
-         column news() already added to this query's own JOIN on
-         story_clusters — no new query, no new signal, no fabrication. #}
-      {% if a.coverage_gap_score is not none and a.coverage_gap_score > 0 and a.coverage_gap_score <= 0.15 and a.cluster_size and a.cluster_size >= 2 %}
-      <a href="/blindspot" class="wtf-card-badge" style="background:#f9731615;color:#f97316;border:1px solid #f9731633;" title="Covered by only {{ a.cluster_size }} outlet{{ 's' if a.cluster_size != 1 }} while most of the tracked press stayed silent on it.">🔦 Blindspot</a>
+      {# Blindspot flag (task #6524) — political-LEAN coverage imbalance, not
+         outlet-count silence. SAME column /blindspot's own precomputed
+         blindspot_side reads (ingest/cluster_metrics.py), just evaluated
+         per-card here instead of as a separate page — no new query, no new
+         signal, no fabrication. #}
+      {% if a.blindspot_side %}
+      <a href="/blindspot" class="wtf-card-badge" style="background:#f9731615;color:#f97316;border:1px solid #f9731633;" title="{{ 'Left' if a.blindspot_side == 'L' else 'Right' }}-leaning outlets stayed silent on this story.">🔦 {{ 'Left' if a.blindspot_side == 'L' else 'Right' }} blindspot</a>
       {% endif %}
       {% if a.overall_verdict and a.overall_verdict != 'descriptive_reporting' %}
       {# Positive set widened (#4898 tuning): the checker emits variants like

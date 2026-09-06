@@ -186,12 +186,16 @@ def test_csv_formula_injection_is_defused():
 
 # ── BLINDSPOT badge: real signal, same threshold as /blindspot ─────────────
 
-def test_blindspot_threshold_matches_the_blindspot_pages_own_default():
+def test_archive_is_blindspot_reads_the_same_precomputed_column_as_the_page():
+    """Redesigned task #6524: is_blindspot now reads blindspot_side (political-
+    lean imbalance, precomputed by ingest/cluster_metrics.py) rather than
+    re-deriving a coverage_gap_score threshold — so archive.html can never
+    disagree with /blindspot about which stories are flagged."""
     src = _routes_src()
-    assert "_ARCHIVE_BLINDSPOT_MAX_GAP = 0.15" in src
-    # /blindspot's own predicate, so a future change to one is visible
-    # against the other rather than silently diverging.
-    assert "max_gap=0.15" in src
+    assert 'r["is_blindspot"] = r.get("blindspot_side") is not None' in src
+    assert "_ARCHIVE_BLINDSPOT_MAX_GAP" not in src, (
+        "dead threshold constant left behind after the #6524 redesign"
+    )
 
 
 def test_blindspot_badge_renders_only_for_flagged_rows():

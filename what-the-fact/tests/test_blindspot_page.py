@@ -1,4 +1,5 @@
-"""/blindspot renders its stories SERVER-SIDE (#6165).
+"""/blindspot renders its stories SERVER-SIDE (#6165), political-LEAN
+imbalance edition (task #6524).
 
 WHY THIS FILE EXISTS. The page shipped as an empty `<div id="bs-list">` waiting
 for JavaScript that was never written: no <script> in the template, and nothing
@@ -12,6 +13,13 @@ only script on the page was i18n.js.
 The defect was invisible to every existing check: the template parsed, the route
 returned 200, and the API was healthy. Only *rendering the page and counting the
 stories* catches it — which is what these tests do.
+
+Redesigned (task #6524) from an outlet-COUNT silence signal to a political-
+LEAN coverage imbalance signal — a story lands here when one side of the
+spectrum covered it and the other (almost) didn't, computed by
+ingest/cluster_metrics.py and precomputed onto story_clusters.blindspot_side.
+coverage_gap_score is still a real column (surfaced on /archive) but is no
+longer what this page means.
 """
 
 import pathlib
@@ -42,16 +50,30 @@ BLINDSPOTS = [
         "id": 4211, "representative_title": "Fallback title",
         # a hostile headline — this product renders scraped news
         "headline": "Watchdog report <script>alert(1)</script> buried",
-        "brief": "Only two outlets carried it.",
-        "article_count": 3, "source_count": 2,
-        "coverage_gap_score": 0.04, "certainty_label": "Established",
+        "brief": "Only right-leaning outlets carried it.",
+        "article_count": 5, "source_count": 4,
+        "coverage_gap_score": 0.09, "certainty_label": "Established",
+        "blindspot_side": "L", "lean_l_count": 0, "lean_c_count": 1, "lean_r_count": 4,
+        "age_hours": 18.0,
+        "reasons": [
+            ("No bureau on that side in AB",
+             "No outlet on that side of the spectrum has filed from this province in the corpus at all, on any story."),
+            ("Staffed, and still absent",
+             "Outlets on that side cover this beat and this province elsewhere, and did not carry this story."),
+        ],
     },
     {
         # no headline and no brief — must fall back, not render blank
         "id": 4212, "representative_title": "Committee testimony goes unreported",
         "headline": None, "brief": None,
-        "article_count": 2, "source_count": 1,
+        "article_count": 4, "source_count": 4,
         "coverage_gap_score": 0.13, "certainty_label": None,
+        "blindspot_side": "R", "lean_l_count": 3, "lean_c_count": 0, "lean_r_count": 0,
+        "age_hours": 2.5,
+        "reasons": [
+            ("The story is 2.5 hours old",
+             "A gap this young is a news cycle, not an editorial position. It may close today."),
+        ],
     },
 ]
 
@@ -127,17 +149,44 @@ class TestTheWindowFilterWorksWithoutJavaScript:
         assert "except (TypeError, ValueError)" in body
 
 
-class TestSeverityIsReadable:
-    def test_gap_severity_carries_a_text_label(self, env):
-        """Colour alone is never the signal — the rule the lean scale is on."""
-        html = page(env)
-        assert "Near-total blackout" in html   # 4%
-        assert "Thinly covered" in html        # 13%
+class TestLeanImbalanceIsReadable:
+    """Task #6524: the signal is which SIDE was silent, not how few outlets
+    ran the story — colour is never the only carrier of that."""
 
-    def test_the_coverage_share_is_stated_as_a_number(self, env):
+    def test_each_card_names_the_silent_side(self, env):
         html = page(env)
-        assert "4% of tracked press" in html
-        assert "13% of tracked press" in html
+        assert "Left blindspot" in html
+        assert "Right blindspot" in html
+
+    def test_the_lean_split_is_stated_as_numbers(self, env):
+        html = page(env)
+        assert "L 0" in html and "C 1" in html and "R 4" in html
+        assert "L 3" in html and "C 0" in html and "R 0" in html
+
+    def test_the_methodology_names_the_real_rule(self, env):
+        html = page(env)
+        assert "quarter or less" in html
+        assert "at least three articles behind" in html
+
+
+class TestReasonsAreSubscriberGated:
+    """Reasons ('why is this side silent') are the paywalled deeper analysis —
+    the story itself and its side/split stay free, matching the paywall
+    boundary the page already had (HARD RULE: never touch paywall scope)."""
+
+    def test_anonymous_does_not_see_reasons(self, env):
+        html = page(env, subscriber=False)
+        assert "No bureau on that side in AB" not in html
+        assert "Left blindspot" in html, "the card itself must still be free"
+
+    def test_subscriber_sees_reasons(self, env):
+        html = page(env, subscriber=True)
+        assert "No bureau on that side in AB" in html
+        assert "Staffed, and still absent" in html
+
+    def test_a_young_story_gets_the_age_reason(self, env):
+        html = page(env, subscriber=True)
+        assert "2.5 hours old" in html
 
 
 class TestHonestEmptyAndPaywall:
@@ -188,6 +237,13 @@ class TestPageAndApiShareOneQuery:
         api_body = src[api_start:api_end]
         assert "_blindspot_rows(" in api_body, "API no longer shares the helper"
         assert "story_clusters" not in api_body, "API re-inlined its own SQL — it can drift"
+
+    def test_the_api_reports_blindspot_side_not_just_the_old_gap_score(self):
+        src = (ROOT / "consumer" / "routes.py").read_text()
+        api_start = src.index("def api_v1_blindspot():")
+        api_end = src.index("\n@bp.", api_start)
+        api_body = src[api_start:api_end]
+        assert '"blindspot_side"' in api_body
 
 
 class TestTheCountIsThePopulationNotThePageSize:

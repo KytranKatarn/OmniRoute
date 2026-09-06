@@ -809,7 +809,7 @@ def news():
                    s.name AS source, p.source_id, p.band, p.ai_analyzed,
                    p.province_code, p.beat, p.geo_scope,
                    p.cluster_id, sc.article_count AS cluster_size,
-                   sc.coverage_gap_score,
+                   sc.coverage_gap_score, sc.blindspot_side,
                    fc.overall_verdict,
                    (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
                     FROM {S}.article_mp_tags tg
@@ -4429,13 +4429,6 @@ _ARCHIVE_FREE_ARTICLES = 50
 # (365 days, no query) gets a real bulk download, not the whole table
 # through one request. Same shape as _blindspot_rows' own `limit` param.
 _ARCHIVE_EXPORT_LIMIT = 5000
-# Same threshold /blindspot and /api/v1/blindspot already use
-# (coverage_gap_score in (0, 0.15]) — a story covered by <15% of tracked
-# outlets. Kept as its own constant rather than importing _blindspot_rows'
-# default so this page never silently changes behaviour if that default
-# does; the two are documented here as intentionally identical.
-_ARCHIVE_BLINDSPOT_MAX_GAP = 0.15
-
 # Sort direction is NAMED, never a bare arrow — "Filed · newest" says which end
 # you are looking at; an arrow leaves the reader to guess.
 _ARCHIVE_SORTS = {
@@ -4608,7 +4601,8 @@ def _archive_rows(f: dict):
                    MIN(b.band)                          AS lean,
                    MIN(fc.overall_verdict)              AS verdict,
                    MIN(a.id)                            AS article_id,
-                   MIN(sc.coverage_gap_score)           AS coverage_gap_score
+                   MIN(sc.coverage_gap_score)           AS coverage_gap_score,
+                   MIN(sc.blindspot_side)               AS blindspot_side
             {base} AND a.cluster_id IS NOT NULL
             GROUP BY a.cluster_id
             ORDER BY {order} LIMIT :lim OFFSET :off
@@ -4618,7 +4612,8 @@ def _archive_rows(f: dict):
             SELECT a.cluster_id, a.title, s.name AS outlet, 1 AS outlets,
                    a.published_at AS last_pub, b.band AS lean,
                    fc.overall_verdict AS verdict, a.id AS article_id,
-                   sc.coverage_gap_score AS coverage_gap_score
+                   sc.coverage_gap_score AS coverage_gap_score,
+                   sc.blindspot_side AS blindspot_side
             {base}
             ORDER BY {order} LIMIT :lim OFFSET :off
         """
@@ -4695,7 +4690,8 @@ def _archive_export_rows(f: dict):
                    MIN(s.name) AS outlet, COUNT(DISTINCT a.source_id) AS outlets,
                    MAX(a.published_at) AS last_pub, MIN(b.band) AS lean,
                    MIN(fc.overall_verdict) AS verdict,
-                   MIN(sc.coverage_gap_score) AS coverage_gap_score
+                   MIN(sc.coverage_gap_score) AS coverage_gap_score,
+                   MIN(sc.blindspot_side) AS blindspot_side
             {base} AND a.cluster_id IS NOT NULL
             GROUP BY a.cluster_id
             ORDER BY {order} LIMIT :lim
@@ -4705,7 +4701,8 @@ def _archive_export_rows(f: dict):
             SELECT a.cluster_id, a.title, s.name AS outlet, 1 AS outlets,
                    a.published_at AS last_pub, b.band AS lean,
                    fc.overall_verdict AS verdict,
-                   sc.coverage_gap_score AS coverage_gap_score
+                   sc.coverage_gap_score AS coverage_gap_score,
+                   sc.blindspot_side AS blindspot_side
             {base}
             ORDER BY {order} LIMIT :lim
         """
@@ -4753,10 +4750,11 @@ def archive_index():
     rows = [dict(r) for r in _archive_rows(f)]
     for r in rows:
         r["age_text"] = _age_text(r["last_pub"])
-        gap = r.get("coverage_gap_score")
-        # Same predicate /blindspot and /api/v1/blindspot already use
-        # (_ARCHIVE_BLINDSPOT_MAX_GAP == their max_gap default of 0.15).
-        r["is_blindspot"] = gap is not None and 0 < float(gap) <= _ARCHIVE_BLINDSPOT_MAX_GAP
+        # Political-lean coverage imbalance (task #6524) — same column
+        # /blindspot itself reads, precomputed by ingest/cluster_metrics.py.
+        # NOT the outlet-count coverage_gap_score (still selected above,
+        # still a real metric — just no longer what "Blindspot" means).
+        r["is_blindspot"] = r.get("blindspot_side") is not None
     total = _archive_total(f)
 
     sub = is_subscriber()
@@ -4823,8 +4821,10 @@ def archive_export():
     for r in rows:
         filed = _csv_filed_local(r.get("last_pub"))
         verdict = (r.get("verdict") or "").replace("_", " ").title()
-        gap = r.get("coverage_gap_score")
-        is_blindspot = gap is not None and 0 < float(gap) <= _ARCHIVE_BLINDSPOT_MAX_GAP
+        # Political-lean coverage imbalance (task #6524) — same column
+        # /blindspot itself reads. "L"/"R" names which side was silent;
+        # blank means balanced or too thin to call.
+        blindspot_side = r.get("blindspot_side")
         link = f"https://what-the-fact.com/cluster/{r['cluster_id']}" if r.get("cluster_id") else ""
         writer.writerow([
             _csv_safe(filed),
@@ -4832,7 +4832,7 @@ def archive_export():
             _csv_safe(r.get("title") or ""),
             _csv_safe(r.get("lean") or ""),
             _csv_safe(verdict),
-            "Yes" if is_blindspot else "",
+            _csv_safe(blindspot_side or ""),
             _csv_safe(link),
         ])
 
@@ -7360,28 +7360,29 @@ def api_v1_bias_distribution():
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# Blindspot Feed (#3006) — Stories covered by very few outlets
+# Blindspot Feed (#3006, redesigned task #6524) — political-LEAN coverage
+# imbalance: a story covered almost entirely by one side of the spectrum.
+# NOT outlet-count silence (that's coverage_gap_score, still a real column,
+# just no longer what this page or the "Blindspot" badge elsewhere means —
+# see migration 079 + ingest/cluster_metrics.py's _blindspot_side()).
 # ───────────────────────────────────────────────────────────────────────────
 
 
 _BLINDSPOT_WINDOWS = (3, 7, 14, 30)
 
 
-def _blindspot_total(days=7, max_gap=0.15):
+def _blindspot_total(days=7):
     """How many stories QUALIFY in this window — not how many are shown.
 
-    ⚠️ These differ by orders of magnitude: measured 255 qualifying in 3 days
-    and 2,883 in 30, against a page size of 20. Labelling the page size as
-    "stories in window" would tell a reader there are 20 blind spots in a month
-    when there are nearly three thousand.
+    Mirrors _blindspot_rows' own caveat: the qualifying population can run
+    far larger than the page size. Surfaced honestly rather than confusing
+    the two.
     """
     S = _schema()
     with _db().begin() as c:
         return c.execute(text(f"""
             SELECT count(*) FROM {S}.story_clusters sc
-            WHERE sc.coverage_gap_score > 0
-              AND sc.coverage_gap_score <= :max_gap
-              AND sc.article_count >= 2
+            WHERE sc.blindspot_side IS NOT NULL
               AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
               AND EXISTS (
                   SELECT 1 FROM {S}.articles a
@@ -7389,37 +7390,36 @@ def _blindspot_total(days=7, max_gap=0.15):
                     AND (a.country_code = 'CA'
                          OR a.geo_scope IN ('national', 'provincial'))
               )
-        """), {"max_gap": max_gap, "days": days}).scalar() or 0
+        """), {"days": days}).scalar() or 0
 
 
-def _blindspot_rows(days=7, limit=20, max_gap=0.15):
+def _blindspot_rows(days=7, limit=20):
     """Rows behind BOTH /blindspot and /api/v1/blindspot.
 
     Extracted so the page and the API cannot drift: a blindspot shown to a
     reader and one returned to an API client must be the same story set.
-
-    ⚠️ ORDERING CAVEAT (measured 2026-08-31): ~2,981 clusters are TIED at the
-    minimum coverage_gap_score, so `coverage_gap_score ASC` barely
-    discriminates and `latest_published_at DESC` is the real sort. With 255
-    qualifying stories already inside the 3-day window, the top `limit` is the
-    same set for every window — widening to 30 days adds candidates that all
-    rank below it. The window therefore changes the POPULATION but not this
-    page's visible list. Surfaced honestly via _blindspot_total(); making the
-    control change the list is an editorial decision about what "blind spot"
-    should rank on, not a rendering fix.
+    `province_code`/`beat` are pulled from one representative article in the
+    cluster (story_clusters carries neither column itself) — good enough for
+    the "why is this side silent" panel, which only needs a rough locale/topic,
+    not a per-article breakdown.
     """
     S = _schema()
     with _db().begin() as c:
         return c.execute(text(f"""
             SELECT sc.id, sc.representative_title, sc.article_count,
                    sc.source_count, sc.coverage_gap_score, sc.certainty_label,
-                   sc.earliest_published_at, sc.latest_published_at,
-                   sm.headline, sm.brief
+                   sc.blindspot_side, sc.lean_l_count, sc.lean_c_count,
+                   sc.lean_r_count, sc.earliest_published_at, sc.latest_published_at,
+                   sm.headline, sm.brief,
+                   (SELECT a2.province_code FROM {S}.articles a2
+                     WHERE a2.cluster_id = sc.id AND a2.province_code IS NOT NULL
+                     LIMIT 1)                                          AS province_code,
+                   (SELECT a2.beat FROM {S}.articles a2
+                     WHERE a2.cluster_id = sc.id AND a2.beat IS NOT NULL
+                     LIMIT 1)                                          AS beat
             FROM {S}.story_clusters sc
             LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
-            WHERE sc.coverage_gap_score > 0
-              AND sc.coverage_gap_score <= :max_gap
-              AND sc.article_count >= 2
+            WHERE sc.blindspot_side IS NOT NULL
               AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
               AND EXISTS (
                   SELECT 1 FROM {S}.articles a
@@ -7427,29 +7427,91 @@ def _blindspot_rows(days=7, limit=20, max_gap=0.15):
                     AND (a.country_code = 'CA'
                          OR a.geo_scope IN ('national', 'provincial'))
               )
-            ORDER BY sc.coverage_gap_score ASC, sc.latest_published_at DESC
+            ORDER BY sc.latest_published_at DESC
             LIMIT :n
-        """), {"max_gap": max_gap, "days": days, "n": limit}).mappings().all()
+        """), {"days": days, "n": limit}).mappings().all()
+
+
+def _blindspot_reasons(side, province_code, beat, age_hours):
+    """Why the missing side might be silent on a cluster — argued from the
+    corpus, not asserted. Ported from the mockup's own reasons() function
+    (design-handoff/wtf-blindspot.js): suppression is the last explanation to
+    reach for, not the first.
+
+    `side` is 'L' or 'R' — whichever side cluster_metrics._blindspot_side
+    already called absent for this cluster.
+    """
+    S = _schema()
+    lean_filter = ("obs.band IN ('left','center-left')" if side == "L"
+                   else "obs.band IN ('center-right','right')")
+    out = []
+    with _db().begin() as c:
+        # Does ANY outlet on this side have a bureau in this province at all
+        # (anywhere in the corpus, not just this cluster)?
+        prov_count = 0
+        if province_code:
+            prov_count = c.execute(text(f"""
+                SELECT COUNT(DISTINCT a.source_id)
+                FROM {S}.articles a
+                JOIN {S}.outlet_bias_scores obs ON obs.source_id = a.source_id
+                WHERE {lean_filter} AND a.province_code = :prov
+            """), {"prov": province_code}).scalar() or 0
+            if not prov_count:
+                out.append((
+                    f"No bureau on that side in {province_code}",
+                    "No outlet on that side of the spectrum has filed from "
+                    "this province in the corpus at all, on any story.",
+                ))
+
+        # How thin is that side's coverage of this beat, corpus-wide?
+        beat_depth = 0
+        if beat:
+            beat_depth = c.execute(text(f"""
+                SELECT COUNT(*)
+                FROM {S}.articles a
+                JOIN {S}.outlet_bias_scores obs ON obs.source_id = a.source_id
+                WHERE {lean_filter} AND a.beat = :beat
+            """), {"beat": beat}).scalar() or 0
+            if beat_depth < 4:
+                out.append((
+                    f"{beat} is thinly staffed on that side",
+                    f"Outlets on that side have filed {beat_depth} piece"
+                    f"{'s' if beat_depth != 1 else ''} on {beat.lower()} "
+                    "across the whole corpus.",
+                ))
+
+        if age_hours < 6:
+            out.append((
+                f"The story is {age_hours:.1f} hours old",
+                "A gap this young is a news cycle, not an editorial "
+                "position. It may close today.",
+            ))
+
+        if prov_count and beat_depth >= 4 and age_hours >= 6:
+            out.append((
+                "Staffed, and still absent",
+                "Outlets on that side cover this beat and this province "
+                "elsewhere, and did not carry this story.",
+            ))
+    return out
+
+
+def _blindspot_age_hours(r):
+    if not r["earliest_published_at"] or not r["latest_published_at"]:
+        return 0.0
+    return (r["latest_published_at"] - r["earliest_published_at"]).total_seconds() / 3600
 
 
 @bp.get("/blindspot")
 def blindspot_page():
     """Dedicated Blindspot Feed page — rendered SERVER-SIDE.
 
-    ⚠️ This page shipped as an empty <div id="bs-list"> waiting for JavaScript
-    that was never written: no <script> in the template, and nothing anywhere
-    in static/js/ referenced `bs-list` or `wtf-bs-`. /api/v1/blindspot has been
-    returning 20 real stories the whole time, and the page is linked from the
-    main nav — so every visitor got a heading, four dead filter buttons, and
-    nothing else. Rendering from the shared helper needs no client JS at all.
+    Redesigned (task #6524) from an outlet-count silence signal to a
+    political-LEAN coverage imbalance signal — see the section header above
+    _blindspot_rows for the full rationale.
 
-    The window buttons are now plain links (?days=N), so filtering works
-    without JavaScript too.
-
-    (The old call also passed a hardcoded source_count=46. It was dead — the
-    nav reads `nav_source_count` from a context processor, which takes
-    precedence — and a hardcoded constant standing in for a live count is the
-    defect class that made /owners' shares sum to 149%.)
+    The window buttons are plain links (?days=N), so filtering works
+    without JavaScript.
     """
     from flask import request as _req
     try:
@@ -7458,8 +7520,14 @@ def blindspot_page():
         days = 7
     if days not in _BLINDSPOT_WINDOWS:
         days = 7
+    rows = [dict(r) for r in _blindspot_rows(days=days)]
+    for r in rows:
+        age_hours = _blindspot_age_hours(r)
+        r["age_hours"] = age_hours
+        r["reasons"] = _blindspot_reasons(
+            r["blindspot_side"], r.get("province_code"), r.get("beat"), age_hours)
     return render_template("blindspot.html",
-                           blindspots=_blindspot_rows(days=days),
+                           blindspots=rows,
                            total_in_window=_blindspot_total(days=days),
                            days=days,
                            windows=_BLINDSPOT_WINDOWS,
@@ -7468,16 +7536,17 @@ def blindspot_page():
 
 @bp.get("/api/v1/blindspot")
 def api_v1_blindspot():
-    """#3006 — Underreported stories: clusters with low coverage_gap_score.
+    """#3006, redesigned #6524 — political-lean coverage imbalance.
 
-    A blindspot = a story covered by only 1–2 outlets while the rest of the
-    press stays silent. coverage_gap_score ≤ 0.15 means <15 % of tracked
-    outlets published on this cluster.
+    A blindspot = a story covered almost entirely by outlets on one side of
+    the political spectrum, per the same MIN_TOTAL/MIN_SIDES/MINOR_MAX/MIN_DIFF
+    thresholds cluster_metrics._blindspot_side applies (see that function's
+    docstring). NOT outlet-count silence — that's coverage_gap_score, still
+    returned below as a distinct field.
 
     Query params:
-      limit         int   default 20   max 100
-      days          int   default 7    look-back window
-      max_gap_score float default 0.15 coverage threshold
+      limit int  default 20  max 100
+      days  int  default 7   look-back window
     """
     _rl = _api_rate_check()
     if _rl is not None:
@@ -7485,18 +7554,20 @@ def api_v1_blindspot():
     from flask import request as _req
     limit = min(int(_req.args.get("limit", 20)), 100)
     days = min(int(_req.args.get("days", 7)), 90)
-    max_gap = float(_req.args.get("max_gap_score", 0.15))
     # Same helper the PAGE renders from — the two cannot drift apart.
-    rows = _blindspot_rows(days=days, limit=limit, max_gap=max_gap)
+    rows = _blindspot_rows(days=days, limit=limit)
     return _api_cors_response({
         "ok": True,
         "days": days,
-        "max_gap_score": max_gap,
         "blindspots": [{
             "id": r["id"],
             "title": r["representative_title"],
             "article_count": r["article_count"],
             "source_count": r["source_count"],
+            "blindspot_side": r["blindspot_side"],
+            "lean_l_count": r["lean_l_count"],
+            "lean_c_count": r["lean_c_count"],
+            "lean_r_count": r["lean_r_count"],
             "coverage_gap_score": round(float(r["coverage_gap_score"] or 0), 3),
             "certainty_label": r["certainty_label"],
             "earliest": r["earliest_published_at"].isoformat() if r["earliest_published_at"] else None,

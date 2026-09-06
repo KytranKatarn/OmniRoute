@@ -2,65 +2,67 @@
 {% from "_archetypes.html" import record_card, record_links, segment, stat_tiles, chip, paywall %}
 {% block title %}Coverage Blind Spots · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="Stories carried by only one side of the Canadian media spectrum.">
+<meta name="description" content="Stories covered by only one side of the Canadian political spectrum.">
 {% endblock %}
 {% block content %}
 <style>
-/* Design-handoff scoping: 8 inline styles extracted into wtf-bs-* classes,
-   value-preserving (same literals, moved from style="" into these rules).
-   No hex-color literals exist anywhere on this page — every color/
-   background/border/font-family already reads a var(--wtf-*) token
-   (--wtf-border, --wtf-font-serif, --wtf-bg-card, --wtf-text-2), so there is
-   nothing to swap. No display-font mismatch on this page either — WTF's own
-   stack is IBM Plex Sans/Mono + Newsreader, and this page references neither
-   a mismatched face nor an unloaded one. (See TestNoPrivateStyling in
-   test_blindspot_page.py, which greps the RENDERED page — including this
-   comment — for that font's name literally, so it is deliberately not
-   spelled out here.) The Starter+ paywall gate below already calls the
-   shared paywall() macro from _archetypes.html — nothing to converge. */
+/* Design-handoff scoping (task #6524 redesign) — same wtf-bs-* classes as
+   before, no new hex-color literals, everything reads a var(--wtf-*) token.
+   See TestNoPrivateStyling in test_blindspot_page.py. */
 .wtf-bs-header { padding:16px 0; border-bottom:1px solid var(--wtf-border); margin-bottom:16px; }
 .wtf-bs-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; margin:0 0 4px; }
 .wtf-bs-lede { margin:0; max-width:72ch; }
 .wtf-bs-window { margin:16px 0; }
 .wtf-bs-empty { padding:28px 0; }
+.wtf-bs-spec { display:flex; height:6px; border-radius:3px; overflow:hidden; margin:10px 0; background:var(--wtf-bg); }
+.wtf-bs-spec i { display:block; height:100%; }
+.wtf-bs-spec-l { background:var(--wtf-accent); }
+.wtf-bs-spec-c { background:var(--wtf-text-2); opacity:.5; }
+.wtf-bs-spec-r { background:var(--wtf-local); }
+.wtf-bs-specl { display:flex; gap:12px; font-size:11px; color:var(--wtf-text-2); margin-bottom:10px; }
+.wtf-bs-reasons { margin-top:10px; padding-top:10px; border-top:1px solid var(--wtf-border); }
+.wtf-bs-reason { margin-bottom:8px; }
+.wtf-bs-reason-t { font-weight:600; font-size:13px; }
+.wtf-bs-reason-d { font-size:12.5px; color:var(--wtf-text-2); margin:2px 0 0; }
 .wtf-bs-methodology { margin-top:26px; padding:16px 18px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; }
 .wtf-bs-method-title { margin-bottom:8px; }
 .wtf-bs-method-body { font-size:13px; color:var(--wtf-text-2); line-height:1.75; margin:0 0 12px; }
 </style>
-{# #6149 phase 3 — ARCHETYPE 3 (DATA EXPLORER).
+{# Task #6524 redesign — moved from an outlet-COUNT silence signal to a
+   political-LEAN coverage imbalance signal, matching the Claude Design
+   mockup (design-handoff/wtf-blindspot.js). A story lands here when one
+   side of the spectrum covered it and the other side (almost) didn't —
+   not when few outlets in total ran it (that's still coverage_gap_score,
+   surfaced on /archive, just no longer this page's own definition).
 
-   ⚠️ THIS PAGE WAS DEAD IN PRODUCTION. It shipped as an empty
-   <div id="bs-list"> waiting for JavaScript that was never written — no
-   <script> here, and nothing in static/js/ ever referenced `bs-list` or
-   `wtf-bs-`. Meanwhile /api/v1/blindspot has been returning 20 real stories
-   the whole time and the page is linked from the main nav, so every visitor
-   got a heading, four dead filter buttons and nothing else.
+   Thresholds (ingest/cluster_metrics.py._blindspot_side, ported verbatim
+   from the mockup): at least 4 articles total, at least 4 split across
+   both sides, the quiet side at or under 25% of the two-sided coverage,
+   and at least 3 articles behind in absolute terms.
 
-   Now rendered SERVER-SIDE from the same helper the API uses, so no client JS
-   is required and the two cannot drift. The window filters are plain links
-   (?days=N) and work without JavaScript.
-
-   Gap severity carries a TEXT label, never colour alone — the rule the lean
-   scale is built on. Data: blindspots[], days, windows[], is_subscriber. #}
+   Rendered SERVER-SIDE from the same helper the API uses — no client JS,
+   window filters are plain links (?days=N). Data: blindspots[] (each
+   carrying blindspot_side, lean_l/c/r_count, age_hours, reasons[]), days,
+   windows[], is_subscriber. #}
 
 <div class="wtf-bs-header">
   <h1 class="wtf-bs-title">Coverage blind spots</h1>
   <p class="wtf-a-tile-d wtf-bs-lede">
-    Stories covered by only one or two outlets while the rest of the Canadian press stays silent.
-    A lower coverage score means more of the press ignored it — these are the stories editors didn&rsquo;t assign.
+    Stories where one side of the political spectrum covered the news and the other side
+    (almost) didn&rsquo;t. A left blindspot means right-leaning outlets stayed quiet; a right
+    blindspot means the left did.
   </p>
 </div>
 
-{# ⚠️ The first tile MUST be the QUALIFYING COUNT, not blindspots|length —
-   that is the page size (20). Measured: 255 qualifying in 3 days, 2,883 in 30.
-   Labelling 20 as "stories in window" would tell a reader there are twenty
-   blind spots in a month when there are nearly three thousand. #}
+{# The first tile MUST be the QUALIFYING COUNT, not blindspots|length — that
+   is the page size (20). The population inside the window can run far
+   larger; see _blindspot_total()'s own docstring. #}
 {{ stat_tiles([
      {'label': 'Blind spots in window', 'value': '{:,}'.format(total_in_window),
       'detail': 'last ' ~ days ~ ' day' ~ ('' if days == 1 else 's') ~
                 ' · showing ' ~ blindspots|length ~ ' most recent'},
-     {'label': 'Coverage threshold', 'value': '≤15%',
-      'detail': 'share of tracked outlets that ran it'},
+     {'label': 'Called when', 'value': '≤25% quiet side',
+      'detail': 'and at least 3 articles behind, of 4+ total'},
 ]) }}
 
 <div class="wtf-a-layers wtf-bs-window" role="group" aria-label="Time window">
@@ -68,44 +70,67 @@
 </div>
 
 {% for b in blindspots %}
-  {# coverage_gap_score is a SHARE (0-1) of tracked outlets that ran the story. #}
-  {% set pct = ((b.coverage_gap_score|float) * 100) | round(0) | int %}
-  {% set severity = 'Near-total blackout' if pct <= 5 else ('Barely covered' if pct <= 10 else 'Thinly covered') %}
+  {% set side_label = 'Left blindspot' if b.blindspot_side == 'L' else 'Right blindspot' %}
+  {% set total = (b.lean_l_count or 0) + (b.lean_c_count or 0) + (b.lean_r_count or 0) %}
 
-  {% set chips = [severity] %}
+  {% set chips = [side_label] %}
   {% if b.certainty_label %}{% if chips.append(b.certainty_label) %}{% endif %}{% endif %}
 
   {% set meta %}
     {{- b.source_count }} outlet{{ '' if b.source_count == 1 else 's' }} ·
-    {{ b.article_count }} article{{ '' if b.article_count == 1 else 's' }} ·
-    {{ pct }}% of tracked press
+    {{ b.article_count }} article{{ '' if b.article_count == 1 else 's' }}
   {% endset %}
 
   {% call record_card(title=(b.headline or b.representative_title),
                       meta=meta|trim, chips=chips, spine_token='--wtf-accent') %}
     {% if b.brief %}<p class="wtf-a-rbody">{{ b.brief }}</p>{% endif %}
+
+    {% if total %}
+    <div class="wtf-bs-spec" title="{{ b.lean_l_count }} left · {{ b.lean_c_count }} center · {{ b.lean_r_count }} right">
+      {% if b.lean_l_count %}<i class="wtf-bs-spec-l" style="width:{{ (b.lean_l_count / total * 100) | round(1) }}%"></i>{% endif %}
+      {% if b.lean_c_count %}<i class="wtf-bs-spec-c" style="width:{{ (b.lean_c_count / total * 100) | round(1) }}%"></i>{% endif %}
+      {% if b.lean_r_count %}<i class="wtf-bs-spec-r" style="width:{{ (b.lean_r_count / total * 100) | round(1) }}%"></i>{% endif %}
+    </div>
+    <div class="wtf-bs-specl">
+      <span>L {{ b.lean_l_count or 0 }}</span><span>C {{ b.lean_c_count or 0 }}</span><span>R {{ b.lean_r_count or 0 }}</span>
+    </div>
+    {% endif %}
+
+    {% if is_subscriber and b.reasons %}
+    <div class="wtf-bs-reasons">
+      {% for title, detail in b.reasons %}
+      <div class="wtf-bs-reason">
+        <div class="wtf-bs-reason-t">{{ title }}</div>
+        <p class="wtf-bs-reason-d">{{ detail }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {{ record_links([('Read the cluster →', '/cluster/' ~ b.id, False)]) }}
   {% endcall %}
 {% else %}
   <p class="wtf-a-nodata wtf-bs-empty">
-    No blind spots in the last {{ days }} days. Every tracked story reached more than 15% of outlets.
+    No blind spots in the last {{ days }} days. Every tracked story got balanced coverage across the spectrum.
   </p>
 {% endfor %}
 
 {% if not is_subscriber %}
 {{ paywall(
      title='Deeper analysis — Starter+',
-     blurb='Subscribers see why each story was ignored — the outlet breakdown, the bias pattern behind the silence, and a Deep Dive.',
+     blurb='Subscribers see why each side was silent — bureau presence, beat depth, and how young the story still is.',
      next_url='/blindspot') }}
 {% endif %}
 
 <div class="wtf-bs-methodology">
   <div class="wtf-a-tile-l wtf-bs-method-title">How a blind spot is identified</div>
   <p class="wtf-bs-method-body">
-    Every story is clustered across the outlets we track. A cluster's coverage score is the share of
-    those outlets that published on it. Scores at or below 15% — with at least two articles, and at
-    least one Canadian national or provincial item — surface here. A low score is a measure of how
-    few newsrooms covered a story, not a judgement of whether it deserved coverage.
+    Every article in a cluster is banded by its own bias score (left, center-left, center,
+    center-right, right). A side is called silent when the quiet side holds a quarter or less
+    of the two-sided (left + right) coverage and is at least three articles behind, out of at
+    least four articles total. This measures which side of the spectrum covered a story, not
+    how many outlets in total ran it — see <a href="/archive">the archive</a> for the
+    outlet-count view.
   </p>
   {{ record_links([
        ('Coverage divergence →', '/divergence', False),

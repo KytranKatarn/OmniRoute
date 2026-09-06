@@ -32,13 +32,15 @@ def _news_route_body(src: str) -> str:
 
 
 def _article(id, published_at, coverage_gap_score=None, cluster_size=None,
-             band="center", title="Some headline", source="CBC"):
+             band="center", title="Some headline", source="CBC",
+             blindspot_side=None):
     return {
         "id": id, "title": title, "url": "https://example.com/a",
         "published_at": published_at, "source": source, "source_id": 1,
         "band": band, "ai_analyzed": False, "province_code": None,
         "beat": None, "geo_scope": None, "cluster_id": id,
         "cluster_size": cluster_size, "coverage_gap_score": coverage_gap_score,
+        "blindspot_side": blindspot_side,
         "overall_verdict": None, "mp_mentions": None,
     }
 
@@ -139,32 +141,32 @@ def test_date_rail_skips_articles_with_no_published_at():
 
 
 # ── Blindspot flag (per-card) ────────────────────────────────────────────
+# Redesigned task #6524: political-LEAN coverage imbalance (blindspot_side,
+# precomputed by ingest/cluster_metrics.py), not outlet-count silence
+# (coverage_gap_score — still a real column, just no longer this badge's
+# condition). The qualifying thresholds (MIN_TOTAL/MIN_SIDES/MINOR_MAX/
+# MIN_DIFF) are already applied server-side when blindspot_side is set, so
+# there is nothing left for this per-card test to re-derive from cluster_size.
 
-def test_blindspot_badge_shows_for_a_qualifying_multi_outlet_low_coverage_story():
-    html = _render([_article(1, datetime.datetime.now(_UTC),
-                              coverage_gap_score=0.10, cluster_size=2)])
-    assert "🔦 Blindspot" in html
+def test_blindspot_badge_shows_left_when_the_right_stayed_silent():
+    html = _render([_article(1, datetime.datetime.now(_UTC), blindspot_side="L")])
+    assert "🔦 Left blindspot" in html
 
 
-def test_blindspot_badge_hidden_when_gap_score_exceeds_the_shared_threshold():
-    html = _render([_article(1, datetime.datetime.now(_UTC),
-                              coverage_gap_score=0.5, cluster_size=2)])
-    assert "🔦 Blindspot" not in html
+def test_blindspot_badge_shows_right_when_the_left_stayed_silent():
+    html = _render([_article(1, datetime.datetime.now(_UTC), blindspot_side="R")])
+    assert "🔦 Right blindspot" in html
 
 
-def test_blindspot_badge_hidden_for_a_single_outlet_story():
-    # A story with only one outlet isn't a "blind spot" by the /blindspot
-    # page's own definition (article_count/cluster_size >= 2) — an
-    # unclustered single article must never render the badge.
-    html = _render([_article(1, datetime.datetime.now(_UTC),
-                              coverage_gap_score=0.05, cluster_size=1)])
-    assert "🔦 Blindspot" not in html
+def test_blindspot_badge_hidden_when_coverage_is_balanced_or_too_thin_to_call():
+    html = _render([_article(1, datetime.datetime.now(_UTC), blindspot_side=None)])
+    assert "🔦" not in html
 
 
 def test_blindspot_badge_hidden_when_unscored():
     html = _render([_article(1, datetime.datetime.now(_UTC),
                               coverage_gap_score=None, cluster_size=None)])
-    assert "🔦 Blindspot" not in html
+    assert "🔦" not in html
 
 
 # ── Source-inspection: reuse, not reinvent ───────────────────────────────

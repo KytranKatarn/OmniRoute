@@ -1,9 +1,10 @@
 """Cluster-level metrics: Coverage Gap Score (#3010), Certainty Labeling (#3012),
-and Blindspot lean imbalance (task #6524).
+Blindspot lean imbalance, and Divergence score (task #6524).
 
 Coverage Gap Score  = distinct_sources_in_cluster / total_active_sources  (0.0–1.0)
 Certainty Label     = established | developing | contested
 Blindspot side      = 'L' | 'R' | NULL — see _blindspot_side()'s docstring.
+Divergence score    = 0-100 — see _divergence_score()'s docstring.
 
 Certainty rules (evaluated in order):
   contested   — majority of fact_checks in the cluster are 'false'/'disputed'
@@ -53,6 +54,37 @@ def _blindspot_side(l_count: int, c_count: int, r_count: int):
     if sides and minor / sides <= _BLINDSPOT_MINOR_MAX and diff >= _BLINDSPOT_MIN_DIFF:
         return "R" if l_count > r_count else "L"
     return None
+
+
+def _divergence_score(band_counts: list[int]) -> int:
+    """0-100 — mean pairwise |band_index_i - band_index_j| across every article
+    pair in the cluster, normalized /4*100. Ported from design-handoff/
+    wtf-divergence.js's score(): `d += |idx(a)-idx(b)|` over every pair,
+    `Math.round(d / n / 4 * 100)`.
+
+    band_counts is [band0_left, band1_center_left, band2_center,
+    band3_center_right, band4_right] — the same 5 bands _blindspot_side's
+    docstring and migration 079/080 use (ingest/bias.py._BANDS).
+
+    Closed-form from counts rather than enumerating article pairs: articles
+    in the SAME band contribute 0 to the pairwise sum, so
+        sum_{i<j} |i-j| * count_i * count_j
+    over the 5 bands equals the mockup's per-article double loop, and
+    total_pairs = C(total, 2) equals its `n`. Returns None (not 0) when
+    fewer than 2 scored articles exist — a 1-article cluster has no pair to
+    diverge, which is a different fact than "scored 0, no divergence found".
+    """
+    total = sum(band_counts)
+    if total < 2:
+        return None
+    pair_sum = 0
+    for i in range(5):
+        for j in range(i + 1, 5):
+            pair_sum += (j - i) * band_counts[i] * band_counts[j]
+    total_pairs = total * (total - 1) // 2
+    if total_pairs == 0:
+        return None
+    return round(pair_sum / total_pairs / 4 * 100)
 
 
 def compute_cluster_metrics(engine) -> dict:
@@ -127,6 +159,13 @@ def compute_cluster_metrics(engine) -> dict:
                     -- article. If _BANDS' -0.15/0.25 thresholds ever move, these
                     -- two literals must move with them — same acknowledged risk
                     -- as migration 078's verdict-enum mirror.
+                    --
+                    -- band0..4 (added task #6524 divergence score) are the SAME
+                    -- 5 bands split back out to their individual boundaries
+                    -- (-0.55/-0.15/0.25/0.65) instead of folded into l/c/r —
+                    -- _divergence_score() needs the raw 5 counts, l/c/r alone
+                    -- can't reconstruct them. lean_l/c/r_count stay UNCHANGED
+                    -- (already shipped, /blindspot and /news/archive read them).
                     lean_agg AS (
                         SELECT
                             a.cluster_id,
@@ -134,7 +173,15 @@ def compute_cluster_metrics(engine) -> dict:
                             COUNT(*) FILTER (
                                 WHERE bs.score >= -0.15 AND bs.score < 0.25
                             )                                                   AS lean_c_count,
-                            COUNT(*) FILTER (WHERE bs.score >= 0.25)            AS lean_r_count
+                            COUNT(*) FILTER (WHERE bs.score >= 0.25)            AS lean_r_count,
+                            COUNT(*) FILTER (WHERE bs.score < -0.55)            AS band0_count,
+                            COUNT(*) FILTER (
+                                WHERE bs.score >= -0.55 AND bs.score < -0.15
+                            )                                                   AS band1_count,
+                            COUNT(*) FILTER (
+                                WHERE bs.score >= 0.25 AND bs.score < 0.65
+                            )                                                   AS band3_count,
+                            COUNT(*) FILTER (WHERE bs.score >= 0.65)            AS band4_count
                         FROM {S}.articles a
                         JOIN {S}.bias_scores bs ON bs.article_id = a.id
                         WHERE a.cluster_id IS NOT NULL
@@ -146,7 +193,11 @@ def compute_cluster_metrics(engine) -> dict:
                         fc_agg.fc_contested, fc_agg.earliest, fc_agg.latest,
                         COALESCE(lean_agg.lean_l_count, 0) AS lean_l_count,
                         COALESCE(lean_agg.lean_c_count, 0) AS lean_c_count,
-                        COALESCE(lean_agg.lean_r_count, 0) AS lean_r_count
+                        COALESCE(lean_agg.lean_r_count, 0) AS lean_r_count,
+                        COALESCE(lean_agg.band0_count, 0) AS band0_count,
+                        COALESCE(lean_agg.band1_count, 0) AS band1_count,
+                        COALESCE(lean_agg.band3_count, 0) AS band3_count,
+                        COALESCE(lean_agg.band4_count, 0) AS band4_count
                     FROM fc_agg
                     LEFT JOIN lean_agg ON lean_agg.cluster_id = fc_agg.cluster_id
                 """)
@@ -166,9 +217,14 @@ def compute_cluster_metrics(engine) -> dict:
             lean_l      = int(row[6])
             lean_c      = int(row[7])
             lean_r      = int(row[8])
+            band0       = int(row[9])
+            band1       = int(row[10])
+            band3       = int(row[11])
+            band4       = int(row[12])
 
             gap_score = round(src_count / total_sources, 4)
             blindspot_side = _blindspot_side(lean_l, lean_c, lean_r)
+            divergence_score = _divergence_score([band0, band1, lean_c, band3, band4])
 
             # Age of cluster in hours (time since first article)
             age_hours = 0.0
@@ -186,6 +242,8 @@ def compute_cluster_metrics(engine) -> dict:
             payload.append({
                 "sc": src_count, "gs": gap_score, "cl": certainty, "cid": cid,
                 "ll": lean_l, "lc": lean_c, "lr": lean_r, "bs": blindspot_side,
+                "b0": band0, "b1": band1, "b3": band3, "b4": band4,
+                "ds": divergence_score,
             })
 
         # ── PHASE 3: WRITE in BOUNDED batches ────────────────────────────────
@@ -201,6 +259,11 @@ def compute_cluster_metrics(engine) -> dict:
                 lean_c_count       = :lc,
                 lean_r_count       = :lr,
                 blindspot_side     = :bs,
+                band0_count        = :b0,
+                band1_count        = :b1,
+                band3_count        = :b3,
+                band4_count        = :b4,
+                divergence_score   = :ds,
                 metrics_updated_at = NOW()
             WHERE id = :cid
         """)

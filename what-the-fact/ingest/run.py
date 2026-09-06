@@ -51,6 +51,7 @@ from ingest.ai_dispatcher import analyze as ai_analyze
 from ingest import (
     cluster_backlog_worker,
     factcheck_backlog_worker,
+    dispute_backlog_worker,
     geo_backlog_worker,
     llm_analysis_backlog_worker,
     scout_body_backlog_worker,
@@ -728,6 +729,7 @@ def main():
             scout_body_backlog_worker,
             geo_backlog_worker,
             factcheck_backlog_worker,
+            dispute_backlog_worker,   # WTF_DISPUTE_BACKLOG_ENABLED=true to activate
             llm_analysis_backlog_worker,
             bias_v2_backlog_worker,
             beat_backlog_worker,       # WTF_BEAT_BACKLOG_ENABLED=true to activate

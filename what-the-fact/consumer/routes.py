@@ -7584,6 +7584,17 @@ def api_v1_blindspot():
 
 _DIVERGENCE_WINDOWS = (7, 30, 60, 90)
 
+# ── Disputed-point tracker (task #6524 primary framing) ───────────────────
+# A SEPARATE window set from the FR/EN lens above: a dispute needs real
+# spread to accumulate and a verdict takes time to resolve, so a shorter
+# "last 7 days" window (meaningful for language-detection) would mostly
+# show "not yet checked" here. Mirrors design-handoff/wtf-divergence.js's
+# qualification rule (arts.length >= 6, spans both L and R lean, AND
+# V.E.R.I.F.Y. found a checkable point) — see _dispute_rows' docstring.
+_DIVERGENCE_VIEWS = ("disputes", "language")
+_DISPUTE_WINDOWS = (30, 90, 180, 365)
+_DISPUTE_MIN_ARTICLES = 6  # same floor as ingest/dispute_backlog_worker.py's _MIN_ARTICLES
+
 
 def _divergence_rows(days=30, limit=20, min_div=0.1):
     """Rows behind BOTH /divergence and /api/v1/divergence.
@@ -7646,29 +7657,169 @@ def _divergence_rows(days=30, limit=20, min_div=0.1):
 
 
 @bp.get("/divergence")
+def _dispute_total(days=90, include_excluded=False):
+    """How many clusters QUALIFY (or, with include_excluded, exist at all)
+    in this window — not how many are shown. Same honesty pattern as
+    _blindspot_total: the population can run far larger than the page size.
+    """
+    S = _schema()
+    # Opinion clusters QUALIFY (they have a real disputed_point, just no
+    # document can settle a forecast) — matches the mockup, where c1/c9 are
+    # in BOTH POINT and OPINION. Only a NULL disputed_point excludes.
+    where_qualify = "" if include_excluded else """
+        AND sc.lean_l_count > 0 AND sc.lean_r_count > 0
+        AND cd.disputed_point IS NOT NULL
+    """
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            SELECT count(*) FROM {S}.story_clusters sc
+            LEFT JOIN {S}.cluster_disputes cd ON cd.cluster_id = sc.id
+            WHERE sc.article_count >= :min_articles
+              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+              {where_qualify}
+        """), {"min_articles": _DISPUTE_MIN_ARTICLES, "days": days}).scalar() or 0
+
+
+def _dispute_rows(days=90, limit=20, include_excluded=False):
+    """Rows behind BOTH /divergence (disputes view) and /api/v1/disputes.
+
+    Qualification mirrors design-handoff/wtf-divergence.js exactly:
+    article_count >= 6, spans both L (band0+1) and R (band3+4) lean, AND
+    V.E.R.I.F.Y. found a real checkable point (disputed_point IS NOT NULL,
+    not an opinion/forecast dispute). Excluded rows carry WHY, distinguishing
+    two states the mockup's toy dataset never had to: a cluster
+    dispute_backlog_worker.py hasn't reached yet ("not yet checked") from one
+    it reached and found nothing checkable in ("disagreement is on tone").
+    """
+    S = _schema()
+    # Opinion clusters QUALIFY (real disputed_point, just no document can
+    # settle a forecast) — matches the mockup, where c1/c9 are in BOTH POINT
+    # and OPINION. Only a NULL disputed_point excludes.
+    qualify_filter = "" if include_excluded else """
+        AND sc.lean_l_count > 0 AND sc.lean_r_count > 0
+        AND cd.disputed_point IS NOT NULL
+    """
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   sc.lean_l_count, sc.lean_c_count, sc.lean_r_count,
+                   sc.divergence_score, sc.earliest_published_at, sc.latest_published_at,
+                   cd.disputed_point, cd.verdict, cd.is_opinion,
+                   (SELECT a2.beat FROM {S}.articles a2
+                     WHERE a2.cluster_id = sc.id AND a2.beat IS NOT NULL
+                     LIMIT 1)                                          AS beat
+            FROM {S}.story_clusters sc
+            LEFT JOIN {S}.cluster_disputes cd ON cd.cluster_id = sc.id
+            WHERE sc.article_count >= :min_articles
+              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+              {qualify_filter}
+            ORDER BY sc.divergence_score DESC NULLS LAST, sc.latest_published_at DESC
+            LIMIT :n
+        """), {"min_articles": _DISPUTE_MIN_ARTICLES, "days": days, "n": limit}).mappings().all()
+
+
+def _dispute_why(row):
+    """Exclusion reason for a non-qualifying row — None when it qualifies.
+    Order matches the mockup's own precedence (size first, then spread,
+    then whether a point was ever found).
+
+    `is_opinion` distinguishes "no cluster_disputes row at all" (LEFT JOIN
+    yields None/NULL — the backlog worker hasn't reached this cluster yet)
+    from "a row exists" (is_opinion is always a real True/False there — the
+    column is NOT NULL DEFAULT false on the table, so a LEFT JOIN can only
+    ever produce Python None when there was no matching row to join)."""
+    if row["article_count"] < _DISPUTE_MIN_ARTICLES:
+        return "fewer than six outlets"
+    if not (row["lean_l_count"] > 0 and row["lean_r_count"] > 0):
+        return "spread does not cross the centre"
+    if row["is_opinion"] is None:
+        return "not yet checked for a disputed point"
+    if row["is_opinion"]:
+        return None  # qualifies, just scored differently (opinion, not verdict)
+    if row["disputed_point"] is None:
+        return "disagreement is on tone, not a checkable point"
+    return None
+
+
+def _dispute_side_articles(cluster_id: int, side: str, limit: int = 4):
+    """Up to `limit` representative articles from one side of the spectrum,
+    for the card's 'Reads it one way / the other' panels. side is 'L' or 'R'."""
+    S = _schema()
+    lean_filter = "bs.score < -0.15" if side == "L" else "bs.score >= 0.25"
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            SELECT a.id, a.title, s.name AS source_name, a.published_at, bs.score
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            JOIN {S}.bias_scores bs ON bs.article_id = a.id
+            WHERE a.cluster_id = :cid AND {lean_filter}
+            ORDER BY a.published_at DESC
+            LIMIT :n
+        """), {"cid": cluster_id, "n": limit}).mappings().all()
+
+
 def divergence_page():
-    """French-English coverage divergence page — rendered SERVER-SIDE.
+    """Coverage divergence page — rendered SERVER-SIDE, two views.
 
     ⚠️ This page shipped with an empty <div id="div-list"> and 4 window
     filter buttons carrying data-days attributes but no click handler
     anywhere in static/js/ — /api/v1/divergence had real rows the whole
-    time. Same defect shape as /blindspot before #5767: page nav links to
-    a page that renders a heading, dead filter buttons, and nothing else.
-    Rendered from the shared helper (_divergence_rows) needs no client JS;
-    the window buttons are now plain links (?days=N).
+    time. Same defect shape as /blindspot before #5767.
+
+    Redesigned (task #6524): the PRIMARY view (?view=disputes, default) is a
+    "checkable fact in dispute" tracker (design-handoff/wtf-divergence.js).
+    The ORIGINAL French-English coverage-language detection (_divergence_rows,
+    real and DB-backed since #3003) is kept exactly as it was, demoted to a
+    secondary lens (?view=language) per Kytran's explicit confirmation this
+    session that it should not be retired.
     """
     from flask import request as _req
+    view = _req.args.get("view", "disputes")
+    if view not in _DIVERGENCE_VIEWS:
+        view = "disputes"
+
+    if view == "language":
+        try:
+            days = int(_req.args.get("days", 30))
+        except (TypeError, ValueError):
+            days = 30
+        if days not in _DIVERGENCE_WINDOWS:
+            days = 30
+        return render_template("divergence.html",
+                               view=view,
+                               divergences=_divergence_rows(days=days),
+                               days=days,
+                               windows=_DIVERGENCE_WINDOWS,
+                               is_subscriber=is_subscriber())
+
     try:
-        days = int(_req.args.get("days", 30))
+        days = int(_req.args.get("days", 90))
     except (TypeError, ValueError):
-        days = 30
-    if days not in _DIVERGENCE_WINDOWS:
-        days = 30
-    return render_template("divergence.html",
-                           divergences=_divergence_rows(days=days),
-                           days=days,
-                           windows=_DIVERGENCE_WINDOWS,
-                           is_subscriber=is_subscriber())
+        days = 90
+    if days not in _DISPUTE_WINDOWS:
+        days = 90
+    show_excluded = _req.args.get("excl") == "1"
+
+    rows = [dict(r) for r in _dispute_rows(days=days, include_excluded=show_excluded)]
+    for r in rows:
+        r["why"] = None if not show_excluded else _dispute_why(r)
+        if r["lean_l_count"] and r["lean_r_count"]:
+            r["left_articles"] = _dispute_side_articles(r["id"], "L")
+            r["right_articles"] = _dispute_side_articles(r["id"], "R")
+        else:
+            r["left_articles"] = []
+            r["right_articles"] = []
+
+    return render_template(
+        "divergence.html",
+        view=view,
+        disputes=rows,
+        total_in_window=_dispute_total(days=days, include_excluded=show_excluded),
+        show_excluded=show_excluded,
+        days=days,
+        windows=_DISPUTE_WINDOWS,
+        is_subscriber=is_subscriber(),
+    )
 
 
 @bp.get("/api/v1/divergence")
@@ -7706,6 +7857,43 @@ def api_v1_divergence():
             "divergence_score": round(float(r["divergence_score"]), 3),
             "en_only": bool(r["en_only"]),
             "fr_only": bool(r["fr_only"]),
+        } for r in rows],
+    })
+
+
+@bp.get("/api/v1/disputes")
+def api_v1_disputes():
+    """#6524 — Clusters with a checkable fact in political dispute.
+
+    Query params:
+      limit  int  default 20   max 100
+      days   int  default 90   look-back window (one of _DISPUTE_WINDOWS)
+
+    Same helper the PAGE renders from (disputes view) — the two cannot drift.
+    """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
+    from flask import request as _req
+    limit = min(int(_req.args.get("limit", 20)), 100)
+    days = min(int(_req.args.get("days", 90)), 365)
+    rows = _dispute_rows(days=days, limit=limit)
+    return _api_cors_response({
+        "ok": True,
+        "days": days,
+        "disputes": [{
+            "id": r["id"],
+            "title": r["representative_title"],
+            "article_count": r["article_count"],
+            "beat": r["beat"],
+            "divergence_score": r["divergence_score"],
+            "left_count": r["lean_l_count"],
+            "center_count": r["lean_c_count"],
+            "right_count": r["lean_r_count"],
+            "latest": r["latest_published_at"].isoformat() if r["latest_published_at"] else None,
+            "disputed_point": r["disputed_point"],
+            "verdict": r["verdict"],
+            "is_opinion": bool(r["is_opinion"]),
         } for r in rows],
     })
 

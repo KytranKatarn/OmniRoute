@@ -1,9 +1,168 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import record_card, record_links, segment, stat_tiles, chip, paywall %}
 {% block title %}Coverage Divergence · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="Where Canadian outlets diverge most in how they cover the same story.">
+<meta name="description" content="Stories where Canadian outlets disagree on a specific, checkable fact.">
 {% endblock %}
 {% block content %}
+{# Task #6524 redesign — the PRIMARY view (view=disputes, default) is a
+   "checkable fact in dispute" tracker matching design-handoff/wtf-divergence.js:
+   per qualifying cluster, the specific point in dispute + a verdict on whether
+   a document has resolved it. The ORIGINAL French-English coverage-language
+   detection below (view=language) is kept exactly as it shipped — Kytran
+   confirmed this session it should not be retired, just demoted to a
+   secondary tab. Disputes view reuses the shared record_card/stat_tiles
+   archetypes (matching /blindspot, /archive, /clusters); the language view
+   keeps its own bespoke styling untouched below. Both views share the
+   page's ONE wtf-dv-* namespace (test_site_shell_continuity.py) — the two
+   halves' class names were checked for collisions and there are none. #}
+<style>
+.wtf-dv-tabs { display:flex; gap:8px; margin-bottom:18px; }
+.wtf-dv-header { padding:16px 0; border-bottom:1px solid var(--wtf-border); margin-bottom:16px; }
+.wtf-dv-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; margin:0 0 4px; }
+.wtf-dv-lede { margin:0; max-width:72ch; }
+.wtf-dv-window { margin:16px 0; }
+.wtf-dv-spec { display:flex; height:6px; border-radius:3px; overflow:hidden; margin:10px 0; background:var(--wtf-bg); }
+.wtf-dv-spec i { display:block; height:100%; }
+.wtf-dv-spec-l { background:var(--wtf-accent); }
+.wtf-dv-spec-c { background:var(--wtf-text-2); opacity:.5; }
+.wtf-dv-spec-r { background:var(--wtf-local); }
+.wtf-dv-specl { display:flex; gap:12px; font-size:11px; color:var(--wtf-text-2); margin-bottom:10px; }
+.wtf-dv-point { font-size:13px; line-height:1.6; margin:8px 0; }
+.wtf-dv-sides { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px; }
+.wtf-dv-side-t { font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--wtf-text-2); margin-bottom:6px; }
+.wtf-dv-hl { font-size:12px; line-height:1.6; margin-bottom:8px; }
+.wtf-dv-hl small { display:block; color:var(--wtf-text-2); font-size:10.5px; }
+.wtf-dv-excl-toggle { font-size:11px; color:var(--wtf-text-2); text-decoration:underline; cursor:pointer; }
+.wtf-dv-why { font-size:12px; color:var(--wtf-text-2); }
+.wtf-dv-methodology { margin-top:26px; padding:16px 18px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; }
+.wtf-dv-method-body { font-size:13px; color:var(--wtf-text-2); line-height:1.75; margin:0 0 12px; }
+@media(max-width:600px){.wtf-dv-sides{grid-template-columns:1fr}}
+</style>
+
+<div class="wtf-dv-tabs" role="tablist" aria-label="Divergence view">
+  {{ segment('Disputes', '/divergence?view=disputes', active=(view == 'disputes')) }}
+  {{ segment('Language split', '/divergence?view=language', active=(view == 'language')) }}
+</div>
+
+{% if view == 'disputes' %}
+<div class="wtf-dv-header">
+  <h1 class="wtf-dv-title">Coverage disputes</h1>
+  <p class="wtf-a-tile-d wtf-dv-lede">
+    Stories where outlets on both sides of the spectrum covered the same event but disagree
+    on a specific, checkable point &mdash; not just tone. Each dispute shows whether a document
+    has already resolved it.
+  </p>
+</div>
+
+{{ stat_tiles([
+     {'label': 'Disputes in window', 'value': '{:,}'.format(total_in_window),
+      'detail': 'last ' ~ days ~ ' day' ~ ('' if days == 1 else 's') ~
+                ' · showing ' ~ disputes|length ~ ' most recent'},
+     {'label': 'Called when', 'value': '6+ outlets',
+      'detail': 'spans both L and R lean, checkable point found'},
+]) }}
+
+<div class="wtf-a-layers wtf-dv-window" role="group" aria-label="Time window">
+  {% for w in windows %}{{ segment(w ~ ' days', '/divergence?view=disputes&days=' ~ w ~ (show_excluded and '&excl=1' or ''), active=(w == days)) }}{% endfor %}
+</div>
+
+<div style="margin-bottom:14px;">
+  <a class="wtf-dv-excl-toggle" href="{{ '/divergence?view=disputes&days=' ~ days ~ ('' if show_excluded else '&excl=1') }}">
+    {{ 'Back to disputes' if show_excluded else 'Show excluded stories' }}
+  </a>
+</div>
+
+{% for d in disputes %}
+  {% set total = (d.lean_l_count or 0) + (d.lean_c_count or 0) + (d.lean_r_count or 0) %}
+  {% set chips = [] %}
+  {% if show_excluded and d.why %}
+    {% if chips.append('Excluded') %}{% endif %}
+  {% elif d.is_opinion %}
+    {% if chips.append('Opinion, not scored') %}{% endif %}
+  {% elif d.verdict %}
+    {% if chips.append(d.verdict|capitalize) %}{% endif %}
+  {% else %}
+    {% if chips.append('Not yet checked') %}{% endif %}
+  {% endif %}
+  {% if d.divergence_score is not none %}{% if chips.append('Divergence ' ~ d.divergence_score) %}{% endif %}{% endif %}
+
+  {% call record_card(title=(d.representative_title or 'Untitled story'),
+                      meta=(d.beat ~ ' · ' ~ d.article_count ~ ' articles' if d.beat else d.article_count ~ ' articles'),
+                      chips=chips, spine_token='--wtf-accent') %}
+    {% if show_excluded and d.why %}
+      <p class="wtf-dv-why">Excluded &mdash; {{ d.why }}.</p>
+    {% else %}
+      {% if d.disputed_point %}
+      <p class="wtf-dv-point"><b style="color:var(--wtf-text);font-weight:500">In dispute:</b> {{ d.disputed_point }}</p>
+      {% endif %}
+      {% if d.is_opinion %}
+      <p class="wtf-a-nodata" style="padding:0;font-size:12px;">The dispute is about what happens next. No document settles a forecast, so V.E.R.I.F.Y. does not score it &mdash; the split is still real.</p>
+      {% endif %}
+
+      {% if total %}
+      <div class="wtf-dv-spec" title="{{ d.lean_l_count }} left · {{ d.lean_c_count }} center · {{ d.lean_r_count }} right">
+        {% if d.lean_l_count %}<i class="wtf-dv-spec-l" style="width:{{ (d.lean_l_count / total * 100) | round(1) }}%"></i>{% endif %}
+        {% if d.lean_c_count %}<i class="wtf-dv-spec-c" style="width:{{ (d.lean_c_count / total * 100) | round(1) }}%"></i>{% endif %}
+        {% if d.lean_r_count %}<i class="wtf-dv-spec-r" style="width:{{ (d.lean_r_count / total * 100) | round(1) }}%"></i>{% endif %}
+      </div>
+      <div class="wtf-dv-specl">
+        <span>L {{ d.lean_l_count or 0 }}</span><span>C {{ d.lean_c_count or 0 }}</span><span>R {{ d.lean_r_count or 0 }}</span>
+      </div>
+      {% endif %}
+
+      {% if d.left_articles or d.right_articles %}
+      <div class="wtf-dv-sides">
+        <div>
+          <div class="wtf-dv-side-t">Reads it one way &middot; {{ d.left_articles|length }} article{{ '' if d.left_articles|length == 1 else 's' }}</div>
+          {% for a in d.left_articles %}
+          <div class="wtf-dv-hl">&ldquo;{{ a.title }}&rdquo;<small>{{ a.source_name }}</small></div>
+          {% else %}
+          <div class="wtf-a-nodata" style="padding:0;font-size:12px;">No outlet on this side.</div>
+          {% endfor %}
+        </div>
+        <div>
+          <div class="wtf-dv-side-t">Reads it the other &middot; {{ d.right_articles|length }} article{{ '' if d.right_articles|length == 1 else 's' }}</div>
+          {% for a in d.right_articles %}
+          <div class="wtf-dv-hl">&ldquo;{{ a.title }}&rdquo;<small>{{ a.source_name }}</small></div>
+          {% else %}
+          <div class="wtf-a-nodata" style="padding:0;font-size:12px;">No outlet on this side.</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    {{ record_links([('Read the cluster →', '/cluster/' ~ d.id, False)]) }}
+  {% endcall %}
+{% else %}
+  <p class="wtf-a-nodata wtf-dv-msg">
+    {{ 'No excluded stories in the last ' ~ days ~ ' days.' if show_excluded else
+       'No disputes in the last ' ~ days ~ ' days. Every tracked story with a cross-spectrum spread agreed on the facts.' }}
+  </p>
+{% endfor %}
+
+{% if not is_subscriber %}
+{{ paywall(
+     title='Deeper analysis — Starter+',
+     blurb='Subscribers see the full side-by-side coverage excerpts for every dispute.',
+     next_url='/divergence') }}
+{% endif %}
+
+<div class="wtf-dv-methodology">
+  <div class="wtf-a-tile-l">How a dispute is identified</div>
+  <p class="wtf-dv-method-body">
+    A story qualifies when at least 6 outlets covered it and the coverage spans both sides of
+    the political spectrum (left+center-left and center-right+right). V.E.R.I.F.Y. is then
+    asked whether the outlets disagree on a specific, checkable point — a "disagreement on
+    tone" finds no dispute. Divergence score (0-100) measures how far apart the coverage leans,
+    independent of whether a checkable point was found. See <a href="/blindspot">coverage blind
+    spots</a> for the related "one side stayed silent entirely" signal.
+  </p>
+</div>
+
+{% else %}
+{# ─── Original French-English coverage-language detection (view=language) ─── #}
 {# Converted off a standalone document 2026-08-18 (task #5767).
    Classes are namespaced wtf-dv-* — the originals (.logo, .nav-links, .active,
    .page-title, .legend) were safe only while this page was isolated and would
@@ -105,7 +264,7 @@
   <div class="wtf-dv-filters">
     <span class="wtf-dv-filter-label">WINDOW</span>
     {% for w in windows %}
-    <a class="wtf-dv-filter-btn{% if w == days %} wtf-dv-active{% endif %}" href="/divergence?days={{ w }}">{{ w }} days</a>
+    <a class="wtf-dv-filter-btn{% if w == days %} wtf-dv-active{% endif %}" href="/divergence?view=language&days={{ w }}">{{ w }} days</a>
     {% endfor %}
   </div>
 
@@ -155,4 +314,5 @@
     <span class="wtf-dv-paywall-signin"><a href="/login">Sign in</a></span>
   </div>
   {% endif %}
+{% endif %}
 {% endblock %}

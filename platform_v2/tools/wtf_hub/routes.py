@@ -137,7 +137,7 @@ def analyze():
 
     data = request.get_json(force=True, silent=True) or {}
     task = data.get("task", "")
-    if task not in ("bias", "factcheck", "geo", "deep_analysis", "classify_beat", "factcheck_relevance"):
+    if task not in ("bias", "factcheck", "geo", "deep_analysis", "classify_beat", "factcheck_relevance", "dispute"):
         return jsonify({"ok": False, "error": f"unknown task: {task}"}), 400
 
     title = (data.get("title") or "")[:200]
@@ -238,6 +238,34 @@ def analyze():
             "broad topic is NOT enough.\n"
             'Return ONLY valid JSON: {"relevant": true or false, "confidence": 0.0-1.0}'
         ),
+        # #6524 /divergence redesign — cluster-scoped, not article-scoped. `title`
+        # is the cluster's representative_title; `body` is a caller-built digest
+        # of representative excerpts labeled by lean band (see
+        # ingest/dispute_backlog_worker.py's _build_digest), NOT one article's
+        # raw body. This endpoint never validates article_id against a DB row —
+        # the caller passes the CLUSTER id there instead; confirmed safe by
+        # reading this whole route, article_id is only echoed for logging.
+        "dispute": (
+            f"Multiple Canadian news outlets across the political spectrum covered "
+            f"the same story differently. Identify the ONE specific, checkable point "
+            f"they disagree about — not a general topic, a SPECIFIC assertion where "
+            f"one side's framing conflicts with another's.\n\n"
+            f"STORY: {title}\n\nCOVERAGE DIGEST:\n{body[:2500]}\n\n"
+            "If the outlets disagree only on TONE or EMPHASIS — not on any checkable "
+            "fact — return disputed_point: null (this is a real, valid answer, not a "
+            "failure to find one).\n"
+            "If the dispute is about a FUTURE event or a forecast (what will happen "
+            "next) rather than a fact that already exists to check, set "
+            "is_opinion: true and verdict: null — no document can settle a forecast.\n"
+            "Otherwise, verdict reflects whether a document/record has already "
+            "resolved the disputed point: established (settled by a document already "
+            "in evidence), developing (too new / no document yet either way), "
+            "contested (documents on both sides conflict), or null if genuinely "
+            "unknown from the digest given.\n\n"
+            'Return ONLY valid JSON: {"disputed_point": "<one sentence>" or null, '
+            '"verdict": "established"|"developing"|"contested"|null, '
+            '"is_opinion": true or false, "confidence": 0.0-1.0}'
+        ),
     }
 
     agent_names = {
@@ -247,6 +275,7 @@ def analyze():
         "deep_analysis": "V.E.R.I.F.Y.",
         "classify_beat": "P.U.B.L.I.S.H.",
         "factcheck_relevance": "P.U.B.L.I.S.H.",
+        "dispute": "V.E.R.I.F.Y.",
     }
     agent_name = agent_names[task]
     agent_id = _AGENT_IDS.get(task)
@@ -274,6 +303,9 @@ def analyze():
         # route (P.U.B.L.I.S.H., qwen2.5:1.5b) rather than the heavy fact_check
         # model. The capability is routing plumbing; the prompt does the work.
         "factcheck_relevance": "beat_classification",
+        # #6524: same precedent as deep_analysis — routes to V.E.R.I.F.Y., same
+        # capability as factcheck, cluster-scoped prompt instead of article-scoped.
+        "dispute": "fact_check",
     }
 
     # Backpressure (#4536): if this capability's dispatch pipe is already saturated with

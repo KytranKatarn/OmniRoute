@@ -7656,7 +7656,6 @@ def _divergence_rows(days=30, limit=20, min_div=0.1):
         """), {"days": days, "min_div": min_div, "n": limit}).mappings().all()
 
 
-@bp.get("/divergence")
 def _dispute_total(days=90, include_excluded=False):
     """How many clusters QUALIFY (or, with include_excluded, exist at all)
     in this window — not how many are shown. Same honesty pattern as
@@ -7758,6 +7757,7 @@ def _dispute_side_articles(cluster_id: int, side: str, limit: int = 4):
         """), {"cid": cluster_id, "n": limit}).mappings().all()
 
 
+@bp.get("/divergence")
 def divergence_page():
     """Coverage divergence page — rendered SERVER-SIDE, two views.
 

@@ -15,6 +15,7 @@ session it should not be retired. TestDisputes* classes below cover the new
 primary view; TestLanguageView* classes cover the (unchanged) secondary one.
 """
 
+import ast
 import pathlib
 import re
 
@@ -400,6 +401,64 @@ class TestLanguageViewPageAndApiShareOneQuery:
 
 
 # ─────────────────────────── view switch itself ─────────────────────────────
+
+class TestRouteDecoratorIsBoundToTheRightFunction:
+    """Regression guard for a real production defect (caught live, 2026-09-06,
+    fixed before this test existed): a text-based Edit replaced
+    divergence_page()'s body but inserted the new _dispute_* helpers BETWEEN
+    the existing `@bp.get("/divergence")` decorator and `def divergence_page():`
+    — Python binds a decorator to the very next `def`, so Flask registered
+    `_dispute_total` (which returns a bare int) as the /divergence handler.
+    Every request 500'd with "the return type ... was an int": every source-
+    text assertion in this file still passed (the string `def divergence_page()`
+    and `@bp.get("/divergence")` both still appear in the file — just not
+    adjacent), and every Jinja-level render test above still passed (they
+    render the template directly, never touching Flask's route table at all).
+    This is the ONLY test in this file that would have caught it — an AST
+    check of decorator-to-function adjacency, not a substring search."""
+
+    def test_divergence_decorator_binds_to_divergence_page(self):
+        src = (ROOT / "consumer" / "routes.py").read_text()
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            for dec in node.decorator_list:
+                # @bp.get("/divergence") parses as an ast.Call whose func is
+                # an Attribute (bp.get) with one string-literal arg.
+                if (isinstance(dec, ast.Call)
+                        and isinstance(dec.func, ast.Attribute)
+                        and dec.func.attr == "get"
+                        and dec.args
+                        and isinstance(dec.args[0], ast.Constant)
+                        and dec.args[0].value == "/divergence"):
+                    assert node.name == "divergence_page", (
+                        f"@bp.get(\"/divergence\") is bound to {node.name!r}, "
+                        f"not divergence_page — a decorator/function mismatch "
+                        f"that makes every /divergence request 500"
+                    )
+                    return
+        pytest.fail('no @bp.get("/divergence") decorator found in routes.py')
+
+    def test_disputes_api_decorator_binds_to_its_own_function(self):
+        """Same check for /api/v1/disputes, added in the same PR — cheap
+        insurance against the identical mistake recurring there."""
+        src = (ROOT / "consumer" / "routes.py").read_text()
+        tree = ast.parse(src)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            for dec in node.decorator_list:
+                if (isinstance(dec, ast.Call)
+                        and isinstance(dec.func, ast.Attribute)
+                        and dec.func.attr == "get"
+                        and dec.args
+                        and isinstance(dec.args[0], ast.Constant)
+                        and dec.args[0].value == "/api/v1/disputes"):
+                    assert node.name == "api_v1_disputes"
+                    return
+        pytest.fail('no @bp.get("/api/v1/disputes") decorator found in routes.py')
+
 
 class TestViewSwitch:
     def test_default_view_is_disputes(self):

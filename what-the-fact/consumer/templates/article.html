@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import lean_token, verdict_class, stat_tiles %}
+{% from "_archetypes.html" import lean_token, verdict_class, stat_tiles, chip %}
 {% block title %}{{ a.title }} — What The Fact{% endblock %}
 {% block meta %}
 {% set _desc = (a.source_name or '') + ' · ' + (a.bias_band or 'unscored') + ' bias' %}
@@ -367,9 +367,62 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 .wtf-art-cite-output { width:100%;box-sizing:border-box;background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;color:#ccc;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:8px;resize:vertical;margin-bottom:8px; }
 .wtf-art-cite-actions { display:flex;gap:8px;align-items:center; }
 .wtf-art-cite-copybtn { background:#0a2a3a;border:1px solid #0af;color:#0af;font-size:11px;font-weight:700;padding:5px 12px;border-radius:3px;cursor:pointer; }
+
+/* Utility bar — back to feed + copy link (design-handoff/wtf-article.html
+   topbar). Plain flow, never sticky/fixed: the real nav is itself
+   `position:sticky;top:0`, and a second fixed bar at a guessed pixel
+   offset is how a reconciliation pass introduces a real overlap defect
+   nobody asked for. batch 11 #6284. */
+.wtf-art-topbar { display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:16px; }
+.wtf-art-back-link { font-size:11px;color:#9ca3af;text-decoration:none;border:1px solid #1a3a5a;border-radius:999px;padding:5px 12px; }
+.wtf-art-back-link:hover { color:#e5e7eb;border-color:#2f3d52; }
+.wtf-art-copy-btn { margin-left:auto;font-size:11px;background:#0a1520;border:1px solid #1a3a5a;color:#9ca3af;border-radius:999px;padding:5px 12px;cursor:pointer;font-family:inherit; }
+.wtf-art-copy-btn:hover { color:#e5e7eb;border-color:#2f3d52; }
+
+/* Jump-to-section nav — plain in-flow links, not sticky/scrollspy (same
+   reasoning as the topbar above: no guessed offsets against the real
+   nav). Renders only the sections that actually exist on THIS article —
+   built server-side from the same conditional guard each panel already
+   uses, so a link can never point at a section absent from the page. */
+.wtf-art-jumpnav { display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px; }
+.wtf-art-jumpnav a { font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;text-decoration:none;padding:4px 10px;border:1px solid #1a2a3a;border-radius:999px; }
+.wtf-art-jumpnav a:hover { color:#e5e7eb;border-color:#2f3d52; }
+
+/* B.I.A.S. panel — per-band coverage breakdown + signal chips */
+.wtf-art-covrow { display:grid;grid-template-columns:88px minmax(0,1fr) 36px;gap:9px;align-items:center;font-size:10px;margin-bottom:6px; }
+.wtf-art-covbar { height:5px;border-radius:3px;background:#0a1520;overflow:hidden;display:block; }
+.wtf-art-covbar i { display:block;height:100%;border-radius:3px; }
+.wtf-art-cov-heading { font-size:10px;color:#6b7280;margin:14px 0 8px; }
+.wtf-art-signal-chips { margin-top:10px;display:flex;flex-wrap:wrap;gap:6px; }
+
+/* Blindspot rail panel */
+.wtf-art-blindspot-panel { border-left:3px solid var(--wtf-accent); }
+.wtf-art-blindspot-heading { color:var(--wtf-accent); }
 </style>
 
 <div class="wtf-art-container">
+
+  {# Utility bar (design-handoff/wtf-article.html topbar) — a plain "back to
+     News" link + a copy-link button. `back_qs` is a verbatim passthrough of
+     whatever ?back= querystring the caller supplied (none do yet — no /news
+     link sets it), so this degrades to a bare /news link rather than a
+     broken one; it is NOT a re-implementation of /news' own filter logic. #}
+  <div class="wtf-art-topbar">
+    <a href="/news{{ '?' + back_qs if back_qs else '' }}" class="wtf-art-back-link">&larr; Back to News</a>
+    <button type="button" onclick="wtfCopyArticleLink(this)" class="wtf-art-copy-btn">Copy link</button>
+  </div>
+
+  {# Jump-to-section nav — only the sections THIS article actually renders.
+     Every {% if %} below mirrors the guard on the panel it points at, so a
+     link can never dangle. #}
+  <nav class="wtf-art-jumpnav" aria-label="Sections on this page">
+    {% if coverage_stats %}<a href="#wtf-sec-measured">Measured</a>{% endif %}
+    {% if (a.bias_ensemble_band or a.bias_band) and not is_wire %}<a href="#wtf-sec-bias">B.I.A.S.</a>{% endif %}
+    {% if cluster_articles %}<a href="#wtf-sec-compare">Compare</a>{% endif %}
+    {% if a.fact_check_claims or a.overall_verdict %}<a href="#wtf-sec-verify">V.E.R.I.F.Y.</a>{% endif %}
+    <a href="#wtf-sec-method">Method</a>
+    <a href="#wtf-cite-panel">Cite</a>
+  </nav>
 
   <!-- Header -->
   <div class="wtf-art-header">
@@ -408,12 +461,13 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
      what — the per-outlet detail stays behind the existing subscriber gate
      below (cluster_articles panel), unchanged by this addition. #}
   {% if coverage_stats %}
-  <div class="wtf-art-rail-item wtf-art-side-panel">
+  <div id="wtf-sec-measured" class="wtf-art-rail-item wtf-art-side-panel">
     <div class="wtf-art-panel-heading">What we measured</div>
     {{ stat_tiles([
       {'label': 'Outlets covering', 'value': coverage_stats.outlets_covering},
       {'label': 'Lean bands spanned', 'value': coverage_stats.bands_spanned},
       {'label': 'Widest spread', 'value': coverage_stats.widest_label},
+      {'label': 'Verdict', 'value': coverage_stats.verdict_label},
     ]) }}
   </div>
   {% endif %}
@@ -481,7 +535,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- Bias Panel — suppressed for wire copy (see above) -->
   {% if (a.bias_ensemble_band or a.bias_band) and not is_wire %}
-  <div class="wtf-bias-panel">
+  <div id="wtf-sec-bias" class="wtf-bias-panel">
     <div class="wtf-panel-label">B.I.A.S. ANALYSIS</div>
     {#
       `bias_signal_detected is false` => the detector matched NO trigger term.
@@ -528,6 +582,33 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     </div>
     <div class="wtf-art-bar-legend-2">
       <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
+    </div>
+    {% endif %}
+    {# Per-band coverage breakdown — "where the outlets covering this story
+       sit" (design-handoff/wtf-article.html's .cov rows). Built server-side
+       from the SAME cluster_articles rows coverage_stats above counts, never
+       a second tally — a percentage here can't disagree with "bands
+       spanned" on the tile above it. Colour comes from lean_token(), the
+       ONE lean->token mapping (never a private re-derivation — that is
+       exactly the bug this file's own #6149/#3097 history warns against). #}
+    {% if not no_signal and band_breakdown %}
+    <div class="wtf-art-cov-heading">Where the {{ coverage_stats.outlets_covering }} outlets covering this sit</div>
+    {% for bb in band_breakdown %}
+    <div class="wtf-art-covrow">
+      <b style="color:var({{ lean_token(bb.band) }})">{{ bb.label }}</b>
+      <span class="wtf-art-covbar"><i style="width:{{ bb.pct }}%;background:var({{ lean_token(bb.band) }})"></i></span>
+      <span style="text-align:right;color:#9ca3af">{{ bb.pct }}%</span>
+    </div>
+    {% endfor %}
+    {# Signal chips — a compact, descriptive summary of this reading (beat,
+       leading band, cluster size, reach). Free-to-everyone: it names
+       COUNTS and LABELS already shown elsewhere on this page, nothing an
+       outlet said. #}
+    <div class="wtf-art-signal-chips">
+      {% if a.beat %}{{ chip((a.beat.replace('-', ' ')|title) ~ ' framing') }}{% endif %}
+      {{ chip((band_breakdown[0].label) ~ ' majority') }}
+      {{ chip((coverage_stats.outlets_covering|string) ~ '-outlet cluster') }}
+      {{ chip('Limited reach' if is_blindspot else 'Broad pickup') }}
     </div>
     {% endif %}
     {% if a.bias_v2_score is not none or a.bias_score is not none %}
@@ -650,7 +731,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   <!-- Fact-check Panel -->
   {% if a.fact_check_claims or a.overall_verdict %}
     {% if is_subscriber %}
-    <div class="wtf-factcheck-panel">
+    <div id="wtf-sec-verify" class="wtf-factcheck-panel">
       <div class="wtf-panel-label">V.E.R.I.F.Y. FACT-CHECK</div>
       {% if a.overall_verdict %}
       {% set verdict_display = 'Descriptive Reporting' if a.overall_verdict == 'descriptive_reporting' else (a.overall_verdict.replace('_',' ').title() if a.overall_verdict else '') %}
@@ -683,7 +764,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
       {% endfor %}
     </div>
     {% else %}
-    <div class="wtf-paywall-panel">
+    <div id="wtf-sec-verify" class="wtf-paywall-panel">
       <div class="wtf-paywall-panel-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
       <div class="wtf-paywall-panel-text">
         V.E.R.I.F.Y. has fact-checked this article.<br>
@@ -805,6 +886,20 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   </div>
   {% endif %}
 
+  {# Blindspot — is THIS story one /blindspot already tracks? Reads the
+     SAME story_clusters.blindspot_side column that page keys on (route's
+     `is_blindspot`), never a private re-derivation of "carried narrowly"
+     here. design-handoff/wtf-article.html's rail panel. #}
+  {% if is_blindspot %}
+  <div class="wtf-art-rail-item wtf-art-side-panel wtf-art-blindspot-panel">
+    <div class="wtf-art-panel-heading wtf-art-blindspot-heading">Blindspot</div>
+    <div style="font-size:12.5px;line-height:1.65;color:#9ca3af">
+      {% if coverage_stats %}Carried by {{ coverage_stats.outlets_covering }} outlet{{ 's' if coverage_stats.outlets_covering != 1 else '' }}, {% else %}Carried narrowly, {% endif %}concentrated in one region or one language. A story can be well reported and still reach almost nobody.
+    </div>
+    <a href="/blindspot" class="wtf-art-blue-link wtf-art-mt10" style="display:inline-block">All blindspots &#x2192;</a>
+  </div>
+  {% endif %}
+
   <!-- Related Civic Events — civic-watch municipal crossover (#3021) -->
   <div id="wtf-civic-section" class="wtf-art-civic-section">
     <div class="wtf-art-section-heading-teal">&#x1F3D9; Related Municipal Events</div>
@@ -896,7 +991,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   {% endif %}
 
   <!-- How We Scored This -->
-  <details class="wtf-how-scored">
+  <details id="wtf-sec-method" class="wtf-how-scored">
     <summary>How we scored this article</summary>
     <p class="wtf-art-mt8">WTF uses a two-tier system: every article gets a heuristic bias score from keyword analysis, and priority articles (high overlap across 3+ outlets or strong heuristic signal) get full LLM analysis from B.I.A.S. and V.E.R.I.F.Y.</p>
     <p><a href="https://what-the-fact.tech/transparency/{{ a.id }}" class="wtf-art-purple-link">Full audit trail for this article &#x2192;</a></p>
@@ -968,7 +1063,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
 
   <!-- Cross-source outlet comparison (#3069) -->
   {% if cluster_articles %}
-  <div class="wtf-art-rail-item wtf-art-clustercmp-panel">
+  <div id="wtf-sec-compare" class="wtf-art-rail-item wtf-art-clustercmp-panel">
     {% if is_subscriber %}
     <div class="wtf-art-clustercmp-heading">
       📰 {{ cluster_articles|length }} other outlet{{ 's' if cluster_articles|length != 1 else '' }} covered this story
@@ -1121,6 +1216,25 @@ async function upgradeTier2(articleId) {
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Upgrade to Full Analysis'; }
   }
 }
+
+// Copy link — utility bar (design-handoff/wtf-article.html's `share()`).
+// Copies the CURRENT url (querystring and all) so a reader who followed
+// a ?back= link shares that same context. Uses the button's own
+// textContent for feedback, never innerHTML.
+function wtfCopyArticleLink(btn) {
+  var url = location.href;
+  var original = btn.textContent;
+  function done() {
+    btn.textContent = 'Copied';
+    setTimeout(function() { btn.textContent = original; }, 1400);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done, done);
+  } else {
+    done();
+  }
+}
+window.wtfCopyArticleLink = wtfCopyArticleLink;
 
 function wtfToggleFlag() {
   var f = document.getElementById('wtf-flag-form');

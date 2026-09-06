@@ -190,11 +190,18 @@
      blurb='Free readers see the ' ~ cap ~ ' most relevant ' ~ ('stories' if f.view == 'story' else 'articles') ~
            ' per view. Subscribers get the full ' ~ '{:,}'.format(total) ~ ' matching this filter, plus CSV export.',
      next_url='/archive') }}
-{% elif rows|length >= page_size %}
-<div class="wtf-a-layers" style="margin:14px 0;" role="group" aria-label="Pages">
+{% elif page_links|length > 1 %}
+{# Numbered pages with ellipsis gaps (design-handoff parity, #6149 batch 11
+   follow-up) — page_links/cur_page are computed server-side in
+   _archive_page_links() from `total` and page_size already in context, no
+   extra query. A `None` entry marks a gap in the run. #}
+<div class="wtf-a-layers" style="margin:14px 0;flex-wrap:wrap;" role="group" aria-label="Pages">
   {% if url_prev %}{{ segment('← Previous', url_prev) }}{% endif %}
-  {{ segment('Page ' ~ f.page, '#', active=True) }}
-  {{ segment('Next →', url_next) }}
+  {% for p in page_links %}
+    {%- if p is none %}<span class="wtf-a-tile-d" aria-hidden="true" style="padding:0 4px;align-self:center;">…</span>
+    {%- else %}{{ segment(p.n|string, p.url, active=(p.n == cur_page)) }}{% endif -%}
+  {% endfor %}
+  {% if cur_page < page_links[-1].n %}{{ segment('Next →', url_next) }}{% endif %}
 </div>
 {% endif %}
 

@@ -7,6 +7,8 @@
 .wtf-claims-header { margin-bottom: 20px; }
 .wtf-claims-title { font-size: 18px; font-weight: bold; color: #e0e0e0; margin-bottom: 6px; }
 .wtf-claims-subtitle { font-size: 11px; color: #666; letter-spacing: 1px; }
+.wtf-claims-lede { font-size: 12px; color: #9ca3af; line-height: 1.6; margin: 8px 0 0; max-width: 640px; }
+.wtf-claims-note { font-size: 11px; color: #6b7280; line-height: 1.6; margin-top: 18px; max-width: 640px; }
 
 /* Filter bar */
 .wtf-claims-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
@@ -47,6 +49,8 @@
 .wtf-claim-verdict-locked { font-size: 10px; color: #4b5563; margin-top: 6px; }
 .wtf-claim-more-link { font-size: 10px; color: #0af; text-decoration: none; }
 .wtf-claim-more-link:hover { text-decoration: underline; }
+.wtf-claim-source-link { font-size: 10px; color: #64748b; text-decoration: none; display: inline-block; margin-top: 2px; }
+.wtf-claim-source-link:hover { color: #0af; text-decoration: underline; }
 
 .wtf-claims-empty { text-align: center; padding: 40px 20px; color: #4b5563; font-size: 12px; }
 .wtf-claims-count { font-size: 10px; color: #4b5563; letter-spacing: 1px; margin-bottom: 14px; }
@@ -63,6 +67,9 @@
     {% else %}
     <div class="wtf-claims-title">&#x1F4CB; Election Claim Tracker</div>
     <div class="wtf-claims-subtitle">TRACKING MP PROMISES AND STATEMENTS</div>
+    <p class="wtf-claims-lede">Specific, checkable statements by MPs, each matched to the primary
+      document that settles it. A claim is only listed once V.E.R.I.F.Y. has found a source that
+      can confirm or refute it.</p>
     {% endif %}
   </div>
 
@@ -103,6 +110,9 @@
       <div class="wtf-claim-text">
         {{ claim.claim_text[:200] }}{% if claim.claim_text | length > 200 %}&hellip;{% endif %}
       </div>
+      {% if claim.source_url %}
+      <a href="{{ claim.source_url }}" target="_blank" rel="noopener nofollow" class="wtf-claim-source-link">Checked against primary source &#x2197;</a>
+      {% endif %}
       {% if claim.verdict_summary %}
         {% if is_subscriber %}
         <div class="wtf-claim-verdict">{{ claim.verdict_summary }}</div>
@@ -117,6 +127,12 @@
     <div class="wtf-cl-empty-icon">&#x1F4CB;</div>
     No claims tracked yet{% if active_status and active_status != 'all' %} with status <strong>{{ active_status }}</strong>{% endif %}.
   </div>
+  {% endif %}
+
+  {% if politician_slug is not defined %}
+  <p class="wtf-claims-note">"Contested" does not mean false. It means the primary record does not
+    settle the claim as stated, usually because the speaker and the source are measuring different
+    things.</p>
   {% endif %}
 </div>
 {% endblock %}

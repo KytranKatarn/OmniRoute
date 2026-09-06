@@ -32,10 +32,13 @@
 .wtf-fa-bar-wrap { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative }
 .wtf-fa-bar-wrap-labels { height:auto }
 .wtf-fa-bar { width:100%;max-width:70px;background:#55606e;border-radius:2px 2px 0 0;position:relative }
-.wtf-fa-bar.wtf-fa-bar-last { background:#ef4444 }
+.wtf-fa-bar.wtf-fa-bar-beat { background:#22c55e }
+.wtf-fa-bar.wtf-fa-bar-lose { background:#ef4444 }
 .wtf-fa-persist-line { position:absolute;left:6%;right:6%;height:0;border-top:1px dashed #6b7280;z-index:2 }
-.wtf-fa-legend { display:flex;gap:16px;align-items:center;margin:2px 0 14px 0;font-size:11px;color:#9ca3af }
+.wtf-fa-legend { display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:2px 0 14px 0;font-size:11px;color:#9ca3af }
 .wtf-fa-legend-swatch { display:inline-block;width:12px;height:12px;border-radius:2px;background:#55606e;vertical-align:middle;margin-right:6px }
+.wtf-fa-legend-swatch-beat { background:#22c55e }
+.wtf-fa-legend-swatch-lose { background:#ef4444 }
 .wtf-fa-legend-dash { display:inline-block;width:16px;height:0;border-top:1px dashed #6b7280;vertical-align:middle;margin-right:6px }
 .wtf-fa-worst-head { font-size:15px;color:#f9fafb;margin-bottom:6px }
 .wtf-fa-worst-body { font-size:12.5px;line-height:1.6;color:#9ca3af;margin:0 0 12px 0 }
@@ -52,7 +55,8 @@
 .wtf-fa-th-city { width:34% }
 .wtf-fa-th-checks { width:11% }
 .wtf-fa-th-miss { width:15% }
-.wtf-fa-th-dir { width:26% }
+.wtf-fa-th-within { width:11% }
+.wtf-fa-th-dir { width:21% }
 .wtf-fa-province { color:#4b5563 }
 .wtf-fa-checks-val { color:#6b7280 }
 .wtf-fa-miss-val { color:#f9fafb }
@@ -90,12 +94,12 @@
   <div class="wtf-fa-tile">
     <div class="wtf-fa-tile-l">Same-day accuracy</div>
     <div class="wtf-fa-tile-n">±{{ '%.2f'|format(s.same_day_mae_c) }}°</div>
-    <div class="wtf-fa-tile-d">Average miss on today's high, across {{ '{:,}'.format(s.same_day_pairs) }} checks</div>
+    <div class="wtf-fa-tile-d">Average miss on today's high, across {{ '{:,}'.format(s.same_day_pairs) }} checks{% if s.same_day_within3_pct is not none %} &middot; {{ s.same_day_within3_pct }}% land within 3&deg;{% endif %}</div>
   </div>
   <div class="wtf-fa-tile">
     <div class="wtf-fa-tile-l">{{ s.longest_lead_days }}-day accuracy</div>
     <div class="wtf-fa-tile-n">±{{ '%.2f'|format(s.longest_mae_c) }}°</div>
-    <div class="wtf-fa-tile-d">How far off the forecast is at the far end of its range</div>
+    <div class="wtf-fa-tile-d">How far off the forecast is at the far end of its range{% if s.longest_within3_pct is not none %} &middot; {{ s.longest_within3_pct }}% within 3&deg;{% endif %}</div>
   </div>
   <div class="wtf-fa-tile">
     <div class="wtf-fa-tile-l">Long-range bias</div>
@@ -106,6 +110,16 @@
     {% else %}
     <div class="wtf-fa-tile-n">—</div>
     <div class="wtf-fa-tile-d">Not enough long-range days verified yet</div>
+    {% endif %}
+  </div>
+  <div class="wtf-fa-tile">
+    <div class="wtf-fa-tile-l">Persistence catches up</div>
+    {% if s.persistence_catchup_lead is not none %}
+    <div class="wtf-fa-tile-n">+{{ s.persistence_catchup_lead }}D</div>
+    <div class="wtf-fa-tile-d">Lead time where the naive "no change" guess stops losing to our forecast</div>
+    {% else %}
+    <div class="wtf-fa-tile-n">&mdash;</div>
+    <div class="wtf-fa-tile-d">Not yet observed &mdash; our forecast still beats persistence at every lead we hold</div>
     {% endif %}
   </div>
   <div class="wtf-fa-tile">
@@ -121,17 +135,21 @@
     <span><span class="wtf-fa-legend-swatch"></span>Our forecast (average miss)</span>
     {% if verification.persistence_curve %}
     <span><span class="wtf-fa-legend-dash"></span>Persistence baseline — "the target day will be like the day this was issued"</span>
+    <span><span class="wtf-fa-legend-swatch wtf-fa-legend-swatch-beat"></span>Beats persistence</span>
+    <span><span class="wtf-fa-legend-swatch wtf-fa-legend-swatch-lose"></span>Does not beat persistence</span>
     {% endif %}
   </div>
   {% set max_mae = verification.chart_max_mae %}
   <div class="wtf-fa-curve">
     {% for pt in verification.skill_curve %}
     {% set p = verification.persistence_curve.get(pt.lead_days) %}
+    {% set beats = p and pt.mae_c is not none and p.mae_c is not none and pt.mae_c < p.mae_c %}
+    {% set loses = p and pt.mae_c is not none and p.mae_c is not none and pt.mae_c >= p.mae_c %}
     <div class="wtf-fa-bar-wrap">
       <div class="wtf-fa-bar-val">{{ '%.2f'|format(pt.mae_c) }}°</div>
-      <div class="wtf-fa-bar{% if loop.last %} wtf-fa-bar-last{% endif %}"
+      <div class="wtf-fa-bar{% if beats %} wtf-fa-bar-beat{% elif loses %} wtf-fa-bar-lose{% endif %}"
            style="height: {{ (pt.mae_c / max_mae * 100) | round(1) }}%"
-           title="Lead {{ pt.lead_days }} days · {{ pt.pairs }} checks · average miss {{ '%.2f'|format(pt.mae_c) }}°C"></div>
+           title="Lead {{ pt.lead_days }} days · {{ pt.pairs }} checks · average miss {{ '%.2f'|format(pt.mae_c) }}°C{% if p %} · {% if beats %}beats{% else %}does not beat{% endif %} persistence ({{ '%.2f'|format(p.mae_c) }}°C){% endif %}"></div>
       {% if p %}
       <span class="wtf-fa-persist-line"
             style="bottom: {{ (p.mae_c / max_mae * 100) | round(1) }}%"
@@ -160,6 +178,7 @@
       <th class="wtf-fa-th-city">City</th>
       <th class="wtf-fa-th-checks">Checks</th>
       <th class="wtf-fa-th-miss">Average miss</th>
+      <th class="wtf-fa-th-within">Within 3°</th>
       <th class="wtf-fa-th-dir">Direction of error</th>
       <th>Reads</th>
     </tr>
@@ -168,6 +187,7 @@
       <td>{{ c.city }}{% if c.province %} <span class="wtf-fa-mono wtf-fa-province">{{ c.province }}</span>{% endif %}{% if c.thin %}<span class="wtf-fa-thin">THIN</span>{% endif %}</td>
       <td class="wtf-fa-mono wtf-fa-checks-val">{{ c.pairs }}</td>
       <td class="wtf-fa-mono wtf-fa-miss-val">±{{ '%.2f'|format(c.mae_c) }}°</td>
+      <td class="wtf-fa-mono wtf-fa-checks-val">{% if c.within3_pct is not none %}{{ c.within3_pct }}%{% else %}&mdash;{% endif %}</td>
       <td>
         <span class="wtf-fa-biasbar">
           <span class="wtf-fa-biasmid"></span>
@@ -223,5 +243,7 @@
   </p>
   <a href="/api/docs" class="wtf-fa-api-link">Explore the developer API &rarr;</a>
 </div>
+
+<p class="wtf-fa-note" style="border-top:0;text-align:center;max-width:70ch;margin:20px auto 0">A forecast without a scorecard is a claim. Everything above is the scorecard, including the parts that do not flatter the model.</p>
 {% endif %}
 {% endblock %}

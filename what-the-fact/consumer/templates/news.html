@@ -42,8 +42,14 @@
       'center-right': '--wtf-center-right', 'right': '--wtf-right'
     } %}
     {% set col = 'var(%s)' % _lean_tok.get(lean_cls, '--wtf-center') %}
-    <div class="wtf-nw-src-item"
-         onclick="window.location='/news?band={{ lean_cls }}&page=1'" title="{{ s.name }}">
+    {# Outlet filter (design handoff #6149 batch 11) — this used to link to
+       `?band=<this outlet's own aggregate lean>`, which filters by BAND, not
+       by the outlet you clicked: clicking CBC's icon surfaced every
+       left-leaning article from any source, not CBC's own articles. Toggle:
+       clicking the already-active outlet clears back to all outlets. #}
+    <div class="wtf-nw-src-item{% if outlet_filter == s.name %} wtf-nw-src-item--active{% endif %}"
+         onclick="window.location='/news?outlet={{ ('' if outlet_filter == s.name else s.name) | urlencode }}&page=1'"
+         title="{{ s.name }}{% if outlet_filter == s.name %} — showing only this outlet, click to clear{% endif %}">
       <div class="wtf-news-favicon" style="border-color:{{ col }};">
         {# ⚠️ SERVED LOCALLY. This used to be google.com/s2/favicons?domain=… — one
            THIRD-PARTY request per source per page view (up to 46), telling Google
@@ -74,9 +80,18 @@
 
 <div class="wtf-nw-container">
 
+  {# Clear-all-filters (design handoff #6149 batch 11) — mockup's persistent
+     `.clearall` chip. Live previously only offered "Clear all filters" from
+     inside the zero-results empty state; a narrowed-but-nonempty feed had no
+     one-click way back to the unfiltered page. Covers every axis (the
+     collapsed-panel four PLUS band/outlet, which sit outside that panel). #}
+  {% set _any_filter_active = band_filter != 'all' or outlet_filter != 'all' or province_filter != 'all' or beat_filter != 'all' or scope_filter != 'all' or riding_filter != 'all' or verdict_filter != 'all' %}
   <div class="wtf-nw-toprow">
     <div class="wtf-nw-count-label">
       {{ total }} articles &middot; page {{ page }} / {{ total_pages }}
+      {% if _any_filter_active %}
+      <a href="/news" class="wtf-nw-nodeco wtf-nw-clearall">✕ Clear all filters</a>
+      {% endif %}
     </div>
     <div class="wtf-nw-band-row">
       {% set bands = [('all','All',''),('left','Left','#dc2626'),('center-left','Ctr-Left','#f97316'),('center','Center',''),('center-right','Ctr-Right','#0ea5e9'),('right','Right','#2563eb')] %}
@@ -87,7 +102,7 @@
          6th value not worth a separate query for this pass — see routes.py). #}
       {% for val, label, col in bands %}
       {% set _n = band_facets.get(val) if val != 'all' else None %}
-      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
+      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
          class="wtf-act-filter wtf-nw-nodeco {% if band_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
          {% if col %}style="color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
       {% endfor %}
@@ -118,6 +133,8 @@
       <button type="button" class="wtf-act-filter" data-density-btn="row" aria-pressed="false">Row</button>
     </div>
     <button type="button" class="wtf-act-filter" id="wtf-news-mark-read">Mark page read</button>
+    <button type="button" class="wtf-act-filter" id="wtf-news-hideread-toggle" aria-pressed="false">Hide read</button>
+    <button type="button" class="wtf-act-filter" id="wtf-news-saved-toggle" aria-pressed="false">★ Saved only</button>
   </div>
 
   {# Filters-collapsed UX (design handoff #6149, task #16) — province/scope/
@@ -146,7 +163,7 @@
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
     {% for val, label in provinces %}
     {% set _n = province_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if province_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -156,7 +173,7 @@
     <span class="wtf-nw-chip-label">SCOPE</span>
     {% for val, label in [('all','🌐 All'), ('national','🇨🇦 National'), ('provincial','📍 Provincial'), ('international','🌍 International')] %}
     {% set _n = scope_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if scope_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -166,7 +183,7 @@
     <span class="wtf-nw-chip-label">BEAT</span>
     {% for val, label, col in beat_meta %}
     {% set _n = beat_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if beat_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
        {% if col and beat_filter == val %}style="color:{{ col }};border-color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
@@ -176,10 +193,10 @@
   {% if ridings %}
   <div class="wtf-nw-chiprow-riding">
     <span class="wtf-nw-chip-label">RIDING</span>
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&verdict={{ verdict_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
     {% for r in ridings %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&verdict={{ verdict_filter }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == r.riding_name %}wtf-act-filter--active{% endif %}"
        title="{{ r.riding_name }} ({{ r.province_code }}) — {{ r.article_count }} articles">{{ r.riding_name }}</a>
     {% endfor %}
@@ -192,11 +209,11 @@
      no count, same reasoning as every other row's 'all'. #}
   <div class="wtf-nw-chiprow-c">
     <span class="wtf-nw-chip-label">VERDICT</span>
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict=all&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict=all&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if verdict_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
     {% for val, label in verdict_meta %}
     {% set _n = verdict_facets.get(val) %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ val }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ val }}&outlet={{ outlet_filter | urlencode }}&page=1"
        class="wtf-act-filter wtf-nw-chip-link {% if verdict_filter == val %}wtf-act-filter--active{% endif %}{% if not _n %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -278,6 +295,11 @@
       {% set _cv_lbl = '✓ Established' if _cv_pos else '⚡ Developing' if a.overall_verdict == 'mixed' else '⚠ Contested' if a.overall_verdict == 'disputed' else '○ Unverifiable' %}
       <span class="wtf-card-badge" style="background:{{ _cv_col }}15;color:{{ _cv_col }};border:1px solid {{ _cv_col }}33;" title="{% if not _cv_pos and a.overall_verdict not in ('mixed','disputed') %}The fact-check model could not independently verify claims in this article. This does not mean the article is false.{% else %}Certainty: {{ a.overall_verdict.replace('_',' ').title() }}{% endif %}">{{ _cv_lbl }}</span>
       {% endif %}
+      {# Save/bookmark (design handoff #6149 batch 11) — client-side only,
+         mirrors the existing 'wtf-read' localStorage pattern below (own key
+         'wtf-saved'). No backend: a reading list is a per-browser convenience,
+         not account state. #}
+      <button type="button" class="wtf-card-badge wtf-nw-save-btn" data-save-btn="{{ a.id }}" aria-pressed="false" title="Save for later">☆ Save</button>
     </div>
   </div>
   {% endfor %}
@@ -289,15 +311,25 @@
              "/news") }}
   {% endif %}
 
+  {# "Looking for something older?" callout (design handoff #6149 batch 11)
+     — this page is the live/recent feed only; the mockup points readers at
+     the full archive from right here. Static link, no new data. #}
+  <div class="wtf-nw-archive-cta">
+    <div>
+      <div class="wtf-nw-archive-cta-h">Looking for something older?</div>
+      <div class="wtf-nw-archive-cta-p">Latest is the live feed. The full archive is sortable, exportable and covers every article scored to date.</div>
+    </div>
+    <a href="/archive" class="wtf-act-filter wtf-nw-nodeco wtf-nw-archive-cta-btn">Open full archive →</a>
+  </div>
 
   {% if total_pages > 1 %}
   <div class="wtf-nw-pager">
     {% if page > 1 %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page={{ page - 1 }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page={{ page - 1 }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
     {% endif %}
     <span class="wtf-nw-pager-label">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
     {% if page < total_pages %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&page={{ page + 1 }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page={{ page + 1 }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
     {% endif %}
   </div>
   {% endif %}
@@ -394,6 +426,40 @@
 .wtf-article-card.wtf-is-read { opacity: .6; }
 .wtf-article-card.wtf-is-read .wtf-card-title { color: var(--wtf-text-muted, #6b7280); }
 .wtf-article-card:hover.wtf-is-read { opacity: 1; }
+
+/* ── Outlet filter — active source-bar item (design handoff #6149 batch 11) ── */
+.wtf-nw-src-item--active { outline: 1px solid var(--wtf-accent); border-radius: 6px; }
+.wtf-nw-src-item--active .wtf-nw-src-name { color: var(--wtf-accent, #dc2626); }
+
+/* ── Clear-all-filters link ── */
+.wtf-nw-clearall {
+  margin-left: 10px; color: var(--wtf-accent, #dc2626); font-size: 0.65rem;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+
+/* ── "Looking for something older?" archive callout ── */
+.wtf-nw-archive-cta {
+  margin-top: 18px; padding: 15px 17px; display: flex; flex-wrap: wrap;
+  gap: 12px; align-items: center; justify-content: space-between;
+  background: #0a0f1a; border: 1px solid #1a2a3a; border-left: 3px solid var(--wtf-accent, #dc2626);
+  border-radius: 8px;
+}
+.wtf-nw-archive-cta-h {
+  font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--wtf-accent, #dc2626);
+}
+.wtf-nw-archive-cta-p { font-size: 0.75rem; line-height: 1.6; color: #9ca3af; margin-top: 4px; max-width: 52ch; }
+.wtf-nw-archive-cta-btn {
+  padding: 9px 18px; background: var(--wtf-accent, #dc2626); border-color: var(--wtf-accent, #dc2626); color: #fff;
+}
+
+/* ── Save/bookmark (localStorage['wtf-saved'], client-side only) ── */
+.wtf-nw-save-btn { cursor: pointer; }
+.wtf-nw-save-btn.wtf-is-saved { color: var(--wtf-developing, #f59e0b); border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.1); }
+#wtf-news-saved-toggle[aria-pressed="true"] { border-color: var(--wtf-developing, #f59e0b); color: var(--wtf-developing, #f59e0b); }
+.wtf-article-card[data-saved-hidden] { display: none; }
+#wtf-news-hideread-toggle[aria-pressed="true"] { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+.wtf-article-card[data-read-hidden] { display: none; }
 </style>
 
 <script>
@@ -419,11 +485,15 @@
   }
 
   var read = loadRead();
+  var hideRead = false;
 
   function applyReadState() {
     document.querySelectorAll('#wtf-news-feed .wtf-article-card[data-article-id]').forEach(function (card) {
       var id = card.getAttribute('data-article-id');
-      card.classList.toggle('wtf-is-read', read.has(id));
+      var isRead = read.has(id);
+      card.classList.toggle('wtf-is-read', isRead);
+      if (hideRead && isRead) card.setAttribute('data-read-hidden', '');
+      else card.removeAttribute('data-read-hidden');
     });
   }
   applyReadState();
@@ -443,6 +513,79 @@
       });
       saveRead(read);
       applyReadState();
+    });
+  }
+
+  // Hide-read toggle (design handoff #6149 batch 11) — mockup's "Unread"
+  // quick filter, applied to the already-loaded 'wtf-read' Set above rather
+  // than re-fetching anything. Page-scoped like density/mark-read: it hides
+  // already-rendered cards, it does not fetch a replacement page.
+  var hideReadToggle = document.getElementById('wtf-news-hideread-toggle');
+  if (hideReadToggle) {
+    hideReadToggle.addEventListener('click', function () {
+      hideRead = !hideRead;
+      hideReadToggle.setAttribute('aria-pressed', String(hideRead));
+      applyReadState();
+    });
+  }
+
+  // Save/bookmark — pure client-side, mirrors the read-state pattern above.
+  // Own key 'wtf-saved'; a reading list is a per-browser convenience, not
+  // account state, so there is no backend to wire up.
+  var SAVED_KEY = 'wtf-saved';
+  var SAVED_CAP = 2000;
+
+  function loadSaved() {
+    try {
+      var raw = localStorage.getItem(SAVED_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch (e) { return new Set(); }
+  }
+  function saveSaved(set) {
+    try {
+      var arr = Array.from(set);
+      if (arr.length > SAVED_CAP) arr = arr.slice(arr.length - SAVED_CAP);
+      localStorage.setItem(SAVED_KEY, JSON.stringify(arr));
+    } catch (e) { /* localStorage unavailable (private mode / quota) — degrade silently */ }
+  }
+
+  var saved = loadSaved();
+  var savedOnly = false;
+
+  function applySavedFilter() {
+    document.querySelectorAll('#wtf-news-feed .wtf-article-card[data-article-id]').forEach(function (card) {
+      var id = card.getAttribute('data-article-id');
+      if (savedOnly && !saved.has(id)) card.setAttribute('data-saved-hidden', '');
+      else card.removeAttribute('data-saved-hidden');
+    });
+  }
+  function applySavedState() {
+    document.querySelectorAll('[data-save-btn]').forEach(function (btn) {
+      var on = saved.has(btn.getAttribute('data-save-btn'));
+      btn.classList.toggle('wtf-is-saved', on);
+      btn.setAttribute('aria-pressed', String(on));
+      btn.textContent = on ? '★ Saved' : '☆ Save';
+    });
+    applySavedFilter();
+  }
+  applySavedState();
+
+  document.querySelectorAll('[data-save-btn]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id = btn.getAttribute('data-save-btn');
+      if (saved.has(id)) saved.delete(id); else saved.add(id);
+      saveSaved(saved);
+      applySavedState();
+    });
+  });
+
+  var savedToggle = document.getElementById('wtf-news-saved-toggle');
+  if (savedToggle) {
+    savedToggle.addEventListener('click', function () {
+      savedOnly = !savedOnly;
+      savedToggle.setAttribute('aria-pressed', String(savedOnly));
+      applySavedFilter();
     });
   }
 

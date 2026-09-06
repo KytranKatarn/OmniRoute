@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import record_card, record_links, segment, stat_tiles, lean_pill %}
+{% from "_archetypes.html" import record_card, record_links, segment, stat_tiles, lean_pill, lean_token %}
 {% block title %}Story Clusters · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="One event, many tellings — Canadian stories grouped across outlets, ranked by how far the framing spreads.">
@@ -33,9 +33,21 @@
    routes.py). DEFERRED: the mockup's expandable inline per-cluster detail
    body (per-outlet grid, quote-flip) — still a link-out to /cluster/<id>.
 
-   Data: clusters[], totals{qualifying,with_spread,widest}, f{days,sort,q,beat,
-         size,median}, days, windows[], beats[], sizes{}, medians[], shown,
-         url_windows[], url_sorts[], url_clear. #}
+   Second gap-fill pass over the same mockup added: a numeric 0-100 spread
+   score + a band-mix bar (both computed LIVE from `band_counts`/
+   `divergence_score` in routes.py — never the nightly-batch
+   `story_clusters.divergence_score` column, so they can't disagree with the
+   live median/spread text on the same card); a "Blindspot seed" chip + link
+   for clusters under 6 outlets; a "Checkable dispute" chip + link to
+   /divergence when V.E.R.I.F.Y. found a real disputed point on the cluster
+   (mirrors /divergence's own qualification exactly); and the pickup-span
+   text the mockup's meta line names explicitly.
+
+   Data: clusters[] (each also carrying divergence_score, band_counts,
+         pickup_text, is_small, is_dispute), totals{qualifying,with_spread,
+         blindspot_seeds,widest}, f{days,sort,q,beat,size,median}, days,
+         windows[], beats[], sizes{}, medians[], shown, url_windows[],
+         url_sorts[], url_clear. #}
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Story clusters</h1>
@@ -58,6 +70,8 @@
       'detail': pct_spread ~ '% of them — most coverage of an event shares one band'},
      {'label': 'Widest cluster', 'value': totals.widest,
       'detail': 'outlets on a single story'},
+     {'label': 'Blindspot seeds', 'value': '{:,}'.format(totals.blindspot_seeds),
+      'detail': 'under 6 outlets — may be a small story, or one the press missed'},
 ]) }}
 
 <div class="wtf-a-layers" style="margin:16px 0 8px;" role="group" aria-label="Time window">
@@ -98,18 +112,45 @@
   {% if cl.certainty_label and cl.certainty_label != 'developing' %}
     {% if chips.append(cl.certainty_label) %}{% endif %}
   {% endif %}
+  {# Blindspot seed / checkable dispute — real, DB-backed flags (see
+     clusters_index()'s docstring), not decorative. #}
+  {% if cl.is_small %}{% if chips.append('Blindspot seed') %}{% endif %}{% endif %}
+  {% if cl.is_dispute %}{% if chips.append('Checkable dispute') %}{% endif %}{% endif %}
 
   {% set meta %}
     {{- cl.outlets }} outlet{{ '' if cl.outlets == 1 else 's' }} ·
     {{ cl.articles }} article{{ '' if cl.articles == 1 else 's' }} ·
+    picked up {{ cl.pickup_text }} ·
     updated {{ cl.age_text }}
   {% endset %}
 
+  {% set band_total = cl.band_counts | sum %}
+  {% set bands = [(cl.band_counts[0], 'left'), (cl.band_counts[1], 'center-left'),
+                  (cl.band_counts[2], 'center'), (cl.band_counts[3], 'center-right'),
+                  (cl.band_counts[4], 'right')] %}
+
   {% call record_card(title=cl.representative_title,
                       meta=meta|trim, chips=chips, spine_token='--wtf-accent') %}
-    <div style="margin-bottom:8px;">{{ lean_pill(cl.median_band, cl.median_band|title ~ ' median') }}</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+      {{ lean_pill(cl.median_band, cl.median_band|title ~ ' median') }}
+      {% if cl.divergence_score is not none %}
+      <span class="wtf-a-tile-d" style="font-family:var(--wtf-font-mono);font-size:11px;"
+            title="Framing spread, 0 (no spread) to 100 (full left-to-right split)">spread {{ cl.divergence_score }}/100</span>
+      {% endif %}
+    </div>
+    {% if band_total %}
+    {% set band_parts = [] %}
+    {% for n, bucket in bands %}{% if n %}{% if band_parts.append(n|string ~ ' ' ~ bucket) %}{% endif %}{% endif %}{% endfor %}
+    <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--wtf-bg);margin-bottom:8px;" role="img"
+         aria-label="Band mix: {{ band_parts | join(', ') }}">
+      {% for n, bucket in bands %}{% if n %}<span style="display:block;width:{{ (n / band_total * 100) | round(1) }}%;background:var({{ lean_token(bucket) }});"></span>{% endif %}{% endfor %}
+    </div>
+    {% endif %}
     <p class="wtf-a-rbody">{{ cl.spread_text }}</p>
-    {{ record_links([('Compare ' ~ cl.outlets ~ ' outlets →', '/cluster/' ~ cl.id, False)]) }}
+    {% set links = [('Compare ' ~ cl.outlets ~ ' outlets →', '/cluster/' ~ cl.id, False)] %}
+    {% if cl.is_dispute %}{% if links.append(('How they diverge →', '/divergence', False)) %}{% endif %}{% endif %}
+    {% if cl.is_small %}{% if links.append(('Blindspot view →', '/blindspot', False)) %}{% endif %}{% endif %}
+    {{ record_links(links) }}
   {% endcall %}
 {% else %}
   <p class="wtf-a-nodata" style="padding:28px 0;">

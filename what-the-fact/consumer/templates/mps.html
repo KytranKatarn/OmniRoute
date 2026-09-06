@@ -115,6 +115,32 @@
 .rd-az-btn { background:#060d14; border:1px solid #1a3a5a; color:#9ca3af; font-size:10px; width:22px; height:22px; border-radius:3px; cursor:pointer; font-family:inherit; }
 .rd-az-btn:hover:not(:disabled) { border-color:#0af; color:#0af; }
 .rd-az-btn:disabled { color:#2a3441; border-color:#0d1a26; cursor:default; }
+
+/* Riding province filter (batch 11) — pairs with the existing rd-search
+   input; province options come from province_seats, so they already
+   reflect whatever party/province filter is active on this request. */
+.rd-filter-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.rd-filter-row .rd-search { flex:1 1 200px; max-width:420px; margin-bottom:0; }
+.rd-prov-select { background:#060d14; border:1px solid #1a3a5a; color:#9ca3af; font-size:12px; padding:8px 10px; border-radius:4px; font-family:inherit; }
+.rd-prov-select:focus { outline:none; border-color:#0af; }
+
+/* "Same bill, both chambers" (batch 11) — House/Senate divisions on the
+   same bill_number+session, both tables already ingested independently. */
+.wtf-mps-jump-link { display:inline-block; margin-top:6px; font-size:11px; color:#0af; text-decoration:none; }
+.wtf-mps-jump-link:hover { text-decoration:underline; }
+.sb-list { display:flex; flex-direction:column; gap:14px; margin-top:10px; }
+.sb-item { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:12px 14px; }
+.sb-bill { font-size:12px; color:#e5e7eb; font-weight:600; margin-bottom:8px; line-height:1.4; }
+.sb-chamber-row { display:grid; grid-template-columns:52px 1fr 40px; align-items:center; gap:8px; font-size:11px; color:#9ca3af; margin-bottom:5px; }
+.sb-chamber-label { text-align:right; }
+.sb-bar-track { background:#0a1520; border-radius:3px; height:12px; overflow:hidden; }
+.sb-bar-fill { height:100%; border-radius:3px; }
+.sb-bar-fill.house { background:#0af; }
+.sb-bar-fill.senate { background:#ef4444; }
+.sb-pct { color:#e5e7eb; font-weight:600; text-align:right; }
+.sb-result { font-size:10px; color:#6b7280; margin-top:6px; }
+.sb-note { font-size:9px; color:#374151; margin-top:8px; }
+@media (max-width:600px) { .sb-chamber-row { grid-template-columns:44px 1fr 34px; font-size:10px; } }
 </style>
 
 <div class="wtf-mps-header">
@@ -710,6 +736,18 @@ function wtfShowSenatorCard(s, cx, cy) {
   {% endif %}
 </div>
 
+<!-- Why the Senate can stop a bill (batch 11) — static explainer, pairs
+     with the "Same bill, both chambers" section further down this tab. -->
+<div class="wtf-mps-senate-panel">
+  <div class="wtf-mps-senate-heading">⚖ Why the Senate Can Stop a Bill</div>
+  <div class="wtf-mps-senate-desc">
+    Senators face no election, so the chamber can take a position the House will not.
+    Most bills pass unchanged between the two; the ones that do not are where they
+    actually disagree — tracked below.
+  </div>
+  <a href="#same-bill-votes" class="wtf-mps-jump-link">Both chambers on one bill &darr;</a>
+</div>
+
 <!-- Live search + caucus filter + sort (batch 11) -->
 <div class="wtf-mps-livebar wtf-mps-section-top">
   <input type="search" id="sen-search-input" class="rd-search" style="margin-bottom:0;max-width:260px;"
@@ -770,6 +808,38 @@ function wtfShowSenatorCard(s, cx, cy) {
   <div id="sen-flat-empty" class="wtf-mps-empty" style="display:none;">
     No senator matches that search.
   </div>
+</div>
+
+<!-- Same bill, both chambers (batch 11) — parliament.bills (House) joined
+     to parliament.senate_votes (Senate) on bill_number+session, computed in
+     routes.py; both tables were already ingested for the individual
+     MP/senator vote-history pages. -->
+<div class="wtf-mps-senate-panel wtf-mps-section-top" id="same-bill-votes" style="scroll-margin-top:70px;">
+  <div class="wtf-mps-senate-heading wtf-mps-methodology-heading">&#9878; Same Bill, Both Chambers <span style="color:#374151;">(current session)</span></div>
+  {% if same_bill_votes %}
+  <div class="sb-list">
+    {% for b in same_bill_votes %}
+    {% set sb_desc = (b.senate_desc or b.house_desc or '') %}
+    <div class="sb-item">
+      <div class="sb-bill">{{ b.bill_number }} &mdash; {{ sb_desc[:120] }}{% if sb_desc|length > 120 %}&hellip;{% endif %}</div>
+      <div class="sb-chamber-row">
+        <div class="sb-chamber-label">House</div>
+        <div class="sb-bar-track"><div class="sb-bar-fill house" style="width:{{ b.house_yea_pct or 0 }}%;"></div></div>
+        <div class="sb-pct">{{ (b.house_yea_pct ~ '%') if b.house_yea_pct is not none else '—' }}</div>
+      </div>
+      <div class="sb-chamber-row">
+        <div class="sb-chamber-label">Senate</div>
+        <div class="sb-bar-track"><div class="sb-bar-fill senate" style="width:{{ b.senate_yea_pct or 0 }}%;"></div></div>
+        <div class="sb-pct">{{ (b.senate_yea_pct ~ '%') if b.senate_yea_pct is not none else '—' }}</div>
+      </div>
+      <div class="sb-result">House: {{ b.house_result or '—' }} ({{ b.house_yea or 0 }}–{{ b.house_nay or 0 }}) &middot; Senate: {{ b.senate_result or '—' }} ({{ b.senate_yea or 0 }}–{{ b.senate_nay or 0 }})</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="sb-note">A bill numbered C- starts in the House, S- in the Senate. Each bar is the yea share of that chamber's most recent recorded division on the bill, not support in the country — paired, abstained and absent ballots aren't counted toward the share.</div>
+  {% else %}
+  <div class="wtf-mps-empty">No bill currently on record with a recorded division in both chambers this session.</div>
+  {% endif %}
 </div>
 </div><!-- /wtf-tab-senate -->
 <script>
@@ -1009,8 +1079,16 @@ function wtfShowSenatorCard(s, cx, cy) {
   {% endif %}
 
   <div id="rd-az-nav" class="rd-az-nav" aria-label="Jump to riding name starting with"></div>
-  <input type="search" id="rd-search-input" class="rd-search"
-         placeholder="Search by riding name or MP name…" aria-label="Search ridings">
+  <div class="rd-filter-row">
+    <input type="search" id="rd-search-input" class="rd-search"
+           placeholder="Search by riding name or MP name…" aria-label="Search ridings">
+    <select id="rd-prov-select" class="rd-prov-select" aria-label="Filter by province">
+      <option value="">All provinces</option>
+      {% for p in province_seats %}
+      <option value="{{ p.code }}">{{ p.name }} ({{ p.count }})</option>
+      {% endfor %}
+    </select>
+  </div>
   <div id="rd-count" class="rd-count"></div>
   <div id="rd-list" class="rd-list"></div>
   <div id="rd-empty" class="rd-empty" style="display:none;">No riding or MP matches that search.</div>
@@ -1024,6 +1102,7 @@ function wtfShowSenatorCard(s, cx, cy) {
   var countEl = document.getElementById('rd-count');
   var emptyEl = document.getElementById('rd-empty');
   var searchEl = document.getElementById('rd-search-input');
+  var provEl = document.getElementById('rd-prov-select');
   var azEl = document.getElementById('rd-az-nav');
   var ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -1054,12 +1133,15 @@ function wtfShowSenatorCard(s, cx, cy) {
     });
   }
 
-  function render(filter) {
-    var q = (filter||'').trim().toLowerCase();
-    var matches = q ? RD_MPS.filter(function(mp){
+  function render() {
+    var q = (searchEl.value||'').trim().toLowerCase();
+    var prov = provEl ? provEl.value : '';
+    var matches = RD_MPS.filter(function(mp){
+      if (prov && mp.province_code !== prov) return false;
+      if (!q) return true;
       return (mp.riding_name||'').toLowerCase().indexOf(q) !== -1 ||
              (mp.name||'').toLowerCase().indexOf(q) !== -1;
-    }) : RD_MPS;
+    });
 
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
     countEl.textContent = matches.length + ' of ' + RD_MPS.length + ' ridings';
@@ -1095,8 +1177,9 @@ function wtfShowSenatorCard(s, cx, cy) {
     });
   }
 
-  render('');
-  searchEl.addEventListener('input', function(){ render(searchEl.value); });
+  render();
+  searchEl.addEventListener('input', render);
+  if (provEl) provEl.addEventListener('change', render);
 })();
 </script>
 

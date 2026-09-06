@@ -3,6 +3,9 @@
 {% block title %}{{ senator.name }} — Senator Profile · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{{ senator.name }} ({{ senator.caucus_label }}, {{ senator.province }}) — Senate of Canada profile on What The Fact.">
+<meta property="og:title" content="{{ senator.name }} — Senator Profile">
+<meta property="og:description" content="{{ senator.caucus_label }} senator for {{ senator.province }}. Committee memberships, voting record and cost to taxpayers.">
+<meta property="og:url" content="https://what-the-fact.com/senator/{{ senator.slug }}">
 {% endblock %}
 {% block content %}
 <style>
@@ -40,6 +43,8 @@
 .wtf-sen-link-back { color:#ef4444; text-decoration:none; font-size:11px; }
 .wtf-sen-link-muted { color:#6b7280; font-size:11px; }
 .wtf-sen-back { position:absolute; top:20px; left:0; font-size:11px; color:#6b7280; text-decoration:none; }
+.wtf-sen-src { font-size:9px; color:#6b7280; line-height:1.6; margin-top:9px; }
+.wtf-sen-src a { color:#6b7280; }
 </style>
 
 <div class="wtf-sen-header">
@@ -79,6 +84,7 @@
       {% if senator.profile_url %}
       <br><a href="{{ senator.profile_url }}" target="_blank" rel="noopener" class="wtf-sen-link-accent">Senate of Canada profile ↗</a>
       {% endif %}
+      <br><a href="/search?q={{ senator.name | urlencode }}" class="wtf-sen-link-muted">Coverage of {{ senator.name }} →</a>
     </div>
   </div>
 </div>
@@ -143,6 +149,12 @@
       {% if senator.twitter_handle %}
       🐦 <a href="https://twitter.com/{{ senator.twitter_handle }}" target="_blank" rel="noopener" class="wtf-sen-contact-link">@{{ senator.twitter_handle }}</a><br>
       {% endif %}
+      {% if senator.linkedin_url %}
+      🔗 <a href="{{ senator.linkedin_url }}" target="_blank" rel="noopener" class="wtf-sen-contact-link">LinkedIn ↗</a><br>
+      {% endif %}
+      {% if senator.website_url %}
+      🌐 <a href="{{ senator.website_url }}" target="_blank" rel="noopener" class="wtf-sen-contact-link">Official website ↗</a><br>
+      {% endif %}
       {% if senator.is_current %}
       🏛 Senate of Canada, Ottawa ON K1A 0A4
       {% endif %}
@@ -165,6 +177,7 @@
       </a>
       {% endfor %}
     </div>
+    <div class="wtf-sen-src">Senate committees do the chamber's detailed legislative review, which is where most amendments to House bills originate. Source: <a href="https://sencanada.ca/en/committees/" target="_blank" rel="noopener">sencanada.ca/committees</a></div>
   </div>
   {% endif %}
 
@@ -190,6 +203,7 @@
       </div>
     </div>
     {% endfor %}
+    <div class="wtf-sen-src">Senate ballots are yea, nay or abstention — a distinct vocabulary from the House. Abstention is a recorded position, not an absence.</div>
   </div>
   {% endif %}
 
@@ -211,6 +225,7 @@
   <div class="wtf-sen-about-text">
     Senators are appointed by the Governor General on the advice of the Prime Minister and serve until age 75.
     The Senate reviews, amends, and votes on legislation passed by the House of Commons.
+    Because senators face no election, the chamber is designed to take positions the House cannot, which is why caucus groups here are looser than parties and cross a good deal more often.
     <br><br>
     <a href="/mps" class="wtf-sen-link-back">← Back to Parliament</a>
     &nbsp;&nbsp;

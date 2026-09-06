@@ -37,7 +37,32 @@
 /* A scope with no coverage is still SHOWN — hiding it would imply the country
    ends where our data does. It is dimmed and says why on hover. */
 .wtf-wx-scope-btn.is-empty { opacity:.38; }
-.wtf-wx-maprow { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:20px; align-items:start; }
+.wtf-wx-maprow { display:grid; grid-template-columns:200px minmax(0,1fr) 320px; gap:14px; margin-bottom:20px; align-items:start; }
+/* ── layer index panel (task #6280 follow-up) ────────────────────────────
+   The mockup's #layerindex column had no live equivalent: the map and the
+   A.U.R.O.R.A. panel gave a per-scope summary, but nothing let a reader see
+   every province (or every reporting city) RANKED at a glance, or click one
+   directly. Built from the SAME `A`/`CITIES` payloads the map already holds
+   — no new query, no new ingest. Collapses on the same breakpoint the
+   aurora panel's neighbour column already narrows at. */
+.wtf-wx-lx { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px;
+             display:flex; flex-direction:column; max-height:460px; overflow:hidden; }
+.wtf-wx-lx-head { padding:9px 11px; border-bottom:1px solid #0a1a2a; font-family:var(--wtf-font-mono);
+                   font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#6b7280; }
+.wtf-wx-lx-list { overflow-y:auto; padding:4px; }
+.wtf-wx-lx-row { display:grid; grid-template-columns:9px 1fr auto; gap:8px; align-items:center;
+                 padding:6px 7px; border-radius:4px; cursor:pointer; }
+.wtf-wx-lx-row:hover { background:var(--wtf-bg-panel); }
+.wtf-wx-lx-row.active { background:#1e3a5a; }
+.wtf-wx-lx-swatch { width:9px; height:9px; border-radius:2px; display:inline-block; }
+.wtf-wx-lx-swatch.none { background:transparent; border:1px dashed #6b7280; }
+.wtf-wx-lx-nm { font-size:11px; color:#9ca3af; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wtf-wx-lx-vv { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:10px; color:var(--wtf-text); }
+.wtf-wx-lx-vv.none { color:#4b5563; }
+@media (max-width: 1180px) {
+  .wtf-wx-maprow { grid-template-columns: minmax(0,1fr) 320px; }
+  .wtf-wx-lx { display:none; }
+}
 /* MAP ZONE + content columns — mirrors the homepage (full-width map band above,
    content columns below) so the weather page reads as the same furniture. */
 .wtf-wx-mapzone { background:#050d1a; border:1px solid #112233; border-radius:6px;
@@ -275,6 +300,10 @@
       {% endfor %}
     </div>
     <div class="wtf-wx-maprow">
+      <div class="wtf-wx-lx" id="wtf-wx-lx">
+        <div class="wtf-wx-lx-head" id="wtf-wx-lx-head">Index</div>
+        <div class="wtf-wx-lx-list" id="wtf-wx-lx-list"></div>
+      </div>
       <div class="wtf-wx-mapwrap">
         <div class="wtf-wx-layerbar">
           <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
@@ -336,6 +365,12 @@
       </div>
       <div class="wtf-wx-citygrid" id="wtf-wx-citygrid"></div>
       {% endif %}
+      {# This grid was rendering with no heading at all — a block of station
+         cards with nothing telling the reader what they were looking at.
+         `id="wtf-wx-cards-title"` lets the JS below rewrite it once a
+         province is selected, matching the per-scope filtering renderCards()
+         already does. #}
+      <div class="wtf-wx-section-title" id="wtf-wx-cards-title">Fire-weather station readings</div>
       <div class="wtf-wx-cards" id="wtf-wx-cards"></div>
       <div class="wtf-wx-section-title">Recent climate &amp; science stories</div>
 
@@ -727,6 +762,84 @@
       tooltip: provinceTooltip, coverageNote: cityCoverage, points: cityPoints }
   ];
 
+  // ── Layer index (mockup #layerindex — no ingest of its own; ranks the SAME
+  // per-province/per-city values the map and A.U.R.O.R.A. panel already read)
+  // Rows always cover the FULL set for the active layer, unsorted by
+  // selection — only highlighting changes with `selected`, same as the map's
+  // own province fills, so clicking a row and clicking the map agree.
+  function layerIndexRows() {
+    if (activeLayer === "fire") {
+      return A.prov_order.map(function (code) {
+        var p = A.provinces[code];
+        var has = !!p && p.hotspots !== null && p.hotspots !== undefined;
+        return {
+          prov: code, name: (p && p.name) || code,
+          v: has ? p.hotspots : -1,
+          txt: has ? p.hotspots.toLocaleString() : "no data",
+          col: has ? WTFMap.ramp(FIRE_STOPS, p.hotspots) : null
+        };
+      });
+    }
+    if (activeLayer === "wx") {
+      return A.prov_order.map(function (code) {
+        var p = A.provinces[code];
+        var has = !!p && !!p.stations && p.max_fwi !== null && p.max_fwi !== undefined;
+        return {
+          prov: code, name: (p && p.name) || code,
+          v: has ? p.max_fwi : -1,
+          txt: has ? p.max_fwi + " FWI" : "no data",
+          col: has ? WTFMap.ramp(FWI_STOPS, p.max_fwi) : null
+        };
+      });
+    }
+    // "cities" — one row per currently-reporting city, not per province,
+    // since a province tint on this layer is a flat "has a city" marker
+    // (see cityMetric() above) and would tell a reader nothing rankable.
+    return ((CITIES && CITIES.cities) || []).filter(cityIsFresh).map(function (c) {
+      return {
+        prov: c.prov, name: c.name + (c.prov ? " · " + c.prov : ""),
+        v: c.temp, txt: c.temp + " °C", col: WTFMap.ramp(TEMP_STOPS, c.temp)
+      };
+    });
+  }
+
+  function renderLayerIndex() {
+    var headEl = document.getElementById("wtf-wx-lx-head");
+    var listEl = document.getElementById("wtf-wx-lx-list");
+    if (!headEl || !listEl) return;
+    var rows = layerIndexRows().sort(function (a, b) { return b.v - a.v; });
+    var withData = rows.filter(function (r) { return r.col; }).length;
+    var L = null;
+    for (var i = 0; i < WX_LAYERS.length; i++) if (WX_LAYERS[i].id === activeLayer) L = WX_LAYERS[i];
+    headEl.textContent = (L ? L.label : activeLayer) + " · " + withData + " reporting";
+    listEl.textContent = "";
+    rows.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "wtf-wx-lx-row" + (selected && r.prov && selected === r.prov ? " active" : "");
+      row.setAttribute("data-prov", r.prov || "");
+      var sw = document.createElement("i");
+      sw.className = "wtf-wx-lx-swatch" + (r.col ? "" : " none");
+      if (r.col) sw.style.background = r.col;
+      var nm = document.createElement("span"); nm.className = "wtf-wx-lx-nm"; nm.textContent = r.name;
+      var vv = document.createElement("span");
+      vv.className = "wtf-wx-lx-vv" + (r.col ? "" : " none"); vv.textContent = r.txt;
+      row.appendChild(sw); row.appendChild(nm); row.appendChild(vv);
+      listEl.appendChild(row);
+    });
+  }
+  // Delegated once — rows are rebuilt on every render, so a per-row listener
+  // would be dropped along with the old nodes.
+  var lxListEl = document.getElementById("wtf-wx-lx-list");
+  if (lxListEl) {
+    lxListEl.addEventListener("click", function (e) {
+      var row = e.target.closest(".wtf-wx-lx-row");
+      if (!row) return;
+      var prov = row.getAttribute("data-prov") || "";
+      if (!prov) return;
+      select(selected === prov ? null : prov);
+    });
+  }
+
   // ── Colourblind-safe palette toggle (task #17) ─────────────────────────
   function applyCbPalette(on) {
     FIRE_STOPS = on ? FIRE_STOPS_CB : FIRE_STOPS_DEFAULT;
@@ -747,6 +860,7 @@
     WX_LAYERS[1].ramp = FWI_STOPS;
     WX_LAYERS[2].ramp = TEMP_STOPS;
     if (wtfmap) wtfmap.refresh();
+    renderLayerIndex();
   }
   applyCbPalette(cbOn);
 
@@ -797,7 +911,7 @@
       // fly. focusProvince() refits the conic projection to that province.
       if (selected) wtfmap.focusProvince(selected);
       else wtfmap.resetView();
-      renderAurora(); renderCards(); renderCities();
+      renderAurora(); renderCards(); renderCities(); renderLayerIndex();
       writeHash();
     },
     onLayer: function (id) {
@@ -805,6 +919,7 @@
       document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (x) {
         x.classList.toggle("active", x.getAttribute("data-layer") === id);
       });
+      renderLayerIndex();
       writeHash();
     }
   });
@@ -888,6 +1003,16 @@
   function renderCards() {
     var wrap = document.getElementById("wtf-wx-cards");
     wrap.textContent = "";
+    var titleEl = document.getElementById("wtf-wx-cards-title");
+    if (titleEl) {
+      var scopeName = null;
+      if (selected) {
+        for (var k in WTFMap.PROVINCE_CODES) {
+          if (WTFMap.PROVINCE_CODES[k] === selected) { scopeName = k; break; }
+        }
+      }
+      titleEl.textContent = "Fire-weather station readings" + (scopeName ? " — " + scopeName : "");
+    }
     var list = A.stations.filter(function (s) {
       return (!selected || s.p === selected) && s.t !== null;
     }).sort(function (a, b) { return (b.w || 0) - (a.w || 0); }).slice(0, 12);
@@ -1142,7 +1267,7 @@
   // The component draws its own legend once the geometry loads, so the page
   // no longer calls drawLegend() here — that call outlived the function it
   // named and threw ReferenceError on every page load.
-  renderAurora(); renderCards(); renderCities();
+  renderAurora(); renderCards(); renderCities(); renderLayerIndex();
 })();
 </script>
 {% endif %}

@@ -37,11 +37,24 @@
    static footer methodology note. Deliberately NOT added here (see routes.py
    docstring for why each needs a larger build): the 6 clickable stat-tile
    filters, the up-to-3 compare tray, the visual band-range scale bar, and the
-   mockup's "filed first" metric. #}
+   mockup's "filed first" metric.
+
+   Follow-up polish pass — added: 2 more sort options ("Lean, left to right",
+   "Most fact-checked") re-sorted in Python from data already fetched (no new
+   query — see `_SOURCES_PY_SORTS` in routes.py), and the outlet's owner_type
+   label next to owner_name (the column was already selected by the SQL query
+   but never rendered). "Most bands published in" sort, the topic/region
+   filter chips, and the per-card language/province/dominant-beat line stay
+   deferred — none of that data is in the current query, and adding it needs
+   its own aggregate + cache, same shape as the fact-checked count. #}
 {% set BANDS = ['left', 'center-left', 'center', 'center-right', 'right'] %}
 {% set BAND_TOKEN = {'left': '--wtf-left', 'center-left': '--wtf-center-left',
                      'center': '--wtf-center', 'center-right': '--wtf-center-right',
                      'right': '--wtf-right', 'unscored': '--wtf-text-muted'} %}
+{# Same vocabulary + labels as owners.html's TYPE_LABEL — wtf.sources.owner_type
+   is constrained to exactly these 4 values (migration 010_source_ownership.sql). #}
+{% set TYPE_LABEL = {'corporate':'Corporate', 'public':'Public',
+                     'non_profit':'Non-profit', 'independent':'Independent'} %}
 
 <div style="max-width:900px;margin:40px auto;padding:0 16px;">
   <div style="margin-bottom:26px;">
@@ -69,6 +82,8 @@
   <div class="wtf-a-layers" style="margin:0 0 20px;">
     {{ segment('Most articles', '/sources?sort=articles' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'articles')) }}
     {{ segment('Name A–Z', '/sources?sort=name' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'name')) }}
+    {{ segment('Lean, left to right', '/sources?sort=lean' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'lean')) }}
+    {{ segment('Most fact-checked', '/sources?sort=checked' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'checked')) }}
   </div>
 
   {% if q and not sources %}
@@ -100,7 +115,7 @@
           {% endif %}
         </span>
         <span class="wtf-a-tile-d" style="display:flex;flex-wrap:wrap;gap:14px;">
-          {% if s.owner_name %}<span>{{ s.owner_name }}</span>{% endif %}
+          {% if s.owner_name %}<span>{{ s.owner_name }}{% if s.owner_type %} · {{ TYPE_LABEL.get(s.owner_type, s.owner_type) }}{% endif %}</span>{% endif %}
           <span style="margin-left:auto;">{{ s.total_articles | default(0) }} articles</span>
           {% if s.articles_7d %}<span>{{ s.articles_7d }}/7d</span>{% endif %}
           {% if s.fact_checked_count %}<span>{{ s.fact_checked_count }} fact-checked</span>{% endif %}

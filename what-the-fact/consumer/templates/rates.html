@@ -19,12 +19,28 @@
    Data contract is UNCHANGED: current, decisions[], is_subscriber. The paywall
    gate below is preserved exactly — this page is Starter+ gated. #}
 
+<style>
+/* Direction pill for the decisions table below (Batch 11 design-reconciliation
+   follow-up). Colour comes from the same --wtf-established/--wtf-contested
+   tokens the mockup itself uses for CUT/HIKE — a deliberate, page-local reuse
+   for the rate-direction axis, distinct from the fact-check verdict axis that
+   verdict_class()/lean_token() own in _archetypes.html. Text label stays the
+   source of truth either way (never colour alone). */
+.wtf-rt-dir { font-family: var(--wtf-font-mono); font-size: 9px; letter-spacing: .08em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 3px; border: 1px solid currentColor; }
+</style>
 <div style="padding:20px 0 16px;border-bottom:1px solid var(--wtf-border);margin-bottom:4px;">
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">
     Bank of Canada rate decisions
   </h1>
-  <p class="wtf-a-tile-d" style="margin:0;">
+  <p class="wtf-a-tile-d" style="margin:0 0 10px;">
     Every cut, hike and hold since 2000 · Bank of Canada Valet API (series V122514)
+  </p>
+  <p class="wtf-a-para" style="font-size:14px;margin:0;max-width:76ch;">
+    The overnight rate is one of the most closely watched numbers in Canadian economic
+    news &mdash; it sets the base cost of borrowing that ripples into mortgages, lines of
+    credit and the loonie, and it moves (or holds) on eight fixed, pre-announced dates a
+    year, so a rate story can always be checked against the decision it describes.
   </p>
 </div>
 
@@ -66,6 +82,16 @@
   </div>
   <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" style="width:100%;height:auto;display:block"
        role="img" aria-label="Bank of Canada overnight rate, {{ chart.start_date.year }} to {{ chart.end_date.year }}">
+    {% for g in chart.gridlines %}
+    <line x1="{{ chart.pad }}" x2="{{ chart.width - chart.pad }}" y1="{{ g.y }}" y2="{{ g.y }}"
+          stroke="var(--wtf-border)" stroke-width=".6" />
+    <text x="{{ chart.pad - 6 }}" y="{{ g.y + 3 }}" text-anchor="end" font-size="9"
+          font-family="IBM Plex Mono,monospace" fill="var(--wtf-text-muted)">{{ g.value }}%</text>
+    {% endfor %}
+    {% for t in chart.year_ticks %}
+    <text x="{{ t.x }}" y="{{ chart.xaxis_y }}" text-anchor="middle" font-size="9"
+          font-family="IBM Plex Mono,monospace" fill="var(--wtf-text-muted)">{{ t.year }}</text>
+    {% endfor %}
     <polyline points="{{ chart.points }}" fill="none" stroke="var(--wtf-accent)" stroke-width="2" stroke-linejoin="round" />
     <circle cx="{{ chart.end_x }}" cy="{{ chart.end_y }}" r="3.5" fill="var(--wtf-accent)" />
   </svg>
@@ -93,30 +119,61 @@
   {# Direction carries a TEXT label (CUT / HIKE / HOLD / FIRST), never colour
      alone — the same rule the lean scale is built on. A literal change_bps=0
      is a real HOLD, distinct from the very first row (no prior to diff
-     against, which has no change_bps at all). #}
+     against, which has no change_bps at all).
+
+     Rendered as a page-local table (not the shared data_table() macro)
+     because this row also carries a direction colour token — the macro
+     escapes cell content and has no coloured-cell slot, and that is a
+     _archetypes.html change, out of scope here (see needs_followup). Same
+     wtf-a-tblwrap/wtf-a-tbl/wtf-a-num classes the macro itself uses, so the
+     base table styling stays identical. #}
   {% set _rows = [] %}
   {% for r in decisions %}
     {% set bps = r.change_bps %}
     {% if bps is none %}
       {% set _dir = 'FIRST' %}
+      {% set _dir_token = '--wtf-text-muted' %}
     {% elif bps < 0 %}
       {% set _dir = 'CUT' %}
+      {% set _dir_token = '--wtf-established' %}
     {% elif bps > 0 %}
       {% set _dir = 'HIKE' %}
+      {% set _dir_token = '--wtf-contested' %}
     {% else %}
       {% set _dir = 'HOLD' %}
+      {% set _dir_token = '--wtf-text-muted' %}
     {% endif %}
-    {% set _ = _rows.append([
-        _dir,
-        (r.decision_date.strftime('%b %-d, %Y') if r.decision_date.strftime is defined else r.decision_date),
-        "%.2f%%"|format(r.rate_pct|float),
-        ('—' if bps is none else (('−' ~ (bps * -1)|abs ~ ' bps') if bps < 0 else (('+' ~ bps ~ ' bps') if bps > 0 else '0 bps')))
-    ]) %}
+    {% set _ = _rows.append({
+        'dir': _dir, 'token': _dir_token,
+        'date': (r.decision_date.strftime('%b %-d, %Y') if r.decision_date.strftime is defined else r.decision_date),
+        'rate': "%.2f%%"|format(r.rate_pct|float),
+        'change': ('—' if bps is none else (('−' ~ (bps * -1)|abs ~ ' bps') if bps < 0 else (('+' ~ bps ~ ' bps') if bps > 0 else '0 bps')))
+    }) %}
   {% endfor %}
-  {{ data_table(
-       [('Direction', ''), ('Decision date', ''), ('Rate', 'num'), ('Change', 'num')],
-       _rows,
-       empty='No rate decisions on record.') }}
+  <div class="wtf-a-tblwrap">
+    <table class="wtf-a-tbl">
+      <thead><tr>
+        <th>Direction</th><th>Decision date</th><th class="wtf-a-num">Rate</th><th class="wtf-a-num">Change</th>
+      </tr></thead>
+      <tbody>
+        {% if _rows %}
+        {% for r in _rows %}
+        <tr>
+          <td><span class="wtf-rt-dir" style="color:var({{ r.token }});">{{ r.dir }}</span></td>
+          <td>{{ r.date }}</td>
+          <td class="wtf-a-num">{{ r.rate }}</td>
+          <td class="wtf-a-num" style="color:var({{ r.token }});">{{ r.change }}</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr><td colspan="4" class="wtf-a-nodata">No rate decisions on record.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <p class="note" style="margin-top:9px;">
+    Source: Bank of Canada Valet API, series V122514 &middot; {{ decisions|length }} decisions on record, back to {{ chart.start_date.year if chart else 2000 }}.
+  </p>
 {% else %}
   {# Paywall — converged onto the shared paywall() macro (same behaviour,
      Starter+, /login?next=/rates, "Unlock with Starter" CTA, /join plans
@@ -141,5 +198,7 @@
      target="_blank" rel="noopener" class="wtf-a-tile-d" style="color:var(--wtf-accent);text-decoration:none;">BoC key interest rate &nearr;</a>
   &nbsp;&nbsp;
   <a href="/parliament/officers" class="wtf-a-tile-d" style="text-decoration:none;">Officers of Parliament &rarr;</a>
+  &nbsp;&nbsp;
+  <a href="/economy" class="wtf-a-tile-d" style="text-decoration:none;">Economy &amp; Markets &rarr;</a>
 </div>
 {% endblock %}

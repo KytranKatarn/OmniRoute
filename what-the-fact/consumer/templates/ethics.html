@@ -44,6 +44,13 @@
 .wtf-eth-clear { font-size:11px; color:#6b7280; text-decoration:none; white-space:nowrap; }
 .wtf-eth-clear:hover { text-decoration:underline; }
 .wtf-eth-none { padding:20px; text-align:center; background:#060d14; border:1px dashed #2a1a00; border-radius:6px; color:#6b7280; font-size:12px; }
+.wtf-eth-explain { margin:0 0 20px; padding:14px 16px; background:#060d14; border:1px solid #2a1a00; border-left:3px solid var(--wtf-developing); border-radius:6px; }
+.wtf-eth-explain-h { font-size:12px; font-weight:600; color:var(--wtf-developing); margin-bottom:8px; }
+.wtf-eth-explain p { font-size:12px; line-height:1.8; color:#9ca3af; max-width:78ch; margin:0 0 10px; }
+.wtf-eth-explain p:last-child { margin-bottom:0; }
+.wtf-eth-foot { display:flex; justify-content:space-between; gap:12px; margin-top:16px; flex-wrap:wrap; }
+.wtf-eth-foot a { font-size:11px; color:#6b7280; text-decoration:none; padding:6px 12px; border:1px solid #2a1a00; border-radius:999px; }
+.wtf-eth-foot a:hover { text-decoration:none; border-color:var(--wtf-developing); color:var(--wtf-developing); }
 </style>
 
 <div class="wtf-eth-header">
@@ -67,6 +74,17 @@
      {'label': 'Code inquiries', 'value': '{:,}'.format(code_count), 'detail': 'Conflict of Interest Code'},
      {'label': 'Linked to an MP profile', 'value': '{:,}'.format(mp_linked_count)},
 ]) }}
+
+{# Explainer panel (missing_pieces item, WTF batch 11 follow-up): mirrors the
+   design handoff's "What a contravention finding is, and is not" panel.
+   Pure static prose — no DB data involved, so it carries none of the
+   deferred items' data-availability problem. #}
+<div class="wtf-eth-explain">
+  <div class="wtf-eth-explain-h">What a contravention finding is, and is not</div>
+  <p>A contravention means a specific section of a conflict-of-interest act or members&rsquo; code was breached. <strong>It is not a criminal finding.</strong> The Commissioner can investigate, find and publish. They cannot fine, sanction or remove anyone &mdash; at most they recommend a sanction to Parliament, which may ignore it.</p>
+  <p>The most common outcome of an ethics investigation is <strong>no contravention</strong>, and that is a real result rather than a technicality. Those reports are far less covered than adverse findings, which is a coverage bias this page cannot correct but can name.</p>
+  <p>Every row below names its subject, dates the ruling and links the report. A page that lists findings without a name, a date and a citation is unusable for a reader and indefensible for a site built on checkable claims.</p>
+</div>
 
 {# Plain GET form, works without JavaScript — same pattern as /gic and /archive. #}
 <form method="get" action="/ethics" class="wtf-eth-search">
@@ -115,6 +133,13 @@
   <a href="https://ciec-ccie.parl.gc.ca/en/investigations-enquetes/Pages/InvestReport-RapportEnquete.aspx" target="_blank" rel="noopener" class="wtf-eth-ciec-link">CIEC full index ↗</a>
   &nbsp;&nbsp;
   <a href="/parliament/officers" class="wtf-eth-officers-link">Officers of Parliament →</a>
+</div>
+
+{# Bottom prev/next nav (missing_pieces item, WTF batch 11 follow-up) — both
+   targets are real, already-live routes. #}
+<div class="wtf-eth-foot">
+  <a href="/parliament/officers">&larr; All officers</a>
+  <a href="/cross-watch">Cross-Watch &rarr;</a>
 </div>
 
 {% endblock %}

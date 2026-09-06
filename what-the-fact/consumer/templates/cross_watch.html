@@ -43,7 +43,7 @@
 .wtf-cw-search input { flex:1; min-width:180px; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:8px 12px; color:#e5e7eb; font-family:'IBM Plex Mono',monospace; font-size:12px; }
 .wtf-cw-search select { background:#0a1520; border:1px solid #1a3a5a; border-radius:4px; color:#e5e7eb; padding:8px 10px; font-family:'IBM Plex Mono',monospace; font-size:11px; }
 .wtf-cw-search button { background:#0a1520; border:1px solid #1a3a5a; border-radius:4px; color:#38bdf8; padding:8px 16px; font-size:11px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
-.wtf-cw-count { font-size:9px; color:#374151; font-family:'IBM Plex Mono',monospace; }
+.wtf-cw-count { font-size:9px; color:#374151; font-family:'IBM Plex Mono',monospace; margin-left:auto; }
 .wtf-cw-row { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-bottom:1px solid #0d1f2d; }
 .wtf-cw-name { font-size:12px; color:#e5e7eb; text-decoration:none; font-weight:600; }
 .wtf-cw-name:hover { color:#38bdf8; }
@@ -128,7 +128,7 @@
 </div>
 
 <form class="wtf-cw-search" method="get" action="/cross-watch">
-  <input type="text" name="q" placeholder="Search a person or organization…" value="{{ q }}" autocomplete="off">
+  <input type="search" name="q" placeholder="Search a person or organization…" value="{{ q }}" autocomplete="off" aria-label="Search entities">
   <select name="type" onchange="this.form.submit()" aria-label="Entity type">
     <option value="" {% if not type_filter %}selected{% endif %}>Any type</option>
     <option value="person" {% if type_filter == 'person' %}selected{% endif %}>People</option>

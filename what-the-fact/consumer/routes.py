@@ -526,6 +526,14 @@ def news():
     scope_filter = _req.args.get("scope", "all")
     riding_filter = (_req.args.get("riding") or "all").strip()
     verdict_filter = _req.args.get("verdict", "all")
+    # Outlet filter (design handoff #6149 batch 11) — the source bar previously
+    # linked each icon to `?band=<that outlet's own aggregate lean>`, which
+    # filters by band, not by the outlet itself, so clicking (say) CBC's icon
+    # surfaced every left-leaning article from ANY source rather than CBC's
+    # own articles. Mirrors _archive_filters()'s `outlet` convention exactly
+    # (free string, not validated against a closed set, matched via s.name —
+    # parameterised below, so an unrecognised name just yields zero rows).
+    outlet_filter = (_req.args.get("outlet") or "all").strip()[:80]
     if band_filter not in VALID_BANDS:
         band_filter = "all"
     if province_filter not in VALID_PROVINCES:
@@ -575,7 +583,7 @@ def news():
     yesterday_str = (_now_utc - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter,
-           verdict_filter, page)
+           verdict_filter, outlet_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
         (source_count, total, rows, sources, ridings, band_mix,
@@ -588,6 +596,7 @@ def news():
                                province_filter=province_filter,
                                beat_filter=beat_filter, scope_filter=scope_filter,
                                riding_filter=riding_filter, ridings=ridings,
+                               outlet_filter=outlet_filter,
                                verdict_filter=verdict_filter, verdict_meta=VERDICT_META,
                                beat_meta=BEAT_META, sources=sources,
                                band_mix=band_mix, band_facets=band_facets,
@@ -655,6 +664,13 @@ def news():
             # cost class as province/beat/scope.
             filter_clauses["verdict"] = "a.latest_verdict = :verdict"
             params["verdict"] = verdict_filter
+        if outlet_filter != "all":
+            # Same shape as province/beat/scope above — a plain indexed
+            # equality against the already-joined sources table, s.name
+            # exactly like _archive_where()'s outlet clause. No new join:
+            # `s` is already joined into top_recent below.
+            filter_clauses["outlet"] = "s.name = :outlet"
+            params["outlet"] = outlet_filter
 
         def _where_except(*exclude_axes):
             clauses = [c for k, c in filter_clauses.items() if k not in exclude_axes]
@@ -880,6 +896,7 @@ def news():
                            province_filter=province_filter,
                            beat_filter=beat_filter, scope_filter=scope_filter,
                            riding_filter=riding_filter, ridings=ridings,
+                           outlet_filter=outlet_filter,
                            verdict_filter=verdict_filter, verdict_meta=VERDICT_META,
                            beat_meta=BEAT_META, sources=sources,
                            band_mix=band_mix, band_facets=band_facets,
@@ -1410,6 +1427,64 @@ def weather_accuracy():
     if worst_row is not None and worst_row["forecast_c"] is not None:
         worst_miss = dict(worst_row)
     payload["worst_miss"] = worst_miss
+
+    # Batch 11 (#6254 audit), continued — two more pieces computed locally
+    # from `pairs` (still never inside aurora_verify, per the module-scope
+    # note above): the share of forecasts landing within 3°C — the mockup's
+    # "share of days within N degrees" framing — and the lead time (if any)
+    # where the naive persistence guess stops losing to our forecast. Both
+    # are plain aggregation over rows already fetched; no new query.
+    _WITHIN_C = 3.0
+
+    def _pct_within(lead_days):
+        vals = [
+            abs(r["forecast_c"] - r["observed_c"])
+            for r in pairs
+            if r.get("lead_days") == lead_days
+            and r.get("forecast_c") is not None
+            and r.get("observed_c") is not None
+        ]
+        if not vals:
+            return None
+        return round(100.0 * sum(1 for v in vals if v <= _WITHIN_C) / len(vals))
+
+    payload["summary"]["same_day_within3_pct"] = _pct_within(0)
+    _longest_lead = payload["summary"]["longest_lead_days"]
+    payload["summary"]["longest_within3_pct"] = (
+        _pct_within(_longest_lead) if _longest_lead is not None else None
+    )
+
+    # First lead time (ascending) at which persistence's MAE is no longer
+    # worse than ours. None means our forecast still beats persistence at
+    # every lead we currently hold — an honest "not yet", never a fabricated
+    # day (our data only spans a handful of lead days so far; see the route
+    # docstring above).
+    _catchup_lead = None
+    for _pt in payload["skill_curve"]:
+        _p = persistence_curve.get(_pt["lead_days"])
+        if (_p and _pt["mae_c"] is not None and _p["mae_c"] is not None
+                and _pt["mae_c"] >= _p["mae_c"]):
+            _catchup_lead = _pt["lead_days"]
+            break
+    payload["summary"]["persistence_catchup_lead"] = _catchup_lead
+
+    # Per-city share within 3°C, over the same 1-5 day lead-time band
+    # `aurora_verify.city_scoreboard` already uses for the miss/direction
+    # columns, so the new figure lines up with what is already on screen.
+    _city_within_hits: dict = {}
+    for r in pairs:
+        lead, f, o, site = (r.get("lead_days"), r.get("forecast_c"),
+                             r.get("observed_c"), r.get("site_code"))
+        if lead is None or f is None or o is None or not site:
+            continue
+        if not (1 <= int(lead) <= 5):
+            continue
+        _city_within_hits.setdefault(site, []).append(abs(f - o) <= _WITHIN_C)
+    for _city in payload["cities"]:
+        _hits = _city_within_hits.get(_city.get("site_code"))
+        _city["within3_pct"] = (
+            round(100.0 * sum(_hits) / len(_hits)) if _hits else None
+        )
 
     return render_template("forecast_accuracy.html",
                            verification=payload,
@@ -2934,6 +3009,9 @@ def article(article_id: int):
         row = c.execute(text(f"""
             SELECT a.id, a.title, a.body, a.url, a.published_at,
                    a.ai_analyzed, a.ai_analyzed_at, a.province_code, a.cluster_id,
+                   -- Beat — free-to-render classification, used only for the
+                   -- "signal breakdown" chips below (batch 11 #6284).
+                   a.beat,
                    -- city/geo_scope feed the "Local coverage" section below.
                    -- ⚠️ city is present on only ~10% of articles while
                    -- province_code covers ~64%, so the section keys on city
@@ -3113,6 +3191,23 @@ def article(article_id: int):
             """), {"cid": a["cluster_id"], "aid": article_id}).mappings().all()
         cluster_articles = [dict(r) for r in siblings]
 
+    # Blindspot flag — is THIS story one of the ones /blindspot already
+    # tracks? Reads the SAME `story_clusters.blindspot_side` column that
+    # page's own queries key on (migration 079 + ingest/cluster_metrics.py),
+    # never a private re-derivation of "carried narrowly" here — a second
+    # definition is how a story could be a blindspot on one page and not
+    # the other. One extra column on a cluster row already identified by
+    # a.cluster_id above; no new join, no new table.
+    is_blindspot = False
+    if a.get("cluster_id"):
+        try:
+            with _db().begin() as c:
+                is_blindspot = bool(c.execute(text(f"""
+                    SELECT blindspot_side FROM {S}.story_clusters WHERE id = :cid
+                """), {"cid": a["cluster_id"]}).scalar())
+        except Exception:
+            is_blindspot = False
+
     # ------------------------------------------------------------------
     # Pickup order — who filed on this story first, and how far behind
     # each follow-on outlet published. Built from the SAME cluster_articles
@@ -3176,11 +3271,51 @@ def article(article_id: int):
                            f"→ {_band_label(_BAND_ORDER.index(_spanned[-1]))}")
             else:
                 _widest = _band_label(_BAND_ORDER.index(_spanned[0]))
+            # Verdict tile — same display rule the fact-check panel below
+            # already uses for `verdict_display` (kept as ONE computation
+            # here rather than a third private copy of the mapping; the
+            # panel's own inline Jinja `verdict_display` is untouched).
+            _ov = a.get("overall_verdict")
+            if _ov == "descriptive_reporting":
+                _verdict_label = "Descriptive Reporting"
+            elif _ov:
+                _verdict_label = _ov.replace("_", " ").title()
+            else:
+                _verdict_label = "None yet"
             coverage_stats = {
                 "outlets_covering": 1 + len(cluster_articles),
                 "bands_spanned": len(_spanned),
                 "widest_label": _widest,
+                "verdict_label": _verdict_label,
             }
+
+        # Band-by-band breakdown — "where the outlets covering this sit"
+        # (design-handoff/wtf-article.html's per-band .cov rows). Reuses the
+        # SAME rows as coverage_stats above, just counted instead of merely
+        # spanned, so this cannot show a percentage the "bands spanned" tile
+        # itself disagrees with. Excluded from a band with zero real rows —
+        # never renders a phantom 0% row for a band nobody occupies.
+        _band_counts = {}
+        if _current_band:
+            _band_counts[_current_band] = _band_counts.get(_current_band, 0) + 1
+        for _ca in cluster_articles:
+            if _ca.get("bias_band"):
+                _band_counts[_ca["bias_band"]] = _band_counts.get(_ca["bias_band"], 0) + 1
+        _band_total = sum(_band_counts.values())
+        band_breakdown = []
+        if _band_total:
+            for _b in _BAND_ORDER:
+                _n = _band_counts.get(_b, 0)
+                if _n:
+                    band_breakdown.append({
+                        "band": _b,
+                        "label": _band_label(_BAND_ORDER.index(_b)),
+                        "count": _n,
+                        "pct": round(_n / _band_total * 100),
+                    })
+            band_breakdown.sort(key=lambda r: r["count"], reverse=True)
+    else:
+        band_breakdown = []
 
     # Outlet sparkline — daily avg bias score over the outlet's last 7 days of COVERAGE.
     #
@@ -3433,6 +3568,14 @@ def article(article_id: int):
     except Exception:
         pass
 
+    # "Back to News" replays whatever filter querystring the reader arrived
+    # with, IF the caller supplied one (?back=<news querystring>) — a plain
+    # passthrough, not a re-derivation of /news' own filter logic, so this
+    # can never disagree with that page about what it means to filter.
+    # Absent (today, no /news link sets it yet) it degrades to a bare link
+    # to /news, never a broken one.
+    back_qs = request.args.get("back", "")
+
     return render_template("article.html", a=a,
                            article_entities=article_entities,
                            key_figures=key_figures,
@@ -3451,7 +3594,10 @@ def article(article_id: int):
                            mp_claims=mp_claims,
                            cross_watch_entities=cross_watch_entities,
                            pickup_order=pickup_order,
-                           coverage_stats=coverage_stats)
+                           coverage_stats=coverage_stats,
+                           band_breakdown=band_breakdown,
+                           is_blindspot=is_blindspot,
+                           back_qs=back_qs)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -3515,7 +3661,8 @@ def claims_index():
                 text(
                     f"""
                     SELECT id, politician_slug, politician_name,
-                           claim_text, claim_date, status, verdict_summary
+                           claim_text, claim_date, status, verdict_summary,
+                           source_url
                     FROM {S}.claim_tracker ct
                     {where}
                     ORDER BY created_at DESC
@@ -3552,7 +3699,8 @@ def claims_by_politician(slug: str):
                 text(
                     f"""
                     SELECT id, politician_slug, politician_name,
-                           claim_text, claim_date, status, verdict_summary
+                           claim_text, claim_date, status, verdict_summary,
+                           source_url
                     FROM {S}.claim_tracker
                     WHERE politician_slug = :slug
                     ORDER BY created_at DESC
@@ -3731,6 +3879,14 @@ _SOURCES_SORTS = {
     "articles": "total_articles DESC",
     "name": "s.name ASC",
 }
+# "checked" and "lean" are NOT in _SOURCES_SORTS — their sort key isn't known
+# until after the query returns (fact_checked_count is merged in from a
+# separately-cached lookup; avg_score must respect the MIN_N honesty floor
+# applied below, so ordering by the pre-floor column would rank outlets by a
+# number the page refuses to display). Both are cheap in Python — at most 46
+# rows — so they are re-sorted in-process after enrichment instead of pushed
+# into the SQL ORDER BY.
+_SOURCES_PY_SORTS = ("checked", "lean")
 
 _SOURCES_FC_CACHE: dict = {}  # 'counts' -> (expiry, {source_id: count})
 _SOURCES_FC_CACHE_TTL = int(os.environ.get("WTF_SOURCES_FC_CACHE_TTL", "300"))
@@ -3774,23 +3930,33 @@ def _sources_fact_checked_counts(S) -> dict:
 def sources_list():
     """All tracked outlets — searchable by name, sortable, with the MIN_N
     honesty floor on the averaged band and a real per-outlet fact-checked
-    count (#6272 batch 11).
+    count (#6272 batch 11). Sorting by fact-checked count or by lean
+    (`checked`/`lean`) is added in the follow-up polish pass — both are
+    re-sorted in Python after enrichment (see `_SOURCES_PY_SORTS`), so they
+    carry no extra query cost.
 
     DEFERRED (documented, not half-built — see the PR description for the
     reasons): the mockup's 6 clickable stat-tile filters, the up-to-3 compare
     tray, and the visual band-range scale bar all need real client-side
     interactive state, and the mockup's "filed first" (which outlet published
-    first in a multi-source story cluster) is real, computable data
-    (`articles.cluster_id` + `published_at`) but measured 400ms-3.5s as a live
-    query with no supporting index for that access pattern — this public
-    directory page cannot carry that cost on every request; it needs a
-    scheduled/materialized aggregate, not a page-load query.
+    first in a multi-source story cluster) and "most bands published in" are
+    real, computable data but need a per-article aggregate this page's
+    request cycle should not carry: "filed first" measured 400ms-3.5s live
+    with no supporting index, and "bands published in" is not the same number
+    as the rolling `band` already selected here (that is one label for the
+    outlet's recent window; the mockup's metric is the count of DISTINCT
+    bands across the outlet's full-history articles, which needs its own
+    join and cache, same shape as `_sources_fact_checked_counts` below). Both
+    need a scheduled/materialized aggregate, not a page-load query.
     """
     S = _schema()
     q = (request.args.get("q") or "").strip()
     sort = request.args.get("sort") or "articles"
-    if sort not in _SOURCES_SORTS:
+    if sort not in _SOURCES_SORTS and sort not in _SOURCES_PY_SORTS:
         sort = "articles"
+    # Python-sorted keys still need a valid SQL ORDER BY for the initial
+    # fetch (overwritten below) — "articles" is a stable, harmless default.
+    sql_sort = sort if sort in _SOURCES_SORTS else "articles"
     params: dict = {}
     where = ""
     if q:
@@ -3809,7 +3975,7 @@ def sources_list():
             {where}
             GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
                      obs.avg_score, obs.band, obs.article_count
-            ORDER BY {_SOURCES_SORTS[sort]}
+            ORDER BY {_SOURCES_SORTS[sql_sort]}
         """), params).mappings().all()
     fc_counts = _sources_fact_checked_counts(S)
     sources = []
@@ -3824,6 +3990,14 @@ def sources_list():
         d["below_min_n"] = below_min_n
         d["fact_checked_count"] = fc_counts.get(d["id"], 0)
         sources.append(d)
+    if sort == "checked":
+        sources.sort(key=lambda d: d["fact_checked_count"], reverse=True)
+    elif sort == "lean":
+        # Unmeasurable outlets (below the MIN_N floor, avg_score already
+        # nulled above) sort to the end — ordering by a hidden pre-floor
+        # value would render an average the page has decided not to show.
+        sources.sort(key=lambda d: (d["avg_score"] is None,
+                                     d["avg_score"] if d["avg_score"] is not None else 0.0))
     return render_template(
         "sources.html", sources=sources, q=q, sort=sort, min_n=_SOURCES_MIN_N,
     )
@@ -3934,6 +4108,18 @@ def source_profile(slug: str):
                 LIMIT 5
             """), {"sid": src["id"], "avg": src["avg_score"]}).mappings().all()
 
+        # Corpus-wide weighted average score (batch 11 mockup parity) — a
+        # cheap aggregate over the platform's ~46 scored outlets
+        # (outlet_bias_scores has UNIQUE(source_id), same table the peers
+        # query above scans). Powers the "an average is not a label"
+        # disclaimer next to this outlet's own distribution; it is a single
+        # platform-wide figure, not a claim about any one outlet, so it is
+        # not gated by the MIN_N honesty floor used elsewhere.
+        corpus_avg_score = c.execute(text(f"""
+            SELECT SUM(avg_score * article_count) / NULLIF(SUM(article_count), 0)
+            FROM {S}.outlet_bias_scores
+        """)).scalar()
+
     return render_template("source.html",
                            src=dict(src),
                            band_counts=[dict(r) for r in band_counts],
@@ -3942,6 +4128,7 @@ def source_profile(slug: str):
                            filed_first_count=filed_first_count,
                            coverage=dict(coverage),
                            peers=[dict(r) for r in peers],
+                           corpus_avg_score=corpus_avg_score,
                            show_all=show_all,
                            article_list_cap=ARTICLE_LIST_CAP,
                            is_subscriber=is_subscriber())
@@ -4116,6 +4303,51 @@ def _age_text(dt) -> str:
     return f"{int(secs // 86400)}d ago"
 
 
+def _pickup_text(td) -> str:
+    """Wall-clock span between a cluster's first and most recent article,
+    e.g. 'over 6h' / 'over 2d' — the same `pickup_span` value `_CLUSTER_SORTS`
+    already sorts "Slowest pickup" by, just made readable for the card meta
+    line (#6149 batch 11 gap-fill — the design mockup names this explicitly).
+    `td` is a Python timedelta (the Postgres interval), or None for a
+    single-article cluster with no span to report.
+    """
+    if td is None:
+        return "—"
+    secs = td.total_seconds()
+    if secs < 0:                # clock skew — never print a negative span
+        return "—"
+    if secs < 3600:
+        return "under 1h"
+    if secs < 86400:
+        return f"over {int(secs // 3600)}h"
+    return f"over {int(secs // 86400)}d"
+
+
+def _divergence_score(n0: int, n1: int, n2: int, n3: int, n4: int):
+    """0-100 framing-spread score, computed LIVE — the exact same closed-form
+    formula as the precomputed `story_clusters.divergence_score` (migration
+    080's comment: mean pairwise |band_i - band_j| distance over every
+    scored-article pair, normalized /4*100), just derived from THIS request's
+    live n0..n4 band counts rather than the nightly-batch column, so it can
+    never disagree with the live `lo`/`hi`/`med` shown on the same card (see
+    `_cluster_index_rows`'s docstring on why this page reads bands live
+    rather than from the batch-refreshed columns). Returns None when fewer
+    than 2 scored articles exist in the cluster — there is no pair to measure
+    a spread from. This is the same math the design mockup's `spreadScore()`
+    uses (design-handoff/wtf-clusters.js) — #6149 batch 11 gap-fill.
+    """
+    counts = (n0 or 0, n1 or 0, n2 or 0, n3 or 0, n4 or 0)
+    total = sum(counts)
+    if total < 2:
+        return None
+    pairs = total * (total - 1) // 2
+    weighted = sum(
+        abs(i - j) * counts[i] * counts[j]
+        for i in range(5) for j in range(i + 1, 5)
+    )
+    return max(0, min(100, round(weighted / pairs / 4 * 100)))
+
+
 _CLUSTER_SIZES = {
     "all": "Any size",
     "big": "12+ outlets",
@@ -4197,6 +4429,19 @@ def _cluster_index_rows(f: dict, limit: int = _CLUSTER_LIMIT):
     fallback that paints an unscored cluster's badge "center" — filtering on
     that fallback would put zero-score clusters under a lean they were never
     actually assigned.
+
+    ⚠️ #6149 batch 11 gap-fill (design-handoff/wtf-clusters.html): `n0`..`n4`
+    are the live per-band scored-article counts (same 5 bands as
+    `_BAND_ORDER`), added so the page can show a numeric spread score and a
+    band-mix bar computed from THIS request's live data — never from the
+    precomputed `story_clusters.divergence_score` / `band0_count`..
+    `band4_count` (migration 080), which are refreshed by a nightly batch and
+    would disagree with the live `lo`/`hi`/`med` above on any cluster still
+    growing today (the exact "metric refreshed on a different filter" trap
+    this docstring already warns about). `lean_l_count`/`lean_r_count` and
+    `has_dispute` (from `cluster_disputes.disputed_point`) ARE read from the
+    precomputed columns — that mirrors what /divergence's own `_dispute_rows`
+    already does in production, so it is an accepted reuse, not a new risk.
     """
     S = _schema()
     having = ["COUNT(DISTINCT a.source_id) >= 2"]
@@ -4239,7 +4484,12 @@ def _cluster_index_rows(f: dict, limit: int = _CLUSTER_LIMIT):
                      percentile_disc(0.5) WITHIN GROUP (
                        ORDER BY {_BAND_ORD_SQL})                          AS med,
                      MIN({_BAND_ORD_SQL})                                 AS lo,
-                     MAX({_BAND_ORD_SQL})                                 AS hi
+                     MAX({_BAND_ORD_SQL})                                 AS hi,
+                     COUNT(b.band) FILTER (WHERE b.band = 'left')         AS n0,
+                     COUNT(b.band) FILTER (WHERE b.band = 'center-left')  AS n1,
+                     COUNT(b.band) FILTER (WHERE b.band = 'center')       AS n2,
+                     COUNT(b.band) FILTER (WHERE b.band = 'center-right') AS n3,
+                     COUNT(b.band) FILTER (WHERE b.band = 'right')        AS n4
                 FROM {S}.articles a
                 LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
                WHERE a.suppressed_reason IS NULL
@@ -4250,10 +4500,15 @@ def _cluster_index_rows(f: dict, limit: int = _CLUSTER_LIMIT):
             )
             SELECT m.cid AS id, m.outlets, m.articles, m.last_pub,
                    m.scored, m.med, m.lo, m.hi,
+                   m.n0, m.n1, m.n2, m.n3, m.n4,
                    (m.hi - m.lo) AS spread,
                    (m.last_pub - m.first_pub) AS pickup_span,
-                   sc.representative_title, sc.certainty_label
-              FROM m JOIN {S}.story_clusters sc ON sc.id = m.cid
+                   sc.representative_title, sc.certainty_label,
+                   sc.lean_l_count, sc.lean_r_count,
+                   (cd.disputed_point IS NOT NULL) AS has_dispute
+              FROM m
+              JOIN {S}.story_clusters sc ON sc.id = m.cid
+              LEFT JOIN {S}.cluster_disputes cd ON cd.cluster_id = m.cid
              WHERE TRUE{outer_sql}
              ORDER BY {order}
              LIMIT :lim
@@ -4273,6 +4528,11 @@ def _cluster_index_totals(days: int) -> dict:
     message ("most coverage of an event shares one band"), not a per-filter
     count. `shown` in the template carries how many of the CURRENT filter
     selection are on screen.
+
+    ⚠️ #6149 batch 11 gap-fill: `blindspot_seeds` (outlets < 6, the SAME
+    threshold as `_CLUSTER_SIZE_HAVING["small"]` / the "size" filter's "Under
+    6 — blindspot seeds" option) feeds the mockup's 4th stat tile. Zero extra
+    cost — `outlets` was already selected here for `widest`.
     """
     S = _schema()
     with _db().begin() as c:
@@ -4292,10 +4552,12 @@ def _cluster_index_totals(days: int) -> dict:
             )
             SELECT COUNT(*)                                        AS qualifying,
                    COUNT(*) FILTER (WHERE hi > lo)                 AS with_spread,
+                   COUNT(*) FILTER (WHERE outlets < 6)              AS blindspot_seeds,
                    COALESCE(MAX(outlets), 0)                       AS widest
               FROM m
         """), {"days": days}).mappings().first()
-    return dict(row) if row else {"qualifying": 0, "with_spread": 0, "widest": 0}
+    return dict(row) if row else {"qualifying": 0, "with_spread": 0,
+                                   "blindspot_seeds": 0, "widest": 0}
 
 
 @bp.get("/clusters")
@@ -4315,6 +4577,18 @@ def clusters_index():
     design mockup's expandable inline per-cluster detail body (per-outlet
     grid, quote-flip, "why it matters") stays a link-out to /cluster/<id> — a
     bigger, separate build, not a filter.
+
+    ⚠️ Second gap-fill pass (same task, reconciled against
+    design-handoff/wtf-clusters.html once more): `divergence_score` (live 0-100
+    spread, `_divergence_score`) + `band_counts` (for the mockup's band-mix
+    bar) are computed from `n0`..`n4`, never the nightly-batch
+    `story_clusters.divergence_score` column — see `_cluster_index_rows`'s
+    docstring. `is_small` reuses the same `outlets < 6` threshold as the
+    "size" filter's blindspot-seed bucket. `is_dispute` mirrors /divergence's
+    own `_dispute_rows` qualification exactly (`lean_l_count`/`lean_r_count`
+    both > 0, `disputed_point IS NOT NULL`, `article_count >= _DISPUTE_MIN_
+    ARTICLES`) so a cluster is never called "checkable" here when /divergence
+    itself would not.
     """
     from flask import request as _req
     f = _cluster_filters(_req.args)
@@ -4328,6 +4602,18 @@ def clusters_index():
             r["outlets"], r["scored"], r["lo"], r["hi"]
         )
         r["age_text"] = _age_text(r["last_pub"])
+        r["pickup_text"] = _pickup_text(r["pickup_span"])
+        r["divergence_score"] = _divergence_score(
+            r["n0"], r["n1"], r["n2"], r["n3"], r["n4"]
+        )
+        r["band_counts"] = [r["n0"], r["n1"], r["n2"], r["n3"], r["n4"]]
+        r["is_small"] = r["outlets"] < 6
+        r["is_dispute"] = bool(
+            r["has_dispute"]
+            and (r["lean_l_count"] or 0) > 0
+            and (r["lean_r_count"] or 0) > 0
+            and r["articles"] >= _DISPUTE_MIN_ARTICLES
+        )
     return render_template("clusters.html",
                            clusters=rows,
                            totals=_cluster_index_totals(f["days"]),
@@ -4565,6 +4851,33 @@ def _archive_qs(f: dict, base_path="/archive", **override) -> str:
     return base_path + ("?" + urlencode(keep) if keep else "")
 
 
+def _archive_page_links(f: dict, total: int):
+    """Numbered page list with ellipsis gaps (design-handoff parity, #6149).
+
+    Mirrors the design mockup's drawPager(): show 1, the last page, and a
+    small window around the current page, with a gap marked by `None`
+    wherever the run is not contiguous. No extra query — `total` and
+    `_ARCHIVE_PAGE` are already known to the caller. Every URL reuses
+    _archive_qs so the current filters ride along unchanged.
+
+    Returns (links, cur_page) — cur_page is f["page"] clamped into
+    [1, total_pages], since f["page"] itself is only lower-bounded
+    (see _archive_filters) and a hand-edited ?page=999 must not crash
+    the "which page is active" comparison in the template.
+    """
+    total_pages = max(1, (total + _ARCHIVE_PAGE - 1) // _ARCHIVE_PAGE)
+    cur = min(max(1, f["page"]), total_pages)
+    want = sorted({n for n in (1, total_pages, cur - 1, cur, cur + 1) if 1 <= n <= total_pages})
+    links = []
+    last = 0
+    for n in want:
+        if n - last > 1:
+            links.append(None)
+        links.append({"n": n, "url": _archive_qs(f, page=n)})
+        last = n
+    return links, cur
+
+
 def _archive_rows(f: dict):
     """One query, two shapes.
 
@@ -4763,12 +5076,17 @@ def archive_index():
     if gated:
         rows = rows[:cap]
 
+    # Numbered page list (design-handoff parity, #6149 batch 11 follow-up) —
+    # only meaningful when the paywall isn't already replacing the pager.
+    page_links, cur_page = _archive_page_links(f, total)
+
     return render_template("archive.html",
                            rows=rows, total=total, f=f,
                            sorts=_ARCHIVE_SORTS, windows=_ARCHIVE_WINDOWS,
                            outlets=_archive_outlets(f["days"]),
                            beats=sorted(VALID_BEATS),
                            page_size=_ARCHIVE_PAGE,
+                           page_links=page_links, cur_page=cur_page,
                            is_subscriber=sub, gated=gated, cap=cap,
                            # URLs built server-side (see _archive_qs)
                            url_story=_archive_qs(f, view="story", page=1),
@@ -5606,11 +5924,33 @@ def _boc_rate_chart(history, width=720, height=200, pad=28):
         return height - pad - (v - lo) / rspan * (height - 2 * pad)
 
     points = " ".join(f"{_x(d):.1f},{_y(v):.1f}" for d, v in zip(dates, rates))
+
+    # Axis scaffolding (Batch 11 design-reconciliation follow-up). The mockup
+    # draws whole-percent gridlines + year tick labels around this same
+    # polyline; the prior version returned only the line geometry, so the
+    # live chart had no scale reference at all. Gridlines bracket the real
+    # [lo, hi] range (never a hardcoded 0-6%) so a series that never touches
+    # those extremes doesn't draw a tick past its own data.
+    lo_grid = int(lo) if lo == int(lo) else int(lo) - (1 if lo < 0 else 0)
+    hi_grid = int(hi) if hi == int(hi) else int(hi) + 1
+    gridlines = [{"value": v, "y": round(_y(v), 1)} for v in range(lo_grid, hi_grid + 1)]
+
+    # Year ticks every 5 years, same cadence as the mockup, generalized to
+    # whatever span the data actually covers rather than a hardcoded
+    # 2000-2025 — only ticks that fall inside the real date range are kept.
+    y0 = (dates[0].year // 5) * 5
+    year_ticks = [
+        {"year": yr, "x": round(_x(datetime.date(yr, 1, 1)), 1)}
+        for yr in range(y0, dates[-1].year + 1, 5)
+        if dates[0] <= datetime.date(yr, 1, 1) <= dates[-1]
+    ]
+
     return {
         "width": width, "height": height, "points": points,
         "min_rate": lo, "max_rate": hi,
         "start_date": dates[0], "end_date": dates[-1],
         "end_x": round(_x(dates[-1]), 1), "end_y": round(_y(rates[-1]), 1),
+        "gridlines": gridlines, "year_ticks": year_ticks, "xaxis_y": height - 8, "pad": pad,
     }
 
 
@@ -5715,12 +6055,18 @@ def boc_rates():
             FROM market_watch.boc_rate_decisions
             ORDER BY decision_date DESC LIMIT 1
         """)).mappings().first()
+        # No LIMIT — same "full series, no cap" convention the `history`
+        # query below already uses on this table. A LIMIT 60 here used to
+        # cap the gated table to the last ~5 years (most months in a long
+        # hold stretch carry change_bps=0 and so qualify), which quietly
+        # contradicted the page's own "full series back to 2000" framing.
+        # The table is monthly-granularity and bounded (~300 rows since
+        # 2000), so this is not an unbounded/slow query.
         decisions = c.execute(text("""
             SELECT decision_date, rate_pct, change_bps
             FROM market_watch.boc_rate_decisions
             WHERE ABS(change_bps) >= 10 OR change_bps = 0 OR change_bps IS NULL
             ORDER BY decision_date DESC
-            LIMIT 60
         """)).mappings().all()
         # Full ascending series (no filter, no limit) for the public
         # historical-path chart + era stats + the peak/streak tiles below.
@@ -5861,6 +6207,44 @@ def mps_listing():
             FROM parliament.senators WHERE is_current = true
             ORDER BY COALESCE(caucus, 'Non-affiliated'), name
         """)).mappings().all()
+        # "Same bill, both chambers" (#batch11): a bill with a recorded
+        # division in BOTH parliament.bills (House) and parliament.senate_votes
+        # (Senate) — both tables already exist and are ingested independently
+        # of this route, so this is one more query over already-available
+        # data, not a new source. Joined on (bill_number, session) together —
+        # bill numbers restart every Parliament (measured: parliament.bills
+        # spans sessions 39-1..45-1, parliament.senate_votes only has 45-1),
+        # so matching bill_number alone would pair a 2015-era House bill with
+        # a 2026 Senate vote. DISTINCT ON picks each chamber's MOST RECENT
+        # division per bill first (a bill can have several readings/
+        # amendments per chamber), then the two latest rows are joined.
+        same_bill_rows = c.execute(text("""
+            WITH house_latest AS (
+                SELECT DISTINCT ON (bill_number, session)
+                       bill_number, session, description_en, vote_date, result,
+                       yea_total, nay_total
+                FROM parliament.bills
+                WHERE bill_number IS NOT NULL AND btrim(bill_number) <> ''
+                ORDER BY bill_number, session, vote_date DESC NULLS LAST
+            ),
+            senate_latest AS (
+                SELECT DISTINCT ON (bill_number, session)
+                       bill_number, session, title, vote_date, result,
+                       yea_total, nay_total
+                FROM parliament.senate_votes
+                WHERE bill_number IS NOT NULL AND btrim(bill_number) <> ''
+                ORDER BY bill_number, session, vote_date DESC NULLS LAST
+            )
+            SELECT h.bill_number, h.session,
+                   h.description_en AS house_desc, h.vote_date AS house_date,
+                   h.result AS house_result, h.yea_total AS house_yea, h.nay_total AS house_nay,
+                   s.title AS senate_desc, s.vote_date AS senate_date,
+                   s.result AS senate_result, s.yea_total AS senate_yea, s.nay_total AS senate_nay
+            FROM house_latest h
+            JOIN senate_latest s ON s.bill_number = h.bill_number AND s.session = h.session
+            ORDER BY GREATEST(h.vote_date, s.vote_date) DESC NULLS LAST
+            LIMIT 8
+        """)).mappings().all()
 
     # Retirement-wave chart (#batch11): senators face MANDATORY retirement
     # the calendar year they turn 75 (year-only — same simplification the
@@ -5936,6 +6320,20 @@ def mps_listing():
         reverse=True,
     )
 
+    # Vote share per chamber for the "same bill" panel — yea/(yea+nay), same
+    # semantics the mockup's own note describes ("the bar is the yea share of
+    # that vote, not support in the country"). Paired/abstention/absent
+    # ballots are deliberately excluded from the denominator: they are not a
+    # "no", and folding them in would understate a lopsided division.
+    same_bill_votes = []
+    for _b in same_bill_rows:
+        _b = dict(_b)
+        _h_total = (_b.get("house_yea") or 0) + (_b.get("house_nay") or 0)
+        _s_total = (_b.get("senate_yea") or 0) + (_b.get("senate_nay") or 0)
+        _b["house_yea_pct"] = round(_b["house_yea"] / _h_total * 100, 1) if _h_total else None
+        _b["senate_yea_pct"] = round(_b["senate_yea"] / _s_total * 100, 1) if _s_total else None
+        same_bill_votes.append(_b)
+
     return render_template("mps.html", mps=mps, parties=list(parties),
                            provinces=list(provinces), party_filter=party_filter,
                            province_filter=province_filter, source_count=source_count,
@@ -5943,7 +6341,8 @@ def mps_listing():
                            retirement_wave=retirement_wave,
                            max_retirement_count=max_retirement_count,
                            senators_missing_dob=senators_missing_dob,
-                           province_seats=province_seats)
+                           province_seats=province_seats,
+                           same_bill_votes=same_bill_votes)
 
 
 @bp.get("/senator/<slug>")

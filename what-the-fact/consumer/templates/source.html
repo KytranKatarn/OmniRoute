@@ -31,6 +31,12 @@
 } %}
 {% set band = src.rolling_band or src.bias_lean or 'unscored' %}
 {% set colour = BAND_COLOURS.get(band, '#6b7280') %}
+{# batch 11 — src.language is already fetched by the route (used nowhere in
+   this template until now) but never rendered; the mockup's header
+   subtitle names the outlet's language alongside its region/beat. Only
+   'en'/'fr' exist in wtf.sources.language today (measured live), so this
+   stays a 2-key map rather than importing a general i18n label list. #}
+{% set LANG_NAMES = {'en': 'English', 'fr': 'Français'} %}
 
 <style>
 /* Extracted all ~45 inline style="..." attributes on this page into namespaced
@@ -143,6 +149,11 @@
   font-variant-numeric:tabular-nums; }
 
 .wtf-src-show-all { margin-top:10px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+
+/* batch 11 round 2 — the three explainer/disclaimer footnotes the mockup
+   pairs with the distribution, coverage and peer panels (same reused hex
+   #6b7280 as .wtf-src-dist-count/.wtf-src-cov-label above, no new literal). */
+.wtf-src-foot-note { font-size:0.65rem; line-height:1.6; color:#6b7280; margin-top:12px; }
 </style>
 
 <div class="wtf-src-wrap">
@@ -155,6 +166,7 @@
     <h1 class="wtf-src-title">{{ src.name }}</h1>
     <div class="wtf-src-meta-row">
       <span class="wtf-src-chip" style="background:{{ colour }}22;color:{{ colour }};border:1px solid {{ colour }}66;">{{ band.replace('-', ' ') }}</span>
+      {% if src.language %}<span class="wtf-src-owner-type">{{ LANG_NAMES.get(src.language, src.language | upper) }}</span>{% endif %}
       {% if src.owner_type %}<span class="wtf-src-owner-type">{{ src.owner_type | capitalize }}</span>{% endif %}
       {% if src.owner_name %}<span class="wtf-src-owner-name">{{ src.owner_name }}</span>{% endif %}
       {% if src.url %}<a href="{{ src.url }}" target="_blank" rel="nofollow noopener" class="wtf-src-url">{{ src.url.replace('https://','').replace('http://','').rstrip('/') }} ↗</a>{% endif %}
@@ -225,7 +237,12 @@
        articles. Omitted entirely (not shown as "—") when neither is known,
        same absent-is-absent stance as ADR-020 (no province filter over a
        mostly-empty column) rather than asserting a measurement we lack. -->
-  {% if coverage.main_beat or coverage.main_region %}
+  {# Widened from "main_beat or main_region" (batch 11 round 1) to also fire
+     on total_articles so the two rate items below — always computable from
+     data already in context, no new query — aren't hidden behind an unknown
+     beat/region. Individual beat/region items keep their own absent-is-absent
+     guard (ADR-020 stance, unchanged) — only the panel-level gate widened. #}
+  {% if coverage.main_beat or coverage.main_region or src.total_articles %}
   <div class="wtf-src-panel">
     <div class="wtf-src-panel-title">Coverage Profile</div>
     <div class="wtf-src-cov-row">
@@ -235,7 +252,10 @@
       {% if coverage.main_region %}
       <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Main Region</span>{{ coverage.main_region }}</span>
       {% endif %}
+      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Fact-Check Rate</span>{{ (((fact_checked_count / src.total_articles * 100) | round | int) ~ '%') if src.total_articles else '—' }}</span>
+      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Filed First</span>{{ (((filed_first_count / src.total_articles * 100) | round | int) ~ '%') if src.total_articles else '—' }}</span>
     </div>
+    <div class="wtf-src-foot-note">&ldquo;Filed first&rdquo; counts stories where this outlet led the cluster — the closest proxy the corpus has for original reporting rather than pickup.</div>
   </div>
   {% endif %}
 
@@ -256,6 +276,17 @@
       <div class="wtf-src-dist-count">{{ bc.n }}</div>
     </div>
     {% endfor %}
+    {# batch 11 round 2 — "an average is not a label" disclaimer, mirroring
+       the mockup's footnote under the same distribution breakdown. Band
+       count via a namespace loop (same pattern as total_scored above) rather
+       than a Jinja rejectattr filter, to stay consistent with this template's
+       existing style; excludes 'unscored' since that isn't one of the 5
+       real bands the sentence is counting. corpus_avg_score is a single
+       platform-wide figure the route computes once (~46 rows), not per
+       outlet. #}
+    {% set band_diversity = namespace(n=0) %}
+    {% for bc in band_counts %}{% if bc.band != 'unscored' %}{% set band_diversity.n = band_diversity.n + 1 %}{% endif %}{% endfor %}
+    <div class="wtf-src-foot-note">An average is not a label. Each article is scored on its own wording, and this outlet has articles in {{ band_diversity.n }} of the 5 bands.{% if corpus_avg_score is not none %} The corpus average is {{ "%+.2f"|format(corpus_avg_score | float) }}.{% endif %}</div>
   </div>
   {% endif %}
 
@@ -310,6 +341,7 @@
       <span class="wtf-src-peer-score">{{ "%+.2f"|format(p.avg_score | float) }}</span>
     </a>
     {% endfor %}
+    <div class="wtf-src-foot-note">Proximity of average score only. It says nothing about ownership, quality or agreement on any single story.</div>
   </div>
   {% endif %}
 

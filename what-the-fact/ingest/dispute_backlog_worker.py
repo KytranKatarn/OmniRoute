@@ -132,9 +132,18 @@ def _persist(engine, schema: str, cluster_id: int, result: dict) -> None:
     if not isinstance(disputed_point, str) or not disputed_point.strip():
         disputed_point = None
     is_opinion = bool(result.get("is_opinion"))
+    # Both verdict and is_opinion are properties OF a disputed point — neither
+    # means anything without one. Measured live (2026-09-06, first real batch):
+    # the model returned is_opinion=true with NO disputed_point on a routine
+    # health advisory and a weather forecast (neither a real dispute at all),
+    # and separately returned a non-null verdict with no disputed_point on
+    # another cluster — both are nonsensical combinations this must not persist.
+    if disputed_point is None:
+        verdict = None
+        is_opinion = False
     # is_opinion clusters are never scored — no document settles a forecast,
     # matching the mockup's OPINION lookup (verdict always null there).
-    if is_opinion:
+    elif is_opinion:
         verdict = None
     confidence = result.get("confidence")
     try:

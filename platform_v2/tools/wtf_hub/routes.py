@@ -59,6 +59,7 @@ _AGENT_IDS: dict[str, int | None] = {
     "deep_analysis": None,
     "classify_beat": None,
     "factcheck_relevance": None,
+    "dispute": None,
 }
 
 
@@ -100,6 +101,16 @@ def _resolve_agents() -> None:
         # #2137 relevance gate — existence guard + label only; capability routing
         # (beat_classification) picks the real small-model News agent.
         _AGENT_IDS["factcheck_relevance"] = _get_agent_id("P.U.B.L.I.S.H.")
+    if not _AGENT_IDS["dispute"]:
+        # #6524 /divergence dispute tracker — same agent as factcheck/deep_analysis.
+        # ⚠️ Adding a task to `agent_names`/`capabilities` below is NOT enough on its
+        # own: `agent_id = _AGENT_IDS.get(task)` at the dispatch call site returns
+        # None for any task missing BOTH a dict key here AND a resolution line —
+        # and `if not agent_id: return 503` makes that indistinguishable from a
+        # genuine hub outage from the caller's side (confirmed live: PR #3226
+        # shipped without this line, every /divergence dispute dispatch 503'd
+        # instantly while unrelated tasks kept working normally).
+        _AGENT_IDS["dispute"] = _get_agent_id("V.E.R.I.F.Y.")
 
 
 def _auth_ok(req) -> bool:

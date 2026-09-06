@@ -30,6 +30,34 @@
       we run on our own feed.</p>
   </header>
 
+  {# Design-handoff gap (wtf-score.html "What comes back" / "What this will not
+     do" panels): shown to every visitor, subscribed or not, same as the
+     mockup — it explains the feature before the paywall/form below.
+     ⚠️ The mockup's four-card version also names I.N.K. ("the cluster: every
+     other outlet that carried this story"). Dropped deliberately: the live
+     /api/v1/score pipeline (what-the-fact/tech/routes.py `score()`) only ever
+     dispatches bias/factcheck/geo and returns `analyzed_by: "BIAS_LLM +
+     VERIFY_LLM + LOCAL_LLM"` — there is no clustering step for a pasted,
+     un-ingested article, so claiming I.N.K. runs here would describe a
+     capability this tool does not have. #}
+  <div class="wtf-score-block" style="margin-top:0">
+    <h2>What comes back</h2>
+    <p><strong>B.I.A.S.</strong> &mdash; a lean band for this piece, scored against how the
+      rest of the coverage framed the same story, never a standing label on an outlet.</p>
+    <p><strong>V.E.R.I.F.Y.</strong> &mdash; checkable claims pulled from the text, with a
+      verdict only where the evidence supports one. No verdict is not a pass.</p>
+    <p><strong>L.O.C.A.L.</strong> &mdash; where the story is about, which is often not
+      where it was filed from.</p>
+  </div>
+
+  <div class="wtf-score-block">
+    <h2>What this will not do</h2>
+    <p>It will not tell you whether an article is true. It reports where the framing sits
+      relative to the rest of the coverage, and which claims can be checked against a
+      document. An article can be scored Centre and still be wrong, and a Left or Right
+      band is a description of language, not an accusation.</p>
+  </div>
+
   {% if not subscribed %}
     {{ paywall("Score an article is a Starter feature",
                "Scoring runs the full B.I.A.S. and V.E.R.I.F.Y. pipeline on text you supply, so it is metered with a subscription.",
@@ -144,6 +172,21 @@
     </form>
 
   {% endif %}
+
+  {# Design-handoff gap: mockup's closing "Or start from what we have already
+     scored" panel. Plain links to existing, already-live routes (verified in
+     routes.py: /news, /archive, /methodology) styled with the same
+     `wtf-a-chip` link convention already used for this elsewhere (archive.html
+     "Clear", search.html suggestion chips, clusters.html/candidates.html/
+     ridings.html "Clear") — no new CSS. #}
+  <div class="wtf-score-block">
+    <h2>Or start from what we have already scored</h2>
+    <p>
+      <a class="wtf-a-chip" href="/news">Latest feed &rarr;</a>
+      <a class="wtf-a-chip" href="/archive">Full archive &rarr;</a>
+      <a class="wtf-a-chip" href="/methodology">How scoring works &rarr;</a>
+    </p>
+  </div>
 
 </div>
 {% endblock %}

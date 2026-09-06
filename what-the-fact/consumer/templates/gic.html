@@ -23,8 +23,9 @@
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Governor in Council appointments</h1>
-  <p class="wtf-a-tile-d" style="margin:0;">
-    Orders-in-Council · Privy Council Office
+  <p class="wtf-a-tile-d" style="margin:0;max-width:76ch;">
+    Orders-in-Council · Privy Council Office — judges, Crown corporation executives, regulatory board members
+    and federal tribunal appointees, made by Cabinet rather than by competition and published as a numbered order.
   </p>
 </div>
 
@@ -55,16 +56,22 @@
   {% set chips = [] %}
   {% if a.department %}{% if chips.append(a.department) %}{% endif %}{% endif %}
 
+  {% set cov_link = ('Coverage of ' ~ a.appointee_name ~ ' →', '/search?q=' ~ (a.appointee_name | urlencode), False) if a.appointee_name else None %}
   {% call record_card(title=(a.appointee_name or a.subject),
                       meta=meta|trim or None, chips=chips or None, stack=True) %}
     {% if a.appointee_name %}<p class="wtf-a-rbody" style="margin-top:6px;">{{ a.subject }}</p>{% endif %}
     {% if a.organization %}<p class="wtf-a-rbody" style="margin-top:2px;">&rarr; {{ a.organization }}</p>{% endif %}
     {% if a.oic_url %}
-      {{ record_links([(a.pc_number, a.oic_url, True)]) }}
+      {{ record_links([(a.pc_number, a.oic_url, True)] + ([cov_link] if cov_link else [])) }}
     {% else %}
-      <div class="wtf-a-rlinks"><span class="wtf-a-rlink">{{ a.pc_number }}</span></div>
+      <div class="wtf-a-rlinks">
+        <span class="wtf-a-rlink">{{ a.pc_number }}</span>
+        {% if cov_link %}<a class="wtf-a-rlink" href="{{ cov_link[1] }}">{{ cov_link[0] }}</a>{% endif %}
+      </div>
     {% endif %}
   {% endcall %}
+{% else %}
+<p class="wtf-a-nodata" style="padding:20px 0;">No appointment matches this filter in the current window.</p>
 {% endfor %}
 
 {% else %}

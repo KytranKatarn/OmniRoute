@@ -19,6 +19,7 @@
    deliberate content addition matching the sitewide convention already
    adopted on rates.html/crtc.html this session — not a silent change). */
 .wtf-lob-header { padding:20px 0 16px; border-bottom:1px solid #0a1a2a; margin-bottom:20px; }
+.wtf-lob-eyebrow { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#6b7280; margin-bottom:6px; }
 .wtf-lob-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-lob-sub { font-size:12px; color:#6b7280; line-height:1.6; }
 .wtf-lob-stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 20px; }
@@ -46,12 +47,14 @@
 <div class="wtf-lob-header">
   {% if detail %}
   <a class="wtf-lob-back" href="/lobbying">← All lobbying</a>
+  <div class="wtf-lob-eyebrow">Office of the Commissioner of Lobbying</div>
   <h1 class="wtf-lob-title">🏢 {{ detail.org_label }}</h1>
   <div class="wtf-lob-sub">
     {{ '{:,}'.format(detail.contacts) }} registered communications with {{ detail.mps }} MP{{ '' if detail.mps == 1 else 's' }}
     {% if detail.first_seen %}· {{ detail.first_seen }} → {{ detail.last_seen }}{% endif %}
   </div>
   {% else %}
+  <div class="wtf-lob-eyebrow">Office of the Commissioner of Lobbying</div>
   <h1 class="wtf-lob-title">🏢 Lobbying Tracker</h1>
   <div class="wtf-lob-sub">
     Every communication the federal Lobbying Registry records between a registered
@@ -162,6 +165,9 @@
            aria-label="Search organizations"
            style="width:100%;max-width:320px;padding:7px 10px;background:#060d14;border:1px solid #0a1a2a;border-radius:4px;color:#e5e7eb;font-size:12px;">
   </form>
+  <div class="wtf-lob-note" style="margin-top:0;">
+    {{ top_orgs|length }} of {{ '{:,}'.format(stats.orgs or 0) }} organizations shown{% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}
+  </div>
   <div class="wtf-lob-scroll">
   <table class="wtf-lob-table">
     <thead><tr><th>Organization</th><th class="wtf-lob-num-h">Communications</th><th class="wtf-lob-num-h">MPs</th><th>Most recent</th></tr></thead>
@@ -229,10 +235,15 @@
 </div>
 {% endif %}
 
+<div class="wtf-lob-section">
+  <div class="wtf-lob-section-title">What the registry does and does not say</div>
+  <p class="wtf-lob-sub" style="margin:0 0 8px;max-width:74ch;">Registration is a legal requirement, so an organization that files diligently appears more often than one that does not. A high count means visible compliance, not wrongdoing, and absence from this list is not evidence of restraint.</p>
+  <p class="wtf-lob-sub" style="margin:0;max-width:74ch;"><strong>The registry records that a communication took place; it does not publish what was discussed.</strong> Anything beyond that — motive, outcome, influence — is inference, not record.</p>
+</div>
+
 <div class="wtf-lob-note">
   Source: Office of the Commissioner of Lobbying of Canada — Monthly Communication Reports ·
   <a href="https://lobbycanada.gc.ca/en/open-data/" target="_blank" rel="noopener" class="wtf-lob-source-link">lobbycanada.gc.ca</a>
   {% if stats.synced_at %} · registry last pulled {{ stats.synced_at.strftime('%Y-%m-%d') }}{% endif %}
-  <br>The registry records that a communication took place; it does not publish what was discussed.
 </div>
 {% endblock %}

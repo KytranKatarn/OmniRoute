@@ -6249,6 +6249,28 @@ def mp_profile(slug: str):
     except Exception:
         pass  # ec_contributions might not be populated yet
 
+    # Caucus prev/next navigation (design-parity gap, mockup wtf-mp.js).
+    # Same table/filter idiom as the /mps listing route above
+    # (is_current=true AND party=:party, ORDER BY name) — 337 current MPs
+    # total, so a per-party slice is a handful of rows; no new index needed.
+    peer_mps = []
+    prev_mp = None
+    next_mp = None
+    if mp.get("party"):
+        with _db().begin() as c:
+            peer_mps = [dict(r) for r in c.execute(text("""
+                SELECT slug, name FROM parliament.mps
+                WHERE is_current = true AND party = :party
+                ORDER BY name
+            """), {"party": mp["party"]}).mappings().all()]
+        if len(peer_mps) > 1:
+            _peer_idx = next(
+                (i for i, p in enumerate(peer_mps) if p["slug"] == mp["slug"]), None
+            )
+            if _peer_idx is not None:
+                prev_mp = peer_mps[_peer_idx - 1] if _peer_idx > 0 else peer_mps[-1]
+                next_mp = peer_mps[_peer_idx + 1] if _peer_idx < len(peer_mps) - 1 else peer_mps[0]
+
     return render_template("mp.html", mp=mp,
                            votes=[dict(r) for r in votes],
                            articles=[dict(r) for r in articles],
@@ -6261,6 +6283,7 @@ def mp_profile(slug: str):
                            disclosures=[dict(r) for r in disclosures],
                            promises=[dict(r) for r in promises],
                            committees=[dict(r) for r in committees],
+                           peer_mps=peer_mps, prev_mp=prev_mp, next_mp=next_mp,
                            is_subscriber=is_subscriber())
 
 

@@ -69,15 +69,64 @@
       'detail': 'owner' ~ ('' if single_outlet_count == 1 else 's') ~ ' with exactly one tracked outlet'},
 ]) }}
 
+{# ── owner-list controls (2026-09-06 reconciliation vs design mockup) ───────
+   Mockup parity fix #1: the type chips below rendered but never actually
+   filtered anything — every /owners?type=X link produced the identical full
+   list. Mockup parity fix #2: a sort control (mockup's <select id="sort">)
+   with no equivalent on this page at all.
+
+   _span (distinct bias-band count per owner) is precomputed once here —
+   mutating each owner dict in place via .update(), the same append-and-
+   discard idiom already used for `tiles` above — so "Widest range" sorting
+   can key off it without a second query. All of this reads data the route
+   already fetches; no new SQL. #}
+{% for o in owners %}
+  {% set _bands_o = o.outlets | selectattr('bias_lean') | map(attribute='bias_lean') | unique | list %}
+  {% if o.update({'_span': _bands_o|length}) %}{% endif %}
+{% endfor %}
+
+{% set active_type = request.args.get('type', '') %}
+{% set active_sort = request.args.get('sort', 'outlets') %}
+{% set sort_qs = ('sort=' ~ active_sort) if active_sort != 'outlets' else '' %}
+
 <div class="wtf-a-layers" style="margin:18px 0 16px;">
-  {{ segment('All', '/owners', active=True) }}
+  {{ segment('All', '/owners' ~ ('?' ~ sort_qs if sort_qs else ''), active=(active_type == '')) }}
   {% for key in ['corporate', 'public', 'non_profit', 'independent'] %}
-    {{ segment(TYPE_LABEL[key], '/owners?type=' ~ key) }}
+    {{ segment(TYPE_LABEL[key], '/owners?type=' ~ key ~ ('&' ~ sort_qs if sort_qs else ''), active=(active_type == key)) }}
   {% endfor %}
 </div>
 
+{# Sort control — mirrors the mockup's <select id="sort">. Only the options
+   computable from data this route already fetches are offered here; the
+   mockup's "Most articles" needs a per-owner article count this query does
+   not select (flagged in needs_followup rather than guessed at). #}
+<div style="display:flex;justify-content:flex-end;margin:-6px 0 14px;">
+  <label class="wtf-a-tile-l" for="wtf-own-sort" style="align-self:center;margin-right:8px;">Sort</label>
+  <select id="wtf-own-sort" name="sort" aria-label="Sort owners"
+          style="background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:4px;color:var(--wtf-text);font-family:var(--wtf-font-mono);font-size:11px;padding:8px 10px;"
+          onchange="var u=new URL(location.href);if(this.value==='outlets'){u.searchParams.delete('sort');}else{u.searchParams.set('sort',this.value);}location.href=u.toString();">
+    <option value="outlets"{% if active_sort == 'outlets' %} selected{% endif %}>Most outlets</option>
+    <option value="span"{% if active_sort == 'span' %} selected{% endif %}>Widest range</option>
+    <option value="lean"{% if active_sort == 'lean' %} selected{% endif %}>Lean, left to right</option>
+  </select>
+</div>
+
+{% set display_owners = owners if not active_type else (owners | selectattr('owner_type', 'equalto', active_type) | list) %}
+{% if active_sort == 'span' %}
+  {% set display_owners = display_owners | sort(attribute='_span', reverse=true) %}
+{% elif active_sort == 'lean' %}
+  {# None-safe: avg_bias can be exactly 0.0 (dead centre of the scale), which
+     is falsy in Python, so a plain truthiness selectattr would wrongly file
+     a centre owner as "unscored". Test the type explicitly instead. #}
+  {% set _scored_o = display_owners | rejectattr('avg_bias', 'none') | list | sort(attribute='avg_bias') %}
+  {% set _unscored_o = display_owners | selectattr('avg_bias', 'none') | list %}
+  {% set display_owners = _scored_o + _unscored_o %}
+{% else %}
+  {% set display_owners = display_owners | sort(attribute='outlet_count', reverse=true) %}
+{% endif %}
+
 {% if is_subscriber %}
-  {% for o in owners %}
+  {% for o in display_owners %}
     {% set chips = [] %}
     {% if chips.append(TYPE_LABEL.get(o.owner_type or '', 'Unknown')) %}{% endif %}
 
@@ -104,6 +153,17 @@
           <span class="wtf-a-tile-d">— spans {{ bands|length }} bands, listed below</span>
           {%- endif %}
         </div>
+        {% if bands|length > 1 %}
+        {# Mockup parity: the "averaging fallacy" note (wtf-owners.html .foot-note
+           inside .panel) — a portfolio at opposite poles averages to the centre
+           because the ends cancel, not because the coverage is centrist. Plain
+           text only, no bespoke colour scale (that graphical range bar was a
+           deliberate omission — see the file-level comment at the top of this
+           template on why raw colour-only signals were replaced here). #}
+        <div style="margin-top:10px;padding:9px 12px;background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid var(--wtf-developing);border-radius:6px;font-size:12px;line-height:1.6;color:var(--wtf-text-2);">
+          These outlets cross {{ bands|length }} bias bands. The average above is a midpoint of that range, not a description of any single outlet in it — see each outlet's own lean below.
+        </div>
+        {% endif %}
       {% endif %}
 
       {# Outlets, grouped by lean so the colour is never the only signal. #}

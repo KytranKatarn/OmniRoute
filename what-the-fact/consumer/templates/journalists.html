@@ -10,12 +10,37 @@
 {# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY): search + filter row, then a card grid.
    Was a bespoke .wtf-jr-* block with 11 hardcoded hexes, an 'Orbitron' heading
    (a font the site never loaded, so it rendered as generic sans) and an emoji
-   title. Data contract unchanged: journalists[], total, q. #}
+   title. Data contract unchanged: journalists[], total, q.
+
+   Batch 10 reconciliation vs the Claude Design mockup — two gaps, both
+   text-only and both using data already in this context:
+   1. The mockup's lede carries a methodology sentence this page had dropped
+      — "nothing here scores a journalist, the lean is the story's" — the
+      same honesty note sources.html/owners.html give their own lean-bearing
+      cards. Restored below.
+   2. The summary line is now query-aware (mirrors sources.html's q vs no-q
+      phrasing, and the mockup's live "N of total shown" count) — a search
+      now reports how many of the total actually matched instead of always
+      repeating the unfiltered total.
+   Deliberately NOT added (bigger builds — see sources.html's own comment for
+   the same call on a sibling page): the mockup's Cards/Table view toggle,
+   the medium filter + Flat/By-medium/By-outlet grouping (client-side demo
+   state over the full corpus; this page paginates server-side at 200 and
+   the schema has no "medium" concept for an outlet), and the inline
+   profile panel (a separate page already exists at /journalist/<id>). #}
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">Bylines in the index</div>
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Journalists</h1>
   <p class="wtf-a-tile-d" style="margin:0;">
-    {{ total }} writers tracked, captured from bylines as articles are ingested. Coverage grows over time.
+    {%- if q -%}
+      {{ journalists|length }} journalist{{ '' if journalists|length == 1 else 's' }} match &ldquo;{{ q }}&rdquo;
+    {%- else -%}
+      {{ total }} writers tracked, captured from bylines as articles are ingested. Coverage grows over time.
+    {%- endif -%}
+  </p>
+  <p class="wtf-a-tile-d" style="margin:6px 0 0;">
+    Nothing here scores a journalist — the lean shown is where their stories landed, a property of the stories, not the writer.
   </p>
 </div>
 

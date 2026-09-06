@@ -136,6 +136,17 @@
 
 .wtf-mp-hidden { display:none; }
 
+.wtf-mp-ytd-box { border:1px dashed #1a3a5a; border-radius:4px; padding:12px 14px; }
+.wtf-mp-ytd-num { font-family:var(--wtf-font-mono); font-size:22px; font-weight:700; color:#ef4444; }
+.wtf-mp-ytd-note { font-size:10px; color:#6b7280; margin-top:6px; }
+.wtf-mp-ytd-proj { font-size:10px; color:#f59e0b; margin-top:6px; }
+
+.wtf-mp-peernav { display:flex; flex-wrap:wrap; gap:9px; margin-top:22px; padding-top:16px; border-top:1px solid #1a3a5a; }
+.wtf-mp-peernav-side { flex:1; min-width:210px; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:12px 14px; text-decoration:none; display:block; }
+.wtf-mp-peernav-all { flex:1; min-width:180px; text-align:center; }
+.wtf-mp-peernav-label { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:#6b7280; }
+.wtf-mp-peernav-name { font-size:13.5px; color:#e5e7eb; margin-top:4px; }
+
 .wtf-mp-paywall { background:#0a0505; border:1px solid #1f2937; border-radius:8px; padding:24px; text-align:center; margin:20px 0; }
 .wtf-mp-paywall-title { font-family:var(--wtf-font-mono); font-size:13px; color:#e5e7eb; margin-bottom:8px; }
 .wtf-mp-paywall-blurb { font-size:12px; color:#9ca3af; margin-bottom:16px; }
@@ -147,10 +158,11 @@
 <div class="wtf-mp-header">
   {% if mp.photo_url %}
   <img class="wtf-mp-hero-photo" src="{{ mp.photo_url }}" alt="{{ mp.name }}"
+       style="border-color:{{ mp.party_colour }};"
        onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-  <div class="wtf-mp-hero-placeholder wtf-mp-hidden">👤</div>
+  <div class="wtf-mp-hero-placeholder wtf-mp-hidden" style="border-color:{{ mp.party_colour }};">👤</div>
   {% else %}
-  <div class="wtf-mp-hero-placeholder">👤</div>
+  <div class="wtf-mp-hero-placeholder" style="border-color:{{ mp.party_colour }};">👤</div>
   {% endif %}
 
   <div class="wtf-mp-hero-info">
@@ -174,7 +186,9 @@
       <span class="wtf-mp-cabinet-badge" style="background:transparent;color:#6b7280;border:1px solid #374151;">Backbench</span>
       {% endif %}
     </div>
-    <div class="wtf-mp-hero-riding">{{ mp.riding_name or '' }}</div>
+    <div class="wtf-mp-hero-riding">
+      {% if mp.riding_name %}{{ mp.riding_name }}{% else %}<a href="/ridings" class="wtf-mp-hero-link">Riding not in this dataset — browse all ridings →</a>{% endif %}
+    </div>
     <div class="wtf-mp-hero-links">
       {% if mp.openparl_url %}
       <a class="wtf-mp-hero-link" href="{{ mp.openparl_url }}" target="_blank" rel="noopener">OpenParliament ↗</a>
@@ -255,7 +269,7 @@
     {% for cm in committees %}
     <a href="https://www.ourcommons.ca/Committees/en/{{ cm.committee_abbr }}" target="_blank" rel="noopener"
        class="wtf-mp-chip-link">
-      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span class="wtf-mp-chip-role">{{ cm.role|capitalize }}</span>{% endif %}
+      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span class="wtf-mp-chip-role">{{ cm.role|replace('-', ' ')|capitalize }}</span>{% endif %}
       <span class="wtf-mp-chip-arrow">↗</span>
     </a>
     {% endfor %}
@@ -427,6 +441,29 @@
 {% endif %}
 
 {% if expense_periods %}
+{% set _cur_yr = expense_periods[0].period[:4] %}
+{% set ns = namespace(ytd=0, qcount=0) %}
+{% for ep in expense_periods %}
+{% if ep.period[:4] == _cur_yr %}
+{% set ns.ytd = ns.ytd + (ep.total_cad or 0) %}
+{% set ns.qcount = ns.qcount + 1 %}
+{% endif %}
+{% endfor %}
+{% if ns.qcount %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">🗓 {{ _cur_yr }} so far — {{ ns.qcount }} quarter{{ 's' if ns.qcount != 1 else '' }} disclosed</div>
+  <div class="wtf-mp-ytd-box">
+    <div class="wtf-mp-ytd-num">${{ '{:,.0f}'.format(ns.ytd) }}</div>
+    <div class="wtf-mp-ytd-note">year-to-date · office expenses · shown for completeness, not included in the totals above</div>
+    {% if ns.qcount >= 2 %}
+    <div class="wtf-mp-ytd-proj">↗ projected full year ≈ ${{ '{:,.0f}'.format(ns.ytd / ns.qcount * 4) }} (annualized from {{ ns.qcount }} quarters — estimate, actuals will differ)</div>
+    {% else %}
+    <div class="wtf-mp-ytd-proj">A full-year projection appears once ≥2 quarters are disclosed — a single quarter is too noisy to project honestly.</div>
+    {% endif %}
+  </div>
+  <div class="wtf-mp-source">Source: House of Commons Members' Expenditures, current fiscal year.</div>
+</div>
+{% endif %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">💳 Quarterly expenses — public money spent</div>
   <div class="wtf-mp-table-wrap">
@@ -514,6 +551,35 @@
 {{ paywall('Full Profile — Starter+',
    'Voting record, media mentions, Elections Canada donor data, lobbying contacts, quarterly expenses, and ethics disclosures are available to subscribers.',
    request.path) }}
+{% endif %}
+
+{% if peer_mps and peer_mps|length > 1 and prev_mp and next_mp %}
+<div class="wtf-mp-peernav">
+  <a href="/mp/{{ prev_mp.slug }}" class="wtf-mp-peernav-side" data-mp-nav="prev">
+    <div class="wtf-mp-peernav-label">← Previous, {{ mp.party }}</div>
+    <div class="wtf-mp-peernav-name">{{ prev_mp.name }}</div>
+  </a>
+  <a href="/mps?party={{ mp.party | urlencode }}" class="wtf-mp-peernav-side wtf-mp-peernav-all">
+    All {{ peer_mps|length }} {{ mp.party }} members
+  </a>
+  <a href="/mp/{{ next_mp.slug }}" class="wtf-mp-peernav-side" data-mp-nav="next" style="text-align:right;">
+    <div class="wtf-mp-peernav-label">Next, {{ mp.party }} →</div>
+    <div class="wtf-mp-peernav-name">{{ next_mp.name }}</div>
+  </a>
+</div>
+<script>
+(function () {
+  var prevLink = document.querySelector('[data-mp-nav="prev"]');
+  var nextLink = document.querySelector('[data-mp-nav="next"]');
+  if (!prevLink || !nextLink) return;
+  document.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    if (e.key === 'j' || e.key === 'ArrowRight') { location.href = nextLink.href; }
+    if (e.key === 'k' || e.key === 'ArrowLeft') { location.href = prevLink.href; }
+  });
+})();
+</script>
 {% endif %}
 
 {% endblock %}

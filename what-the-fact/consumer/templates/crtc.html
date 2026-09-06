@@ -49,6 +49,9 @@
 .wtf-crtc-own-stat { width:60px; font-size:10px; color:#6b7280; text-align:right; flex-shrink:0; }
 .wtf-crtc-own-note { margin-top:10px; font-size:10px; color:#4b5563; }
 .wtf-crtc-own-link { color:#0af; margin-left:8px; }
+.wtf-crtc-own-legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:9px; }
+.wtf-crtc-own-legend-item { display:inline-flex; align-items:center; gap:6px; font-size:10px; color:#6b7280; }
+.wtf-crtc-own-legend-item i { width:9px; height:9px; display:inline-block; border-radius:2px; }
 
 .wtf-crtc-about { margin-top:24px; padding:12px 14px; background:#060d14; border:1px solid #1a3a5a; border-radius:6px; font-size:12px; color:#6b7280; line-height:1.8; }
 .wtf-crtc-about-h { color:#9ca3af; }
@@ -59,7 +62,7 @@
 <div class="wtf-crtc-header">
   <h1 class="wtf-crtc-title">📡 CRTC Decisions</h1>
   <div class="wtf-crtc-sub">
-    {{ decisions|length }} rulings · 2024–2026 · Canadian Radio-television and Telecommunications Commission
+    {{ total_rulings }} rulings · 2024–2026 · Canadian Radio-television and Telecommunications Commission
   </div>
 </div>
 
@@ -78,6 +81,7 @@
   {% set max_count = owners_summary[0].outlet_count if owners_summary else 1 %}
   {% set TYPE_COLOURS = {'corporate':'#ef4444','public':'#3b82f6','non_profit':'#22c55e','independent':'#a78bfa'} %}
   {% set TYPE_ICONS = {'corporate':'🏢','public':'🏛','non_profit':'🤝','independent':'👤'} %}
+  {% set TYPE_LABELS = {'corporate':'Corporate','public':'Public','non_profit':'Non-profit','independent':'Independent'} %}
   <div class="wtf-crtc-own-bars">
   {% for o in owners_summary %}
   {% set tc = TYPE_COLOURS.get(o.owner_type or '', '#6b7280') %}
@@ -95,6 +99,11 @@
       {% if o.avg_bias is not none and o.bias_band %}· {{ '%+.2f'|format(o.avg_bias|float) }} {{ lean_pill(o.bias_band) }}{% endif %}
     </div>
   </div>
+  {% endfor %}
+  </div>
+  <div class="wtf-crtc-own-legend">
+  {% for tk, tl in TYPE_LABELS.items() %}
+    <span class="wtf-crtc-own-legend-item"><i style="background:{{ TYPE_COLOURS[tk] }};"></i>{{ TYPE_ICONS[tk] }} {{ tl }}</span>
   {% endfor %}
   </div>
   <div class="wtf-crtc-own-note">

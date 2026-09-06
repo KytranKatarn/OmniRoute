@@ -43,14 +43,17 @@
       <a class="chain-example" href="/chain/mark-carney">
         <span class="chain-example-name">Mark Carney</span>
         <span class="chain-example-type">MP · Prime Minister</span>
+        <span class="chain-example-desc">An MP: donations in, lobbying in, votes out, contracts through the portfolio, coverage.</span>
       </a>
       <a class="chain-example" href="/chain/public-works-and-government-services-canada">
         <span class="chain-example-name">Public Works and Government Services Canada</span>
         <span class="chain-example-type">Federal department</span>
+        <span class="chain-example-desc">A purchasing department: the contract link runs densest through institutions like this one.</span>
       </a>
       <a class="chain-example" href="/chain/the-globe-and-mail">
         <span class="chain-example-name">The Globe and Mail</span>
         <span class="chain-example-type">Media outlet</span>
+        <span class="chain-example-desc">An outlet: coverage out, ownership in, and the audience-reach link we don't have yet.</span>
       </a>
     </div>
   </div>
@@ -85,6 +88,7 @@
   .chain-chip-status{font-size:0.5rem;letter-spacing:0.5px;text-transform:uppercase;}
   .chain-chip.on .chain-chip-status{color:var(--wtf-accent,#06b6d4);}
   .chain-chip.off .chain-chip-status{color:#6b7280;}
+  .chain-chip.sel{border-color:var(--wtf-accent,#06b6d4);background:rgba(6,182,212,0.08);}
   .chain-arrow{display:flex;align-items:center;color:#374151;font-size:0.9rem;}
 
   /* persistent explainer */
@@ -97,6 +101,7 @@
   .chain-example:hover{border-color:var(--wtf-accent,#06b6d4);}
   .chain-example-name{font-size:0.8rem;color:#e5e7eb;font-weight:600;}
   .chain-example-type{font-size:0.58rem;letter-spacing:0.5px;text-transform:uppercase;color:#6b7280;}
+  .chain-example-desc{font-size:0.66rem;color:#8b96a8;line-height:1.55;margin-top:3px;max-width:26ch;}
 
   /* search */
   .chain-searchbox{position:relative;max-width:560px;margin-bottom:8px;}
@@ -151,17 +156,33 @@
     }
 
     // --- 1. the 8-link rail ---
+    // Cached link-position names, reused below so an entity's block header can show
+    // "L2 · MP" instead of a bare "L2" — same data the rail itself renders from.
+    var chainLinkNames = [];
     fetch('/api/public/chain/links')
       .then(function(r){ return r.json(); })
       .then(function(d){
         var rail = document.getElementById('chainRail');
         rail.textContent = '';
         var names = (d.chain || '').split(' -> ');
+        chainLinkNames = names;
         var live = {};
         (d.links_with_data || []).forEach(function(p){ live[p] = true; });
+        // Per-position dataset description (e.g. "Donations — Elections Canada"),
+        // surfaced as a hover tooltip on each chip. Built from the same catalog
+        // rows the API already returns (d.links), not a new fetch.
+        var posLabel = {};
+        (d.links || []).forEach(function(l){
+          if(!l.link_position || !l.label) return;
+          posLabel[l.link_position] = posLabel[l.link_position]
+            ? posLabel[l.link_position] + ' · ' + l.label
+            : l.label;
+        });
         names.forEach(function(name, i){
           var pos = i + 1, on = !!live[pos];
           var chip = el('div', 'chain-chip ' + (on ? 'on' : 'off'));
+          chip.dataset.pos = pos;
+          if(posLabel[pos]) chip.title = posLabel[pos];
           chip.appendChild(el('span', 'chain-chip-num', 'L' + pos));
           chip.appendChild(el('span', 'chain-chip-name', name));
           chip.appendChild(el('span', 'chain-chip-status', on ? 'live' : 'no data yet'));
@@ -246,6 +267,14 @@
       head.appendChild(el('span', 'chain-ent-edges', (d.edge_count || 0) + ' connections'));
       wrap.appendChild(head);
 
+      // Highlight the rail positions this entity has live data for. toggle() (not
+      // add/classList string-building) so a previous entity's highlight never lingers.
+      var activePos = {};
+      (d.chain || []).forEach(function(b){ if(b.has_data && b.chain_position) activePos[b.chain_position] = true; });
+      document.querySelectorAll('.chain-chip').forEach(function(chip){
+        chip.classList.toggle('sel', !!activePos[+chip.dataset.pos]);
+      });
+
       if(!d.chain || !d.chain.length){
         wrap.appendChild(el('div', 'chain-loading', 'No chain links recorded for this entity yet.'));
         return;
@@ -253,7 +282,9 @@
       d.chain.forEach(function(b){
         var block = el('div', 'chain-block' + (b.has_data ? '' : ' gap'));
         var bh = el('div', 'chain-block-head');
-        bh.appendChild(el('span', 'chain-block-pos', b.chain_position ? ('L' + b.chain_position) : '·'));
+        var posTxt = b.chain_position ? ('L' + b.chain_position) : '·';
+        if(b.chain_position && chainLinkNames[b.chain_position - 1]) posTxt += ' · ' + chainLinkNames[b.chain_position - 1];
+        bh.appendChild(el('span', 'chain-block-pos', posTxt));
         var arrow = (b.direction === 'out') ? ' →' : ' ←';
         bh.appendChild(el('span', 'chain-block-label', (b.label || b.relationship_type) + arrow));
         var n = b.sample ? b.sample.length : 0;

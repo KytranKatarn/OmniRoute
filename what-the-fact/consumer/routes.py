@@ -1200,6 +1200,34 @@ def weather():
         """)).mappings().all()
         active_alerts = [dict(r) for r in active_alerts]
 
+        # Evacuation-order layer (#6624) — NAAD/Alert Ready + BC DataBC. Same
+        # "compute active at query time" discipline as active_alerts above.
+        active_evacuations_naad = c.execute(text("""
+            SELECT identifier, event, urgency, severity, headline,
+                   description, instruction, area_desc, matched_keyword,
+                   issuing_authority, sent_utc, effective_utc, expires_utc
+            FROM wtf.aurora_evacuations
+            WHERE status = 'Actual'
+              AND (expires_utc IS NULL OR expires_utc > now())
+            ORDER BY
+                CASE severity WHEN 'Extreme' THEN 0 WHEN 'Severe' THEN 1
+                              WHEN 'Moderate' THEN 2 WHEN 'Minor' THEN 3 ELSE 4 END,
+                sent_utc DESC
+            LIMIT 30
+        """)).mappings().all()
+        active_evacuations_naad = [dict(r) for r in active_evacuations_naad]
+
+        active_evacuations_bc = c.execute(text("""
+            SELECT event_number, event_name, event_type, order_alert_name,
+                   order_alert_status, issuing_agency, population, homes,
+                   date_modified, event_start_date
+            FROM wtf.aurora_bc_evacuations
+            WHERE order_alert_status IN ('Order', 'Alert')
+            ORDER BY date_modified DESC
+            LIMIT 50
+        """)).mappings().all()
+        active_evacuations_bc = [dict(r) for r in active_evacuations_bc]
+
     # One definition of "current", read from the registry rather than restated in
     # JS. Fallback matches the view's city_obs value so behaviour is unchanged if
     # the row is ever missing.
@@ -1223,6 +1251,8 @@ def weather():
                            aurora_cities=city_payload,
                            aurora_aqhi=aqhi_payload,
                            active_alerts=active_alerts,
+                           active_evacuations_naad=active_evacuations_naad,
+                           active_evacuations_bc=active_evacuations_bc,
                            obs_time=obs_time,
                            is_subscriber=is_subscriber())
 

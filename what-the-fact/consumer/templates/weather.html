@@ -273,6 +273,37 @@
   max-height:3.2em; overflow:hidden; }
 .wtf-wx-alert-src { font-size:9px; color:#6b7280; margin-top:6px; text-transform:uppercase; letter-spacing:0.5px; }
 
+/* ── Evacuation-order panel (Dev HQ #6624) ──────────────────────────────
+   Two sources, kept visually distinct since they answer different questions:
+   NAAD = "is there an evacuation-shaped alert anywhere in Canada right now"
+   (free-text CAP, classified by event+keyword — see ingest/weather/
+   evacuations.py). BC = "what is BC's own Order-vs-Alert status" (structured,
+   evacuation-specific). order_alert_status "Order" is the more urgent of
+   BC's two states — mandatory evacuation — vs "Alert" (be-ready warning);
+   these get visually distinct treatment, not one flattened list. */
+.wtf-wx-evacpanel { margin-bottom:16px; border-radius:6px; overflow:hidden; border:1px solid #0a1a2a; }
+.wtf-wx-evac-sechead { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  color:#9ca3af; padding:8px 14px; background:#0d1520; border-bottom:1px solid #0a1a2a; }
+.wtf-wx-evac { display:flex; gap:10px; align-items:flex-start; padding:10px 14px;
+  background:#1a0a0a; border-left:4px solid #ef4444; }
+.wtf-wx-evac + .wtf-wx-evac { border-top:1px solid #0a1a2a; }
+.wtf-wx-evac.sev-moderate, .wtf-wx-evac.status-alert { background:#1a1206; border-left-color:#f59e0b; }
+.wtf-wx-evac.sev-minor, .wtf-wx-evac.sev-unknown { background:#0a1420; border-left-color:var(--wtf-aurora); }
+.wtf-wx-evac-icon { font-size:16px; line-height:1; flex-shrink:0; }
+.wtf-wx-evac-body { flex:1; min-width:0; }
+.wtf-wx-evac-head { font-size:12px; font-weight:700; color:#fff; line-height:1.4; }
+.wtf-wx-evac-status { display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase;
+  letter-spacing:0.5px; padding:2px 6px; border-radius:3px; margin-left:6px; vertical-align:middle; }
+.wtf-wx-evac-status.order { background:#ef4444; color:#fff; }
+.wtf-wx-evac-status.alert { background:#f59e0b; color:#1a1206; }
+.wtf-wx-evac-meta { font-size:10px; color:#9ca3af; margin-top:3px; letter-spacing:0.3px; }
+.wtf-wx-evac-desc { font-size:11px; color:#d1d5db; margin-top:5px; line-height:1.5;
+  max-height:3.2em; overflow:hidden; }
+.wtf-wx-evac-src { font-size:9px; color:#6b7280; margin-top:6px; text-transform:uppercase; letter-spacing:0.5px; }
+.wtf-wx-evac-empty { padding:12px 14px; font-size:11px; color:#6b7280; }
+.wtf-wx-evac-attrib { padding:8px 14px; font-size:10px; color:#6b7280; background:#0d1520;
+  border-top:1px solid #0a1a2a; }
+
 </style>
 
 <div class="wtf-wx-header">
@@ -306,6 +337,60 @@
     </div>
   </div>
   {% endfor %}
+</div>
+{% endif %}
+
+{# ── Evacuation-order panel (Dev HQ #6624) ──────────────────────────────────
+   Two independent sources — see ingest/weather/evacuations.py's docstring
+   for the full scope decision. Renders as a real, always-checked panel (not
+   folded into the interactive province map's point/choropleth system,
+   since BC's rows are polygons and NAAD's are free-text area descriptions,
+   not simple lat/lon pins) — shows "0 active" gracefully, which is the
+   expected common case, not an error state. #}
+{% if active_evacuations_naad or active_evacuations_bc %}
+<div class="wtf-wx-evacpanel">
+  <div class="wtf-wx-evac-sechead">🚨 Evacuation orders &amp; alerts — Alert Ready (national)</div>
+  {% if active_evacuations_naad %}
+    {% for ev in active_evacuations_naad %}
+    <div class="wtf-wx-evac sev-{{ (ev.severity or 'unknown')|lower }}">
+      <span class="wtf-wx-evac-icon">🚨</span>
+      <div class="wtf-wx-evac-body">
+        <div class="wtf-wx-evac-head">{{ ev.headline or ev.event or 'Evacuation alert' }}</div>
+        <div class="wtf-wx-evac-meta">
+          {{ ev.area_desc or '' }}{% if ev.severity %} · {{ ev.severity }}{% endif %}
+        </div>
+        {% if ev.instruction or ev.description %}
+        <div class="wtf-wx-evac-desc">{{ ev.instruction or ev.description }}</div>
+        {% endif %}
+        <div class="wtf-wx-evac-src">{{ ev.issuing_authority or 'Alert Ready' }} · via NAAD (Pelmorex)</div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="wtf-wx-evac-empty">No active evacuation-shaped alerts on Alert Ready right now.</div>
+  {% endif %}
+
+  {% if active_evacuations_bc %}
+  <div class="wtf-wx-evac-sechead">British Columbia — Emergency Management BC</div>
+    {% for ev in active_evacuations_bc %}
+    <div class="wtf-wx-evac status-{{ (ev.order_alert_status or '')|lower }}">
+      <span class="wtf-wx-evac-icon">{{ '🔴' if ev.order_alert_status == 'Order' else '🟡' }}</span>
+      <div class="wtf-wx-evac-body">
+        <div class="wtf-wx-evac-head">
+          {{ ev.event_name or ev.order_alert_name or 'Evacuation notice' }}
+          {% if ev.order_alert_status %}
+          <span class="wtf-wx-evac-status {{ ev.order_alert_status|lower }}">{{ ev.order_alert_status }}</span>
+          {% endif %}
+        </div>
+        <div class="wtf-wx-evac-meta">
+          {{ ev.event_type or '' }}{% if ev.population %} · pop. {{ '{:,}'.format(ev.population|int) }}{% endif %}{% if ev.homes %} · {{ '{:,}'.format(ev.homes|int) }} homes{% endif %}
+        </div>
+        <div class="wtf-wx-evac-src">{{ ev.issuing_agency or 'Emergency Management BC' }}</div>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="wtf-wx-evac-attrib">Source: Emergency Management BC, updated hourly — for time-critical confirmation check the local authority directly.</div>
+  {% endif %}
 </div>
 {% endif %}
 

@@ -403,6 +403,7 @@ def main():
     _last_fx_week = None          # CAD/USD daily exchange rate (weekly fetch of daily obs) — Batch 12
     _last_statcan_week = None     # StatCan CPI/unemployment/GDP/housing (weekly, monthly-release data) — Batch 12
     _last_aqhi_alerts_hour = None  # A.U.R.O.R.A. AQHI + EC alerts (hourly, same gate as citypage) — #6621
+    _last_evac_hour = None  # A.U.R.O.R.A. evacuation-order layer (hourly, same gate) — #6624
     while True:
         _cycle_started = time.monotonic()
         # Weekly geo report on Mondays.
@@ -601,6 +602,22 @@ def main():
             except Exception:
                 log.exception("aurora alerts crashed")
             _last_aqhi_alerts_hour = _city_hour
+
+        # A.U.R.O.R.A. evacuation-order layer — HOURLY, same gate as AQHI/
+        # alerts (Dev HQ #6624). Two independent sources (NAAD/Alert Ready +
+        # BC DataBC), each never raises and writes its own heartbeat.
+        if _last_evac_hour != _city_hour:
+            try:
+                from ingest.weather.evacuations import run_aurora_evacuations_naad
+                log.info("aurora evacuations naad: %s", run_aurora_evacuations_naad(engine))
+            except Exception:
+                log.exception("aurora evacuations naad crashed")
+            try:
+                from ingest.weather.evacuations import run_aurora_evacuations_bc
+                log.info("aurora evacuations bc: %s", run_aurora_evacuations_bc(engine))
+            except Exception:
+                log.exception("aurora evacuations bc crashed")
+            _last_evac_hour = _city_hour
 
         # Elections Canada general-election results — WEEKLY, not daily.
         # The data is STATIC: GE44's official results will never change. A daily

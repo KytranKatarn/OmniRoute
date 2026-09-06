@@ -76,6 +76,12 @@ _MAX_AGE_DAYS = {
     # (Playwright/Chrome, not in wtf-ingest). Had NO scheduled caller anywhere
     # before this fix, so it was unmonitored AND unrun — required below.
     "gic_appointments": int(os.environ.get("WTF_DRIFT_GIC_DAYS", "14")),
+    # aurora_evacuations_naad/_bc (#6624) — hourly cadence, tight threshold
+    # since this is life-safety content that should be caught fast if the
+    # puller stalls. Both are brand-new pullers with zero prior rows —
+    # required below, same reasoning as boc_rates/gic_appointments.
+    "aurora_evacuations_naad": int(os.environ.get("WTF_DRIFT_EVAC_NAAD_DAYS", "2")),
+    "aurora_evacuations_bc": int(os.environ.get("WTF_DRIFT_EVAC_BC_DAYS", "2")),
     "ethics_disclosures": int(os.environ.get("WTF_DRIFT_ETHICS_DAYS", "21")),
     "promise_tracker": int(os.environ.get("WTF_DRIFT_PROMISE_DAYS", "21")),
     # House committee rosters (#5728, container phase-3 since 2026-08-18).
@@ -153,6 +159,9 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # or a scraper that silently stops running again reads as
                    # "not yet tracked" forever instead of alarming.
                    "gic_appointments",
+                   # aurora_evacuations_naad/_bc (#6624) — same reasoning:
+                   # brand-new pullers, zero prior ingest_log rows.
+                   "aurora_evacuations_naad", "aurora_evacuations_bc",
                    # fx_rates and statcan_indicators are BOTH brand-new pullers
                    # (Batch 12, #6523) — same reasoning as boc_rates: a puller
                    # that never runs must alarm, not report green-by-omission.

@@ -32,6 +32,15 @@ services:
       WTF_FACTCHECK_BACKLOG_ENABLED: "true"
       WTF_FACTCHECK_BACKLOG_MAX_RUNS_PER_NIGHT: "5000"
       WTF_FACTCHECK_BACKLOG_CONCURRENCY: "4"
+      # Dispute tracker (#6524) — deliberately capped low, NOT the 5000 sibling
+      # default. A real small-batch test (2026-09-06) showed V.E.R.I.F.Y. both
+      # inventing a factual detail and giving a confident verdict on a pure
+      # forecast question its own prompt says must stay unscored. Owner
+      # decision: enable for real but keep the nightly volume small enough to
+      # hand-spot-check every morning until the prompt/gate is hardened.
+      # Raise WTF_DISPUTE_BACKLOG_MAX_RUNS_PER_NIGHT only after that review.
+      WTF_DISPUTE_BACKLOG_ENABLED: "true"
+      WTF_DISPUTE_BACKLOG_MAX_RUNS_PER_NIGHT: "8"
       # Beat classifier — coverage fix (audit 2026-07-14, #4897): at the old 50/run
       # + 5s sleep defaults the worker tagged ~110/day vs ~1,100 new articles/day.
       WTF_BEAT_BACKLOG_ENABLED: "true"

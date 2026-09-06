@@ -33,12 +33,21 @@ services:
       WTF_FACTCHECK_BACKLOG_MAX_RUNS_PER_NIGHT: "5000"
       WTF_FACTCHECK_BACKLOG_CONCURRENCY: "4"
       # Dispute tracker (#6524) — deliberately capped low, NOT the 5000 sibling
-      # default. A real small-batch test (2026-09-06) showed V.E.R.I.F.Y. both
-      # inventing a factual detail and giving a confident verdict on a pure
-      # forecast question its own prompt says must stay unscored. Owner
-      # decision: enable for real but keep the nightly volume small enough to
-      # hand-spot-check every morning until the prompt/gate is hardened.
-      # Raise WTF_DISPUTE_BACKLOG_MAX_RUNS_PER_NIGHT only after that review.
+      # default. A pre-enable test batch (2026-09-06) was read as V.E.R.I.F.Y.
+      # "inventing a factual detail" on cluster 99442 (a "Five" vs "Three" MLA
+      # count) — CORRECTED same day: the first real post-enable run reproduced
+      # the identical disputed_point, and checking the actual headlines showed
+      # CTV News/Global News/iPolitics genuinely say "5"/"Five" while Vancouver
+      # Sun/Globe and Mail/Winnipeg Free Press genuinely say "Three" — a REAL
+      # cross-outlet discrepancy, not a hallucination. That half of the concern
+      # was a misdiagnosis (the earlier check only read one side's article).
+      # The OTHER half is still open and NOT yet re-verified live: the same
+      # test batch showed a confident verdict on a pure forecast question
+      # ("will B.C. have a snap election") that the prompt says must stay
+      # unscored (is_opinion=true, verdict=null). Keep the cap low and keep
+      # spot-checking until a forecast-shaped dispute recurs and can be
+      # re-checked against reality the same way. Raise
+      # WTF_DISPUTE_BACKLOG_MAX_RUNS_PER_NIGHT only after that.
       WTF_DISPUTE_BACKLOG_ENABLED: "true"
       WTF_DISPUTE_BACKLOG_MAX_RUNS_PER_NIGHT: "8"
       # Beat classifier — coverage fix (audit 2026-07-14, #4897): at the old 50/run

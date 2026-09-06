@@ -72,6 +72,10 @@ _MAX_AGE_DAYS = {
     # lobbying is HUB-owned since 2026-08-18 (Cloudflare turnstile — the
     # weekly hub cron writes this heartbeat; the container no longer tries).
     "lobbying": int(os.environ.get("WTF_DRIFT_LOBBY_DAYS", "21")),
+    # gic_appointments (task #6632) — HUB-owned, same reason as senators_roster
+    # (Playwright/Chrome, not in wtf-ingest). Had NO scheduled caller anywhere
+    # before this fix, so it was unmonitored AND unrun — required below.
+    "gic_appointments": int(os.environ.get("WTF_DRIFT_GIC_DAYS", "14")),
     "ethics_disclosures": int(os.environ.get("WTF_DRIFT_ETHICS_DAYS", "21")),
     "promise_tracker": int(os.environ.get("WTF_DRIFT_PROMISE_DAYS", "21")),
     # House committee rosters (#5728, container phase-3 since 2026-08-18).
@@ -144,6 +148,11 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # same reason as weekly_digest: a puller that never fires must
                    # alarm, not report green-by-omission forever.
                    "boc_rates",
+                   # gic_appointments (#6632) — same reasoning as boc_rates: a
+                   # brand-new puller with zero prior ingest_log rows. Required,
+                   # or a scraper that silently stops running again reads as
+                   # "not yet tracked" forever instead of alarming.
+                   "gic_appointments",
                    # fx_rates and statcan_indicators are BOTH brand-new pullers
                    # (Batch 12, #6523) — same reasoning as boc_rates: a puller
                    # that never runs must alarm, not report green-by-omission.

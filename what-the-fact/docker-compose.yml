@@ -144,6 +144,18 @@ services:
       POSTGRES_HOST_AUTH_METHOD: md5
     secrets:
       - wtf_db_password
+    # Mesh-only publish (task #6632 follow-on) — this instance (PR #3222) had NO
+    # port exposed anywhere outside its own compose network. The hub's Playwright
+    # scrapers (senate/lobbying/GIC — Chrome only installed on the hub, never in
+    # wtf-ingest) had no path to the live DB at all: senate_votes_cron.sh kept
+    # writing into the OLD hub `wtf` database for a full week post-cutover with
+    # no error, because nothing failed — it just wrote somewhere nobody reads.
+    # Binding to the mesh IP specifically (not 0.0.0.0) means the public interface
+    # never sees this port even if the host UFW rule below were ever removed —
+    # defense in depth, same reasoning as outpost-vps.md's Ollama :11434 rule.
+    # 5433 is already a native (non-Docker) postgres on Citadel — 5434 confirmed free.
+    ports:
+      - "100.64.0.10:5434:5432"
     volumes:
       - wtf_pg_data:/var/lib/postgresql/data
     networks: [default]

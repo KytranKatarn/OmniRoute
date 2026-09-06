@@ -66,8 +66,20 @@ def ingest(from_date: str = None, max_pages: int = 100):
     print(f"Scraping OIC appointments from {from_date}...")
     rows = []
 
+    # Bare `launch(headless=True)` reaches for Playwright's own managed
+    # "headless shell" binary, which is never downloaded on this host — only
+    # system Chrome is (senators.py's precedent, same host, same reason:
+    # `playwright install` was run once for a specific browser build, not for
+    # every headless variant). Proven live 2026-09-06: this call 500'd with
+    # "Executable doesn't exist at .../chromium_headless_shell-*" on the
+    # FIRST real run this scraper ever had (task #6632 — it had no scheduled
+    # caller before, so this was never actually exercised). Match senators.py
+    # exactly rather than inventing a second convention.
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
+        browser = pw.chromium.launch(
+            executable_path="/usr/bin/google-chrome",
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--headless", "--disable-gpu"],
+        )
         page = browser.new_page()
         page.goto(f"{OIC_BASE}/index.php?lang=en")
 
@@ -179,6 +191,38 @@ def ingest(from_date: str = None, max_pages: int = 100):
 
     print(f"  Upserted {inserted} rows")
     print("Done.")
+    return {"fetched": len(rows), "upserted": inserted}
+
+
+def run_gic_sync_hub(from_date: str = None, max_pages: int = 100) -> dict:
+    """ingest() + a parliament.ingest_log heartbeat (task='gic_appointments').
+
+    HUB-side entrypoint (task #6632) — this scraper needs Playwright/Chrome,
+    which wtf-ingest deliberately does not carry (same reason as senators.py's
+    run_roster_sync_hub). Before this it had NO scheduled caller anywhere —
+    not ingest/run.py, not any host cron — so gov_watch.gic_appointments only
+    ever got real rows from a manual run. Mirrors senators.py's wrapper
+    exactly so drift_guard's 'monitor RUNS, not ROWS' rule applies here too."""
+    from sqlalchemy import create_engine, text
+    engine = create_engine(DB_URL)
+    try:
+        stats = ingest(from_date=from_date, max_pages=max_pages) or {}
+        with engine.begin() as c:
+            c.execute(text(
+                "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                "VALUES ('gic_appointments', :f, :u)"),
+                {"f": int(stats.get("fetched") or 0),
+                 "u": int(stats.get("upserted") or 0)})
+        return stats
+    except Exception as exc:
+        try:
+            with engine.begin() as c:
+                c.execute(text(
+                    "INSERT INTO parliament.ingest_log (task, error) "
+                    "VALUES ('gic_appointments', :e)"), {"e": str(exc)[:500]})
+        except Exception:
+            print(f"gic_appointments heartbeat write failed: {exc}")
+        raise
 
 
 if __name__ == "__main__":
@@ -186,4 +230,4 @@ if __name__ == "__main__":
     parser.add_argument("--from-date", default=None)
     parser.add_argument("--pages", type=int, default=100)
     args = parser.parse_args()
-    ingest(from_date=args.from_date, max_pages=args.pages)
+    run_gic_sync_hub(from_date=args.from_date, max_pages=args.pages)

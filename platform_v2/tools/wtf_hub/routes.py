@@ -227,7 +227,13 @@ def analyze():
             f"Classify this Canadian news article into exactly one beat topic.\n\n"
             f"Valid beats: arts-culture, business, climate, crime, economy, education, "
             f"foreign-policy, healthcare, housing, immigration, indigenous, justice, "
-            f"labour, municipal, parliament, science-tech, sports, transportation\n"
+            f"labour, municipal, parliament, science-tech, sports, transportation\n\n"
+            f'"municipal" means the article is ABOUT city/town government itself — '
+            f"city council, a mayor, a municipal budget or bylaw, zoning, a local "
+            f"election, a municipal service. A city name merely appearing somewhere "
+            f"in the story (a business deal, a sports game, a foreign-policy story "
+            f"datelined in a city) is NOT municipal — classify those by their real "
+            f"topic instead (business, sports, foreign-policy, etc.).\n"
             f'Use "none" if no beat fits.\n\n'
             f"Title: {title}\nBody: {body[:1000]}\n\n"
             'Return ONLY valid JSON: {"beat": "healthcare"}'

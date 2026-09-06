@@ -61,6 +61,7 @@
 .wtf-mu-city-chip:hover { color:#0ea5e9;border-color:#0ea5e9 }
 .wtf-mu-city-chip.wtf-mu-active { background:#062536;color:#0ea5e9;border-color:#0ea5e9 }
 .wtf-mu-city-chip .wtf-mu-cnt { color:#374151;margin-left:4px }
+.wtf-mu-coverage-note { font-size:9px;color:#6b7280;line-height:1.6;margin:-14px 0 20px;max-width:64ch }
 .wtf-mu-section-title { font-size:10px;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #1f2937;padding-bottom:6px }
 .wtf-mu-article-list { display:flex;flex-direction:column;gap:8px }
 .wtf-mu-article-card { background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid #0ea5e9;border-radius:6px;padding:12px 16px }
@@ -112,14 +113,22 @@
   <div class="wtf-mu-city-filter">
     <a href="/municipal" class="wtf-mu-city-chip {% if not active_city %}wtf-mu-active{% endif %}">All</a>
     {% for c in cities %}
-    <a href="/municipal?city={{ c.city|urlencode }}"
-       class="wtf-mu-city-chip {% if active_city == c.city %}wtf-mu-active{% endif %}">{{ c.city }}<span class="wtf-mu-cnt">{{ c.n }}</span></a>
+    <a href="/municipal?city={{ c.slug|urlencode }}"
+       class="wtf-mu-city-chip {% if active_city == c.slug %}wtf-mu-active{% endif %}">{{ c.label }}<span class="wtf-mu-cnt">{{ c.n }}</span></a>
     {% endfor %}
+  </div>
+  {# #6174 — honest scope: 25 ECCC weather sites is a different, shorter list
+     than which Canadian cities have real municipal-news coverage; this page
+     shows the latter and says so, rather than implying blanket national
+     coverage it doesn't have. #}
+  <div class="wtf-mu-coverage-note">
+    Showing the {{ canonical_city_count }} Canadian {{ 'municipality' if canonical_city_count == 1 else 'municipalities' }} with tracked coverage
+    ({{ cities|length }} with enough volume to filter by) — most Canadian municipalities have none yet.
   </div>
   {% endif %}
 
   <div class="wtf-mu-section-title">
-    {% if active_city %}Recent municipal coverage — {{ active_city }}{% else %}Recent municipal &amp; local-government stories{% endif %}
+    {% if active_city %}Recent municipal coverage — {{ active_label or active_city }}{% else %}Recent municipal &amp; local-government stories{% endif %}
   </div>
 
   <div class="wtf-mu-article-list">
@@ -143,7 +152,7 @@
     {% endfor %}
     {% else %}
     <div class="wtf-mu-empty-state">
-      {% if active_city %}No municipal stories for {{ active_city }} yet.<br><a href="/municipal" class="wtf-mu-back-link">← All municipal coverage</a>{% else %}No municipal stories in the feed right now.<br>Check back soon — the pipeline is running.{% endif %}
+      {% if active_city %}No municipal stories for {{ active_label or active_city }} yet.<br><a href="/municipal" class="wtf-mu-back-link">← All municipal coverage</a>{% else %}No municipal stories in the feed right now.<br>Check back soon — the pipeline is running.{% endif %}
     </div>
     {% endif %}
   </div>

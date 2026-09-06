@@ -88,14 +88,55 @@ AMBIGUOUS_WITHOUT_PROVINCE = {"sydney", "london"}
 
 # 🔴 Trap 2 + 5. Seen in articles.city; each would otherwise be wrong or noise.
 # Regions are NOT their nearest city, and a country is not a city.
+#
+# The second block (added #6174 second pass, 2026-09-06) is DIFFERENT in kind
+# from the first: these are real, non-Canadian PLACES that landed in
+# beat='municipal' through a beat-classifier bug (fixed separately, in the
+# classify_beat prompt), not through any fault of this module. They are
+# listed here — not solved by "just require CANONICAL_CITIES membership" —
+# because #6174's second pass deliberately widened the news-side facet to
+# accept any uncatalogued Canadian municipality (Kamloops, Kenora, Greater
+# Sudbury, ... — real cities, just not among the 25 ECCC sites) rather than
+# requiring membership in the 25-city list. That widening only works if the
+# confirmed-foreign names are excluded explicitly; unlike canon_city()'s
+# "return None rather than guess" default, is_known_junk() defaults to
+# "assume real unless denylisted" for anything not already in
+# CANONICAL_CITIES — a DELIBERATE, ACKNOWLEDGED trade-off (owner decision,
+# 2026-09-06): a new foreign city not yet listed here can slip through as a
+# facet until observed and added. Confirmed live in wtf.articles WHERE
+# beat='municipal' AND city NOT resolvable via canon_city():
 NOT_A_CITY = {
     "vancouver-island",   # region in BC, not the city Vancouver
     "cape-breton",        # island in NS, not Sydney
     "null", "none", "unknown", "n-a",
     "nepal", "israel", "canada",
+    # confirmed foreign contamination in beat='municipal', 2026-09-06 —
+    # none of these are municipal-government stories; see the classify_beat
+    # prompt fix (platform_v2/tools/wtf_hub/routes.py) for the actual fix.
+    "washington-d-c", "berlin", "amsterdam", "cleveland", "brownsville",
+    "changzhi", "belgrade", "connecticut", "fujiyoshida", "cape-canaveral",
+    "las-vegas", "los-angeles", "minneapolis", "moscow-region", "pleasanton",
+    "san-francisco", "santa-clara", "tehran", "tel-aviv",
+    # ambiguous with a far more common non-Canadian namesake, no corroborating
+    # province available (unlike sydney/london, these aren't ECCC sites, so
+    # AMBIGUOUS_WITHOUT_PROVINCE's province-corroboration path doesn't apply
+    # to them) — same reasoning as Trap 1, applied conservatively.
+    "paris", "cambridge",
 }
 
 _SITE_TO_SLUG = {code: slug for slug, (code, _p, _l) in CANONICAL_CITIES.items()}
+
+
+def is_known_junk(name: str | None) -> bool:
+    """True if `name` is confirmed non-Canadian or non-a-city (NOT_A_CITY).
+
+    Distinct from canon_city(): this does NOT require membership in
+    CANONICAL_CITIES, only that the folded name is NOT in the denylist. Used
+    where a caller wants to accept uncatalogued-but-real Canadian cities
+    (e.g. the /municipal facet, #6174) rather than restricting to the 25
+    ECCC-linked ones — see the NOT_A_CITY comment above for the trade-off.
+    """
+    return _fold(name) in NOT_A_CITY
 
 
 def _fold(name: str) -> str:

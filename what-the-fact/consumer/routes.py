@@ -1700,15 +1700,86 @@ def municipal():
     Aggregates the 'municipal' beat (city hall, council, local government,
     civic affairs) across all outlets, with an optional ?city= filter.
     Public — no paywall (consistent with /weather and /economy).
+
+    City facets (#6174) go through shared.city_identity — the ONE place that
+    reconciles free-text a.city against a real Canadian city. Two paths:
+    (1) canon_city() resolves a row to one of the 25 ECCC-linked cities
+    (handles accents — Montréal/Montreal both occur — and ECCC-style
+    parentheticals); (2) anything canon_city() can't resolve is treated as an
+    uncatalogued-but-real Canadian municipality (Kamloops, Kenora, Greater
+    Sudbury — real cities, just not among the 25 ECCC weather sites) UNLESS
+    is_known_junk() flags it as confirmed non-Canadian contamination
+    (Washington D.C., Berlin, Amsterdam — measured live 2026-09-06, none of
+    them municipal-government stories; the underlying beat-classifier bug is
+    fixed separately, in the classify_beat prompt). This is a deliberate,
+    accepted trade-off (owner decision, 2026-09-06): unlike canon_city()'s
+    "return None rather than guess," a genuinely new foreign city not yet in
+    is_known_junk()'s denylist can slip through as a facet until observed —
+    traded for not silently dropping real, uncatalogued Canadian coverage.
+    The unfiltered feed below (no ?city=) is untouched either way — this only
+    makes the FACET LIST honest, it does not hide the raw feed's own coverage
+    gaps or contamination.
     """
+    from shared.city_identity import canon_city, city_label, is_known_junk
+
     S = _schema()
-    active_city = (request.args.get("city") or "").strip()
+    active_slug = (request.args.get("city") or "").strip().lower()
     with _db().begin() as c:
+        # One pass over the beat's distinct (city, province) pairs — small
+        # (real coverage is a few hundred distinct raw values at most) — to
+        # build counts AND the raw-value set each facet key maps back to,
+        # since the filter below needs to select by RAW a.city in SQL
+        # (canon_city/is_known_junk are pure Python, not SQL-expressible).
+        raw_pairs = c.execute(text(f"""
+            SELECT a.city, a.province_code, COUNT(*) AS n
+            FROM {S}.articles a
+            WHERE a.beat = 'municipal' AND a.city IS NOT NULL AND a.city <> ''
+              AND a.suppressed_reason IS NULL
+            GROUP BY a.city, a.province_code
+        """)).mappings().all()
+
+        key_counts: dict = {}
+        key_labels: dict = {}
+        key_raw_values: dict = {}
+        for r in raw_pairs:
+            slug = canon_city(r["city"], r["province_code"])
+            if slug:
+                key, label = slug, city_label(slug)
+            elif is_known_junk(r["city"]):
+                continue
+            else:
+                # Uncatalogued-but-real: key on the LOWERCASED raw string (the
+                # URL round-trips through active_slug.lower(), so the key must
+                # match that regardless of the raw string's original casing —
+                # this session's live data shows identical raw spellings
+                # across rows, so no accent/punctuation folding is needed
+                # beyond case, unlike the ECCC vocabulary's ambiguity traps).
+                key, label = r["city"].strip().lower(), r["city"]
+            key_counts[key] = key_counts.get(key, 0) + r["n"]
+            key_labels[key] = label
+            key_raw_values.setdefault(key, set()).add(r["city"])
+
+        # Only cities with real coverage (>=2) to keep the filter honest while
+        # municipal geo-tagging is still expanding.
+        cities = sorted(
+            ({"slug": k, "label": key_labels[k], "n": n}
+             for k, n in key_counts.items() if n >= 2),
+            key=lambda row: -row["n"],
+        )[:15]
+
         params = {}
         city_clause = ""
-        if active_city:
-            city_clause = " AND a.city = :city"
-            params["city"] = active_city
+        if active_slug:
+            raw_values = list(key_raw_values.get(active_slug, ()))
+            if raw_values:
+                city_clause = " AND a.city = ANY(:raw_values)"
+                params["raw_values"] = raw_values
+            else:
+                # An unresolvable/unknown slug in the URL shows nothing rather
+                # than silently falling back to the unfiltered feed — a wrong
+                # filter must not read the same as no filter.
+                city_clause = " AND FALSE"
+
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
                    s.name AS source, b.band, a.province_code, a.city,
@@ -1726,23 +1797,12 @@ def municipal():
             f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'municipal' AND suppressed_reason IS NULL"
         )).scalar() or 0
 
-        # City facets — only cities with real coverage (>=2) to keep the
-        # filter honest while municipal geo-tagging is still expanding.
-        cities = c.execute(text(f"""
-            SELECT a.city, COUNT(*) AS n
-            FROM {S}.articles a
-            WHERE a.beat = 'municipal' AND a.city IS NOT NULL AND a.city <> ''
-              AND a.suppressed_reason IS NULL
-            GROUP BY a.city
-            HAVING COUNT(*) >= 2
-            ORDER BY n DESC
-            LIMIT 15
-        """)).mappings().all()
-
     return render_template("municipal.html",
                            articles=rows,
                            cities=cities,
-                           active_city=active_city,
+                           active_city=active_slug,
+                           active_label=(key_labels.get(active_slug) if active_slug else None),
+                           canonical_city_count=len(key_counts),
                            total=total,
                            is_subscriber=is_subscriber())
 

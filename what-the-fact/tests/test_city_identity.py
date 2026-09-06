@@ -22,6 +22,7 @@ from shared.city_identity import (  # noqa: E402
     canon_city,
     city_label,
     city_province,
+    is_known_junk,
     slug_for_site_code,
 )
 
@@ -157,3 +158,51 @@ def test_every_province_is_a_real_canadian_code():
     valid = {"AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"}
     for slug, (_c, prov, _l) in CANONICAL_CITIES.items():
         assert prov in valid, f"{slug} has province {prov!r}"
+
+
+# ── is_known_junk (#6174 second pass) ───────────────────────────────────────
+# The /municipal facet accepts uncatalogued-but-real Canadian cities (Kamloops,
+# Kenora — not among the 25 ECCC sites) rather than requiring CANONICAL_CITIES
+# membership, so it needs its OWN "is this confirmed non-Canadian" check,
+# independent of canon_city(). Every case below is a real value measured live
+# in wtf.articles WHERE beat='municipal' on 2026-09-06 — the exact
+# beat-classifier contamination this second pass exists to filter out of the
+# facet list (the classifier bug itself is fixed separately).
+
+def test_confirmed_foreign_contamination_is_known_junk():
+    for name in ("Washington D.C.", "Washington,D.C.", "Berlin", "Amsterdam",
+                 "Cleveland", "Brownsville", "Changzhi", "Belgrade",
+                 "Connecticut", "Fujiyoshida", "Cape Canaveral", "Las Vegas",
+                 "Los Angeles", "Minneapolis", "Moscow Region", "Pleasanton",
+                 "San Francisco", "Santa Clara", "Tehran", "Tel Aviv"):
+        assert is_known_junk(name), f"{name!r} should be known junk"
+
+
+def test_ambiguous_no_province_names_are_known_junk():
+    # No ECCC site, no corroborating province, and a far more famous
+    # non-Canadian namesake — same reasoning as Trap 1, applied conservatively.
+    assert is_known_junk("Paris")
+    assert is_known_junk("Cambridge")
+
+
+def test_uncatalogued_real_canadian_cities_are_NOT_known_junk():
+    # Real Canadian municipalities with real live coverage, just not among
+    # the 25 ECCC weather sites — must NOT be treated as junk.
+    for name in ("Kamloops", "Kenora", "Greater Sudbury", "Abbotsford",
+                 "Barrie", "Mississauga", "Sarnia", "St. Catharines",
+                 "Sussex", "Wetaskiwin"):
+        assert not is_known_junk(name), f"{name!r} is a real city, not junk"
+
+
+def test_known_junk_reuses_the_existing_not_a_city_traps():
+    # Trap 2 (regions) and Trap 5 (literal junk/countries) already covered by
+    # NOT_A_CITY must still resolve through the SAME predicate — one place.
+    assert is_known_junk("Vancouver Island")
+    assert is_known_junk("Cape Breton")
+    assert is_known_junk("null")
+    assert is_known_junk("Nepal")
+
+
+def test_a_real_eccc_city_is_not_known_junk():
+    assert not is_known_junk("Toronto")
+    assert not is_known_junk("Montréal")

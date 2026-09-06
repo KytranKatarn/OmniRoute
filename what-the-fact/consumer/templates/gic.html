@@ -14,12 +14,18 @@
    person_card. stack=True gives the denser row rhythm this list had.
 
    Data contract: appointments[], depts[], dept, q, organisations_count,
-   departments_count, is_subscriber.
+   departments_count, total_appointments, vacant_posts, is_subscriber.
 
    2026-09-04 (KB vault_note #304357): added the stat row + search box the
-   mockup calls for. Deliberately NOT added: a "Vacant posts" panel — no
-   gov_watch.gic_vacancies (or equivalent) table exists anywhere in this
-   codebase, and the mockup's vacancy list is mock-corpus-only data. #}
+   mockup calls for.
+
+   2026-09-06 (#6621 item 2): added the "Vacant posts" panel + live shown/total
+   counter. The vacancy panel derives from the SAME gov_watch.gic_appointments
+   table (a position is vacant when its latest recorded action is a
+   termination/revocation/resignation with no later appointment) — not a new
+   table, not mock data. vacant_posts is empty (not missing) on any deploy
+   before migration 081 + the ingest's termination-capture land, so this panel
+   fails safe rather than 500ing. #}
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Governor in Council appointments</h1>
@@ -42,12 +48,35 @@
 </div>
 
 {# Plain GET form, works without JavaScript — same pattern as archive.html. #}
-<form method="get" action="/gic" style="margin:0 0 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+<form method="get" action="/gic" style="margin:0 0 6px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
   <input type="hidden" name="dept" value="{{ dept }}">
   <input type="search" name="q" value="{{ q }}" placeholder="Appointee, organisation, order number…"
          aria-label="Search appointments"
          style="flex:1 1 220px;min-width:180px;padding:7px 10px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;color:var(--wtf-text);">
 </form>
+<div class="wtf-a-tile-d" style="margin:0 0 14px;">
+  {{ appointments|length }} of {{ '{:,}'.format(total_appointments) }} appointments shown{% if dept != 'all' %} in {{ dept }}{% endif %}{% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}
+</div>
+
+{% if vacant_posts %}
+{# Neutral accent border, not --wtf-contested — that token is reserved for
+   story-verdict chips (style.css:1671's own comment: "a form error is not a
+   verdict"). A vacancy is a factual gap, not a verdict on anything, so this
+   follows .wtf-score-error's exact pattern instead. #}
+<div style="margin:0 0 20px;padding:14px 16px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--wtf-accent);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">Vacant posts — the appointments not made</div>
+  <p style="font-size:12px;color:var(--wtf-text-2);line-height:1.6;margin:0 0 10px;max-width:74ch;">
+    A position where the most recent recorded Order in Council ended an appointment (termination, revocation
+    or resignation) with no successor named since. Not every vacancy is a delay — some posts are being
+    restructured or wound down — but the Order in Council record does not distinguish those cases.
+  </p>
+  {% for v in vacant_posts %}
+    <div class="wtf-a-rbody" style="margin-top:6px;">
+      {% if v.days_vacant is not none %}Vacant {{ v.days_vacant }} day{{ '' if v.days_vacant == 1 else 's' }} · since {{ v.vacant_since.strftime('%b %-d, %Y') if v.vacant_since.strftime is defined else v.vacant_since }} · {% endif %}{{ v.department }}{% if v.organization %} &rarr; {{ v.organization }}{% endif %}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% for a in appointments %}
   {% set meta %}

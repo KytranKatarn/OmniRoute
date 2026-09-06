@@ -112,6 +112,11 @@ _MAX_AGE_DAYS = {
     # same reasoning as elections_results' 10-day window over an infrequent
     # source, just wider because the source itself is naturally slower.
     "statcan_indicators": int(os.environ.get("WTF_DRIFT_STATCAN_DAYS", "40")),
+    # A.U.R.O.R.A. AQHI + EC alerts (#6621) — same hourly-feed reasoning as
+    # aurora_city_obs/aurora_city_forecast above: 1 day is already 24 missed
+    # cycles, generous but not indefinite.
+    "aurora_aqhi": int(os.environ.get("WTF_DRIFT_AURORA_AQHI_DAYS", "1")),
+    "aurora_alerts": int(os.environ.get("WTF_DRIFT_AURORA_ALERTS_DAYS", "1")),
 }
 
 # Tasks that MUST have run at least once. The freshness loop below skips a task
@@ -143,7 +148,13 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # (Batch 12, #6523) — same reasoning as boc_rates: a puller
                    # that never runs must alarm, not report green-by-omission.
                    "fx_rates",
-                   "statcan_indicators"}
+                   "statcan_indicators",
+                   # aurora_aqhi and aurora_alerts are BOTH brand-new pullers
+                   # (#6621) — same reasoning as boc_rates/fx_rates above: a
+                   # puller that never runs must alarm, not report
+                   # green-by-omission forever.
+                   "aurora_aqhi",
+                   "aurora_alerts"}
 
 
 def _source_freshness(engine) -> list:

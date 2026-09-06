@@ -22,12 +22,23 @@ from datetime import date, timedelta
 
 DB_URL = os.environ.get("WTF_DATABASE_URL", "")
 OIC_BASE = "https://orders-in-council.canada.ca"
-APPT_KEYWORDS = ("appoin", "appoin")  # catches "appointment" and "reappointment"
+APPT_KEYWORDS = ("appoint",)  # catches "appointment" and "reappointment"
+# Vacancy tracking (#6621 item 2): a termination/revocation/resignation OIC is
+# a DIFFERENT, distinctly-numbered Order in Council from the appointment it
+# ends — not a second view of the same row — so it upserts under its own real
+# pc_number, same as any appointment row. A precis can mention "appointment"
+# while still being a termination-type order ("Termination of the appointment
+# of..."), so classify by TERM_KEYWORDS FIRST — checked before APPT_KEYWORDS
+# below — or every termination row would be misfiled as an appointment.
+TERM_KEYWORDS = ("terminat", "revocat", "resignat")
 
 
 def _extract_name(precis: str) -> str | None:
-    """Extract appointee name from precis text like 'Appointment of John Smith of Ottawa...'"""
-    m = re.match(r"(?:Re-?)?[Aa]ppointment of ([A-Z][^\s].*?) of ", precis)
+    """Extract appointee name from precis text. Handles both direct
+    ('Appointment of John Smith of Ottawa...') and indirect ('Termination of
+    the appointment of John Smith of Ottawa...') phrasing — search, not
+    match, since termination precis text doesn't start with the keyword."""
+    m = re.search(r"(?:Re-?)?[Aa]ppointment of ([A-Z][^\s].*?) of ", precis)
     return m.group(1).strip() if m else None
 
 
@@ -81,7 +92,15 @@ def ingest(from_date: str = None, max_pages: int = 100):
                 if not pc or pc in seen:
                     continue
                 subject = cells[7].inner_text().strip()
-                if not any(kw in subject.lower() for kw in APPT_KEYWORDS):
+                subject_lower = subject.lower()
+                # Classify by TERM_KEYWORDS first — a termination precis often
+                # also contains "appointment" ("Termination of the appointment
+                # of..."), so checking APPT_KEYWORDS first would misfile it.
+                if any(kw in subject_lower for kw in TERM_KEYWORDS):
+                    action_type = "termination"
+                elif any(kw in subject_lower for kw in APPT_KEYWORDS):
+                    action_type = "appointment"
+                else:
                     continue
                 link = cells[0].query_selector("a")
                 oic_date = cells[1].inner_text().strip()
@@ -95,6 +114,7 @@ def ingest(from_date: str = None, max_pages: int = 100):
                     "subject": subject,
                     "precis": cells[8].inner_text().strip(),
                     "oic_url": link.get_attribute("href") if link else None,
+                    "action_type": action_type,
                 })
                 seen.add(pc)
                 page_rows += 1
@@ -128,22 +148,32 @@ def ingest(from_date: str = None, max_pages: int = 100):
                 oic_url         TEXT,
                 appointee_name  TEXT,
                 organization    TEXT,
+                action_type     TEXT NOT NULL DEFAULT 'appointment',
                 scraped_at      TIMESTAMP DEFAULT NOW()
             )
         """))
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS idx_gic_date ON gov_watch.gic_appointments(oic_date DESC)"
         ))
+        # A fresh CREATE TABLE above already has the column; this covers the
+        # already-deployed table migration 081 targets (idempotent either way).
+        conn.execute(text(
+            "ALTER TABLE gov_watch.gic_appointments "
+            "ADD COLUMN IF NOT EXISTS action_type TEXT NOT NULL DEFAULT 'appointment'"
+        ))
         for row in rows:
             conn.execute(text("""
                 INSERT INTO gov_watch.gic_appointments
-                    (pc_number, oic_date, department, subject, precis, oic_url, appointee_name, organization)
-                VALUES (:pc_number, :oic_date, :department, :subject, :precis, :oic_url, :appointee_name, :organization)
+                    (pc_number, oic_date, department, subject, precis, oic_url,
+                     appointee_name, organization, action_type)
+                VALUES (:pc_number, :oic_date, :department, :subject, :precis, :oic_url,
+                        :appointee_name, :organization, :action_type)
                 ON CONFLICT (pc_number) DO UPDATE
                     SET oic_date=EXCLUDED.oic_date, department=EXCLUDED.department,
                         subject=EXCLUDED.subject, precis=EXCLUDED.precis,
                         oic_url=EXCLUDED.oic_url, appointee_name=EXCLUDED.appointee_name,
-                        organization=EXCLUDED.organization, scraped_at=NOW()
+                        organization=EXCLUDED.organization, action_type=EXCLUDED.action_type,
+                        scraped_at=NOW()
             """), row)
             inserted += 1
 

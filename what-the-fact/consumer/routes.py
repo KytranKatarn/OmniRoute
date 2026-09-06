@@ -1165,6 +1165,41 @@ def weather():
                                       fire_provinces, obs_time)
     city_payload = _aurora_city_payload(city_rows, forecast_rows)
 
+    # AQHI layer (#6621) — no province in the payload itself (see
+    # ingest/weather/aqhi.py's docstring), so this is a flat station list
+    # plotted by lat/lon only, not bucketed into a per-province choropleth.
+    with _db().begin() as c:
+        aqhi_rows = c.execute(text("""
+            SELECT location_id, location_name, region, lat, lon, aqhi_value,
+                   observed_utc,
+                   EXTRACT(EPOCH FROM (now() - observed_utc))/60 AS age_min
+            FROM wtf.aurora_aqhi_obs
+            WHERE observed_utc > now() - INTERVAL '6 hours'
+            ORDER BY location_name
+        """)).mappings().all()
+        aqhi_payload = [dict(r) for r in aqhi_rows]
+
+        # Live alerts strip (#6621) — "live" is computed here, never stored:
+        # Actual status, an event still in effect (not an AllClear/"ended"
+        # location status), and not past its own expiry. A cancelled or
+        # expired alert still exists in the table (for a "recently cleared"
+        # history if this is ever wanted) but never renders in the banner.
+        active_alerts = c.execute(text("""
+            SELECT identifier, office_code, event, urgency, severity,
+                   headline, description, coverage_name, area_desc,
+                   sent_utc, effective_utc, expires_utc
+            FROM wtf.aurora_alerts
+            WHERE status = 'Actual'
+              AND COALESCE(location_status, '') NOT IN ('ended', 'expired')
+              AND (expires_utc IS NULL OR expires_utc > now())
+            ORDER BY
+                CASE severity WHEN 'Extreme' THEN 0 WHEN 'Severe' THEN 1
+                              WHEN 'Moderate' THEN 2 WHEN 'Minor' THEN 3 ELSE 4 END,
+                sent_utc DESC
+            LIMIT 20
+        """)).mappings().all()
+        active_alerts = [dict(r) for r in active_alerts]
+
     # One definition of "current", read from the registry rather than restated in
     # JS. Fallback matches the view's city_obs value so behaviour is unchanged if
     # the row is ever missing.
@@ -1186,6 +1221,8 @@ def weather():
                            windiest=[dict(r) for r in windiest],
                            aurora_map=map_payload,
                            aurora_cities=city_payload,
+                           aurora_aqhi=aqhi_payload,
+                           active_alerts=active_alerts,
                            obs_time=obs_time,
                            is_subscriber=is_subscriber())
 
@@ -5572,10 +5609,48 @@ def gic_appointments():
             WHERE department IS NOT NULL ORDER BY department
         """)).scalars().all()
         source_count = c.execute(text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
-    # Header stats — computed from the rows/depts already fetched above, no
-    # new query. "Vacant posts" from the mockup is deliberately NOT here: no
-    # gov_watch.gic_vacancies (or equivalent) table exists anywhere in this
-    # codebase, so a vacancy count would be fabricated (KB vault_note #304357).
+
+        # Live "$n of $total appointments" counter — cheap unfiltered count,
+        # unrelated to the filtered `rows` above (which is capped at 200).
+        total_appointments = c.execute(text(
+            "SELECT COUNT(*) FROM gov_watch.gic_appointments WHERE action_type = 'appointment'"
+        )).scalar() or 0
+
+        # "Vacant posts" (#6621 item 2): a position (department + organization)
+        # is vacant when its MOST RECENT recorded action is a termination with
+        # no later (re)appointment for that same position. Requires migration
+        # 081's action_type column + the ingest capturing termination-type
+        # OICs — a fresh deploy before either lands simply returns no rows
+        # (fail-safe empty, never a fabricated count).
+        vacant_posts = []
+        try:
+            vacant_rows = c.execute(text("""
+                WITH latest_per_position AS (
+                    SELECT DISTINCT ON (department, organization)
+                           department, organization, oic_date, action_type, subject
+                    FROM gov_watch.gic_appointments
+                    WHERE organization IS NOT NULL AND department IS NOT NULL
+                    ORDER BY department, organization, oic_date DESC, pc_number DESC
+                )
+                SELECT department, organization, oic_date AS vacant_since, subject
+                FROM latest_per_position
+                WHERE action_type = 'termination'
+                ORDER BY oic_date ASC
+            """)).mappings().all()
+            # days-vacant computed here in Python, not in Jinja (no now()-like
+            # global is registered on this app's Jinja env) — same
+            # datetime.now(timezone.utc) idiom this route already uses above
+            # for today_str/yesterday_str.
+            _today = datetime.datetime.now(datetime.timezone.utc).date()
+            vacant_posts = [
+                {**dict(r), "days_vacant": (_today - r["vacant_since"]).days if r["vacant_since"] else None}
+                for r in vacant_rows
+            ]
+        except Exception:
+            # action_type column not deployed yet on this instance — degrade
+            # to no vacancy panel rather than a 500 (same per-block try/except
+            # convention economy() already uses for its indicator cards).
+            pass
     organisations_count = len({r["organization"] for r in rows if r["organization"]})
     return render_template("gic.html",
                            appointments=[dict(r) for r in rows],
@@ -5585,6 +5660,8 @@ def gic_appointments():
                            organisations_count=organisations_count,
                            departments_count=len(depts),
                            source_count=source_count,
+                           total_appointments=total_appointments,
+                           vacant_posts=vacant_posts,
                            is_subscriber=is_subscriber())
 
 

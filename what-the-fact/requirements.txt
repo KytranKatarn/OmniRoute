@@ -8,4 +8,8 @@ gunicorn==22.0.0
 flask-cors==6.0.0
 flask-login>=0.6.3
 stripe>=9.0
+# ingest/weather/alerts.py parses CAP XML from an external host — stdlib
+# xml.etree doesn't guard against XXE/entity-expansion; defusedxml does,
+# with no extra transitive deps. Tiny, safe to have in every container.
+defusedxml>=0.7.1
 torch>=2.8.0

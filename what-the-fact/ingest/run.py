@@ -402,6 +402,7 @@ def main():
     _last_boc_week = None        # BoC overnight rate decisions (weekly) — #6272, Batch 9
     _last_fx_week = None          # CAD/USD daily exchange rate (weekly fetch of daily obs) — Batch 12
     _last_statcan_week = None     # StatCan CPI/unemployment/GDP/housing (weekly, monthly-release data) — Batch 12
+    _last_aqhi_alerts_hour = None  # A.U.R.O.R.A. AQHI + EC alerts (hourly, same gate as citypage) — #6621
     while True:
         _cycle_started = time.monotonic()
         # Weekly geo report on Mondays.
@@ -584,6 +585,22 @@ def main():
             except Exception:
                 log.exception("aurora citypage crashed")
             _last_city_hour = _city_hour
+
+        # A.U.R.O.R.A. AQHI + EC alerts — HOURLY, same gate as citypage
+        # (Dev HQ #6621 item 5). Both never raise and write their own
+        # heartbeats on every path, same contract as every ingest above.
+        if _last_aqhi_alerts_hour != _city_hour:
+            try:
+                from ingest.weather.aqhi import run_aurora_aqhi
+                log.info("aurora aqhi: %s", run_aurora_aqhi(engine))
+            except Exception:
+                log.exception("aurora aqhi crashed")
+            try:
+                from ingest.weather.alerts import run_aurora_alerts
+                log.info("aurora alerts: %s", run_aurora_alerts(engine))
+            except Exception:
+                log.exception("aurora alerts crashed")
+            _last_aqhi_alerts_hour = _city_hour
 
         # Elections Canada general-election results — WEEKLY, not daily.
         # The data is STATIC: GE44's official results will never change. A daily

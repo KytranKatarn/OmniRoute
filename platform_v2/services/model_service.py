@@ -145,6 +145,42 @@ def _get_model_load_lock(host_label):
 # ---------------------------------------------------------------------------
 # Priority enum
 # ---------------------------------------------------------------------------
+# ── #6648: embedding models have no generate head ───────────────────────────
+# Ollama serves them at /api/embed and answers /api/generate with
+#   HTTP 400 {"error":"\"<model>\" does not support generate"}
+# Every warm-up here went through /api/generate, so every embedding warm-up
+# failed — silently, because its only caller swallows the exception.
+#
+# ⚠️ This is a NAME heuristic and therefore fallible. Verified against the live
+# warm set (qwen2.5, qwen25-classify, minicpm-v-cpu, mistral, gemma3, dolphin3,
+# phi4, llama3.2 — none contain these markers), but a future model called e.g.
+# "embedder-chat" would be warmed on the wrong endpoint. That is why load_model
+# ALSO falls back on a real HTTP 400 "does not support generate": behaviour, not
+# the name, gets the final say.
+_EMBEDDING_MARKERS = ("embed", "arctic-embed", "nomic-embed", "bge-", "gte-", "e5-")
+
+
+def is_embedding_model(model: str) -> bool:
+    """True for embedding-only models (no generate head)."""
+    name = (model or "").lower()
+    return any(marker in name for marker in _EMBEDDING_MARKERS)
+
+
+def _same_model_tag(a: str, b: str) -> bool:
+    """Compare two Ollama model names, treating a bare name as ``:latest``.
+
+    #6648: /api/ps reports `arctic-embed-cpu:latest` while callers pass the bare
+    `arctic-embed-cpu`, so an exact compare never matched a model that WAS warm —
+    and every call fell through to a doomed warm-boot.
+    """
+
+    def _norm(x: str) -> str:
+        x = (x or "").strip()
+        return x if ":" in x else f"{x}:latest"
+
+    return _norm(a) == _norm(b)
+
+
 class ModelPriority(IntEnum):
     LOWEST = 0
     LOW = 1
@@ -591,8 +627,20 @@ class ModelService:
         """
         base = ollama_url or self.ollama_host
         try:
-            url = f"{base}/api/" + "generate"
-            body = {"model": model, "keep_alive": "10m", "prompt": ""}
+            # #6648 — EMBEDDING MODELS HAVE NO GENERATE HEAD. Warming every model
+            # through /api/generate meant Ollama answered
+            #   HTTP 400 {"error":"\"arctic-embed-cpu\" does not support generate"}
+            # on every single warm-up, forever. It went unnoticed because the only
+            # caller (semantic_scanner.cosine_similarity) wraps the call in a bare
+            # `except Exception: pass`, so the sole symptom was a wall of ERROR
+            # lines. Compounded by the `:latest` tag mismatch fixed below, this
+            # fired on EVERY cosine_similarity() call, not just cold ones.
+            if is_embedding_model(model):
+                url = f"{base}/api/embed"
+                body = {"model": model, "keep_alive": "10m", "input": ""}
+            else:
+                url = f"{base}/api/" + "generate"
+                body = {"model": model, "keep_alive": "10m", "prompt": ""}
             if ollama_url is None:
                 # Conditional CPU pin: big models yield the GPUs when VRAM is
                 # tight (the unconditional pin starved code_review on a busy
@@ -680,14 +728,58 @@ class ModelService:
                     base,
                 )
                 return False
+            # #6648 — BEHAVIOUR OVERRIDES THE NAME. `is_embedding_model` is a name
+            # heuristic; if it guessed wrong and Ollama tells us so with a 400
+            # "does not support generate", retry once on /api/embed. This is what
+            # keeps a future model called e.g. "embedder-chat" from silently
+            # failing every warm-up the way arctic-embed-cpu did.
+            if isinstance(exc, urllib.error.HTTPError) and exc.code == 400 and not is_embedding_model(model):
+                try:
+                    detail = exc.read().decode("utf-8", "replace")[:200]
+                except Exception:  # noqa: BLE001
+                    detail = ""
+                if "does not support generate" in detail:
+                    logger.info(
+                        "model_service: %s has no generate head (%s) — retrying warm-up on /api/embed",
+                        model,
+                        detail.strip(),
+                    )
+                    try:
+                        retry_body = json.dumps({"model": model, "keep_alive": "10m", "input": ""}).encode()
+                        retry_req = urllib.request.Request(
+                            f"{base}/api/embed",
+                            data=retry_body,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(retry_req, timeout=timeout) as resp:
+                            resp.read()
+                        self._cache_time = 0.0
+                        logger.info("model_service: loaded %s on %s via /api/embed", model, base)
+                        return True
+                    except Exception as retry_exc:  # noqa: BLE001
+                        logger.error(
+                            "model_service: /api/embed retry for %s on %s also failed — %s", model, base, retry_exc
+                        )
+                        return False
             logger.error("model_service: load %s on %s failed — %s", model, base, exc)
             return False
 
     def unload_model(self, model: str) -> bool:
-        """Unload *model* via /api/generate with keep_alive=0."""
+        """Unload *model* via keep_alive=0.
+
+        ⚠️ Uses /api/embed for embedding models (#6648). /api/generate 400s on a
+        model with no generate head, so an eviction of an embedding model used to
+        fail SILENTLY — and this is called from ``ensure_capacity``'s eviction
+        loop, where a failed eviction means the RAM is never actually freed.
+        """
         try:
-            url = f"{self.ollama_host}/api/generate"
-            payload = json.dumps({"model": model, "keep_alive": 0, "prompt": ""}).encode()
+            if is_embedding_model(model):
+                url = f"{self.ollama_host}/api/embed"
+                payload = json.dumps({"model": model, "keep_alive": 0, "input": ""}).encode()
+            else:
+                url = f"{self.ollama_host}/api/generate"
+                payload = json.dumps({"model": model, "keep_alive": 0, "prompt": ""}).encode()
             req = urllib.request.Request(
                 url,
                 data=payload,
@@ -838,7 +930,17 @@ class ModelService:
             }
 
         for m in loaded:
-            if m.get("name") == model:
+            # #6648 — TAG-NORMALIZED. This was an exact string compare, and Ollama's
+            # /api/ps reports the resident entry as `arctic-embed-cpu:latest` while
+            # callers pass the bare `arctic-embed-cpu` (the OLLAMA_EMBEDDING_MODEL
+            # default). The bare tag therefore NEVER matched a model that was sitting
+            # warm in RAM, so every call fell through to the Step-3 warm-boot — where
+            # the /api/generate bug above then fired. Measured back-to-back against the
+            # SAME resident model: `:latest` -> ready=True, tier='cpu', 0.00s; bare ->
+            # ready=False, tier='cold', 0.28s + HTTP 400.
+            # Also affects minicpm-v-cpu and qwen25-classify, which are resident as
+            # `:latest` and referenced bare elsewhere.
+            if _same_model_tag(m.get("name", ""), model):
                 size_vram = m.get("size_vram", 0)
                 size_total = m.get("size", 0)
                 if size_vram > 0 and size_total > 0 and size_vram >= size_total * 0.5:

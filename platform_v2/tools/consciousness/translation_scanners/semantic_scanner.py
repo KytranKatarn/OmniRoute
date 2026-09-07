@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Iterator, List, Dict
 
 from .base import BaseScanner, ScannerResult
+
+logger = logging.getLogger("agent_loop")
+
+# #6648: one warm-up warning per process. cosine_similarity runs ~1,081 times a
+# night; a per-call WARNING would replace a silent bug with an unreadable log.
+_warmup_warned = False
 
 
 _ENGLISH_TOKENS = re.compile(
@@ -91,8 +98,25 @@ def cosine_similarity(a: str, b: str) -> float:
 
         embed_model = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
         get_model_service().ensure_model_ready("coverage_scan", embed_model)
-    except Exception:  # noqa: BLE001 — best-effort warmup, embedding_service still tries
-        pass
+    except Exception as _warm_exc:  # noqa: BLE001 — best-effort warmup, embedding_service still tries
+        # #6648: this used to be a bare `pass`, which is why a warm-up that failed
+        # on EVERY call went unnoticed for months — the only trace was a wall of
+        # ERROR lines from model_service itself.
+        #
+        # Deliberately ONE warning per process, not per call: this runs ~1,081
+        # times a night, and a per-call WARNING would simply replace a silent bug
+        # with an unreadable log. Best-effort stays best-effort — the embedding
+        # call below still works whether or not the warm-up did.
+        global _warmup_warned
+        if not _warmup_warned:
+            _warmup_warned = True
+            logger.warning(
+                "cosine_similarity: embedding warm-up failed (%s) — continuing without it. "
+                "This is logged ONCE per process; see #6648.",
+                _warm_exc,
+            )
+        else:
+            logger.debug("cosine_similarity: embedding warm-up failed again: %s", _warm_exc)
 
     va = generate_embedding(a)
     vb = generate_embedding(b)

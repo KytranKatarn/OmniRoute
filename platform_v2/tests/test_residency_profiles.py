@@ -133,6 +133,53 @@ def test_every_default_node_cites_why_it_is_there():
         assert intent.get("why"), f"{node_id} declares residency with no rationale"
 
 
+# ── "news" profile (#6215 — WTF warm residency) ────────────────────────────
+def test_news_profile_exists_and_is_valid():
+    assert "news" in rp._FALLBACK_PROFILES
+    ok, errors = rp.validate({"news": rp._FALLBACK_PROFILES["news"]})
+    assert ok, errors
+
+
+def test_news_hub_entry_declares_qwen_and_gemma_resident():
+    """Hub is WTF's PRIMARY node (_WTF_CPU_FIRST, #3955) — the gap 'default'
+    left open: it only ever declared gemma3:12b resident there, never the
+    qwen2.5:7b the WTF backlog actually dispatches."""
+    hub = rp._FALLBACK_PROFILES["news"]["nodes"]["archie-starbase"]
+    assert set(hub["expect_resident"]) == {"qwen2.5:7b", "gemma3:12b"}
+
+
+def test_news_hub_entry_only_cpu_pins_gemma_not_qwen():
+    """Regression pin: qwen2.5:7b is excluded from _HUB_CPU_TIER (KB #270009)
+    and exceeds _CPU_VIABLE_MAX_GB (4.0GB) — model_service REFUSES rather than
+    CPU-serve it (#5623). Marking it cpu_pinned here would declare an intent
+    the model service cannot honour."""
+    hub = rp._FALLBACK_PROFILES["news"]["nodes"]["archie-starbase"]
+    assert hub.get("cpu_pinned") == ["gemma3:12b"]
+    assert "qwen2.5:7b" not in hub.get("cpu_pinned", [])
+
+
+def test_news_defiant_entry_restates_qwen_overflow():
+    """Only one profile is active fleet-wide at a time (fleet:residency:active),
+    so 'news' must be self-describing rather than relying on 'default' having
+    ALSO reserved qwen2.5:7b on Defiant for an unrelated reason (#1905)."""
+    defiant = rp._FALLBACK_PROFILES["news"]["nodes"]["starship_76583490e36955ab"]
+    assert defiant["expect_resident"] == ["qwen2.5:7b"]
+
+
+def test_news_excludes_runabout_and_citadel():
+    """Runabout (4GB) cannot hold qwen2.5:7b resident — measured 143s warm-boot
+    timeout (#6217). Citadel is the DR warm-standby, no 8GB inference model
+    (#6216) — same reasoning 'default' already applies, restated for 'news'."""
+    nodes = rp._FALLBACK_PROFILES["news"]["nodes"]
+    assert "starship_5501c2766526e746" not in nodes  # Runabout
+    assert not any("outpost_e834ff" in n for n in nodes)  # Citadel
+
+
+def test_every_news_node_cites_why_it_is_there():
+    for node_id, intent in rp._FALLBACK_PROFILES["news"]["nodes"].items():
+        assert intent.get("why"), f"{node_id} declares residency with no rationale"
+
+
 # ── active profile selection ───────────────────────────────────────────────
 def test_active_defaults_to_default_when_unset(monkeypatch):
     _settings(monkeypatch, {})
@@ -142,7 +189,7 @@ def test_active_defaults_to_default_when_unset(monkeypatch):
 def test_an_undefined_active_profile_falls_back_rather_than_emptying(monkeypatch):
     """Pointing at a profile that does not exist must not silently yield an
     EMPTY residency plan — that would read as 'nothing should be warm'."""
-    _settings(monkeypatch, {rp._ACTIVE_KEY: "news"})  # 'news' not defined yet
+    _settings(monkeypatch, {rp._ACTIVE_KEY: "totally-undefined-profile"})
     assert rp.active_name() == "default"
     assert rp.nodes_for(), "must not resolve to an empty plan"
 

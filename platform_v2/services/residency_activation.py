@@ -81,9 +81,26 @@ def _target_host(node: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     ⚠️ remote_nodes.hostname MUST be an IP, never a DNS name (fleet.md) — a
     hostname that does not resolve from inside the container fails as a timeout,
     which reads as "the model is slow" rather than "the address is wrong".
+
+    🔴 THE HUB HAS A REAL remote_nodes ROW (node_id='archie-starbase',
+    hostname='host.docker.internal') — it is NOT absent, so `node is None` never
+    catches it. Before this check existed, a hub-targeted activate() returned a
+    non-None host, which sent ensure_model_ready down the REMOTE branch — and
+    model_service._ensure_model_ready_locked gates its ENTIRE placement-safety
+    block (the #5623 CPU-viability refusal, the RAM-capacity check,
+    gpu_placement_options(), the _HUB_CPU_TIER pin) behind `target_host is None`.
+    So every hub warm-up request went out as a bare POST with no placement
+    options at all — silently bypassing the hub's own placement safety net,
+    discovered live: `fleet:residency:active='default'` had already run
+    non-dry-run against the hub with 'default' profile's gemma3:12b cpu_pinned
+    entry never actually taking effect. Match on node_id, not hostname — the
+    fleet's own convention (fleet.md identity invariants) is to key nodes by the
+    varchar node_id, never by a value that could coincidentally be empty/reused.
     """
     if node is None:
-        return None  # hub
+        return None  # no row at all — treat as hub-shaped, same as before
+    if node.get("node_id") == "archie-starbase":
+        return None  # the hub — let model_service resolve its own placement
     host = (node.get("hostname") or "").strip()
     if not host:
         return None
@@ -386,12 +403,15 @@ def plan(profile_name: Optional[str] = None) -> List[Dict[str, Any]]:
 _BACKLOG_ENABLED_KEY = "warmboot:wtf_backlog:enabled"
 _BACKLOG_PROFILE_KEY = "warmboot:wtf_backlog:profile"
 _BACKLOG_TTL_KEY = "warmboot:wtf_backlog:ttl_min"
-# ⚠️ MUST NAME A PROFILE THAT EXISTS. residency_profiles ships exactly one
-# fallback profile today ('default'); 'news' is planned but not written yet.
-# Pointing at an absent profile makes activate() return "declares no nodes",
-# which this wrapper would report as `nothing requestable` — indistinguishable
-# from "every model was refused by the gates". The feature would be silently
-# off while looking like it had run. Caught live before the first armed cycle.
+# ⚠️ MUST NAME A PROFILE THAT EXISTS. Kept as 'default' even now that 'news'
+# exists (#6215) — this constant is the LAST-RESORT fallback used only when the
+# platform_settings row (warmboot:wtf_backlog:profile) is absent or invalid, and
+# 'default''s hub entry (gemma3:12b only) is the one that has actually run in
+# production; 'news''s hub entry additionally targets qwen2.5:7b on hub GPU and
+# depends on the _target_host() hub fix above landing cleanly. A last-resort
+# fallback should be the option already proven safe, not the newest one. The
+# real activation path is armed via the settings row pointing at 'news'
+# directly — this constant only matters if that row goes missing.
 _BACKLOG_DEFAULT_PROFILE = "default"
 
 

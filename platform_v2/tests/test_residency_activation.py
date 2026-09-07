@@ -170,6 +170,19 @@ def test_target_host_is_none_for_a_node_with_no_hostname():
     assert ra._target_host({"hostname": "192.168.1.246"})["port"] == 11434
 
 
+def test_target_host_returns_none_for_the_hub_node_id():
+    """Regression pin (#6215): the hub HAS a real remote_nodes row
+    (node_id='archie-starbase', hostname='host.docker.internal') — it is not
+    absent, so `node is None` never caught it. A non-None target sends
+    ensure_model_ready down the REMOTE branch, which skips model_service's
+    ENTIRE placement-safety block (#5623 CPU-viability refusal, RAM-capacity
+    check, gpu_placement_options(), the _HUB_CPU_TIER pin) — all gated behind
+    `target_host is None`. Discovered live: 'default' profile's gemma3:12b
+    cpu_pinned hub entry had been silently not-applying since the first real
+    activation."""
+    assert ra._target_host({"node_id": "archie-starbase", "hostname": "host.docker.internal"}) is None
+
+
 def test_status_distinguishes_never_activated_from_lapsed(monkeypatch):
     import services.residency_profiles as rp
     import time as _t
@@ -385,6 +398,18 @@ def test_the_default_profile_must_actually_EXIST():
     assert ra._BACKLOG_DEFAULT_PROFILE in rp.all_profiles(), (
         f"default profile {ra._BACKLOG_DEFAULT_PROFILE!r} does not exist; " f"known: {sorted(rp.all_profiles())}"
     )
+
+
+def test_backlog_default_profile_stays_default_not_news():
+    """#6215 added a real 'news' profile — deliberately did NOT repoint this
+    last-resort fallback at it. This constant only fires when the
+    platform_settings row (warmboot:wtf_backlog:profile) is absent/invalid; the
+    real activation path is armed via that row pointing at 'news' directly.
+    'default''s hub entry (gemma3:12b only) has actually run in production;
+    'news''s hub entry additionally targets qwen2.5:7b on hub GPU and depends
+    on the _target_host() hub fix above landing cleanly — a last-resort
+    fallback should be the option already proven safe, not the newest one."""
+    assert ra._BACKLOG_DEFAULT_PROFILE == "default"
 
 
 def test_a_typo_in_the_profile_setting_degrades_loudly_instead_of_silently_off(backlog, monkeypatch):

@@ -98,6 +98,38 @@ _FALLBACK_PROFILES: Dict[str, Dict[str, Any]] = {
             },
         },
     },
+    "news": {
+        "description": "WTF backlog (fact_check/bias_analysis) warm-residency. "
+        "#6215 — 45x cold-vs-warm on qwen2.5:7b. Hub is WTF's PRIMARY node "
+        "(_WTF_CPU_FIRST, #3955); Defiant is overflow-only, restated here "
+        "because only one profile is active fleet-wide at a time.",
+        "nodes": {
+            "archie-starbase": {  # hub — WTF's PRIMARY target, per _WTF_CPU_FIRST
+                "expect_resident": ["qwen2.5:7b", "gemma3:12b"],
+                "cpu_pinned": ["gemma3:12b"],
+                "why": "#6215/#3955 — hub is WTF's primary node but 'default' "
+                "never declared qwen2.5:7b resident there. gemma3:12b stays "
+                "CPU-pinned (unchanged; translate/compliance depend on it); "
+                "qwen2.5:7b targets hub GPU (12GB TITAN) — it is deliberately "
+                "NOT cpu_pinned: excluded from _HUB_CPU_TIER (KB #270009) and "
+                "over _CPU_VIABLE_MAX_GB (4.0GB), so model_service refuses "
+                "rather than serve it from CPU (#5623).",
+            },
+            "starship_76583490e36955ab": {  # USS-246 Defiant — WTF overflow only
+                "reserved_vram_gb": 8.0,
+                "reserved_for": "code_review",
+                "expect_resident": ["qwen2.5:7b"],
+                "why": "#3955 — Defiant is WTF's overflow node only, reached "
+                "when the hub saturates. Restated (not inherited) from "
+                "'default' because only one profile is active fleet-wide at "
+                "a time.",
+            },
+            # Runabout (USS-245, 4GB) deliberately excluded — cannot hold
+            # qwen2.5:7b resident, measured 143s warm-boot timeout (#6217).
+            # Citadel deliberately excluded — #6216 owner decision, DR
+            # warm-standby serving 5 live products, no 8GB inference model.
+        },
+    },
 }
 
 # ⚠️ Citadel is deliberately ABSENT. It was removed from _WTF_CPU_FIRST on

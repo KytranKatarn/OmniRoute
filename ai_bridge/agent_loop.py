@@ -9457,6 +9457,7 @@ class AgentLoop:
             _mark_kytran_approval_sent,
             _mark_tier_processed,
             open_pr_merge_approval,
+            pending_pr_merge_approval,
         )
         from tools.repair_bay.services.github_service import pr_is_open  # noqa: PLC0415
 
@@ -9486,7 +9487,7 @@ class AgentLoop:
                 "[PRTiers] PR #%s was refused but is already closed/merged — " "marking processed, not paging Kytran",
                 pr_num,
             )
-            _mark_tier_processed(pr_num, tier=tier)
+            _mark_tier_processed(pr_num, tier=tier, repo=review.get("repo"))
             return True
 
         logger.warning(
@@ -9495,15 +9496,25 @@ class AgentLoop:
             pr_num,
             why,
         )
-        approval_id = open_pr_merge_approval(pr_num, title, summary, repo=review.get("repo"))
-        self._request_kytran_pr_approval(
-            pr_num,
-            title,
-            summary,
-            reason=(
-                f"⛔ Tier {tier} auto-merge was REFUSED — a human must merge this " f"deliberately.\n\n*Reason:* {why}"
-            ),
-        )
+        _repo = review.get("repo")
+        approval_id = open_pr_merge_approval(pr_num, title, summary, repo=_repo)
+        # #6649: the page is bound to the ARTIFACT. It used to be sent here,
+        # UNCONDITIONALLY, between the row attempt and the `if approval_id:` guard
+        # below — so a DEDUPED creation (row already exists) produced a fresh
+        # Telegram and then declined to set the flag, and the 2-minute worker did
+        # it all again on the next tick. Measured 59 sends in 7 days, ALL of them
+        # dedups: 49 for PR #3238 across 1h43m, 6 for #3242, zero draft-guard and
+        # zero error cases. The loop only ever ended when a human merged the PR.
+        if approval_id:
+            self._request_kytran_pr_approval(
+                pr_num,
+                title,
+                summary,
+                reason=(
+                    f"⛔ Tier {tier} auto-merge was REFUSED — a human must merge this "
+                    f"deliberately.\n\n*Reason:* {why}"
+                ),
+            )
         # #5829: mark "asked" only when a QUEUE ROW EXISTS. This flag is checked at
         # the top of the worker loop and permanently suppresses re-escalation, so
         # setting it on a failed/deduped/draft-guarded creation retires the PR from
@@ -9512,10 +9523,37 @@ class AgentLoop:
         # is where the owner actually looks. Same shape as ADR-014: record the
         # artifact, never the intent.
         if approval_id:
-            _mark_kytran_approval_sent(pr_num)
+            _mark_kytran_approval_sent(pr_num, repo=_repo)
+            return True
+
+        # #6649: `open_pr_merge_approval` returning None means one of two very
+        # different things, and the old code treated them identically — which is
+        # what made the loop unbounded.
+        #
+        #   DEDUP        — a live pending row ALREADY exists (usually opened
+        #                  seconds earlier by mark_review_done's sensitive-path
+        #                  gate, which opens the row and sends the buttons but
+        #                  never sets this flag). The owner already has an
+        #                  actionable row in the Approvals tab AND has already
+        #                  been paged. The artifact exists, so recording it is
+        #                  correct under ADR-014 — we are recording the ROW, not
+        #                  our intent to create one.
+        #   DRAFT/ERROR  — no row exists anywhere. Recording "asked" here would
+        #                  retire a live PR with nothing pending, which is the
+        #                  #5829 trap. Keep retrying.
+        existing_id = pending_pr_merge_approval(pr_num, repo=_repo)
+        if existing_id:
+            logger.info(
+                "[PRTiers] PR #%s: approval row %s is already pending (opened elsewhere) — "
+                "owner already has an actionable row; recording as asked, not re-paging",
+                pr_num,
+                existing_id,
+            )
+            _mark_kytran_approval_sent(pr_num, repo=_repo)
             return True
         logger.warning(
-            "[PRTiers] PR #%s: no approval row was created (draft guard, dedup or error) — "
+            "[PRTiers] PR #%s: no approval row was created AND none is pending "
+            "(draft guard or error — NOT dedup, that case is handled above) — "
             "NOT marking as asked, so the next cycle retries instead of losing it",
             pr_num,
         )

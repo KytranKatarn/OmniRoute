@@ -820,13 +820,25 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
             _row = get_review(pr_number) or {}
             _title = _row.get("title") or f"PR #{pr_number}"
             _summary = _row.get("ai_summary") or "F.O.R.G.E. approved; touches non-allowlisted paths."
-            open_pr_merge_approval(pr_number, _title, _summary, repo=_merge_repo)
+            _approval_id = open_pr_merge_approval(pr_number, _title, _summary, repo=_merge_repo)
             send_pr_merge_buttons(
                 pr_number,
                 _title,
                 f"F.O.R.G.E. APPROVED, but this changes files outside the auto-merge "
                 f"allowlist:\n`{_shown}`\n\n{_summary[:280]}",
             )
+            # #6649: THIS is the producer that started the alert loop. It opened the
+            # durable row and sent the buttoned Telegram — both surfaces, correctly —
+            # but never set `kytran_approval_sent`. The 2-minute `forge_archie_pr_review`
+            # worker skips a PR only when `tier_processed` or `kytran_approval_sent` is
+            # set, so it re-processed this PR on every tick, hit the same governance
+            # refusal, and re-paged. 49 duplicate pages for PR #3238 over 1h43m.
+            #
+            # Recording it here is ADR-014-correct: the ROW EXISTS (we have its id) and
+            # the owner has been paged. We are recording the artifact, not the intent —
+            # which is why it is gated on `_approval_id` rather than set unconditionally.
+            if _approval_id:
+                _mark_kytran_approval_sent(pr_number, repo=_merge_repo)
         except Exception as _ask_exc:  # noqa: BLE001
             logger.warning("[F.O.R.G.E.] PR #%s: could not open the merge approval: %s", pr_number, _ask_exc)
         return
@@ -1462,7 +1474,7 @@ def _changes_requested_recently(review: dict, window_hours_env: str = None) -> b
         return False
 
 
-def _mark_tier_processed(pr_number: int, tier: int) -> None:
+def _mark_tier_processed(pr_number: int, tier: int, repo: str = None) -> None:
     """Record that a tier decision was CARRIED OUT (merged, or sent to Kytran).
 
     ⚠️ TERMINAL ONLY. ``metadata.tier_processed`` is the flag the tiered-merge
@@ -1482,10 +1494,28 @@ def _mark_tier_processed(pr_number: int, tier: int) -> None:
 
     payload = _Json({"tier_processed": tier, "tier_processed_at": now_utc().isoformat()})
     with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
-            (payload, pr_number),
-        )
+        # See _mark_kytran_approval_sent for why `repo` matters: pr_number is not
+        # unique in pr_reviews (PR #19 exists in FIVE repos, measured 2026-09-07).
+        # repo=None keeps the historical repo-blind UPDATE for callers that do not
+        # know their repo, rather than silently narrowing them.
+        #
+        # ⚠️ This is `tier_processed` — the WORKER SKIP flag. Do not confuse it with
+        # `_mark_forge_escalated`'s `forge_escalated_tier`, which is deliberately a
+        # DIFFERENT key: #5363 found that writing the skip flag on escalation made
+        # "pass this up to the next authority" read as "already handled", so Tier 2
+        # never reached the COO and Tier 3 never reached Kytran (PRs #2523/#2524/
+        # #2528/#2533). `TestEscalationIsNotCompletion` pins that separation.
+        if repo:
+            cur.execute(
+                "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s "
+                "WHERE pr_number = %s AND repo = %s",
+                (payload, pr_number, repo),
+            )
+        else:
+            cur.execute(
+                "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
+                (payload, pr_number),
+            )
 
 
 def _mark_forge_escalated(pr_number: int, tier: int) -> None:
@@ -1507,22 +1537,89 @@ def _mark_forge_escalated(pr_number: int, tier: int) -> None:
         )
 
 
-def _mark_kytran_approval_sent(pr_number: int) -> None:
+def _mark_kytran_approval_sent(pr_number: int, repo: str = None) -> None:
     """Prevent duplicate Tier 3 TELEGRAM messages for this PR.
 
     NOTE (#5283): this flag gates the Telegram send ONLY. It must never be used to
     skip creating the ``autonomy_approval_queue`` row — the two surfaces are
     independent, and suppressing the durable row is exactly how a missed Telegram
     used to strand a PR with nothing visibly pending anywhere.
+
+    ⚠️ PASS ``repo`` (#6649). ``pr_number`` is NOT unique in ``pr_reviews`` — that
+    table has a ``repo`` column and the same number exists across repos. Measured
+    2026-09-07: **PR #19 exists in FIVE repos** (archie-code, archie-platform,
+    kytran-business-suite, kytran-civic-watch, kytran-legal-watch), #16/#7/#13/#15/#20
+    in four each. A repo-blind UPDATE therefore marks every repo's PR #19 as "the
+    owner has been asked", silently retiring four live PRs from the escalation path
+    with no log line anywhere.
+
+    ``repo=None`` preserves the old repo-blind behaviour on purpose: narrowing an
+    existing caller's UPDATE without its knowledge could leave the flag unset and
+    reintroduce the very re-escalation loop this parameter exists to stop. Callers
+    that know their repo must pass it.
     """
     from psycopg2.extras import Json as _Json  # noqa: PLC0415
 
     payload = _Json({"kytran_approval_sent": True})
     with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
-            (payload, pr_number),
-        )
+        if repo:
+            cur.execute(
+                "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s "
+                "WHERE pr_number = %s AND repo = %s",
+                (payload, pr_number, repo),
+            )
+        else:
+            cur.execute(
+                "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
+                (payload, pr_number),
+            )
+
+
+def pending_pr_merge_approval(pr_number: int, repo: str = None) -> "int | None":
+    """Id of a LIVE pending ``pr_merge`` approval row for this PR, else None.
+
+    Exists so ``_escalate_blocked_merge`` can tell the two reasons
+    ``open_pr_merge_approval`` returns None apart (#6649):
+
+      * **dedup** — a row already exists, so the owner HAS an actionable item and
+        has already been paged. Re-paging adds nothing.
+      * **draft guard / error** — no row exists, so the request would genuinely be
+        lost if we recorded it as asked.
+
+    Treating those identically is what produced the alert loop: every 2-minute tick
+    re-sent the Telegram and then declined to set the flag, so the next tick did it
+    again. Measured 59 sends over 7 days, all of them dedups (49 for PR #3238 alone,
+    over 1h43m), with zero draft-guard and zero error cases.
+
+    ⚠️ Repo-aware ON PURPOSE, unlike ``_check_existing_approval``'s dedup predicate,
+    which matches on ``pr_number`` alone. This function's answer SUPPRESSES a page,
+    so a cross-repo false match here would silence a real request.
+    """
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = 'pr_merge'
+                  AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND action_data->>'pr_number' = %s
+                  AND (%s::text IS NULL OR action_data->>'repo' = %s)
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (str(pr_number), repo, repo),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        return row["id"] if isinstance(row, dict) else row[0]
+    except Exception:  # noqa: BLE001
+        # Fail to None — "we could not confirm a row exists" must behave like
+        # "no row", i.e. keep retrying. Suppressing a page on an unreadable DB
+        # would be the #5829 trap (recording intent as artifact) via a new door.
+        logger.warning("pending_pr_merge_approval: lookup failed for PR #%s", pr_number, exc_info=True)
+        return None
 
 
 def _pr_is_draft(pr_number: int, repo: str = None) -> "bool | None":

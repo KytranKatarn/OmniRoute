@@ -57,11 +57,15 @@ def wired(monkeypatch):
         # artifact, never the intent — the double has to honour that too.
         return state["approval_id"]
 
-    def _mark(pr):
+    # #6649: both flag writers now take `repo` — pr_number is not unique in
+    # pr_reviews (PR #19 exists in five repos), so a repo-blind UPDATE retires
+    # other repos' live PRs from escalation. The doubles must accept it or every
+    # escalation test goes red on a TypeError rather than on behaviour.
+    def _mark(pr, repo=None):
         order.append("mark_sent")
         marked.append(pr)
 
-    def _tier(pr, tier=None):
+    def _tier(pr, tier=None, repo=None):
         order.append("mark_tier")
         tiered.append({"pr": pr, "tier": tier})
 

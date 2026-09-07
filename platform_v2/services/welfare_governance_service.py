@@ -32,6 +32,34 @@ logger = logging.getLogger(__name__)
 # got any events. The per-dimension emit lives in services/welfare_emit.py.
 _CREED_MODULE = "Welfare"
 
+# ── ADMISSION-GATE COUNTING WINDOW ──────────────────────────────────────────
+# 🔴 INVARIANT: this window MUST exceed the LONGEST dispatch deadline
+# (max(department_dispatcher.CAPABILITY_TIMEOUTS.values()), currently 600s).
+# Pinned by tests/test_admission_gate_window.py — a future deadline raise turns
+# that test RED rather than silently re-breaking the gate.
+#
+# WHY (2026-09-07 outage, hub 23:00 UTC — 47 attempts, 0 successes):
+# Both gates count bridge_jobs rows with `created_at > NOW() - window`. A job
+# that is STILL non-terminal past the window drops out of its own denominator
+# while it is still occupying the hub slot the gate exists to bound. #5925
+# raised fact_check 300s → 600s and flagged that the deadline "INTERACTS with
+# the dispatch:hub_inflight_max admission cap" — what it did NOT catch is that
+# 600s is EXACTLY the 10-minute window that was in force here, so the two
+# aliased and the gate went blind at the boundary.
+#
+# That makes it a POSITIVE FEEDBACK LOOP, which is why it presents as a cliff
+# rather than a slope: saturation → longer jobs → more of them age out of the
+# count → more admitted → worse saturation. Measured during the incident:
+# fact_check p90 lifetime 600.0s, and 44 of 147 contended-lane jobs outlived
+# the window entirely. In-flight reached 31 against a nominal cap of 8.
+#
+# The window is still FINITE and deliberately so: it is what stops a stuck
+# zombie from gating the lane forever. Widening it 10 → 15 lengthens that
+# worst-case stall by 5 minutes, which is the price of counting real occupancy
+# correctly. Do not remove the bound; only ever raise it to stay ahead of the
+# longest deadline.
+GATE_WINDOW_MINUTES = 15
+
 
 def pool_over_budget_by_skill(skill_name: str, settings_key: str = "welfare:backlog:pool_pause_ratio") -> bool:
     """True when EVERY agent in the pool for ``skill_name`` is at/over its 24h token
@@ -337,7 +365,7 @@ def in_flight_over_cap(
     job_type: str,
     cap_key: str = "welfare:backlog:max_inflight",
     default_cap: int = 25,
-    window_minutes: int = 10,
+    window_minutes: int = GATE_WINDOW_MINUTES,
 ) -> bool:
     """True when ``job_type`` already has >= cap in-flight ``bridge_jobs`` — a QUEUE-DEPTH
     backpressure gate that complements the token-budget gate ``pool_over_budget_by_skill``.
@@ -464,7 +492,7 @@ def reserved_cap_for(cap: int, reserve: int, mode: str, is_prioritised: bool) ->
 def hub_lane_over_cap(
     cap_key: str = "dispatch:hub_inflight_max",
     default_cap: int = 8,
-    window_minutes: int = 10,
+    window_minutes: int = GATE_WINDOW_MINUTES,
     capability: "Optional[str]" = None,
     module_id: "Optional[str]" = None,
     reserve_key: str = "dispatch:hub_reserve_slots",

@@ -112,6 +112,28 @@ class SemanticScanner(BaseScanner):
     def __init__(self, source: str, rows: List[Dict]):
         self.source = source
         self.rows = rows
+        # Row ids this scan ACTUALLY evaluated (got a real back-translation for).
+        # The caller stamps translations.last_semantic_review_at on these.
+        #
+        # WHY THIS EXISTS (#6648, measured 2026-09-07): orchestrator.py:148-149
+        # SELECTS candidates on `last_semantic_review_at IS NULL OR < NOW() - 30 days`,
+        # but nothing in the QA path ever WROTE that column — the only writers are
+        # generator.py:282/289, which fire when a NEW translation is created. So this
+        # sweep re-attempted the same rows on every run, forever: 34,343 never-reviewed
+        # vs 4,018 reviewed, and every one of the 4,018 was stamped by the generator,
+        # not by this scanner.
+        #
+        # That non-convergence is what pushed ~13,000 translate dispatches/30d at the
+        # hub and produced 6,309 admission-cap sheds — against a translation corpus that
+        # is COMPLETE (every language 4,468-4,579 approved, 9 rows pending, zero open
+        # `missing` gaps). The work was re-verification of finished work, on a loop.
+        #
+        # ⚠️ ONLY genuinely-evaluated rows belong here. A short-skip never reached the
+        # model, and an empty back-translation means the dispatch was shed or failed —
+        # neither was reviewed, so neither may be stamped. Stamping an unevaluated row
+        # buys silence for 30 days and is exactly the "unmonitored while appearing
+        # monitored" shape (#5851 applies the same rule in generator.py:183).
+        self.reviewed_ids: List[int] = []
 
     def scan(self) -> Iterator[ScannerResult]:
         for row in self.rows:
@@ -127,6 +149,12 @@ class SemanticScanner(BaseScanner):
                 # hub-starvation window (#3676 follow-up). The next scan
                 # re-evaluates once the dispatcher is healthy.
                 continue
+            # Past the empty-check: this row got a REAL back-translation, so it was
+            # genuinely reviewed. Record it whether or not a gap is yielded below —
+            # a row evaluated and found GOOD is precisely the one that must stop
+            # coming back, and it is the majority case on a healthy corpus.
+            if row.get("id") is not None:
+                self.reviewed_ids.append(row["id"])
             sim = cosine_similarity(back, row.get("source_en_text", ""))
             residue = _english_residue_count(text)
             if sim < _MIN_COSINE or residue >= _MAX_RESIDUE:

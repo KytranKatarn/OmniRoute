@@ -153,6 +153,41 @@ def _semantic_candidate_rows(source: str) -> list:
         return [dict(r) for r in cur.fetchall()]
 
 
+def _stamp_semantic_reviewed(row_ids: list) -> int:
+    """Mark rows as semantically reviewed NOW. Returns how many were stamped.
+
+    This is the write half of the read at ``_semantic_candidate_rows`` (the
+    ``last_semantic_review_at IS NULL OR < NOW() - 30 days`` predicate). Without it
+    that predicate can never become false for a row the scanner checked, so the
+    sweep re-attempts the same set on every run — measured 2026-09-07 as 34,343
+    never-reviewed vs 4,018 reviewed, where all 4,018 were stamped by
+    ``generator.py`` writing NEW translations, never by the scanner.
+
+    Fail-SOFT: any error is logged and swallowed. A missed stamp costs a repeated
+    review next run; an exception escaping here would abort the whole scan pass.
+    """
+    ids = [i for i in (row_ids or []) if i is not None]
+    if not ids:
+        return 0
+    try:
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                "UPDATE translations SET last_semantic_review_at = NOW() WHERE id = ANY(%s)",
+                (ids,),
+            )
+            stamped = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+        logger.info("[TranslationScan] semantic review stamped on %s row(s)", stamped)
+        return stamped
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "[TranslationScan] failed to stamp last_semantic_review_at on %s row(s); "
+            "they stay eligible and will be re-reviewed next run",
+            len(ids),
+            exc_info=True,
+        )
+        return 0
+
+
 def _load_open_missing_gaps(limit: int, source_labels: list) -> list:
     with get_db_cursor() as (_conn, cur):
         cur.execute(
@@ -284,9 +319,19 @@ def run_translation_coverage_scan(
             # the expensive bit. Skip it when generate=False (scoped git-hook
             # detection scan wants no LLM calls).
             rows = _semantic_candidate_rows(label) if generate else []
-            for result in SemanticScanner(source=label, rows=rows).scan():
-                _upsert_gap(result)
-                totals["gaps_found"] += 1
+            scanner = SemanticScanner(source=label, rows=rows)
+            try:
+                for result in scanner.scan():
+                    _upsert_gap(result)
+                    totals["gaps_found"] += 1
+            finally:
+                # Stamp in a `finally`: those back-translations were DISPATCHED and
+                # PAID FOR. If the loop dies partway, the rows it did evaluate were
+                # still evaluated, and discarding the stamp only guarantees we spend
+                # the same dispatches again on the next run — which is the exact
+                # failure this fix exists to end.
+                stamped = _stamp_semantic_reviewed(scanner.reviewed_ids)
+                totals["semantic_reviewed"] = totals.get("semantic_reviewed", 0) + stamped
         except Exception:  # noqa: BLE001
             logger.exception("[TranslationScan] semantic pass failed for %s", label)
 

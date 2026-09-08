@@ -313,7 +313,92 @@ do_failover(){
 }
 
 # ---- Main cycle (steps 1–7) ----
+# ── OBSERVATION LANE ────────────────────────────────────────────────────────
+# 🔴 THIS RUNS BEFORE EVERY PROMOTION GATE, AND THAT IS THE ENTIRE POINT.
+#
+# On 2026-09-08 the hub was down 20:08-20:22 UTC. This watchdog ran ~14 cycles
+# straight through it and logged exactly one line each time:
+#     "awaiting decision (rebuild/skip_rebuild/verify) — exit."
+# It probed nothing and told nobody. `systemctl is-active dr-watchdog.timer` said
+# `active` the whole time. The owner found the outage by opening a browser.
+#
+# CAUSE: .failed_over / .awaiting_rebuild are PROMOTION gates, but they sat ABOVE
+# the probe in main(), so disarming DR also disarmed MONITORING. Those are two
+# different questions and must never share a gate:
+#     "may I promote boston-2?"  -> correctly gated, and STAYS gated.
+#     "is the hub up?"           -> always worth answering, and NEVER gated.
+# A degraded-DR posture is when you are MOST exposed, so it must alert MORE, not
+# go silent. That is the whole failure this lane exists to prevent.
+#
+# .watchdog_disabled is the ONE exception: it is an explicit human "be quiet, I am
+# doing maintenance", so it suppresses alerts too — but it SAYS SO in the log,
+# because unannounced silence is precisely the bug being fixed here.
+#
+# SAFE BY CONSTRUCTION: this observes only. It never promotes, never runs
+# failover.sh, never writes a DR flag, and never returns non-zero — its caller
+# invokes it with `|| true` so a broken probe can never take the watchdog down
+# with it.
+observe_and_alert(){
+  local sf="$DR/.hub_observed_state" kf="$DR/.hub_observed_streak" df="$DR/.hub_down_since"
+  local confirm="${OBSERVE_CONFIRM:-2}" obs last streak now mins down_since
+
+  if [ -f "$DISABLED_FLAG" ]; then
+    log "observation: alerts SUPPRESSED by $DISABLED_FLAG (planned maintenance)."
+    return 0
+  fi
+
+  if probe_local >/dev/null 2>&1; then obs=up; else obs=down; fi
+  last="$(cat "$sf" 2>/dev/null || echo '')"
+  now="$(now_epoch)"
+
+  # Steady state — nothing to say. Clearing the streak here is what makes a
+  # single flapping cycle unable to accumulate into a false report.
+  if [ "$obs" = "$last" ]; then rm -f "$kf"; return 0; fi
+
+  # First ever run: adopt the current state silently rather than paging about a
+  # transition nobody observed the start of.
+  if [ -z "$last" ]; then
+    echo "$obs" > "$sf"
+    [ "$obs" = "down" ] && echo "$now" > "$df"
+    log "observation: baseline recorded as $obs (no alert on first observation)."
+    return 0
+  fi
+
+  streak=$(( $(cat "$kf" 2>/dev/null || echo 0) + 1 ))
+  echo "$streak" > "$kf"
+  if [ "$streak" -lt "$confirm" ]; then
+    log "observation: hub looks $obs (${streak}/${confirm} confirmations) — holding."
+    return 0
+  fi
+
+  rm -f "$kf"
+  echo "$obs" > "$sf"
+
+  if [ "$obs" = "down" ]; then
+    echo "$now" > "$df"
+    log "observation: hub DOWN confirmed over ${confirm} consecutive checks — alerting."
+    tg_notify "🔴 <b>Starbase (hub) is DOWN</b> — confirmed from Citadel over ${confirm} consecutive checks.
+
+Products on Citadel are unaffected. <code>platform.kytranempowerment.com</code> and product sign-in will return 502 until it is back.
+
+<i>Observation only — no failover has been triggered.</i>"
+  else
+    mins=""
+    if [ -f "$df" ]; then
+      down_since="$(cat "$df" 2>/dev/null || echo "$now")"
+      mins=" after $(( (now - down_since) / 60 )) min down"
+      rm -f "$df"
+    fi
+    log "observation: hub RECOVERED${mins} — alerting."
+    tg_notify "✅ <b>Starbase (hub) is back</b>${mins} — reachable from Citadel again."
+  fi
+  return 0
+}
+
 main(){
+  # 0. OBSERVE + ALERT. Deliberately ABOVE every gate below — see the comment on
+  #    observe_and_alert. `|| true` so observation can never break promotion logic.
+  observe_and_alert || true
   # 1. Disarm / planned-maintenance kill switch.
   if [ -f "$DISABLED_FLAG" ]; then log "disabled ($DISABLED_FLAG present) — exit."; exit 0; fi
   # 2. Post-failover recovery: hub came back — auto-repoint then request approval for DB rebuild.

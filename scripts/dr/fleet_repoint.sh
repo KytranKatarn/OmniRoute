@@ -26,8 +26,12 @@
 # HUB_URL is BAKED container env — repoint.sh recreates the container, KB #270232).
 # outpost-us (kytran@, .2) is deliberately NOT here: it hosts watch products +
 # the SMTP relay, and its hub URLs are handled by the watch-product .env pass.
-FLEET_REPOINT_NODES=( "root@100.64.0.5" "root@100.64.0.7" "root@100.64.0.8" )
-FLEET_REPOINT_MESH_IPS="'100.64.0.5','100.64.0.7','100.64.0.8'"
+# EMPTY since 2026-08-29: singapore/lithuania/uk were retired, and they were the
+# only nodes this list ever held. Deliberately NOT replaced with outpost-us or the
+# Starships — the comment above explains why each is excluded. An empty list makes
+# every repoint helper a clean no-op; callers already tolerate that.
+FLEET_REPOINT_NODES=()
+FLEET_REPOINT_MESH_IPS=""
 
 # LAN Starships (Windows Docker Desktop, Famil@ SSH). Their sync containers keep
 # HUB_URL=hub permanently and self-heal via node_sync v3 DR_HUB_URL auto-switch
@@ -59,9 +63,16 @@ fleet_ssh_key(){
 # number of nodes that could NOT be repointed (0 = all done).
 fleet_repoint_outposts(){
   local target="${1:?usage: fleet_repoint_outposts <mesh_ip>}" key node failed=0
+  # No global outposts remain (singapore/lithuania/uk retired 2026-08-29). Return
+  # BEFORE touching the ssh key or expanding the array: "${arr[@]}" on an empty array
+  # is an unbound-variable error under the `set -u` that the sourcing scripts use.
+  if [ "${#FLEET_REPOINT_NODES[@]}" -eq 0 ]; then
+    log "  no global outposts to repoint (none remain)."
+    return 0
+  fi
   if ! key="$(fleet_ssh_key)"; then
     log "  WARN: no fleet SSH key ($DR/.ssh/id_ed25519 or $DR/.fleet_key) — cannot repoint outposts."
-    log "        manual, per node: ssh root@100.64.0.{5,7,8} /opt/archie-node/repoint.sh $target"
+    log "        manual, per node: ssh <node> /opt/archie-node/repoint.sh $target"
     return "${#FLEET_REPOINT_NODES[@]}"
   fi
   for node in "${FLEET_REPOINT_NODES[@]}"; do
@@ -101,6 +112,14 @@ fleet_kick_starships(){
 # and there is nothing to verify against.
 fleet_verify_heartbeats(){
   local max_age="${1:-300}" wait_s="${2:-180}" key deadline out stale name age
+  # Nothing to verify is VACUOUSLY verified — but say so out loud rather than
+  # returning a bare success. An empty list would otherwise build `mesh_ip IN ()`,
+  # a SQL syntax error, whose empty result reads as "could not read heartbeats" and
+  # reports "repoint UNVERIFIED" during a real failback.
+  if [ -z "$FLEET_REPOINT_MESH_IPS" ]; then
+    log "  no global outposts remain — no heartbeats to verify (nothing was repointed)."
+    return 0
+  fi
   key="$(fleet_ssh_key)" || { log "  WARN: no fleet SSH key — cannot verify heartbeats from here."; return 1; }
   deadline=$(( $(date +%s) + wait_s ))
   while :; do

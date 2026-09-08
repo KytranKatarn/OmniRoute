@@ -211,22 +211,18 @@ log "Repointing surviving fleet nodes -> boston-2 ($DR_MESH)..."
 fleet_repoint_outposts "$DR_MESH" || log "  (some outposts not repointed — see WARNs above; each self-reports on power-up)"
 fleet_kick_starships
 
-# ---- 4b. WTF: repoint its DB to boston-2 so it keeps SERVING + SAVING in DR ----
-# WTF's data is the hub `wtf` DATABASE (NOT the empty archie.wtf schema — KB #270304),
-# now live on boston-2 at $DR_MESH:5433. WTF runs on outpost-boston (kytran@, mesh
-# 100.64.0.2). Flip WTF_DATABASE_URL host hub->boston-2 then `up -d` (an env change
-# needs up -d, not restart). Non-fatal — a WTF repoint failure never aborts failover.
-WTF_HOST="${WTF_HOST:-kytran@100.64.0.2}"
-WTF_DIR="${WTF_DIR:-/opt/archie-products/what-the-fact}"
-if [ -f "$FLEET_KEY" ]; then
-  log "Repointing WTF DB -> boston-2 ($DR_MESH:5433) on $WTF_HOST ..."
-  if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$WTF_HOST" \
-       "cd '$WTF_DIR' && sed -i.bak-dr 's#@100.64.0.4/wtf#@$DR_MESH:5433/wtf#' .env && docker compose up -d" >/dev/null 2>&1; then
-    log "  WTF repointed — ingest keeps saving to the boston-2 wtf DB."
-  else
-    log "  WARN: WTF repoint failed (manual: on $WTF_HOST edit $WTF_DIR/.env DB host -> $DR_MESH:5433, then docker compose up -d)."
-  fi
-fi
+# ---- 4b. WTF DB repoint: REMOVED — WTF no longer uses the hub database ----
+# This step used to flip WTF_DATABASE_URL from the hub to boston-2. It is obsolete in
+# THREE independent ways, each verified live on 2026-09-08:
+#   1. WTF's DB is now Citadel-LOCAL: WTF_DATABASE_URL=...@wtf-postgres/wtf, a docker
+#      service name inside its own compose stack. There is no hub DB to move.
+#   2. WTF_HOST/WTF_DIR pointed at kytran@100.64.0.2:/opt/archie-products/what-the-fact
+#      — that path does NOT exist on outpost-us; WTF moved to Citadel in the June migration.
+#   3. The sed matched '@100.64.0.4/wtf', which the current URL never contains, so it
+#      would have rewritten nothing even had 1 and 2 held.
+# Behavioural proof: during the 2026-09-08 hub outage what-the-fact.com served HTTP 200
+# throughout. A hub failover does not affect WTF's data path at all.
+# Do NOT re-add a repoint here without first checking WTF_DATABASE_URL on the live stack.
 
 # ---- 4c. BEACON front-door: flip ONLY the PLATFORM upstream hub -> boston-2 ----
 # The public DNS that points at Beacon must keep reaching the platform (now the

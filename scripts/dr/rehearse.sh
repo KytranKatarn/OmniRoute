@@ -191,7 +191,10 @@ done
 if [ -z "$_fleet_key" ]; then
   unk "no fleet SSH key on this host — outpost HUB_URL not checked"
 else
-  for _n in root@100.64.0.5 root@100.64.0.7 root@100.64.0.8; do
+  # singapore/lithuania/uk retired 2026-08-29 — no global outpost remains to check.
+  # Kept as an explicit empty set rather than deleted, so a future outpost is added
+  # here and nowhere else. An UNKNOWN is never a pass, but "there are none" is a FACT.
+  for _n in ${REHEARSE_OUTPOSTS:-}; do
     _url="$(ssh -i "$_fleet_key" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$_n" \
            "grep -h '^HUB_URL=' /opt/archie-node/sync.env 2>/dev/null || docker inspect archie_outpost_sync --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep '^HUB_URL='" 2>/dev/null | head -1)"
     case "$_url" in
@@ -202,8 +205,15 @@ else
     esac
   done
 fi
+# Empty mesh-IP set would build `IN ()` — a SQL syntax error whose empty result is
+# indistinguishable from "unreadable". Report the real state instead of guessing.
+_ips="${REHEARSE_OUTPOST_MESH_IPS:-}"
+if [ -z "$_ips" ]; then
+  ok "no global outposts remain to heartbeat-check (singapore/lithuania/uk retired 2026-08-29)"
+  _hb=""
+else
 _hb="$(docker exec "$B2_CONTAINER" psql -U archie -d archie -p "$B2_PG" -tA -F'|' -c \
-  "SELECT node_name, COALESCE(EXTRACT(EPOCH FROM NOW()-last_heartbeat)::int, 999999) FROM remote_nodes WHERE mesh_ip IN ('100.64.0.5','100.64.0.7','100.64.0.8') ORDER BY node_name;" 2>/dev/null)"
+  "SELECT node_name, COALESCE(EXTRACT(EPOCH FROM NOW()-last_heartbeat)::int, 999999) FROM remote_nodes WHERE mesh_ip IN ($_ips) ORDER BY node_name;" 2>/dev/null)"
 if [ -z "$_hb" ]; then unk "outpost heartbeats unreadable from the replica"
 else
   while IFS='|' read -r _name _age; do
@@ -212,6 +222,7 @@ else
     else bad "heartbeat STALE: $_name (${_age}s ago) — the node is not reporting to the hub (#5278)"; fi
   done <<< "$_hb"
 fi
+fi   # closes the empty-mesh-IP guard above
 
 log "=== REHEARSAL: $PASS pass · $FAIL fail · $UNKNOWN unknown ==="
 [ "$UNKNOWN" -gt 0 ] && log "NOTE: an UNKNOWN is not a pass — something could not be measured."

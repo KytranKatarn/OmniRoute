@@ -161,14 +161,11 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
   log "2v) VERIFY heartbeats resume — a node list is not a rollback until they do..."
   fleet_verify_heartbeats 300 240 \
     || log "   *** FLEET NOT VERIFIED: outposts may still point at boston-2 (#5278). Fix BEFORE closing the incident."
-  log "3) repoint WTF DB back to the hub ($HUB_MESH) on the WTF host..."
-  WTF_HOST="${WTF_HOST:-kytran@100.64.0.2}"; WTF_DIR="${WTF_DIR:-/opt/archie-products/what-the-fact}"
-  if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$WTF_HOST" \
-       "cd '$WTF_DIR' && sed -i 's#@$B2_MESH:$B2_PG/wtf#@$HUB_MESH/wtf#' .env && docker compose up -d" >/dev/null 2>&1; then
-    log "   WTF repointed back to the hub DB."
-  else
-    log "   WARN: WTF reverse-repoint failed (manual: on $WTF_HOST set $WTF_DIR/.env DB host -> $HUB_MESH, docker compose up -d)."
-  fi
+  # 3) WTF DB reverse-repoint: REMOVED — the mirror of failover.sh step 4b, obsolete for
+  #    the same reasons. WTF's DB is Citadel-local (@wtf-postgres/wtf), the old outpost-us
+  #    path does not exist, and WTF served HTTP 200 straight through the 2026-09-08 hub
+  #    outage. Nothing to move back. See failover.sh 4b before re-adding.
+  log "3) WTF DB: nothing to repoint — its database is Citadel-local, not the hub's."
   log "4) flip DNS back to the hub (platform A-record)..."
   # Auto-discover the hub's CURRENT public IP (it changes if the hub moved) by
   # asking the hub itself over the mesh — so the flip-back needs NO manual input.

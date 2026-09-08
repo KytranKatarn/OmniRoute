@@ -42,13 +42,34 @@ STATE="${STATE:-$DR/watchdog_state}"
 DISABLED_FLAG="${DISABLED_FLAG:-$DR/.watchdog_disabled}"
 FAILED_OVER_FLAG="${FAILED_OVER_FLAG:-$DR/.failed_over}"
 
-# Quorum vantages: the 3 surviving global outposts (root@, DR key). Mesh IPs
-# only — MagicDNS dies with the hub. Same set failover.sh repoints. Override by
-# pre-declaring the OUTPOSTS array (e.g. in a sourced config), else default to 3.
+# Quorum vantages. Mesh IPs only — MagicDNS dies with the hub.
+#
+# 🔴 A VANTAGE MUST BE ABLE TO RUN probe_hub.sh. This is not a formality: a host
+# that cannot execute the probe fails with a NON-255 exit, and probe_outpost maps
+# every non-255 failure to "down". A node that merely CANNOT ANSWER therefore casts
+# a permanent FALSE DOWN-VOTE, indistinguishable from a real outage report.
+#
+# Measured 2026-09-08, with the hub verifiably UP:
+#     kytran@100.64.0.2  exit=0  -> "up"      (Linux: bash + python3 present)
+#     Famil@100.64.0.3   exit=1  -> "down"    <- FALSE (Windows: no bash)
+#     Famil@100.64.0.6   exit=1  -> "down"    <- FALSE (Windows: no bash)
+# Adding the two LAN Starships would have made the quorum PERMANENTLY satisfied by
+# two phantom votes, so the first mesh hiccup on a healthy hub would auto-promote —
+# manufacturing the exact split-brain the 2026-09-07 failover left behind.
+#
+# The previous set (root@100.64.0.5/.7/.8 — singapore/lithuania/uk) was RETIRED on
+# 2026-08-29. Those hosts time out, which maps to "unreachable", which never counts
+# as a down-vote — so quorum became unreachable and EVERY cycle fell into the
+# blackout path that was meant to be a rare mesh-death signal.
+#
+# outpost-us is the only surviving host that is both independent of the hub and able
+# to run the probe. One real vote beats three phantom ones. Restoring a majority
+# means giving the Starships a Windows-capable probe first — not listing them here.
+# Override by pre-declaring OUTPOSTS in a sourced config.
 if ! declare -p OUTPOSTS >/dev/null 2>&1; then
-  OUTPOSTS=( root@100.64.0.5 root@100.64.0.7 root@100.64.0.8 )
+  OUTPOSTS=( kytran@100.64.0.2 )
 fi
-QUORUM="${QUORUM:-2}"            # outpost down-votes required (majority of 3)
+QUORUM="${QUORUM:-1}"            # down-votes required; 1 real vantage -> 1
 K="${K:-3}"                     # consecutive down-cycles before arming (confirmed-down quorum)
 K_BLACKOUT="${K_BLACKOUT:-5}"   # cycles before arming when ALL outposts are unreachable
                                 # (mesh died with hub — weaker signal, needs more evidence)

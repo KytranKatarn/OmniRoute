@@ -70,12 +70,11 @@ else
 fi
 
 # ---- 1. Global outposts → hub ----
-log "1) Repointing global outposts -> hub ($HUB_MESH)..."
-for node in root@100.64.0.5 root@100.64.0.7 root@100.64.0.8; do
-  ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$node" \
-    "/opt/archie-node/repoint.sh $HUB_MESH" >/dev/null 2>&1 \
-    && log "  $node -> hub" || log "  WARN: $node unreachable"
-done
+# singapore/lithuania/uk were RETIRED 2026-08-29 and this loop dialled all three.
+# No global outpost remains that carries a baked HUB_URL: outpost-us is deliberately
+# excluded (see fleet_repoint.sh — its hub URLs ride the watch-product .env pass) and
+# the LAN Starships self-heal via node_sync v3's DR_HUB_URL auto-switch.
+log "1) Global outposts: none remain to repoint (singapore/lithuania/uk retired 2026-08-29)."
 
 # ---- 2. Starships → hub (force-recreate sync container) ----
 log "2) Repointing Starships -> hub..."

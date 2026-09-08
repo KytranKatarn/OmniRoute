@@ -21,11 +21,14 @@
 #
 # Nodes bootstrapped directly (have SSH access from hub):
 #   boston-2  root@2.25.133.122     (native tailscaled)
-#   Beacon    root@2.25.170.252     (native tailscaled)
 #   outpost-us kytran@76.13.107.109 (archie_outpost_proxy Docker container)
 #
-# Remaining outposts (singapore/lithuania/uk) reconnect automatically once
-# Beacon is back on mesh (they use mesh.kytranempowerment.com → Beacon → hub).
+# Beacon and the singapore/lithuania/uk outposts were RETIRED (remote_nodes.status
+# = 'retired'; Beacon's VPS was removed by Hostinger 2026-08-28, the three outposts
+# were sunset 2026-08-29). Bootstrapping Beacon here dialled a host that no longer
+# exists, and the old note claimed those three reconnect "once Beacon is back on
+# mesh" — a recovery path through a machine that is gone. Citadel inherited the
+# front door; mesh.kytranempowerment.com now resolves there.
 # ============================================================================
 set -uo pipefail
 SSH_KEY="${SSH_KEY:-/home/kytran/.ssh/id_ed25519}"
@@ -67,11 +70,6 @@ bootstrap_node(){
 
 # boston-2 (native tailscaled)
 bootstrap_node "boston-2" "root@2.25.133.122" \
-  "tailscale up --login-server=http://127.0.0.1:${TUNNEL_PORT} --authkey=${AUTHKEY} --reset" &
-pids+=($!)
-
-# Beacon (native tailscaled)
-bootstrap_node "beacon" "root@2.25.170.252" \
   "tailscale up --login-server=http://127.0.0.1:${TUNNEL_PORT} --authkey=${AUTHKEY} --reset" &
 pids+=($!)
 

@@ -59,6 +59,24 @@ printf 'ts=%s db=down http=ERR\n' "$_now"         > "$HB_TMP"; check "fresh but 
 printf 'db=ok http=200\n'                         > "$HB_TMP"; check "no ts field"         no  "$(hbf)"
 rm -f "$HB_TMP";                                                check "file missing"        no  "$(hbf)"
 
+echo "== the DEFAULT quorum must be ACHIEVABLE (2026-09-08) =="
+# ⚠️ HONEST SCOPE: this is an ARITHMETIC sanity check and it does NOT catch the
+# 2026-09-08 defect. That defect was QUORUM=2 against 3 vantages which had all been
+# RETIRED — arithmetically valid, operationally impossible (a retired host times out,
+# which maps to "unreachable", which never counts as a down-vote, so quorum could
+# never be met and every cycle fell into the blackout path). Verified: mutating the
+# vantage list back to the retired trio leaves this suite fully green.
+# What actually catches that is scripts/dr/test_no_retired_targets.sh — keep BOTH.
+# This one earns its place only by catching a future QUORUM bump past the vantage
+# count, which is a different and much cheaper mistake.
+# Re-source with the FILE's own defaults; this suite pins QUORUM=2 for its own tables.
+_defaults="$(env -u QUORUM bash -c 'unset OUTPOSTS
+    DR_WATCHDOG_LIB=1 . "'"$HERE"'/dr_watchdog.sh" >/dev/null 2>&1
+    echo "${#OUTPOSTS[@]} $QUORUM"' 2>/dev/null)"
+_n="${_defaults%% *}"; _q="${_defaults##* }"
+check "at least one vantage configured"            yes "$([ "${_n:-0}" -ge 1 ] && echo yes || echo no)"
+check "default QUORUM reachable (<= vantage count)" yes "$([ "${_q:-99}" -le "${_n:-0}" ] && echo yes || echo no)"
+
 echo
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" -eq 0 ]

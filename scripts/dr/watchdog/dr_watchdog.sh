@@ -37,6 +37,7 @@ export HUB_MESH="${HUB_MESH:-100.64.0.4}"
 DR_MESH="${DR_MESH:-100.64.0.10}"
 FLEET_KEY="${FLEET_KEY:-$DR/.ssh/id_ed25519}"
 PROBE_SCRIPT="${PROBE_SCRIPT:-$DR/watchdog/probe_hub.sh}"
+PROBE_SCRIPT_PS="${PROBE_SCRIPT_PS:-$(dirname "$PROBE_SCRIPT")/probe_hub.ps1}"
 FAILOVER_SCRIPT="${FAILOVER_SCRIPT:-$DR/failover.sh}"
 STATE="${STATE:-$DR/watchdog_state}"
 DISABLED_FLAG="${DISABLED_FLAG:-$DR/.watchdog_disabled}"
@@ -66,10 +67,26 @@ FAILED_OVER_FLAG="${FAILED_OVER_FLAG:-$DR/.failed_over}"
 # to run the probe. One real vote beats three phantom ones. Restoring a majority
 # means giving the Starships a Windows-capable probe first — not listing them here.
 # Override by pre-declaring OUTPOSTS in a sourced config.
+# Entries are <user@mesh-ip>[|pwsh]; the suffix selects the Windows probe.
+# All three were VERIFIED probe-capable against the live hub on 2026-09-08:
+#     kytran@100.64.0.2         bash  -> PROBE_RESULT=up
+#     Famil@100.64.0.3  |pwsh   pwsh  -> PROBE_RESULT=up   (down vs TEST-NET)
+#     Famil@100.64.0.6  |pwsh   pwsh  -> PROBE_RESULT=up   (down vs TEST-NET)
+# The Starships became usable only once probe_hub.ps1 existed AND probe_outpost
+# started reading the SENTINEL instead of the exit code — before that they voted
+# a permanent phantom "down". Never add a vantage without running both cases.
+#
+# ⚠️ THE MAJORITY IS PARTLY CORRELATED, and that is a deliberate, owner-accepted
+# trade. Two of these three sit on the HUB'S OWN LAN: a power or ISP event at the
+# house takes out the hub and both Starship voters together. They answer "is the
+# hub MACHINE up", not "can the WORLD reach it" — outpost-us is the only vantage
+# that answers the second question. Quorum of 2 therefore still protects against a
+# single-vantage or boston-2-local fault, which is what it is for; it does not
+# make a LAN-wide outage a 3-way independent confirmation.
 if ! declare -p OUTPOSTS >/dev/null 2>&1; then
-  OUTPOSTS=( kytran@100.64.0.2 )
+  OUTPOSTS=( kytran@100.64.0.2 "Famil@100.64.0.3|pwsh" "Famil@100.64.0.6|pwsh" )
 fi
-QUORUM="${QUORUM:-1}"            # down-votes required; 1 real vantage -> 1
+QUORUM="${QUORUM:-2}"            # down-votes required (majority of 3)
 K="${K:-3}"                     # consecutive down-cycles before arming (confirmed-down quorum)
 K_BLACKOUT="${K_BLACKOUT:-5}"   # cycles before arming when ALL outposts are unreachable
                                 # (mesh died with hub — weaker signal, needs more evidence)
@@ -166,22 +183,40 @@ probe_local(){ bash "$PROBE_SCRIPT"; }
 # One outpost. Streams the probe over SSH (no pre-deploy needed). Echoes
 # up | down | unreachable.
 probe_outpost(){
-  local node="$1" rc
+  # <user@ip>[|pwsh] — the optional suffix selects the WINDOWS probe. Default bash.
+  local spec="$1" node shell out hdr
+  node="${spec%%|*}"; shell="${spec#*|}"; [ "$shell" = "$node" ] && shell="bash"
   if [ ! -f "$FLEET_KEY" ]; then echo "unreachable"; return; fi
-  # SSH does NOT forward env — pass the hub config explicitly so every outpost
-  # probes the SAME hub the coordinator is configured for ($HUB_MESH is an IP
-  # literal, safe to interpolate). The remote `VAR=x bash -s` sets it before the
-  # streamed probe runs.
-  if ssh -i "$FLEET_KEY" -o ConnectTimeout="$SSH_TIMEOUT" \
-        -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
-        "$node" "HUB_MESH='$HUB_MESH' PROBE_TCP_TIMEOUT='${PROBE_TCP_TIMEOUT:-5}' PROBE_HTTP_TIMEOUT='${PROBE_HTTP_TIMEOUT:-8}' bash -s" \
-        < "$PROBE_SCRIPT" >/dev/null 2>&1; then
-    echo "up"        # probe exit 0 = hub reachable from that outpost
+
+  # SSH does NOT forward env, so the hub config is passed explicitly — every
+  # vantage must probe the SAME hub the coordinator is configured for.
+  if [ "$shell" = "pwsh" ]; then
+    # PowerShell has no `VAR=x cmd` prefix form, so the assignments are PREPENDED
+    # to the streamed script instead. \r is stripped: Windows emits CRLF and the
+    # sentinel match would fail on the trailing carriage return.
+    hdr="$(printf '$env:HUB_MESH=%s\n$env:PROBE_TCP_TIMEOUT=%s\n$env:PROBE_HTTP_TIMEOUT=%s\n' \
+           "'$HUB_MESH'" "'${PROBE_TCP_TIMEOUT:-5}'" "'${PROBE_HTTP_TIMEOUT:-8}'")"
+    out="$( { printf '%s\n' "$hdr"; cat "$PROBE_SCRIPT_PS"; } | ssh -i "$FLEET_KEY" \
+              -o ConnectTimeout="$SSH_TIMEOUT" -o StrictHostKeyChecking=accept-new \
+              -o BatchMode=yes "$node" "powershell -NoProfile -Command -" 2>/dev/null | tr -d '\r')"
   else
-    rc=$?
-    # exit 1 = probe ran and says hub down; 255 = ssh itself failed.
-    if [ "$rc" -eq 255 ]; then echo "unreachable"; else echo "down"; fi
+    out="$(ssh -i "$FLEET_KEY" -o ConnectTimeout="$SSH_TIMEOUT" \
+              -o StrictHostKeyChecking=accept-new -o BatchMode=yes \
+              "$node" "HUB_MESH='$HUB_MESH' PROBE_TCP_TIMEOUT='${PROBE_TCP_TIMEOUT:-5}' PROBE_HTTP_TIMEOUT='${PROBE_HTTP_TIMEOUT:-8}' bash -s" \
+              < "$PROBE_SCRIPT" 2>/dev/null)"
   fi
+
+  # 🔴 THE SENTINEL IS THE VERDICT, NOT THE EXIT CODE. Anything that did not
+  # print a sentinel could not RUN the probe (wrong shell, missing interpreter,
+  # ssh failure) and is UNREACHABLE — which never counts as a down-vote. The old
+  # code mapped every non-255 exit to "down", so on 2026-09-08 both Windows
+  # Starships voted "down" against a verifiably UP hub. Two such phantom votes
+  # would satisfy QUORUM=2 permanently and auto-promote on the first mesh blip.
+  case "$out" in
+    *PROBE_RESULT=up*)   echo "up" ;;
+    *PROBE_RESULT=down*) echo "down" ;;
+    *)                   echo "unreachable" ;;
+  esac
 }
 
 # ---- Telegram action poll (getUpdates; works with the hub's long-poll bot OFF) ----

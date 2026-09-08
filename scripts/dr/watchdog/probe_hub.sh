@@ -46,7 +46,17 @@ PY
 [ "$code" != "ERR" ] && [ -n "$code" ] && http_ok=0
 
 # Reachable if EITHER port answered.
+#
+# 🔴 The PROBE_RESULT sentinel is the CONTRACT; the exit code is a convenience.
+# probe_outpost parses stdout, because an exit code is not trustworthy across
+# transports — measured 2026-09-08: PowerShell's `exit 1` over `ssh "powershell
+# -Command -"` arrives as exit 0. Worse, the old caller mapped every non-255 exit
+# to "down", so a host that could not RUN the probe (no bash on Windows) cast a
+# permanent false DOWN-VOTE, indistinguishable from a real outage report.
+# NO SENTINEL means "could not run" and MUST be read as unreachable, never down.
 if [ "$tcp_ok" -eq 0 ] || [ "$http_ok" -eq 0 ]; then
+  echo "PROBE_RESULT=up"
   exit 0   # hub UP from here
 fi
+echo "PROBE_RESULT=down"
 exit 1     # hub DOWN from here

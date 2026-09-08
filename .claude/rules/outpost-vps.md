@@ -12,11 +12,11 @@ Names below are the 2026-06-04 canonical set (display `node_name` / mesh `given_
 | Display name | mesh given_name | Public IP | Mesh IP | Region | DB ID | Status |
 |------|------|-----------|---------|--------|-------|--------|
 | Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | us-east (Ashburn VA) | 93 | Online (CPU outpost; SSH `kytran@`) |
-| Outpost - Singapore | outpost-singapore | 156.67.217.86 | 100.64.0.5 | asia-east (Singapore) | 125 | Online |
-| Outpost - Lithuania | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | eu-west (Vilnius, LT) | 126 | Online |
-| Outpost - United Kingdom | outpost-uk | 2.24.130.153 | 100.64.0.8 | eu-west (Manchester, UK) | 127 | Online |
+| ~~Outpost - Singapore~~ | outpost-singapore | 156.67.217.86 | 100.64.0.5 | asia-east (Singapore) | 125 | 🔴 **RETIRED 2026-08-29** (`remote_nodes.status='retired'`; subscription cancelled) |
+| ~~Outpost - Lithuania~~ | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | eu-west (Vilnius, LT) | 126 | 🔴 **RETIRED 2026-08-29** |
+| ~~Outpost - United Kingdom~~ | outpost-uk | 2.24.130.153 | 100.64.0.8 | eu-west (Manchester, UK) | 127 | 🔴 **RETIRED 2026-08-29** |
 | Citadel - United States | citadel-us | 2.25.133.122 | 100.64.0.10 | us-east (Boston) | 128 | Online — **DR warm-standby base** (boston-2): watch products + DR replica. SSH `root@` |
-| Beacon | beacon | 2.25.170.252 | 100.64.0.11 | us-east (Boston) | 129 | Online — **front-door ingress** (Caddy; no Ollama/agents) |
+| ~~Beacon~~ | beacon | 2.25.170.252 | 100.64.0.11 | us-east (Boston) | 129 | 🔴 **GONE — VPS removed by Hostinger 2026-08-28.** Citadel inherited the front door as a CONTAINER named `beacon`. Do not ssh to this IP (it timed out for 5 DR scripts — #3245/#3248). |
 
 **Update this table when each node enrolls (mesh IP + DB ID).** Renames are display-only (`node_name` + headscale `given_name`); `node_id` is unchanged.
 

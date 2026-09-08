@@ -82,6 +82,18 @@ FLEET_KEY="$T/fakekey"
 BEACON_BAK_SUFFIX=".bak-test"
 _beacon_ssh(){ bash -c "$1"; }
 
+# 🔴 T1-T6 are pinned to the REMOTE shape on purpose, and this is a SAFETY property.
+# On the actual front door (Citadel, which runs the `beacon` container) the auto-detect
+# resolves BEACON_LOCAL=1, and the validate/reload commands then become
+# `docker exec beacon caddy validate|reload --config /etc/caddy/Caddyfile` — the REAL
+# production Caddyfile, not this suite's temp fixture. Running the suite bare on that
+# host would issue a live `caddy reload` against the public front door on every case.
+# These cases exercise the sed/substitution logic, which is transport-agnostic, so the
+# remote shape (with the `caddy`/`systemctl` shell stubs above) is both safe and correct.
+# Setting this HERE rather than requiring the caller to export BEACON_LOCAL is what keeps
+# T8 honest — see the isolation note there.
+BEACON_LOCAL=0
+
 pass=0; fail=0
 check(){ if [ "$2" = "$3" ]; then echo "  PASS  $1"; pass=$((pass+1));
          else echo "  FAIL  $1 (expected '$2', got '$3')"; fail=$((fail+1)); fi; }
@@ -163,8 +175,15 @@ check "validated the CONTAINER path, not the host path" "yes" \
 echo "=== T8: the front door is AUTO-DETECTED, never hardcoded ==="
 # A hardcoded topology is what broke this twice: first the Beacon IP, then Beacon's very
 # existence. Re-source the script in a clean sub-shell with only `docker ps` faked.
+# ⚠️ `env -u` is LOAD-BEARING. T7 assigns BEACON_LOCAL=1, and if BEACON_LOCAL was already
+# exported (e.g. a caller ran `BEACON_LOCAL=0 bash test_beacon_flip.sh` to stay off a real
+# front door) that assignment updates the EXPORTED variable. The sub-shell would then
+# inherit 1, skip the auto-detect entirely, and report the local paths for BOTH cases —
+# a green-looking test that never exercised the detection it claims to cover. Measured on
+# Citadel 2026-09-08: T8's negative case returned '1 /opt/archie-ingress/Caddyfile'.
 _detect(){   # $1 = what `docker ps` should print ('' = no beacon container here)
-  FLIP="$FLIP" PS_OUT="$1" HUB_MESH=100.64.0.4 bash -c '
+  env -u BEACON_LOCAL -u BEACON_CADDYFILE \
+      FLIP="$FLIP" PS_OUT="$1" HUB_MESH=100.64.0.4 bash -c '
       docker(){ if [ "$1" = "ps" ] && [ -n "$PS_OUT" ]; then echo "$PS_OUT"; fi; return 0; }
       export -f docker
       . "$FLIP" >/dev/null 2>&1

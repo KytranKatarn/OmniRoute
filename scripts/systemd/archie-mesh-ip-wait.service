@@ -1,0 +1,15 @@
+[Unit]
+Description=Wait for the Headscale mesh IP (100.64.0.4) before Docker binds to it
+Documentation=https://github.com/KytranKatarn/archie-platform
+After=tailscaled-headscale.service
+Wants=tailscaled-headscale.service
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/archie-wait-mesh-ip.sh
+TimeoutStartSec=90
+
+[Install]
+WantedBy=multi-user.target

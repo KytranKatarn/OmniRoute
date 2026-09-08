@@ -18,16 +18,16 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 | Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | 93 | None | 8GB | CPU outpost (Ashburn). **SSH `kytran@`** |
 | Starship - Defiant - USS-246 | starship-246 | 192.168.1.246 | 100.64.0.3 | 115 | RTX 3070 8GB (**Defiant**) | 32GB | LAN GPU, 7B. SSH `Famil@` |
 | Starship - Runabout - USS-245 | starship-245 | 192.168.1.245 | 100.64.0.6 | 120 | RTX 3050 4GB (**Runabout**) | 12GB | LAN GPU, small. SSH `Famil@` |
-| Outpost - Singapore | outpost-singapore | 156.67.217.86 | 100.64.0.5 | 125 | None | 8GB | CPU outpost |
-| Outpost - Lithuania | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | 126 | None | 8GB | CPU outpost |
-| Outpost - United Kingdom | outpost-uk | 2.24.130.153 | 100.64.0.8 | 127 | None | 8GB | CPU outpost |
+| ~~Outpost - Singapore~~ | outpost-singapore | 156.67.217.86 | 100.64.0.5 | 125 | None | 8GB | 🔴 **RETIRED 2026-08-29** (`remote_nodes.status='retired'`) |
+| ~~Outpost - Lithuania~~ | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | 126 | None | 8GB | 🔴 **RETIRED 2026-08-29** |
+| ~~Outpost - United Kingdom~~ | outpost-uk | 2.24.130.153 | 100.64.0.8 | 127 | None | 8GB | 🔴 **RETIRED 2026-08-29** |
 | Citadel - United States | citadel-us | 2.25.133.122 | 100.64.0.10 | 128 | None | 31GB | **DR warm-standby base** (boston-2): watch products + DR replica + ingress Caddy. SSH `root@` |
-| Beacon | beacon | 2.25.170.252 | 100.64.0.11 | 129 | None | 4GB | Front-door ingress (Caddy). No Ollama/agents, `bridge_off` |
+| ~~Beacon~~ | beacon | 2.25.170.252 | 100.64.0.11 | 129 | None | 4GB | 🔴 **GONE — the VPS was removed by Hostinger 2026-08-28.** Citadel inherited the front door as a container literally named `beacon`. Do NOT ssh to this IP; 5 DR scripts did and the whole ingress layer was inert (#3245/#3248). |
 
 **NEVER** use public hostnames (`platform.kytranempowerment.com`) for inter-cluster traffic — Hostinger CDN caps at 60s, bypasses queue.
 
 ### Naming tiers & ship-class
-- Tiers by role/scale: **Starbase** (hub) > **Citadel** (DR warm-standby base) > **Outpost** (CPU VPS, regional) > **Starship - `<class>` - USS-`<lan-octet>`** (LAN GPU) > **Beacon** (ingress satellite).
+- Tiers by role/scale: **Starbase** (hub) > **Citadel** (DR warm-standby base) > **Outpost** (CPU VPS, regional) > **Starship - `<class>` - USS-`<lan-octet>`** (LAN GPU) > ~~**Beacon** (ingress satellite)~~ — tier retired with the node; Citadel now holds the front door.
 - GPU nodes auto-class from live `remote_nodes.gpu_vram_gb` via `ship_classes` table + `v_fleet_ship_class` view (migration 398). Ladder by VRAM: Runabout ≤4 / Nova 6 / Defiant 8 / Intrepid 12 / Constitution 16 / Galaxy 24 / Sovereign 48 / Dreadnought 80 / **Armada ≥81**. Re-tune via `UPDATE ship_classes` (no deploy). Hub + CPU outposts = NULL class.
   - ⚠️ **Armada is a VRAM tier (`min_vram_gb = 81`), NOT a "multi-GPU" class** — this file claimed the latter until 2026-07-25. A dual-GPU node classes on its LARGEST SINGLE card, not the sum.
   - ⚠️ **`remote_nodes.gpu_vram_gb` means LARGEST SINGLE GPU, not total.** `node_provisioning._fits()` (`gpu_vram_gb >= model.vram_gb + GPU_HEADROOM_GB`) and `agent_service.get_agents_for_hardware()` (`vram_need <= gpu_vram_gb`) both size ONE model against it. Writing the sum there tells the router a model fits in a card that cannot hold it. Total VRAM lives in `extra_capabilities.gpu_vram_total_gb` for reporting only.
@@ -37,7 +37,7 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 ### Hub has THREE tailscale presences (don't confuse — KB #270520)
 - `.4 archie-starbase` = host headscale tailscaled (`/var/lib/tailscale-hs`, `--tun=tailscale1`) — THE platform/dispatch hub (`BRIDGE_URL`, :3000, direct via public IP).
 - `.1 archie-starbase-subnet` = the `archie_tailscale` Docker container (docker-compose.yml ~L760-800) — hub-LAN subnet router (`--advertise-routes=192.168.1.0/24 --ssh`). Route currently **Enabled=false** (dormant; platform reaches hub via `.4`). Do NOT delete — re-registers via authkey.
-  - ⚠️ **Control-plane pin (PR #2344, task #4998).** Docker DNS forwards to the host's Tailscale resolver, which **SERVFAILs** for this zone, so `mesh.kytranempowerment.com` MUST be pinned in `extra_hosts` → currently **Beacon `2.25.170.252`**. It previously pinned the hub `192.168.1.200` to reach NPM on :443; **NPM was decommissioned 2026-06-27 and the hub has no :443 listener**, which silently killed this node for 23 days (RestartCount 219, `last seen` frozen at the decommission timestamp).
+  - ⚠️ **Control-plane pin (PR #2344, task #4998).** Docker DNS forwards to the host's Tailscale resolver, which **SERVFAILs** for this zone, so `mesh.kytranempowerment.com` MUST be pinned in `extra_hosts` → **currently Citadel `2.25.133.122`** (measured live 2026-09-08: `HostConfig.ExtraHosts` = `["mesh.kytranempowerment.com:2.25.133.122"]`). ⚠️ This line said **Beacon `2.25.170.252`** until then — a host removed 2026-08-28 — and reading it cost real time during the 09-08 outage. Verify with `docker inspect archie_tailscale -f '{{json .HostConfig.ExtraHosts}}'`, never from this file. It previously pinned the hub `192.168.1.200` to reach NPM on :443; **NPM was decommissioned 2026-06-27 and the hub has no :443 listener**, which silently killed this node for 23 days (RestartCount 219, `last seen` frozen at the decommission timestamp).
   - **Keep `--login-server=https://mesh.kytranempowerment.com` byte-identical** to headscale's `config.yaml` `server_url`. Do NOT "simplify" it to the hub's `:8095` — headscale hands clients back its configured `server_url`, so a mismatch is a latent break. Only the DNS pin may move.
   - **`docker compose restart` does NOT apply `extra_hosts`** — use `docker compose up -d --no-deps archie_tailscale`. Identity survives (state in named volume `tailscale_hub_data`), so no re-registration → the identity invariants below stay intact.
   - Verify: `docker exec archie_headscale headscale nodes list` → node 15 `connected=online`. KB #282680 (user) / #282681 (coder) / #282676 (mistake).

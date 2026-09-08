@@ -13,6 +13,9 @@ from typing import Optional, List, Dict
 logger = logging.getLogger(__name__)
 
 
+_inject_warned = False  # see inject_learnings' except block
+
+
 def capture_learning(
     failed_result: dict,
     success_result: dict,
@@ -135,7 +138,15 @@ def inject_learnings(
             FROM knowledge_base
             WHERE source_type = 'agent_learning'
               AND %s = ANY(tags) AND %s = ANY(tags)
-              AND is_archived = FALSE
+              -- knowledge_base has NO is_archived column. This filter used to read
+              -- `AND is_archived = FALSE`, so the query raised UndefinedColumn on
+              -- EVERY call, the except below swallowed it at debug level, and this
+              -- function returned the prompt UNCHANGED. Agent-learning injection has
+              -- therefore never once worked. Measured 2026-09-08: 85 occurrences of
+              -- `column "is_archived" does not exist` in a single hour.
+              -- `review_status` is the real column, and this is the same exclusion
+              -- the MCP knowledge search uses (mcp_server/tools/knowledge.py:209).
+              AND (review_status IS NULL OR review_status <> 'rejected')
             ORDER BY importance_score DESC, updated_at DESC
             LIMIT %s
         """,
@@ -156,7 +167,18 @@ def inject_learnings(
         return learning_context + prompt
 
     except Exception as e:
-        logger.debug(f"[BridgeLearning] inject_learnings failed: {e}")
+        # 🔴 WARN, not debug. A silent debug line is exactly why a phantom column went
+        # unnoticed on a path that runs on EVERY dispatch. Once per process, because
+        # this is hot — a per-call warning would replace a silent bug with an
+        # unreadable log (the same trade made in semantic_scanner, PR #3244).
+        global _inject_warned
+        if not _inject_warned:
+            _inject_warned = True
+            logger.warning(
+                "[BridgeLearning] inject_learnings failed — prompts are being sent "
+                "WITHOUT learning context (logged once per process): %s",
+                e,
+            )
         return prompt
     finally:
         if conn:

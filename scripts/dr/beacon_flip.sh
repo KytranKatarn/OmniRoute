@@ -69,13 +69,80 @@ if ! declare -F log >/dev/null 2>&1; then
     log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 fi
 
-# Beacon is addressed by PUBLIC IP on purpose — the mesh may be down in exactly
-# the situations these scripts run.
-BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"
+# The front door is addressed by PUBLIC IP on purpose — the mesh may be down in
+# exactly the situations these scripts run.
+#
+# 🔴 THE BEACON VPS IS GONE (removed by Hostinger, 2026-08-28). Citadel/boston-2
+# inherited the role as a CONTAINER literally named `beacon`. Until 2026-09-08
+# every default below still described the dead host, so the ENTIRE DR ingress
+# layer was inert — failover could not move public traffic to DR, and failback
+# could not move it back. Measured on Citadel that day, four independent fatal
+# breaks, any one of which is enough:
+#   1. `ssh root@2.25.170.252` — host gone, connect times out
+#   2. even to Citadel, ssh fails: `Permission denied (publickey,password)`
+#   3. FLEET_KEY `/root/.ssh/id_ed25519` DOES NOT EXIST on Citadel
+#   4. no host caddy at all (`systemctl is-active caddy` -> inactive, no binary)
+# The Sep-7 failover logged exactly this: "Beacon platform flip failed (ssh/rc=255)".
+#
+# THE FRONT DOOR IS NOW THE HOST THESE SCRIPTS RUN ON, so ssh is neither possible
+# nor needed — BEACON_LOCAL below runs the same command strings through `bash -c`.
+BEACON_HOST="${BEACON_HOST:-root@2.25.133.122}"   # Citadel/boston-2 public IP
 FLEET_KEY="${FLEET_KEY:-/root/.ssh/id_ed25519}"
-BEACON_CADDYFILE="${BEACON_CADDYFILE:-/etc/caddy/Caddyfile}"
 BEACON_BAK_SUFFIX="${BEACON_BAK_SUFFIX:-.bak-dr}"
 BEACON_SSH_OPTS="${BEACON_SSH_OPTS:--o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new}"
+
+# AUTO-DETECT the front door rather than hardcoding a topology that has now moved
+# twice. If the `beacon` container is running HERE, this host IS the front door:
+# act locally, edit the host-side bind-mount, and drive caddy inside the container.
+# If it is not, fall back to the historical remote-host-with-systemd-caddy shape —
+# which is also what keeps test_beacon_flip.sh's `caddy`/`systemctl` shell stubs
+# working, since the test host runs no such container.
+if [ -z "${BEACON_LOCAL:-}" ]; then
+    if command -v docker >/dev/null 2>&1 \
+       && docker ps --filter 'name=^beacon$' --format '{{.Names}}' 2>/dev/null | grep -qx beacon; then
+        BEACON_LOCAL=1
+    else
+        BEACON_LOCAL=0
+    fi
+fi
+
+if [ "$BEACON_LOCAL" = "1" ]; then
+    # Host path that is bind-mounted to /etc/caddy/Caddyfile INSIDE the container,
+    # so the sed edits the host file and caddy re-reads the very same inode.
+    BEACON_CADDYFILE="${BEACON_CADDYFILE:-/opt/archie-ingress/Caddyfile}"
+else
+    BEACON_CADDYFILE="${BEACON_CADDYFILE:-/etc/caddy/Caddyfile}"
+fi
+
+# The caddy validate/reload commands are EMITTED AT CALL TIME, never frozen here.
+#
+# 🔴 Load-bearing, and easy to "simplify" back into a bug. Every caller assembles ONE
+# command STRING and interpolates into it; the original code wrote
+# `caddy validate --config '${BEACON_CADDYFILE}'` inline AT EACH CALL SITE, so the path
+# was whatever BEACON_CADDYFILE held when the flip ran. Baking it into a constant at
+# source time instead makes the remote branch validate a STALE path for any caller that
+# assigns BEACON_CADDYFILE *after* sourcing this file — which test_beacon_flip.sh does
+# for every single case, and which the DR scripts can do from the environment. The
+# result would be the worst kind of failure this file already exists to prevent: caddy
+# reports a valid config for a file nobody edited, and the flip claims success (#5264).
+#
+# Expansion timing is unchanged from the pre-fix code — only the SOURCE of the path is.
+# An explicit BEACON_VALIDATE_CMD / BEACON_RELOAD_CMD in the environment still wins.
+_beacon_validate_cmd() {
+    if [ "${BEACON_LOCAL:-0}" = "1" ]; then
+        printf '%s' "${BEACON_VALIDATE_CMD:-docker exec beacon caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile}"
+    else
+        printf '%s' "${BEACON_VALIDATE_CMD:-caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}'}"
+    fi
+}
+
+_beacon_reload_cmd() {
+    if [ "${BEACON_LOCAL:-0}" = "1" ]; then
+        printf '%s' "${BEACON_RELOAD_CMD:-docker exec beacon caddy reload --adapter caddyfile --config /etc/caddy/Caddyfile}"
+    else
+        printf '%s' "${BEACON_RELOAD_CMD:-systemctl reload caddy}"
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # THE DR-CAPABLE SERVICE MAP — the whole point of this file.
@@ -181,8 +248,20 @@ BEACON_MAINTENANCE_HOSTS=(
 )
 
 _beacon_ssh() {
-    # shellcheck disable=SC2086
-    ssh -i "$FLEET_KEY" $BEACON_SSH_OPTS "$BEACON_HOST" "$@"
+    # THE TRANSPORT SEAM. When the front door is THIS host (BEACON_LOCAL=1, the
+    # Citadel shape since 2026-08-28) ssh is impossible — Citadel cannot ssh to
+    # itself (`Permission denied (publickey,password)`, measured) and FLEET_KEY
+    # does not exist there. Run the identical command string locally instead.
+    #
+    # Name kept as _beacon_ssh deliberately: test_beacon_flip.sh stubs this exact
+    # symbol to run locally, and every caller builds one big command STRING, so
+    # `bash -c "$*"` is the faithful local equivalent of ssh's remote shell.
+    if [ "${BEACON_LOCAL:-0}" = "1" ]; then
+        bash -c "$*"
+    else
+        # shellcheck disable=SC2086
+        ssh -i "$FLEET_KEY" $BEACON_SSH_OPTS "$BEACON_HOST" "$@"
+    fi
 }
 
 # beacon_can_reach <host> <port> — probe FROM BEACON (task #5222).
@@ -252,12 +331,12 @@ for h in ${hosts[*]}; do
   printf '%s {\n  handle {\n    header Retry-After 3600\n    respond \"<!doctype html><html><head><title>Maintenance</title></head><body style=\\\"font-family:system-ui;text-align:center;padding:4em\\\"><h1>Services are down or under maintenance</h1><p>This service is temporarily unavailable while planned work completes.</p></body></html>\" 503\n  }\n}\n' \"\$h\" >> '${BEACON_CADDYFILE}'
 done
 printf '%s\n' '${BEACON_MAINT_MARK}-END' >> '${BEACON_CADDYFILE}'
-caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}' >/dev/null 2>&1 && systemctl reload caddy && echo MAINT_ON_OK || { mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maint' '${BEACON_CADDYFILE}'; echo MAINT_ON_FAIL; }"
+$(_beacon_validate_cmd) >/dev/null 2>&1 && $(_beacon_reload_cmd) && echo MAINT_ON_OK || { mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maint' '${BEACON_CADDYFILE}'; echo MAINT_ON_FAIL; }"
     else
         # Delete everything between the markers, inclusive.
         remote="cp -f '${BEACON_CADDYFILE}' '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maintoff'
 sed -i '/${BEACON_MAINT_MARK}\$/,/${BEACON_MAINT_MARK}-END\$/d' '${BEACON_CADDYFILE}'
-caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}' >/dev/null 2>&1 && systemctl reload caddy && echo MAINT_OFF_OK || { mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maintoff' '${BEACON_CADDYFILE}'; echo MAINT_OFF_FAIL; }"
+$(_beacon_validate_cmd) >/dev/null 2>&1 && $(_beacon_reload_cmd) && echo MAINT_OFF_OK || { mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maintoff' '${BEACON_CADDYFILE}'; echo MAINT_OFF_FAIL; }"
     fi
 
     local out
@@ -332,8 +411,8 @@ beacon_flip_ports() {
             echo 'PARTIAL_SUBSTITUTION_ROLLED_BACK' >&2
             exit 10
         fi
-        if caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}' >/dev/null 2>&1; then
-            systemctl reload caddy
+        if $(_beacon_validate_cmd) >/dev/null 2>&1; then
+            $(_beacon_reload_cmd)
             echo \"FLIPPED=\$before\"
         else
             mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}' '${BEACON_CADDYFILE}'

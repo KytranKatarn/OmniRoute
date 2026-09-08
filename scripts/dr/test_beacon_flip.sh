@@ -72,6 +72,11 @@ for fn in beacon_flip_ports beacon_hub_host_for_port; do
     type "$fn" >/dev/null 2>&1 || { echo "FATAL: $fn undefined after sourcing $FLIP"; exit 2; }
 done
 
+# Capture the REAL _beacon_ssh BEFORE the stub below replaces it. T7 needs it: the entire
+# point of BEACON_LOCAL=1 is that _beacon_ssh runs the command string LOCALLY instead of
+# over ssh, and a stub that always runs locally cannot tell the two branches apart.
+_REAL_BEACON_SSH_DEF="$(declare -f _beacon_ssh)"
+
 touch "$T/fakekey"
 FLEET_KEY="$T/fakekey"
 BEACON_BAK_SUFFIX=".bak-test"
@@ -124,6 +129,51 @@ echo "=== T6: hub-side host map resolves per port ==="
 check ":3000 -> hub mesh IP" "100.64.0.4" "$(beacon_hub_host_for_port 3000)"
 check ":8086 -> hub mesh IP" "100.64.0.4" "$(beacon_hub_host_for_port 8086)"
 check ":8095 -> reverse tunnel" "127.0.0.1" "$(beacon_hub_host_for_port 8095)"
+
+echo "=== T7: BEACON_LOCAL=1 drives the CONTAINER, never host systemd ==="
+# The Beacon VPS was removed 2026-08-28 and Citadel inherited the front door as a container
+# literally named `beacon`: no host caddy, no systemd caddy unit, and no ssh-to-self. Every
+# test above exercises the REMOTE shape, because THIS host runs no such container — so
+# without T7/T8 the local branch would ship completely unexercised, which is how the whole
+# ingress layer sat inert through the 2026-09-07 failover ("Beacon platform flip failed").
+eval "$_REAL_BEACON_SSH_DEF"            # restore the real transport seam
+BEACON_LOCAL=1
+BEACON_CADDYFILE="$T/c7"; cp "$T/base" "$BEACON_CADDYFILE"
+: > "$T/docker_calls"
+# Record rather than assert-by-absence: proving WHICH command ran is the point.
+docker(){ echo "docker $*" >> "$T/docker_calls"; return 0; }
+systemctl(){ echo "systemctl $*" >> "$T/docker_calls"; return 0; }
+export -f docker systemctl
+export T                                 # the stubs resolve $T inside `bash -c`
+beacon_flip_ports 100.64.0.4 100.64.0.10 platform 3000 >/dev/null; rc=$?
+check "returns 0" 0 "$rc"
+check ":3000 moved in the host bind-mount" "100.64.0.10:3000" "$(upstream_for 3000)"
+check "validated INSIDE the beacon container" "yes" \
+      "$(grep -q 'docker exec beacon caddy validate' "$T/docker_calls" && echo yes || echo no)"
+check "reloaded INSIDE the beacon container" "yes" \
+      "$(grep -q 'docker exec beacon caddy reload' "$T/docker_calls" && echo yes || echo no)"
+check "never fell back to host systemd" "no" \
+      "$(grep -q 'systemctl reload caddy' "$T/docker_calls" && echo yes || echo no)"
+# The host file is /opt/archie-ingress/Caddyfile; caddy sees it at /etc/caddy/Caddyfile.
+# Passing the HOST path to `docker exec` would validate a file that does not exist in the
+# container — caddy would fail and the flip would roll back a change that was actually fine.
+check "validated the CONTAINER path, not the host path" "yes" \
+      "$(grep -q 'config /etc/caddy/Caddyfile' "$T/docker_calls" && echo yes || echo no)"
+
+echo "=== T8: the front door is AUTO-DETECTED, never hardcoded ==="
+# A hardcoded topology is what broke this twice: first the Beacon IP, then Beacon's very
+# existence. Re-source the script in a clean sub-shell with only `docker ps` faked.
+_detect(){   # $1 = what `docker ps` should print ('' = no beacon container here)
+  FLIP="$FLIP" PS_OUT="$1" HUB_MESH=100.64.0.4 bash -c '
+      docker(){ if [ "$1" = "ps" ] && [ -n "$PS_OUT" ]; then echo "$PS_OUT"; fi; return 0; }
+      export -f docker
+      . "$FLIP" >/dev/null 2>&1
+      echo "$BEACON_LOCAL $BEACON_CADDYFILE"'
+}
+check "beacon container present -> local + host bind-mount path" \
+      "1 /opt/archie-ingress/Caddyfile" "$(_detect beacon)"
+check "no beacon container -> remote + historical caddy path" \
+      "0 /etc/caddy/Caddyfile" "$(_detect '')"
 
 echo
 echo "=== RESULT: $pass pass · $fail fail ==="

@@ -177,7 +177,11 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
   # here was the MESH IP (100.64.0.11) with an inline public-IP override on this
   # one call — so steps 4c/4d below silently used the mesh path and would fail
   # during exactly the degraded-mesh conditions a failback runs in.
-  BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"
+  # BEACON_HOST is deliberately NOT set here. beacon_flip.sh owns the front-door
+  # address AND the BEACON_LOCAL auto-detect (#3245). Re-declaring it here shadowed
+  # that default with the Beacon VPS IP removed on 2026-08-28, so every DR ingress
+  # step still dialled a host that does not exist — the helper fix could not reach
+  # these callers. Override via the ENVIRONMENT if you ever need a different host.
   DR_MESH="${DR_MESH:-100.64.0.10}"
 
   # Revert EVERY port a failover is allowed to move, in one idempotent pass:
@@ -236,7 +240,7 @@ beacon_maintenance_mode off "${BEACON_MAINTENANCE_HOSTS[@]}" \
   # The old dns_flip_back.sh pointed platform at the hub's RAW IP (bypassing Beacon)
   # and auto_failback never called it at all — that asymmetry stranded platform on
   # boston-2. dns_flip_back.sh is retained ONLY for a manual Beacon-down emergency.
-  log "   platform DNS stays on Beacon (2.25.170.252); failback handled by Beacon upstream revert."
+  log "   platform DNS stays on the front door (Citadel 2.25.133.122); failback handled by its upstream revert."
   log "5) re-establish boston-2 as a REPLICA of the hub (the normal direction):"
   log "     ON BOSTON-2: $DR/setup_replica.sh   (re-clones boston-2 from the hub; resumes streaming)"
   log "Then run: $0 verify"

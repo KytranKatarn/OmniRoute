@@ -45,7 +45,9 @@ DR="${DR:-/opt/archie-dr}"
 FLEET_KEY="${FLEET_KEY:-$DR/.fleet_key}"
 HUB_MESH="${HUB_MESH:-100.64.0.4}"
 HUB_SSH="${HUB_SSH:-kytran@$HUB_MESH}"
-BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.170.252}"
+# The DNS answer these hostnames are EXPECTED to resolve to. Citadel inherited the
+# front door when the Beacon VPS was removed 2026-08-28.
+BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.133.122}"
 CITADEL_PUBLIC="${CITADEL_PUBLIC:-2.25.133.122}"
 
 _ag_log(){ echo "[$(date -u +%H:%M:%S)] [adguard] $*"; }

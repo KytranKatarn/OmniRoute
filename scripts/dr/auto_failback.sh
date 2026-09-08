@@ -22,7 +22,11 @@ DR="${DR:-/opt/archie-dr}"
 HUB_MESH="${HUB_MESH:-100.64.0.4}"
 DR_MESH="${DR_MESH:-100.64.0.10}"
 FLEET_KEY="${FLEET_KEY:-$DR/.fleet_key}"
-BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"  # public IP — works when mesh is down
+# BEACON_HOST is deliberately NOT set here. beacon_flip.sh owns the front-door
+# address AND the BEACON_LOCAL auto-detect (#3245). Re-declaring it here shadowed
+# that default with the Beacon VPS IP removed on 2026-08-28, so every DR ingress
+# step still dialled a host that does not exist — the helper fix could not reach
+# these callers. Override via the ENVIRONMENT if you ever need a different host.
 LOG="$DR/auto_failback.log"
 
 . "$DR/tg_notify.sh" 2>/dev/null || tg_notify(){ :; }

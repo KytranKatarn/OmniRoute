@@ -20,12 +20,15 @@ DR="${DR:-/opt/archie-dr}"
 HUB_MESH="${HUB_MESH:-100.64.0.4}"
 DR_MESH="${DR_MESH:-100.64.0.10}"
 FLEET_KEY="${FLEET_KEY:-$DR/.fleet_key}"
-BEACON_PUBLIC="${BEACON_PUBLIC:-root@2.25.170.252}"  # public IP, works without mesh
+# BEACON_HOST is deliberately NOT set here. beacon_flip.sh owns the front-door
+# address AND the BEACON_LOCAL auto-detect (#3245). Re-declaring it here shadowed
+# that default with the Beacon VPS IP removed on 2026-08-28, so every DR ingress
+# step still dialled a host that does not exist — the helper fix could not reach
+# these callers. Override via the ENVIRONMENT if you ever need a different host.
 
 log(){ echo "[$(date -u +%H:%M:%S)] [force-reset] $*" | tee -a "$DR/force_reset.log"; }
 
 # ---- Beacon SELECTIVE upstream flipping (task #5214, ADR-009) ----
-BEACON_HOST="${BEACON_HOST:-$BEACON_PUBLIC}"
 BEACON_BAK_SUFFIX=".bak-reset"
 if [ -f "$DR/beacon_flip.sh" ]; then
   # shellcheck disable=SC1091
@@ -75,10 +78,14 @@ leftover="$(beacon_upstream_count "$DR_MESH")"
 if [ "$leftover" != "?" ] && [ "$leftover" -gt 0 ]; then
   if [ "${DR_RESET_ALL:-0}" = "1" ]; then
     log "  DR_RESET_ALL=1 — force-reverting $leftover remaining $DR_MESH upstream(s)..."
-    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" "
-      sed -i.bak-reset-all 's|reverse_proxy http://$DR_MESH:|reverse_proxy http://$HUB_MESH:|g' /etc/caddy/Caddyfile &&
-      caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 &&
-      systemctl reload caddy" >/dev/null 2>&1 \
+    # Through the helper seam, not a bare ssh: on the Citadel front door there is
+    # no host caddy and no ssh-to-self, so the old inline `caddy validate &&
+    # systemctl reload caddy` could never succeed there. _beacon_ssh runs locally
+    # when BEACON_LOCAL=1, and the emitters pick docker-exec vs systemd.
+    _beacon_ssh "
+      sed -i.bak-reset-all 's|reverse_proxy http://$DR_MESH:|reverse_proxy http://$HUB_MESH:|g' '${BEACON_CADDYFILE}' &&
+      $(_beacon_validate_cmd) >/dev/null 2>&1 &&
+      $(_beacon_reload_cmd)" >/dev/null 2>&1 \
       && log "  Beacon: all remaining upstreams reverted." \
       || log "  WARN: blanket revert failed — Beacon unchanged."
   else
@@ -162,7 +169,9 @@ else
 fi
 
 ADGUARD_DNS="${ADGUARD_DNS:-100.64.0.4}"
-BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.170.252}"
+# The DNS answer these hostnames are EXPECTED to resolve to. Citadel inherited the
+# front door when the Beacon VPS was removed 2026-08-28.
+BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.133.122}"
 # Hostnames Beacon fronts. mail. is deliberately ABSENT: Stalwart runs on the hub
 # and mail. must NOT be pointed at Beacon (verified 2026-07-26 — :25/:465/:587/:993
 # are open on the hub and closed on Citadel).

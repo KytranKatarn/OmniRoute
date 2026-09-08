@@ -244,7 +244,11 @@ fi
 # One :3000 substitution covers platform./api./bridge./consciousness./mediahub.
 # because they all `import platform_backend` in Beacon's Caddyfile. That is the
 # contract the Caddyfile's own header documents. Non-fatal.
-BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"  # public IP — mesh may be down during failover
+# BEACON_HOST is deliberately NOT set here. beacon_flip.sh owns the front-door
+# address AND the BEACON_LOCAL auto-detect (#3245). Re-declaring it here shadowed
+# that default with the Beacon VPS IP removed on 2026-08-28, so every DR ingress
+# step still dialled a host that does not exist — the helper fix could not reach
+# these callers. Override via the ENVIRONMENT if you ever need a different host.
 DR_MESH="${DR_MESH:-100.64.0.10}"
 BEACON_BAK_SUFFIX=".bak-dr"
 log "Repointing Beacon PLATFORM upstream (:$BEACON_DR_PORT_PLATFORM) -> boston-2 ($DR_MESH)..."
@@ -390,7 +394,7 @@ fi
 # flip the platform A-record off Beacon: doing so previously stranded platform on
 # boston-2 when failback forgot to flip it back. dns_flip.sh is retained ONLY as a
 # manual EMERGENCY tool for a Beacon-itself-down scenario (see its header).
-log "platform DNS stays on Beacon (2.25.170.252); failover handled by Beacon upstream flip (4c)."
+log "platform DNS stays on the front door (Citadel 2.25.133.122); failover handled by its upstream flip (4c)."
 
 # ---- verify the DR SCHEDULER actually came up (background jobs, not just the API) ----
 # Without this, a silently-dead scheduler means ingest/embedding/fleet-health/

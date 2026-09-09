@@ -64,9 +64,26 @@ COMPANY_DATA_CAPABILITIES = [
     "welfare_monitoring",
     "security",
     "documentation",
+    "video_review",  # media-library analysis, not design (see DEV_CAPABILITIES note)
 ]
 
-DEV_CAPABILITIES = ["code", "code_review", "code_fix", "debug", "creative", "visual_design", "ux_scoring"]
+# Owner decision 2026-09-09 (ADR): "design" = UI/UX review AND image/video generation.
+# video_review is deliberately ABSENT — it is M.A.V.E.N. analysing the media library
+# (analysis of owner content), not design work; adding it needs its own decision.
+DEV_CAPABILITIES = [
+    "code",
+    "code_review",
+    "code_fix",
+    "debug",
+    "creative",
+    "visual_design",
+    "ux_scoring",
+    "ux_audit",
+    "image",
+    "image_generation",
+    "image_edit",
+    "video_generation",
+]
 
 
 @pytest.fixture(scope="module")

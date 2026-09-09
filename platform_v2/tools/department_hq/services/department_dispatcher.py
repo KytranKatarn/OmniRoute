@@ -5324,7 +5324,7 @@ class DepartmentDispatcher:
     # between civic/gov/legal prompts and a third-party wire, and one mis-tap is
     # a sovereignty breach. This makes the boundary mechanical.
     _CLOUD_ALLOWLIST_KEY = "cloud:capability_allowlist"
-    _CLOUD_ALLOWLIST_DEFAULT = "code,code_review,code_fix,debug,creative,visual_design,ux_scoring"
+    _CLOUD_ALLOWLIST_DEFAULT = "code,code_review,code_fix,debug,creative,visual_design,ux_scoring,ux_audit,image,image_generation,image_edit,video_generation"
     _CLOUD_ALLOWLIST_TTL_S = 60.0
 
     def _cloud_capability_allowed(self, capability: Optional[str]) -> bool:

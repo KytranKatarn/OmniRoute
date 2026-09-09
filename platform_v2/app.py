@@ -13,6 +13,8 @@ from flask import (
     jsonify,
     session,
     g,
+    Response,
+    stream_with_context,
 )
 from flask_login import (
     LoginManager,
@@ -4583,6 +4585,135 @@ def api_internal_dhq_chat():
     except Exception as e:
         logger.error(f"DHQ chat error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# DHQ streaming lane concurrency guard (#6654). Bounds simultaneous SSE
+# streams so a burst can't pin every gunicorn worker; each stream also holds a
+# bridge_jobs slot the hub-lane cap counts. Tunable via env, default 8.
+import threading as _dhq_threading
+
+_DHQ_STREAM_SEM = _dhq_threading.BoundedSemaphore(int(os.getenv("DHQ_STREAM_MAX", "8")))
+
+
+@app.route("/api/internal/dhq/chat/stream", methods=["POST"])
+@require_internal_scope("dhq:chat")
+def api_internal_dhq_chat_stream():
+    """Token-by-token SSE counterpart to /api/internal/dhq/chat (#6654).
+
+    Same body as dhq/chat plus an optional ``local_only`` (default True —
+    sovereign). Streams the reply THROUGH the dispatcher (stream_dispatch →
+    stream_work → _execute_llm_stream) so archie_comms renders A.R.C.H.I.E.'s
+    cockpit reply as it is generated, with welfare/cost/cold-load/hub-cap
+    guards enforced BEFORE the first token and exactly one task_execution_log
+    row written when the stream ends. Events (``data: <json>\\n\\n``):
+      meta{agent_name,model,provider,node,capability,streamed}
+      token{content}   done{model_used,agent_name,provider,prompt_tokens,
+                            completion_tokens,duration_ms,streamed}
+      error{code: cloud_capability_blocked|cloud_budget_exhausted|
+                  hub_saturated|model_not_ready|dispatch_failed, message}
+    """
+    from tools.department_hq.services.department_dispatcher import stream_dispatch
+
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"success": False, "error": "prompt required"}), 400
+    system_prompt = data.get("system_prompt") or None
+    user_id = data.get("user_id")
+    capability = (data.get("capability") or "conversation").strip()
+    # pin_agent=false lets the caller clear the A.R.C.H.I.E. default (the
+    # `or "A.R.C.H.I.E."` below would otherwise swallow an empty string).
+    _pin = data.get("pin_agent", True)
+    prefer_agent = (data.get("prefer_agent") or "A.R.C.H.I.E.").strip() if _pin else None
+    module_id = (data.get("module_id") or "archie_comms").strip()
+    model_override = (data.get("model") or "").strip() or None
+    # local_only defaults True (sovereign). Cloud is possible only when the
+    # caller allows it AND the capability is on the allowlist AND escalation
+    # mode is not local_only — decided inside the dispatcher's guards.
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+    _want_cloud = data.get("local_only") is False
+    local_only = True
+    if _want_cloud:
+        try:
+            local_only = not get_dispatcher()._cloud_capability_allowed(capability)
+        except Exception:
+            local_only = True
+
+    # Same fast-front routing as the blocking route: A.R.C.H.I.E. conversation
+    # gets a GPU-resident small model on a Starship (hub fallback).
+    is_archie_conversation = prefer_agent == "A.R.C.H.I.E." and capability == "conversation"
+    if is_archie_conversation and model_override is None:
+        model_override = os.getenv("COCKPIT_CHAT_MODEL", "llama3.2:3b")
+    preferred_node = ["starship_76583490e36955ab", "archie-starbase"] if is_archie_conversation else None
+
+    acquired = _DHQ_STREAM_SEM.acquire(blocking=False)
+    if not acquired:
+        return jsonify({"success": False, "error": "stream lane saturated — retry shortly"}), 503
+
+    def generate():
+        import json as _json
+
+        try:
+            # Defeat proxy buffering before the first token (cold loads).
+            yield ": keepalive\n\n"
+            for evt in stream_dispatch(
+                capability=capability,
+                prompt=prompt,
+                module_id=module_id,
+                system_prompt=system_prompt,
+                user_id=user_id,
+                prefer_agent=prefer_agent,
+                model_override=model_override,
+                preferred_node=preferred_node,
+                local_only=local_only,
+            ):
+                yield f"data: {_json.dumps(evt, default=str)}\n\n"
+        except GeneratorExit:
+            raise
+        except Exception as e:
+            logger.error(f"DHQ chat stream error: {e}")
+            yield f"data: {_json.dumps({'type': 'error', 'code': 'dispatch_failed', 'message': str(e)})}\n\n"
+        finally:
+            _DHQ_STREAM_SEM.release()
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/internal/dhq/cloud-preflight", methods=["POST"])
+@require_internal_scope("dhq:chat")
+def api_internal_dhq_cloud_preflight():
+    """Sovereignty preflight for a caller about to reach a cloud provider
+    directly (e.g. the archie_comms Claude collaboration leg, #6654).
+
+    Body: {capability, provider?}. Returns {allowed, reason}. Cloud is allowed
+    only when escalation mode is not local_only AND the capability is on the
+    cloud allowlist AND the weekly free budget is not exhausted — the same
+    three gates the dispatcher applies to its own cloud text dispatches, so a
+    direct-to-Claude call cannot bypass the sovereignty floor. Fail-closed:
+    any error → not allowed."""
+    from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+    data = request.get_json(silent=True) or {}
+    capability = (data.get("capability") or "unknown").strip()
+    provider = (data.get("provider") or "anthropic").strip()
+    try:
+        disp = get_dispatcher()
+        mode = disp._get_escalation_mode()
+        if mode == "local_only":
+            return jsonify({"allowed": False, "reason": "escalation_mode is local_only (sovereign)"})
+        if not disp._cloud_capability_allowed(capability):
+            return jsonify({"allowed": False, "reason": f"capability '{capability}' is not on the cloud allowlist"})
+        if not disp._cloud_budget_ok(provider, capability):
+            return jsonify({"allowed": False, "reason": f"provider {provider} over weekly free budget"})
+        return jsonify({"allowed": True, "reason": "ok"})
+    except Exception as e:
+        logger.warning(f"cloud-preflight failed (fail-closed): {e}")
+        return jsonify({"allowed": False, "reason": "preflight error — staying local"})
 
 
 @app.route("/api/internal/coo/agents", methods=["GET"])

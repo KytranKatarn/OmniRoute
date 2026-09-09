@@ -6617,6 +6617,459 @@ class DepartmentDispatcher:
     # Priority string → integer mapping for dispatch_pending_queue
     _PRIORITY_INT = {"low": 3, "normal": 5, "high": 7, "critical": 9}
 
+    # ------------------------------------------------------------------
+    # Streaming surface (#6654). A token-by-token generator counterpart to
+    # request_work/_execute_llm, so archie_comms can stream A.R.C.H.I.E.'s
+    # cockpit reply THROUGH the dispatcher instead of talking to Ollama
+    # direct. Same pre-flight ORDER as _execute_llm — cloud-allowlist →
+    # cloud-budget → hub-lane cap → warm-boot — all BEFORE the first token,
+    # so a stream can never bypass a guard the blocking path enforces. Every
+    # stream opens a `bridge_jobs` running row (metadata.stream=true) so
+    # hub_lane_over_cap counts it while it runs, and always writes ONE
+    # task_execution_log row via _log_execution in finally (real model /
+    # provider / node / token counts — never 'auto', never 0).
+    # ------------------------------------------------------------------
+
+    def _execute_llm_stream(
+        self,
+        model: str,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        capability: Optional[str] = None,
+        module_id: str = "unknown",
+        agent_name: Optional[str] = None,
+        node_url: Optional[str] = None,
+        node_id_int: Optional[int] = None,
+        node_text_id: Optional[str] = None,
+        node_name: Optional[str] = None,
+        temperature: float = 0.5,
+        timeout: int = 300,
+    ):
+        """Yield ``{"type": "token"|"error", ...}`` dicts, then a final
+        ``{"type": "done", "_result": DispatchResult}`` the caller logs.
+
+        ``node_url`` None → hub Ollama (``get_ollama_url``); a value → that
+        fleet node's ``/api/generate`` (mesh transport). A cloud model
+        (``get_provider_for_model`` truthy) does NOT token-stream — after the
+        cloud guards it runs the existing blocking ``_execute_llm`` once and
+        yields the whole reply as a single token with ``streamed=False`` (no
+        second cloud choke point)."""
+        import time as _t
+        import json as _json
+
+        start = _t.time()
+        prompt_tokens = 0
+        completion_tokens = 0
+        response_parts: List[str] = []
+        done_reason = None
+        client_disconnected = False
+        provider = "ollama"
+        err_code = None
+        err_msg = None
+        bridge_job_id = None
+        is_cloud = False
+
+        # ── Pre-flight guards, SAME ORDER as _execute_llm ─────────────────
+        try:
+            from ai_bridge.external_providers import get_provider_for_model
+
+            ext_provider_key = get_provider_for_model(model)
+        except Exception:
+            ext_provider_key = None
+
+        if ext_provider_key:
+            # Cloud model. Guard allowlist + budget BEFORE anything leaves the
+            # cluster, then run the blocking path once (cloud does not stream).
+            is_cloud = True
+            provider = f"contractor:{ext_provider_key}"
+            if not self._cloud_capability_allowed(capability):
+                err_code, err_msg = (
+                    "cloud_capability_blocked",
+                    f"capability '{capability or 'unknown'}' is not on the cloud allowlist — staying local",
+                )
+            elif not self._cloud_budget_ok(ext_provider_key, capability or "unknown"):
+                err_code, err_msg = (
+                    "cloud_budget_exhausted",
+                    f"Cloud provider {ext_provider_key} over weekly free budget — staying local",
+                )
+            if err_code:
+                yield {"type": "error", "code": err_code, "message": err_msg}
+                result = DispatchResult(
+                    success=False,
+                    response="",
+                    agent_name=agent_name or "?",
+                    model_used=model,
+                    capability=capability or "",
+                    duration_ms=int((_t.time() - start) * 1000),
+                    provider=provider,
+                    error=err_msg,
+                    metadata={"stream": True, err_code: True, "is_cloud": True},
+                )
+                yield {"type": "done", "_result": result, "model_used": model, "streamed": False}
+                return
+            blocking = self._execute_llm(
+                model=model,
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                timeout=timeout,
+                agent_name=agent_name,
+                capability=capability,
+                module_id=module_id,
+            )
+            ok = bool(blocking.get("success"))
+            text = blocking.get("response", "") or ""
+            if ok and text:
+                yield {"type": "token", "content": text}
+            else:
+                err_msg = blocking.get("error", "cloud dispatch failed")
+                yield {"type": "error", "code": "dispatch_failed", "message": err_msg}
+            result = DispatchResult(
+                success=ok,
+                response=text,
+                agent_name=agent_name or f"CLOUD→{model}",
+                model_used=model,
+                capability=capability or "",
+                duration_ms=int((_t.time() - start) * 1000),
+                prompt_tokens=blocking.get("prompt_tokens", 0),
+                completion_tokens=blocking.get("completion_tokens", 0),
+                provider=blocking.get("provider", provider),
+                error=None if ok else err_msg,
+                metadata={"stream": True, "streamed": False, "is_cloud": True},
+            )
+            yield {"type": "done", "_result": result, "model_used": model, "streamed": False}
+            return
+
+        # Local model. Hub-lane admission cap applies ONLY on the hub path
+        # (fleet nodes have their own capacity); mirror _execute_llm:4251.
+        on_hub = node_url is None
+        if on_hub:
+            try:
+                from services.welfare_governance_service import hub_lane_over_cap
+
+                if _model_is_gpu_class(model) and hub_lane_over_cap(capability=capability, module_id=module_id):
+                    yield {
+                        "type": "error",
+                        "code": "hub_saturated",
+                        "message": "hub saturated — 7B in-flight admission cap reached; retry shortly",
+                    }
+                    result = DispatchResult(
+                        success=False,
+                        response="",
+                        agent_name=agent_name or "?",
+                        model_used=model,
+                        capability=capability or "",
+                        duration_ms=int((_t.time() - start) * 1000),
+                        provider="ollama",
+                        error="hub saturated",
+                        metadata={"stream": True, "backpressure": True},
+                    )
+                    yield {"type": "done", "_result": result, "model_used": model, "streamed": False}
+                    return
+            except Exception:
+                pass  # fail-open — a gate error must never block inference
+
+            # Warm-boot: never stream from a cold model.
+            try:
+                readiness = self.ensure_model_ready("_stream", model)
+                if readiness and not readiness.get("ready"):
+                    yield {
+                        "type": "error",
+                        "code": "model_not_ready",
+                        "message": f"Model {model} not ready (cold boot — {readiness.get('tier', 'unknown')} tier)",
+                    }
+                    result = DispatchResult(
+                        success=False,
+                        response="",
+                        agent_name=agent_name or "?",
+                        model_used=model,
+                        capability=capability or "",
+                        duration_ms=int((_t.time() - start) * 1000),
+                        provider="ollama",
+                        error="model_not_ready",
+                        metadata={"stream": True, "model_not_ready": True},
+                    )
+                    yield {"type": "done", "_result": result, "model_used": model, "streamed": False}
+                    return
+            except Exception:
+                pass
+
+        # Resolve the streaming URL.
+        if node_url:
+            gen_url = node_url
+            provider = f"fleet_node"
+        else:
+            try:
+                from ai_bridge.archie_bridge import get_ollama_url
+
+                gen_url, _ = get_ollama_url(model, True)
+            except Exception:
+                gen_url = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+            provider = "ollama"
+
+        # Open a bridge_jobs slot so hub_lane_over_cap counts this stream.
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO bridge_jobs (job_type, module_source, description,
+                    total_steps, status, agent_name, metadata)
+                VALUES (%s, %s, %s, 1, 'running', %s, %s)
+                RETURNING id
+                """,
+                (
+                    capability or "conversation",
+                    module_id,
+                    f"stream {model}: {prompt[:60]}",
+                    agent_name,
+                    _json.dumps({"stream": True, "node_id": node_id_int, "node_name": node_name}),
+                ),
+            )
+            bridge_job_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as _je:
+            logger.warning("[BridgeDispatcher] stream bridge_job insert failed: %s", _je)
+
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "stream": True,
+            "keep_alive": "5m",
+            "options": {"temperature": temperature},
+        }
+        if system_prompt:
+            payload["system"] = system_prompt
+
+        success = False
+        try:
+            import requests as _rq
+
+            with _rq.post(gen_url, json=payload, stream=True, timeout=(10, timeout)) as resp:
+                if resp.status_code != 200:
+                    err_msg = f"Ollama {resp.status_code} from {gen_url}"
+                    yield {"type": "error", "code": "dispatch_failed", "message": err_msg}
+                else:
+                    for line in resp.iter_lines(decode_unicode=True):
+                        if not line:
+                            continue
+                        try:
+                            chunk = _json.loads(line)
+                        except Exception:
+                            continue
+                        tok = chunk.get("response", "")
+                        if tok:
+                            response_parts.append(tok)
+                            yield {"type": "token", "content": tok}
+                        if chunk.get("done"):
+                            done_reason = chunk.get("done_reason")
+                            prompt_tokens = chunk.get("prompt_eval_count", 0) or 0
+                            completion_tokens = chunk.get("eval_count", 0) or 0
+                            success = True
+                            break
+                    if node_id_int and node_text_id and node_id_int != node_text_id:
+                        provider = f"starship:{node_text_id}" if not node_url else provider
+        except GeneratorExit:
+            # Client hung up mid-stream. Estimate the partial tokens so the
+            # row is never a false 0 and re-raise to unwind cleanly.
+            client_disconnected = True
+            err_msg = "client_disconnected"
+            raise
+        except Exception as e:
+            err_msg = f"{type(e).__name__}: {str(e)[:300]}"
+            yield {"type": "error", "code": "dispatch_failed", "message": err_msg}
+        finally:
+            text = "".join(response_parts)
+            tokens_estimated = False
+            if not prompt_tokens and (prompt or system_prompt):
+                prompt_tokens = max(1, (len(system_prompt or "") + len(prompt or "")) // 4)
+                tokens_estimated = True
+            if not completion_tokens and text:
+                completion_tokens = max(1, len(text) // 4)
+                tokens_estimated = True
+            duration_ms = int((_t.time() - start) * 1000)
+            if bridge_job_id:
+                try:
+                    conn = self._get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        "UPDATE bridge_jobs SET status=%s, completed_at=NOW(), completed_steps=1 WHERE id=%s",
+                        ("completed" if success and not client_disconnected else "failed", bridge_job_id),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception:
+                    pass
+            result = DispatchResult(
+                success=success and not client_disconnected,
+                response=text,
+                agent_name=agent_name or "?",
+                model_used=model,
+                capability=capability or "",
+                duration_ms=duration_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                provider=provider,
+                error=err_msg if (not success or client_disconnected) else None,
+                metadata={
+                    "stream": True,
+                    "streamed": True,
+                    "node_id": node_id_int,
+                    "node_name": node_name,
+                    "done_reason": done_reason,
+                    "client_disconnected": client_disconnected,
+                    "tokens_estimated": tokens_estimated,
+                },
+            )
+            # Not a Python `return` inside finally (that would swallow GeneratorExit);
+            # stash the result so the post-finally yield (normal exit only) can emit it.
+            self._last_stream_result = result
+
+        # Normal completion only — on GeneratorExit the raise above skips this.
+        yield {
+            "type": "done",
+            "_result": self._last_stream_result,
+            "model_used": model,
+            "agent_name": agent_name,
+            "provider": self._last_stream_result.provider,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "duration_ms": self._last_stream_result.duration_ms,
+            "streamed": True,
+        }
+
+    def stream_work(
+        self,
+        capability: str,
+        prompt: str,
+        module_id: str = "unknown",
+        system_prompt: Optional[str] = None,
+        user_id: Optional[int] = None,
+        prefer_agent: Optional[str] = None,
+        model_override: Optional[str] = None,
+        preferred_node: Optional[str] = None,
+        local_only: bool = False,
+        timeout: int = 300,
+    ):
+        """Plan an agent/model/node like request_work, then stream tokens.
+
+        Reuses the SAME planning helpers by call (resolve_department →
+        select_agent, _pick_fleet_node/_get_fleet_node_for_dispatch), so
+        routing matches the blocking path. Yields the SSE-shaped dicts from
+        ``_execute_llm_stream`` (meta first), and logs exactly one
+        task_execution_log row via _log_execution when the stream ends."""
+        import time as _t
+
+        if timeout == 300 and capability in CAPABILITY_TIMEOUTS:
+            timeout = CAPABILITY_TIMEOUTS[capability]
+        if preferred_node is None and capability in CAPABILITY_NODE_AFFINITY:
+            preferred_node = list(CAPABILITY_NODE_AFFINITY[capability])
+
+        _coord = get_dept_coordinator()
+        capability_department = _coord.resolve_department(capability)
+        agent = None
+        try:
+            if prefer_agent:
+                for _info in (self._agent_cache or {}).values():
+                    _nm = _info.get("name") or _info.get("agent_name")
+                    if _nm and _nm.replace(".", "").lower() == prefer_agent.replace(".", "").lower():
+                        agent = _info
+                        break
+            if not agent:
+                agent = _coord.select_agent(capability, capability_department)
+        except Exception as _se:
+            logger.warning("[BridgeDispatcher] stream_work agent select failed: %s", _se)
+
+        agent_name = None
+        temperature = 0.5
+        if isinstance(agent, dict):
+            agent_name = agent.get("name") or agent.get("agent_name")
+            temperature = agent.get("temperature", 0.5)
+        model = model_override or (agent.get("model") if isinstance(agent, dict) else None) or "qwen2.5:7b"
+
+        dispatch_department = (agent.get("department") if isinstance(agent, dict) else None) or capability_department
+
+        # Node resolution: an explicit preferred_node (list) wins; else hub.
+        node_url = node_id_int = node_text_id = node_name = None
+        _cands = preferred_node if isinstance(preferred_node, list) else ([preferred_node] if preferred_node else [])
+        for _pn_name in _cands:
+            if not _pn_name or str(_pn_name) in ("archie-starbase", "hub"):
+                break  # hub is the default path — no node_url
+            try:
+                _pn_conn = self._get_db()
+                _pn_cur = _pn_conn.cursor()
+                _pn_cur.execute(
+                    "SELECT id FROM remote_nodes WHERE (node_name=%s OR node_id=%s) AND status='online' "
+                    "AND last_heartbeat > NOW() - INTERVAL '3 minutes' LIMIT 1",
+                    (str(_pn_name), str(_pn_name)),
+                )
+                _row = _pn_cur.fetchone()
+                _pn_conn.close()
+                if not _row:
+                    continue
+                _info = self._get_fleet_node_for_dispatch(_row[0], model, agent if isinstance(agent, dict) else None)
+                if _info:
+                    node_url = f"http://{_info['node_hostname']}:{_info.get('node_port') or 11434}/api/generate"
+                    node_id_int = _row[0]
+                    node_text_id = _info.get("node_id")
+                    node_name = _info.get("node_name")
+                    agent_name = _info.get("agent_name", agent_name)
+                    model = _info.get("model", model)
+                    break
+            except Exception as _pn_e:
+                logger.debug("[BridgeDispatcher] stream_work node resolve %s: %s", _pn_name, _pn_e)
+
+        yield {
+            "type": "meta",
+            "agent_name": agent_name,
+            "model": model,
+            "provider": "fleet_node" if node_url else "ollama",
+            "node": node_name,
+            "capability": capability,
+            "streamed": True,
+        }
+
+        result = None
+        gen = self._execute_llm_stream(
+            model=model,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            capability=capability,
+            module_id=module_id,
+            agent_name=agent_name,
+            node_url=node_url,
+            node_id_int=node_id_int,
+            node_text_id=node_text_id,
+            node_name=node_name,
+            temperature=temperature,
+            timeout=max(timeout, 240) if node_url else timeout,
+        )
+        try:
+            for evt in gen:
+                if evt.get("type") == "done":
+                    result = evt.get("_result")
+                    _pub = {k: v for k, v in evt.items() if k != "_result"}
+                    yield _pub
+                else:
+                    yield evt
+        finally:
+            # Log exactly one row — on normal completion OR client disconnect
+            # (GeneratorExit propagates through _execute_llm_stream's finally,
+            # which stashes _last_stream_result before re-raising).
+            if result is None:
+                result = getattr(self, "_last_stream_result", None)
+            if result is not None:
+                try:
+                    result.department = dispatch_department
+                    result.agent_id = agent.get("id") if isinstance(agent, dict) else None
+                    self._log_execution(result, module_id, user_id)
+                    self._update_agent_welfare(result.agent_id, result.success)
+                except Exception as _le:
+                    logger.warning("[BridgeDispatcher] stream_work log failed: %s", _le)
+
     def request_work(
         self,
         capability: str,
@@ -11581,6 +12034,35 @@ def dispatch(
             pass
 
     return _result
+
+
+def stream_dispatch(
+    capability: str,
+    prompt: str,
+    module_id: str = "unknown",
+    system_prompt: Optional[str] = None,
+    user_id: Optional[int] = None,
+    prefer_agent: Optional[str] = None,
+    model_override: Optional[str] = None,
+    preferred_node: Optional[str] = None,
+    local_only: bool = False,
+    timeout: int = 300,
+):
+    """Module-level streaming entry point — generator yielding the SSE-shaped
+    dicts from ``DepartmentDispatcher.stream_work``. Mirrors ``dispatch`` for
+    the token-streaming path (#6654)."""
+    yield from get_dispatcher().stream_work(
+        capability=capability,
+        prompt=prompt,
+        module_id=module_id,
+        system_prompt=system_prompt,
+        user_id=user_id,
+        prefer_agent=prefer_agent,
+        model_override=model_override,
+        preferred_node=preferred_node,
+        local_only=local_only,
+        timeout=timeout,
+    )
 
 
 def dispatch_json(

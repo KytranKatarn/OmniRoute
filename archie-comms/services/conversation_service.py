@@ -21,10 +21,13 @@ import logging
 
 # Module-level imports so tests can monkeypatch these names
 try:
-    from services.archie_voice_service import _get_system_prompt, _stream_ollama
+    from services.archie_voice_service import _get_system_prompt
 except Exception:  # service may not be importable in test environments
     _get_system_prompt = None  # type: ignore[assignment]
-    _stream_ollama = None  # type: ignore[assignment]
+# #6654: A.R.C.H.I.E.'s reply streams THROUGH the dispatcher; no direct-Ollama path.
+from services.dhq_stream_client import stream_dhq_chat, DHQUnavailable
+from services.marker_filter import MarkerFilter as _MarkerFilter
+from services.capability_map import resolve_capability
 import os
 import time
 import uuid as _uuid_mod
@@ -287,9 +290,9 @@ def send_message(user_id, message, channel="platform", agent_target=None):
             },
         }
 
-    # 2. Full LLM response
+    # 2. Full LLM response — THROUGH the dispatcher (#6654; no direct inference)
     try:
-        from services.archie_voice_service import _get_system_prompt, _call_ollama
+        from services.archie_voice_service import _get_system_prompt
 
         system_prompt = _get_system_prompt()
         if not system_prompt:
@@ -310,13 +313,15 @@ def send_message(user_id, message, channel="platform", agent_target=None):
                     history_text += f"A.R.C.H.I.E.: {content}\n"
 
         user_prompt = f"{history_text}\nKytran says: {message}\n\nRespond naturally as A.R.C.H.I.E. in conversation. Be helpful, warm, and direct."
-        response_text = _call_ollama(system_prompt, user_prompt)
+        _dhq = dhq_chat_raw(user_prompt, system_prompt=system_prompt, user_id=user_id)
+        response_text = (_dhq or {}).get("response") if _dhq else None
         elapsed = int((time.time() - start) * 1000)
 
         if not response_text:
             response_text = "I processed your message but didn't generate a response. Could you rephrase?"
 
-        model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k")
+        # The model label reflects what DHQ actually ran (was a stale env default).
+        model = (_dhq or {}).get("model_used") or "dhq"
         save_message(conv_id, channel, "outbound", "archie", response_text, {
             "model": model, "latency_ms": elapsed, "department": "Executive Office"
         })
@@ -1302,17 +1307,15 @@ def summarize_conversation(conv_id):
     except Exception as exc:
         logger.error("summarize_conversation: title fetch failed: %s", exc)
 
-    # Note: archie_comms is a standalone container — it uses direct Ollama
-    # rather than the platform Bridge dispatcher (ADR-013 applies to platform_v2
-    # modules; standalone containers call platform APIs or Ollama directly).
-    # This mirrors the existing send_message() pattern in this same file.
-    from services.archie_voice_service import _call_ollama
-
+    # #6654: summarize THROUGH the dispatcher (capability='summarize'), never
+    # direct Ollama — archie_comms routes all inference via the platform DHQ
+    # endpoint so it is welfare/cost-gated and visible in task_execution_log.
     system = (
         "Summarize this conversation in 2-3 sentences. "
         "Be factual and concise. Focus on decisions made and tasks discussed."
     )
-    summary = _call_ollama(system, f"Conversation:\n\n{transcript}")
+    _dhq = dhq_chat_raw(f"Conversation:\n\n{transcript}", system_prompt=system)
+    summary = (_dhq or {}).get("response") if _dhq else None
     if not summary:
         return
 
@@ -1388,24 +1391,38 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     # reliable when the hub GPU is saturated. Fall back to direct-Ollama streaming
     # if the hub is unreachable — the voice MUST survive a platform crash (ADR-013).
     full_parts = []
-    stream_error = None
-    dhq_reply = _dhq_chat_reply(system_prompt, user_prompt, user_id)
     dhq_agent = None
     dhq_model = None
-    if dhq_reply is not None:
-        # DHQ is non-streaming: deliver the full reply as a single chunk; carry the
-        # agent + model through to the done event for the cockpit attribution badge.
-        full_parts = [dhq_reply["response"]]
-        dhq_agent = dhq_reply.get("agent_name")
-        dhq_model = dhq_reply.get("model_used")
-    else:
-        streamer = _stream_ollama if _stream_ollama else iter([])
-        try:
-            for token in streamer(system_prompt, user_prompt):
-                full_parts.append(token)
-        except Exception as exc:
-            logger.error("stream_send_message: stream error: %s", exc)
-            stream_error = exc
+    # Stream A.R.C.H.I.E.'s reply THROUGH the dispatcher (#6654): tokens arrive
+    # live and render as they come. The RAW text accumulates into full_parts for
+    # the marker harvest below; a MarkerFilter keeps in-flight {{...}} markers out
+    # of the browser view. No direct-Ollama fallback — all inference goes through
+    # DHQ (ADR-013). If the dispatcher is unreachable, yield an honest error and
+    # save NO assistant turn (the voice does not fabricate a reply from nowhere).
+    _filt = _MarkerFilter()
+    try:
+        for item in stream_dhq_chat(
+            system_prompt,
+            user_prompt,
+            user_id,
+            capability=resolve_capability(is_plan_request=is_plan_request),
+        ):
+            if isinstance(item, dict):  # the final done event
+                dhq_agent = item.get("agent_name")
+                dhq_model = item.get("model_used")
+                continue
+            full_parts.append(item)
+            safe = _filt.feed(item)
+            if safe:
+                yield safe
+        tail = _filt.flush()
+        if tail:
+            yield tail
+    except DHQUnavailable as exc:
+        logger.warning("stream_send_message: DHQ unreachable: %s", exc)
+        yield {"type": "error", "message": "A.R.C.H.I.E.'s dispatcher is unreachable — no reply was generated."}
+        yield {"type": "done", "conversation_id": conv_id, "agent_name": None, "model_used": None}
+        return
 
     complete_text = "".join(full_parts)
 
@@ -1436,19 +1453,9 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     action_key = _action_match.group(1).strip() if _action_match else None
     clean_text = _ACTION_RE.sub("", clean_text).strip()
 
-    # Yield clean chunks before done — re-emit each chunk with ALL markers stripped
-    for raw_token in full_parts:
-        clean_token = _DELEGATE_RE.sub("", raw_token)
-        _drop, clean_token = _extract_approval_markers(clean_token)
-        clean_token = _DEEPEN_RE.sub("", clean_token)
-        clean_token = _CONSULT_RE.sub("", clean_token)
-        clean_token = _ACTION_RE.sub("", clean_token)
-        if clean_token:
-            yield clean_token
-
-    if stream_error:
-        yield {"type": "error", "message": "Stream interrupted"}
-
+    # Tokens were already streamed live above, with in-flight {{...}} markers held
+    # back by the MarkerFilter — no re-emit pass is needed. clean_text (markers
+    # stripped by the harvest) is the canonical text saved to the transcript.
     if clean_text:
         save_message(
             conv_id,

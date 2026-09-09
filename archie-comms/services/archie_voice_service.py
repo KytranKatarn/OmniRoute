@@ -168,7 +168,7 @@ def format_message(
     user_prompt = _build_user_prompt(category, title, raw_message, source_agent, source_department)
 
     try:
-        voice_text = _call_ollama(system_prompt, user_prompt)
+        voice_text = _dhq_notify_voice(system_prompt, user_prompt)
         if voice_text:
             # Append platform link for non-critical alerts that might need follow-up
             if context and context.get("needs_response") and category not in ("security",):
@@ -183,84 +183,43 @@ def format_message(
         return _template_fallback(category, title, raw_message, source_agent)
 
 
-def _call_ollama(system_prompt, user_prompt):
-    """Call Ollama directly via HTTP — no Flask, no dispatcher dependency.
+def _dhq_notify_voice(system_prompt, user_prompt):
+    """Rewrite a notification in A.R.C.H.I.E.'s voice THROUGH the dispatcher
+    (#6654 - no direct inference; everything goes through DHQ, ADR-013).
 
-    This is intentionally Flask-free so it works both inside archie_platform
-    and independently in the archie_comms container.
+    Flask-free (works standalone in the archie_comms container): a plain HTTP
+    POST to the platform's internal DHQ chat endpoint with capability
+    'notification' (kept off the cloud allowlist - stays local/sovereign).
+    Returns the voiced text, or None on any failure so format_message falls
+    back to its static template (never a fabricated reply).
     """
-    import urllib.request
-
-    ollama_host = os.getenv("OLLAMA_HOST", "http://100.64.0.4:11434")
-    # Ensure scheme prefix — container env often has bare host:port
-    if ollama_host and not ollama_host.startswith("http"):
-        ollama_host = f"http://{ollama_host}"
-    model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k:latest")
-
-    payload = json.dumps(
-        {
-            "model": model,
-            "prompt": user_prompt,
-            "system": system_prompt,
-            "stream": False,
-            "options": {"num_predict": 150, "temperature": 0.7, "num_gpu": 0},
-            "keep_alive": "5m",
-        }
-    ).encode()
-
-    req = urllib.request.Request(
-        f"{ollama_host}/api/generate",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-    )
-
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        result = json.loads(resp.read())
-        return result.get("response", "").strip() or None
-
-
-def _stream_ollama(system_prompt, user_prompt):
-    """Yield str tokens from Ollama streaming API.
-
-    Mirrors _call_ollama config. Yields a single error string on failure
-    so callers always receive output without raising.
-    """
-    # requests is a listed archie_comms dep (requirements.txt) — intentional deviation from _call_ollama's urllib
-    import requests as _requests
-
-    ollama_host = os.getenv("OLLAMA_HOST", "http://100.64.0.4:11434")
-    if ollama_host and not ollama_host.startswith("http"):
-        ollama_host = f"http://{ollama_host}"
-    model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k:latest")
-    url = f"{ollama_host}/api/chat"
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "stream": True,
-        "options": {"num_predict": 1024, "temperature": 0.7, "num_gpu": -1},
-        "keep_alive": "5m",
-    }
+    key = os.getenv("INTERNAL_API_KEY", "")
+    if not key:
+        return None
+    platform_url = os.getenv("PLATFORM_URL", "http://archie_platform:3000").rstrip("/")
     try:
-        with _requests.post(url, json=payload, stream=True, timeout=120) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                token = data.get("message", {}).get("content", "")
-                if token:
-                    yield token
-                if data.get("done"):
-                    break
+        import requests
+
+        resp = requests.post(
+            f"{platform_url}/api/internal/dhq/chat",
+            json={
+                "prompt": user_prompt,
+                "system_prompt": system_prompt,
+                "capability": "notification",
+            },
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=float(os.getenv("DHQ_NOTIFY_TIMEOUT", "30")),
+        )
+        if resp.status_code != 200:
+            logger.warning("archie_voice: DHQ notify returned %s - template fallback", resp.status_code)
+            return None
+        data = resp.json()
+        if data.get("success") and (data.get("response") or "").strip():
+            return data["response"].strip()
+        return None
     except Exception as exc:
-        logger.error("_stream_ollama failed: %s", exc)
-        yield "[ARCHIE is temporarily unavailable. Please try again.]"
+        logger.warning("archie_voice: DHQ notify unreachable (%s) - template fallback", exc)
+        return None
 
 
 def _template_fallback(category, title, raw_message, source_agent=None):

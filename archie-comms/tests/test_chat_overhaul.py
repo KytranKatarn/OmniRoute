@@ -40,17 +40,73 @@ class TestStreamSendMessage:
         monkeypatch.setattr(conversation_service, "get_conversation_messages", lambda *a, **kw: [])
         monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
         monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "sys")
-        monkeypatch.setattr(
-            "services.conversation_service._stream_ollama",
-            lambda s, u: iter(["Hello", " world"]),
-        )
+
+        # #6654: the reply now streams THROUGH the dispatcher (stream_dhq_chat),
+        # yielding token strings then a final done dict.
+        def _fake_stream(system_prompt, user_prompt, user_id=None, capability="conversation", **kw):
+            yield "Hello"
+            yield " world"
+            yield {"type": "done", "model_used": "llama3.2:3b", "agent_name": "A.R.C.H.I.E."}
+
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", _fake_stream)
 
         items = list(conversation_service.stream_send_message(user_id=1, message="hi"))
         tokens = [i for i in items if isinstance(i, str)]
         done_events = [i for i in items if isinstance(i, dict) and i.get("type") == "done"]
-        assert tokens == ["Hello", " world"]
+        assert "".join(tokens) == "Hello world"
         assert len(done_events) == 1
         assert done_events[0]["conversation_id"] == 42
+        assert done_events[0]["model_used"] == "llama3.2:3b"
+
+    def test_dhq_unavailable_yields_error_and_saves_no_turn(self, monkeypatch):
+        """No direct-Ollama fallback (#6654): if the dispatcher is unreachable the
+        stream yields an honest error + done and saves NO assistant message."""
+        from services import conversation_service
+
+        saved = []
+        monkeypatch.setattr(conversation_service, "get_or_create_conversation", lambda uid: 7)
+        monkeypatch.setattr(
+            conversation_service, "save_message", lambda conv, ch, direction, sender, content, *a, **kw: saved.append((direction, sender))
+        )
+        monkeypatch.setattr(conversation_service, "get_conversation_messages", lambda *a, **kw: [])
+        monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
+        monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "sys")
+
+        def _boom(*a, **kw):
+            raise conversation_service.DHQUnavailable("hub down")
+
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", _boom)
+
+        items = list(conversation_service.stream_send_message(user_id=1, message="hi"))
+        assert any(isinstance(i, dict) and i.get("type") == "error" for i in items)
+        assert any(isinstance(i, dict) and i.get("type") == "done" for i in items)
+        # only the inbound user turn was saved — never a fabricated assistant reply
+        assert ("outbound", "archie") not in saved
+
+    def test_markers_never_reach_the_stream(self, monkeypatch):
+        """A {{DELEGATE}} marker split across tokens is held back by the filter and
+        never appears in the streamed text, while its event still fires."""
+        from services import conversation_service
+
+        monkeypatch.setattr(conversation_service, "get_or_create_conversation", lambda uid: 9)
+        monkeypatch.setattr(conversation_service, "save_message", lambda *a, **kw: {"id": 1})
+        monkeypatch.setattr(conversation_service, "get_conversation_messages", lambda *a, **kw: [])
+        monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
+        monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "sys")
+
+        def _fake_stream(system_prompt, user_prompt, user_id=None, capability="conversation", **kw):
+            # marker arrives split across three tokens
+            for t in ["On it. ", '{{DELEGATE capability="code_review" ', 'reason="do X"}}', " Done."]:
+                yield t
+            yield {"type": "done", "model_used": "m", "agent_name": "A.R.C.H.I.E."}
+
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", _fake_stream)
+
+        items = list(conversation_service.stream_send_message(user_id=1, message="delegate this"))
+        streamed = "".join(i for i in items if isinstance(i, str))
+        assert "{{" not in streamed and "DELEGATE" not in streamed
+        assert "On it." in streamed and "Done." in streamed
+        assert any(isinstance(i, dict) and i.get("type") == "delegation_detected" for i in items)
 
     def test_error_when_no_conversation(self, monkeypatch):
         from services import conversation_service
@@ -128,10 +184,11 @@ class TestTerminalEndpoints:
         monkeypatch.setattr(conversation_service, "get_conversation_messages", lambda *a, **kw: [])
         monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
         monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "sys")
-        monkeypatch.setattr(
-            "services.conversation_service._stream_ollama",
-            lambda s, u: iter(["ok"]),
-        )
+        def _fs(sys_p, user_p, user_id=None, capability="conversation", **kw):
+            yield "ok"
+            yield {"type": "done", "model_used": "m", "agent_name": "A.R.C.H.I.E."}
+
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", _fs)
         items = list(conversation_service.stream_send_message(
             user_id=1, message="hi", terminal_context="$ pytest\nPASSED"
         ))
@@ -147,11 +204,12 @@ class TestTerminalEndpoints:
         monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
         monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "base-sys")
 
-        def capture_stream(sys_p, user_p):
+        def capture_stream(sys_p, user_p, user_id=None, capability="conversation", **kw):
             captured_prompts.append(sys_p)
             yield "ok"
+            yield {"type": "done", "model_used": "m", "agent_name": "A.R.C.H.I.E."}
 
-        monkeypatch.setattr("services.conversation_service._stream_ollama", capture_stream)
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", capture_stream)
         list(conversation_service.stream_send_message(user_id=1, message="hi", terminal_context=None))
         assert "[TERMINAL CONTEXT]" not in captured_prompts[0]
 
@@ -203,10 +261,12 @@ class TestDelegationRoutes:
         monkeypatch.setattr(conversation_service, "get_conversation_messages", lambda *a, **kw: [])
         monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
         monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "sys")
-        monkeypatch.setattr(
-            "services.conversation_service._stream_ollama",
-            lambda s, u: iter(["Hello! ", '{{DELEGATE capability="health_check" reason="check VPS"}}']),
-        )
+        def _fs(sys_p, user_p, user_id=None, capability="conversation", **kw):
+            yield "Hello! "
+            yield '{{DELEGATE capability="health_check" reason="check VPS"}}'
+            yield {"type": "done", "model_used": "m", "agent_name": "A.R.C.H.I.E."}
+
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", _fs)
         items = list(conversation_service.stream_send_message(user_id=1, message="hi"))
         tokens = [i for i in items if isinstance(i, str)]
         delegation_events = [i for i in items if isinstance(i, dict) and i.get("type") == "delegation_detected"]
@@ -228,11 +288,12 @@ class TestPlanningRequest:
         monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
         monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "base-sys")
 
-        def capture_ollama(sys_p, user_p):
+        def capture_ollama(sys_p, user_p, user_id=None, capability="conversation", **kw):
             captured.append(sys_p)
             yield "plan"
+            yield {"type": "done", "model_used": "m", "agent_name": "A.R.C.H.I.E."}
 
-        monkeypatch.setattr("services.conversation_service._stream_ollama", capture_ollama)
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", capture_ollama)
         list(conversation_service.stream_send_message(
             user_id=1, message="build a scheduler", is_plan_request=True
         ))
@@ -247,11 +308,12 @@ class TestPlanningRequest:
         monkeypatch.setattr(conversation_service, "get_session_context", lambda *a, **kw: "")
         monkeypatch.setattr("services.conversation_service._get_system_prompt", lambda: "base-sys")
 
-        def capture_ollama(sys_p, user_p):
+        def capture_ollama(sys_p, user_p, user_id=None, capability="conversation", **kw):
             captured.append(sys_p)
             yield "normal"
+            yield {"type": "done", "model_used": "m", "agent_name": "A.R.C.H.I.E."}
 
-        monkeypatch.setattr("services.conversation_service._stream_ollama", capture_ollama)
+        monkeypatch.setattr("services.conversation_service.stream_dhq_chat", capture_ollama)
         list(conversation_service.stream_send_message(
             user_id=1, message="hello", is_plan_request=False
         ))

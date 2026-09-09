@@ -490,7 +490,6 @@ services:
       - DB_HOST=archie_database
       - DB_NAME=archie
       - DB_USER=archie
-      - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_VOICE_MODEL=dolphin3-8k:latest
       - PLATFORM_URL=http://archie_platform:3000
       # Required for the chat→DHQ delegation hand-off (/api/internal/delegation/submit)

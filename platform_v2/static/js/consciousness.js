@@ -3933,7 +3933,7 @@ var _teClientTTL = 300000;    // 5 min — instant in-session tab re-opens
 // alongside loadTokenEconomy so the same range buttons drive both panels. ---
 var _tbCache = {};
 var _tbClientTTL = 300000;
-var _TB_COLORS = { agent: "#34d399", cloud: "#f59e0b", infra: "#60a5fa", markers: "#64748b", other: "#f43f5e" };
+var _TB_COLORS = { agent: "#34d399", cloud: "#f59e0b", infra: "#60a5fa", markers: "#64748b", other: "#f43f5e", estimated: "#a78bfa" };
 var _chBucketChart = null;
 function _tbFmt(n) { n = +n || 0; if (n >= 1e6) return (n / 1e6).toFixed(2) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "k"; return String(n); }
 function _renderTokenBuckets(d) {
@@ -3967,7 +3967,8 @@ function _renderTokenBuckets(d) {
         { label: "Agent · local", data: mk("agent"), stack: "b", borderColor: _TB_COLORS.agent, backgroundColor: "rgba(52,211,153,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
         { label: "Cloud / CLI", data: mk("cloud"), stack: "b", borderColor: _TB_COLORS.cloud, backgroundColor: "rgba(245,158,11,0.28)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
         { label: "Infrastructure", data: mk("infra"), stack: "b", borderColor: _TB_COLORS.infra, backgroundColor: "rgba(96,165,250,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
-        { label: "Stray", data: mk("other"), stack: "b", borderColor: _TB_COLORS.other, backgroundColor: "rgba(244,63,94,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
+        { label: "Stray", data: mk("other"), stack: "b", borderColor: _TB_COLORS.other, backgroundColor: "rgba(244,63,94,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+        { label: "Estimated · backfill", data: mk("estimated"), stack: "b", borderColor: _TB_COLORS.estimated, backgroundColor: "rgba(167,139,250,0.25)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
       ]},
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 0 },

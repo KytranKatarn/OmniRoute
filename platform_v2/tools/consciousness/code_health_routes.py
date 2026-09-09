@@ -12,6 +12,7 @@ from flask import current_app, jsonify, request
 from flask_login import login_required
 
 from database import get_db_cursor
+from services.token_provenance import ESTIMATED_SQL, cloud_classifier_sql
 
 logger = logging.getLogger(__name__)
 
@@ -612,7 +613,7 @@ def register_code_health_routes(bp, admin_required):
 
         Buckets every task_execution_log row in the window into exactly one of:
           agent   — real local inference attributed to a budgeted AI agent
-          cloud   — worker_type='contract' cloud/CLI (agentless by design)
+          cloud   — provider left the cluster (services.token_provenance; NOT worker_type)
           infra   — warm-up keep-alive (fleet_warmup/kin_warmth) — no agent
           markers — 0-token orchestration/bookkeeping rows
           other   — real-local rows still lacking an agent_id (should trend to 0)
@@ -657,39 +658,73 @@ def register_code_health_routes(bp, admin_required):
                 payload["_cached"] = True
                 return jsonify(payload)
 
-        # Fixed CASE order = the 5 accounting buckets. Mirrors the exclusion order the
-        # accounting uses: worker_type='contract' first (cloud/CLI is agentless), then
-        # warm-up infra, then 0-token markers, then a real attributed agent row, else a
-        # stray real-local row (target: 0). No user input in the SQL (all literal).
+        # Fixed CASE order = the accounting buckets. Order mirrors the exclusion the
+        # accounting uses: estimated backfill first (a separate PROVENANCE axis — the
+        # totals panel excludes it from the live cloud/local split, so this panel must
+        # too or the ALL range diverges: measured 10,102,978 tokens apart before the
+        # two shared ESTIMATED_SQL), then cloud (by PROVIDER, see token_provenance),
+        # then warm-up infra, then 0-token markers, then a real attributed agent row,
+        # else a stray real-local row (target: 0). No user input in the SQL.
+        #
+        # ONE cloud classifier, shared with the totals/series endpoint below. This
+        # panel used to key "cloud" on worker_type='contract' while the Cloud Impact
+        # totals keyed on provider — and the two DISAGREED on the same rows:
+        # ollama_cloud/internal (665 runs, 637,900 tokens that left the cluster)
+        # landed in the AGENT bucket here and in EXTERNAL there.
+        # Owner requirement 2026-09-09: ALL cloud tokens count as cloud on this tab.
+        #
+        # Both flags are computed ONCE per row in a CTE. It did NOT make the query
+        # cheap — measured on prod, EXPLAIN ANALYZE, best of 2, read-only session:
+        #   series query, range=90:  old worker_type rule 5.4s · this CTE 19.6s
+        #   plain wall-clock:        range=90 3.2s → 13.5s · range=365 (ALL) 2.2s → 14.4s
+        #   bucket-totals CTE query, range=90: 3.8s — and a cache miss runs BOTH.
+        # The cost is intrinsic to a provider-based classifier (lower()/position()/
+        # left()/right() + a JSONB extract per row) vs a single text equality.
+        # _TOKEN_BUCKETS_CACHE is a module dict, i.e. PER gunicorn worker (4), so a
+        # miss can happen up to 4x per 10 min, each tying one of 32 threads ~15-20s.
+        # Bounded by --timeout 600 (no worker kill). The real fix is precomputed
+        # provenance flags on the row (#6658); until then this is the honest price
+        # of "all cloud tokens count as cloud".
+        row_cte = (
+            "WITH r AS ("
+            " SELECT tokens_used, agent_id, module_source, created_at,"
+            f" ({cloud_classifier_sql()})='external' AS is_cloud,"
+            f" {ESTIMATED_SQL} AS is_est"
+            " FROM task_execution_log"
+            " WHERE created_at > now() - %s::interval)"
+        )
         bucket_case = (
-            "CASE WHEN worker_type='contract' THEN 'cloud' "
+            "CASE WHEN is_est THEN 'estimated' "
+            "WHEN is_cloud THEN 'cloud' "
             "WHEN module_source IN ('fleet_warmup','kin_warmth') THEN 'infra' "
             "WHEN COALESCE(tokens_used,0)=0 THEN 'markers' "
             "WHEN agent_id IS NOT NULL THEN 'agent' "
             "ELSE 'other' END"
         )
         # Per-bucket token sum for the over-time series (markers omitted -- always 0
-        # tokens). worker_type IS DISTINCT FROM 'contract' == "not cloud" (NULL-safe).
+        # tokens). Every live bucket excludes is_est so that cloud here == the totals
+        # panel's external_tokens for the same window, by construction.
+        _live = "NOT is_est"
+        _nowarm = "COALESCE(module_source,'') NOT IN ('fleet_warmup','kin_warmth')"
         series_sql = (
-            "COALESCE(SUM(CASE WHEN worker_type='contract' THEN tokens_used END),0) cloud,"
-            "COALESCE(SUM(CASE WHEN worker_type IS DISTINCT FROM 'contract'"
+            "COALESCE(SUM(CASE WHEN is_est THEN tokens_used END),0) estimated,"
+            f"COALESCE(SUM(CASE WHEN {_live} AND is_cloud THEN tokens_used END),0) cloud,"
+            f"COALESCE(SUM(CASE WHEN {_live} AND NOT is_cloud"
             " AND module_source IN ('fleet_warmup','kin_warmth') THEN tokens_used END),0) infra,"
-            "COALESCE(SUM(CASE WHEN worker_type IS DISTINCT FROM 'contract'"
-            " AND COALESCE(module_source,'') NOT IN ('fleet_warmup','kin_warmth')"
+            f"COALESCE(SUM(CASE WHEN {_live} AND NOT is_cloud AND {_nowarm}"
             " AND agent_id IS NOT NULL THEN tokens_used END),0) agent,"
-            "COALESCE(SUM(CASE WHEN worker_type IS DISTINCT FROM 'contract'"
-            " AND COALESCE(module_source,'') NOT IN ('fleet_warmup','kin_warmth')"
+            f"COALESCE(SUM(CASE WHEN {_live} AND NOT is_cloud AND {_nowarm}"
             " AND agent_id IS NULL AND COALESCE(tokens_used,0)>0 THEN tokens_used END),0) other"
         )
         rows_by_key = {}
         series = []
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                f"""SELECT {bucket_case} AS bucket,
+                f"""{row_cte}
+                    SELECT {bucket_case} AS bucket,
                         COUNT(*) AS rows,
                         COALESCE(SUM(tokens_used),0) AS tok
-                    FROM task_execution_log
-                    WHERE created_at > now() - %s::interval
+                    FROM r
                     GROUP BY 1""",
                 (spec["interval"],),
             )
@@ -697,9 +732,9 @@ def register_code_health_routes(bp, admin_required):
                 rows_by_key[r["bucket"]] = (int(r["rows"] or 0), int(r["tok"] or 0))
 
             cur.execute(
-                f"""SELECT {spec['bucket']} d, {spec['label']} lbl, {series_sql}
-                    FROM task_execution_log
-                    WHERE created_at > now() - %s::interval
+                f"""{row_cte}
+                    SELECT {spec['bucket']} d, {spec['label']} lbl, {series_sql}
+                    FROM r
                     GROUP BY d, lbl ORDER BY d""",
                 (spec["interval"],),
             )
@@ -713,15 +748,21 @@ def register_code_health_routes(bp, admin_required):
                         "cloud": int(r.get("cloud") or 0),
                         "infra": int(r.get("infra") or 0),
                         "other": int(r.get("other") or 0),
+                        "estimated": int(r.get("estimated") or 0),
                     }
                 )
 
         _META = [
             ("agent", "Agent · local inference", "attributed to a budgeted AI agent"),
-            ("cloud", "Cloud / CLI", "worker_type=contract · agentless by design"),
+            ("cloud", "Cloud / CLI", "provider left the cluster (token_provenance) — CLI + hosted models"),
             ("infra", "Infrastructure · keep-alive", "warm-up — charged to no agent"),
             ("markers", "Orchestration markers", "0-token bookkeeping rows"),
             ("other", "Unattributed (stray)", "real-local rows lacking an agent — trends to 0"),
+            (
+                "estimated",
+                "Estimated · historical backfill",
+                "token_source=estimated — excluded from the live cloud/local split",
+            ),
         ]
         buckets = []
         for key, label, desc in _META:
@@ -729,12 +770,19 @@ def register_code_health_routes(bp, admin_required):
             buckets.append({"key": key, "label": label, "desc": desc, "rows": rows, "tokens": tok})
         total = sum(b["tokens"] for b in buckets)
         cloud = rows_by_key.get("cloud", (0, 0))[1]
+        estimated = rows_by_key.get("estimated", (0, 0))[1]
+        # local/pct_local describe the LIVE split only — estimated backfill is its own
+        # axis (it holds 10.1M anthropic/contract rows over 365d that are neither
+        # "local" nor a measured cloud call). Same definition as the token-usage
+        # endpoint's totals, so the two payloads agree on every one of these keys.
+        live_local = total - cloud - estimated
         payload = {
             "range": rng,
             "total_tokens": total,
             "cloud_tokens": cloud,
-            "local_tokens": total - cloud,
-            "pct_local": round(100.0 * (total - cloud) / total, 1) if total else 100.0,
+            "local_tokens": live_local,
+            "estimated_tokens": estimated,
+            "pct_local": round(100.0 * live_local / (live_local + cloud), 1) if (live_local + cloud) else 100.0,
             "buckets": buckets,
             "series": series,
         }
@@ -752,7 +800,7 @@ def register_code_health_routes(bp, admin_required):
           - agents: per-agent LLM usage (models, dispatches, tokens, local split)
           - series: tokens-over-time per day (local, external, estimated)
 
-        Local = our own compute (provider fleet_node / ollama / NULL hub-local).
+        Local = our own compute (services.token_provenance.LOCAL_PROVIDERS + LOCAL_PREFIXES; NULL = local by policy).
         External = cloud (provider names a cloud proxy, or model is a :cloud variant).
         Estimated-backfill rows (request_metadata.token_source='estimated') are reported
         as a SEPARATE series — never mixed into the 'real' local/external numbers.
@@ -810,18 +858,16 @@ def register_code_health_routes(bp, admin_required):
                 payload["_cache_age_s"] = int(time.time() - _hit[0])
                 return jsonify(payload)
 
-        # Cloud/external detector (note: %% escapes the LIKE % for psycopg2 params)
-        cls = (
-            "CASE WHEN provider ILIKE '%%cloud%%' OR model_used ILIKE '%%:cloud' "
-            "OR provider IN ('openai','gemini','anthropic','minimax','groq','cohere',"
-            "'cerebras','together','pollinations','huggingface','cloudflare') "
-            "THEN 'external' ELSE 'local' END"
-        )
-        # COALESCE so NULL metadata is treated as 'not estimated' (else NOT(NULL)=NULL
-        # silently drops every real row from the local/external sums).
-        est = "(COALESCE(request_metadata->>'token_source','') IN ('estimated', 'estimated_historical'))"
-        # Window is a bound ::interval param so psycopg2 still processes the %% escapes
-        # in `cls`. All three aggregate queries pass (spec["interval"],).
+        # Cloud/external detector — the SAME classifier the Token Buckets panel uses,
+        # so the two panels can never disagree again. It is an allowlist of LOCAL
+        # providers with everything else counted as cloud: a provider added later
+        # (omniroute, ...) is cloud by default rather than "local until someone edits
+        # a tuple". No LIKE/% inside, so it is safe with or without psycopg2 params.
+        cls = cloud_classifier_sql()
+        est = ESTIMATED_SQL
+        # `cls` is %-free by construction (token_provenance). The per-agent query below
+        # still uses NOT ILIKE '%%embed%%', so every query in this block keeps passing
+        # (spec["interval"],) so psycopg2 unescapes it.
         where = "created_at > now() - %s::interval AND tokens_used IS NOT NULL"
 
         out = {

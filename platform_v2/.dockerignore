@@ -1,0 +1,20 @@
+# Build context hygiene (#6657). Dockerfile is `COPY . .`, so platform_v2/.env
+# (9.7 KB of secrets), the session vault and service-account credentials were
+# baked into every archie_platform/archie_scheduler image. At runtime the tree is
+# bind-mounted over /app, so nothing here changes behaviour — it only keeps
+# secrets and 37 MB of tests out of the image layers.
+.env
+.env.*
+secrets/
+credentials/
+tests/
+logs/
+screenshots/
+_deprecated/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.git/

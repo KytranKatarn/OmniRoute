@@ -497,6 +497,9 @@ services:
       # and the repair-count poll (/api/internal/repair/count). Was missing → empty
       # Bearer → recurring 401. Sibling services set this too (see L1020+).
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      # Same token the engine requires on its ws handshake (#6657) — comms proxies the
+      # cockpit's engine status/message calls over ws://archie_engine:9090.
+      - ENGINE_WS_TOKEN=${ENGINE_WS_TOKEN}
       - CLAUDE_PROXY_URL=http://host.docker.internal:7682
       - COMMS_PORT=3002
       - SECRET_KEY=${SECRET_KEY}
@@ -589,6 +592,12 @@ services:
       # connector is down). Same value as ARCHIE_HUB_API_KEY — the platform's
       # @_require_internal_key bearer.
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      # Bearer required on EVERY ws://archie_engine:9090 handshake (#6657). The socket
+      # is reachable from every container on archie_internal, and its file/shell surface
+      # was open to all of them. Independent of INTERNAL_API_KEY on purpose; env-only
+      # (no /data key file). Rotate: edit .env → docker compose up -d --no-deps
+      # archie_engine archie_comms (restart does NOT re-read env_file, KB #268829).
+      - ENGINE_WS_TOKEN=${ENGINE_WS_TOKEN}
       - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_WS_HOST=0.0.0.0
       - ARCHIE_DATA_DIR=/data
@@ -637,7 +646,7 @@ services:
     healthcheck:
       # Proper WS handshake (not a bare TCP poke) so the engine doesn't log a
       # handshake traceback on every probe.
-      test: ["CMD", "python", "-c", "import asyncio,websockets\nasync def _():\n    async with websockets.connect('ws://127.0.0.1:9090'):\n        pass\nasyncio.run(_())"]
+      test: ["CMD", "python", "-c", "import asyncio,os,websockets\nasync def _():\n    async with websockets.connect('ws://127.0.0.1:9090', additional_headers={'Authorization': 'Bearer ' + os.environ.get('ENGINE_WS_TOKEN', '')}):\n        pass\nasyncio.run(_())"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -1649,7 +1649,19 @@ def _engine_ws_call(payload, timeout=45):
     from websocket import create_connection
 
     url = _os.getenv("ENGINE_WS_URL", "ws://archie_engine:9090")
-    ws = create_connection(url, timeout=timeout)
+    # #6657: the engine rejects any handshake without this bearer (fail-closed on
+    # its side). suppress_origin: websocket-client sends "Origin: http://archie_engine:9090"
+    # by default, and the engine's origin allowlist is empty (only browsers send one).
+    token = _os.getenv("ENGINE_WS_TOKEN", "").strip()
+    if not token and not getattr(_engine_ws_call, "_warned", False):
+        logger.warning("ENGINE_WS_TOKEN is not set — engine ws calls will be rejected once #6657 is deployed")
+        _engine_ws_call._warned = True
+    ws = create_connection(
+        url,
+        timeout=timeout,
+        header={"Authorization": f"Bearer {token}"},
+        suppress_origin=True,
+    )
     try:
         ws.send(_json.dumps(payload))
         return _json.loads(ws.recv())

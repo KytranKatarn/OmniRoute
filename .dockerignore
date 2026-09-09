@@ -1,0 +1,13 @@
+# Repo-root build context (#6657). Two images build with `context: .`
+# (archie_mcp_gateway, archie_codex_terminal) and would otherwise upload the whole
+# monorepo — including the root .env — as context. Allowlist form: exclude
+# everything, re-include exactly what those two Dockerfiles COPY.
+*
+!mcp-gateway/
+!codex/
+!scripts/start_codex_terminal.sh
+!config/agents/codex.yaml
+**/.env
+**/.env.*
+**/__pycache__/
+**/*.pyc

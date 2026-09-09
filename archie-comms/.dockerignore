@@ -1,0 +1,13 @@
+# Build context hygiene (#6657). Dockerfile is `COPY . .` — anything not listed
+# here is baked into the image. .env held INTERNAL_API_KEY; the container never
+# loads it (no dotenv; compose injects env), so excluding it changes nothing at
+# runtime and removes the secret from the image layer.
+.env
+.env.*
+tests/
+templates/chat.html.bak
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.git/

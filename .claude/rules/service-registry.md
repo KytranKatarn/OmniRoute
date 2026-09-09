@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-09-03 22:07:36 EDT · **Provenance measured**: 2026-09-03 22:07:36 EDT
+**Collected**: 2026-09-09 11:42:19 EDT · **Provenance measured**: 2026-09-09 03:40:08 EDT
 
-49/50 hub containers running · 9 image-baked products · 0 absent.
+48/50 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -26,8 +26,8 @@
 | `legal_watch` | ⚪ fail_open | `unknown` | `4c85b6d15` | http://100.64.0.10:8100/version |
 | `market_watch` | ⚪ fail_open | `unknown` | `7b5116ee3` | http://100.64.0.10:8101/version |
 | `media_hub` | ✅ in_sync | `01d894128` | `f4c0fb437` | http://192.168.1.200:8105/version |
-| `wtf_consumer` | ✅ in_sync | `cc2284f77` | `cc2284f77` | http://100.64.0.10:8103/version |
-| `wtf_tech` | ✅ in_sync | `cc2284f77` | `cc2284f77` | http://100.64.0.10:8104/version |
+| `wtf_consumer` | ⚪ fail_open | `unknown` | `51a24365c` | http://100.64.0.10:8103/version |
+| `wtf_tech` | ⚪ fail_open | `unknown` | `51a24365c` | http://100.64.0.10:8104/version |
 
 ## Hub containers
 
@@ -70,7 +70,7 @@
 | `media_prowlarr` | running | media-stack | 9696->9696/tcp | `lscr.io/linuxserver/prowlarr:2.3.5` |
 | `media_radarr` | running | media-stack | 7878->7878/tcp | `lscr.io/linuxserver/radarr:6.1.1` |
 | `media_sabnzbd` | running | media-stack | 8083->8080/tcp | `lscr.io/linuxserver/sabnzbd:4.5.5` |
-| `media_samba` | running | media-stack | — | `dperson/samba:latest` |
+| `media_samba` ⚠ | exited | media-stack | — | `dperson/samba:latest` |
 | `media_sonarr` | running | media-stack | 8989->8989/tcp | `lscr.io/linuxserver/sonarr:4.0.17` |
 | `mediahub_app` | running | media_hub | 8105->8105/tcp | `mediahub:standalone` |
 | `mediahub_db` | running | media_hub | — | `postgres:16.4-alpine` |

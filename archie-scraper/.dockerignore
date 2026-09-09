@@ -1,0 +1,11 @@
+# Build context hygiene (#6657): `COPY . .` image — keep VCS, caches and tests
+# out of the layers. No .env lives here today; the pattern is listed so one
+# can never be baked in later.
+.env
+.env.*
+tests/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.git/

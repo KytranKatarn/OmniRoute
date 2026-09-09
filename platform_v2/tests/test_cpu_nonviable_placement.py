@@ -182,8 +182,10 @@ def _ready(s, ms, monkeypatch, entry, *, target_host=None):
 
 
 def test_cpu_resident_big_model_on_hub_reports_not_ready(svc, monkeypatch):
-    """THE bug: resident but CPU-only, so no load happens and the load guard cannot fire."""
+    """Resident CPU-only 7B that CANNOT be migrated to the TITAN (GPU held by
+    protected work) falls back to the original not-ready/escalate path (#5623)."""
     s, ms = svc
+    monkeypatch.setattr(s, "_try_migrate_cpu_resident_to_gpu", lambda m: False)
     out = _ready(s, ms, monkeypatch, _ps("qwen2.5:7b", 0.0, 5.0))
     assert out["ready"] is False
     assert out["tier"] == "cpu_nonviable"
@@ -223,3 +225,80 @@ def test_node_cpu_resident_big_model_is_NOT_refused(svc, monkeypatch):
     )
     assert out["ready"] is True
     assert out["tier"] == "cpu"
+
+
+# ---------------------------------------------------------------------------
+# TITAN migration (#6662) — a CPU-stranded 7B is moved onto the hub GPU rather
+# than escalating, because the hub HAS a 12GB TITAN X. Fail-safe to the #5623
+# not-ready path (test above) when the card cannot be freed.
+# ---------------------------------------------------------------------------
+
+
+def test_cpu_resident_big_model_migrates_to_gpu(svc, monkeypatch):
+    """When the TITAN can be freed, ensure_model_ready migrates in line and
+    reports ready:gpu instead of deferring to the async keep-warm."""
+    s, ms = svc
+    monkeypatch.setattr(s, "_try_migrate_cpu_resident_to_gpu", lambda m: True)
+    out = _ready(s, ms, monkeypatch, _ps("qwen2.5:7b", 0.0, 5.0))
+    assert out["ready"] is True
+    assert out["tier"] == "gpu"
+    assert out.get("migrated") is True
+
+
+def _wire_migration(s, ms, monkeypatch, *, evict=True, load=True, vram_after=5.0, comfyui=False, size=5.9):
+    calls = {"unloaded": [], "loaded": []}
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: comfyui)
+    monkeypatch.setattr(s, "estimate_model_size", lambda m: size)
+    monkeypatch.setattr(s, "unload_model", lambda m: calls["unloaded"].append(m) or True)
+    monkeypatch.setattr(s, "ensure_capacity", lambda gb: evict)
+    monkeypatch.setattr(s, "load_model", lambda m, *a, **k: calls["loaded"].append(m) or load)
+    monkeypatch.setattr(s, "resident_vram_gb", lambda m: vram_after)
+    return calls
+
+
+def test_migration_helper_success_evicts_then_loads_on_gpu(svc, monkeypatch):
+    s, ms = svc
+    calls = _wire_migration(s, ms, monkeypatch)
+    assert s._try_migrate_cpu_resident_to_gpu("qwen2.5:7b") is True
+    assert calls["unloaded"] == ["qwen2.5:7b"]  # stranded runner dropped first (#5328)
+    assert calls["loaded"] == ["qwen2.5:7b"]
+
+
+def test_migration_helper_refuses_hub_cpu_tier_models(svc, monkeypatch):
+    """gemma3:12b / mistral:7b etc. are DELIBERATELY CPU-pinned — never migrate them."""
+    s, ms = svc
+    calls = _wire_migration(s, ms, monkeypatch)
+    assert s._try_migrate_cpu_resident_to_gpu("gemma3:12b") is False
+    assert calls["unloaded"] == []  # nothing touched
+
+
+def test_migration_helper_refuses_model_too_big_for_titan(svc, monkeypatch):
+    """A model whose fit-inflated size exceeds the largest single card can't go on GPU."""
+    s, ms = svc
+    calls = _wire_migration(s, ms, monkeypatch, size=10.0)  # 10 * 1.4 = 14 > 12
+    assert s._try_migrate_cpu_resident_to_gpu("bespoke-9b") is False
+    assert calls["unloaded"] == []
+
+
+def test_migration_helper_refuses_when_model_has_active_jobs(svc, monkeypatch):
+    """Don't yank a runner that is actively serving."""
+    s, ms = svc
+    calls = _wire_migration(s, ms, monkeypatch)
+    s._active_jobs["qwen2.5:7b"] = ["job-1"]
+    assert s._try_migrate_cpu_resident_to_gpu("qwen2.5:7b") is False
+    assert calls["unloaded"] == []
+
+
+def test_migration_helper_false_when_eviction_blocked(svc, monkeypatch):
+    """HIGH/PROTECTED models hold the card — ensure_capacity fails, so do we (no load)."""
+    s, ms = svc
+    calls = _wire_migration(s, ms, monkeypatch, evict=False)
+    assert s._try_migrate_cpu_resident_to_gpu("qwen2.5:7b") is False
+    assert calls["loaded"] == []  # never attempted the reload
+
+
+def test_migration_helper_false_when_still_cpu_after_reload(svc, monkeypatch):
+    """Reload happened but Ollama still placed it on CPU — report failure, not success."""
+    s, ms = svc
+    _wire_migration(s, ms, monkeypatch, vram_after=0.0)
+    assert s._try_migrate_cpu_resident_to_gpu("qwen2.5:7b") is False

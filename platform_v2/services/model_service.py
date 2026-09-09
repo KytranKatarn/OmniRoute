@@ -496,6 +496,47 @@ class ModelService:
             return True
         return size_gb <= _CPU_VIABLE_MAX_GB
 
+    def _try_migrate_cpu_resident_to_gpu(self, model: str) -> bool:
+        """Move a hub CPU-stranded GPU-class model onto the TITAN, in line.
+
+        A 7B that is resident on the hub's pre-AVX2 CPU is a guaranteed 240s
+        timeout (#5623); today ensure_model_ready reports not-ready and waits
+        for the async keep-warm to migrate it (#5328), which is the lag that
+        stalled the F.O.R.G.E. review of #3265. This does the migration now:
+        drop the stranded CPU runner, evict idle LOW/MEDIUM models to free VRAM
+        on the largest card, and reload so Ollama auto-places it on the GPU
+        (a FRESH load places on GPU; merely omitting num_gpu on a live runner
+        does NOT, #5328 — the unload is load-bearing).
+
+        Tightly scoped and FAIL-SAFE: only for a GPU-intended model (NOT in
+        _HUB_CPU_TIER), with no active jobs, that fits the largest single card,
+        while ComfyUI is not holding the GPUs. Any miss returns False and the
+        caller keeps its existing not-ready/escalate path — never worse than
+        today, and a failed reload simply leaves the model cold so the next
+        dispatch cold-loads it GPU-first via ensure_capacity. HUB ONLY (the
+        caller already gates on target_host is None). (Owner request; task #6662.)
+        """
+        try:
+            if model in self._HUB_CPU_TIER:
+                return False  # deliberately CPU-pinned on the hub
+            if self._active_jobs.get(model):
+                return False  # in use — do not yank a serving runner
+            needed = self.estimate_model_size(model)
+            if needed * _GPU_FIT_HEADROOM > _VRAM_LARGEST_GPU_GB:
+                return False  # too large for even the TITAN (e.g. a 12B+)
+            if _comfyui_container_running():
+                return False  # GPUs reserved for image generation
+            self.unload_model(model)
+            if not self.ensure_capacity(needed):
+                return False  # HIGH/PROTECTED models hold the card — cannot free it
+            if not self.load_model(model):
+                return False  # placement still short after eviction — refused
+            vram = self.resident_vram_gb(model)
+            return bool(vram and vram > 0)
+        except Exception as exc:  # never break dispatch on a best-effort migration
+            logger.warning("model_service: CPU->GPU migration of %s failed: %s", model, exc)
+            return False
+
     def resident_vram_gb(self, model: str) -> Optional[float]:
         """VRAM held by *model* in GB, or None if it is not resident at all.
 
@@ -971,6 +1012,23 @@ class ModelService:
                 # An unscoped check would refuse a placement that works fine — the same
                 # shape as the hub-RAM check below that "wrongly gated node warm-boots".
                 if target_host is None and tier == "cpu" and not self.cpu_placement_is_viable(model):
+                    # Before escalating, try to move it onto the hub GPU (TITAN)
+                    # by evicting idle models — the hub HAS a 12GB card, so a 7B
+                    # belongs on it, not on the CPU (owner request; task #6662).
+                    if self._try_migrate_cpu_resident_to_gpu(model):
+                        logger.info(
+                            "[ModelService] %s migrated CPU->GPU on the hub (TITAN) — "
+                            "evicted idle models to free VRAM instead of escalating",
+                            model,
+                        )
+                        self._last_used[model] = _time.time()
+                        return {
+                            "ready": True,
+                            "tier": "gpu",
+                            "host": host_label,
+                            "warm_boot_ms": int(_time.time() * 1000 - start_ms),
+                            "migrated": True,
+                        }
                     logger.warning(
                         "[ModelService] %s is resident but CPU-ONLY on the hub — reporting "
                         "NOT ready. A >%.1f GB model cannot finish inside the dispatch "

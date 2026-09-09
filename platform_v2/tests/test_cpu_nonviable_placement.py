@@ -302,3 +302,46 @@ def test_migration_helper_false_when_still_cpu_after_reload(svc, monkeypatch):
     s, ms = svc
     _wire_migration(s, ms, monkeypatch, vram_after=0.0)
     assert s._try_migrate_cpu_resident_to_gpu("qwen2.5:7b") is False
+
+
+# ---------------------------------------------------------------------------
+# TITAN headroom reserve (#6662 follow-up) — a CPU-viable (small) model yields
+# the last _VRAM_GPU_RESERVE_GB so an on-demand 7B always has GPU room. A 7B
+# (CPU-nonviable, the class the reserve exists FOR) pays nothing. Default 0=off.
+# ---------------------------------------------------------------------------
+
+
+def test_gpu_reserve_default_is_off_and_behaviour_unchanged(svc, monkeypatch):
+    s, ms = svc
+    assert ms._VRAM_GPU_RESERVE_GB == 0.0  # env unset -> off
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    monkeypatch.setattr(s, "get_gpu_fit_budget", lambda: 9.0)
+    monkeypatch.setattr(s, "estimate_model_size", lambda m: 3.0)  # small, needed 4.2
+    assert s.gpu_placement_options("small") == {}  # no reserve -> keeps GPU (as before)
+
+
+def test_gpu_reserve_keeps_a_7b_slot(svc, monkeypatch):
+    """With a 6GB reserve on a 9GB budget: a small model is pushed to CPU so the
+    last headroom stays free, while a 7B pays no reserve and takes the GPU."""
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    monkeypatch.setattr(ms, "_VRAM_GPU_RESERVE_GB", 6.0)
+    monkeypatch.setattr(s, "get_gpu_fit_budget", lambda: 9.0)
+    monkeypatch.setattr(s, "estimate_model_size", lambda m: 3.0 if m == "small" else 5.9)
+    assert s.cpu_placement_is_viable("small") is True
+    assert s.cpu_placement_is_viable("big7b") is False
+    # small (needed 4.2): 9.0 - 6.0 = 3.0 < 4.2 -> CPU (yields the reserve)
+    assert s.gpu_placement_options("small") == {"num_gpu": 0}
+    # big7b (needed 8.26): pays no reserve, 9.0 >= 8.26 -> GPU
+    assert s.gpu_placement_options("big7b") == {}
+
+
+def test_gpu_reserve_never_blocks_the_7b_it_protects(svc, monkeypatch):
+    """Sanity: the reserve must not itself starve a 7B — a CPU-nonviable model
+    ignores the reserve entirely, even a large one."""
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    monkeypatch.setattr(ms, "_VRAM_GPU_RESERVE_GB", 8.0)
+    monkeypatch.setattr(s, "get_gpu_fit_budget", lambda: 8.5)
+    monkeypatch.setattr(s, "estimate_model_size", lambda m: 5.9)  # 7B, needed 8.26, nonviable
+    assert s.gpu_placement_options("big7b") == {}  # 8.5 >= 8.26 despite the 8.0 reserve

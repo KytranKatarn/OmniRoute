@@ -46,6 +46,13 @@ _DEFAULT_RAM_BUDGET_GB = 102.4  # 80% of 128 GB
 # single) and `extra_capabilities.gpu_vram_total_gb` for the hub row. See .claude/rules/fleet.md.
 _VRAM_TOTAL_GB = float(os.getenv("ARCHIE_VRAM_TOTAL_GB", "20.0"))  # TITAN 12 + M4000 8
 _VRAM_LARGEST_GPU_GB = float(os.getenv("ARCHIE_VRAM_LARGEST_GPU_GB", "12.0"))  # TITAN X
+# Optional reserve kept FREE on the largest card so an on-demand 7B (CPU-nonviable on
+# this pre-AVX2 hub, #5623) finds GPU room WITHOUT having to evict the warm set. #6662
+# eviction-to-fit stays the hard guarantee; this only reduces that churn. Only a
+# CPU-VIABLE (small) model pays the reserve — a 7B is the class it exists FOR and uses
+# the full card. Default 0 = OFF (byte-identical). Arm/tune via ARCHIE_VRAM_GPU_RESERVE_GB
+# (must be <= largest card; env-only, reversible with `up -d`). (#6662 follow-up)
+_VRAM_GPU_RESERVE_GB = float(os.getenv("ARCHIE_VRAM_GPU_RESERVE_GB", "0"))
 
 # Multiplier applied to a model's weight size before deciding it fits in free VRAM.
 # Covers KV cache + runtime overhead, which the raw weight figure excludes. Deliberately
@@ -435,11 +442,17 @@ class ModelService:
                 return {"num_gpu": 0}
             needed = self.estimate_model_size(model) * _GPU_FIT_HEADROOM
             budget = self.get_gpu_fit_budget()
-            if budget >= needed:
+            # Reserve headroom on the largest card for on-demand 7B work: a CPU-viable
+            # (small) model must leave _VRAM_GPU_RESERVE_GB free; a CPU-nonviable model
+            # (a 7B, the class the reserve exists FOR) pays nothing and uses the full
+            # card. Default reserve 0 => identical to before. (#6662 follow-up)
+            reserve = _VRAM_GPU_RESERVE_GB if self.cpu_placement_is_viable(model) else 0.0
+            if budget - reserve >= needed:
                 logger.info(
-                    "model_service: placement %s -> gpu (budget %.1f GB >= needed %.1f GB)",
+                    "model_service: placement %s -> gpu (budget %.1f - reserve %.1f >= needed %.1f GB)",
                     model,
                     budget,
+                    reserve,
                     needed,
                 )
                 self._record_placement(
@@ -450,16 +463,21 @@ class ModelService:
                     needed_gb=round(needed, 2),
                 )
                 return {}
+            # A reserve_hold (budget alone WOULD fit, the reserve held it back) is
+            # distinct from a genuine budget_short — keep them separable in telemetry.
+            _reason = "reserve_hold" if (reserve and budget >= needed) else "budget_short"
             logger.info(
-                "model_service: placement %s -> cpu (budget %.1f GB < needed %.1f GB)",
+                "model_service: placement %s -> cpu (budget %.1f - reserve %.1f < needed %.1f GB; %s)",
                 model,
                 budget,
+                reserve,
                 needed,
+                _reason,
             )
             self._record_placement(
                 model=model,
                 decision="cpu",
-                reason="budget_short",
+                reason=_reason,
                 budget_gb=round(budget, 2),
                 needed_gb=round(needed, 2),
             )

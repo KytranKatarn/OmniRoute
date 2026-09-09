@@ -4354,6 +4354,19 @@ class DepartmentDispatcher:
                 # cloud text dispatch regardless of how it was routed here). Over
                 # the weekly free cap → graceful failure so the caller falls back
                 # to local instead of exhausting the free allowance / paying.
+                # #6653 sovereignty allowlist — checked BEFORE the budget gate:
+                # a capability that may not leave the cluster must not consume
+                # budget, emit an advisory, or reach a provider at all.
+                if not self._cloud_capability_allowed(capability):
+                    return {
+                        "success": False,
+                        "error": (
+                            f"capability '{capability or 'unknown'}' is not on the cloud " f"allowlist — staying local"
+                        ),
+                        "model": model,
+                        "provider": ext_provider_key,
+                        "cloud_capability_blocked": True,
+                    }
                 if not self._cloud_budget_ok(ext_provider_key, capability or "unknown"):
                     return {
                         "success": False,
@@ -5300,6 +5313,76 @@ class DepartmentDispatcher:
             # Fail CLOSED for sovereignty — a DB blip must never enable cloud.
             return "local_only"
 
+    # ── Cloud capability allowlist (#6653) ──────────────────────────────────
+    # Owner rule, 2026-09-09: cloud is for DEVELOPMENT AND REPAIRS — coding and
+    # design — and never for company data. The Cloud AI toggle cannot express
+    # that: `escalation_mode` is a single global value, so flipping it ON opens
+    # cloud for EVERY capability. Measured 30d volume behind that button:
+    # fact_check 65,812 · beat_classification 36,626 · bias_analysis 29,605 ·
+    # translate 27,077 · geo_extraction 11,416 — ~220k Watch-product dispatches
+    # against ~9k of actual dev work. Ask-first approval was the only thing
+    # between civic/gov/legal prompts and a third-party wire, and one mis-tap is
+    # a sovereignty breach. This makes the boundary mechanical.
+    _CLOUD_ALLOWLIST_KEY = "cloud:capability_allowlist"
+    _CLOUD_ALLOWLIST_DEFAULT = "code,code_review,code_fix,debug,creative,visual_design,ux_scoring"
+    _CLOUD_ALLOWLIST_TTL_S = 60.0
+
+    def _cloud_capability_allowed(self, capability: Optional[str]) -> bool:
+        """May this capability leave the cluster? FAILS CLOSED.
+
+        ⚠️ THE DEFAULTS HERE ARE THE OPPOSITE OF ``_cloud_budget_ok`` DIRECTLY
+        BELOW, and that asymmetry is deliberate — they answer different
+        questions and their wrong answers cost different things:
+
+          * ``_cloud_budget_ok`` fails OPEN and never raises: a counting bug
+            must never block real work.
+          * this fails CLOSED: an unrecognised capability might be company
+            data, and the cost of guessing wrong is an irreversible disclosure
+            to a third party. Work that stays local is merely slower.
+
+        ⚠️ ALSO NOTE the empty-string semantics INVERT relative to
+        ``fleet_resource_router.model_hardware_blocklist()``, where empty
+        clears the block (allow all). Here an empty allowlist admits NOTHING —
+        it is the total cloud kill switch. A blocklist and an allowlist read the
+        same config shape and mean opposite things; do not "harmonise" them.
+
+        An ABSENT setting yields the built-in dev/design default, never
+        allow-all: a fresh database must not be more permissive than a
+        configured one.
+        """
+        cap = (capability or "").strip().lower()
+        if not cap or cap == "unknown":
+            return False  # cannot classify it ⇒ cannot ship it
+
+        try:
+            now = time.time()
+            cached = getattr(self, "_cloud_allowlist_cache", None)
+            if cached is None or (now - cached[0]) > self._CLOUD_ALLOWLIST_TTL_S:
+                raw = None
+                conn = self._get_db()
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT value FROM platform_settings WHERE key = %s",
+                        (self._CLOUD_ALLOWLIST_KEY,),
+                    )
+                    row = cur.fetchone()
+                    cur.close()
+                    raw = row[0] if row else None
+                finally:
+                    conn.close()
+                # Absent (None) → the built-in default. Present-but-empty ("") →
+                # deliberately empty ⇒ block everything.
+                if raw is None:
+                    raw = self._CLOUD_ALLOWLIST_DEFAULT
+                allowed = {c.strip().lower() for c in raw.split(",") if c.strip()}
+                self._cloud_allowlist_cache = (now, allowed)
+                cached = self._cloud_allowlist_cache
+            return cap in cached[1]
+        except Exception:
+            # A DB blip must never widen the sovereignty boundary.
+            return False
+
     def _cloud_budget_ok(self, provider_key: str, capability: str = "unknown") -> bool:
         """Weekly free-tier budget gate for a cloud TEXT provider (#4659).
 
@@ -5494,6 +5577,16 @@ class DepartmentDispatcher:
         # weekly free tier so the escalation loop rotates to the next contractor
         # (and falls back to local when all are exhausted). Covers the non-proxy
         # call_external path, which does NOT flow through _execute_llm's gate.
+        # #6653 sovereignty allowlist — before the budget gate (see site 1).
+        if not self._cloud_capability_allowed(capability):
+            logger.info(
+                "[DepartmentDispatcher] Skipping contractor %s — capability '%s' not on the "
+                "cloud allowlist (staying local).",
+                provider_key,
+                capability,
+            )
+            return None
+
         if not self._cloud_budget_ok(provider_key, capability):
             logger.info(
                 "[DepartmentDispatcher] Skipping contractor %s — over weekly free budget.",
@@ -7389,6 +7482,9 @@ class DepartmentDispatcher:
                     # #4659 — skip over-budget cloud providers up front so we don't
                     # even create a cloud job for them; the loop rotates to the next,
                     # and falls through to local when all free tiers are exhausted.
+                    # #6653 sovereignty allowlist — before the budget gate (see site 1).
+                    if not self._cloud_capability_allowed(contractor_cap):
+                        continue
                     if not self._cloud_budget_ok(contractor["provider_key"], contractor_cap):
                         continue
                     logger.info(

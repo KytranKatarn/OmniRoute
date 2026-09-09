@@ -68,7 +68,9 @@ def _hit(client, method, path, headers):
 
 def test_every_scope_is_granted_and_nobody_holds_everything():
     granted = set().union(*ia.CALLER_SCOPES.values())
-    assert granted == ia.SCOPES - {"access:check", "compliance"} | {"access:check", "compliance"}
+    # Every declared scope is granted to at least one caller (no dead scopes —
+    # `access:check` was one, and was removed with the watch grant that held it).
+    assert granted == ia.SCOPES
     for caller, scopes in ia.CALLER_SCOPES.items():
         assert scopes < ia.SCOPES, f"{caller} holds every scope"
         assert scopes, f"{caller} holds nothing"
@@ -152,6 +154,41 @@ def test_account_center_notify_no_longer_fails_open(client, keys, monkeypatch):
         "/tools/account-center/api/internal/notify", headers={"X-Internal-Key": keys["kbs"]}, json={"message": "x"}
     )
     assert r.status_code == 200
+
+
+def test_archie_internal_key_is_accepted_as_a_legacy_alias(client, keys, monkeypatch, caplog):
+    """KBS presents ARCHIE_INTERNAL_KEY (the old account-center secret), which the
+    collapsed gate does not read as a per-caller key. It must still be accepted as
+    a legacy alias — else KBS notify 401s on the first platform recreate."""
+    monkeypatch.setenv(ia.LEGACY_ENV_ALT, "archie-internal-alias")
+    with caplog.at_level(logging.WARNING, logger="services.internal_auth"):
+        r = client.post(
+            "/tools/account-center/api/internal/notify",
+            headers={"X-Internal-Key": "archie-internal-alias"},
+            json={"message": "x"},
+        )
+    assert r.status_code == 200
+    assert any("legacy ARCHIE_INTERNAL_KEY used" in rec.getMessage() for rec in caplog.records)
+    # and it dies with the flat key when legacy acceptance is switched off
+    monkeypatch.setenv(ia.LEGACY_ACCEPT_ENV, "0")
+    assert (
+        client.post(
+            "/tools/account-center/api/internal/notify",
+            headers={"X-Internal-Key": "archie-internal-alias"},
+            json={"message": "x"},
+        ).status_code
+        == 401
+    )
+
+
+def test_watch_can_reach_notify_not_a_dead_scope(client, keys):
+    """watch products call /api/internal/notify; the grant must let their own key
+    through (the removed `access:check` grant decorated no route)."""
+    assert client.post(
+        "/api/internal/notify", headers=_bearer(keys["watch"]), json={"message": "x", "priority": "low"}
+    ).status_code not in (401, 403)
+    # still fenced out of a route it does not call
+    assert client.get("/api/internal/mail/inbox", headers=_bearer(keys["watch"])).status_code == 403
 
 
 def test_legacy_key_is_full_scope_but_loud(client, keys, caplog):

@@ -44,6 +44,14 @@ from flask import g, jsonify, request
 logger = logging.getLogger(__name__)
 
 LEGACY_ENV = "INTERNAL_API_KEY"
+# The account-center notify path historically compared against a DIFFERENT
+# shared secret, ARCHIE_INTERNAL_KEY, which KBS (kbs_signal / kbs_call_center)
+# presents to /tools/account-center/api/internal/notify. It is a real internal
+# credential, not the flat key. Accept it as a SECOND legacy alias (same
+# full-scope + WARNING + LEGACY_ACCEPT gating) so collapsing the four impls
+# does not silently 401 KBS on the first platform recreate. Removed with the
+# flat legacy key at the final cutover.
+LEGACY_ENV_ALT = "ARCHIE_INTERNAL_KEY"
 LEGACY_ACCEPT_ENV = "INTERNAL_KEY_LEGACY_ACCEPT"
 LEGACY_CALLER = "legacy"
 
@@ -77,7 +85,6 @@ SCOPES: frozenset[str] = frozenset(
         "fleet",
         "notify",
         "compliance",
-        "access:check",
     }
 )
 
@@ -93,7 +100,12 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
     "scripts": frozenset({"notify"}),
     "kbs": frozenset({"delegation", "notify"}),
     "kso": frozenset({"compliance"}),
-    "watch": frozenset({"access:check"}),
+    # WTF / gov / civic / legal / market products call /api/internal/notify for
+    # ingest-freshness + drift alerts. (The earlier `access:check` grant was
+    # dead — that endpoint uses X-Internal-Token/AC_INTERNAL_TOKEN, a separate
+    # mechanism no require_internal_scope route enforces — so it bought watch
+    # nothing and would have 403'd its real call on cutover.)
+    "watch": frozenset({"notify"}),
 }
 
 # endpoint name -> scope, filled by the decorator at registration time. The
@@ -127,14 +139,17 @@ def identify_caller(presented: str | None = None) -> tuple[str, frozenset[str]] 
     for caller, env in CALLER_ENV.items():
         if _matches(token, os.getenv(env, "").strip()):
             return caller, CALLER_SCOPES[caller]
-    if legacy_accepted() and _matches(token, os.getenv(LEGACY_ENV, "").strip()):
-        logger.warning(
-            "legacy INTERNAL_API_KEY used caller_ip=%s %s %s — migrate this caller to its own key",
-            request.headers.get("X-Forwarded-For", request.remote_addr),
-            request.method,
-            request.path,
-        )
-        return LEGACY_CALLER, SCOPES
+    if legacy_accepted():
+        for legacy_env in (LEGACY_ENV, LEGACY_ENV_ALT):
+            if _matches(token, os.getenv(legacy_env, "").strip()):
+                logger.warning(
+                    "legacy %s used caller_ip=%s %s %s — migrate this caller to its own key",
+                    legacy_env,
+                    request.headers.get("X-Forwarded-For", request.remote_addr),
+                    request.method,
+                    request.path,
+                )
+                return LEGACY_CALLER, SCOPES
     return None
 
 

@@ -385,7 +385,9 @@ def _terry_profile_established() -> bool:
         r = requests.get(
             "http://archie_browser_login:4281/status",
             params={"agent_id": 377, "platform": "linkedin"},
-            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            headers={
+                "Authorization": f"Bearer {(os.getenv('BROWSER_LOGIN_API_KEY') or os.getenv('INTERNAL_API_KEY', ''))}"
+            },
             timeout=5,
         )
         return bool((r.json() or {}).get("profile_established"))

@@ -1,37 +1,44 @@
-"""Internal notify endpoint — accepts POST from standalone products and forwards to Telegram."""
+"""Internal notify endpoint — ``/tools/account-center/api/internal/notify`` (KBS calls this path).
+
+#6657: this handler used to read ``ARCHIE_INTERNAL_KEY`` at IMPORT time (no rotation
+without a restart), compare with ``!=`` and — when the variable was unset — accept
+EVERY request. It now goes through the one scoped gate and the one notify body.
+"""
 
 import logging
-import os
 import threading
 
 from flask import jsonify, request
 
-logger = logging.getLogger(__name__)
+from services.internal_auth import require_internal_scope
+from services.internal_notify import send_internal_notify
 
-_INTERNAL_KEY = os.getenv("ARCHIE_INTERNAL_KEY", "")
+logger = logging.getLogger(__name__)
 
 
 def register_notify_routes(bp):
 
     @bp.route("/api/internal/notify", methods=["POST"])
+    @require_internal_scope("notify")
     def internal_notify():
-        """Forward a message to Telegram. Called by KBS, media hub, etc."""
-        key = request.headers.get("X-Internal-Key", "")
-        if _INTERNAL_KEY and key != _INTERNAL_KEY:
-            return jsonify({"ok": False, "error": "unauthorized"}), 401
-
+        """Forward a message to Telegram. Called by KBS (kbs_signal, kbs_call_center)."""
         data = request.get_json(force=True, silent=True) or {}
         message = (data.get("message") or "").strip()
         if not message:
             return jsonify({"ok": False, "error": "message is required"}), 400
+        payload = {
+            "title": (data.get("title") or "[KBS] Internal Notify"),
+            "message": message,
+            "priority": data.get("priority") or "normal",
+            "source": data.get("source") or "kbs",
+            "telegram": True,  # this path always spoke on Telegram; keep that contract
+        }
 
         def _fire():
             try:
-                from services.telegram_service import send_info
-
-                send_info("[KBS] Internal Notify", message)
-            except Exception as exc:
-                logger.warning("[InternalNotify] Telegram send failed: %s", exc)
+                send_internal_notify(payload, default_source="kbs", default_title="[KBS] Internal Notify")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("[InternalNotify] delivery failed: %s", exc)
 
         threading.Thread(target=_fire, daemon=True).start()
         return jsonify({"ok": True})

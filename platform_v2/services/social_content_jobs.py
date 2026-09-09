@@ -159,7 +159,8 @@ def generate_event_draft(topic: str, platform: str = "both", tone: str = "profes
 
 
 _KBS_URL = os.getenv("KBS_APP_URL", "http://kbs_app:8090")
-_COMMS_TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
+# #6657: the KBS bearer gets its own name; falls back to the comms token until KBS reads KBS_SERVICE_TOKEN.
+_COMMS_TOKEN = os.getenv("KBS_SERVICE_TOKEN") or os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
 
 
 def _call_kbs_maintenance(endpoint: str) -> dict:

@@ -5920,17 +5920,25 @@ _SIGNED_COMMAND_TYPES = {
 
 
 def _load_internal_key():
-    """INTERNAL_API_KEY from the environment or /mnt/archie_brain/.env."""
-    key = os.environ.get("INTERNAL_API_KEY", "").strip()
-    if key:
-        return key
+    """The host-command HMAC secret: HOST_COMMAND_HMAC_KEY, else INTERNAL_API_KEY (#6657).
+
+    From the environment first, then /mnt/archie_brain/.env. Must resolve to the
+    same value tools/system_operations/host_command_client.py signs with.
+    """
+    for name in ("HOST_COMMAND_HMAC_KEY", "INTERNAL_API_KEY"):
+        key = os.environ.get(name, "").strip()
+        if key:
+            return key
     try:
         env_file = Path("/mnt/archie_brain/.env")
         if env_file.exists():
-            for line in env_file.read_text().splitlines():
-                line = line.strip()
-                if line.startswith("INTERNAL_API_KEY="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+            lines = [ln.strip() for ln in env_file.read_text().splitlines()]
+            for name in ("HOST_COMMAND_HMAC_KEY", "INTERNAL_API_KEY"):
+                for line in lines:
+                    if line.startswith(f"{name}="):
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            return val
     except Exception:
         pass
     return ""

@@ -184,7 +184,9 @@ def register_scout_routes(bp, admin_required):
         except Exception as exc:
             out["cookie_sessions_error"] = str(exc)
 
-        hdrs = {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+        hdrs = {
+            "Authorization": f"Bearer {(_os.getenv('BROWSER_LOGIN_API_KEY') or _os.getenv('INTERNAL_API_KEY', ''))}"
+        }
         try:
             # #4006: enumerate REAL profile dirs from the sidecar instead of
             # the hardcoded WARM_PROFILES registry.
@@ -391,7 +393,9 @@ def register_scout_routes(bp, admin_required):
     def _scout_sidecar_headers():
         import os as _os
 
-        return {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+        return {
+            "Authorization": f"Bearer {(_os.getenv('BROWSER_LOGIN_API_KEY') or _os.getenv('INTERNAL_API_KEY', ''))}"
+        }
 
     @bp.route("/api/scout/platforms")
     @admin_required

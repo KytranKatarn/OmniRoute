@@ -34,7 +34,7 @@ def _internal_key() -> str:
     """ARCHIE_INTERNAL_API_KEY from env, else the root .env (so the key never
     has to live in the crontab). Notify is best-effort; the restart still runs
     without it."""
-    k = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
+    k = os.getenv("INTERNAL_API_KEY_SCRIPTS") or os.getenv("ARCHIE_INTERNAL_API_KEY", "")  # #6657 scoped caller key
     if k:
         return k
     try:
@@ -57,7 +57,9 @@ def _running(container: str) -> bool:
     try:
         out = subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Running}}", container],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return out.stdout.strip() == "true"
     except Exception:
@@ -69,12 +71,18 @@ def _notify(title: str, message: str) -> None:
     if not key:
         return
     try:
-        data = json.dumps({
-            "type": "warning", "title": title, "message": message,
-            "source": "media_streaming_watchdog", "priority": "high",
-        }).encode()
+        data = json.dumps(
+            {
+                "type": "warning",
+                "title": title,
+                "message": message,
+                "source": "media_streaming_watchdog",
+                "priority": "high",
+            }
+        ).encode()
         req = urllib.request.Request(
-            f"{HUB}/api/notifications", data=data,
+            f"{HUB}/api/notifications",
+            data=data,
             headers={"Content-Type": "application/json", "X-Internal-Key": key},
         )
         urllib.request.urlopen(req, timeout=6)
@@ -91,7 +99,10 @@ def main() -> None:
         # so we never fight an intentional stop or a boot-in-progress.
         if _running(e["container"]):
             res = subprocess.run(
-                ["docker", "restart", e["container"]], capture_output=True, text=True, timeout=90,
+                ["docker", "restart", e["container"]],
+                capture_output=True,
+                text=True,
+                timeout=90,
             )
             if res.returncode == 0:
                 print(f"{e['name']}: HUNG (container up, HTTP down) -> restarted {e['container']}")

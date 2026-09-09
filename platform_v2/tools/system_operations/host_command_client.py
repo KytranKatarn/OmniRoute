@@ -125,7 +125,9 @@ def submit_host_command(command_type, params, submitted_by="platform", user_id=N
 
     # Sign privileged command types so the host can prove the payload came from
     # the authenticated platform path (not a file dropped into the shared queue).
-    secret = os.environ.get("INTERNAL_API_KEY", "").strip()
+    # #6657: a dedicated HMAC secret so scoping/rotating INTERNAL_API_KEY cannot break
+    # the signed host-command path; the legacy key is the fallback until it is set.
+    secret = (os.environ.get("HOST_COMMAND_HMAC_KEY") or os.environ.get("INTERNAL_API_KEY", "")).strip()
     if command_type in SIGNED_COMMAND_TYPES and secret:
         command_data["hmac"] = command_signature(command_type, params, secret)
 

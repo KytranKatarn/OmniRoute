@@ -10,6 +10,7 @@ Split from github_routes.py. Handles:
 
 import json
 import logging
+import hmac
 import os
 import threading
 import traceback
@@ -51,12 +52,13 @@ def register_github_repo_routes(bp, admin_required):
                 # Both values are read from the ENVIRONMENT via os.getenv (never
                 # hard-coded — the only literal is a dev fallback default); empty/
                 # unset values are discarded so a missing var can't auth.
-                valid_keys = {
-                    os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production"),
-                    os.getenv("INTERNAL_API_KEY", ""),
-                }
-                valid_keys.discard("")
-                if presented in valid_keys:
+                api_key_value = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
+                if api_key_value and hmac.compare_digest(presented.encode(), api_key_value.encode()):
+                    return f(*args, **kwargs)
+                # #6657: the engine's key is now a SCOPED internal key ('engine').
+                from services.internal_auth import caller_has_scope
+
+                if caller_has_scope("engine"):
                     return f(*args, **kwargs)
                 return jsonify({"error": "Invalid API key"}), 401
             # Fall back to Flask-Login session

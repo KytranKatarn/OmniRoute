@@ -1405,7 +1405,9 @@ def signal_group_image_retry():
         resp = requests.post(
             "http://archie_browser_login:4281/group-image-retry",
             json={},  # sidecar defaults: WTF group + staged /profiles assets
-            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            headers={
+                "Authorization": f"Bearer {(os.getenv('BROWSER_LOGIN_API_KEY') or os.getenv('INTERNAL_API_KEY', ''))}"
+            },
             timeout=300,
         )
         result = resp.json() if resp.ok else {"error": f"http {resp.status_code}"}

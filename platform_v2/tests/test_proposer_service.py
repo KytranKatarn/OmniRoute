@@ -383,7 +383,7 @@ def test_the_proposed_manifest_endpoint_is_on_the_internal_key_surface():
     idx = text.index("/api/internal/proposed-manifest")
     def_idx = text.index("\ndef ", idx)
     window = text[idx:def_idx]
-    assert "_require_internal_key" in window, "internal route must be internal-key-gated"
+    assert "require_internal_scope(" in window, "internal route must be internal-key-gated (#6657: scoped)"
     assert "login_required" not in window, "internal route must not be session-gated"
 
 

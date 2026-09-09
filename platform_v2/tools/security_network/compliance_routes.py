@@ -29,19 +29,16 @@ def _session_is_admin() -> bool:
 
 
 def _internal_key_ok() -> bool:
-    """True when the request carries the shared INTERNAL_API_KEY.
+    """True when the request carries an internal key that holds the ``compliance`` scope.
 
-    Accepts either ``X-Internal-Key: <key>`` or ``Authorization: Bearer <key>``.
+    Accepts either ``X-Internal-Key: <key>`` or ``Authorization: Bearer <key>`` —
+    the ONE implementation lives in ``services.internal_auth`` (#6657); KSO's own key
+    is the only one granted ``compliance`` (the legacy flat key still passes during
+    the migration window).
     """
-    expected = os.getenv("INTERNAL_API_KEY", "")
-    if not expected:
-        return False
-    provided = request.headers.get("X-Internal-Key", "")
-    if not provided:
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            provided = auth[7:]
-    return bool(provided) and hmac.compare_digest(provided, expected)
+    from services.internal_auth import caller_has_scope
+
+    return caller_has_scope("compliance")
 
 
 def register_compliance_routes(bp, admin_required_decorator):

@@ -68,7 +68,9 @@ def register_social_routes(bp, admin_required):
     def _sidecar_headers():
         import os as _os
 
-        return {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+        return {
+            "Authorization": f"Bearer {(_os.getenv('BROWSER_LOGIN_API_KEY') or _os.getenv('INTERNAL_API_KEY', ''))}"
+        }
 
     def _valid_browser_platform(raw) -> str:
         p = (raw or "linkedin").strip().lower()

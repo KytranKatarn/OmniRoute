@@ -445,7 +445,9 @@ def run_skill_headed(
                 "platform": platform,
                 "deny_mutating": deny_mutating,
             },
-            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            headers={
+                "Authorization": f"Bearer {(os.getenv('BROWSER_LOGIN_API_KEY') or os.getenv('INTERNAL_API_KEY', ''))}"
+            },
             timeout=timeout_s,
         )
         try:

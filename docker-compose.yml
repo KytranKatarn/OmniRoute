@@ -496,7 +496,9 @@ services:
       # Required for the chat→DHQ delegation hand-off (/api/internal/delegation/submit)
       # and the repair-count poll (/api/internal/repair/count). Was missing → empty
       # Bearer → recurring 401. Sibling services set this too (see L1020+).
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      # #6657: comms' OWN scoped key (dhq:chat, coo, mail, approvals, delegation, repair:read).
+      # Falls back to the legacy flat key until INTERNAL_API_KEY_ARCHIE_COMMS is set in .env.
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY_ARCHIE_COMMS:-${INTERNAL_API_KEY}}
       # Same token the engine requires on its ws handshake (#6657) — comms proxies the
       # cockpit's engine status/message calls over ws://archie_engine:9090.
       - ENGINE_WS_TOKEN=${ENGINE_WS_TOKEN}
@@ -586,12 +588,12 @@ services:
       # this container. Dispatch routes through Department HQ via the internal
       # delegation surface (submit -> delegate_task_worker -> department_dispatcher).
       - ARCHIE_HUB_URL=http://100.64.0.4:3000
-      - ARCHIE_HUB_API_KEY=${INTERNAL_API_KEY}
+      - ARCHIE_HUB_API_KEY=${INTERNAL_API_KEY_ARCHIE_ENGINE:-${INTERNAL_API_KEY}}
       # Also expose under the literal name so the engine's INTERNAL_API_KEY-reading
       # paths work (e.g. the engine.py KB-search direct-API fallback when the hub
       # connector is down). Same value as ARCHIE_HUB_API_KEY — the platform's
       # @_require_internal_key bearer.
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY_ARCHIE_ENGINE:-${INTERNAL_API_KEY}}
       # Bearer required on EVERY ws://archie_engine:9090 handshake (#6657). The socket
       # is reachable from every container on archie_internal, and its file/shell surface
       # was open to all of them. Independent of INTERNAL_API_KEY on purpose; env-only
@@ -1161,7 +1163,7 @@ services:
       - BROWSER_API_KEY=${BROWSER_API_KEY}
       - KYTRAN_LOGO_PATH=/app/assets/kytran-logo.png
       - KYTRAN_PORTRAIT_PATH=/app/assets/kytran-portrait.png
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY_BROWSER:-${INTERNAL_API_KEY}}
       - ARCHIE_PLATFORM_URL=http://archie_platform:3000
       - BROWSER_PROFILES_DIR=/profiles
       # LinkedIn page slugs (#2599) — single source, .env-overridable. Skills
@@ -1203,7 +1205,7 @@ services:
       - BROWSER_VNC_PASSWORD=${BROWSER_VNC_PASSWORD:?BROWSER_VNC_PASSWORD must be set in .env}
       # Bearer-token auth on the supervisor API (:4281). Same key the platform
       # already holds, so only archie_platform can drive start/stop/status.
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set in .env}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY_BROWSER:-${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set in .env}}
       - LOGIN_IDLE_TIMEOUT=900
       # #4006 capture-to-vault: login_browser.py POSTs the captured
       # storage_state to the platform's internal sessions API on stop.
@@ -1246,7 +1248,7 @@ services:
       - SCREENSHOT_DIR=/mnt/screenshots
       # session_fetch skill calls the platform's internal sessions route to load
       # imported storage_state cookies (claude/deepseek/…). KB #270262.
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY_BROWSER:-${INTERNAL_API_KEY:-}}
       - PLATFORM_INTERNAL_URL=http://archie_platform:3000
     volumes:
       - /mnt/data2/scout/screenshots:/mnt/screenshots

@@ -32,7 +32,9 @@ def _profile_established(agent_id: int, platform: str) -> bool:
         r = requests.get(
             f"{_SIDECAR}/status",
             params={"agent_id": agent_id, "platform": platform},
-            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            headers={
+                "Authorization": f"Bearer {(os.getenv('BROWSER_LOGIN_API_KEY') or os.getenv('INTERNAL_API_KEY', ''))}"
+            },
             timeout=5,
         )
         return bool((r.json() or {}).get("profile_established"))

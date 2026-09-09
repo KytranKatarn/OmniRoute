@@ -1474,7 +1474,7 @@ class TelegramGateway:
             return
 
         kbs_url = os.getenv("KBS_APP_URL", "http://kbs_app:8091")
-        token = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
+        token = os.getenv("KBS_SERVICE_TOKEN") or os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")  # #6657
         endpoint = f"{kbs_url}/api/social/telegram-callback"
         payload = _json.dumps(
             {

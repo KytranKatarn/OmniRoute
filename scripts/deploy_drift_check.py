@@ -217,7 +217,7 @@ def _baked_sha(url: str) -> str:
 
 
 def _notify(title: str, message: str) -> None:
-    key = os.getenv("INTERNAL_API_KEY", "")
+    key = os.getenv("INTERNAL_API_KEY_SCRIPTS") or os.getenv("INTERNAL_API_KEY", "")  # #6657 scoped caller key
     if not key:
         print("  (no INTERNAL_API_KEY in env — skipping A.R.C.H.I.E. alert)")
         return

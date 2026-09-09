@@ -4462,22 +4462,15 @@ import os as _os_delegation
 from functools import wraps as _wraps_delegation
 
 
-def _require_internal_key(f):
-    """Protect internal endpoints with INTERNAL_API_KEY bearer token."""
-
-    @_wraps_delegation(f)
-    def decorated(*args, **kwargs):
-        _key = _os_delegation.getenv("INTERNAL_API_KEY", "")
-        _auth = request.headers.get("Authorization", "")
-        if not _key or _auth != f"Bearer {_key}":
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-
-    return decorated
+# #6657: every /api/internal/* route is gated by ONE scoped decorator. The flat
+# INTERNAL_API_KEY bearer that used to live here (plain `!=`, no caller identity)
+# is accepted as a full-scope LEGACY key during the rollout and then retired —
+# see services/internal_auth.py for the caller → scope table.
+from services.internal_auth import require_internal_scope  # noqa: E402
 
 
 @app.route("/api/internal/dhq/chat", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("dhq:chat")
 def api_internal_dhq_chat():
     """Synchronous DHQ-routed completion. Defaults to A.R.C.H.I.E.'s conversation
     voice (the archie_comms cockpit); service callers may override the agent.
@@ -4593,7 +4586,7 @@ def api_internal_dhq_chat():
 
 
 @app.route("/api/internal/coo/agents", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_coo_agents():
     """Consultable crew (department directors) + department list for the cockpit switcher.
 
@@ -4612,7 +4605,7 @@ def api_internal_coo_agents():
 
 
 @app.route("/api/internal/coo/consult", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_coo_consult():
     """Resolve a consult target (agent/department) and dispatch to it via DHQ; return the answer.
 
@@ -4662,7 +4655,7 @@ def api_internal_coo_consult():
 
 
 @app.route("/api/internal/coms/overview", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_coms_overview():
     """COMs/Telegram hub read view (feed + config + migration) for the cockpit COMs tab.
 
@@ -4684,7 +4677,7 @@ def api_internal_coms_overview():
 
 
 @app.route("/api/internal/mail/inbox", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("mail")
 def api_internal_mail_inbox():
     """Owner/business inbox for the cockpit Mail tab (read-only). Slice 3. Fail-soft."""
     try:
@@ -4701,7 +4694,7 @@ def api_internal_mail_inbox():
 
 
 @app.route("/api/internal/mail/message/<int:mid>", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("mail")
 def api_internal_mail_message(mid):
     """Read a single owner/business message (full body). Fail-soft."""
     try:
@@ -4717,7 +4710,7 @@ def api_internal_mail_message(mid):
 
 
 @app.route("/api/internal/mail/draft-reply", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("mail")
 def api_internal_mail_draft_reply():
     """R.E.S.O.L.V.E. drafts a reply (read-only; nothing is sent or queued here). Fail-soft."""
     try:
@@ -4734,7 +4727,7 @@ def api_internal_mail_draft_reply():
 
 
 @app.route("/api/internal/mail/queue-reply", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("mail")
 def api_internal_mail_queue_reply():
     """Queue a reply into the EXISTING approve-to-send gate (never sends directly). Fail-soft."""
     try:
@@ -4751,7 +4744,7 @@ def api_internal_mail_queue_reply():
 
 
 @app.route("/api/internal/actions/catalog", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_actions_catalog():
     """Curated safe actions the cockpit can run (Slice 4). Fail-soft."""
     try:
@@ -4764,7 +4757,7 @@ def api_internal_actions_catalog():
 
 
 @app.route("/api/internal/actions/run", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_actions_run():
     """Run a curated safe action synchronously (Slice 4). Only catalog keys run. Fail-soft."""
     try:
@@ -4778,7 +4771,7 @@ def api_internal_actions_run():
 
 
 @app.route("/api/internal/session-link", methods=["POST", "GET"])
-@_require_internal_key
+@require_internal_scope("engine")
 def api_internal_session_link():
     """archie_engine records/resolves an engine-session <-> comms-conversation
     link (CLI collaboration: cockpit, archie-tui and the Claude MCP co-drive
@@ -4801,7 +4794,7 @@ def api_internal_session_link():
 
 
 @app.route("/api/internal/approvals/pending", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("approvals:read")
 def api_internal_approvals_pending():
     """Cockpit-facing pending Tier-2 approvals. Service-to-service: Bearer
     INTERNAL_API_KEY. Reuses the exact list the DHQ Approvals tab renders
@@ -4813,7 +4806,7 @@ def api_internal_approvals_pending():
 
 
 @app.route("/api/internal/approvals/<path:approval_id>/approve", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("approvals:decide")
 def api_internal_approvals_approve(approval_id):
     """Cockpit approve. Bearer INTERNAL_API_KEY; owner user_id from the body
     (default 2 = Kytran). Fail-closed: a non-ok executor result -> 409 and the
@@ -4830,7 +4823,7 @@ def api_internal_approvals_approve(approval_id):
 
 
 @app.route("/api/internal/approvals/<path:approval_id>/deny", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("approvals:decide")
 def api_internal_approvals_deny(approval_id):
     """Cockpit deny. Same auth/owner-default/fail-closed contract as approve."""
     from tools.department_hq.approvals_routes import _deny_autonomy, parse_approval_id
@@ -4850,7 +4843,7 @@ ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB upload ceiling for cockpit atta
 
 
 @app.route("/api/internal/attachments/extract", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_attachments_extract():
     """Sovereign attachment extraction for the COO cockpit. Bearer INTERNAL_API_KEY.
     Decodes content_b64 -> temp file -> extract_text_from_file -> capped text.
@@ -4871,7 +4864,7 @@ def api_internal_attachments_extract():
 
 
 @app.route("/api/internal/voice/synthesize", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_voice_synthesize():
     """Cockpit TTS. Bearer INTERNAL_API_KEY. Wraps Kokoro synthesize_for_agent
     (agent 2 = her canonical af_heart voice + live emotion). Fail-soft."""
@@ -4885,7 +4878,7 @@ def api_internal_voice_synthesize():
 
 
 @app.route("/api/internal/voice/transcribe", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_voice_transcribe():
     """Cockpit STT. Bearer INTERNAL_API_KEY. Proxies to the sovereign archie_whisper
     sidecar (audio never leaves the cluster). Fail-soft."""
@@ -4902,7 +4895,7 @@ def api_internal_voice_transcribe():
 
 
 @app.route("/api/internal/archie/portrait", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("coo")
 def api_internal_archie_portrait():
     """A.R.C.H.I.E.'s portrait for the cockpit avatar. Bearer INTERNAL_API_KEY.
     Serves agent-2's canonical image base64; fail-soft ({ok:false} -> monogram)."""
@@ -4912,7 +4905,7 @@ def api_internal_archie_portrait():
 
 
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("sessions")
 def api_internal_get_session_state(agent_id, platform):
     """archie_browser fetches Playwright storage_state for a (agent, platform).
 
@@ -4932,7 +4925,7 @@ def api_internal_get_session_state(agent_id, platform):
 
 
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("sessions")
 def api_internal_save_session_state(agent_id, platform):
     """#4006 capture-to-vault: the login sidecar (login_browser.py) pushes the
     storage_state it captured during an interactive login, so the session is
@@ -4944,7 +4937,7 @@ def api_internal_save_session_state(agent_id, platform):
 
 
 @app.route("/api/internal/linkedin/challenge-code", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("sessions")
 def api_internal_linkedin_challenge_code():
     """Slice 2 (#5627 follow-up): hand archie_browser the LinkedIn email verification
     code so an automated re-login can clear its own challenge.
@@ -5024,13 +5017,13 @@ def api_internal_linkedin_challenge_code():
 
 
 @app.route("/api/internal/engine/telemetry", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("engine")
 def api_internal_engine_telemetry():
     """Record an A.R.C.H.I.E. Engine build run in task_execution_log (#4257).
 
     The engine POSTs here after a build run so it shows on the Token Economy +
     Dispatch tabs (worker_type='internal', module_source='archie_engine'). Auth
-    is enforced by the @_require_internal_key decorator above (the same
+    is enforced by the @require_internal_scope decorator above (the same
     INTERNAL_API_KEY bearer the engine already uses for delegation/submit).
     """
     from services.agents.engine_telemetry import record_engine_run
@@ -5068,7 +5061,7 @@ def api_internal_engine_telemetry():
 
 
 @app.route("/api/internal/notify", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("notify")
 def api_internal_notify():
     """Internal notify surface for standalone agents (Media Hub / M.A.V.E.N.).
 
@@ -5080,43 +5073,14 @@ def api_internal_notify():
 
     Body: {title, message, priority?(low|normal|high|urgent), source?, telegram?(bool)}
     """
-    data = request.get_json(silent=True) or {}
-    title = (data.get("title") or "Notification").strip()
-    message = (data.get("message") or "").strip()
-    priority = (data.get("priority") or "normal").strip().lower()
-    source = (data.get("source") or "media_hub").strip()
-    want_tg = bool(data.get("telegram")) or priority in ("high", "urgent")
-    try:
-        from services.notification_service import create_notification
+    from services.internal_notify import send_internal_notify  # noqa: PLC0415
 
-        ntype = "warning" if priority in ("high", "urgent") else "info"
-        create_notification(
-            notification_type=ntype,
-            title=title,
-            message=message,
-            source=source,
-            priority=priority,
-            visibility="all",
-        )
-    except Exception as exc:
-        app.logger.error("internal notify: create_notification failed: %s", exc)
-    tg = False
-    if want_tg and message:
-        try:
-            from services import telegram_service
-
-            # Always A.R.C.H.I.E.'s voice — she is the single outbound channel for
-            # every agent (M.A.V.E.N. speaks THROUGH her, never as itself). send_info
-            # sets source_agent="A.R.C.H.I.E." and delivers directly to Kytran.
-            telegram_service.send_info(title, message, priority=priority)
-            tg = True
-        except Exception as exc:
-            app.logger.error("internal notify: telegram send failed: %s", exc)
-    return jsonify({"ok": True, "telegram": tg})
+    out = send_internal_notify(request.get_json(silent=True) or {}, default_source="media_hub")
+    return jsonify(out), (200 if out.get("ok") else 400)
 
 
 @app.route("/api/internal/approval-request", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("approvals:request")
 def api_internal_approval_request():
     """Raise a Tier-2 (human) approval for a standalone destructive/major action.
 
@@ -5155,7 +5119,7 @@ def api_internal_approval_request():
 
 
 @app.route("/api/internal/approval/<int:approval_id>", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("approvals:request")
 def api_internal_approval_status(approval_id):
     """Return an approval row's status so a standalone can poll it before acting.
     Bearer INTERNAL_API_KEY.  ->  {ok, id, status, action_type}
@@ -5180,7 +5144,7 @@ def api_internal_approval_status(approval_id):
 
 
 @app.route("/api/internal/dispatch-log", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("fleet")
 def api_internal_dispatch_log():
     """Log a M.A.V.E.N. (or other standalone-agent) ACTION as a 0-token
     task_execution_log row so it surfaces in the DHQ A.R.M.A.D.A. dispatch
@@ -5247,7 +5211,7 @@ def api_internal_dispatch_log():
 
 
 @app.route("/api/internal/fleet-gpu-load", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("fleet")
 def api_internal_fleet_gpu_load():
     """Per-GPU-node inference-busy signal for M.A.V.E.N.'s dispatch-orchestrated Tdarr
     drain (#385). The Starship GPUs (USS-246 RTX3070 / USS-245 RTX3050) are ALSO fleet
@@ -5341,7 +5305,7 @@ def api_internal_fleet_gpu_load():
 
 
 @app.route("/api/internal/fleet-gpu-lease", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("fleet")
 def api_internal_fleet_gpu_lease():
     """Grant/release a Tdarr transcode VRAM lease on a fleet GPU node — the mesh-reachable
     mirror of the ComfyUI/SDXL swap (#385 v2). On the Starships the warm inference models
@@ -5400,7 +5364,7 @@ def api_internal_fleet_gpu_lease():
 
 
 @app.route("/api/internal/code-health/reverify", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_code_health_reverify():
     """LOOP-CLOSER: re-audit deployed Code-Health fixes and report, per finding,
     whether the fix actually landed ('fixed') or regressed ('still_open'). The
@@ -5418,7 +5382,7 @@ def api_internal_code_health_reverify():
 
 
 @app.route("/api/internal/code-health/orchestration", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_code_health_orchestration():
     """Per-department ownership + lifecycle counts (open/deployed/fixed/still_open)
     of Code-Health findings. The engine reads this post-deploy to surface
@@ -5433,7 +5397,7 @@ def api_internal_code_health_orchestration():
 
 
 @app.route("/api/internal/code-health/scan", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_code_health_scan():
     """Kick a full async codebase scan; returns job_id. Poll
     /api/internal/code-health/job-status/<id>. Bearer INTERNAL_API_KEY."""
@@ -5444,7 +5408,7 @@ def api_internal_code_health_scan():
 
 
 @app.route("/api/internal/code-health/audit", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_code_health_audit():
     """Audit one module (sync, pass {"module"}) or all modules (async, returns
     job_id). Bearer INTERNAL_API_KEY."""
@@ -5456,7 +5420,7 @@ def api_internal_code_health_audit():
 
 
 @app.route("/api/internal/code-health/job-status/<int:job_id>", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_code_health_job_status(job_id):
     """Poll an async code-health scan/audit job (reads bridge_jobs). Bearer INTERNAL_API_KEY."""
     from tools.consciousness.code_health_routes import code_health_job_status_payload
@@ -5466,7 +5430,7 @@ def api_internal_code_health_job_status(job_id):
 
 
 @app.route("/api/internal/engine/build-result", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("engine")
 def api_internal_engine_build_result():
     """The engine POSTs a build/test run result here after building + testing in
     its isolated /workspace; recorded into qa_test_runs + qa_test_results so the
@@ -5495,7 +5459,7 @@ def api_internal_engine_build_result():
 
 
 @app.route("/api/internal/repair/scan", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_repair_scan():
     """Scan a single file for issues (same logic as the session /api/scan/run).
     Body: {file_path | full_path}. Bearer INTERNAL_API_KEY."""
@@ -5518,7 +5482,7 @@ def api_internal_repair_scan():
 
 
 @app.route("/api/internal/repair/issues", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("repair:read")
 def api_internal_repair_issues():
     """The open-issue work queue (wraps scan_service.get_issues).
     Query: ?status=open&limit=50[&auto_fixable=true]. Bearer INTERNAL_API_KEY.
@@ -5549,7 +5513,7 @@ def api_internal_repair_issues():
 
 
 @app.route("/api/internal/repair/proposals", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("repair:read")
 def api_internal_repair_proposals():
     """The improvement-proposal work queue (wraps proposal_service.list_proposals).
     Query: ?status=proposed. Bearer INTERNAL_API_KEY."""
@@ -5564,7 +5528,7 @@ def api_internal_repair_proposals():
 
 
 @app.route("/api/internal/repair/proposals/<int:proposal_id>/pr", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("repair:write")
 def api_internal_repair_proposal_pr(proposal_id):
     """Record an ENGINE-authored fix PR on a proposal (spec 2026-08-26 Phase 3).
 
@@ -5586,7 +5550,7 @@ def api_internal_repair_proposal_pr(proposal_id):
 
 
 @app.route("/api/internal/delegation/invokable-skills", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("delegation")
 def api_internal_invokable_skills():
     """#5333 skill bridge: the invokable-actions registry, on the INTERNAL-KEY
     surface so archie_engine (and through it archie-tui) can actually read it.
@@ -5616,7 +5580,7 @@ def api_internal_invokable_skills():
 
 
 @app.route("/api/internal/delegation/submit", methods=["POST"])
-@_require_internal_key
+@require_internal_scope("delegation")
 def api_internal_delegation_submit():
     """Submit a task for delegation via web_chat source."""
     import psycopg2.extras as _psyext
@@ -5691,7 +5655,7 @@ def api_internal_delegation_submit():
 
 
 @app.route("/api/internal/delegation/<int:task_id>/status")
-@_require_internal_key
+@require_internal_scope("delegation")
 def api_internal_delegation_status(task_id):
     """Return current status and work_notes for a delegated task."""
     from database import get_db_cursor
@@ -5731,7 +5695,7 @@ def api_internal_delegation_status(task_id):
 
 
 @app.route("/api/internal/lane-liveness", methods=["GET"])
-@_require_internal_key  # VERIFIED name (leading underscore) -- same guard used by
+@require_internal_scope("repair:read")  # VERIFIED name (leading underscore) -- same guard used by
 # /api/internal/delegation/invokable-skills and
 # /api/internal/delegation/submit above.
 def api_internal_lane_liveness():
@@ -5758,7 +5722,7 @@ _PROPOSER_REPO_ALLOWLIST = ("KytranKatarn/archie-platform", "KytranKatarn/archie
 
 
 @app.route("/api/internal/proposed-manifest", methods=["GET"])
-@_require_internal_key
+@require_internal_scope("repair:read")
 def internal_proposed_manifest():
     """What the proposer would put in front of the owner right now.
 
@@ -5788,7 +5752,7 @@ def internal_proposed_manifest():
 
 
 @app.route("/api/internal/repair/count")
-@_require_internal_key
+@require_internal_scope("repair:read")
 def api_internal_repair_count():
     """Return count of open improvement proposals."""
     from database import get_db_cursor

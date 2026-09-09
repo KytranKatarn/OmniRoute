@@ -86,7 +86,8 @@ services:
       # equal the platform INTERNAL_API_KEY; empty => notify/approval stay no-op.
       # No env_file: here, so these MUST be listed explicitly (integration contract).
       ARCHIE_HUB_URL: ${ARCHIE_HUB_URL:-http://100.64.0.4:3000}
-      ARCHIE_INTERNAL_API_KEY: ${ARCHIE_INTERNAL_API_KEY:-}
+      # #6657: media_hub's OWN scoped key (notify, approvals:request, fleet); legacy fallback.
+      ARCHIE_INTERNAL_API_KEY: ${INTERNAL_API_KEY_MEDIA_HUB:-${ARCHIE_INTERNAL_API_KEY:-}}
       # Tdarr video-optimize engine (project #385 Phase 3) — reachable via the shared
       # tdarr_net (container name), so M.A.V.E.N. can review/queue transcodes.
       TDARR_URL: ${TDARR_URL:-http://tdarr:8265}

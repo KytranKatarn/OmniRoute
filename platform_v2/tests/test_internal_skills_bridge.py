@@ -75,7 +75,7 @@ def test_internal_registry_route_exists_and_is_internal_key_gated():
     assert "/api/internal/delegation/invokable-skills" in _route_paths(fn)
     # The whole point: the engine's bearer must be accepted. A session-only gate
     # here would reproduce the 401 this endpoint exists to fix.
-    assert "_require_internal_key" in _decorators(fn)
+    assert any(d.startswith("require_internal_scope") for d in _decorators(fn)), _decorators(fn)
 
 
 def test_internal_registry_uses_the_generated_builder_not_a_curated_list():

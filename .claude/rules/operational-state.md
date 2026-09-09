@@ -47,8 +47,34 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 |------|-----|---------|------|------------|
 | Hub | 192.168.1.200 | 100.79.11.3 | Primary server | All above |
 | US Outpost | 76.13.107.109 | 100.64.0.2 | Fleet node (infra only) | Caddy (archie_outpost_proxy — serves api.kytranempowerment.com → hub mesh), SMTP relay (mail egress, PTR relay.kytranempowerment.com), node_socks, outpost_sync, node_api. NO product stacks (location audit 2026-06-11: all watch products + WTF live on Citadel; WTF zombie removed #4032, archive /opt/archie-products/what-the-fact-RETIRED-20260611.tar.gz) |
-| Starship - Defiant - USS-246 | 192.168.1.246 | 100.64.0.3 | **Online** (verified 2026-09-08) | RTX 3070, 32GB RAM. SSH `Famil@`. ⚠️ **WINDOWS** — no bash/python3, so it cannot run `probe_hub.sh` and must NOT be used as a DR quorum vantage (#3249). |
-| Starship - Runabout - USS-245 | 192.168.1.245 | 100.64.0.6 | **Online** (verified 2026-09-08) | RTX 3050 4GB, 12GB RAM. SSH `Famil@`. ⚠️ **WINDOWS** — same probe limitation as USS-246 (#3249). |
+| Starship - Defiant - USS-246 | 192.168.1.246 | 100.64.0.3 | **Online** (verified 2026-09-08) | RTX 3070, 32GB RAM. SSH `Famil@`. ⚠️ **WINDOWS** — no bash/python3, so it cannot run `probe_hub.sh`. ✅ It IS a DR quorum vantage since PR #3253 (2026-09-08): annotated `Famil@100.64.0.3|pwsh` in `OUTPOSTS`, driven through **`probe_hub.ps1`**. Verified live voting `up` vs the hub and `down` vs TEST-NET. |
+| Starship - Runabout - USS-245 | 192.168.1.245 | 100.64.0.6 | **Online** (verified 2026-09-08) | RTX 3050 4GB, 12GB RAM. SSH `Famil@`. ⚠️ **WINDOWS** — same as USS-246: `probe_hub.sh` will not run, `probe_hub.ps1` does. Voting vantage `Famil@100.64.0.6|pwsh` since PR #3253. |
+
+## DR quorum vantages (2026-09-08, PR #3253)
+
+`OUTPOSTS` in `scripts/dr/watchdog/dr_watchdog.sh` — **3 vantages, `QUORUM=2`**:
+
+| vantage | shell | probe |
+|---|---|---|
+| `kytran@100.64.0.2` (outpost-us) | bash | `probe_hub.sh` |
+| `Famil@100.64.0.3\|pwsh` (USS-246) | PowerShell | `probe_hub.ps1` |
+| `Famil@100.64.0.6\|pwsh` (USS-245) | PowerShell | `probe_hub.ps1` |
+
+🔴 **A vantage votes ONLY on the stdout sentinel `PROBE_RESULT=up|down`. Anything
+else — including a non-zero exit with no sentinel — is `unreachable` and is IGNORED by
+`count_down`.** Never re-derive the vote from an exit code: PowerShell's `exit 1` over
+`ssh "powershell -NoProfile -Command -"` was measured arriving as **exit 0**, and the old
+"non-255 means down" rule made both Starships vote `down` against a verifiably UP hub —
+two phantom votes that would hold a 2-of-3 quorum permanently and auto-promote on the
+first mesh hiccup.
+
+⚠️ **The majority is PARTLY CORRELATED and this is an accepted trade**: two of the three
+vantages sit on the hub's own LAN, so a LAN-wide fault can produce two *real* down-votes
+for a hub that is fine from the internet. outpost-us is the only remote vantage left after
+the 2026-08-29 sunset. Adding a second geographically independent one removes it.
+
+**Adding a vantage is not done until its probe is verified live** — a vantage that cannot
+emit the sentinel silently degrades to a non-voter (fail-safe, but invisible).
 
 ## DNS (kytranempowerment.com)
 

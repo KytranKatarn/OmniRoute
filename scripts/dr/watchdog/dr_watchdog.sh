@@ -179,7 +179,15 @@ snooze_remaining(){
 
 # ---- Probes ----
 # boston-2's own vantage. Returns 0 = hub UP, 1 = hub DOWN.
-probe_local(){ bash "$PROBE_SCRIPT"; }
+# The LOCAL probe, run on Citadel itself. All seven callers use it as a PREDICATE,
+# so it is judged by its exit code — deliberately unlike probe_outpost, which must
+# ignore exit codes entirely (#3249). The asymmetry is sound: this is a bash script
+# invoked by bash on a host we control, so "the shell could not run it" is not a
+# reachable failure here, and no SSH layer is in between to rewrite the status.
+# stdout is dropped so the PROBE_RESULT sentinel does not spam the journal once a
+# minute; a caller that ever needs the verdict should capture and parse it the way
+# probe_outpost does, not read the exit code AND the text.
+probe_local(){ bash "$PROBE_SCRIPT" >/dev/null 2>&1; }
 # One outpost. Streams the probe over SSH (no pre-deploy needed). Echoes
 # up | down | unreachable.
 probe_outpost(){

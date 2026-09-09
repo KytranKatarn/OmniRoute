@@ -151,3 +151,18 @@ class TestDrainFocusBoostWiring:
         assert "work:code_health_backlog_drain:focus_max_fixes" in src
         # the boost must sit AFTER the base read so focus-off is byte-identical
         assert src.index("drain:max_fixes") < src.index("drain:focus_max_fixes")
+
+
+def test_repair_bay_warm_model_is_the_review_model(monkeypatch):
+    """AUX repair_bay must pre-warm the model REVIEWS actually run (qwen2.5:7b),
+    not the code-gen model. Reviews are the dominant repair_bay workload
+    (~3000 qwen2.5:7b code_review runs / 30d vs ~700 qwen2.5-coder:7b); warming
+    qwen2.5-coder:7b left every review cold-loading while the focus was armed —
+    the exact miswiring this fixes (#6662 follow-up)."""
+    import services.fleet_dispatch_profile as fdp
+
+    assert fdp.FAMILY_WARM_MODELS["repair_bay"] == "qwen2.5:7b"
+    assert fdp.FAMILY_WARM_MODELS["repair_bay"] != "qwen2.5-coder:7b"
+    monkeypatch.setattr(fdp, "get_dispatch_mode", lambda: "platform")
+    monkeypatch.setattr(fdp, "get_dispatch_focus", lambda: "repair_bay")
+    assert fdp.get_focus_warm_model() == "qwen2.5:7b"

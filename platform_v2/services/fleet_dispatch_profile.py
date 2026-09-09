@@ -229,7 +229,13 @@ def is_priority_project(project_name: Optional[str], mode: str) -> bool:
 # a slot (rides the EXISTING _node_at_cap reserve lane — same clamp, hub exempt,
 # interactive work keeps full cap exactly as before).
 FAMILY_WARM_MODELS = {
-    "repair_bay": "qwen2.5-coder:7b",
+    # Reviews are the DOMINANT repair_bay workload (~4:1 over code-gen by dispatch
+    # count) and run qwen2.5:7b — the code_review agent's model — NOT
+    # qwen2.5-coder:7b. So the focus warm-pin must warm the REVIEW model, else
+    # reviews still cold-load while AUX repair_bay is armed (the whole point of the
+    # focus is to remove that cold load). code-gen (qwen2.5-coder:7b) is lower-volume
+    # and on-demand; one model per focus, so reviews win. (#6662 follow-up.)
+    "repair_bay": "qwen2.5:7b",
     "consciousness": "mistral:7b",
     "email": "qwen2.5:7b",
     "social": "qwen2.5:7b",

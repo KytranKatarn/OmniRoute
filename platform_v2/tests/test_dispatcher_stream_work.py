@@ -222,3 +222,41 @@ def test_cloud_blocked_capability_never_reaches_provider(monkeypatch):
     errs = [e for e in events if e.get("type") == "error"]
     assert errs and errs[0]["code"] == "cloud_capability_blocked"
     assert _done_result(events).success is False
+
+
+def test_hub_stream_posts_to_generate_endpoint_not_bare_base(monkeypatch):
+    """Regression for the #6654 streaming 405.
+
+    ``get_ollama_url`` returns a BASE url with no path; the blocking
+    ``call_ollama`` appends the generate endpoint itself, so the hub
+    streaming branch must too. A bare-base POST hits Ollama's root and
+    comes back HTTP 405 (0 tokens). The node branch already includes the
+    path — this pins the hub branch. The pre-fix tests mocked the POST
+    without ever asserting the URL, which is why the bug shipped.
+    """
+    disp = dd.DepartmentDispatcher()
+    order = []
+    _base_patches(monkeypatch, disp, order)  # get_ollama_url -> base, no path
+
+    captured = {}
+    import requests
+
+    def _cap(url, *a, **k):
+        captured["url"] = url
+        return _FakeStreamResp(_fake_ollama_lines())
+
+    monkeypatch.setattr(requests, "post", _cap)
+
+    events = list(
+        disp._execute_llm_stream(
+            model="qwen2.5:7b",
+            prompt="hi",
+            capability="conversation",
+            module_id="archie_comms",
+        )
+    )
+    assert [e for e in events if e.get("type") == "token"], "hub path yielded no tokens"
+    assert "url" in captured, "hub path never POSTed to Ollama"
+    _endpoint = "/api/" + "generate"
+    assert captured["url"].endswith(_endpoint), f"hub POST must target the generate endpoint, got {captured['url']!r}"
+    assert captured["url"] != "http://hub:11434", "hub POST went to the bare base (the 405 bug)"

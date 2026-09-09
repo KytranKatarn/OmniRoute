@@ -6807,6 +6807,11 @@ class DepartmentDispatcher:
                 gen_url = os.getenv("OLLAMA_HOST", "http://localhost:11434")
             provider = "ollama"
 
+        # get_ollama_url returns a base URL with no path; the node branch
+        # already appends the generate endpoint, the hub branch must too
+        # (this was the streaming 405 vs the blocking path that appends it).
+        if not node_url:
+            gen_url = str(gen_url).rstrip("/") + "/api/generate"
         # Open a bridge_jobs slot so hub_lane_over_cap counts this stream.
         try:
             conn = self._get_db()

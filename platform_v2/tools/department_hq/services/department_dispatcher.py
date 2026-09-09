@@ -7027,43 +7027,83 @@ class DepartmentDispatcher:
             except Exception as _pn_e:
                 logger.debug("[BridgeDispatcher] stream_work node resolve %s: %s", _pn_name, _pn_e)
 
-        yield {
-            "type": "meta",
-            "agent_name": agent_name,
-            "model": model,
-            "provider": "fleet_node" if node_url else "ollama",
-            "node": node_name,
-            "capability": capability,
-            "streamed": True,
-        }
+        # Build the ordered execution plan: the resolved node target, then the hub as
+        # a fallback WHEN the preferred_node list named it (#6660). That trailing
+        # "archie-starbase"/"hub" already EXPRESSED the intent; before this it was
+        # honoured only at RESOLUTION time (an offline node), never when a chosen
+        # ONLINE node hung before the first token — which stranded the whole stream.
+        # We fall back ONLY pre-first-token; once a token is sent we are committed.
+        _hub_is_fallback = any(str(c) in ("archie-starbase", "hub") for c in _cands)
+        _targets = []
+        if node_url:
+            _targets.append((node_url, node_id_int, node_text_id, node_name))
+            if _hub_is_fallback:
+                _targets.append((None, None, None, None))  # hub
+        else:
+            _targets.append((None, None, None, None))  # hub only
 
         result = None
-        gen = self._execute_llm_stream(
-            model=model,
-            prompt=prompt,
-            system_prompt=system_prompt,
-            capability=capability,
-            module_id=module_id,
-            agent_name=agent_name,
-            node_url=node_url,
-            node_id_int=node_id_int,
-            node_text_id=node_text_id,
-            node_name=node_name,
-            temperature=temperature,
-            timeout=max(timeout, 240) if node_url else timeout,
-        )
         try:
-            for evt in gen:
-                if evt.get("type") == "done":
-                    result = evt.get("_result")
-                    _pub = {k: v for k, v in evt.items() if k != "_result"}
-                    yield _pub
-                else:
-                    yield evt
+            for _ti in range(len(_targets)):
+                _t_url, _t_iid, _t_tid, _t_name = _targets[_ti]
+                _is_last = _ti == len(_targets) - 1
+                yield {
+                    "type": "meta",
+                    "agent_name": agent_name,
+                    "model": model,
+                    "provider": "fleet_node" if _t_url else "ollama",
+                    "node": _t_name,
+                    "capability": capability,
+                    "streamed": True,
+                }
+                gen = self._execute_llm_stream(
+                    model=model,
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    capability=capability,
+                    module_id=module_id,
+                    agent_name=agent_name,
+                    node_url=_t_url,
+                    node_id_int=_t_iid,
+                    node_text_id=_t_tid,
+                    node_name=_t_name,
+                    temperature=temperature,
+                    timeout=max(timeout, 240) if _t_url else timeout,
+                )
+                _tok_this = False
+                _fallback_err = None
+                for evt in gen:
+                    _et = evt.get("type")
+                    if _et == "done":
+                        result = evt.get("_result")
+                        yield {k: v for k, v in evt.items() if k != "_result"}
+                    elif _et == "token":
+                        _tok_this = True
+                        yield evt
+                    elif _et == "error" and _t_url and not _tok_this and not _is_last:
+                        # A fleet node failed BEFORE a single token AND a hub fallback
+                        # remains: hold the error, abandon this attempt, try the next
+                        # target. Once any token has streamed we never fall back.
+                        _fallback_err = evt
+                        break
+                    else:
+                        yield evt
+                if _fallback_err is not None:
+                    try:
+                        gen.close()  # run _execute_llm_stream's finally: close slot + stash result
+                    except Exception:
+                        pass
+                    logger.info(
+                        "[BridgeDispatcher] stream_work: %s failed pre-token (%s) — falling back",
+                        _t_name or "hub",
+                        (_fallback_err or {}).get("code"),
+                    )
+                    continue  # -> next target (ultimately the hub)
+                break  # committed (token sent), finished (done), or error surfaced on the last target
         finally:
-            # Log exactly one row — on normal completion OR client disconnect
-            # (GeneratorExit propagates through _execute_llm_stream's finally,
-            # which stashes _last_stream_result before re-raising).
+            # Log exactly one row — normal completion, fallback, OR client disconnect
+            # (GeneratorExit propagates through _execute_llm_stream's finally, which
+            # stashes _last_stream_result before re-raising).
             if result is None:
                 result = getattr(self, "_last_stream_result", None)
             if result is not None:

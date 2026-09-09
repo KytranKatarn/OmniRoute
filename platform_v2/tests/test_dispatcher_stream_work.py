@@ -260,3 +260,116 @@ def test_hub_stream_posts_to_generate_endpoint_not_bare_base(monkeypatch):
     _endpoint = "/api/" + "generate"
     assert captured["url"].endswith(_endpoint), f"hub POST must target the generate endpoint, got {captured['url']!r}"
     assert captured["url"] != "http://hub:11434", "hub POST went to the bare base (the 405 bug)"
+
+
+# ---------------------------------------------------------------------------
+# stream_work mid-stream hub fallback (#6660) — a preferred node that errors
+# BEFORE the first token falls back to the hub (when the caller named it),
+# instead of stranding the stream. Once a token streams we never fall back.
+# ---------------------------------------------------------------------------
+
+
+class _R:
+    def __init__(self, success=True, provider="ollama", model="qwen2.5:7b"):
+        self.success = success
+        self.provider = provider
+        self.model_used = model
+        self.department = None
+        self.agent_id = None
+        self.duration_ms = 1000
+        self.prompt_tokens = 1
+        self.completion_tokens = 1
+        self.metadata = {"stream": True}
+
+
+class _StubCoord:
+    def resolve_department(self, capability):
+        return "Engineering & Technology"
+
+    def select_agent(self, capability, department):
+        return None  # no cache in the test -> default model path
+
+
+def _wire_stream_work(monkeypatch, disp, *, node_fail_pretoken):
+    """Script _execute_llm_stream per target + mock node resolution + logging."""
+    monkeypatch.setattr(dd, "get_dept_coordinator", lambda: _StubCoord())
+    monkeypatch.setattr(disp, "_get_db", lambda: _FakeConn())  # node row resolves
+    monkeypatch.setattr(
+        disp,
+        "_get_fleet_node_for_dispatch",
+        lambda *a, **k: {
+            "node_hostname": "100.64.0.3",
+            "node_port": 11434,
+            "node_id": "starship_x",
+            "node_name": "Starship - Defiant",
+            "agent_name": "R.E.S.O.L.V.E.",
+            "model": "qwen2.5:7b",
+        },
+    )
+    logged = []
+    monkeypatch.setattr(disp, "_log_execution", lambda res, *a, **k: logged.append(res))
+    monkeypatch.setattr(disp, "_update_agent_welfare", lambda *a, **k: None)
+
+    def _exec(**kw):
+        if kw.get("node_url"):
+            disp._last_stream_result = _R(success=False, provider="fleet_node")
+            if node_fail_pretoken:
+                yield {"type": "error", "code": "dispatch_failed", "message": "timeout"}
+                return
+            yield {"type": "token", "content": "N"}
+            yield {"type": "done", "_result": _R(True, "fleet_node"), "streamed": True}
+        else:
+            disp._last_stream_result = _R(success=True, provider="ollama")
+            yield {"type": "token", "content": "H"}
+            yield {"type": "done", "_result": _R(True, "ollama"), "streamed": True}
+
+    monkeypatch.setattr(disp, "_execute_llm_stream", _exec)
+    return logged
+
+
+def _run_stream_work(disp, preferred_node):
+    return list(
+        disp.stream_work(
+            capability="conversation",
+            prompt="hi",
+            module_id="archie_comms",
+            prefer_agent=None,
+            preferred_node=preferred_node,
+        )
+    )
+
+
+def test_stream_work_falls_back_to_hub_when_node_errors_pretoken(monkeypatch):
+    disp = dd.DepartmentDispatcher()
+    logged = _wire_stream_work(monkeypatch, disp, node_fail_pretoken=True)
+    evts = _run_stream_work(disp, ["starship_x", "archie-starbase"])
+    metas = [e for e in evts if e.get("type") == "meta"]
+    toks = "".join(e.get("content", "") for e in evts if e.get("type") == "token")
+    errs = [e for e in evts if e.get("type") == "error"]
+    assert len(metas) == 2, "expected node meta then hub meta"
+    assert metas[0]["provider"] == "fleet_node" and metas[1]["provider"] == "ollama"
+    assert toks == "H", "hub tokens should reach the client; the failed node's do not"
+    assert not errs, "fallback is transparent — no error surfaced to the client"
+    assert len(logged) == 1 and logged[0].success is True and logged[0].provider == "ollama"
+
+
+def test_stream_work_commits_to_node_once_a_token_streams(monkeypatch):
+    disp = dd.DepartmentDispatcher()
+    logged = _wire_stream_work(monkeypatch, disp, node_fail_pretoken=False)
+    evts = _run_stream_work(disp, ["starship_x", "archie-starbase"])
+    metas = [e for e in evts if e.get("type") == "meta"]
+    toks = "".join(e.get("content", "") for e in evts if e.get("type") == "token")
+    assert len(metas) == 1 and metas[0]["provider"] == "fleet_node", "no fallback once streaming"
+    assert toks == "N"
+    assert len(logged) == 1 and logged[0].provider == "fleet_node"
+
+
+def test_stream_work_surfaces_error_when_no_hub_fallback_named(monkeypatch):
+    disp = dd.DepartmentDispatcher()
+    logged = _wire_stream_work(monkeypatch, disp, node_fail_pretoken=True)
+    evts = _run_stream_work(disp, ["starship_x"])  # hub NOT named -> no fallback
+    metas = [e for e in evts if e.get("type") == "meta"]
+    errs = [e for e in evts if e.get("type") == "error"]
+    assert len(metas) == 1, "only the node target; caller did not name the hub"
+    assert errs, "the node error must be surfaced when there is no fallback"
+    assert len(logged) == 1 and logged[0].success is False

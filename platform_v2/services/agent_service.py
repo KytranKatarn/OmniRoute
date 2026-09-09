@@ -1148,6 +1148,43 @@ def add_skill(agent_id, skill_name, level=1, category="general"):
     logger.info("Agent #%d skill %s set to level %d", agent_id, skill_name, level)
 
 
+def remove_skill(agent_id, skill_name):
+    """Remove a skill from an agent (single-writer; #2057). Returns True if a row
+    was deleted, False if the agent did not have that skill. Cockpit agents:manage."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "DELETE FROM agent_skills WHERE agent_id = %s AND skill_name = %s",
+            (agent_id, skill_name),
+        )
+        removed = cur.rowcount > 0
+    logger.info("Agent #%d skill %s remove -> %s", agent_id, skill_name, removed)
+    return removed
+
+
+def set_token_budget(agent_id, token_limit_per_day):
+    """Set an agent's daily token ceiling (single-writer). Floors at 50k to match
+    the recalibration floor (agent_budgets recalibration). Returns the value set,
+    or None if the agent has no budget row yet (call init_budget first). Cockpit
+    agents:manage."""
+    try:
+        limit = int(token_limit_per_day)
+    except (TypeError, ValueError):
+        raise ValueError(f"token_limit_per_day must be an integer, got {token_limit_per_day!r}")
+    if limit < 50000:
+        limit = 50000
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE agent_budgets SET token_limit_per_day = %s WHERE agent_id = %s RETURNING token_limit_per_day",
+            (limit, agent_id),
+        )
+        row = cur.fetchone()
+    if not row:
+        logger.warning("set_token_budget: agent #%s has no budget row", agent_id)
+        return None
+    logger.info("Agent #%s token_limit_per_day set to %d", agent_id, limit)
+    return limit
+
+
 def update_skill_from_benchmark(agent_id, skill_name, score):
     """Update skill level from benchmark score (0.0-1.0). Auto-levels 1-5."""
     level = max(1, min(5, int(score * 5) + 1))

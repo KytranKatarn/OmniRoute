@@ -250,3 +250,115 @@ def test_compliance_rule_packs_use_the_same_gate(client, keys):
         == 401
     )
     assert client.get("/tools/security-network/api/compliance/rule-packs").status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 (#6xxx) — the agents:manage cockpit command endpoints. Auth is already
+# covered by test_every_internal_route_is_scoped + the per-caller in/out table;
+# these pin the BEHAVIOUR (right agent_service call, Tier-2 create, terminal
+# shift-state split, validation). agent_service is mocked — no DB, deterministic.
+# ---------------------------------------------------------------------------
+
+
+def _comms(keys):
+    return _bearer(keys["archie_comms"])
+
+
+def test_agents_create_routes_through_tier2_propose_hire(client, keys, monkeypatch):
+    calls = {}
+    monkeypatch.setattr(
+        "services.agent_service.propose_hire",
+        lambda **kw: calls.update(kw) or {"approval_id": 42},
+    )
+    body = {
+        "name": "T.E.S.T.",
+        "display_name": "Test Agent",
+        "department": "Engineering & Technology",
+        "model": "qwen2.5:7b",
+        "capability": "code",
+        "reason": "cockpit hire",
+    }
+    r = client.post("/api/internal/agents/create", headers=_comms(keys), json=body)
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j["success"] is True and j["tier2"] is True and j["approval_id"] == 42
+    assert calls["name"] == "T.E.S.T." and calls["department"] == "Engineering & Technology"
+    assert calls["requested_by"].startswith("cockpit:")
+
+
+def test_agents_create_missing_fields_is_400(client, keys, monkeypatch):
+    monkeypatch.setattr("services.agent_service.propose_hire", lambda **kw: {"approval_id": 1})
+    r = client.post("/api/internal/agents/create", headers=_comms(keys), json={"name": "X"})
+    assert r.status_code == 400 and "missing required" in r.get_json()["error"]
+
+
+def test_agents_assign_calls_update_agent(client, keys, monkeypatch):
+    seen = {}
+    monkeypatch.setattr("services.agent_service.update_agent", lambda aid, **f: seen.update({"id": aid, **f}))
+    r = client.post("/api/internal/agents/7/assign", headers=_comms(keys), json={"department": "News & Media"})
+    assert r.status_code == 200
+    assert seen == {"id": 7, "department": "News & Media"}
+
+
+def test_agents_shift_state_decommission_uses_update_agent_not_transition(client, keys, monkeypatch):
+    seen = {}
+    monkeypatch.setattr("services.agent_service.update_agent", lambda aid, **f: seen.update({"id": aid, **f}))
+    monkeypatch.setattr(
+        "services.agent_service.transition_shift_state",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not transition a terminal state")),
+    )
+    r = client.post("/api/internal/agents/9/shift-state", headers=_comms(keys), json={"state": "decommissioned"})
+    assert r.status_code == 200 and r.get_json()["terminal"] is True
+    assert seen == {"id": 9, "shift_state": "decommissioned"}
+
+
+def test_agents_shift_state_active_uses_transition(client, keys, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        "services.agent_service.transition_shift_state",
+        lambda aid, state, **k: seen.update({"id": aid, "state": state}) or {"success": True, "new_state": state},
+    )
+    monkeypatch.setattr(
+        "services.agent_service.update_agent",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("non-terminal must use transition")),
+    )
+    r = client.post("/api/internal/agents/3/shift-state", headers=_comms(keys), json={"state": "barracked"})
+    assert r.status_code == 200 and seen == {"id": 3, "state": "barracked"}
+
+
+def test_agents_shift_state_invalid_is_400(client, keys):
+    r = client.post("/api/internal/agents/1/shift-state", headers=_comms(keys), json={"state": "bogus"})
+    assert r.status_code == 400 and "invalid state" in r.get_json()["error"]
+
+
+def test_agents_skill_add_remove_and_budget_wire_to_service(client, keys, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        "services.agent_service.add_skill",
+        lambda aid, s, level=1, category="general": seen.update({"add": (aid, s, level)}),
+    )
+    monkeypatch.setattr("services.agent_service.remove_skill", lambda aid, s: seen.update({"rm": (aid, s)}) or True)
+    monkeypatch.setattr(
+        "services.agent_service.set_token_budget", lambda aid, lim: seen.update({"budget": (aid, lim)}) or 60000
+    )
+    assert (
+        client.post(
+            "/api/internal/agents/5/skills/add", headers=_comms(keys), json={"skill_name": "code", "level": 4}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/internal/agents/5/skills/remove", headers=_comms(keys), json={"skill_name": "code"}
+        ).status_code
+        == 200
+    )
+    rb = client.post("/api/internal/agents/5/budget", headers=_comms(keys), json={"token_limit_per_day": 60000})
+    assert rb.status_code == 200 and rb.get_json()["token_limit_per_day"] == 60000
+    assert seen == {"add": (5, "code", 4), "rm": (5, "code"), "budget": (5, 60000)}
+
+
+def test_agents_budget_no_row_is_404(client, keys, monkeypatch):
+    monkeypatch.setattr("services.agent_service.set_token_budget", lambda aid, lim: None)
+    r = client.post("/api/internal/agents/999/budget", headers=_comms(keys), json={"token_limit_per_day": 60000})
+    assert r.status_code == 404

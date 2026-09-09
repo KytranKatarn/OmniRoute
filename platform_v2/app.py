@@ -5710,6 +5710,157 @@ def api_internal_invokable_skills():
         return jsonify({"success": False, "error": "registry build failed"}), 500
 
 
+# ---------------------------------------------------------------------------
+# Phase 2 (#6663): the cockpit agent-lifecycle command surface. All writes go
+# through agent_service (single-writer), gated by the agents:manage scope
+# (granted to archie_comms). create is Tier-2 approval-gated (propose_hire).
+# ---------------------------------------------------------------------------
+@app.route("/api/internal/agents/create", methods=["POST"])
+@require_internal_scope("agents:manage")
+def api_internal_agents_create():
+    """Cockpit -> propose a NEW agent. Tier-2: routes through the create_agent
+    approval queue (propose_hire), NEVER a direct create. Returns the pending
+    approval so the owner approves/denies it."""
+    from services.agent_service import propose_hire
+
+    data = request.get_json(silent=True) or {}
+    required = ("name", "display_name", "department", "model", "capability", "reason")
+    missing = [k for k in required if not (data.get(k) or "").strip()]
+    if missing:
+        return jsonify({"success": False, "error": f"missing required: {', '.join(missing)}"}), 400
+    try:
+        res = propose_hire(
+            name=data["name"].strip(),
+            display_name=data["display_name"].strip(),
+            department=data["department"].strip(),
+            model=data["model"].strip(),
+            capability=data["capability"].strip(),
+            reason=data["reason"].strip(),
+            requested_by=f"cockpit:{getattr(g, 'internal_caller', 'archie_comms')}",
+            suggested_skills=data.get("suggested_skills") or None,
+        )
+        return jsonify({"success": True, "tier2": True, **(res if isinstance(res, dict) else {"result": res})})
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
+    except Exception as exc:
+        logger.error("api_internal_agents_create failed: %s", exc)
+        return jsonify({"success": False, "error": "create proposal failed"}), 500
+
+
+@app.route("/api/internal/agents/<int:agent_id>/assign", methods=["POST"])
+@require_internal_scope("agents:manage")
+def api_internal_agents_assign(agent_id):
+    """Cockpit -> assign an agent to a department (floor auto-derives), via
+    agent_service.update_agent (single-writer). Department is the agent's real
+    assignment field; 'station' is a display/node concept, not an `agents`
+    column (update_agent has no column allowlist, so a bogus field would 500)."""
+    from services.agent_service import update_agent
+
+    data = request.get_json(silent=True) or {}
+    department = (data.get("department") or "").strip()
+    if not department:
+        return jsonify({"success": False, "error": "department required"}), 400
+    try:
+        update_agent(agent_id, department=department)
+        return jsonify({"success": True, "agent_id": agent_id, "assigned": {"department": department}})
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
+    except Exception as exc:
+        logger.error("api_internal_agents_assign failed: %s", exc)
+        return jsonify({"success": False, "error": "assign failed"}), 500
+
+
+@app.route("/api/internal/agents/<int:agent_id>/shift-state", methods=["POST"])
+@require_internal_scope("agents:manage")
+def api_internal_agents_shift_state(agent_id):
+    """Cockpit -> change shift state. Non-terminal states go through
+    transition_shift_state (rotation log); the TERMINAL 'decommissioned' goes
+    through update_agent (it is a lifecycle end-state, not a shift)."""
+    from services.agent_service import VALID_SHIFT_STATES, transition_shift_state, update_agent
+
+    data = request.get_json(silent=True) or {}
+    state = (data.get("state") or "").strip()
+    reason = (data.get("reason") or "cockpit").strip()
+    if state not in VALID_SHIFT_STATES:
+        return jsonify({"success": False, "error": f"invalid state {state!r}", "valid": list(VALID_SHIFT_STATES)}), 400
+    try:
+        if state == "decommissioned":
+            update_agent(agent_id, shift_state="decommissioned")
+            return jsonify({"success": True, "agent_id": agent_id, "state": state, "terminal": True})
+        res = transition_shift_state(
+            agent_id, state, reason=reason, changed_by=f"cockpit:{getattr(g, 'internal_caller', 'archie_comms')}"
+        )
+        return jsonify({"agent_id": agent_id, **res}), (200 if res.get("success") else 400)
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
+    except Exception as exc:
+        logger.error("api_internal_agents_shift_state failed: %s", exc)
+        return jsonify({"success": False, "error": "shift-state change failed"}), 500
+
+
+@app.route("/api/internal/agents/<int:agent_id>/skills/add", methods=["POST"])
+@require_internal_scope("agents:manage")
+def api_internal_agents_skill_add(agent_id):
+    """Cockpit -> add/raise a skill (agent_service.add_skill)."""
+    from services.agent_service import add_skill
+
+    data = request.get_json(silent=True) or {}
+    skill = (data.get("skill_name") or "").strip()
+    if not skill:
+        return jsonify({"success": False, "error": "skill_name required"}), 400
+    try:
+        level = int(data.get("level") or 1)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "level must be an integer"}), 400
+    category = (data.get("category") or "general").strip()
+    try:
+        add_skill(agent_id, skill, level=level, category=category)
+        return jsonify({"success": True, "agent_id": agent_id, "skill_name": skill, "level": level})
+    except Exception as exc:
+        logger.error("api_internal_agents_skill_add failed: %s", exc)
+        return jsonify({"success": False, "error": "add skill failed"}), 500
+
+
+@app.route("/api/internal/agents/<int:agent_id>/skills/remove", methods=["POST"])
+@require_internal_scope("agents:manage")
+def api_internal_agents_skill_remove(agent_id):
+    """Cockpit -> remove a skill (agent_service.remove_skill)."""
+    from services.agent_service import remove_skill
+
+    data = request.get_json(silent=True) or {}
+    skill = (data.get("skill_name") or "").strip()
+    if not skill:
+        return jsonify({"success": False, "error": "skill_name required"}), 400
+    try:
+        removed = remove_skill(agent_id, skill)
+        return jsonify({"success": True, "agent_id": agent_id, "skill_name": skill, "removed": removed})
+    except Exception as exc:
+        logger.error("api_internal_agents_skill_remove failed: %s", exc)
+        return jsonify({"success": False, "error": "remove skill failed"}), 500
+
+
+@app.route("/api/internal/agents/<int:agent_id>/budget", methods=["POST"])
+@require_internal_scope("agents:manage")
+def api_internal_agents_budget(agent_id):
+    """Cockpit -> set an agent's daily token ceiling (agent_service.set_token_budget,
+    floored at 50k). 404 if the agent has no budget row yet."""
+    from services.agent_service import set_token_budget
+
+    data = request.get_json(silent=True) or {}
+    if data.get("token_limit_per_day") is None:
+        return jsonify({"success": False, "error": "token_limit_per_day required"}), 400
+    try:
+        applied = set_token_budget(agent_id, data["token_limit_per_day"])
+    except ValueError as ve:
+        return jsonify({"success": False, "error": str(ve)}), 400
+    except Exception as exc:
+        logger.error("api_internal_agents_budget failed: %s", exc)
+        return jsonify({"success": False, "error": "set budget failed"}), 500
+    if applied is None:
+        return jsonify({"success": False, "error": "agent has no budget row"}), 404
+    return jsonify({"success": True, "agent_id": agent_id, "token_limit_per_day": applied})
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @require_internal_scope("delegation")
 def api_internal_delegation_submit():

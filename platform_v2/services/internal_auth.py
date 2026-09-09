@@ -85,13 +85,14 @@ SCOPES: frozenset[str] = frozenset(
         "fleet",
         "notify",
         "compliance",
+        "agents:manage",  # cockpit agent lifecycle: create(Tier-2)/assign/shift-state/skills/budget (#6663 Phase 2)
     }
 )
 
 CALLER_SCOPES: dict[str, frozenset[str]] = {
     # comms IS the owner's chat/Telegram approval surface — approve/deny is legitimate there.
     "archie_comms": frozenset(
-        {"dhq:chat", "coo", "mail", "approvals:read", "approvals:decide", "delegation", "repair:read"}
+        {"dhq:chat", "coo", "mail", "approvals:read", "approvals:decide", "delegation", "repair:read", "agents:manage"}
     ),
     # the engine builds and reports; it never approves, never touches sessions or mail.
     "archie_engine": frozenset({"dhq:chat", "delegation", "engine", "repair:read", "repair:write"}),

@@ -7,9 +7,9 @@
 
 # Master Module Capability Index
 
-**Generated**: 2026-09-05 14:14:45 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
+**Generated**: 2026-09-09 12:39:09 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
 
-**41 modules registered** — 36 enabled, 5 disabled/coming-soon, 0 absent. 35 carry curated notes.
+**42 modules registered** — 37 enabled, 5 disabled/coming-soon, 0 absent. 35 carry curated notes.
 
 > This file is REGENERATED. If it disagrees with the platform, the platform is right and this file is stale — check the Generated stamp above before trusting it. It exists because the hand-maintained predecessor documented two tables that do not exist (`backups`, `backup_locks`), which left backups unmonitored while appearing monitored, and listed three modules as writable by an automated agent that never were.
 
@@ -142,6 +142,7 @@
 - **Code Health self-healing loop** (PRs #1401/1402/1403, KB #270273): scans async via `bridge_jobs` (`POST scan|backfill-git|audit` [no module=audit-all, scans tree once] → poll `GET /api/code-health/job-status/<id>`; advisory-lock dedup). `reverify_deployed_findings()` (`audit_pipeline.py`) re-audits deployed proposals → flips metadata.reverified fixed/still_open (auto after audit-all; manual `POST /api/code-health/reverify`). `GET /api/code-health/orchestration` = per-department ownership (issue→capability→dept; vulnerability_scan→V.I.G.I.L.) + open/deployed/fixed/still_open. UI: Department Orchestration panel (`#chOrchestration`). **Drain self-maintenance (cont-182, PRs #2333/#2334, ADR-015):** the 3h `code_health_backlog_drain_job` (`dispatch_audit_proposals`) now (a) **auto-cleans unfixable-path proposals** — `dispatch_proposal_fix` archives on unresolvable/synthetic source, and the `archive_unfixable_audit_proposals` sweep (`archived_by='scope_filter_4940'`, reversible) runs at the top of every drain cycle (it had NO scheduled caller before — ran only by hand); and (b) **class-scopes**: `_AUTO_FIX_EXCLUDED_ISSUE_CODES=(SQL_INJECTION_RISK, LARGE_FILE)` are excluded (detectors over-flag / not find/replace-able → left `approved` for human review, tuning task #4990) while `_AUTO_FIX_PRIORITY_ISSUE_CODES` (mechanical F-codes/imports/missing-symbols) drain FIRST. Deploy stays human-gated. ⚠️ NEVER bulk-ship `ready_for_review` self-heal fixes without reading each diff — SQL/DIRECT_OLLAMA fix-gen produced 100% garbage (KB mistake #282665). Coder ref KB #282666; Lever 2 (find_not_located) = measure-then-decide #4989.
 - **Integrations**: MCP `store_memory`/`search_knowledge`/`recall_context`/`create_task`/`log_decision`. Repair Bay Code Health: findings → proposals → deploy → re-verify (loop closed, PR #1402).
 - **Audit**: KB 256840 · **Rules**: `consciousness.md`, `project-knowledge.md`
+- **Token Economy — ONE cloud classifier (2026-09-09, PRs #3256/#3257/#3258, ADR-037, KB #311791)**: the `token-buckets` and `token-usage` endpoints share `services/token_provenance.py` — an ALLOWLIST of provably-local providers (ollama, fleet_node, local, llamacpp, comfyui, ollama_vision, comfyui_deferred, prefix `starship:`), `:cloud`/`-cloud` model tags external, everything else CLOUD by default; **`worker_type` is never consulted** (the older "cloud/CLI→contract agentless" phrasing above described the pre-#3257 Buckets rule, which put 637,900 ollama_cloud tokens in the agent-local bucket). Estimated backfill (`request_metadata.token_source`) is a SIXTH bucket (`estimated`, violet) excluded from the live cloud/local split on BOTH panels; payloads carry `estimated_tokens`, and `local_tokens`/`pct_local` describe the live split only. Cost: series query ~4x slower at range=90 (5.4s→19.6s EA), cache is per gunicorn worker — precomputed flags tracked as #6658. Tests: `tests/test_token_provenance.py` (seeds `archie_test`; prod drift pins opt-in `ARCHIE_PROD_RO_PINS=1`, read-only). Adding a LOCAL write site = add it to `LOCAL_PROVIDERS` AND the frozen `EXPECTED_LOCAL` in the test.
 
 ### C.R.E.E.D. Command — `creed_command`
 
@@ -430,7 +431,15 @@
 - **Notes** (curated, survives regeneration): - **Capability**: 691 LOC · 12 routes · River agent (Wellness Therapist). Crisis detection → 988/Crisis Text Line, mood companion SERENE, grounding exercises (4-7-8, body scan, 5-4-3-2-1).
 - **Audit**: KB 256846
 
-## Creative Studios (3)
+## Creative Studios (4)
+
+### Code Builder — `code_builder`
+
+- **Status**: ✅ enabled · **Route**: `/tools/code-builder` · **Version**: 1.0
+- **Description**: Build and edit code on our own machine · Launches the A.R.C.H.I.E. cockpit at archie.kytranempowerment.com
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://archie.kytranempowerment.com
+- **Tags**: code, builder, archie, standalone, product, code-builder, creative-studios
 
 ### Game Studio — `game_studio`
 
@@ -592,6 +601,21 @@
   file-scanners fail on it). Deferred: 7 hardcoded paywall CTAs on the same page -- touches
   checkout, filed as task #6309 with an owner-decision flag (the full panel offers
   subscribe+signin as two actions; paywall() collapses to one).
+
+- **DB separation from the Hub — COMPLETE (2026-09-05, decision #1077).** what-the-fact.com/.tech
+  now run against a dedicated `wtf-postgres` Postgres instance on Citadel (same docker-compose
+  project as wtf-consumer/wtf-tech/wtf-ingest/wtf-ingest-api), not the hub's `archie_database`.
+  All 8 schemas moved together (wtf/parliament/shared/market_watch/legal_watch/gov_watch/securities/public)
+  — investigation confirmed WTF is the sole direct-DB owner of all of them; the 4 external Watch
+  products only reach `shared` via HTTP (wtf-ingest-api), never a DB connection, so nothing else
+  broke. `WTF_DATABASE_URL` now points at `wtf-postgres` (Docker service-name DNS), not
+  `100.64.0.4`. Old hub `wtf` database kept intact for a 14-day rollback window (~2026-09-19,
+  task #6603). Coder detail + every gotcha hit (read_only breaks initdb, missing cross-role
+  grants, pg_trgm not enabled) in the vault_note "WTF now runs on its own database" and
+  mistake_learned #305494 (a secrets-file incident during the cutover). A separate
+  `KytranKatarn/kytran-what-the-fact` repo also exists now (git subtree, full history) but is
+  a history mirror only — the deployed CODE source is still `archie-platform`'s `what-the-fact/`,
+  unchanged by this migration.
 
 ### WTF Hub — `wtf_hub`
 

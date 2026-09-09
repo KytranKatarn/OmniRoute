@@ -196,3 +196,22 @@ def test_every_cloud_budget_gate_is_paired_with_an_allowlist_gate():
         f"{budget_calls} cloud budget gates but only {allow_calls} allowlist gates — "
         "a cloud dispatch path can bypass the sovereignty check"
     )
+
+
+def test_media_studio_contractor_path_is_sovereignty_gated():
+    """Choke point 4 (#6657/#6653): the Media Studio cloud IMAGE path reaches
+    external_providers.generate_media OUTSIDE the three dispatcher choke points.
+    It was ungated. This pins the gate to the same file as the escape: every
+    generate_media() call must be preceded by the allowlist + budget + master
+    toggle checks, so a future cloud image/video path cannot ship ungated.
+    """
+    import pathlib
+
+    src = (
+        pathlib.Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "services" / "generation_service.py"
+    ).read_text(encoding="utf-8")
+    assert "generate_media(" in src, "the contractor cloud call moved — re-point this test"
+    # the three sovereignty checks must all be present in the file that egresses
+    assert "_cloud_capability_allowed(" in src, "Media Studio cloud path lost its allowlist gate"
+    assert "_cloud_budget_ok(" in src, "Media Studio cloud path lost its budget gate"
+    assert "_get_escalation_mode(" in src, "Media Studio cloud path lost its master-toggle gate"

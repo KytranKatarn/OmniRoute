@@ -801,6 +801,38 @@ MODULES: List[ModuleDefinition] = [
             "creative-studios",
         ],
     ),
+    # code_builder — Creative Studios launch tile → archie.kytranempowerment.com,
+    # the machine's OWN build surface (the A.R.C.H.I.E. cockpit that drives the
+    # engine to write and edit code). No in-platform blueprint; opens the comms
+    # cockpit in a new tab. Owner directive 2026-09-09: the studios (Site Builder,
+    # Game Studio, Media Studio) build with the cloud token systems, and the
+    # fourth tile here is the code builder on our machine. Its LAYOUT is the
+    # cockpit UI (master-command build order 4), designed separately.
+    ModuleDefinition(
+        id="code_builder",
+        name="Code Builder",
+        description="Build and edit code on our own machine<br>Launches the A.R.C.H.I.E. cockpit at archie.kytranempowerment.com",
+        icon="terminal",
+        category=ModuleCategory.CREATIVE_STUDIOS,
+        route="/tools/code-builder",
+        external_url="https://archie.kytranempowerment.com",
+        required_permissions=[],
+        minimum_role="USER",
+        minimum_tier="staff",
+        enabled=True,
+        coming_soon=False,
+        health_check=lambda: default_health_check("code_builder"),
+        priority=4,
+        tags=[
+            "code",
+            "builder",
+            "archie",
+            "standalone",
+            "product",
+            "code-builder",
+            "creative-studios",
+        ],
+    ),
     ModuleDefinition(
         id="game_studio",
         name="Game Studio",

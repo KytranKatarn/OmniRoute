@@ -584,6 +584,36 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
 
     logger.info("[Contractor] Routing queue #%s to provider=%s", queue_id, provider_key)
 
+    # #6657 choke point 4 (#6653 sovereignty): the Media Studio cloud image path
+    # is a FOURTH cloud egress outside the three dispatcher choke points — it
+    # reached external_providers.generate_media with NO allowlist / budget /
+    # master-toggle check. Gate it with the SAME three the dispatcher applies to
+    # its text cloud dispatches. The studios' image capabilities (image_generation,
+    # video_generation) are on the allowlist, so legitimate cloud generation is
+    # unchanged; this only refuses cloud when the master Cloud toggle is off
+    # (escalation_mode local_only), the capability is not allowlisted, or the
+    # weekly free budget is spent. Fail-CLOSED: any error → stay local.
+    try:
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+        _media_type = (params.get("media_type") or "image").lower()
+        _cap = MEDIA_TYPE_CAPABILITIES.get(_media_type, "image_generation")
+        _disp = get_dispatcher()
+        _reason = None
+        if _disp._get_escalation_mode() == "local_only":
+            _reason = "cloud AI is off (escalation_mode local_only) — enable it in the Contractors tab"
+        elif not _disp._cloud_capability_allowed(_cap):
+            _reason = f"capability '{_cap}' is not on the cloud allowlist"
+        elif not _disp._cloud_budget_ok(provider_key, _cap):
+            _reason = f"cloud provider {provider_key} is over the weekly free budget"
+    except Exception as _gate_err:
+        logger.warning("[Contractor] sovereignty gate error (fail-closed): %s", _gate_err)
+        _reason = "cloud sovereignty gate error — staying local"
+    if _reason:
+        logger.info("[Contractor] queue #%s refused: %s", queue_id, _reason)
+        on_generation_failed(queue_id, f"cloud refused: {_reason}")
+        return None
+
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "UPDATE media_generation_queue SET status = 'generating', started_at = NOW() WHERE id = %s",

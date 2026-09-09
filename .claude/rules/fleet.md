@@ -207,6 +207,16 @@ this before touching `remote_nodes.extra_capabilities` or enrolling new hardware
 
 ### 1. MEASURE FIRST — a node is judged by its success rate, never by one log line
 
+🔴 **EXCLUDE ADMISSION-GATE SHEDS OR THE NUMBER IS MEANINGLESS.** When the hub's
+in-flight cap is reached the dispatcher REFUSES the dispatch and writes a `success=false`
+row carrying `model_used` — with **0 tokens and no inference**. The work never reached the
+model. Counting those rows measures the GATE, not the model or the node. Measured 2026-09-08:
+`gemma3:12b` read **50%** over 8 days and **94%** once the 2,188 shed rows (46% of its
+dispatches) were removed. Both queries below carry the filter; keep it.
+
+The predicate is `services/infra_failure_filter.not_backpressure_sql()` — **that module is
+the source of truth**, and the SQL below is its output. If they ever disagree, the module wins.
+
 ```sql
 -- per-node health, last 3h (do this BEFORE and AFTER any change)
 SELECT COALESCE(r.node_name,'hub') AS node, count(*) runs,
@@ -215,6 +225,10 @@ SELECT COALESCE(r.node_name,'hub') AS node, count(*) runs,
   FROM task_execution_log t LEFT JOIN remote_nodes r ON r.id=t.node_used_id
  WHERE t.created_at > now()-interval '3 hours'
    AND t.model_used IS NOT NULL AND t.model_used <> 'bridge-managed'
+   AND NOT (NOT t.success AND (t.error_message ILIKE '%hub saturated%'
+         OR t.error_message ILIKE '%admission cap%'
+         OR t.error_message ILIKE '%shed to relieve%'
+         OR t.error_message ILIKE '%backpressure%'))
  GROUP BY 1 ORDER BY runs DESC;
 
 -- per-node × per-model, hour by hour (the one that actually settles it)
@@ -222,8 +236,28 @@ SELECT date_trunc('hour',t.created_at) hr, t.model_used, count(*) runs,
        count(*) FILTER (WHERE t.success) ok, round(avg(t.duration_ms)/1000.0,1) avg_s
   FROM task_execution_log t JOIN remote_nodes r ON r.id=t.node_used_id
  WHERE r.node_name ILIKE '%<node>%' AND t.created_at > now()-interval '24 hours'
+   AND NOT (NOT t.success AND (t.error_message ILIKE '%hub saturated%'
+         OR t.error_message ILIKE '%admission cap%'
+         OR t.error_message ILIKE '%shed to relieve%'
+         OR t.error_message ILIKE '%backpressure%'))
  GROUP BY 1,2 ORDER BY 1 DESC;
+
+-- Sanity companion: how much was shed? A high shed share means the number above
+-- describes a LOAD problem, and no amount of model-swapping will move it.
+SELECT model_used, count(*) dispatches,
+       count(*) FILTER (WHERE NOT success AND error_message ILIKE '%hub saturated%') shed,
+       round(100.0*count(*) FILTER (WHERE NOT success AND error_message ILIKE '%hub saturated%')
+             /count(*),0) pct_shed
+  FROM task_execution_log
+ WHERE created_at > now()-interval '7 days' AND model_used <> 'bridge-managed'
+ GROUP BY 1 ORDER BY dispatches DESC;
 ```
+
+⚠️ **A NULL `error_message` breaks the naive filter.** `NOT (error_message ~* '…')` is **NULL**
+on every successful row, and a NULL predicate drops the row from a `FILTER` clause — silently
+excluding every success and yielding impossible rates (a first cut of this analysis produced
+"1587%"). Wrap it: `COALESCE(error_message ~* '…', false)`. The `NOT (NOT success AND …)` form
+above is already NULL-safe.
 
 ⚠️ **A cold-load line is a MOMENT; a success rate is a FACT.** `model_dispatch: … still
 cold-loading on <node>` is NORMAL for a node that passes `can_node_run_model` — it is not
@@ -356,10 +390,47 @@ predicted. **If you cannot state the prediction in advance, you are not ready to
 
 ### 7. Model choice is a separate question from placement
 
-`gemma3:12b` measured **56% fleet-wide** (hub 35%, USS-246 60%) — bad *everywhere*, because
-nothing in this fleet can GPU-fit its 15.6GB. That is a MODEL-FIT problem for the owner to decide
-(retire it / move consumers to `qwen2.5:7b` at 90.3%), **not** something to fix by shuffling caps.
-Placement fixes where work runs; it cannot make an oversized model fit the hardware.
+Placement fixes where work runs; it cannot make an oversized model fit the hardware. But
+answer it with a number that measures the MODEL.
+
+🔴 **CORRECTED 2026-09-08 (#6647).** This section read: *"`gemma3:12b` measured **56%
+fleet-wide** (hub 35%, USS-246 60%) — bad everywhere … retire it / move consumers to
+`qwen2.5:7b` at 90.3%."* **Every one of those figures was an admission-gate artifact**, and the
+blanket conclusion drawn from them does not hold. Re-measured over 8 days with sheds excluded:
+
+| model | dispatches | shed by gate | reported | **when it actually ran** |
+|---|---|---|---|---|
+| `qwen2.5:7b`   | 28,458 |  8% | 83% | 91% |
+| `qwen2.5:1.5b` | 26,278 |  0% | 92% | 92% |
+| `mistral:7b`   | 15,343 | 18% | 76% | 93% |
+| `gemma3:12b`   |  4,719 | **46%** | **50%** | **94%** |
+| `llama3.2:3b`  |  1,153 |  0% | 94% | 94% |
+
+The reported spread (50–94%) is **entirely explained by shed rate**; the true spread is 91–94%,
+i.e. noise. `gemma3:12b` looked worst only because it is shed most — it is used almost solely by
+the `translate` backlog, which fires bursts far above `dispatch:hub_inflight_max` (on 2026-09-05:
+1,496 translate dispatches, ~1,450 shed in ~3s each → the "3% day" that produced the 34% headline).
+
+⚠️ **A fleet-wide average across capabilities is not a model-quality measurement either**, because
+capabilities differ wildly in difficulty and deadline. Compare the SAME capability. Over 30 days
+only two have both models at n>20:
+
+| capability | `gemma3:12b` | `qwen2.5:7b` |
+|---|---|---|
+| `bias_quick` | 87% (n=30) | 91% (n=361) |
+| **`fact_check`** | **62%** (n=136) | **93%** (n=57,139) |
+
+**So the retire-from-`fact_check` recommendation SURVIVES — but for a different, narrower reason
+than the one this file gave.** gemma3's fact_check failures are **100% timeouts, avg 572s** against
+a 300s deadline: it is too SLOW for that wall, not wrong. Where it is fast enough it is excellent —
+`translate` **99–100%** (1,085 runs over 2026-09-07/08) and `beat_classification` **96%** (n=480).
+
+**Current guidance**: move `fact_check` off `gemma3:12b`; **keep it for `translate` and
+`beat_classification`**. Retiring the model outright would move its best-performing workloads onto
+a model that is no better at them, and would not reduce shedding by a single dispatch — the gate
+sheds whatever is in flight, regardless of which model is behind it. If shedding is the concern,
+the lever is the producer's burst rate or the cap, not the model (see #5903 — and note the shed
+message says "**7B** in-flight admission cap" while shedding a 12B, so the label misleads too).
 
 ---
 

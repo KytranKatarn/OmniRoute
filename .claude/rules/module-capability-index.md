@@ -7,7 +7,7 @@
 
 # Master Module Capability Index
 
-**Generated**: 2026-09-09 12:39:09 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
+**Generated**: 2026-09-10 08:46:04 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
 
 **42 modules registered** — 37 enabled, 5 disabled/coming-soon, 0 absent. 35 carry curated notes.
 
@@ -438,7 +438,7 @@
 - **Status**: ✅ enabled · **Route**: `/tools/code-builder` · **Version**: 1.0
 - **Description**: Build and edit code on our own machine · Launches the A.R.C.H.I.E. cockpit at archie.kytranempowerment.com
 - **Access**: role `USER` · tier `staff` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://archie.kytranempowerment.com
+- **Standalone** (launch tile only — no in-platform blueprint): https://archie.kytranempowerment.com/cockpit#builder
 - **Tags**: code, builder, archie, standalone, product, code-builder, creative-studios
 
 ### Game Studio — `game_studio`

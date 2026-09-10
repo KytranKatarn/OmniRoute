@@ -5715,6 +5715,118 @@ def api_internal_invokable_skills():
 # through agent_service (single-writer), gated by the agents:manage scope
 # (granted to archie_comms). create is Tier-2 approval-gated (propose_hire).
 # ---------------------------------------------------------------------------
+# Phase 4 (#6653): cockpit READS. agents:read (archie_comms only). Reads go
+# through agent_service single-reader helpers; no SQL here.
+_AGENT_PUBLIC_FIELDS = (
+    "id",
+    "name",
+    "display_name",
+    "department",
+    "shift_state",
+    "worker_type",
+    "model",
+    "title",
+    "is_department_ai",
+    "performance_score",
+    "success_rate",
+    "last_used",
+    "bio",
+    "first_name",
+    "last_name",
+    "email",
+    "created_at",
+    "status",
+    "tier",
+    "current_grade",
+    "total_tasks_completed",
+)
+
+
+def _cockpit_json(value):
+    """JSON-safe scalars for RealDictCursor rows: datetimes → isoformat, Decimal → float."""
+    import datetime as _dt
+    import decimal as _dec
+
+    if isinstance(value, (_dt.datetime, _dt.date)):
+        if isinstance(value, datetime) and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.isoformat()
+    if isinstance(value, _dec.Decimal):
+        return float(value)
+    return value
+
+
+def _cockpit_row(row, fields=None):
+    return {k: _cockpit_json(v) for k, v in (row or {}).items() if fields is None or k in fields}
+
+
+@app.route("/api/internal/agents", methods=["GET"])
+@require_internal_scope("agents:read")
+def api_internal_agents_list():
+    """Cockpit roster page + filter facets (agent_service.list_roster / roster_facets)."""
+    from services import agent_service as svc
+
+    args = request.args
+    try:
+        limit = int(args.get("limit") or 50)
+        offset = int(args.get("offset") or 0)
+    except ValueError:
+        return jsonify({"success": False, "error": "limit and offset must be integers"}), 400
+    limit, offset = svc.clamp_roster_page(limit, offset)
+    include_dec = args.get("state") == "decommissioned" or args.get("include_decommissioned") == "1"
+    try:
+        rows, total = svc.list_roster(
+            q=(args.get("q") or "").strip() or None,
+            department=(args.get("department") or "").strip() or None,
+            shift_state=(args.get("state") or "").strip() or None,
+            worker_type=(args.get("worker_type") or "").strip() or None,
+            include_decommissioned=include_dec,
+            limit=limit,
+            offset=offset,
+        )
+        facets = svc.roster_facets(include_decommissioned=include_dec)
+    except Exception as exc:
+        logger.error("api_internal_agents_list failed: %s", exc)
+        return jsonify({"success": False, "error": "roster read failed"}), 500
+    return jsonify(
+        {
+            "success": True,
+            "agents": [_cockpit_row(r) for r in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "facets": facets,
+        }
+    )
+
+
+@app.route("/api/internal/agents/<int:agent_id>", methods=["GET"])
+@require_internal_scope("agents:read")
+def api_internal_agents_detail(agent_id):
+    """One agent + skills + budget + recent work for the cockpit agent card."""
+    from services import agent_service as svc
+
+    try:
+        agent = svc.get_agent(agent_id)
+        if not agent:
+            return jsonify({"success": False, "error": "agent not found"}), 404
+        skills = svc.get_agent_skills(agent_id)
+        budget = svc.get_agent_budget(agent_id)
+        recent = svc.get_agent_recent_work(agent_id, limit=5)
+    except Exception as exc:
+        logger.error("api_internal_agents_detail failed: %s", exc)
+        return jsonify({"success": False, "error": "agent read failed"}), 500
+    return jsonify(
+        {
+            "success": True,
+            "agent": _cockpit_row(agent, _AGENT_PUBLIC_FIELDS),
+            "skills": [_cockpit_row(s) for s in skills],
+            "budget": _cockpit_row(budget) if budget else None,
+            "recent_work": [_cockpit_row(w) for w in recent],
+        }
+    )
+
+
 @app.route("/api/internal/agents/create", methods=["POST"])
 @require_internal_scope("agents:manage")
 def api_internal_agents_create():
@@ -5974,6 +6086,82 @@ def api_internal_cloud_code_status(job_id):
             "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
         }
     )
+
+
+@app.route("/api/internal/cloud-code/runs", methods=["GET"])
+@require_internal_scope("cloud:code")
+def api_internal_cloud_code_runs():
+    """Cockpit job history (newest first). Prompt text and the full response are NOT
+    included — the per-job status route has them."""
+    from database import get_db_cursor
+    from services import cloud_code_lane as lane
+
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 20), 100))
+    except ValueError:
+        return jsonify({"success": False, "error": "limit must be an integer"}), 400
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, status, metadata, error_message, created_at, completed_at FROM bridge_jobs "
+            "WHERE job_type = %s ORDER BY id DESC LIMIT %s",
+            (lane.JOB_TYPE, limit),
+        )
+        rows = cur.fetchall()
+    runs = []
+    for row in rows:
+        meta = row["metadata"] or {}
+        res = meta.get("result") or None
+        runs.append(
+            {
+                "job_id": row["id"],
+                "status": row["status"],
+                "approval_id": meta.get("approval_id"),
+                "model": meta.get("model"),
+                "provider": meta.get("provider"),
+                "error": row["error_message"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
+                "result": (
+                    {
+                        k: res.get(k)
+                        for k in ("model_used", "served_model_resolved", "prompt_tokens", "completion_tokens", "error")
+                    }
+                    if isinstance(res, dict)
+                    else None
+                ),
+            }
+        )
+    return jsonify({"success": True, "runs": runs})
+
+
+@app.route("/api/internal/cloud-code/providers", methods=["GET"])
+@require_internal_scope("cloud:code")
+def api_internal_cloud_code_providers():
+    """Providers the Code Builder may target: active, text_chat, NOT cloud-proxy rows
+    (is_cloud_proxy=true routes via call_ollama_cloud, not the gateway)."""
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT provider_key, display_name, default_model, models, is_active FROM contractor_providers "
+            "WHERE is_active = true AND COALESCE(is_cloud_proxy, false) = false AND capabilities ? 'text_chat' "
+            "ORDER BY tier_position, provider_key"
+        )
+        rows = cur.fetchall()
+    providers = []
+    for row in rows:
+        models = row["models"] or []
+        names = [m.get("name") if isinstance(m, dict) else str(m) for m in models]
+        providers.append(
+            {
+                "provider_key": row["provider_key"],
+                "display_name": row["display_name"] or row["provider_key"],
+                "default_model": row["default_model"],
+                "models": [n for n in names if n],
+                "is_active": bool(row["is_active"]),
+            }
+        )
+    return jsonify({"success": True, "providers": providers})
 
 
 @app.route("/api/internal/delegation/submit", methods=["POST"])

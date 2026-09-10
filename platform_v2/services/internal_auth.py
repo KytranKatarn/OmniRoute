@@ -87,6 +87,7 @@ SCOPES: frozenset[str] = frozenset(
         "compliance",
         "agents:manage",  # cockpit agent lifecycle: create(Tier-2)/assign/shift-state/skills/budget (#6663 Phase 2)
         "cloud:code",  # cockpit ask-first cloud CODING lane: explicit, per-call, never auto-escalation (#6653 Phase 3a)
+        "agents:read",  # cockpit roster/agent/skills/budget READS — comms only (#6653 Phase 4)
     }
 )
 
@@ -103,6 +104,7 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
             "repair:read",
             "agents:manage",
             "cloud:code",
+            "agents:read",
         }
     ),
     # the engine builds and reports; it never approves, never touches sessions or mail.

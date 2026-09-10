@@ -1185,6 +1185,128 @@ def set_token_budget(agent_id, token_limit_per_day):
     return limit
 
 
+# ---------------------------------------------------------------------------
+# Cockpit READ helpers (#6653 Phase 4). Single-reader siblings of the
+# agents:manage single-writers above; app.py routes call these, never SQL.
+# ---------------------------------------------------------------------------
+_ROSTER_COLS = (
+    "a.id, a.name, a.display_name, a.department, a.shift_state, a.worker_type, a.model, "
+    "a.title, a.is_department_ai, a.performance_score, a.success_rate, a.last_used"
+)
+
+
+def _roster_where(q=None, department=None, shift_state=None, worker_type=None, include_decommissioned=False):
+    where, params = ["1=1"], []
+    if not include_decommissioned and not shift_state:
+        where.append("COALESCE(a.shift_state, '') <> 'decommissioned'")
+    if department:
+        where.append("a.department = %s")
+        params.append(department)
+    if shift_state:
+        where.append("a.shift_state = %s")
+        params.append(shift_state)
+    if worker_type:
+        where.append("a.worker_type = %s")
+        params.append(worker_type)
+    if q:
+        # Agent names are dotted acronyms (F.O.R.G.E.) — a plain ILIKE on the raw
+        # query silently misses a user typing the acronym they see on screen
+        # (#5272-shaped trap, database.md). REPLACE strips dots from the stored
+        # name so "forge"/"FORGE"/"F.O.R.G.E." all match; the raw ILIKE predicates
+        # stay so display_name (human names) and exact dotted matches still work.
+        q_nodot = q.replace(".", "")
+        where.append("(a.name ILIKE %s OR a.display_name ILIKE %s OR REPLACE(a.name, '.', '') ILIKE %s)")
+        params.extend([f"%{q}%", f"%{q}%", f"%{q_nodot}%"])
+    return " AND ".join(where), params
+
+
+def clamp_roster_page(limit, offset):
+    """The single definition of the roster page bounds — the route echoes what the
+    reader uses, so both must call this. Preserves the original inline clamp exactly:
+    a falsy/absent limit -> 50, a falsy/absent offset -> 0, limit capped to 1..200,
+    offset floored at 0. Non-integer input falls back to the defaults (the route
+    already 400s on non-ints before it gets here, so this branch is defensive only)."""
+    try:
+        limit = int(limit or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    try:
+        offset = int(offset or 0)
+    except (TypeError, ValueError):
+        offset = 0
+    return max(1, min(limit, 200)), max(0, offset)
+
+
+def list_roster(
+    q=None, department=None, shift_state=None, worker_type=None, include_decommissioned=False, limit=50, offset=0
+):
+    """Cockpit roster page: (rows, total) for one filter. Decommissioned agents are
+    excluded unless asked for by state or include_decommissioned=True."""
+    where, params = _roster_where(q, department, shift_state, worker_type, include_decommissioned)
+    limit, offset = clamp_roster_page(limit, offset)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(f"SELECT count(*) AS n FROM agents a WHERE {where}", params)
+        total = int((cur.fetchone() or {"n": 0})["n"])
+        cur.execute(
+            f"SELECT {_ROSTER_COLS} FROM agents a WHERE {where} "
+            "ORDER BY a.display_name NULLS LAST, a.name LIMIT %s OFFSET %s",
+            params + [limit, offset],
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    return rows, total
+
+
+def roster_facets(include_decommissioned=False):
+    """Counts per department and per shift_state for the cockpit filter chips."""
+    where, params = _roster_where(include_decommissioned=include_decommissioned)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            f"SELECT a.department AS k, count(*) AS n FROM agents a WHERE {where} GROUP BY a.department ORDER BY n DESC",
+            params,
+        )
+        departments = {r["k"]: int(r["n"]) for r in cur.fetchall() if r["k"]}
+        cur.execute(
+            f"SELECT a.shift_state AS k, count(*) AS n FROM agents a WHERE {where} GROUP BY a.shift_state ORDER BY n DESC",
+            params,
+        )
+        states = {r["k"]: int(r["n"]) for r in cur.fetchall() if r["k"]}
+    return {"departments": departments, "states": states}
+
+
+def get_agent_skills(agent_id):
+    """Skills for one agent, highest proficiency first. Read-only (writes: add_skill/remove_skill)."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT skill_name, skill_category, proficiency_level, can_escalate_to FROM agent_skills "
+            "WHERE agent_id = %s ORDER BY proficiency_level DESC, skill_name",
+            (agent_id,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_agent_budget(agent_id):
+    """The agent_budgets row for the cockpit budget card, or None (write: set_token_budget)."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT token_limit_per_day, tokens_used_today, task_queue_limit, current_task_count, token_reset_at "
+            "FROM agent_budgets WHERE agent_id = %s",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def get_agent_recent_work(agent_id, limit=5):
+    """Last N task_execution_log rows for one agent (cockpit 'Recent work')."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, capability, model_used, provider, success, duration_ms, created_at "
+            "FROM task_execution_log WHERE agent_id = %s ORDER BY id DESC LIMIT %s",
+            (agent_id, int(limit)),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
 def update_skill_from_benchmark(agent_id, skill_name, score):
     """Update skill level from benchmark score (0.0-1.0). Auto-levels 1-5."""
     level = max(1, min(5, int(score * 5) + 1))

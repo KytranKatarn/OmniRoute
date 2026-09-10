@@ -17,6 +17,7 @@ Runs in-container (needs /app/app.py):
 
 import logging
 import os
+from datetime import datetime, timezone
 
 import pytest
 
@@ -43,6 +44,7 @@ PROBES = {
     "fleet": ("GET", "/api/internal/fleet-gpu-load"),
     "notify": ("POST", "/api/internal/notify"),
     "cloud:code": ("GET", "/api/internal/cloud-code/run/0"),
+    "agents:read": ("GET", "/api/internal/agents"),
 }
 
 
@@ -101,7 +103,7 @@ def test_every_internal_route_is_scoped(app):
             if rule.endpoint.split(".")[-1] not in ia._SCOPED_ENDPOINTS:
                 unscoped.append(f"{rule.rule} -> {rule.endpoint}")
     assert not unscoped, "internal routes without require_internal_scope:\n" + "\n".join(unscoped)
-    assert len([r for r in app.url_map.iter_rules() if r.rule.startswith("/api/internal/")]) >= 44
+    assert len([r for r in app.url_map.iter_rules() if r.rule.startswith("/api/internal/")]) >= 48
 
 
 # ── the gate, through the real Flask routes ──────────────────────────────────
@@ -469,3 +471,158 @@ def test_cloud_code_status_returns_the_job(client, keys, monkeypatch):
     assert (
         j["job_id"] == 41 and j["status"] == "completed" and j["approval_id"] == 77 and j["result"] == {"success": True}
     )
+
+
+# ---- Phase 4 (#6653 cockpit UI): the agents:read scope ------------------------------
+
+
+def test_agents_read_scope_exists_and_is_granted_to_comms_only():
+    assert "agents:read" in ia.SCOPES
+    holders = [c for c, s in ia.CALLER_SCOPES.items() if "agents:read" in s]
+    assert holders == ["archie_comms"], holders
+
+
+def test_agents_list_returns_roster_and_facets(client, keys, monkeypatch):
+    import services.agent_service as svc
+
+    seen = {}
+
+    def fake_list_roster(**kw):
+        seen.update(kw)
+        return (
+            [
+                {
+                    "id": 12,
+                    "name": "F.O.R.G.E.",
+                    "display_name": "F.O.R.G.E.",
+                    "department": "Engineering & Technology",
+                    "shift_state": "active",
+                    "worker_type": "ai",
+                    "model": "qwen2.5:7b",
+                    "title": "Director",
+                    "is_department_ai": True,
+                    "performance_score": 88.0,
+                    "success_rate": 94.2,
+                    "last_used": None,
+                }
+            ],
+            1,
+        )
+
+    monkeypatch.setattr(svc, "list_roster", fake_list_roster)
+    monkeypatch.setattr(
+        svc,
+        "roster_facets",
+        lambda include_decommissioned=False: {"departments": {"Engineering & Technology": 1}, "states": {"active": 1}},
+    )
+    r = client.get(
+        "/api/internal/agents?q=forge&department=Engineering%20%26%20Technology&limit=10&offset=0", headers=_comms(keys)
+    )
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["total"] == 1 and body["agents"][0]["id"] == 12 and body["facets"]["states"] == {"active": 1}
+    assert seen["q"] == "forge" and seen["department"] == "Engineering & Technology" and seen["limit"] == 10
+
+
+def test_agents_list_is_403_for_the_engine_and_401_without_a_key(client, keys):
+    assert client.get("/api/internal/agents", headers=_bearer(keys["archie_engine"])).status_code == 403
+    assert client.get("/api/internal/agents").status_code == 401
+
+
+def test_agents_detail_bundles_skills_budget_and_recent_work(client, keys, monkeypatch):
+    import services.agent_service as svc
+
+    monkeypatch.setattr(
+        svc,
+        "get_agent",
+        lambda agent_id: {
+            "id": agent_id,
+            "name": "F.O.R.G.E.",
+            "display_name": "F.O.R.G.E.",
+            "department": "Engineering & Technology",
+            "shift_state": "active",
+            "system_prompt": "SECRET-ish",
+            "created_at": None,
+        },
+    )
+    monkeypatch.setattr(
+        svc,
+        "get_agent_skills",
+        lambda agent_id: [
+            {"skill_name": "code", "skill_category": "engineering", "proficiency_level": 5, "can_escalate_to": None}
+        ],
+    )
+    monkeypatch.setattr(
+        svc,
+        "get_agent_budget",
+        lambda agent_id: {
+            "token_limit_per_day": 250000,
+            "tokens_used_today": 112000,
+            "task_queue_limit": 500,
+            "current_task_count": 3,
+            "token_reset_at": None,
+        },
+    )
+    monkeypatch.setattr(
+        svc,
+        "get_agent_recent_work",
+        lambda agent_id, limit=5: [
+            {
+                "id": 1,
+                "capability": "code",
+                "model_used": "qwen2.5:7b",
+                "provider": "ollama",
+                "success": True,
+                "duration_ms": 1200,
+                "created_at": None,
+            }
+        ],
+    )
+    r = client.get("/api/internal/agents/12", headers=_comms(keys))
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["agent"]["id"] == 12 and "system_prompt" not in body["agent"]
+    assert body["skills"][0]["skill_name"] == "code" and body["budget"]["token_limit_per_day"] == 250000
+    assert body["recent_work"][0]["capability"] == "code"
+
+
+def test_agents_detail_unknown_is_404(client, keys, monkeypatch):
+    import services.agent_service as svc
+
+    monkeypatch.setattr(svc, "get_agent", lambda agent_id: None)
+    r = client.get("/api/internal/agents/999999", headers=_comms(keys))
+    assert r.status_code == 404 and r.get_json()["error"] == "agent not found"
+
+
+def test_cockpit_json_marks_naive_timestamps_utc(app):
+    """Four source columns are `timestamp WITHOUT time zone`, so psycopg2 hands back
+    NAIVE datetimes; Postgres runs timezone=UTC, so a naive value IS UTC. The
+    serialiser must STAMP the offset (never shift the value) or the comms consumer
+    renders it in the browser's local zone, wrong by the UTC offset (#6653 Important 1).
+
+    Depends on the `app` fixture only to force sys.modules['app'] to the module (not the
+    /app/__init__.py package stub) so the import resolves in isolation too — no DB, no
+    request is made."""
+    from app import _cockpit_json  # noqa: PLC0415
+
+    naive = datetime(2026, 9, 10, 12, 30, 0)
+    assert _cockpit_json(naive) == "2026-09-10T12:30:00+00:00"
+
+    aware = datetime(2026, 9, 10, 12, 30, 0, tzinfo=timezone.utc)
+    assert _cockpit_json(aware) == "2026-09-10T12:30:00+00:00"  # no double-shift
+
+    assert _cockpit_json(None) is None
+
+
+def test_list_agents_echoes_clamped_paging(client, keys, monkeypatch):
+    """The route must echo the paging it ACTUALLY used, not the raw request. A caller
+    asking for 5000 rows / offset -3 is clamped to 200 / 0 by the reader, so the body
+    must say so — one shared clamp, honest echo (#6653 m1)."""
+    import services.agent_service as svc
+
+    monkeypatch.setattr(svc, "list_roster", lambda **kw: ([], 0))
+    monkeypatch.setattr(svc, "roster_facets", lambda include_decommissioned=False: {"departments": {}, "states": {}})
+    r = client.get("/api/internal/agents?limit=5000&offset=-3", headers=_comms(keys))
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["limit"] == 200 and body["offset"] == 0

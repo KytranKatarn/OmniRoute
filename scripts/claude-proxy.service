@@ -12,6 +12,17 @@ Restart=always
 RestartSec=5
 Environment=PATH=/home/kytran/.local/bin:/usr/local/bin:/usr/bin:/bin
 
+# The shared secret gating POST (see scripts/claude_proxy.py). A DEDICATED file, not the
+# platform .env: systemd would load EVERY variable in that file into a process whose whole
+# job is to shell out to `claude`, so the blast radius of a leak there is the entire
+# platform's secrets. Contents: one line, CLAUDE_PROXY_TOKEN=<secret>. Mode 0600.
+#
+# The leading `-` makes it optional ON PURPOSE. A missing file must not stop the unit:
+# the proxy still starts, still answers the GET health check every caller polls, and
+# refuses every POST with 503 (fail-closed). Refusing to start would take the health
+# check down too and look like an outage rather than a misconfiguration.
+EnvironmentFile=-/etc/claude-proxy.env
+
 NoNewPrivileges=true
 
 [Install]

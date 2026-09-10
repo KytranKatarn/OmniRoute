@@ -18,6 +18,7 @@ from urllib.error import URLError
 logger = logging.getLogger(__name__)
 
 CLAUDE_PROXY_URL = os.getenv("CLAUDE_PROXY_URL", "http://192.168.1.200:7682")
+CLAUDE_PROXY_TOKEN_HEADER = "X-Claude-Proxy-Token"
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
 REQUEST_TIMEOUT = 130
@@ -32,6 +33,21 @@ DEFAULT_SYSTEM_PROMPT = (
     "Be helpful, insightful, and collaborative. Keep responses focused "
     "and concise (2-3 paragraphs max)."
 )
+
+
+def _proxy_headers() -> dict:
+    """Headers for a proxy POST, carrying the shared secret.
+
+    A proxy POST runs the Claude CLI with permissions skipped on the host, so it is gated
+    on CLAUDE_PROXY_TOKEN (see scripts/claude_proxy.py). Read at call time, not import
+    time, so a restart is the only thing needed to pick up a rotated secret. The GET
+    health check is deliberately unauthenticated and gets no header.
+    """
+    headers = {"Content-Type": "application/json"}
+    token = os.getenv("CLAUDE_PROXY_TOKEN", "").strip()
+    if token:
+        headers[CLAUDE_PROXY_TOKEN_HEADER] = token
+    return headers
 
 
 class ClaudeBridge:
@@ -122,7 +138,7 @@ class ClaudeBridge:
             req = Request(
                 CLAUDE_PROXY_URL,
                 data=body,
-                headers={"Content-Type": "application/json"},
+                headers=_proxy_headers(),
                 method="POST",
             )
 

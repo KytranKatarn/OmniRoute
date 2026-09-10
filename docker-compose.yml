@@ -116,6 +116,11 @@ services:
       DB_USER: archie
       DB_PASSWORD_FILE: /run/secrets/db_password
       DB_PASSWORD: ""  # Cleared — use Docker secret via DB_PASSWORD_FILE
+      # Shared secret for the Claude CLI proxy on the host (:7682). A POST there runs
+      # `claude -p --dangerously-skip-permissions` as the host user, so it is gated on
+      # this header; the proxy FAILS CLOSED (503) when it is unset. Set it in BOTH .env
+      # files, then restart claude-proxy.service BEFORE these containers.
+      CLAUDE_PROXY_TOKEN: ${CLAUDE_PROXY_TOKEN}
       OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
@@ -325,6 +330,11 @@ services:
       NODE_CLIENT_DIR: /mnt/archie_brain/node_client
       ARCHIE_RUN_SCHEDULER: "1"
       ARCHIE_RUN_TELEGRAM: "0"
+      # Shared secret for the Claude CLI proxy on the host (:7682). A POST there runs
+      # `claude -p --dangerously-skip-permissions` as the host user, so it is gated on
+      # this header; the proxy FAILS CLOSED (503) when it is unset. Set it in BOTH .env
+      # files, then restart claude-proxy.service BEFORE these containers.
+      CLAUDE_PROXY_TOKEN: ${CLAUDE_PROXY_TOKEN}
       SECRET_KEY: ${SECRET_KEY}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
       FLASK_ENV: production
@@ -502,6 +512,11 @@ services:
       # cockpit's engine status/message calls over ws://archie_engine:9090.
       - ENGINE_WS_TOKEN=${ENGINE_WS_TOKEN}
       - CLAUDE_PROXY_URL=http://host.docker.internal:7682
+      # Shared secret for the Claude CLI proxy on the host (:7682). A POST there runs
+      # `claude -p --dangerously-skip-permissions` as the host user, so it is gated on
+      # this header; the proxy FAILS CLOSED (503) when it is unset. Set it in BOTH .env
+      # files, then restart claude-proxy.service BEFORE these containers.
+      - CLAUDE_PROXY_TOKEN=${CLAUDE_PROXY_TOKEN}
       - COMMS_PORT=3002
       - SECRET_KEY=${SECRET_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}

@@ -19,9 +19,25 @@ logger = logging.getLogger(__name__)
 
 # Claude proxy configuration
 CLAUDE_PROXY_URL = os.getenv("CLAUDE_PROXY_URL", "http://host.docker.internal:7682")
+CLAUDE_PROXY_TOKEN_HEADER = "X-Claude-Proxy-Token"
 TTYD_HOST = os.getenv("TTYD_HOST", "host.docker.internal")
 TTYD_PORT = int(os.getenv("TTYD_PORT", "7681"))
 REQUEST_TIMEOUT = 130  # Slightly above proxy's 120s subprocess timeout
+
+
+def _proxy_headers() -> dict:
+    """Headers for a proxy POST, carrying the shared secret.
+
+    A proxy POST runs the Claude CLI with permissions skipped on the host, so it is gated
+    on CLAUDE_PROXY_TOKEN (see scripts/claude_proxy.py). Read at call time, not import
+    time, so a restart is the only thing needed to pick up a rotated secret. The GET
+    health check is deliberately unauthenticated and gets no header.
+    """
+    headers = {"Content-Type": "application/json"}
+    token = os.getenv("CLAUDE_PROXY_TOKEN", "").strip()
+    if token:
+        headers[CLAUDE_PROXY_TOKEN_HEADER] = token
+    return headers
 
 
 class ClaudeBridge:
@@ -72,7 +88,7 @@ class ClaudeBridge:
             req = Request(
                 CLAUDE_PROXY_URL,
                 data=body,
-                headers={"Content-Type": "application/json"},
+                headers=_proxy_headers(),
                 method="POST",
             )
 

@@ -2498,9 +2498,18 @@ You can ask me to:
         # not a direct Ollama endpoint. build_options() does not apply here —
         # this uses a different payload shape (message/system_prompt, not
         # messages/options) and routes to Claude via the Max subscription proxy.
+        # The proxy runs the Claude CLI with permissions skipped on the host, so every
+        # POST carries the CLAUDE_PROXY_TOKEN shared secret (scripts/claude_proxy.py).
+        # Read at call time so a restart is all a rotated secret needs.
+        headers = {"Content-Type": "application/json"}
+        proxy_token = os.getenv("CLAUDE_PROXY_TOKEN", "").strip()
+        if proxy_token:
+            headers["X-Claude-Proxy-Token"] = proxy_token
+
         resp = requests.post(
             f"{proxy_url}/api/chat",
             json=payload,
+            headers=headers,
             timeout=130,
         )
 

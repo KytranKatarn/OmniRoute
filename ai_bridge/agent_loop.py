@@ -7420,6 +7420,18 @@ class AgentLoop:
                 logger.error(f"LinkedIn comment-like execution failed: {clike_err}")
                 return {"executed": False, "error": str(clike_err)}
 
+        elif action_type in ("cloud_code_dispatch", "cloud_comparison"):
+            # Worker-drained ask-first lanes (#6653 coding lane / #4661 A/B lane):
+            # the approval IS the deliverable — cloud_code_worker / ab_compare_worker
+            # claim their own rows once this approval resolves. Nothing to execute
+            # here; acknowledge so the drain records the human's YES as executed,
+            # never as FAILED (live proof 2026-09-09: UNHANDLED → failed → job never ran).
+            result = {
+                "executed": True,
+                "drained_by": ("cloud_code_worker" if action_type == "cloud_code_dispatch" else "ab_compare_worker"),
+            }
+            return result
+
         else:
             # #5011 — an unhandled action type is a FAILURE, not a success.
             #

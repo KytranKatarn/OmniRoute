@@ -106,3 +106,11 @@ def test_decide_worker_action():
     assert decide_worker_action("pending", 10) == "skip"
     assert decide_worker_action("pending", 90000) == "cancel"  # >24h -> expired
     assert decide_worker_action("timeout", 10) == "cancel"
+
+
+def test_decide_worker_action_accepts_executor_acknowledged_and_failed():
+    # The approval-queue drain rewrites a human's 'approved' to 'executed' once the
+    # executor branch acknowledges the row (Fix 1, #6653) — the worker must still
+    # treat that as YES. An executor failure on the row is a terminal NO.
+    assert decide_worker_action("executed", 10) == "run"
+    assert decide_worker_action("failed", 10) == "cancel"

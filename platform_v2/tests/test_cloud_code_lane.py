@@ -111,3 +111,22 @@ def test_cloud_code_dispatch_approvals_land_in_the_ship_tab():
     from tools.department_hq.services.approvals_bulk import category_of, CATEGORY_SHIP
 
     assert category_of("cloud_code_dispatch") == CATEGORY_SHIP
+
+
+def test_plan_worker_action_runs_on_executed_and_cancels_on_failed():
+    # The approval-queue drain rewrites a human's 'approved' to 'executed' once the
+    # executor acknowledges the row; the worker must still treat that as YES.
+    assert lane.plan_worker_action("pending", "executed", 0) == "run"
+    assert lane.plan_worker_action("pending", "approved", 0) == "run"
+    # An executor failure on the row is a terminal NO, not a 24h wait.
+    assert lane.plan_worker_action("pending", "failed", 0) == "cancel"
+
+
+def test_approval_executor_acknowledges_worker_drained_lanes():
+    # Structural: the executor must handle both worker-drained ask-first types
+    # BEFORE its UNHANDLED fallback, else a human's YES is recorded as FAILED.
+    src = _AGENT_LOOP_SRC.read_text(encoding="utf-8")
+    i_branch = src.find('action_type in ("cloud_code_dispatch", "cloud_comparison")')
+    i_unhandled = src.find("UNHANDLED action_type")
+    assert i_branch != -1, "no executor branch for the worker-drained lanes"
+    assert i_unhandled != -1 and i_branch < i_unhandled

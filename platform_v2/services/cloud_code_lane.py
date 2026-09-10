@@ -42,9 +42,12 @@ def plan_worker_action(job_status: str, approval_status: Optional[str], age_seco
     if job_status != "pending":
         return "skip"
     st = (approval_status or "pending").strip().lower()
-    if st == "approved":
+    # 'executed' is what the approval-queue drain writes once its executor branch
+    # acknowledges an ask-first row (see agent_loop._execute_approved_action) — it
+    # means the human said YES, not that this worker's job already ran.
+    if st in ("approved", "executed"):
         return "run"
-    if st in ("rejected", "denied", "timeout", "expired", "cancelled"):
+    if st in ("rejected", "denied", "timeout", "expired", "cancelled", "failed"):
         return "cancel"
     if age_seconds > EXPIRE_SECONDS:
         return "cancel"

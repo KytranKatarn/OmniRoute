@@ -147,9 +147,12 @@ def parse_judge_result(raw: str) -> dict:
 
 def decide_worker_action(approval_status: str, age_seconds: float) -> str:
     """Resolve a pending run's approval into an action for the worker."""
-    if approval_status == "approved":
+    # 'executed' is what the approval-queue drain writes once its executor branch
+    # acknowledges an ask-first row (see agent_loop._execute_approved_action) — it
+    # means the human said YES, not that this worker's job already ran.
+    if approval_status in ("approved", "executed"):
         return "run"
-    if approval_status in ("rejected", "timeout", "expired"):
+    if approval_status in ("rejected", "timeout", "expired", "failed"):
         return "cancel"
     if age_seconds > _EXPIRE_SECONDS:  # pending too long -> expired
         return "cancel"

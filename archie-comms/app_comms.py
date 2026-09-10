@@ -1240,9 +1240,17 @@ def api_chat_summarize(conv_id):
         return jsonify({"success": False}), 500
 
 
+# The lane this route's token may open. It MUST match the URL below: both terminal
+# proxies run one script against one table, so the proxy refuses a token whose lane does
+# not match its own, and a NULL lane is refused outright (fail-closed). Minting without
+# this makes the drawer fall back to a Basic Auth prompt.
+TERMINAL_LANE = "claude"
+TERMINAL_LANE_URL = "https://terminal.kytranempowerment.com"
+
+
 @app.route("/api/terminal/token", methods=["POST"])
 def api_terminal_token():
-    """Mint a one-time token for ttyd auth proxy access."""
+    """Mint a one-time, LANE-BOUND token for ttyd auth proxy access."""
     import secrets
     from datetime import datetime, timezone, timedelta
     from flask import session as flask_session
@@ -1260,10 +1268,10 @@ def api_terminal_token():
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 """
-                INSERT INTO terminal_auth_tokens (token, user_id, expires_at)
-                VALUES (%s, %s, %s)
+                INSERT INTO terminal_auth_tokens (token, user_id, expires_at, lane)
+                VALUES (%s, %s, %s, %s)
                 """,
-                (token, user_id, expires_at),
+                (token, user_id, expires_at, TERMINAL_LANE),
             )
     except Exception as exc:
         logger.error("api_terminal_token: DB insert failed: %s", exc)
@@ -1271,8 +1279,9 @@ def api_terminal_token():
 
     return jsonify({
         "token": token,
-        "url": f"https://terminal.kytranempowerment.com?token={token}",
+        "url": f"{TERMINAL_LANE_URL}?token={token}",
         "expires_in": 300,
+        "lane": TERMINAL_LANE,
     })
 
 

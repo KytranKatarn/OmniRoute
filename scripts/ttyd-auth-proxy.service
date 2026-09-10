@@ -16,6 +16,18 @@ Restart=always
 RestartSec=5
 Environment=PROXY_HOST=0.0.0.0
 Environment=PROXY_PORT=7681
+# Which lane this instance fronts. Both proxies run the SAME script against the SAME
+# terminal_auth_tokens table, so this is the only thing that stops a token minted for
+# the other lane from opening this one. Unset = refuse every token (fail-closed).
+Environment=PROXY_LANE=claude
+# Who may embed this terminal in an iframe. REQUIRED alongside the cookie's
+# SameSite=None: without it, any site could iframe us and the browser would attach
+# the owner's session cookie. Unset means 'none' (fail-closed).
+# QUOTED: systemd splits Environment= on whitespace, so an unquoted list silently
+# drops every origin after the first (systemd-analyze verify: "Invalid environment
+# assignment, ignoring: http://192.168.1.200:3002"). The unit would look correct
+# while the cockpit's own LAN origin was refused embedding.
+Environment="TTYD_FRAME_ANCESTORS=https://archie.kytranempowerment.com http://192.168.1.200:3002"
 Environment=TTYD_HOST=127.0.0.1
 Environment=TTYD_PORT=17681
 Environment=DB_HOST=192.168.1.200

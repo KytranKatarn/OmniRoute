@@ -8,6 +8,33 @@
   const $ = (id) => document.getElementById(id);
   const mk = (tag, cls, text) => { const el = document.createElement(tag); if (cls) el.className = cls; if (text != null) el.textContent = String(text); return el; };
 
+  // Genuinely on screen, asked of the LAYOUT — the same reasoning as workVisible() below.
+  // `hidden` alone is not it: showPane() sets hidden=true on the entry forms without removing
+  // .ck-show, and .ck-sheet.ck-show { display: flex } (0,0,2,0) beats the UA [hidden] rule, so
+  // a form can be hidden-by-attribute and painted at the same time.
+  function formOnScreen(id) { const el = $(id); return !!el && el.getClientRects().length > 0; }
+
+  // #6679 L2 — a <select> the owner is mid-way through choosing must never be rebuilt under
+  // their hands. Both entry-form dropdowns are refilled from a poll (projects every 30 s in
+  // loadWork, departments on every roster load) and a refill is textContent='' + re-append,
+  // which DISCARDS the selection while leaving every typed field intact — so the form still
+  // looks complete and submits under the FIRST option. Measured: choose project 343, wait 35 s,
+  // the select reads 270 and "Task #N created" reports success for a project the owner never
+  // picked (that is how task #6682 landed in 270).
+  // Chosen fix: skip the refill entirely while the form is on screen — the same call
+  // taskSheetBusy() already makes for the task sheet, and the honest one. Restoring the saved
+  // value instead would still have to invent a policy for "that project is gone now", and
+  // silently landing on a different option is the defect, not the cure. Stated cost: a project
+  // or department created while the form is open does not join the list until it is reopened.
+  // The || options.length escape hatch keeps a never-populated select from staying empty.
+  function keepChoice(id, sel) { return formOnScreen(id) && sel.options.length > 0; }
+
+  // From 1024px up the forms are an in-flow panel at the BOTTOM of their pane column (they sit
+  // after the list in the DOM, and an order:-1 to hoist them would divorce tab order from what
+  // is on screen), so opening one can land it below the fold and read as "the button did
+  // nothing". No-op for the phone's fixed inset:0 sheet, which already fills the viewport.
+  function revealForm(el) { if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }
+
   // ---- transport -------------------------------------------------------------------
   async function api(path, opts) {
     const o = Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {});
@@ -101,8 +128,10 @@
     });
     if (!list.childElementCount) list.appendChild(mk('div', 'ck-empty', 'No agents match.'));
     $('ck-more').hidden = roster.offset + ROSTER_PAGE >= roster.total;
-    const dept = $('ck-hire-dept'); dept.textContent = '';
-    Object.keys(roster.facets.departments).sort().forEach((d) => { const o = mk('option', null, d); o.value = d; dept.appendChild(o); });
+    // #6679 L2 — see keepChoice(). The roster polls while a hire is pending, so this refill
+    // reset the department the owner had chosen; #ck-hire shipped in 4a with the same defect.
+    const dept = $('ck-hire-dept');
+    if (!keepChoice('ck-hire', dept)) { dept.textContent = ''; Object.keys(roster.facets.departments).sort().forEach((d) => { const o = mk('option', null, d); o.value = d; dept.appendChild(o); }); }
   }
 
   // ---- Crew: agent card ------------------------------------------------------------
@@ -184,7 +213,7 @@
   }
 
   // ---- Crew: hire ------------------------------------------------------------------
-  $('ck-hire-open').addEventListener('click', () => { $('ck-hire').hidden = false; $('ck-hire').classList.add('ck-show'); });
+  $('ck-hire-open').addEventListener('click', () => { $('ck-hire').hidden = false; $('ck-hire').classList.add('ck-show'); revealForm($('ck-hire')); });
   document.querySelectorAll('[data-close="ck-hire"]').forEach((b) => b.addEventListener('click', () => { $('ck-hire').classList.remove('ck-show'); $('ck-hire').hidden = true; }));
   $('ck-hire').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -400,8 +429,9 @@
     });
     if (!list.childElementCount) list.appendChild(mk('div', 'ck-empty', 'No tasks match.'));
     $('ck-work-more').hidden = work.offset + TASK_PAGE >= work.total;
-    const sel = $('ck-task-new-project'); sel.textContent = '';
-    work.projects.forEach((p) => { const o = mk('option', null, p.name); o.value = String(p.id); sel.appendChild(o); });
+    // #6679 L2 — see keepChoice(). This refill is what filed task #6682 under project 270.
+    const sel = $('ck-task-new-project');
+    if (!keepChoice('ck-task-new', sel)) { sel.textContent = ''; work.projects.forEach((p) => { const o = mk('option', null, p.name); o.value = String(p.id); sel.appendChild(o); }); }
   }
 
   let currentTask = null; let taskWatch = null;
@@ -482,7 +512,7 @@
     return true;
   }
 
-  $('ck-task-open').addEventListener('click', () => { $('ck-task-new').hidden = false; $('ck-task-new').classList.add('ck-show'); });
+  $('ck-task-open').addEventListener('click', () => { $('ck-task-new').hidden = false; $('ck-task-new').classList.add('ck-show'); revealForm($('ck-task-new')); });
   document.querySelectorAll('[data-close="ck-task-new"]').forEach((b) => b.addEventListener('click', () => { $('ck-task-new').classList.remove('ck-show'); $('ck-task-new').hidden = true; }));
   $('ck-task-new').addEventListener('submit', async (e) => {
     e.preventDefault();

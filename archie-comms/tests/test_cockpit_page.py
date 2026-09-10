@@ -412,3 +412,76 @@ def test_taskSheetBusy_is_not_wedged_by_a_task_with_no_selected_priority(js_run)
         "null_priority=false,changed_priority=true,changed_status=true,unsent_note=true,"
         "focus_in_sheet=true,focus_elsewhere=false"
     )
+
+
+def _decomment(css):
+    """Strip /* … */ so a rule's captured selector is a selector, not the prose above it."""
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+
+def test_css_1024_takes_both_entry_forms_out_of_the_fixed_overlay_layer():
+    """#ck-hire and #ck-task-new both ship as .ck-sheet — position: fixed; inset: 0; z-index: 6.
+
+    At desktop #ck-task is a GRID ITEM carrying that same z-index (a non-auto z-index makes a
+    grid or flex item paint as if positioned, even at position: static) and is LATER in DOM
+    order, so it won the tie and painted over the form: 4 of 10 points sampled across the
+    full-width "Create task" button returned #ck-task from elementFromPoint — the centre among
+    them — and Playwright reported #ck-task intercepting the click. #ck-hire shipped in Phase 4a
+    with the identical latent bug, so the fix has to reach both, not just the new one.
+    """
+    top, desktop = CSS.split("@media (min-width: 1024px)")
+    # the phone pattern must survive byte-for-byte: there the full-screen sheet is correct
+    assert ".ck-sheet { position: fixed; inset: 0; z-index: 6;" in top
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", _decomment(desktop))
+    hits = [(sel.strip(), body) for sel, body in rules
+            if ".ck-form" in sel or "#ck-hire" in sel or "#ck-task-new" in sel]
+    assert hits, "no desktop treatment for the entry forms — they are still inset:0 overlays"
+    # both forms covered, by the class they share or by name — patching only #ck-task-new leaves
+    # the Phase 4a form eating clicks in exactly the same way
+    covered = any(".ck-form" in sel for sel, _ in hits) or (
+        any("#ck-hire" in sel for sel, _ in hits) and any("#ck-task-new" in sel for sel, _ in hits))
+    assert covered, hits
+    decls = " ".join(b for _, b in hits)
+    assert re.search(r"position:\s*static", decls), hits
+    # z-index has to be surrendered too, not just position: a flex item (which each form is,
+    # inside its .ck-pane) keeps its stacking context at position: static if z-index stays 6.
+    assert re.search(r"z-index:\s*auto", decls), hits
+    # …and nothing in the block puts them back on the overlay layer
+    assert not re.search(r"position:\s*fixed", decls), hits
+
+
+def test_js_scrolls_a_desktop_form_into_view_when_it_opens():
+    """In flow the panel sits after the list in its pane column, so on a 1280x800 desktop it can
+    open below the fold — "+ Task" would read as doing nothing. No-op for the phone's fixed
+    inset:0 sheet, which already fills the viewport, so <1024 behaviour is unchanged."""
+    assert "function revealForm(el) { if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); }" in JS
+    for opener, form in (("ck-hire-open", "ck-hire"), ("ck-task-open", "ck-task-new")):
+        needle = "$('%s').addEventListener('click'" % opener
+        line = next((l for l in JS.splitlines() if needle in l), None)
+        assert line, opener
+        # on the OPEN handler itself, not merely present somewhere in the file
+        assert "revealForm($('%s'))" % form in line, line
+
+
+def test_js_never_refills_a_dropdown_the_owner_is_choosing_from():
+    """The 30 s Work poll rebuilt #ck-task-new-project with textContent='' + re-append, which
+    DISCARDS the selection while leaving the typed title intact — the form still looks complete
+    and submits under the first option. Measured: pick project 343, wait 35 s, the select reads
+    270; that is how task #6682 was filed against a project the owner never chose. The roster
+    poll does the same to #ck-hire-dept. Both refills must now sit behind keepChoice().
+    """
+    guard_body = JS.split("function keepChoice(id, sel) {", 1)[1].split("\n", 1)[0]
+    assert "formOnScreen(id)" in guard_body and "sel.options.length" in guard_body, guard_body
+    # on-screen is asked of the LAYOUT — `hidden` alone is not it, since showPane() sets
+    # hidden=true without removing .ck-show and the .ck-show display rule beats [hidden]
+    on_screen = JS.split("function formOnScreen(id) {", 1)[1].split("\n", 1)[0]
+    assert "getClientRects" in on_screen, on_screen
+    for form_id, wipe in (("ck-task-new", "sel.textContent = '';"), ("ck-hire", "dept.textContent = '';")):
+        needle = "if (!keepChoice('%s', " % form_id
+        line = next((l for l in JS.splitlines() if needle in l), None)
+        assert line, form_id
+        # the wipe must be INSIDE the guard, not merely somewhere after it
+        assert wipe in line, line
+    # …and no bare, unguarded refill survives — including the original one-liner form
+    assert not re.search(r"^\s*(?:const \w+ = \$\('[\w-]+'\); )?(?:sel|dept)\.textContent = '';",
+                         JS, re.M), "an unguarded dropdown refill is back"

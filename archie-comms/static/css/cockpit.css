@@ -110,4 +110,19 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
   #ck-agent[hidden], #ck-task[hidden] { display: flex; }
   #ck-agent-close, #ck-task-close { display: none; }
   #pane-builder { grid-column: 3; grid-row: 1 / span 2; }
+  /* The two entry forms (#ck-hire, #ck-task-new) leave the fixed overlay layer here. They are
+     NOT direct children of .ck-main, so they cannot be given a grid column the way #ck-agent /
+     #ck-task are above — and left as `position: fixed; inset: 0; z-index: 6` they sit on the
+     SAME layer as the #ck-task grid item, which carries that z-index too (a non-auto z-index
+     makes a grid or flex item paint as if positioned, even at position: static) and is LATER in
+     DOM order, so it wins the tie and paints over the form. Measured at 1280 in Work mode: 4 of
+     10 points sampled across the full-width "Create task" button returned #ck-task from
+     elementFromPoint, including the centre, and Playwright reported #ck-task intercepting the
+     click. In normal flow inside its own pane column the form can neither cover a column nor be
+     covered by one, which retires the stacking-order question instead of re-entering it.
+     Styled through .ck-form so a future form sheet inherits the fix rather than the bug.
+     Below 1024 the full-screen sheet is untouched: it is the correct phone pattern and .ck-back
+     is how you leave it. The panel lands after the list in its column — revealForm() in
+     cockpit.js scrolls it into view so opening it never reads as "nothing happened". */
+  .ck-form.ck-sheet { position: static; z-index: auto; overflow: visible; padding: 12px; background: #1a1a3a; border: 1px solid #2a2a55; border-radius: 10px; }
 }

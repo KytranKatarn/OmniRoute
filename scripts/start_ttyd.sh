@@ -23,13 +23,16 @@ tmux send-keys -t "$TMUX_SESSION" '/home/kytran/.local/bin/claude' Enter
 
 # Start ttyd with:
 # -p: port
-# -i: interface (lo = localhost only)
+# -i: interface — 127.0.0.1 ONLY. ttyd here is the UNAUTHENTICATED backend;
+#     ttyd_auth_proxy.py on :7681 is the only thing allowed to reach it. Binding
+#     this to 0.0.0.0 publishes a WRITABLE shell to the whole LAN and bypasses the
+#     proxy entirely — it was 0.0.0.0 in production and served HTTP 200 with no auth.
 # -W: writable (allow input)
 # -t: terminal options
 # tmux attach: reconnects to the persistent claude session
 exec ttyd \
     -p "$TTYD_PORT" \
-    -i 0.0.0.0 \
+    -i 127.0.0.1 \
     -W \
     -t fontSize=14 \
     -t fontFamily="JetBrains Mono, Consolas, monospace" \

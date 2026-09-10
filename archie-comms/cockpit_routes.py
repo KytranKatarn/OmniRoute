@@ -5,9 +5,10 @@ A Blueprint so it is testable without importing app_comms."""
 
 from functools import wraps
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, session
 
 from services import cockpit_proxy as cp
+from services import terminal_lanes as tl
 
 cockpit_bp = Blueprint("cockpit", __name__)
 
@@ -130,3 +131,53 @@ def cockpit_task_action(task_id, action):
 @_require_session
 def cockpit_build_apply(job_id):
     return _pass(cp.build_apply(job_id))
+
+
+# ---- Terminal lanes (#6653 Phase 5) ----------------------------------------------------
+def _require_admin(fn):
+    """Admin, checked HERE rather than inferred from the login path.
+
+    Every comms user is an admin today: app_comms.py rejects any SSO login whose
+    role != "admin" and sets session["user_id"] in exactly one place inside that accepted
+    path. So this is currently redundant — and it is required anyway.
+
+    The proxy validates a token without knowing who asked for it, so the mint is where the
+    requester's authority is established. Without an explicit check here, the terminal's
+    protection would rest on a property of the SSO login path rather than on anything the
+    terminal code states, and a future change admitting non-admins to comms for some
+    unrelated feature would silently start handing out shells.
+    """
+
+    @wraps(fn)
+    def _wrapped(*a, **k):
+        if not session.get("user_id"):
+            return jsonify({"error": "Not authenticated"}), 401
+        if session.get("role") != "admin":
+            return jsonify({"error": "A terminal needs an admin account"}), 403
+        return fn(*a, **k)
+
+    return _wrapped
+
+
+@cockpit_bp.route("/api/cockpit/terminal/lanes", methods=["GET"])
+@_require_admin
+def cockpit_terminal_lanes():
+    return jsonify({"lanes": tl.lane_status()}), 200
+
+
+@cockpit_bp.route("/api/cockpit/terminal/<lane>/token", methods=["POST"])
+@_require_admin
+def cockpit_terminal_token(lane):
+    """Mint a one-time, lane-bound token. Terminal bytes never pass through comms."""
+    try:
+        payload = tl.mint_token(session["user_id"], lane)
+    except tl.UnknownLane:
+        return jsonify({"error": f"Unknown lane: {lane}"}), 404
+    except Exception:
+        current_app.logger.exception("cockpit_terminal_token: mint failed lane=%s", lane)
+        return jsonify({"error": "Token generation failed"}), 500
+
+    current_app.logger.info(
+        "cockpit terminal token minted user_id=%s lane=%s", session["user_id"], lane
+    )
+    return jsonify(payload), 200

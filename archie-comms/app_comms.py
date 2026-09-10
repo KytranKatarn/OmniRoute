@@ -1240,49 +1240,28 @@ def api_chat_summarize(conv_id):
         return jsonify({"success": False}), 500
 
 
-# The lane this route's token may open. It MUST match the URL below: both terminal
-# proxies run one script against one table, so the proxy refuses a token whose lane does
-# not match its own, and a NULL lane is refused outright (fail-closed). Minting without
-# this makes the drawer fall back to a Basic Auth prompt.
-TERMINAL_LANE = "claude"
-TERMINAL_LANE_URL = "https://terminal.kytranempowerment.com"
-
-
 @app.route("/api/terminal/token", methods=["POST"])
 def api_terminal_token():
-    """Mint a one-time, LANE-BOUND token for ttyd auth proxy access."""
-    import secrets
-    from datetime import datetime, timezone, timedelta
+    """Mint a one-time, lane-bound token for the CLAUDE terminal drawer.
+
+    Kept for the existing /chat drawer, which calls this path. It delegates to
+    services.terminal_lanes so there is exactly ONE place a shell token is created — a
+    second minting site with its own idea of the gate is the "second gate for shell
+    access" the design forbids.
+    """
     from flask import session as flask_session
+
+    from services import terminal_lanes
 
     user_id = flask_session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
-
     try:
-        from database import get_db_cursor
-
-        with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute(
-                """
-                INSERT INTO terminal_auth_tokens (token, user_id, expires_at, lane)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (token, user_id, expires_at, TERMINAL_LANE),
-            )
+        return jsonify(terminal_lanes.mint_token(user_id, "claude"))
     except Exception as exc:
-        logger.error("api_terminal_token: DB insert failed: %s", exc)
+        logger.error("api_terminal_token: mint failed: %s", exc)
         return jsonify({"error": "Token generation failed"}), 500
-
-    return jsonify({
-        "token": token,
-        "url": f"{TERMINAL_LANE_URL}?token={token}",
-        "expires_in": 300,
-        "lane": TERMINAL_LANE,
-    })
 
 
 @app.route("/api/terminal/snapshot")

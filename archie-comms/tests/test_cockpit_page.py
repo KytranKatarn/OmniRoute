@@ -1,7 +1,13 @@
 """#6653 Phase 4 — the cockpit page: both layouts from one template; the JS never
 renders server text with innerHTML."""
 
+import json
+import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "templates" / "cockpit.html").read_text(encoding="utf-8")
@@ -9,12 +15,123 @@ CSS = (ROOT / "static" / "css" / "cockpit.css").read_text(encoding="utf-8")
 
 IDS = ["pane-crew", "pane-builder", "pane-approvals", "ck-tabs", "ck-search", "ck-chips", "ck-roster", "ck-more",
        "ck-agent", "ck-agent-close", "ck-hire-open", "ck-hire", "ck-provider", "ck-model", "ck-prompt", "ck-system",
-       "ck-run", "ck-jobs", "ck-approvals", "ck-strip", "ck-toast"]
+       "ck-run", "ck-jobs", "ck-approvals", "ck-strip", "ck-toast",
+       "ck-switch", "pane-work", "ck-work-total", "ck-task-open", "ck-work-search", "ck-work-chips", "ck-work-list",
+       "ck-work-more", "ck-task", "ck-task-close", "ck-task-title", "ck-task-body", "ck-task-new",
+       "ck-task-new-project", "ck-target"]
+
+
+def _extract(head):
+    """Lift one top-level declaration out of cockpit.js by brace/bracket balance.
+
+    Slicing the real file (rather than restating the logic here) is what makes the truth-table
+    test non-vacuous: edit applyPhase and this test runs the EDITED function.
+    """
+    start = JS.index(head)
+    opener = "[" if head.rstrip().endswith("[") else "{"
+    closer = "]" if opener == "[" else "}"
+    depth, i = 0, start
+    while True:
+        ch = JS[i]
+        if ch == opener:
+            depth += 1
+        elif ch == closer:
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    tail = JS[i + 1 : i + 2]
+    return JS[start : i + 1] + (";" if tail != ";" else ";")
+
+
+@pytest.fixture
+def js_run():
+    """Run an arbitrary snippet of the real cockpit.js in node and return its stdout.
+
+    Same SKIP caveat as js_eval below: absent node means this silently does not run.
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+
+    def run(script):
+        out = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30)
+        assert out.returncode == 0, out.stderr
+        return out.stdout.strip()
+
+    return run
+
+
+@pytest.fixture
+def js_eval():
+    """Run a snippet of the real cockpit.js in node and return a caller for applyPhase().
+
+    NOTE, stated plainly: this SKIPS where node is absent. The always-running guards for the
+    same behaviour are test_js_shows_apply_only_for_completed_targeted_unapplied_jobs and
+    test_js_apply_settled_set_excludes_the_states_that_must_not_re_offer_apply — they pin the
+    gate expression and the settled set textually. Only this one proves the logic.
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed — the textual guards still cover the gate and the set")
+
+    def make(src):
+        def run(job):
+            script = src + "\nprocess.stdout.write(applyPhase(JSON.parse(process.argv[1])));"
+            out = subprocess.run(
+                [node, "-e", script, json.dumps(job)], capture_output=True, text=True, timeout=30
+            )
+            assert out.returncode == 0, out.stderr
+            return out.stdout.strip()
+
+        return run
+
+    return make
 
 
 def test_template_has_every_id_the_js_binds():
     missing = [i for i in IDS if f'id="{i}"' not in HTML]
     assert not missing, missing
+
+
+def test_template_has_the_work_pane_switch_sheet_form_and_target_field():
+    html = HTML
+    for needle in (
+        'id="ck-switch"', 'data-left="crew"', 'data-left="work"',
+        'id="pane-work"', 'aria-label="Work"', 'id="ck-work-total"', 'id="ck-task-open"', 'id="ck-work-search"',
+        'id="ck-work-chips"', 'id="ck-work-list"', 'id="ck-work-more"',
+        'id="ck-task"', 'aria-label="Task"', 'id="ck-task-close"', 'id="ck-task-title"', 'id="ck-task-body"',
+        'id="ck-task-new"', 'id="ck-task-new-project"', 'name="title"', 'name="priority"', 'name="task_type"',
+        'id="ck-target"', 'name="target_path"', 'data-pane="work"',
+    ):
+        assert needle in html, needle
+    assert html.count('data-pane="') == 4
+
+
+def test_css_places_the_work_pane_and_task_sheet_like_crew_and_agent():
+    css = CSS
+    assert "#pane-crew, #pane-work, #pane-builder { display: flex; }" not in css, "work and crew share a cell — only one shows"
+    assert ".ck-switch" in css and ".ck-switch button[aria-pressed=\"true\"]" in css
+    assert "#ck-task" in css
+    # This rule is only correct INSIDE the desktop block — hoisted to top level it would make
+    # the sheet permanently visible on a phone, and a whole-file substring check would still
+    # pass. (The refuter placed it at 768px; it is actually in the 1024px block, which is where
+    # #ck-task becomes a static column rather than an overlay.)
+    desktop = css.split("@media (min-width: 1024px)")[1]
+    assert "#ck-agent[hidden], #ck-task[hidden] { display: flex; }" in desktop
+    assert "#pane-work.ck-show" in css or ".ck-left-work #pane-work" in css
+
+
+def test_css_768_block_hides_pane_work_unless_left_work_is_active():
+    # structural, not a spelling check: #pane-work must default to hidden in the 768px block,
+    # and the ONLY rule allowed to re-show it there is the body.ck-left-work one — a stale
+    # .ck-show class left over from the phone tab switch (specificity 0,0,2,0) must never be
+    # able to win against the default. A rule added in another @media block must not count.
+    tablet = CSS.split("@media (min-width: 768px)")[1].split("@media (min-width: 1024px)")[0]
+    assert "#pane-work { display: none; }" in tablet
+    rules = re.findall(r'([^{}]+)\{([^{}]*)\}', tablet)
+    reshow = [sel.strip() for sel, body in rules if "#pane-work" in sel and re.search(r"display:\s*flex", body)]
+    assert reshow == ["body.ck-left-work #pane-work"], reshow
 
 
 def test_template_loads_cockpit_assets_and_not_the_chat_stylesheet():
@@ -74,3 +191,224 @@ def test_js_polls_the_roster_while_a_hire_is_pending():
 def test_css_hides_tabs_and_shows_the_strip_from_tablet_up():
     tablet = CSS.split("@media (min-width: 768px)")[1].split("@media (min-width: 1024px)")[0]
     assert ".ck-tabs { display: none; }" in tablet and "#pane-approvals { display: none !important; }" in tablet
+
+
+def test_js_wires_the_work_pane_and_apply():
+    js = JS
+    assert "work: 'pane-work'" in js and "const WORK_POLL_MS = 30000" in js
+    for needle in ("/api/cockpit/projects", "/api/cockpit/tasks", "'/api/cockpit/tasks/' + id + '/' + action", "/api/cockpit/build/' + id + '/apply'", "target_path", "localStorage"):
+        assert needle in js, needle
+    # ⚠️ A BARE "target_path" PROVES NOTHING — it also appears in renderJobs' display line and in
+    # the Apply gate, so deleting the ONE statement that reads the field and puts it on the
+    # request body left this whole test green while "choose a target file" silently stopped
+    # working. Pin the read AND the assignment as one statement.
+    assert "const target = $('ck-target').value.trim(); if (target) body.target_path = target;" in js
+    assert "function loadWork(" in js and "function openTask(" in js and "function taskAct(" in js and "function applyJob(" in js
+    assert "window.prompt" not in js.split("// ---- Work")[1].split("// ---- Approvals")[0], "task actions use inline inputs, not prompts"
+    assert ".innerHTML" not in JS and "insertAdjacentHTML" not in JS
+
+
+def test_js_shows_apply_only_for_completed_targeted_unapplied_jobs():
+    """The gate moved from a raw `!j.apply_approval_id` to applyPhase(), because that id alone
+    could not tell a pending apply from a denied one — see the phase tests below. What must
+    still hold: Apply appears ONLY for a completed job with a target that is not already a PR
+    and has no LIVE approval, and the phase is what decides it."""
+    js = JS
+    assert "if (j.status === 'completed' && j.target_path && (phase === 'none' || phase === 'settled')) {" in js
+    # …and the phase used by the button is the one computed for THIS job, not a stale outer var.
+    assert "const phase = applyPhase(j);" in js
+    assert "'PR #' + j.pr_number" in js and "j.apply_error" in js
+    # a live approval still suppresses it: 'pending' is absent from the enabling condition
+    gate = js.split("if (j.status === 'completed' && j.target_path && ", 1)[1].split(") {", 1)[0]
+    assert "pending" not in gate, gate
+
+
+def test_js_apply_settled_set_excludes_the_states_that_must_not_re_offer_apply():
+    """`approved` and `executed` mean the executor is about to run or has run; re-offering
+    Apply there risks a second branch and a duplicate PR. `pending` is the original bug's
+    opposite — it MUST keep the button hidden."""
+    raw = JS.split("const APPLY_SETTLED = [", 1)[1].split("]", 1)[0]
+    settled = {x.strip().strip("'\"") for x in raw.split(",") if x.strip()}
+    assert settled == {"rejected", "denied", "expired", "failed", "cancelled"}, settled
+    # 'rejected' is the one that matters: it is what every deny path writes. Its absence is the
+    # defect this set was rewritten to fix, so name it separately from the equality above.
+    assert "rejected" in settled
+
+
+def test_applyPhase_truth_table(js_eval):
+    """Behavioural, not textual: runs the real applyPhase() and asserts every case that the
+    old `!j.apply_approval_id` gate got wrong."""
+    run = js_eval(_extract("const APPLY_SETTLED = [") + "\n" + _extract("function applyPhase(j) {"))
+    assert run({}) == "none"
+    assert run({"pr_number": 7}) == "pr"
+    assert run({"apply_approval_id": 5, "apply_approval_status": "pending"}) == "pending"
+    # THE BUG: these used to render "apply waits for approval #N" forever.
+    # 'rejected' FIRST and deliberately: it is what EVERY deny path actually writes to
+    # autonomy_approval_queue (approvals_routes.py:254, telegram_gateway 1034/1149/1232/2127).
+    # The first cut of this fix omitted it — copied from an app.py docstring that said 'denied'
+    # — so the common settle path stayed stuck and the fix defeated its own purpose. 'denied'
+    # is contractor_approval_requests' word and is kept only because that table does use it.
+    for settled in ("rejected", "denied", "expired", "failed", "cancelled"):
+        assert run({"apply_approval_id": 5, "apply_approval_status": settled}) == "settled", settled
+    # about to run / already ran — must NOT re-offer Apply
+    for live in ("approved", "executed"):
+        assert run({"apply_approval_id": 5, "apply_approval_status": live}) == "pending"
+    # an older hub sends no key at all, and a purged queue row resolves to null: neither is
+    # evidence the apply is over, so both stay "pending" (today's wording, button hidden).
+    assert run({"apply_approval_id": 5}) == "pending"
+    assert run({"apply_approval_id": 5, "apply_approval_status": None}) == "pending"
+    # a PR wins over any approval state
+    assert run({"pr_number": 7, "apply_approval_id": 5, "apply_approval_status": "denied"}) == "pr"
+
+
+def test_js_apply_success_message_never_claims_applied_or_merged():
+    # the real flow only raises a Tier-2 approval that a human merges — the success toast must
+    # say so, and must never claim the change was already applied or merged
+    fn = JS.split("async function applyJob(", 1)[1].split("\n  }\n", 1)[0]
+    success = fn.split("return; }", 1)[1]
+    assert "approval" in success.lower()
+    assert "applied" not in success.lower()
+    assert "merged" not in success.lower()
+
+
+def test_js_clears_a_note_only_after_the_write_landed():
+    """It used to clear on BOTH paths. On success the sheet had already been rebuilt, so the
+    clear was a no-op — meaning the only text it ever really destroyed was the owner's
+    unsaved note after a FAILED save."""
+    act = JS.split("async function taskAct(", 1)[1].split("\n  }\n", 1)[0]
+    assert "return false;" in act and "return true;" in act, act
+    assert "taskAct(t.id, 'note', { text }, 'Note added').then((ok) => { if (ok) noteBox.value = ''; });" in JS
+    # non-vacuity: the unconditional form must be gone
+    assert ".then(() => { noteBox.value = ''; })" not in JS
+
+
+def test_js_never_rebuilds_the_task_sheet_while_the_owner_is_using_it():
+    """renderTask() does body.textContent = '' — a 10 s poll running that destroyed a
+    half-typed note and any status/priority chosen but not yet applied."""
+    assert "taskWatch = setInterval(() => { if (!taskSheetBusy()) openTask(id); }, 10000);" in JS
+    busy = JS.split("function taskSheetBusy() {", 1)[1].split("\n  }\n", 1)[0]
+    # all three losses the poll could cause must be covered
+    assert "document.activeElement" in busy, busy          # typing / mid-selection
+    assert "taskEls.note" in busy, busy                    # an unsent note
+    # The exact comparison, not just the names: both node-backed tests SKIP where node is
+    # absent, and everything else here proves the render-time capture EXISTS rather than that it
+    # is what gets compared. This is the only always-running assertion that pins the fix itself.
+    assert "taskEls.status.value !== taskEls.statusAtRender" in busy, busy
+    assert "taskEls.prio.value !== taskEls.prioAtRender" in busy, busy
+    # …and the comparison against the task's own field — which a NULL priority wedges — is gone
+    assert "String(currentTask.priority)" not in busy, busy
+    # …and the refs are actually populated on every render, or the checks read null forever.
+    # The *AtRender captures are part of the wiring, not decoration: without them the busy
+    # check compares against undefined and the guard silently stops guarding. (This assertion
+    # used to stop at the ref, and a mutation that deleted the capture went undetected.)
+    for wiring in ("taskEls.status = stSel; taskEls.statusAtRender = stSel.value;",
+                   "taskEls.prio = prSel; taskEls.prioAtRender = prSel.value;",
+                   "taskEls.note = noteBox;"):
+        assert wiring in JS, wiring
+
+
+def test_js_loads_the_work_pane_when_the_desktop_column_is_what_reveals_it():
+    """From 768px up the Work column's visibility comes from body.ck-left-work, not from a pane
+    tab — so showPane('work') cannot be the only loader, or a saved 'work' preference with the
+    hash on #builder renders a permanently blank column."""
+    left = JS.split("function setLeft(name, persist) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (booted && leftChoice === 'work' && !workLoaded) loadWork(true);" in left, left
+    # the boot path too: setLeft() runs before `work`/`workLoaded` exist, so it is deliberately
+    # inert until `booted`, and boot has to do the first load itself.
+    assert "booted = true;" in JS
+    assert "if (leftChoice === 'work' && !workLoaded) loadWork(true);" in JS.split("booted = true;", 1)[1]
+
+
+def test_js_polls_work_on_real_visibility_not_only_the_phone_tab_class():
+    vis = JS.split("function workVisible() {", 1)[1].split("}", 1)[0]
+    assert "getClientRects" in vis, vis
+    assert "setInterval(() => { if (workLoaded && workVisible()) refreshWork(); }, WORK_POLL_MS);" in JS
+    # non-vacuity: the .ck-show-only gate is gone
+    assert "$('pane-work').classList.contains('ck-show')) loadWork(true)" not in JS
+
+
+def test_js_refresh_does_not_discard_pages_the_owner_loaded():
+    """loadWork(true) reset offset to 0, so every 30 s poll threw away "Load more" pages."""
+    ref = JS.split("function refreshWork() {", 1)[1].split("\n  }\n", 1)[0]
+    assert "work.offset + TASK_PAGE" in ref and "WORK_MAX_REFRESH" in ref, ref
+    # past the server's clamp we skip rather than silently truncate
+    assert "if (loaded > WORK_MAX_REFRESH) return;" in ref
+    assert "loadWork(false, loaded);" in ref
+    # the span request must start at 0 and rebuild, or a refresh would append duplicates.
+    # The request is shaped in loadWork; the rebuild happens in _loadWork (split for the
+    # re-entry guard's finally) — assert each in the function that owns it.
+    lw = JS.split("async function loadWork(reset, spanLimit) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "const from = spanLimit ? 0 : work.offset;" in lw and "const size = spanLimit || TASK_PAGE;" in lw, lw
+    inner = JS.split("async function _loadWork(qs, reset, spanLimit) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (reset || spanLimit) list.textContent = '';" in inner, inner
+
+
+def test_js_saves_the_left_preference_only_on_a_deliberate_switch():
+    """showPane('crew') also runs when the owner merely arrives from Chat at /cockpit#crew —
+    writing localStorage there silently reset a saved Work preference."""
+    left = JS.split("function setLeft(name, persist) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (persist) { try { localStorage.setItem('ck-left', leftChoice); }" in left, left
+    # non-vacuity: the unconditional write is gone, and the two callers disagree on purpose
+    assert "\n    try { localStorage.setItem('ck-left', leftChoice); } catch (e) { /* ignore */ }\n" not in JS
+    assert "if (name === 'crew' || name === 'work') setLeft(name, false);" in JS       # navigation
+    assert "setLeft(b.dataset.left, true); location.hash = b.dataset.left;" in JS      # the switch
+
+
+def test_js_refuses_a_re_entrant_identical_work_load():
+    """`workLoaded` is only set AFTER the awaits, so it cannot dedupe in flight: one Work-switch
+    click ran loadWork up to 5x and boot with #work ran it 2x — same DOM, ~10 redundant requests
+    and visible flicker."""
+    lw = JS.split("async function loadWork(reset, spanLimit) {", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (workLoading === sig) return;" in lw, lw
+    assert "workLoading = sig;" in lw, lw
+    # cleared in a finally, or a failed fetch's early return strands it and wedges Work forever
+    assert "finally { if (workLoading === sig) workLoading = null; }" in lw, lw
+    # the guard is SYNCHRONOUS — it must precede every await in the function
+    assert lw.index("workLoading = sig;") < lw.index("await"), "guard must run before any await"
+    # keyed on the request, so a changed filter is never dropped: the signature carries the query
+    assert "const sig = qs.toString()" in lw, lw
+
+
+def test_taskSheetBusy_is_not_wedged_by_a_task_with_no_selected_priority(js_run):
+    """A <select> with no matching option is not empty — the browser auto-selects the first —
+    so comparing against the task's own NULL priority read '1' !== 'null' and left the sheet
+    permanently "busy" with the 10 s poll dead for that task."""
+    src = _extract("function taskSheetBusy() {")
+    # The stub is ID-AWARE on purpose: a `$ = () => sheet` that ignores its argument makes the
+    # focus branch unreachable, so changing $('ck-task') to any other id — or deleting the
+    # branch — would leave both this test and the textual guard green while, in the browser,
+    # the poll rebuilt the sheet under the owner's hands.
+    harness = (
+        "const FOCUSED = { tag: 'textarea' };\n"
+        "let sheetHasFocus = false;\n"
+        "const $ = (id) => (id === 'ck-task' ? { contains: (el) => sheetHasFocus && el === FOCUSED } : null);\n"
+        "const document = { activeElement: null };\n"
+        "let taskEls = { note: null, status: null, prio: null, statusAtRender: null, prioAtRender: null };\n"
+        + src
+        + "\nconst out = [];\n"
+        # a NULL-priority task: the select reports '1' but nothing was changed
+        "taskEls = { note: { value: '' }, status: { value: 'pending' }, statusAtRender: 'pending',"
+        " prio: { value: '1' }, prioAtRender: '1' };\n"
+        "out.push('null_priority=' + taskSheetBusy());\n"
+        # the owner actually changes the priority — still detected
+        "taskEls.prio = { value: '7' };\n"
+        "out.push('changed_priority=' + taskSheetBusy());\n"
+        # …and the status, on the same mechanism
+        "taskEls.prio = { value: '1' }; taskEls.status = { value: 'blocked' };\n"
+        "out.push('changed_status=' + taskSheetBusy());\n"
+        # an unsent note still counts as busy
+        "taskEls.status = { value: 'pending' }; taskEls.note = { value: ' hi ' };\n"
+        "out.push('unsent_note=' + taskSheetBusy());\n"
+        # focus INSIDE the sheet is busy; the identical state with focus elsewhere is not —
+        # only an id-aware $ can tell those two apart
+        "taskEls.note = { value: '' };\n"
+        "document.activeElement = FOCUSED; sheetHasFocus = true;\n"
+        "out.push('focus_in_sheet=' + taskSheetBusy());\n"
+        "sheetHasFocus = false;\n"
+        "out.push('focus_elsewhere=' + taskSheetBusy());\n"
+        "process.stdout.write(out.join(','));"
+    )
+    assert js_run(harness) == (
+        "null_priority=false,changed_priority=true,changed_status=true,unsent_note=true,"
+        "focus_in_sheet=true,focus_elsewhere=false"
+    )

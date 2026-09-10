@@ -13,6 +13,8 @@ import requests
 READ_TIMEOUT = 15
 WRITE_TIMEOUT = 30
 ACTIONS = ("assign", "shift-state", "skills/add", "skills/remove", "budget")
+TASK_ACTIONS = ("status", "priority", "note", "delegate")
+_TASK_LIST_KEYS = ("q", "project_id", "status", "min_priority", "limit", "offset")
 
 
 def _base():
@@ -80,3 +82,33 @@ def build_status(job_id):
 
 def build_runs(limit=20):
     return _call("GET", "/api/internal/cloud-code/runs", params={"limit": _int(limit, "limit")})
+
+
+# ---- Work pane: projects + tasks (#6679 Phase 4b) --------------------------------------
+def list_projects(params):
+    allowed = {k: v for k, v in (params or {}).items() if k in ("status", "limit", "offset")}
+    return _call("GET", "/api/internal/projects", params=allowed)
+
+
+def list_tasks(params):
+    allowed = {k: v for k, v in (params or {}).items() if k in _TASK_LIST_KEYS}
+    return _call("GET", "/api/internal/tasks", params=allowed)
+
+
+def get_task(task_id):
+    return _call("GET", f"/api/internal/tasks/{_int(task_id, 'task_id')}")
+
+
+def create_task(body):
+    return _call("POST", "/api/internal/tasks", json=body or {})
+
+
+def task_action(task_id, action, body):
+    if action not in TASK_ACTIONS:
+        return 400, {"success": False, "error": f"unknown action {action!r}"}
+    return _call("POST", f"/api/internal/tasks/{_int(task_id, 'task_id')}/{action}", json=body or {})
+
+
+# ---- Code Builder: apply (#6680 Phase 4b) ----------------------------------------------
+def build_apply(job_id):
+    return _call("POST", f"/api/internal/cloud-code/run/{_int(job_id, 'job_id')}/apply", json={})

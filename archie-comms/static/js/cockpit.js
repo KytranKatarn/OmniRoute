@@ -26,14 +26,38 @@
   const errText = (res) => (res.data && (res.data.error || res.data.status)) || ('HTTP ' + res.status);
 
   // ---- panes / tabs ----------------------------------------------------------------
-  const PANES = { crew: 'pane-crew', builder: 'pane-builder', approvals: 'pane-approvals' };
+  const PANES = { crew: 'pane-crew', work: 'pane-work', builder: 'pane-builder', approvals: 'pane-approvals' };
+  let leftChoice = 'crew';
+  try { leftChoice = localStorage.getItem('ck-left') === 'work' ? 'work' : 'crew'; } catch (e) { /* private mode */ }
+  // Nothing may fetch before the boot block runs: `work` and `workLoaded` are declared further
+  // down, so a loadWork() from this first setLeft() would hit their temporal dead zone. The
+  // `booted` guard short-circuits before either name is evaluated.
+  let booted = false;
+  function setLeft(name, persist) {
+    leftChoice = name === 'work' ? 'work' : 'crew';
+    // Persist ONLY on a deliberate switch click. showPane('crew') also runs when the owner
+    // merely arrives from Chat at /cockpit#crew, and writing there silently reset a saved
+    // Work preference.
+    if (persist) { try { localStorage.setItem('ck-left', leftChoice); } catch (e) { /* ignore */ } }
+    document.body.classList.toggle('ck-left-work', leftChoice === 'work');
+    document.querySelectorAll('#ck-switch button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.left === leftChoice)));
+    // From tablet up the Work column is shown by body.ck-left-work, NOT by a pane tab, so
+    // showPane('work') cannot be the only loader — with a saved 'work' preference and the hash
+    // on #builder or #approvals the column rendered blank, with no data, no error and no poll.
+    if (booted && leftChoice === 'work' && !workLoaded) loadWork(true);
+  }
+  setLeft(leftChoice, false);
   function showPane(name) {
     Object.keys(PANES).forEach((k) => { $(PANES[k]).classList.toggle('ck-show', k === name); });
     document.querySelectorAll('#ck-tabs button').forEach((b) => b.classList.toggle('ck-tab-on', b.dataset.pane === name));
+    if (name === 'crew' || name === 'work') setLeft(name, false);
     if (name !== 'crew') { $('ck-agent').classList.remove('ck-show'); $('ck-hire').hidden = true; }
+    if (name !== 'work') { $('ck-task').classList.remove('ck-show'); $('ck-task-new').hidden = true; clearInterval(taskWatch); }
+    if (name === 'work' && !workLoaded) loadWork(true);
   }
+  document.querySelectorAll('#ck-switch button').forEach((b) => b.addEventListener('click', () => { setLeft(b.dataset.left, true); location.hash = b.dataset.left; showPane(b.dataset.left); }));
   document.querySelectorAll('#ck-tabs button').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.pane; showPane(b.dataset.pane); }));
-  function paneFromHash() { const h = (location.hash || '#crew').slice(1); return PANES[h] ? h : 'crew'; }
+  function paneFromHash() { const h = (location.hash || ('#' + leftChoice)).slice(1); return PANES[h] ? h : 'crew'; }
   window.addEventListener('hashchange', () => showPane(paneFromHash()));
 
   // ---- Crew: roster ----------------------------------------------------------------
@@ -192,6 +216,7 @@
   $('ck-compose').addEventListener('submit', async (e) => {
     e.preventDefault(); const btn = $('ck-run'); btn.disabled = true;
     const body = { prompt: $('ck-prompt').value.trim(), provider: $('ck-provider').value, model: $('ck-model').value };
+    const target = $('ck-target').value.trim(); if (target) body.target_path = target;
     const sys = $('ck-system').value.trim(); if (sys) body.system_prompt = sys;
     const res = await api('/api/cockpit/build/run', { method: 'POST', body }); btn.disabled = false;
     if (res.status === 409 && res.data.status === 'approval_unavailable') { toast('Approve or deny the pending coding job first', true); return; }
@@ -213,6 +238,31 @@
     clearTimeout(pollTimer);
     if (jobs.some((j) => ACTIVE.has(j.status))) pollTimer = setTimeout(loadJobs, POLL_MS);
   }
+  // An apply approval that is DECIDED is not a live one. The hub's own dedup only refuses a
+  // *pending* apply, so once a denial/expiry/failure lands a retry is accepted — but until the
+  // list carried a status the cockpit only saw `apply_approval_id`, which is set in every one
+  // of those cases, so a denied apply read "apply waits for approval #N" forever with the Apply
+  // button suppressed and no way back.
+  // 'approved' and 'executed' are deliberately NOT here: the executor is about to run, or has
+  // run, and re-offering Apply there risks a second branch and a duplicate PR.
+  //
+  // 🔴 'rejected' IS THE ONE THAT MATTERS, and it was missing from the first cut of this fix.
+  // EVERY deny path writes 'rejected' to autonomy_approval_queue — approvals_routes.py:254 (the
+  // DHQ Approvals tab) and telegram_gateway.py 1034/1149/1232/2127. Nothing writes 'denied'
+  // there; that is contractor_approval_requests' vocabulary (approvals_routes.py:307), and
+  // telegram_gateway.py:1150 even sets rejected_reason='Denied via Telegram' so the WORD is in
+  // the row while the STATUS is 'rejected'. Omitting it meant every Deny — the common settle
+  // path — still read "apply waits for approval #N" forever with Apply suppressed, i.e. this
+  // fix defeated its own purpose. 'denied' is kept because the contractor table does use it.
+  const APPLY_SETTLED = ['rejected', 'denied', 'expired', 'failed', 'cancelled'];
+  // 'pr' | 'none' | 'pending' | 'settled'. An absent or null status stays 'pending': absent
+  // means an older hub that does not send the key, null means the queue row was purged or the
+  // lookup failed — neither is evidence the apply is over.
+  function applyPhase(j) {
+    if (j.pr_number) return 'pr';
+    if (!j.apply_approval_id) return 'none';
+    return APPLY_SETTLED.indexOf(String(j.apply_approval_status || '')) >= 0 ? 'settled' : 'pending';
+  }
   function renderJobs() {
     const list = $('ck-jobs'); list.textContent = '';
     if (!jobs.length) { list.appendChild(mk('div', 'ck-empty', 'No coding jobs yet.')); return; }
@@ -225,9 +275,19 @@
       card.appendChild(mk('div', 'ck-sub ck-num', [j.model ? 'requested ' + j.model : '', r.model_used ? 'served ' + r.model_used + (r.served_model_resolved ? ' ✓' : ' (unresolved)') : '', r.prompt_tokens != null ? r.prompt_tokens + ' → ' + (r.completion_tokens ?? '?') + ' tok' : ''].filter(Boolean).join(' · ')));
       if (j.error || r.error) card.appendChild(mk('div', 'ck-sub ck-bad', j.error || r.error));
       if (j.status === 'pending') card.appendChild(mk('div', 'ck-sub', 'approve it in Approvals or Telegram'));
+      if (j.target_path) card.appendChild(mk('div', 'ck-sub ck-num', 'target ' + j.target_path));
+      const phase = applyPhase(j);
+      if (phase === 'pr') { const a = mk('a', 'ck-sub', 'PR #' + j.pr_number); a.href = (typeof j.pr_url === 'string' && j.pr_url.startsWith('https://')) ? j.pr_url : '#'; a.target = '_blank'; a.rel = 'noopener'; card.appendChild(a); }
+      else if (phase === 'settled') card.appendChild(mk('div', 'ck-sub ck-bad', 'apply ' + j.apply_approval_status + ' — try again' + (j.apply_error ? ': ' + j.apply_error : '')));
+      else if (j.apply_error) card.appendChild(mk('div', 'ck-sub ck-bad', 'apply: ' + j.apply_error));
+      else if (phase === 'pending') card.appendChild(mk('div', 'ck-sub', 'apply waits for approval #' + j.apply_approval_id));
       const open = mk('button', 'ck-btn ck-small', expanded === j.job_id ? 'Hide' : 'Open'); open.type = 'button';
       open.addEventListener('click', () => { expanded = expanded === j.job_id ? null : j.job_id; renderJobs(); });
       card.appendChild(open);
+      if (j.status === 'completed' && j.target_path && (phase === 'none' || phase === 'settled')) {
+        const ap = mk('button', 'ck-btn ck-primary ck-small', 'Apply — needs your approval'); ap.type = 'button';
+        ap.addEventListener('click', () => applyJob(j.job_id)); card.appendChild(ap);
+      }
       list.appendChild(card);
       if (expanded === j.job_id) showJobDetail(j.job_id, card);
     });
@@ -240,6 +300,204 @@
     pre.textContent = r.response || (res.data.status === 'pending' ? 'Waiting for approval…' : (res.data.status === 'running' ? 'Running…' : (res.data.error || 'No output')));
     if (r.routing_decision) card.appendChild(mk('div', 'ck-sub', r.routing_decision));
   }
+  async function applyJob(id) {
+    const res = await api('/api/cockpit/build/' + id + '/apply', { method: 'POST', body: {} });
+    if (!res.ok || res.data.success === false) { toast('Apply: ' + errText(res), true); return; }
+    toast('Apply waits for your approval — #' + res.data.approval_id + ' in Approvals or Telegram');
+    loadJobs(); loadApprovals();
+  }
+
+  // ---- Work: projects + tasks (#6679 Phase 4b) --------------------------------------
+  const WORK_POLL_MS = 30000; const TASK_PAGE = 50;
+  let workLoaded = false;
+  const work = { q: '', project_id: '', status: 'pending,in_progress,blocked', min_priority: '', offset: 0, total: 0, projects: [], facets: { status: {}, projects: {}, capabilities: [] }, collapsed: new Set() };
+  let workSearchTimer = null;
+  $('ck-work-search').addEventListener('input', (e) => { clearTimeout(workSearchTimer); workSearchTimer = setTimeout(() => { work.q = e.target.value.trim(); loadWork(true); }, 250); });
+  $('ck-work-more').addEventListener('click', () => { work.offset += TASK_PAGE; loadWork(false); });
+
+  function workChip(label, on, onClick) { const b = mk('button', 'ck-chip', label); b.type = 'button'; b.setAttribute('aria-pressed', String(!!on)); b.addEventListener('click', onClick); return b; }
+  function renderWorkChips() {
+    const box = $('ck-work-chips'); box.textContent = '';
+    const current = new Set(work.status.split(',').filter(Boolean));
+    ['pending', 'in_progress', 'blocked', 'completed', 'cancelled'].forEach((s) => {
+      const n = work.facets.status[s]; if (n == null && !current.has(s)) return;
+      box.appendChild(workChip(s + (n != null ? ' · ' + n : ''), current.has(s), () => { if (current.has(s)) current.delete(s); else current.add(s); work.status = Array.from(current).join(',') || 'pending'; loadWork(true); }));
+    });
+    box.appendChild(workChip('priority ≥ 8', work.min_priority === '8', () => { work.min_priority = work.min_priority === '8' ? '' : '8'; loadWork(true); }));
+    Object.keys(work.facets.projects).sort((a, b) => work.facets.projects[a].localeCompare(work.facets.projects[b])).forEach((pid) => {
+      box.appendChild(workChip(work.facets.projects[pid], work.project_id === pid, () => { work.project_id = work.project_id === pid ? '' : pid; loadWork(true); }));
+    });
+  }
+  function prioPill(p) { const el = mk('span', 'ck-pill ck-num', 'P' + (p == null ? '?' : p)); if (p >= 8) el.classList.add('ck-state-active'); return el; }
+  // Re-fetch everything already on screen as ONE page, so the 30 s poll cannot silently throw
+  // away pages the owner loaded with "Load more". task_service.MAX_LIMIT clamps at 200, so past
+  // four pages we skip the auto-refresh rather than truncate the list behind the owner's back;
+  // any filter change or a manual action still does a full reload.
+  const WORK_MAX_REFRESH = 200;
+  function refreshWork() {
+    const loaded = work.offset + TASK_PAGE;
+    if (loaded > WORK_MAX_REFRESH) return;
+    loadWork(false, loaded);
+  }
+  // The signature of the request currently in flight, or null. `workLoaded` cannot do this job:
+  // it is only set AFTER the awaits below, so one Work-switch click (setLeft -> showPane's
+  // setLeft -> showPane's own -> the hashchange repeating all three) fired up to five
+  // overlapping loads, and boot with #work fired two. Same final DOM, ~10 redundant requests
+  // and visible flicker.
+  //
+  // Keyed on the QUERY, not on a bare boolean, deliberately: a bare flag would also refuse the
+  // debounced search box and the filter chips, which call loadWork(true) with CHANGED filters
+  // while a load is in flight — silently dropping what the owner just typed. Only a byte-identical
+  // request is refused, and refusing that costs nothing since the one in flight is already
+  // fetching exactly it.
+  let workLoading = null;
+  async function loadWork(reset, spanLimit) {
+    if (reset) work.offset = 0;
+    const from = spanLimit ? 0 : work.offset;
+    const size = spanLimit || TASK_PAGE;
+    const qs = new URLSearchParams({ q: work.q, project_id: work.project_id, status: work.status, min_priority: work.min_priority, limit: String(size), offset: String(from) });
+    const sig = qs.toString() + (spanLimit ? '|span' : '');
+    if (workLoading === sig) return;
+    workLoading = sig;
+    try { await _loadWork(qs, reset, spanLimit); } finally { if (workLoading === sig) workLoading = null; }
+  }
+  // Cleared in a `finally` above, so the early returns on a failed fetch below cannot strand the
+  // flag and wedge Work loading forever.
+  async function _loadWork(qs, reset, spanLimit) {
+    const [pr, tr] = await Promise.all([api('/api/cockpit/projects?limit=200'), api('/api/cockpit/tasks?' + qs.toString())]);
+    const list = $('ck-work-list');
+    if (!pr.ok) { toast('Projects: ' + errText(pr), true); return; }
+    if (!tr.ok) { toast('Tasks: ' + errText(tr), true); return; }
+    workLoaded = true;
+    work.projects = pr.data.projects || []; work.total = tr.data.total || 0; work.facets = tr.data.facets || work.facets;
+    $('ck-work-total').textContent = '· ' + work.total;
+    renderWorkChips();
+    if (reset || spanLimit) list.textContent = '';
+    const byProject = new Map();
+    (tr.data.tasks || []).forEach((t) => { const k = String(t.project_id); if (!byProject.has(k)) byProject.set(k, []); byProject.get(k).push(t); });
+    byProject.forEach((tasks, pid) => {
+      let group = list.querySelector('[data-project="' + pid + '"]');
+      if (!group) {
+        group = mk('div', 'ck-group'); group.dataset.project = pid;
+        const p = work.projects.find((x) => String(x.id) === pid) || {};
+        const head = mk('div', 'ck-group-head');
+        head.appendChild(mk('span', null, (tasks[0].project_name || p.name || 'project ' + pid) + (p.status ? ' · ' + p.status : '')));
+        head.appendChild(mk('span', 'ck-num', (p.open_tasks != null ? p.open_tasks + ' open / ' + p.total_tasks : String(tasks.length))));
+        head.addEventListener('click', () => { if (work.collapsed.has(pid)) work.collapsed.delete(pid); else work.collapsed.add(pid); group.classList.toggle('ck-collapsed', work.collapsed.has(pid)); });
+        group.appendChild(head); group.appendChild(mk('div', 'ck-group-body'));
+        group.classList.toggle('ck-collapsed', work.collapsed.has(pid));
+        list.appendChild(group);
+      }
+      const body = group.querySelector('.ck-group-body');
+      tasks.forEach((t) => {
+        const card = mk('button', 'ck-card'); card.type = 'button';
+        const row = mk('div', 'ck-row'); row.appendChild(mk('span', 'ck-name', t.title)); row.appendChild(prioPill(t.priority)); row.appendChild(pill(t.status));
+        card.appendChild(row);
+        card.appendChild(mk('div', 'ck-sub', [t.task_type || '—', t.agent_name || (t.delegation_source ? 'fleet · ' + t.delegation_source : '')].filter(Boolean).join(' · ')));
+        card.addEventListener('click', () => openTask(t.id));
+        body.appendChild(card);
+      });
+    });
+    if (!list.childElementCount) list.appendChild(mk('div', 'ck-empty', 'No tasks match.'));
+    $('ck-work-more').hidden = work.offset + TASK_PAGE >= work.total;
+    const sel = $('ck-task-new-project'); sel.textContent = '';
+    work.projects.forEach((p) => { const o = mk('option', null, p.name); o.value = String(p.id); sel.appendChild(o); });
+  }
+
+  let currentTask = null; let taskWatch = null;
+  // Live references to the sheet's inputs, so the poll can tell whether the owner has work in
+  // progress in there. renderTask() rebuilds the whole body, so these are re-set on every render.
+  const taskEls = { note: null, status: null, prio: null, statusAtRender: null, prioAtRender: null };
+  // renderTask() does `body.textContent = ''` — a 10 s poll running that under the owner's hands
+  // destroyed a half-typed note and any status/priority they had chosen but not yet applied.
+  // Chosen fix: SKIP the refresh entirely while the sheet holds work, rather than patching
+  // individual nodes. It is the honest option — a partial patch would still have to decide which
+  // half of a rebuilt sheet is safe to touch. Cost, stated plainly: while the owner is focused in
+  // the sheet or holds an unsent note/selection, the delegated-task status shown is the one from
+  // the last clean refresh; it updates on their next action, or as soon as the sheet is idle.
+  function taskSheetBusy() {
+    const sheet = $('ck-task');
+    if (sheet && sheet.contains(document.activeElement)) return true;
+    if (taskEls.note && taskEls.note.value.trim()) return true;
+    // Compare against the value AT RENDER, never against the task's own field. A <select> with
+    // no matching option is not empty — the browser auto-selects the first one — so a task whose
+    // priority is NULL or outside 1-10 makes prio.value read '1', which never equals
+    // String(null), and the sheet would be "busy" forever with the 10 s poll dead for that task.
+    // Measured 0 of 5,917 rows in that state today, but renderTask and prioPill both already
+    // guard `priority == null`, so this codebase treats it as reachable. Same trap applies to
+    // status if it ever holds a value outside the option list, and one mechanism covers both.
+    if (taskEls.status && taskEls.status.value !== taskEls.statusAtRender) return true;
+    if (taskEls.prio && taskEls.prio.value !== taskEls.prioAtRender) return true;
+    return false;
+  }
+  async function openTask(id) {
+    const res = await api('/api/cockpit/tasks/' + id);
+    if (!res.ok) { toast('Task: ' + errText(res), true); return; }
+    currentTask = res.data.task; renderTask(currentTask);
+    $('ck-task').hidden = false; $('ck-task').classList.add('ck-show');
+    clearInterval(taskWatch);
+    if (currentTask.delegation_source && (currentTask.status === 'pending' || currentTask.status === 'in_progress')) taskWatch = setInterval(() => { if (!taskSheetBusy()) openTask(id); }, 10000);
+  }
+  $('ck-task-close').addEventListener('click', () => { $('ck-task').classList.remove('ck-show'); $('ck-task').hidden = true; clearInterval(taskWatch); });
+  function renderTask(t) {
+    $('ck-task-title').textContent = t.title || ('#' + t.id);
+    const body = $('ck-task-body'); body.textContent = '';
+    body.appendChild(mk('div', 'ck-sub', [t.project_name || '—', t.task_type || '—', 'priority ' + (t.priority == null ? '—' : t.priority), t.agent_name || ''].filter(Boolean).join(' · ')));
+    const row0 = mk('div', 'ck-row'); row0.appendChild(pill(t.status)); if (t.delegation_source) row0.appendChild(mk('span', 'ck-sub', 'delegated · ' + ((t.delegation_args || {}).capability || '?') + ' · ' + t.status)); body.appendChild(row0);
+    if (t.description) { const d = mk('div', 'ck-sub'); d.textContent = t.description; body.appendChild(d); }
+    body.appendChild(mk('div', 'ck-sect', 'Actions'));
+    const stSel = mk('select', 'ck-select'); ['pending', 'in_progress', 'blocked', 'completed', 'cancelled'].forEach((s) => { const o = mk('option', null, s); o.value = s; if (s === t.status) o.selected = true; stSel.appendChild(o); });
+    taskEls.status = stSel; taskEls.statusAtRender = stSel.value;
+    const stBtn = mk('button', 'ck-btn ck-small', 'Set'); stBtn.type = 'button'; stBtn.addEventListener('click', () => taskAct(t.id, 'status', { status: stSel.value }, 'Status → ' + stSel.value));
+    const r1 = mk('div', 'ck-row'); r1.appendChild(stSel); r1.appendChild(stBtn); body.appendChild(r1);
+    const prSel = mk('select', 'ck-select'); for (let i = 1; i <= 10; i++) { const o = mk('option', null, String(i)); o.value = String(i); if (i === t.priority) o.selected = true; prSel.appendChild(o); }
+    taskEls.prio = prSel; taskEls.prioAtRender = prSel.value;
+    const prBtn = mk('button', 'ck-btn ck-small', 'Set'); prBtn.type = 'button'; prBtn.addEventListener('click', () => taskAct(t.id, 'priority', { priority: parseInt(prSel.value, 10) }, 'Priority → ' + prSel.value));
+    const r2 = mk('div', 'ck-row'); r2.appendChild(mk('span', 'ck-sub', 'priority')); r2.appendChild(prSel); r2.appendChild(prBtn); body.appendChild(r2);
+    const noteBox = mk('textarea', 'ck-select'); noteBox.rows = 2; noteBox.placeholder = 'Add a note…'; noteBox.maxLength = 2000;
+    taskEls.note = noteBox;
+    const noteBtn = mk('button', 'ck-btn ck-small', 'Add note'); noteBtn.type = 'button';
+    // Clear ONLY on success. This used to clear on both paths: on success the sheet had already
+    // been rebuilt so it was a no-op, which meant the only text it ever actually destroyed was
+    // the owner's unsaved note after a FAILED save.
+    noteBtn.addEventListener('click', () => { const text = noteBox.value.trim(); if (!text) return; taskAct(t.id, 'note', { text }, 'Note added').then((ok) => { if (ok) noteBox.value = ''; }); });
+    const r3 = mk('div', 'ck-row'); r3.appendChild(noteBox); r3.appendChild(noteBtn); body.appendChild(r3);
+    const capSel = mk('select', 'ck-select'); (work.facets.capabilities || []).forEach((c) => { const o = mk('option', null, c); o.value = c; capSel.appendChild(o); });
+    const dlBtn = mk('button', 'ck-btn ck-primary ck-small', 'Delegate to fleet'); dlBtn.type = 'button';
+    dlBtn.disabled = !(t.status === 'pending' || t.status === 'blocked') || !!(t.delegation_source && t.status === 'pending');
+    dlBtn.addEventListener('click', () => taskAct(t.id, 'delegate', { capability: capSel.value }, 'Delegated — the fleet claims it within 30 s'));
+    const r4 = mk('div', 'ck-row'); r4.appendChild(capSel); r4.appendChild(dlBtn); body.appendChild(r4);
+    body.appendChild(mk('div', 'ck-sect', 'Notes'));
+    const notes = mk('div', 'ck-task-notes');
+    (t.notes || []).forEach((n) => { const el = mk('div', 'ck-note', n.text); const ts = mk('span', 'ck-note-ts', (n.author || '') + ' · ' + (n.ts || '')); el.appendChild(ts); notes.appendChild(el); });
+    if (!(t.notes || []).length) notes.appendChild(mk('div', 'ck-empty', 'No notes yet.'));
+    body.appendChild(notes);
+  }
+  // Resolves TRUE only when the write landed, so callers can tell success from failure.
+  async function taskAct(id, action, body, okMsg) {
+    const res = await api('/api/cockpit/tasks/' + id + '/' + action, { method: 'POST', body });
+    if (!res.ok || res.data.success === false) { toast(errText(res), true); return false; }
+    toast(okMsg);
+    await openTask(id); loadWork(true);
+    return true;
+  }
+
+  $('ck-task-open').addEventListener('click', () => { $('ck-task-new').hidden = false; $('ck-task-new').classList.add('ck-show'); });
+  document.querySelectorAll('[data-close="ck-task-new"]').forEach((b) => b.addEventListener('click', () => { $('ck-task-new').classList.remove('ck-show'); $('ck-task-new').hidden = true; }));
+  $('ck-task-new').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const body = { project_id: parseInt(f.get('project_id'), 10), title: String(f.get('title') || '').trim(), description: String(f.get('description') || '').trim(), priority: parseInt(f.get('priority'), 10), task_type: String(f.get('task_type') || 'implementation') };
+    const res = await api('/api/cockpit/tasks', { method: 'POST', body });
+    if (!res.ok || res.data.success === false) { toast(errText(res), true); return; }
+    toast('Task #' + res.data.task.id + ' created');
+    $('ck-task-new').classList.remove('ck-show'); $('ck-task-new').hidden = true; e.target.reset(); loadWork(true);
+  });
+  // Genuinely visible by EITHER mechanism: the phone tab sets .ck-show, the tablet-and-up
+  // layout shows the column from body.ck-left-work with no .ck-show at all. getClientRects()
+  // asks the layout rather than re-encoding the 768px breakpoint here.
+  function workVisible() { const el = $('pane-work'); return !!el && el.getClientRects().length > 0; }
+  setInterval(() => { if (workLoaded && workVisible()) refreshWork(); }, WORK_POLL_MS);
 
   // ---- Approvals (tab on phone, strip on desktop) -----------------------------------
   let hirePending = false;
@@ -272,7 +530,11 @@
   }
 
   // ---- boot ------------------------------------------------------------------------
+  booted = true;
   showPane(paneFromHash());
+  // A saved 'work' preference with the hash on #builder/#approvals shows the Work column on
+  // desktop without ever routing through showPane('work') — load it here too.
+  if (leftChoice === 'work' && !workLoaded) loadWork(true);
   $('ck-agent-body').appendChild(mk('div', 'ck-empty', 'Pick an agent from the crew list.'));
   loadRoster(true); loadProviders(); loadJobs(); loadApprovals();
   setInterval(async () => { await loadApprovals(); if (hirePending) loadRoster(true); }, 30000);

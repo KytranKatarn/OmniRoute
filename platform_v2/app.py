@@ -6097,6 +6097,53 @@ def api_internal_cloud_code_run():
     return jsonify({"success": True, "status": "pending_approval", "job_id": job_id, "approval_id": approval_id}), 202
 
 
+def _apply_approval_statuses(ids):
+    """#6680 Phase 4b — live status of one or more ``cloud_code_apply`` approvals, keyed by id.
+
+    ONE batched query for every id on the page. The runs list can carry up to 100 rows and the
+    cockpit re-polls it while any job is active, so a per-row lookup would be an N+1 on a hot path.
+
+    Reads ``autonomy_approval_queue`` rather than a stamp on ``bridge_jobs``: a Deny (or the
+    expiry sweep) updates the queue row and never touches the job, so ``apply_approval_id`` ALONE
+    cannot separate "still waiting" from "settled" — without this the cockpit reads "apply waits
+    for approval #N" forever and never re-offers Apply.
+
+    ⚠️ THE VOCABULARY, measured — not the one you would guess. On ``autonomy_approval_queue`` a
+    deny writes **``rejected``**, never ``denied``: ``approvals_routes.py:254`` (the DHQ Approvals
+    tab) and every Telegram Deny (``telegram_gateway.py`` 1034/1149/1232/2127) all write
+    ``rejected``. ``telegram_gateway.py:1150`` even sets ``rejected_reason='Denied via Telegram'``
+    — the WORD "Denied" is in the row while the STATUS is ``rejected``. ``denied`` belongs to a
+    DIFFERENT table, ``contractor_approval_requests`` (``approvals_routes.py:307``).
+    Full set seen here: pending | approved | rejected | executed | failed | expired | cancelled.
+    Getting this wrong is not cosmetic — a consumer that omits ``rejected`` treats the COMMON
+    settle path as "still pending". Cross-check against
+    ``services/cloud_code_lane.py:50``, which already lists ``rejected`` first.
+
+    Scoped to ``action_type = cloud_code_apply``: ids come from the job's own metadata, so a stale
+    or reused id would otherwise report a FOREIGN approval's status as this lane's. Not
+    exploitable today (the hub writes the ids) — the filter makes the query match the promise.
+
+    Best-effort: any failure returns ``{}`` so callers degrade to ``None`` (unknown) instead of
+    taking down the status/runs payload the whole cockpit renders from.
+    """
+    wanted = sorted({i for i in ids if isinstance(i, int) and not isinstance(i, bool)})
+    if not wanted:
+        return {}
+    try:
+        from database import get_db_cursor
+        from services.cloud_code_apply import ACTION_TYPE
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT id, status FROM autonomy_approval_queue WHERE id = ANY(%s) AND action_type = %s",
+                (wanted, ACTION_TYPE),
+            )
+            return {r["id"]: r["status"] for r in cur.fetchall()}
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("cloud-code: could not read apply approvals %s: %s", wanted, exc)
+        return {}
+
+
 @app.route("/api/internal/cloud-code/run/<int:job_id>", methods=["GET"])
 @require_internal_scope("cloud:code")
 def api_internal_cloud_code_status(job_id):
@@ -6124,17 +6171,8 @@ def api_internal_cloud_code_status(job_id):
     # lane; reading the row it already updates costs one indexed lookup and cannot go
     # stale. Best-effort: a failure here must not take down the whole status payload,
     # which is also what drives the run view.
-    apply_approval_status = None
     _apply_id = meta.get("apply_approval_id")
-    if _apply_id:
-        try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute("SELECT status FROM autonomy_approval_queue WHERE id=%s", (_apply_id,))
-                _appr = cur.fetchone()
-            if _appr:
-                apply_approval_status = _appr["status"]
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("cloud-code status: could not read apply approval %s: %s", _apply_id, exc)
+    apply_approval_status = _apply_approval_statuses([_apply_id]).get(_apply_id)
 
     return jsonify(
         {
@@ -6154,8 +6192,12 @@ def api_internal_cloud_code_status(job_id):
             "base_sha": meta.get("base_sha"),
             "prompt_original": meta.get("prompt_original"),
             "apply_approval_id": meta.get("apply_approval_id"),
-            # pending | approved | denied | executed | failed | expired — or None when
-            # no apply has been requested, or the approval row has since been purged.
+            # pending | approved | rejected | executed | failed | expired | cancelled — or None
+            # when no apply was requested, the approval row was purged, or the lookup failed.
+            # ⚠️ A DENY WRITES `rejected`, NOT `denied` (see _apply_approval_statuses). This
+            # comment said `denied` and the cockpit was built from it, so every Deny rendered
+            # as "still waiting" with Apply suppressed — the exact failure the field exists to
+            # prevent. `denied` is a DIFFERENT table's vocabulary.
             "apply_approval_status": apply_approval_status,
             "apply_error": meta.get("apply_error"),
             "pr_number": meta.get("pr_number"),
@@ -6224,6 +6266,11 @@ def api_internal_cloud_code_runs():
             (lane.JOB_TYPE, limit),
         )
         rows = cur.fetchall()
+    # #6680 Phase 4b — ONE batched lookup for every apply approval on this page, not one per
+    # row. Without a live status the cockpit can only see `apply_approval_id`, which is set for
+    # a pending apply AND for a denied/expired one, so a denied apply rendered as "apply waits
+    # for approval #N" forever with no way back to the Apply button.
+    _apply_statuses = _apply_approval_statuses([(r["metadata"] or {}).get("apply_approval_id") for r in rows])
     runs = []
     for row in rows:
         meta = row["metadata"] or {}
@@ -6243,6 +6290,10 @@ def api_internal_cloud_code_runs():
                 "pr_number": meta.get("pr_number"),
                 "pr_url": meta.get("pr_url"),
                 "apply_approval_id": meta.get("apply_approval_id"),
+                # pending | approved | rejected | executed | failed | expired | cancelled — or
+                # None when no apply was requested, the row was purged, or the lookup failed.
+                # ⚠️ A DENY WRITES `rejected`, NOT `denied` — see _apply_approval_statuses.
+                "apply_approval_status": _apply_statuses.get(meta.get("apply_approval_id")),
                 "apply_error": meta.get("apply_error"),
                 "result": (
                     {

@@ -368,14 +368,14 @@ def _drop_approval(db, approval_id):
         cur.execute("DELETE FROM autonomy_approval_queue WHERE id=%s", (approval_id,))
 
 
-@pytest.mark.parametrize("queue_status", ["pending", "denied", "executed", "expired"])
+@pytest.mark.parametrize("queue_status", ["pending", "rejected", "executed", "expired"])
 def test_status_route_reports_the_live_apply_approval_status(client, keys, db, queue_status):
     """A Deny must be visible in the run status (#6680 M3).
 
     The spec named an ``apply_denied_at`` field for this and nothing ever writes one
     (``grep -rn apply_denied_at platform_v2 ai_bridge`` is empty): a Deny updates
     autonomy_approval_queue and never touches the bridge_jobs row, so
-    ``apply_approval_id`` alone cannot separate "still waiting" from "denied" and the
+    ``apply_approval_id`` alone cannot separate "still waiting" from "settled" and the
     cockpit would read "apply waits for approval #N" forever. The status route reads
     the queue row instead — no new writer, and it cannot go stale.
     """
@@ -412,3 +412,147 @@ def test_a_purged_approval_row_does_not_break_the_status_payload(client, keys, d
         assert s["apply_approval_status"] is None
     finally:
         _cleanup(db, job_id)
+
+
+@pytest.mark.parametrize("queue_status", ["pending", "rejected", "executed", "expired"])
+def test_runs_list_reports_the_live_apply_approval_status(client, keys, db, queue_status):
+    """The LIST payload must carry the same live status the single-job GET does (#6680 fix wave).
+
+    The status route already resolved this and the list did not, so the cockpit — which renders
+    its job cards from the LIST — could only see ``apply_approval_id``. That id is set for a
+    pending apply AND for a rejected or expired one, so a denied apply rendered
+    "apply waits for approval #N" forever, with the Apply button suppressed and no retry path,
+    even though the hub's own dedup only blocks a *pending* apply and would accept the retry.
+    """
+    approval_id = _seed_approval(db, queue_status)
+    job_id = _seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=approval_id))
+    try:
+        runs = client.get("/api/internal/cloud-code/runs?limit=100", headers=_h()).get_json()["runs"]
+        mine = [x for x in runs if x["job_id"] == job_id][0]
+        assert mine["apply_approval_id"] == approval_id
+        assert mine["apply_approval_status"] == queue_status
+    finally:
+        _cleanup(db, job_id)
+        _drop_approval(db, approval_id)
+
+
+def test_runs_list_apply_status_is_none_without_an_apply_and_for_a_purged_row(client, keys, db):
+    """Non-vacuity: the key is resolved per row, not stamped with whatever the last query saw."""
+    plain = _seed_job(db, meta=COMPLETED_META)
+    purged = _seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=2147483000))
+    approval_id = _seed_approval(db, "rejected")
+    real = _seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=approval_id))
+    try:
+        r = client.get("/api/internal/cloud-code/runs?limit=100", headers=_h())
+        assert r.status_code == 200
+        by_id = {x["job_id"]: x for x in r.get_json()["runs"]}
+        assert by_id[plain]["apply_approval_id"] is None and by_id[plain]["apply_approval_status"] is None
+        assert by_id[purged]["apply_approval_id"] == 2147483000
+        assert by_id[purged]["apply_approval_status"] is None
+        # …and a real one on the SAME page still resolves, so "None everywhere" cannot pass.
+        assert by_id[real]["apply_approval_status"] == "rejected"
+    finally:
+        for j in (plain, purged, real):
+            _cleanup(db, j)
+        _drop_approval(db, approval_id)
+
+
+def test_runs_list_resolves_every_apply_status_in_one_batched_query(client, keys, db, monkeypatch):
+    """No N+1: the cockpit re-polls this list every 5 s while a job is active.
+
+    Counts get_db_cursor() opens for a page holding ONE apply job, then for the same page
+    holding THREE. A per-row lookup makes the second count two higher; a single ANY(%s)
+    lookup makes them equal. The route imports get_db_cursor inside the function body, so
+    patching the module attribute is what it actually resolves at call time.
+    """
+    import database
+
+    calls = {"n": 0}
+    real = database.get_db_cursor
+
+    def counting(*a, **kw):
+        calls["n"] += 1
+        return real(*a, **kw)
+
+    monkeypatch.setattr(database, "get_db_cursor", counting)
+
+    ids, approvals = [], []
+    try:
+        for _ in range(3):
+            aid = _seed_approval(db, "pending")
+            approvals.append(aid)
+            ids.append(_seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=aid)))
+
+        # Warm any lazily-cached auth/scope state first so it cannot skew the comparison.
+        client.get("/api/internal/cloud-code/runs?limit=1", headers=_h())
+
+        calls["n"] = 0
+        one = client.get("/api/internal/cloud-code/runs?limit=1", headers=_h())
+        with_one = calls["n"]
+
+        calls["n"] = 0
+        many = client.get("/api/internal/cloud-code/runs?limit=100", headers=_h())
+        with_many = calls["n"]
+
+        # The comparison is only meaningful if the wide page really did carry more apply rows.
+        wide = [x for x in many.get_json()["runs"] if x["job_id"] in ids]
+        assert len(wide) == 3 and all(x["apply_approval_status"] == "pending" for x in wide)
+        assert len(one.get_json()["runs"]) == 1
+        assert with_many == with_one, f"N+1: {with_one} cursor(s) for 1 apply row, {with_many} for 3"
+    finally:
+        for j in ids:
+            _cleanup(db, j)
+        for a in approvals:
+            _drop_approval(db, a)
+
+
+def test_apply_status_lookup_is_scoped_to_this_lanes_action_type(client, keys, db):
+    """The ids come from the job's own metadata, so a stale or reused one would otherwise report
+    a FOREIGN approval's status as this lane's. Not exploitable today — the hub writes the ids —
+    but the query should match what its docstring promises."""
+    foreign = _seed_approval(db, "rejected", action_type="linkedin_post")
+    job_id = _seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=foreign))
+    try:
+        st = client.get(f"/api/internal/cloud-code/run/{job_id}", headers=_h()).get_json()
+        assert st["apply_approval_id"] == foreign
+        assert st["apply_approval_status"] is None, "a non-cloud_code_apply row must not resolve"
+        runs = client.get("/api/internal/cloud-code/runs?limit=100", headers=_h()).get_json()["runs"]
+        assert [x for x in runs if x["job_id"] == job_id][0]["apply_approval_status"] is None
+    finally:
+        _cleanup(db, job_id)
+        _drop_approval(db, foreign)
+
+
+def test_the_deny_paths_write_rejected_not_denied():
+    """Pins the vocabulary this lane's consumer depends on, at the SOURCE rather than in prose.
+
+    The cockpit's APPLY_SETTLED omitted 'rejected' because two docstrings in app.py said the
+    deny status was 'denied' — so every Deny rendered "apply waits for approval #N" forever with
+    the Apply button suppressed, verbatim the failure the field exists to prevent. 'denied' is
+    `contractor_approval_requests`' word, a DIFFERENT table. If a deny path is ever reworded this
+    goes red, and the consumer gets updated with it instead of silently diverging again.
+    """
+    import os
+    from pathlib import Path
+
+    import ai_bridge  # the package init only — resolves ai_bridge wherever it is mounted
+
+    # In-container tests/ lives under /app (== platform_v2), so parents[2] is "/". Resolve each
+    # file from something that is true in BOTH layouts, and FAIL (never skip) if one is missing:
+    # a guard that quietly stops looking is how the wrong vocabulary survived in the first place.
+    routes_p = Path(__file__).resolve().parents[1] / "tools" / "department_hq" / "approvals_routes.py"
+    gateway_p = Path(os.path.dirname(ai_bridge.__file__)) / "telegram_gateway.py"
+    assert routes_p.is_file(), routes_p
+    assert gateway_p.is_file(), gateway_p
+    routes = routes_p.read_text()
+    gateway = gateway_p.read_text()
+
+    assert "UPDATE autonomy_approval_queue" in routes and "SET status = 'rejected'" in routes
+    assert gateway.count("SET status = 'rejected'") >= 2, "Telegram deny paths changed spelling"
+    # …and nothing writes 'denied' to THIS table (the contractor table is a separate vocabulary)
+    for name, chunk in (("approvals_routes", routes), ("telegram_gateway", gateway)):
+        lines = chunk.splitlines()
+        for i, line in enumerate(lines):
+            if "status = 'denied'" in line or "status='denied'" in line:
+                window = "\n".join(lines[max(0, i - 6) : i + 2])
+                assert "autonomy_approval_queue" not in window, f"{name}:{i + 1}\n{window}"

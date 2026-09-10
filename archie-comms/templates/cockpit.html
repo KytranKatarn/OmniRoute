@@ -22,6 +22,10 @@
   <section id="ck-strip" class="ck-strip" aria-label="Approvals waiting"></section>
 
   <main class="ck-main">
+    <div id="ck-switch" class="ck-switch" role="group" aria-label="Left column">
+      <button type="button" data-left="crew" aria-pressed="true">Crew</button>
+      <button type="button" data-left="work" aria-pressed="false">Work</button>
+    </div>
     <section id="pane-crew" class="ck-pane" aria-label="Crew">
       <div class="ck-pane-head">
         <h2>Crew <span id="ck-total" class="ck-count"></span></h2>
@@ -45,6 +49,34 @@
       </form>
     </section>
 
+    <section id="pane-work" class="ck-pane" aria-label="Work">
+      <div class="ck-pane-head">
+        <h2>Work <span id="ck-work-total" class="ck-count"></span></h2>
+        <button id="ck-task-open" class="ck-btn ck-primary" type="button">+ Task</button>
+      </div>
+      <input id="ck-work-search" class="ck-search" type="search" placeholder="Search tasks…" autocomplete="off">
+      <div id="ck-work-chips" class="ck-chips" role="group" aria-label="Task filters"></div>
+      <div id="ck-work-list" class="ck-roster" role="list"></div>
+      <button id="ck-work-more" class="ck-btn ck-block" type="button" hidden>Load more</button>
+
+      <form id="ck-task-new" class="ck-sheet ck-form" hidden>
+        <div class="ck-sheet-head"><button type="button" class="ck-back" data-close="ck-task-new">‹ Work</button><h3>New task</h3></div>
+        <label>Project <select name="project_id" id="ck-task-new-project" required></select></label>
+        <label>Title <input name="title" required maxlength="500"></label>
+        <label>Description <textarea name="description" rows="3"></textarea></label>
+        <div class="ck-two">
+          <label>Priority <select name="priority"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></label>
+          <label>Type <select name="task_type"><option>implementation</option><option>bugfix</option><option>research</option><option>testing</option><option>review</option><option>documentation</option></select></label>
+        </div>
+        <button class="ck-btn ck-primary ck-block" type="submit">Create task</button>
+      </form>
+    </section>
+
+    <section id="ck-task" class="ck-pane ck-sheet" aria-label="Task" hidden>
+      <div class="ck-sheet-head"><button id="ck-task-close" type="button" class="ck-back">‹ Work</button><h3 id="ck-task-title"></h3></div>
+      <div id="ck-task-body"></div>
+    </section>
+
     <section id="ck-agent" class="ck-pane ck-sheet" aria-label="Agent" hidden>
       <div class="ck-sheet-head"><button id="ck-agent-close" type="button" class="ck-back">‹ Crew</button><h3 id="ck-agent-name"></h3><span id="ck-agent-state" class="ck-pill"></span></div>
       <div id="ck-agent-body"></div>
@@ -58,6 +90,7 @@
           <label>Model <select id="ck-model"></select></label>
         </div>
         <label>Prompt <textarea id="ck-prompt" rows="4" required placeholder="Write a Python fizzbuzz(n) with a docstring. Reply with code only."></textarea></label>
+        <label>Target file (optional) <input id="ck-target" name="target_path" placeholder="platform_v2/… — the model gets the current file and returns the whole file" autocomplete="off"></label>
         <details><summary>System prompt (optional)</summary><textarea id="ck-system" rows="3"></textarea></details>
         <button id="ck-run" class="ck-btn ck-primary ck-block" type="submit">Run — needs your approval</button>
       </form>
@@ -73,6 +106,7 @@
 
   <nav id="ck-tabs" class="ck-tabs" aria-label="Cockpit panes">
     <button type="button" data-pane="crew" class="ck-tab-on">Crew</button>
+    <button type="button" data-pane="work">Work</button>
     <button type="button" data-pane="builder">Builder</button>
     <button type="button" data-pane="approvals">Approvals <span id="ck-tab-badge" class="ck-badge" hidden></span></button>
   </nav>

@@ -92,3 +92,41 @@ def cockpit_build_runs():
 @_require_session
 def cockpit_build_status(job_id):
     return _pass(cp.build_status(job_id))
+
+
+# ---- Work pane: projects + tasks (#6679 Phase 4b) --------------------------------------
+@cockpit_bp.route("/api/cockpit/projects", methods=["GET"])
+@_require_session
+def cockpit_projects():
+    return _pass(cp.list_projects(request.args.to_dict()))
+
+
+@cockpit_bp.route("/api/cockpit/tasks", methods=["GET"])
+@_require_session
+def cockpit_tasks():
+    return _pass(cp.list_tasks(request.args.to_dict()))
+
+
+@cockpit_bp.route("/api/cockpit/tasks/<int:task_id>", methods=["GET"])
+@_require_session
+def cockpit_task(task_id):
+    return _pass(cp.get_task(task_id))
+
+
+@cockpit_bp.route("/api/cockpit/tasks", methods=["POST"])
+@_require_session
+def cockpit_task_create():
+    return _pass(cp.create_task(request.get_json(silent=True) or {}))
+
+
+@cockpit_bp.route("/api/cockpit/tasks/<int:task_id>/<action>", methods=["POST"])
+@_require_session
+def cockpit_task_action(task_id, action):
+    return _pass(cp.task_action(task_id, action, request.get_json(silent=True) or {}))
+
+
+# ---- Code Builder: apply (#6680 Phase 4b) ----------------------------------------------
+@cockpit_bp.route("/api/cockpit/build/<int:job_id>/apply", methods=["POST"])
+@_require_session
+def cockpit_build_apply(job_id):
+    return _pass(cp.build_apply(job_id))

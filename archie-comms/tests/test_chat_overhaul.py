@@ -136,7 +136,6 @@ class TestStatusEndpoint:
         app_comms.app.config["TESTING"] = True
         app_comms.app.config["SESSION_COOKIE_SECURE"] = False
         app_comms.app.config["SESSION_COOKIE_DOMAIN"] = None
-        monkeypatch.setattr(app_comms, "_fetch_agent_status", lambda: [])
         monkeypatch.setattr(app_comms, "_fetch_platform_health", lambda: {"db": "healthy"})
         with app_comms.app.test_client() as c:
             with c.session_transaction() as sess:
@@ -146,6 +145,53 @@ class TestStatusEndpoint:
             data = json.loads(resp.data)
             assert "agents" in data
             assert "platform" in data
+
+    def test_agents_come_from_the_hub_read_filtered_and_capped(self, monkeypatch):
+        monkeypatch.setenv("SECRET_KEY", "test-secret")
+        sys.modules.pop("app_comms", None)
+        import app_comms
+        import services.cockpit_proxy as cp
+        app_comms.app.config["TESTING"] = True
+        app_comms.app.config["SESSION_COOKIE_SECURE"] = False
+        app_comms.app.config["SESSION_COOKIE_DOMAIN"] = None
+        monkeypatch.setattr(app_comms, "_fetch_platform_health", lambda: {"db": "healthy"})
+        rows = [
+            {"display_name": "Zed", "shift_state": "active", "department": "X"},
+            {"display_name": "Amy", "shift_state": "active", "department": None},
+            {"display_name": "Bob", "shift_state": "barracked", "department": "Y"},
+            {"name": "N.O.N.A.M.E.", "shift_state": "deployed"},
+        ] + [{"display_name": f"P{i:02d}", "shift_state": "winding_down", "department": "Z"} for i in range(20)]
+        monkeypatch.setattr(cp, "list_agents", lambda params: (200, {"agents": rows}))
+        with app_comms.app.test_client() as c:
+            with c.session_transaction() as sess:
+                sess["user_id"] = 1
+            resp = c.get("/api/status")
+            assert resp.status_code == 200
+            agents = json.loads(resp.data)["agents"]
+        names = [a["display_name"] for a in agents]
+        assert "Bob" not in names  # barracked is filtered out
+        amy = next(a for a in agents if a["display_name"] == "Amy")
+        assert amy["department"] == "Unknown"  # None -> "Unknown"
+        assert any(a["display_name"] == "N.O.N.A.M.E." for a in agents)  # falls back to name
+        assert names.index("Amy") < names.index("Zed")  # sorted by (shift_state, display_name)
+        assert len(agents) == 15  # capped at 15
+
+    def test_agents_empty_when_hub_unreachable(self, monkeypatch):
+        monkeypatch.setenv("SECRET_KEY", "test-secret")
+        sys.modules.pop("app_comms", None)
+        import app_comms
+        import services.cockpit_proxy as cp
+        app_comms.app.config["TESTING"] = True
+        app_comms.app.config["SESSION_COOKIE_SECURE"] = False
+        app_comms.app.config["SESSION_COOKIE_DOMAIN"] = None
+        monkeypatch.setattr(app_comms, "_fetch_platform_health", lambda: {"db": "healthy"})
+        monkeypatch.setattr(cp, "list_agents", lambda params: (503, {"success": False, "error": "hub unreachable: ConnectionError"}))
+        with app_comms.app.test_client() as c:
+            with c.session_transaction() as sess:
+                sess["user_id"] = 1
+            resp = c.get("/api/status")
+            assert resp.status_code == 200
+            assert json.loads(resp.data)["agents"] == []
 
 
 class TestTerminalEndpoints:

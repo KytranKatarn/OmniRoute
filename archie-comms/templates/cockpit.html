@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A.R.C.H.I.E. Cockpit</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/cockpit.css">
+</head>
+<body class="ck-body">
+  <header class="ck-header">
+    <a class="ck-brand" href="/chat">A.R.C.H.I.E. <span>▸ Cockpit</span></a>
+    <nav class="ck-nav" aria-label="Sections">
+      <a href="/chat">Chat</a>
+      <a class="ck-nav-on" href="/cockpit#crew">Cockpit</a>
+      <a href="/chat#terminal">Terminal</a>
+    </nav>
+  </header>
+
+  <!-- desktop: approvals strip under the header; phone: hidden (Approvals is a tab) -->
+  <section id="ck-strip" class="ck-strip" aria-label="Approvals waiting"></section>
+
+  <main class="ck-main">
+    <section id="pane-crew" class="ck-pane" aria-label="Crew">
+      <div class="ck-pane-head">
+        <h2>Crew <span id="ck-total" class="ck-count"></span></h2>
+        <button id="ck-hire-open" class="ck-btn ck-primary" type="button">+ Propose a hire</button>
+      </div>
+      <input id="ck-search" class="ck-search" type="search" placeholder="Search crew…" autocomplete="off">
+      <div id="ck-chips" class="ck-chips" role="group" aria-label="Filters"></div>
+      <div id="ck-roster" class="ck-roster" role="list"></div>
+      <button id="ck-more" class="ck-btn ck-block" type="button" hidden>Load more</button>
+
+      <form id="ck-hire" class="ck-sheet ck-form" hidden>
+        <div class="ck-sheet-head"><button type="button" class="ck-back" data-close="ck-hire">‹ Crew</button><h3>Propose a hire</h3></div>
+        <label>Name <input name="name" required placeholder="S.C.A.N."></label>
+        <label>Display name <input name="display_name" required></label>
+        <label>Department <select name="department" id="ck-hire-dept"></select></label>
+        <label>Model <input name="model" required placeholder="qwen2.5:7b"></label>
+        <label>Capability <input name="capability" required placeholder="security"></label>
+        <label>Reason <textarea name="reason" required rows="3"></textarea></label>
+        <label>Suggested skills <input name="suggested_skills" placeholder="log_scanning, compliance"></label>
+        <button class="ck-btn ck-primary ck-block" type="submit">Propose — needs your approval</button>
+      </form>
+    </section>
+
+    <section id="ck-agent" class="ck-pane ck-sheet" aria-label="Agent" hidden>
+      <div class="ck-sheet-head"><button id="ck-agent-close" type="button" class="ck-back">‹ Crew</button><h3 id="ck-agent-name"></h3><span id="ck-agent-state" class="ck-pill"></span></div>
+      <div id="ck-agent-body"></div>
+    </section>
+
+    <section id="pane-builder" class="ck-pane" aria-label="Code Builder">
+      <div class="ck-pane-head"><h2>Code Builder</h2><span class="ck-pill ck-pill-cloud">cloud · ask-first</span></div>
+      <form id="ck-compose" class="ck-form">
+        <div class="ck-two">
+          <label>Provider <select id="ck-provider"></select></label>
+          <label>Model <select id="ck-model"></select></label>
+        </div>
+        <label>Prompt <textarea id="ck-prompt" rows="4" required placeholder="Write a Python fizzbuzz(n) with a docstring. Reply with code only."></textarea></label>
+        <details><summary>System prompt (optional)</summary><textarea id="ck-system" rows="3"></textarea></details>
+        <button id="ck-run" class="ck-btn ck-primary ck-block" type="submit">Run — needs your approval</button>
+      </form>
+      <div class="ck-pane-head"><h3>Jobs</h3><button id="ck-jobs-refresh" class="ck-btn ck-small" type="button">Refresh</button></div>
+      <div id="ck-jobs" class="ck-jobs" role="list"></div>
+    </section>
+
+    <section id="pane-approvals" class="ck-pane" aria-label="Approvals">
+      <div class="ck-pane-head"><h2>Approvals <span id="ck-approvals-count" class="ck-count"></span></h2><span class="ck-muted">also in Telegram</span></div>
+      <div id="ck-approvals" class="ck-approvals" role="list"></div>
+    </section>
+  </main>
+
+  <nav id="ck-tabs" class="ck-tabs" aria-label="Cockpit panes">
+    <button type="button" data-pane="crew" class="ck-tab-on">Crew</button>
+    <button type="button" data-pane="builder">Builder</button>
+    <button type="button" data-pane="approvals">Approvals <span id="ck-tab-badge" class="ck-badge" hidden></span></button>
+  </nav>
+
+  <div id="ck-toast" class="ck-toast" role="status" aria-live="polite" hidden></div>
+  <script src="/static/js/cockpit.js"></script>
+</body>
+</html>

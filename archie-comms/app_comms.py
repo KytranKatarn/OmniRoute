@@ -144,29 +144,6 @@ def on_sso_login(user_data):
     logger.info("SSO login accepted: %s (admin)", user_data.get("username"))
 
 
-def _fetch_agent_status():
-    """Return list of active AI agents. Called by /api/status."""
-    try:
-        from database import get_db_cursor
-
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """
-                SELECT a.display_name, a.shift_state,
-                       COALESCE(a.department, 'Unknown') AS department
-                FROM agents a
-                WHERE a.worker_type = 'ai'
-                  AND a.shift_state NOT IN ('decommissioned', 'barracked', 'off_duty')
-                ORDER BY a.shift_state, a.display_name
-                LIMIT 15
-                """,
-            )
-            return [dict(r) for r in cur.fetchall()]
-    except Exception as exc:
-        logger.error("_fetch_agent_status failed: %s", exc)
-        return []
-
-
 def _fetch_platform_health():
     """Return basic platform health dict. Called by /api/status."""
     health = {}
@@ -345,6 +322,32 @@ def api_public_stats():
     return jsonify(out)
 
 
+def _status_agents():
+    """Chat-page status widget roster via the hub read (no agent SQL in comms — #6653 Phase 4).
+    Mirrors the retired peek: AI agents that are not decommissioned/barracked/off_duty,
+    ordered by shift_state then display_name, at most 15. Fail-soft: [] on any hub problem."""
+    try:
+        from services import cockpit_proxy as cp
+
+        status, body = cp.list_agents({"worker_type": "ai", "limit": "50"})
+        if status != 200 or not isinstance(body, dict):
+            return []
+        rows = [
+            {
+                "display_name": a.get("display_name") or a.get("name") or "",
+                "shift_state": a.get("shift_state") or "",
+                "department": a.get("department") or "Unknown",
+            }
+            for a in (body.get("agents") or [])
+            if a.get("shift_state") not in ("decommissioned", "barracked", "off_duty")
+        ]
+        rows.sort(key=lambda r: (r["shift_state"], r["display_name"]))
+        return rows[:15]
+    except Exception as exc:  # the widget was always fail-soft
+        logger.error("_status_agents failed: %s", exc)
+        return []
+
+
 @app.route("/api/status")
 def api_status():
     from flask import session as flask_session
@@ -354,7 +357,7 @@ def api_status():
 
     return jsonify(
         {
-            "agents": _fetch_agent_status(),
+            "agents": _status_agents(),  # via the hub read — comms holds no agent SQL (#6653 Phase 4)
             "platform": _fetch_platform_health(),
             "anomaly_count": 0,
         }
@@ -1774,6 +1777,12 @@ def start_background_services():
 
 
 start_background_services()
+
+# #6653 Phase 4 — the cockpit (Crew + Code Builder). Blueprint so it stays testable
+# without this module's import-time side effects.
+from cockpit_routes import cockpit_bp  # noqa: E402
+
+app.register_blueprint(cockpit_bp)
 
 if __name__ == "__main__":
     port = int(os.getenv("COMMS_PORT", "3001"))

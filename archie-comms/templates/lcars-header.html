@@ -50,6 +50,12 @@
       <span class="lcars-header-stardate" id="lcarsStardate"></span>
       <span style="flex:1;"></span>
       <span class="lcars-strip-divider"></span>
+      {% for _label, _icon, _url in _shortcuts %}
+      <a href="{{ _url }}" class="lcars-strip-btn" title="{{ _label }}" style="text-decoration:none;display:inline-flex;align-items:center;gap:3px;">
+        <i data-lucide="{{ _icon }}" style="width:11px;height:11px;"></i>
+        <span>{{ _label }}</span>
+      </a>
+      {% endfor %}
       <a href="https://platform.kytranempowerment.com" class="lcars-strip-btn" title="Platform" style="text-decoration:none;display:inline-flex;align-items:center;gap:3px;">
         <i data-lucide="layout-grid" style="width:11px;height:11px;"></i>
         <span>PLATFORM</span>

@@ -13,6 +13,7 @@ caller: merge_pr has five call sites and gating each would leave the next new on
 unprotected. These tests pin the two refusals plus fail-closed behaviour.
 """
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -282,3 +283,106 @@ class TestStaleVerdictGate:
                     ok, why = github_service._automerge_governance_ok(1, authority="coo")
         assert ok is False
         assert "does not record which commit" in why
+
+
+class TestMachineAuthoredNeverAutoMerges:
+    """A machine-authored PR is human-merge-only AT THE CHOKE POINT (#380 engine, #6680 cockpit).
+
+    The engine/cockpit gate was written into ``pr_review_service.mark_review_done`` only.
+    That function is F.O.R.G.E.'s OWN post-review branch — it is not the merge choke point,
+    and it stamps nothing on the review row. ``_run_archie_pr_review_worker`` runs every two
+    minutes, selects on ``review_status='reviewed'`` (which ``mark_review_done`` sets BEFORE
+    the gate runs), classifies the tier itself and merges Tier 1 through ``merge_pr`` —
+    reaching ``_automerge_governance_ok``, which had no authorship rule at all.
+
+    MEASURED on this branch's own acceptance target: a ``cockpit/apply-*`` PR touching
+    ``docs/cockpit-apply-probe.md`` classifies Tier 1, passes ``_SAFE_AUTOMERGE_PATTERNS``
+    via ``^docs/``, and the container's ``FORGE_AUTO_MERGE_MAX_TIER`` is unset (ceiling 1) —
+    so a cloud-model-authored change reached main with no human, ~2 minutes after the
+    F.O.R.G.E. approve. Exactly the #5194 lesson: gate the CHOKE POINT, never per-caller.
+
+    Authorship is a SAFETY property, so these refusals must bind EVERY actor and EVERY
+    ceiling — the assertions below deliberately hand the gate an otherwise-perfect PR.
+    """
+
+    def _run(self, review_row, tier=1, max_tier="1", authority="forge"):
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=review_row):
+            with patch(f"{mod}.classify_pr_tier", return_value=tier):
+                with patch.dict("os.environ", {"FORGE_AUTO_MERGE_MAX_TIER": max_tier}):
+                    return github_service._automerge_governance_ok(1, authority=authority)
+
+    def _cockpit_review(self, summary=_APPROVED):
+        row = _review(summary)
+        row["head_branch"] = "cockpit/apply-9147-docs-cockpit-apply-probe-md"
+        row["title"] = "[cockpit] docs/cockpit-apply-probe.md"
+        return row
+
+    def test_cockpit_pr_is_refused_though_every_other_condition_passes(self):
+        """The whole point: approved verdict, fresh SHA, allowlisted path, Tier 1 — still no."""
+        ok, why = self._run(self._cockpit_review())
+        assert ok is False, f"a cockpit PR cleared the choke point: {why}"
+        assert "human merge" in why.lower()
+
+    def test_engine_pr_is_refused_the_same_way(self):
+        row = _review(_APPROVED)
+        row["head_branch"] = "engine/fix-thing"
+        row["title"] = "[engine] fix thing"
+        ok, why = self._run(row)
+        assert ok is False, why
+        assert "human merge" in why.lower()
+
+    def test_title_prefix_alone_is_enough(self):
+        """A machine PR opened from an ordinary branch name is still machine-authored."""
+        row = _review(_APPROVED)
+        row["head_branch"] = "feat/some-ordinary-branch"
+        row["title"] = "[cockpit] docs/notes.md"
+        ok, why = self._run(row)
+        assert ok is False, why
+
+    def test_branch_prefix_alone_is_enough(self):
+        row = _review(_APPROVED)
+        row["head_branch"] = "cockpit/apply-1-docs-x-md"
+        row["title"] = "docs: update x"
+        ok, why = self._run(row)
+        assert ok is False, why
+
+    def test_refusal_binds_the_coo_authority_too(self):
+        """Authorship is SAFETY, not an authority limit — a higher ceiling must not buy past it."""
+        ok, why = self._run(self._cockpit_review(), tier=2, max_tier="3", authority="coo")
+        assert ok is False, why
+        assert "human merge" in why.lower()
+
+    def test_positive_control_ordinary_branch_still_merges(self):
+        """Non-vacuity: the same fixture on an ordinary branch must still be allowed."""
+        row = _review(_APPROVED)
+        row["head_branch"] = "fix/ordinary-change"
+        row["title"] = "fix: ordinary change"
+        ok, why = self._run(row)
+        assert ok is True, why
+
+    def test_merge_pr_reports_governance_blocked_and_calls_no_github_api(self):
+        """End to end through the choke point, the way the tier worker reaches it."""
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=self._cockpit_review()):
+            with patch(f"{mod}.classify_pr_tier", return_value=1):
+                with patch.object(github_service, "_api_get") as api_get:
+                    res = github_service.merge_pr(1)
+        api_get.assert_not_called()
+        assert res["merged"] is False
+        assert res["governance_blocked"] is True
+
+    def test_prefix_list_is_env_tunable_and_defaults_to_both(self):
+        """ONE definition, shared with mark_review_done — the two lists cannot drift."""
+        from tools.repair_bay.services import pr_review_service as prs
+
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("FORGE_NO_AUTOMERGE_BRANCH_PREFIXES", None)
+            assert prs.no_automerge_branch_prefixes() == ("engine/", "cockpit/")
+        with patch.dict("os.environ", {"FORGE_NO_AUTOMERGE_BRANCH_PREFIXES": "bot/"}):
+            assert prs.no_automerge_branch_prefixes() == ("bot/",)
+            row = _review(_APPROVED)
+            row["head_branch"] = "bot/whatever"
+            row["title"] = "chore: whatever"
+            ok, _why = self._run(row)
+            assert ok is False

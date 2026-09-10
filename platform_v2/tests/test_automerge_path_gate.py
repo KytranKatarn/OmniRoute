@@ -54,6 +54,11 @@ def gate(monkeypatch):
         "paths_ok": True,
         "blocking": [],
         "head_sha": _HEAD_SHA,
+        # CONDITION 0 (#380/#6680): None = an ordinary human-authored PR. Set it to a
+        # reason string to make the stub report a machine-authored one. Machine
+        # authorship is pinned in test_merge_governance_gate.py, not here — this key
+        # exists so the path tests are not refused by a condition they are not about.
+        "machine": None,
         "calls": [],
     }
 
@@ -79,11 +84,16 @@ def gate(monkeypatch):
         state["calls"].append("head_sha")
         return state["head_sha"]
 
+    def _machine_authored(review):
+        state["calls"].append("machine")
+        return state["machine"]
+
     stub.get_review = _get_review
     stub.verdict_is_approved = _verdict
     stub.classify_pr_tier = _tier
     stub._automerge_paths_allowed = _paths
     stub.pr_head_sha = _head_sha
+    stub.machine_authored_reason = _machine_authored
     monkeypatch.setitem(sys.modules, "tools.repair_bay.services.pr_review_service", stub)
     monkeypatch.setenv("FORGE_AUTO_MERGE_MAX_TIER", "1")
     return state
@@ -184,9 +194,16 @@ class TestHumanOverrideIsUnaffected:
 
 
 class TestDocstringMatchesBehaviour:
-    def test_docstring_declares_three_conditions(self):
-        """It previously said TWO and named the very asymmetry this closes."""
+    def test_docstring_declares_every_condition(self):
+        """It previously said TWO, then THREE, and each time named the asymmetry it closed.
+
+        The count is load-bearing: this docstring is where the next person learns what
+        the choke point actually enforces, and every under-count so far has coincided
+        with a real condition living somewhere else (#2409 paths, #2458 verdict,
+        #6680 machine authorship). Bump it when you add one.
+        """
         doc = gs._automerge_governance_ok.__doc__ or ""
-        assert "THREE independent conditions" in doc
+        assert "FOUR independent conditions" in doc
         assert "allowlisted paths" in doc
+        assert "MACHINE-AUTHORED" in doc
         assert "safety" in doc.lower() and "authority" in doc.lower()

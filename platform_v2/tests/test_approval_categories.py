@@ -39,6 +39,14 @@ class TestCategoryMapping(unittest.TestCase):
             "improvement_approve": "ship",
             "improvement_approve_red": "ship",
             "website_deploy": "ship",
+            # #6653/#6680 — the cloud coding lane. BOTH halves must be Ship: the apply
+            # is gated by the dispatch that precedes it, and the invariant pinned by
+            # test_prerequisite_and_gated_action_share_a_category says a prerequisite
+            # and the action it gates share a category, or a filtered view hides the
+            # blocker from the blocked item. "cloud_code_" is NOT a _CATEGORY_PREFIXES
+            # entry, so each one has to be named.
+            "cloud_code_dispatch": "ship",
+            "cloud_code_apply": "ship",
             "linkedin_post": "social",
             "linkedin_comment_reply": "social",
             "email_reply": "mail",

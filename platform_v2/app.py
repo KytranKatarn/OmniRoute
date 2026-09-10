@@ -6112,6 +6112,30 @@ def api_internal_cloud_code_status(job_id):
     if not row:
         return jsonify({"success": False, "error": "job not found"}), 404
     meta = row["metadata"] or {}
+
+    # #6680 — the LIVE state of the apply approval, read from the queue rather than
+    # from a stamp on the job.
+    #
+    # The spec named an `apply_denied_at` field for this, but nothing ever writes one:
+    # a Deny (or the 24 h expiry) updates autonomy_approval_queue and never touches the
+    # bridge_jobs row, so `apply_approval_id` alone cannot distinguish "still waiting"
+    # from "denied" — the cockpit would keep reading "apply waits for approval #N"
+    # forever. Adding a writer would mean teaching the generic deny path about this one
+    # lane; reading the row it already updates costs one indexed lookup and cannot go
+    # stale. Best-effort: a failure here must not take down the whole status payload,
+    # which is also what drives the run view.
+    apply_approval_status = None
+    _apply_id = meta.get("apply_approval_id")
+    if _apply_id:
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT status FROM autonomy_approval_queue WHERE id=%s", (_apply_id,))
+                _appr = cur.fetchone()
+            if _appr:
+                apply_approval_status = _appr["status"]
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("cloud-code status: could not read apply approval %s: %s", _apply_id, exc)
+
     return jsonify(
         {
             "success": True,
@@ -6130,6 +6154,9 @@ def api_internal_cloud_code_status(job_id):
             "base_sha": meta.get("base_sha"),
             "prompt_original": meta.get("prompt_original"),
             "apply_approval_id": meta.get("apply_approval_id"),
+            # pending | approved | denied | executed | failed | expired — or None when
+            # no apply has been requested, or the approval row has since been purged.
+            "apply_approval_status": apply_approval_status,
             "apply_error": meta.get("apply_error"),
             "pr_number": meta.get("pr_number"),
             "pr_url": meta.get("pr_url"),

@@ -93,14 +93,14 @@ def list_tasks(q=None, project_id=None, status=None, min_priority=None, limit=50
     params: list = [statuses]
     if project_id not in (None, ""):
         where.append("t.project_id = %s")
-        params.append(int(project_id))
+        params.append(_int_arg(project_id, "project_id", required=False))
     if q and str(q).strip():
         like = f"%{str(q).strip()}%"
         where.append("(t.title ILIKE %s OR t.description ILIKE %s)")
         params += [like, like]
     if min_priority not in (None, ""):
         where.append("t.priority >= %s")
-        params.append(int(min_priority))
+        params.append(_int_arg(min_priority, "min_priority", required=False))
     sql_where = " AND ".join(where) if where else "TRUE"
     with get_db_cursor() as (conn, cur):
         cur.execute(f"SELECT COUNT(*) AS n FROM unified_tasks t WHERE {sql_where}", params)
@@ -161,6 +161,30 @@ def _priority(value) -> int:
     return p
 
 
+def _int_arg(value, field: str, required: bool = True) -> int:
+    """Coerce a caller-supplied integer, refusing in this module's own voice.
+
+    A bare ``int(value)`` leaks its own diagnostics to the caller: ``None`` raises
+    ``TypeError``, which app.py's ``_task_error`` maps to the generic 500 "task
+    read/write failed" — so a Work-pane form submitted with no project selected read
+    as a server fault rather than a 400 the user could act on. And a non-numeric
+    string raises ``ValueError("invalid literal for int() with base 10: 'abc'")``,
+    which does reach the caller as a 400 but names neither the field nor the rule.
+
+    Every refusal here is a ValueError naming the field, matching ``_priority`` above
+    and the rest of the module's validation, so the route layer's existing
+    ValueError -> 400 mapping produces a readable message without special-casing.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if required:
+            raise ValueError(f"{field} is required")
+        raise ValueError(f"{field} must be an integer")
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} must be an integer")
+
+
 def _fetch(cur, task_id):
     cur.execute("SELECT * FROM unified_tasks WHERE id = %s", (int(task_id),))
     row = cur.fetchone()
@@ -184,8 +208,9 @@ def create_task(project_id, title, description="", priority=5, task_type="implem
     priority = _priority(priority)
     if task_type not in TASK_TYPES:
         raise ValueError(f"task_type must be one of {', '.join(TASK_TYPES)}")
+    project_id = _int_arg(project_id, "project_id")
     with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute("SELECT id, status FROM unified_projects WHERE id = %s", (int(project_id),))
+        cur.execute("SELECT id, status FROM unified_projects WHERE id = %s", (project_id,))
         project = cur.fetchone()
         if not project:
             raise LookupError("project not found")
@@ -195,7 +220,7 @@ def create_task(project_id, title, description="", priority=5, task_type="implem
             """INSERT INTO unified_tasks (project_id, title, description, status, priority, task_type, metadata,
                                           created_at, updated_at)
                VALUES (%s, %s, %s, 'pending', %s, %s, %s, NOW(), NOW()) RETURNING id""",
-            (int(project_id), title, description or "", priority, task_type, Json({"created_via": requested_by})),
+            (project_id, title, description or "", priority, task_type, Json({"created_via": requested_by})),
         )
         task_id = cur.fetchone()["id"]
     return get_task(task_id)
@@ -208,14 +233,35 @@ def set_status(task_id, status, requested_by="cockpit"):
         row = _fetch(cur, task_id)
         if row.get("delegation_source") and row.get("status") == "in_progress":
             raise ValueError("the fleet worker owns this task while it runs — wait for it to finish")
+
+        # REOPENING A DELEGATED TASK DISARMS THE DELEGATION.
+        #
+        # delegation_service.fetch_pending_delegations claims on
+        # `delegation_source IS NOT NULL AND status='pending'` — nothing else. Neither
+        # mark_task_completed nor the failure path clears delegation_source, so a
+        # FINISHED delegation leaves the row one status change away from being claimed
+        # again. Without this, the owner reopening a completed task from the Work pane
+        # handed it back to the worker within 30 s, re-running the OLD delegation_args
+        # (the old capability) with nothing in the cockpit saying a dispatch had been
+        # triggered — and delegate() then refused with "already queued", so the
+        # capability could not be corrected either.
+        #
+        # Delegation is EXPLICIT (spec §2.2), so it does not survive a reopen. Narrow
+        # on purpose: only a transition TO pending FROM something else clears it, so a
+        # LIVE queued delegation (pending -> pending) is never silently cancelled, and
+        # completing a task never erases the record of who ran it. The
+        # metadata.delegation history and the notes are untouched either way.
+        reopening = bool(row.get("delegation_source")) and status == "pending" and row.get("status") != "pending"
         cur.execute(
             """UPDATE unified_tasks
                   SET status = %s,
                       updated_at = NOW(),
                       completed_at = CASE WHEN %s = 'completed' THEN NOW() ELSE completed_at END,
-                      started_at = CASE WHEN %s = 'in_progress' AND started_at IS NULL THEN NOW() ELSE started_at END
+                      started_at = CASE WHEN %s = 'in_progress' AND started_at IS NULL THEN NOW() ELSE started_at END,
+                      delegation_source = CASE WHEN %s THEN NULL ELSE delegation_source END,
+                      delegation_args   = CASE WHEN %s THEN NULL ELSE delegation_args END
                 WHERE id = %s""",
-            (status, status, status, int(task_id)),
+            (status, status, status, reopening, reopening, int(task_id)),
         )
     return get_task(task_id)
 

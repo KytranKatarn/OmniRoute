@@ -840,13 +840,15 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
     (A.R.C.H.I.E., Tier 2). Tier 3 always escalates to Kytran and is never auto-merged.
     An unrecognised authority falls back to the most restrictive ceiling.
 
-    THE choke point for merge governance (#5194, #5370). THREE independent conditions,
+    THE choke point for merge governance (#5194, #5370). FOUR independent conditions,
     all required:
-      1. the stored F.O.R.G.E. review VERDICT is an approval,
+      0. the PR is not MACHINE-AUTHORED (``engine/``/``cockpit/`` branch or
+         ``[engine]``/``[cockpit]`` title — #380, #6680),
+      1. the stored F.O.R.G.E. review VERDICT is an approval and covers the current head,
       2. the PR touches ONLY auto-merge-allowlisted paths (#5370), and
       3. the PR's tier is <= ``FORGE_AUTO_MERGE_MAX_TIER`` (default 1).
 
-    Conditions 1 and 2 are SAFETY properties and bind every actor identically;
+    Conditions 0, 1 and 2 are SAFETY properties and bind every actor identically;
     condition 3 is an AUTHORITY limit and is per-actor (decision #953). Keep new
     checks on the correct side of that line — a safety check placed inside a
     per-authority branch protects only one caller.
@@ -857,7 +859,8 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
     Why this lives here and not in the callers: ``merge_pr`` has FIVE call sites
     (github_routes x2, forge_pipeline, and agent_loop's archie_pr_review_worker Tier 1
     + Tier 2). ``pr_review_service.mark_review_done`` carefully gates on verdict, tier,
-    engine-authorship, repo and sensitive paths — but ``_run_archie_pr_review_worker``
+    machine-authorship, repo and sensitive paths — and every one of those has since had
+    to be re-implemented HERE, because ``_run_archie_pr_review_worker``
     is a SECOND, parallel merge path that reproduced none of it: it selects reviews by
     ``review_status='reviewed'`` (which only means a review FINISHED, not that it
     approved), reads the summary purely for notification text, and merges Tier 2
@@ -870,6 +873,7 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
             _automerge_paths_allowed,
             classify_pr_tier,
             get_review,
+            machine_authored_reason,
             pr_head_sha,
             verdict_is_approved,
         )
@@ -877,6 +881,39 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
         review = get_review(pr_number, repo=repo)
         if not review:
             return (False, f"no stored F.O.R.G.E. review for PR #{pr_number} — refusing unattended merge")
+
+        # CONDITION 0 — MACHINE-AUTHORED PRs ARE NEVER AUTO-MERGED, BY ANY ACTOR
+        # (#380 engine, #6680 cockpit).
+        #
+        # This rule already existed — in pr_review_service.mark_review_done ONLY,
+        # which is F.O.R.G.E.'s own post-review branch and NOT this choke point. It
+        # stamps nothing on the review row, so _run_archie_pr_review_worker (every
+        # 2 min) selected the PR on review_status='reviewed' — a status
+        # mark_review_done sets BEFORE that gate runs — classified the tier itself
+        # and merged Tier 1 straight through merge_pr to here, where no authorship
+        # rule existed. MEASURED on the cockpit lane's own acceptance target: a
+        # cockpit/apply-* PR touching docs/ is Tier 1, passes ^docs/ in
+        # _SAFE_AUTOMERGE_PATTERNS, and FORGE_AUTO_MERGE_MAX_TIER is unset (ceiling
+        # 1) — so a cloud-model-authored change reached main with no human ~2 min
+        # after the approve. Same omission as #2409 (paths), #2458 (verdict),
+        # #5194/#5862 (a correct guard with one caller): gate the CHOKE POINT.
+        #
+        # FIRST, before the verdict/freshness/path checks, because it is the
+        # cheapest condition here (a pure dict read, no DB and no GitHub call) and
+        # a machine PR can never become mergeable by anything measured later.
+        #
+        # A SAFETY property, so it sits with the universal checks and NOT inside
+        # the per-authority tier branch (decision #953): "autonomous code needs a
+        # human" binds F.O.R.G.E., the COO and every future actor identically, and
+        # no ceiling buys past it. human_override=True never reaches here — an
+        # authenticated operator running /merge-pr IS the human this requires.
+        _machine = machine_authored_reason(review)
+        if _machine:
+            return (
+                False,
+                f"PR #{pr_number} is machine-authored ({_machine}) — autonomous code is never "
+                f"auto-merged; it needs a human merge",
+            )
 
         summary = review.get("ai_summary") or ""
         if not verdict_is_approved(summary):

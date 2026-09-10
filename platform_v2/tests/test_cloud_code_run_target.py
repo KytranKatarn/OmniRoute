@@ -351,3 +351,64 @@ def test_get_file_at_ref_percent_encodes_the_path(monkeypatch):
     assert "?" not in seen["path"] and "#" not in seen["path"], seen["path"]
     assert seen["path"].endswith("/contents/docs/a.md%3Fref%3Ddev%23frag"), seen["path"]
     assert seen["params"] == {"ref": "main"}
+
+
+def _seed_approval(db, status, action_type="cloud_code_apply"):
+    with db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO autonomy_approval_queue (action_type, action_data, tier, status) "
+            "VALUES (%s, %s, 2, %s) RETURNING id",
+            (action_type, json.dumps({"probe": True}), status),
+        )
+        return cur.fetchone()["id"]
+
+
+def _drop_approval(db, approval_id):
+    with db.cursor() as cur:
+        cur.execute("DELETE FROM autonomy_approval_queue WHERE id=%s", (approval_id,))
+
+
+@pytest.mark.parametrize("queue_status", ["pending", "denied", "executed", "expired"])
+def test_status_route_reports_the_live_apply_approval_status(client, keys, db, queue_status):
+    """A Deny must be visible in the run status (#6680 M3).
+
+    The spec named an ``apply_denied_at`` field for this and nothing ever writes one
+    (``grep -rn apply_denied_at platform_v2 ai_bridge`` is empty): a Deny updates
+    autonomy_approval_queue and never touches the bridge_jobs row, so
+    ``apply_approval_id`` alone cannot separate "still waiting" from "denied" and the
+    cockpit would read "apply waits for approval #N" forever. The status route reads
+    the queue row instead — no new writer, and it cannot go stale.
+    """
+    approval_id = _seed_approval(db, queue_status)
+    job_id = _seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=approval_id))
+    try:
+        s = client.get(f"/api/internal/cloud-code/run/{job_id}", headers=_h()).get_json()
+        assert s["apply_approval_id"] == approval_id
+        assert s["apply_approval_status"] == queue_status
+    finally:
+        _cleanup(db, job_id)
+        _drop_approval(db, approval_id)
+
+
+def test_status_route_reports_none_when_no_apply_was_requested(client, keys, db):
+    """Non-vacuity: the field is not just echoing whatever the last query returned."""
+    job_id = _seed_job(db, meta=COMPLETED_META)
+    try:
+        s = client.get(f"/api/internal/cloud-code/run/{job_id}", headers=_h()).get_json()
+        assert s["apply_approval_id"] is None
+        assert s["apply_approval_status"] is None
+    finally:
+        _cleanup(db, job_id)
+
+
+def test_a_purged_approval_row_does_not_break_the_status_payload(client, keys, db):
+    """A stamped id whose queue row is gone reports None, not a 500 — the run view depends on this."""
+    job_id = _seed_job(db, meta=dict(COMPLETED_META, apply_approval_id=2147483000))
+    try:
+        r = client.get(f"/api/internal/cloud-code/run/{job_id}", headers=_h())
+        assert r.status_code == 200
+        s = r.get_json()
+        assert s["apply_approval_id"] == 2147483000
+        assert s["apply_approval_status"] is None
+    finally:
+        _cleanup(db, job_id)

@@ -151,6 +151,14 @@ ACTION_CATEGORY = {
     "website_deploy": CATEGORY_SHIP,
     "restart_container": CATEGORY_SHIP,
     "cloud_code_dispatch": CATEGORY_SHIP,  # #6653 ask-first cloud coding lane — it is code work
+    # #6680 the apply half of that lane: it opens a PR, so it belongs beside the
+    # dispatch it follows. Named EXPLICITLY, not matched by a "cloud_code_" prefix —
+    # _CATEGORY_PREFIXES covers only linkedin_*, so an unnamed action_type lands in
+    # "other", a tab nobody reviews. The invariant pinned by
+    # test_prerequisite_and_gated_action_share_a_category applies here too: the
+    # dispatch and the apply it gates must sit in the SAME tab, or a filtered view
+    # hides the blocker from the blocked item.
+    "cloud_code_apply": CATEGORY_SHIP,
     # Mail
     "email_reply": CATEGORY_MAIL,
     # Agents — hiring and agent-account changes.

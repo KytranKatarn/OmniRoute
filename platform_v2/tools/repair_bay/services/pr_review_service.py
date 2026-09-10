@@ -453,6 +453,69 @@ def mark_review_started(pr_number: int, repo: str = None) -> None:
 
 
 # ---------------------------------------------------------------------------
+# MACHINE-AUTHORED PRs — never auto-merged, by ANY actor. ONE definition.
+# ---------------------------------------------------------------------------
+#
+# Autonomous code must pass a human merge gate: branch+PR only, then a human
+# /merge-pr (mirrors codex's never-auto-merge rule + ADR-003). Two producers:
+# the A.R.C.H.I.E. build engine names branches "engine/<slug>" and titles PRs
+# "[engine] …" (build_loop._branch_name); the cockpit apply lane (#6680) names
+# them "cockpit/apply-<job>-<slug>" / "[cockpit] …" and carries cloud-model
+# content with no test gate.
+#
+# This lived ONLY in mark_review_done until 2026-09-10. That function is
+# F.O.R.G.E.'s own post-review branch — NOT the merge choke point — and it
+# stamps nothing on the review row, so ``_run_archie_pr_review_worker`` (every
+# 2 min, selects on ``review_status='reviewed'``, which mark_review_done sets
+# BEFORE this gate runs) classified the tier itself and merged Tier 1 through
+# merge_pr, reaching a governance gate with no authorship rule at all.
+# MEASURED on this feature's own acceptance target: a ``cockpit/apply-*`` PR
+# touching ``docs/…`` is Tier 1, passes ``^docs/`` in _SAFE_AUTOMERGE_PATTERNS,
+# and the container ceiling is 1 — so it merged to main with no human ~2 min
+# after the approve. Third instance of #5194's lesson: gate the CHOKE POINT.
+#
+# Both call sites — mark_review_done below and
+# github_service._automerge_governance_ok — read THESE functions, so the two
+# lists cannot drift.
+_NO_AUTOMERGE_BRANCH_PREFIXES_DEFAULT = "engine/,cockpit/"
+NO_AUTOMERGE_TITLE_PREFIXES = ("[engine]", "[cockpit]")
+
+
+def no_automerge_branch_prefixes() -> tuple:
+    """Branch prefixes that are human-merge-only. Read from env on every call.
+
+    ``FORGE_NO_AUTOMERGE_BRANCH_PREFIXES`` (comma-separated) REPLACES the default
+    ``engine/,cockpit/`` — live-tunable without a deploy, matching the way the
+    other gate knobs work. An empty/blank value disables the branch half only;
+    the title prefixes are not tunable, so a machine PR can never become
+    auto-mergeable by clearing one env var.
+    """
+    return tuple(
+        p.strip()
+        for p in os.getenv("FORGE_NO_AUTOMERGE_BRANCH_PREFIXES", _NO_AUTOMERGE_BRANCH_PREFIXES_DEFAULT).split(",")
+        if p.strip()
+    )
+
+
+def machine_authored_reason(review: dict | None) -> str | None:
+    """Why ``review`` is a machine-authored PR, or ``None`` when it is not.
+
+    Accepts either row shape: ``head_branch`` (the ``pr_reviews`` column, what
+    ``get_review`` returns) or ``branch`` (the alias some list/normalise paths
+    use). Pure — no DB, no network — so it is safe to check first at any gate.
+    """
+    row = review or {}
+    branch = str(row.get("head_branch") or row.get("branch") or "")
+    title = str(row.get("title") or "")
+    prefixes = no_automerge_branch_prefixes()
+    if prefixes and branch.startswith(prefixes):
+        return f"branch {branch!r}"
+    if title.startswith(NO_AUTOMERGE_TITLE_PREFIXES):
+        return f"title {title!r}"
+    return None
+
+
+# ---------------------------------------------------------------------------
 # AUTO-MERGE PATH ALLOWLIST — deny-by-default (owner directive 2026-07-22:
 # "stop forge from auto merging service code").
 #
@@ -708,20 +771,15 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
         )
         return
 
-    # SAFETY GATE — engine-authored PRs are NEVER auto-merged, regardless of tier.
-    # Autonomous code (the A.R.C.H.I.E. build engine) must pass a human merge gate:
-    # branch+PR only, then a human /merge-pr (mirrors codex's never-auto-merge rule
-    # + ADR-003). The engine names branches "engine/<slug>" (build_loop._branch_name)
-    # and titles PRs "[engine] ...". Fail-safe ON; tunable via
-    # FORGE_NO_AUTOMERGE_BRANCH_PREFIXES (comma-separated, default "engine/,cockpit/").
-    # Phase 4b (#6680): cockpit applies ("cockpit/…", "[cockpit] …") carry cloud-model
-    # content with no test gate — same human-merge rule.
+    # SAFETY GATE — machine-authored PRs are NEVER auto-merged, regardless of tier.
+    # ONE definition, shared with github_service._automerge_governance_ok (THE merge
+    # choke point) via machine_authored_reason() — see the block beside
+    # _SAFE_AUTOMERGE_PATTERNS for why both are needed and what merged to main when
+    # only this one existed. This branch is F.O.R.G.E. declining to merge what it just
+    # approved; the choke point is what stops every OTHER actor, including the tier
+    # worker that reaches merge_pr without passing through here at all.
     _branch = _review.get("branch") or _review.get("head_branch") or ""
-    _title = _review.get("title") or ""
-    _no_auto_prefixes = tuple(
-        p.strip() for p in _os.getenv("FORGE_NO_AUTOMERGE_BRANCH_PREFIXES", "engine/,cockpit/").split(",") if p.strip()
-    )
-    if (_no_auto_prefixes and _branch.startswith(_no_auto_prefixes)) or _title.startswith(("[engine]", "[cockpit]")):
+    if machine_authored_reason(_review):
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "

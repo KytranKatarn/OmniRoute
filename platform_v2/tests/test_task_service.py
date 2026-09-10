@@ -225,3 +225,149 @@ def test_delegate_stamps_the_same_row_for_the_worker(seeded, db):
                 "UPDATE unified_tasks SET delegation_source=NULL, delegation_args=NULL, status='pending' WHERE id=%s",
                 (tid,),
             )
+
+
+class TestReopeningClearsTheDelegation:
+    """Reopening a delegated task must not silently re-dispatch it to the fleet.
+
+    ``delegation_service.fetch_pending_delegations`` claims on
+    ``delegation_source IS NOT NULL AND status='pending'`` — nothing else. Neither
+    ``mark_task_completed`` nor the failure path clears ``delegation_source``, so a
+    finished delegation leaves the row one status change away from being claimed
+    again. The owner setting a completed task back to ``pending`` from the Work pane
+    therefore handed it straight back to the worker within 30 seconds, re-running the
+    OLD ``delegation_args`` (the old capability), with nothing in the cockpit saying a
+    dispatch had been triggered. ``delegate()`` then refuses with "already queued", so
+    the capability could not be corrected either — the task was stuck re-running work
+    nobody asked for.
+
+    Reopening is a fresh start. Delegation is explicit (spec §2.2), so it does not
+    survive one.
+    """
+
+    def _seed_delegated(self, db, seeded, status, source="cockpit", args=None):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO unified_tasks (project_id, title, description, status, priority, "
+                "delegation_source, delegation_args) VALUES (%s, %s, 'delegated probe', %s, 5, %s, %s) "
+                "RETURNING id",
+                (
+                    seeded["p1"],
+                    f"delegated {seeded['tag']} {status}",
+                    status,
+                    source,
+                    args if args is not None else '{"capability": "research"}',
+                ),
+            )
+            return cur.fetchone()["id"]
+
+    def _row(self, db, task_id):
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT status, delegation_source, delegation_args FROM unified_tasks WHERE id = %s",
+                (task_id,),
+            )
+            return cur.fetchone()
+
+    def _claimable(self, db, task_id):
+        """The worker's OWN predicate, not a paraphrase of it."""
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM unified_tasks WHERE id = %s AND delegation_source IS NOT NULL " "AND status = 'pending'",
+                (task_id,),
+            )
+            return cur.fetchone() is not None
+
+    def test_completed_to_pending_clears_source_and_args(self, db, seeded):
+        tid = self._seed_delegated(db, seeded, "completed")
+        assert self._claimable(db, tid) is False, "fixture sanity: a completed row is not claimable"
+
+        ts.set_status(tid, "pending")
+
+        row = self._row(db, tid)
+        assert row["status"] == "pending"
+        assert row["delegation_source"] is None
+        assert row["delegation_args"] is None
+        assert self._claimable(db, tid) is False, "reopened task is still claimable — it will re-dispatch"
+
+    def test_blocked_to_pending_clears_it_too(self, db, seeded):
+        """The failure path also leaves delegation_source set (delegation_service.py:1266)."""
+        tid = self._seed_delegated(db, seeded, "blocked")
+
+        ts.set_status(tid, "pending")
+
+        assert self._claimable(db, tid) is False
+        assert self._row(db, tid)["delegation_source"] is None
+
+    def test_a_live_pending_delegation_is_left_alone(self, db, seeded):
+        """Non-vacuity: pending -> pending is not a reopen, so it must NOT disarm a queued dispatch."""
+        tid = self._seed_delegated(db, seeded, "pending")
+        assert self._claimable(db, tid) is True
+
+        ts.set_status(tid, "pending")
+
+        row = self._row(db, tid)
+        assert row["delegation_source"] == "cockpit"
+        assert self._claimable(db, tid) is True, "a queued delegation was silently cancelled"
+
+    def test_other_transitions_keep_the_delegation_record(self, db, seeded):
+        """Only the transition TO pending clears it — completing a task must not erase who ran it."""
+        tid = self._seed_delegated(db, seeded, "in_progress", source=None)
+        with db.cursor() as cur:
+            cur.execute("UPDATE unified_tasks SET delegation_source = 'cockpit' WHERE id = %s", (tid,))
+            cur.execute("UPDATE unified_tasks SET status = 'blocked' WHERE id = %s", (tid,))
+
+        ts.set_status(tid, "completed")
+
+        assert self._row(db, tid)["delegation_source"] == "cockpit"
+
+    def test_reopened_task_can_be_delegated_again(self, db, seeded):
+        """The user-visible payoff: a reopen restores the ability to choose a capability."""
+        tid = self._seed_delegated(db, seeded, "completed")
+        ts.set_status(tid, "pending")
+
+        ts.delegate(tid, "research")
+
+        row = self._row(db, tid)
+        assert row["delegation_source"] is not None, "delegate() should have re-armed it deliberately"
+
+
+class TestIntegerArgsRefuseInThisModulesVoice:
+    """A validation refusal must reach the caller as a readable 400, not a 500 (#6680 M1).
+
+    ``int(None)`` raises TypeError, and app.py's ``_task_error`` maps TypeError to the
+    generic 500 "task read/write failed" — so a Work-pane form submitted with no project
+    selected read as a server fault. ``int("abc")`` does raise ValueError (→ 400) but with
+    the text "invalid literal for int() with base 10: 'abc'", naming neither the field nor
+    the rule (deferred minor m2.1). Both now refuse the way the rest of the module does.
+    """
+
+    @pytest.mark.parametrize("bad", [None, "", "   "])
+    def test_create_task_without_a_project_says_so(self, bad):
+        with pytest.raises(ValueError) as e:
+            ts.create_task(bad, "a title")
+        assert "project_id" in str(e.value)
+
+    def test_create_task_with_a_non_numeric_project_names_the_field(self):
+        with pytest.raises(ValueError) as e:
+            ts.create_task("abc", "a title")
+        assert "project_id" in str(e.value)
+        assert "invalid literal" not in str(e.value), "int()'s own text is not a user-facing message"
+
+    @pytest.mark.parametrize(
+        "field,kwargs", [("project_id", {"project_id": "abc"}), ("min_priority", {"min_priority": "xyz"})]
+    )
+    def test_list_tasks_filters_name_the_field(self, field, kwargs):
+        with pytest.raises(ValueError) as e:
+            ts.list_tasks(**kwargs)
+        assert field in str(e.value)
+        assert "invalid literal" not in str(e.value)
+
+    def test_numeric_strings_and_zero_are_still_accepted(self, seeded):
+        """Non-vacuity: the coercion must not have become a rejection."""
+        rows, total, _ = ts.list_tasks(project_id=str(seeded["p1"]), min_priority=0, limit=200)
+        assert total >= 4, "the seeded open tasks should still be found through a string project_id"
+
+    def test_create_task_still_works_with_a_string_project_id(self, seeded):
+        task = ts.create_task(str(seeded["p1"]), f"coerced {seeded['tag']}")
+        assert task["project_id"] == seeded["p1"]

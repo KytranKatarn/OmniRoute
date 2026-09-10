@@ -832,6 +832,44 @@ services:
       - TZ=America/Toronto
     networks:
       - archie_internal
+  # OmniRoute — self-hosted OpenAI-compatible AI gateway (#6653, master-command Phase 3).
+  # A CONTRACTOR provider for the Agent Academy A/B comparison lane and the ask-first
+  # cloud CODING lane. Deliberately NOT a roster dispatch path: escalation_mode stays
+  # local_only, so nothing auto-escalates here — every call is an explicit selection.
+  # NO host port: the platform reaches it as http://omniroute:20128 on archie_internal;
+  # the dashboard is reached only via an SSH tunnel to the container IP (see the
+  # Phase 3 plan, Task 2). Pinned release — 554 open issues on a 7-month-old repo means
+  # never :latest (which follows the newest published SemVer, not git main).
+  # Secrets (JWT/API-key/storage encryption/initial password) come from ROOT .env.
+  # OMNIROUTE_MEMORY_MB: this deployment uses /v1/chat/completions only (short prompts),
+  # not the /v1/responses coding-agent surface that needs 8-12 GB heap — 2 GB suffices.
+  omniroute:
+    image: diegosouzapw/omniroute:3.8.50
+    container_name: omniroute
+    restart: unless-stopped
+    stop_grace_period: 40s
+    mem_limit: 4g
+    cpus: 2.0
+    volumes:
+      - omniroute_data:/app/data
+    environment:
+      - TZ=America/Toronto
+      - NODE_ENV=production
+      - PORT=20128
+      - OMNIROUTE_SERVER_HOST=0.0.0.0
+      - REQUIRE_API_KEY=true
+      - AUTH_COOKIE_SECURE=false
+      - BASE_URL=http://omniroute:20128
+      - OMNIROUTE_MEMORY_MB=2048
+      - INPUT_SANITIZER_ENABLED=true
+      - INPUT_SANITIZER_MODE=warn
+      - PROXY_FAIL_OPEN=false
+      - JWT_SECRET=${OMNIROUTE_JWT_SECRET}
+      - API_KEY_SECRET=${OMNIROUTE_API_KEY_SECRET}
+      - STORAGE_ENCRYPTION_KEY=${OMNIROUTE_STORAGE_ENCRYPTION_KEY}
+      - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD}
+    networks:
+      - archie_internal
 
   # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
   archie_headscale:
@@ -1377,6 +1415,9 @@ networks:
     driver: bridge
 
 volumes:
+  omniroute_data:
+    driver: local
+    name: archie_omniroute_data
   whisper_models:
     driver: local
     name: archie_whisper_models

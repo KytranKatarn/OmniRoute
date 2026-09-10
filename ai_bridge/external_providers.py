@@ -335,6 +335,33 @@ def _log_usage(provider: str, model: str, prompt_tokens: int, completion_tokens:
 # ============================================================================
 
 
+def is_auto_router(model_id) -> bool:
+    """True for a gateway auto-routing id (`auto`, `auto/<variant>[:<tier>]`).
+
+    Such an id names a POLICY, not a model. It must never be recorded as
+    task_execution_log.model_used (#6653) — that column is the accounting spine.
+    """
+    m = str(model_id).strip().lower() if model_id else ""
+    return m == "auto" or m.startswith("auto/")
+
+
+def resolve_served_model(data: dict, requested: str) -> tuple[str, bool]:
+    """Which upstream model actually served an OpenAI-compatible response?
+
+    OpenAI-compatible gateways echo the CONCRETE served model in the body's
+    ``model`` field. Returns ``(model_id, resolved)``: ``resolved`` is False only
+    when the best id we have is still an auto-router — the caller then records
+    the requested id AND the flag, so a live check can catch a gateway that does
+    not echo the served model instead of silently logging ``auto``.
+    """
+    body_model = (data or {}).get("model") if isinstance(data, dict) else None
+    body_model = str(body_model).strip() if body_model else ""
+    if body_model and not is_auto_router(body_model):
+        return body_model, True
+    req = (requested or "").strip()
+    return req, not is_auto_router(req)
+
+
 def _call_openai_compatible(
     provider: str,
     prompt: str,
@@ -401,15 +428,21 @@ def _call_openai_compatible(
         usage = data.get("usage", {})
         prompt_tokens = usage.get("prompt_tokens", 0)
         completion_tokens = usage.get("completion_tokens", 0)
-        cost = _calculate_cost(model, prompt_tokens, completion_tokens)
+        # #6653: record what SERVED the call, not what we asked for. An auto-routing
+        # gateway (OmniRoute `auto/*`) resolves to a concrete upstream model per call.
+        served_model, served_resolved = resolve_served_model(data, model)
+        cost = _calculate_cost(served_model, prompt_tokens, completion_tokens)
 
         _update_cost(provider, cost)
-        _log_usage(provider, model, prompt_tokens, completion_tokens, cost)
+        _log_usage(provider, served_model, prompt_tokens, completion_tokens, cost)
 
         return {
             "success": True,
             "response": choice["message"]["content"],
-            "model": model,
+            "model": served_model,
+            "requested_model": model,
+            "served_model_resolved": served_resolved,
+            "routing_decision": resp.headers.get("X-OmniRoute-Decision"),
             "provider": provider,
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,

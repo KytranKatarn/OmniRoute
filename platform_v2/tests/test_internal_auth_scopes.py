@@ -42,6 +42,7 @@ PROBES = {
     "sessions": ("GET", "/api/internal/linkedin/challenge-code"),
     "fleet": ("GET", "/api/internal/fleet-gpu-load"),
     "notify": ("POST", "/api/internal/notify"),
+    "cloud:code": ("GET", "/api/internal/cloud-code/run/0"),
 }
 
 
@@ -362,3 +363,109 @@ def test_agents_budget_no_row_is_404(client, keys, monkeypatch):
     monkeypatch.setattr("services.agent_service.set_token_budget", lambda aid, lim: None)
     r = client.post("/api/internal/agents/999/budget", headers=_comms(keys), json={"token_limit_per_day": 60000})
     assert r.status_code == 404
+
+
+# --- #6653 Phase 3a: the ask-first cloud coding lane --------------------------------
+
+
+class _LaneCur:
+    """Records SQL; RETURNING id -> 41, SELECT job -> a canned row."""
+
+    def __init__(self, log):
+        self.log = log
+
+    def execute(self, sql, params=None):
+        self.log.append((sql, params))
+
+    def fetchone(self):
+        last = self.log[-1][0]
+        if "RETURNING id" in last:
+            return {"id": 41}
+        if last.lstrip().startswith("SELECT id, status"):
+            return {
+                "id": 41,
+                "status": "completed",
+                "metadata": {
+                    "approval_id": 77,
+                    "model": "auto/coding",
+                    "provider": "omniroute",
+                    "result": {"success": True},
+                },
+                "error_message": None,
+                "created_at": None,
+                "completed_at": None,
+            }
+        return None
+
+
+class _LaneDB:
+    def __init__(self, log):
+        self.log = log
+
+    def __call__(self, *a, **k):
+        return self
+
+    def __enter__(self):
+        return (None, _LaneCur(self.log))
+
+    def __exit__(self, *a):
+        return False
+
+
+def _lane_patches(monkeypatch, *, allowed=True, provider=True, approval_id=77):
+    log = []
+    monkeypatch.setattr("services.cloud_code_lane.code_allowed", lambda: allowed)
+    monkeypatch.setattr(
+        "services.cloud_code_lane.active_provider",
+        lambda pk: {"provider_key": pk, "default_model": "auto/coding", "is_active": True} if provider else None,
+    )
+    seen = {}
+    monkeypatch.setattr(
+        "services.cloud_code_lane.request_tier2_approval", lambda **kw: (seen.update(kw), approval_id)[1]
+    )
+    monkeypatch.setattr("database.get_db_cursor", _LaneDB(log))
+    return log, seen
+
+
+def test_cloud_code_run_requires_a_prompt(client, keys, monkeypatch):
+    _lane_patches(monkeypatch)
+    r = client.post("/api/internal/cloud-code/run", headers=_comms(keys), json={})
+    assert r.status_code == 400
+
+
+def test_cloud_code_run_refuses_when_code_is_not_on_the_cloud_allowlist(client, keys, monkeypatch):
+    log, _ = _lane_patches(monkeypatch, allowed=False)
+    r = client.post("/api/internal/cloud-code/run", headers=_comms(keys), json={"prompt": "fizzbuzz"})
+    assert r.status_code == 409
+    assert not any("INSERT INTO bridge_jobs" in sql for sql, _ in log)  # refused BEFORE any row exists
+
+
+def test_cloud_code_run_enqueues_a_job_and_a_tier2_approval(client, keys, monkeypatch):
+    log, seen = _lane_patches(monkeypatch)
+    r = client.post("/api/internal/cloud-code/run", headers=_comms(keys), json={"prompt": "fizzbuzz"})
+    assert r.status_code == 202
+    body = r.get_json()
+    assert body == {"success": True, "status": "pending_approval", "job_id": 41, "approval_id": 77}
+    assert any(
+        "INSERT INTO bridge_jobs" in sql and params[0] == "cloud_code" and params[3] == "pending" for sql, params in log
+    )
+    assert seen["job_id"] == 41 and seen["model"] == "auto/coding" and seen["provider_key"] == "omniroute"
+    assert any("'{approval_id}'" in sql for sql, _ in log)  # linked back onto the job for the worker
+
+
+def test_cloud_code_run_fails_honestly_when_an_approval_is_already_pending(client, keys, monkeypatch):
+    log, _ = _lane_patches(monkeypatch, approval_id=None)
+    r = client.post("/api/internal/cloud-code/run", headers=_comms(keys), json={"prompt": "fizzbuzz"})
+    assert r.status_code == 409
+    assert r.get_json()["status"] == "approval_unavailable"
+    assert any("SET status='failed'" in sql for sql, _ in log)
+
+
+def test_cloud_code_status_returns_the_job(client, keys, monkeypatch):
+    _lane_patches(monkeypatch)
+    r = client.get("/api/internal/cloud-code/run/41", headers=_comms(keys))
+    assert r.status_code == 200
+    j = r.get_json()
+    assert (
+        j["job_id"] == 41 and j["status"] == "completed" and j["approval_id"] == 77 and j["result"] == {"success": True}
+    )

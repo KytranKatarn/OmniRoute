@@ -1864,6 +1864,18 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # #6653 Phase 3a: drains approved cloud CODING jobs (the ask-first lane).
+        # Toggle via work:cloud_code_worker:enabled; no-ops with nothing pending.
+        self.scheduler.add_job(
+            with_app_context(self.cloud_code_worker),
+            trigger=IntervalTrigger(seconds=30),
+            id="cloud_code_worker",
+            name="Agent Loop: Cloud Coding Lane Worker (#6653)",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._model_dispatch_worker),
             trigger=IntervalTrigger(seconds=15),
@@ -3319,6 +3331,116 @@ class AgentLoop:
                         "metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb),'{cancelled_reason}', "
                         "%s::jsonb) WHERE id=%s",
                         (json.dumps(f"worker exception: {exc}"[:500]), run_id),
+                    )
+
+    def cloud_code_worker(self):
+        """#6653 Phase 3a — drain approved cloud CODING jobs (the ask-first lane).
+
+        Mirrors ab_compare_worker: claims bridge_jobs(job_type='cloud_code',
+        status='pending') whose linked autonomy_approval_queue row resolved,
+        dispatches the approved ones through the DHQ dispatcher with an explicit
+        model_override (escalation_mode stays local_only — this is NOT
+        auto-escalation), and stores the result on the job. Toggle via
+        work:cloud_code_worker:enabled (work_control_service).
+        """
+        from services.work_control_service import is_enabled
+
+        if not is_enabled("cloud_code_worker", default=True):
+            return
+
+        from services import cloud_code_lane as lane
+        from database import get_db_cursor
+        import json
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT j.id, j.status, j.metadata, "
+                    "  EXTRACT(EPOCH FROM (NOW() - j.created_at)) AS age, "
+                    "  a.status AS approval_status "
+                    "FROM bridge_jobs j "
+                    "LEFT JOIN autonomy_approval_queue a "
+                    "  ON a.id = (j.metadata->>'approval_id')::int "
+                    "WHERE j.job_type = %s AND j.status = 'pending' "
+                    "ORDER BY j.created_at ASC LIMIT 10",
+                    (lane.JOB_TYPE,),
+                )
+                pending = cur.fetchall()
+        except Exception as e:
+            logger.warning("cloud_code_worker fetch failed: %s", e)
+            return
+
+        # Reaper: a job claimed 'running' then orphaned by a worker restart must reach
+        # a terminal state (same shape as the A/B lane's 15-minute reaper).
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE bridge_jobs SET status='failed', completed_at=NOW(), updated_at=NOW(), "
+                    "error_message='worker_timeout' "
+                    "WHERE job_type = %s AND status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'",
+                    (lane.JOB_TYPE,),
+                )
+        except Exception as e:
+            logger.warning("cloud_code_worker reaper failed: %s", e)
+
+        for job in pending:
+            action = lane.plan_worker_action(job["status"], job["approval_status"], float(job["age"] or 0))
+            if action == "skip":
+                continue
+            job_id = job["id"]
+            if action == "cancel":
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE bridge_jobs SET status='cancelled', cancelled_at=NOW(), updated_at=NOW(), "
+                        "cancellation_reason=%s WHERE id=%s AND status='pending'",
+                        (f"approval {job['approval_status'] or 'expired'}", job_id),
+                    )
+                continue
+            # action == 'run': idempotent claim — another tick may have taken it.
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE bridge_jobs SET status='running', updated_at=NOW() "
+                    "WHERE id=%s AND status='pending' RETURNING id",
+                    (job_id,),
+                )
+                claimed = cur.fetchone()
+            if not claimed:
+                continue
+            meta = job["metadata"] or {}
+            try:
+                from tools.department_hq.services.department_dispatcher import dispatch
+
+                res = dispatch(
+                    lane.CAPABILITY,
+                    meta.get("prompt", ""),
+                    module_id=lane.MODULE_ID,
+                    system_prompt=meta.get("system_prompt") or None,
+                    model_override=meta.get("model"),
+                )
+                summary = lane.summarize_result(res)
+                status = "completed" if summary["success"] else "failed"
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE bridge_jobs SET status=%s, completed_at=NOW(), updated_at=NOW(), "
+                        "error_message=%s, completed_steps=%s, failed_steps=%s, "
+                        "metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb), '{result}', %s::jsonb) "
+                        "WHERE id=%s",
+                        (
+                            status,
+                            summary.get("error"),
+                            1 if summary["success"] else 0,
+                            0 if summary["success"] else 1,
+                            json.dumps(summary, default=str),
+                            job_id,
+                        ),
+                    )
+            except Exception as e:
+                logger.warning("cloud_code_worker job %s failed: %s", job_id, e)
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE bridge_jobs SET status='failed', completed_at=NOW(), updated_at=NOW(), "
+                        "error_message=%s WHERE id=%s",
+                        (str(e)[:500], job_id),
                     )
 
     def _run_ab_comparison(self, run_id, cfg):

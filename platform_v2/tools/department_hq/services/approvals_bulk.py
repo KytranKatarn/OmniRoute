@@ -150,6 +150,7 @@ ACTION_CATEGORY = {
     "improvement_approve_red": CATEGORY_SHIP,
     "website_deploy": CATEGORY_SHIP,
     "restart_container": CATEGORY_SHIP,
+    "cloud_code_dispatch": CATEGORY_SHIP,  # #6653 ask-first cloud coding lane — it is code work
     # Mail
     "email_reply": CATEGORY_MAIL,
     # Agents — hiring and agent-account changes.

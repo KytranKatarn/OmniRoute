@@ -752,6 +752,21 @@ def _resolve_installed_vision_model(preferred: str, fallback_chain: list) -> str
     return preferred
 
 
+def served_or_requested(llm_result, requested):
+    """model_used for a DispatchResult (#6653): the model the provider SAYS served the
+    call, unless that is an auto-router id — then the requested id. Local Ollama
+    results echo the requested model, so this is a no-op for them; it only changes
+    contractor/gateway rows, where the served model is the accounting truth (ADR-034).
+    """
+    from ai_bridge.external_providers import is_auto_router
+
+    served = llm_result.get("model") if isinstance(llm_result, dict) else None
+    served = str(served).strip() if served else ""
+    if served and not is_auto_router(served):
+        return served
+    return requested or ""
+
+
 @dataclass
 class DispatchResult:
     """Result from a dispatched work request."""
@@ -5614,7 +5629,7 @@ class DepartmentDispatcher:
                         response=llm_result.get("response", ""),
                         agent_name=f"CONTRACTOR→{contractor['display_name']}",
                         agent_id=None,
-                        model_used=model or provider_key,
+                        model_used=served_or_requested(llm_result, model or provider_key),
                         department="Contractors",
                         capability=capability,
                         duration_ms=0,  # caller sets this
@@ -5627,6 +5642,8 @@ class DepartmentDispatcher:
                             "tier_position": contractor["tier_position"],
                             "creed_tier": contractor.get("creed_compliance_tier", 2),
                             "is_cloud_proxy": True,
+                            "served_model_resolved": bool(llm_result.get("served_model_resolved", True)),
+                            "routing_decision": llm_result.get("routing_decision"),
                         },
                         escalating_agent_id=escalating_agent_id,
                         escalating_agent_name=escalating_agent_name,
@@ -5649,7 +5666,7 @@ class DepartmentDispatcher:
                         response=result.get("response", ""),
                         agent_name=f"CONTRACTOR→{contractor['display_name']}",
                         agent_id=None,
-                        model_used=model or provider_key,
+                        model_used=served_or_requested(result, model or provider_key),
                         department="Contractors",
                         capability=capability,
                         duration_ms=0,  # caller sets this
@@ -5662,6 +5679,8 @@ class DepartmentDispatcher:
                             "tier_position": contractor["tier_position"],
                             "creed_tier": contractor.get("creed_compliance_tier", 2),
                             "is_cloud_proxy": False,
+                            "served_model_resolved": bool(result.get("served_model_resolved", True)),
+                            "routing_decision": result.get("routing_decision"),
                         },
                         escalating_agent_id=escalating_agent_id,
                         escalating_agent_name=escalating_agent_name,
@@ -8872,12 +8891,18 @@ class DepartmentDispatcher:
         if agentic_info:
             result_metadata["agentic"] = agentic_info
 
+        # #6653: carry served-model provenance from a gateway/contractor call into
+        # task_execution_log.request_metadata so the live proof can read it back.
+        if isinstance(llm_result, dict) and "served_model_resolved" in llm_result:
+            result_metadata["served_model_resolved"] = bool(llm_result.get("served_model_resolved"))
+            result_metadata["routing_decision"] = llm_result.get("routing_decision")
+
         result = DispatchResult(
             success=llm_result.get("success", False),
             response=llm_result.get("response", ""),
             agent_name=agent_name,
             agent_id=agent.get("id"),
-            model_used=model,
+            model_used=served_or_requested(llm_result, model),
             station_code=station_code,
             capability=capability,
             duration_ms=duration_ms,

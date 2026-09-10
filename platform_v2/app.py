@@ -5861,6 +5861,121 @@ def api_internal_agents_budget(agent_id):
     return jsonify({"success": True, "agent_id": agent_id, "token_limit_per_day": applied})
 
 
+# ---------------------------------------------------------------------------
+# Phase 3a (#6653): the ask-first cloud CODING lane. Explicit and per-call —
+# never auto-escalation (escalation_mode stays local_only). Mirrors the A/B Cloud
+# Comparison lane (#4661): a bridge_jobs row (status 'pending', NOT
+# 'pending_approval' — the autonomy row is the ONE approval item, so the
+# Approvals tab never double-lists) + a Tier-2 approval linked by
+# metadata.approval_id; agent_loop.cloud_code_worker (30 s) drains approved jobs.
+# The cockpit button is Phase 4; this is the backend path.
+# ---------------------------------------------------------------------------
+@app.route("/api/internal/cloud-code/run", methods=["POST"])
+@require_internal_scope("cloud:code")
+def api_internal_cloud_code_run():
+    import json as _json
+    from psycopg2.extras import Json
+    from database import get_db_cursor
+    from services import cloud_code_lane as lane
+
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"success": False, "error": "prompt required"}), 400
+    system_prompt = (data.get("system_prompt") or "").strip() or None
+    provider_key = (data.get("provider") or "omniroute").strip()
+
+    # Sovereignty boundary first (fail-closed); the dispatcher re-checks at dispatch time.
+    if not lane.code_allowed():
+        return jsonify({"success": False, "error": "capability 'code' is not on the cloud allowlist"}), 409
+    cfg = lane.active_provider(provider_key)
+    if not cfg:
+        return jsonify({"success": False, "error": f"provider {provider_key!r} is not an active contractor"}), 404
+    model = (data.get("model") or cfg.get("default_model") or "").strip()
+    if not model:
+        return jsonify({"success": False, "error": "no model: pass one or set the provider's default_model"}), 400
+
+    requested_by = f"cockpit:{getattr(g, 'internal_caller', 'archie_comms')}"
+    meta = lane.build_job_metadata(
+        prompt=prompt, system_prompt=system_prompt, provider_key=provider_key, model=model, requested_by=requested_by
+    )
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "INSERT INTO bridge_jobs (job_type, module_source, description, status, agent_name, metadata) "
+            "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            (
+                lane.JOB_TYPE,
+                lane.MODULE_ID,
+                f"cloud code via {provider_key}:{model}",
+                "pending",
+                "CONTRACTOR→cloud",
+                Json(meta),
+            ),
+        )
+        job_id = cur.fetchone()["id"]
+
+    approval_id = lane.request_tier2_approval(
+        job_id=job_id, provider_key=provider_key, model=model, prompt=prompt, requested_by=requested_by
+    )
+    if approval_id is None:
+        # request_approval()'s per-action_type dedup: one pending cloud_code approval at
+        # a time. Fail the job honestly rather than leave a poller waiting forever.
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE bridge_jobs SET status='failed', completed_at=NOW(), updated_at=NOW(), error_message=%s WHERE id=%s",
+                ("approval_unavailable: a cloud coding approval is already pending", job_id),
+            )
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "status": "approval_unavailable",
+                    "job_id": job_id,
+                    "error": "A cloud coding task is already awaiting approval — decide that one first.",
+                }
+            ),
+            409,
+        )
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE bridge_jobs SET metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb), '{approval_id}', %s::jsonb), "
+            "updated_at=NOW() WHERE id=%s",
+            (_json.dumps(approval_id), job_id),
+        )
+    return jsonify({"success": True, "status": "pending_approval", "job_id": job_id, "approval_id": approval_id}), 202
+
+
+@app.route("/api/internal/cloud-code/run/<int:job_id>", methods=["GET"])
+@require_internal_scope("cloud:code")
+def api_internal_cloud_code_status(job_id):
+    from database import get_db_cursor
+    from services import cloud_code_lane as lane
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT id, status, metadata, error_message, created_at, completed_at FROM bridge_jobs WHERE id=%s AND job_type=%s",
+            (job_id, lane.JOB_TYPE),
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"success": False, "error": "job not found"}), 404
+    meta = row["metadata"] or {}
+    return jsonify(
+        {
+            "success": True,
+            "job_id": row["id"],
+            "status": row["status"],
+            "approval_id": meta.get("approval_id"),
+            "model": meta.get("model"),
+            "provider": meta.get("provider"),
+            "result": meta.get("result"),
+            "error": row["error_message"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
+        }
+    )
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @require_internal_scope("delegation")
 def api_internal_delegation_submit():

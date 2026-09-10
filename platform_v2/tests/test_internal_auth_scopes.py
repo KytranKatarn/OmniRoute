@@ -45,6 +45,8 @@ PROBES = {
     "notify": ("POST", "/api/internal/notify"),
     "cloud:code": ("GET", "/api/internal/cloud-code/run/0"),
     "agents:read": ("GET", "/api/internal/agents"),
+    "tasks:read": ("GET", "/api/internal/tasks"),
+    "tasks:write": ("POST", "/api/internal/tasks/0/note"),
 }
 
 
@@ -103,7 +105,12 @@ def test_every_internal_route_is_scoped(app):
             if rule.endpoint.split(".")[-1] not in ia._SCOPED_ENDPOINTS:
                 unscoped.append(f"{rule.rule} -> {rule.endpoint}")
     assert not unscoped, "internal routes without require_internal_scope:\n" + "\n".join(unscoped)
-    assert len([r for r in app.url_map.iter_rules() if r.rule.startswith("/api/internal/")]) >= 48
+    # Floor measured live, not derived: 58 internal rules before Phase 4b's eight
+    # cockpit Work-pane routes, 66 after, and 67 once the cloud-code apply route
+    # (POST /run/<id>/apply) lands. A floor of 56 was VACUOUS — it passed with
+    # zero of the eight present, so it pinned nothing (repair-bay.md: a test that
+    # cannot fail is worse than no test). Raise this only against a fresh count.
+    assert len([r for r in app.url_map.iter_rules() if r.rule.startswith("/api/internal/")]) >= 67
 
 
 # ── the gate, through the real Flask routes ──────────────────────────────────
@@ -626,3 +633,13 @@ def test_list_agents_echoes_clamped_paging(client, keys, monkeypatch):
     assert r.status_code == 200, r.get_json()
     body = r.get_json()
     assert body["limit"] == 200 and body["offset"] == 0
+
+
+# ---- Phase 4b (#6679 cockpit Work pane): the tasks:read / tasks:write scopes --------
+
+
+def test_tasks_scopes_exist_and_are_granted_to_comms_only():
+    for scope in ("tasks:read", "tasks:write"):
+        assert scope in ia.SCOPES, scope
+        holders = [c for c, s in ia.CALLER_SCOPES.items() if scope in s]
+        assert holders == ["archie_comms"], (scope, holders)

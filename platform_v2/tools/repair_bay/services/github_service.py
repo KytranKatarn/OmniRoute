@@ -100,6 +100,40 @@ def _api_get(path: str, params: Dict = None, timeout: int = 15) -> Tuple[bool, D
         return False, {"error": str(e)}
 
 
+def get_file_at_ref(path: str, ref: str = "main") -> Optional[Dict]:
+    """The blob at <ref> via the contents API (read token). None when the path does not exist.
+
+    Raises ValueError for a non-file (directory/symlink/submodule), a file over 200 KB or
+    non-UTF-8 content; RuntimeError for any other API failure. Used by the cockpit Apply
+    lane (#6680) so the model reads, and the sha check binds to, exactly what is on main.
+
+    The path is QUOTED before it reaches the URL: unquoted, `docs/a.md?ref=dev` would
+    produce `...?ref=dev&ref=main` and the returned sha could belong to a blob on another
+    ref. cloud_code_apply.validate_target refuses those characters too, but a caller that
+    skips the policy helper must not be able to rebind `ref` from here.
+    """
+    import base64
+    import urllib.parse
+
+    # safe="/" keeps path structure; everything else, `?` `#` `%` included, is encoded.
+    ok, data = _api_get(f"/repos/{REPO_FULL}/contents/{urllib.parse.quote(path)}", params={"ref": ref})
+    if not ok:
+        if "404" in str((data or {}).get("error", "")):
+            return None
+        raise RuntimeError(f"github contents read failed: {(data or {}).get('error')}")
+    if isinstance(data, list) or (data or {}).get("type") != "file":
+        raise ValueError(f"{path} is not a file")
+    size = int(data.get("size") or 0)
+    if size > 200 * 1024:
+        raise ValueError(f"{path} is larger than 200 KB")
+    raw = base64.b64decode(data.get("content") or "")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError(f"{path} is not UTF-8 text")
+    return {"sha": data.get("sha"), "content": text, "size": size}
+
+
 def _api_post(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Dict]:
     """GitHub API POST request."""
     allowed, rl = check_before_write(token=_get_token())

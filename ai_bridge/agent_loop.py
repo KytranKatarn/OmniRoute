@@ -7432,6 +7432,17 @@ class AgentLoop:
             }
             return result
 
+        elif action_type == "cloud_code_apply":
+            # #6680 Phase 4b — unlike cloud_code_dispatch (worker-drained), the approval IS
+            # the write gate: sha check → branch → one commit → PR, never main.
+            from services import cloud_code_apply as _apply
+
+            try:
+                return _apply.execute(data)
+            except Exception as apply_err:
+                logger.error(f"cloud_code_apply execution failed: {apply_err}")
+                return {"executed": False, "error": str(apply_err)}
+
         else:
             # #5011 — an unhandled action type is a FAILURE, not a success.
             #

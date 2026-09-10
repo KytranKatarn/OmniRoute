@@ -5997,6 +5997,8 @@ def api_internal_cloud_code_run():
     system_prompt = (data.get("system_prompt") or "").strip() or None
     provider_key = (data.get("provider") or "omniroute").strip()
 
+    target_path = (data.get("target_path") or "").strip() or None  # parsed here, validated below the gate
+
     # Sovereignty boundary first (fail-closed); the dispatcher re-checks at dispatch time.
     if not lane.code_allowed():
         return jsonify({"success": False, "error": "capability 'code' is not on the cloud allowlist"}), 409
@@ -6007,10 +6009,48 @@ def api_internal_cloud_code_run():
     if not model:
         return jsonify({"success": False, "error": "no model: pass one or set the provider's default_model"}), 400
 
+    # #6680 Phase 4b — the optional target file. Validated and read from main only AFTER the
+    # gate above, so a closed lane / inactive provider / missing model refuses with its own
+    # truthful status instead of a GitHub error from a read that should not have happened.
+    # Still ahead of the INSERT: a blocked path or an unreadable file costs no bridge_jobs
+    # row and no approval. The base blob sha recorded here is what the apply executor binds
+    # its precondition to.
+    base_sha = None
+    base_size = None
+    prompt_effective = prompt
+    if target_path:
+        from services import cloud_code_apply as apply_svc
+        from tools.repair_bay.services import github_service as gh
+
+        try:
+            target_path = apply_svc.validate_target(target_path)
+        except ValueError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 400
+        try:
+            current = gh.get_file_at_ref(target_path, "main")
+        except ValueError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 400
+        except Exception as exc:
+            logger.error("cloud-code target read failed for %s: %s", target_path, exc)
+            return jsonify({"success": False, "error": f"could not read {target_path} from main: {exc}"}), 503
+        if current:
+            base_sha, base_size = current["sha"], current["size"]
+        prompt_effective = apply_svc.build_edit_prompt(target_path, prompt, current["content"] if current else None)
+
     requested_by = f"cockpit:{getattr(g, 'internal_caller', 'archie_comms')}"
+    # metadata.prompt is what the worker dispatches, so with a target file it holds the
+    # ASSEMBLED prompt; prompt_original keeps the owner's own words for the PR body.
     meta = lane.build_job_metadata(
-        prompt=prompt, system_prompt=system_prompt, provider_key=provider_key, model=model, requested_by=requested_by
+        prompt=prompt_effective,
+        system_prompt=system_prompt,
+        provider_key=provider_key,
+        model=model,
+        requested_by=requested_by,
     )
+    if target_path:
+        meta.update(
+            {"target_path": target_path, "base_sha": base_sha, "base_size": base_size, "prompt_original": prompt}
+        )
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "INSERT INTO bridge_jobs (job_type, module_source, description, status, agent_name, metadata) "
@@ -6084,8 +6124,58 @@ def api_internal_cloud_code_status(job_id):
             "error": row["error_message"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
+            # #6680 Phase 4b — the apply lane's state, so the cockpit can render the
+            # Apply button, a pending approval, a failure, or the resulting PR.
+            "target_path": meta.get("target_path"),
+            "base_sha": meta.get("base_sha"),
+            "prompt_original": meta.get("prompt_original"),
+            "apply_approval_id": meta.get("apply_approval_id"),
+            "apply_error": meta.get("apply_error"),
+            "pr_number": meta.get("pr_number"),
+            "pr_url": meta.get("pr_url"),
+            "branch": meta.get("branch"),
         }
     )
+
+
+@app.route("/api/internal/cloud-code/run/<int:job_id>/apply", methods=["POST"])
+@require_internal_scope("cloud:code")
+def api_internal_cloud_code_apply(job_id):
+    """#6680 Phase 4b — turn a completed cloud coding answer into a Tier-2 'cloud_code_apply'
+    approval. Nothing is written here; the approval executor (cloud_code_apply.execute) does
+    the branch + commit + PR after the owner says yes."""
+    import json as _json
+
+    from database import get_db_cursor
+    from services import cloud_code_apply as apply_svc
+    from services import cloud_code_lane as lane
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT id, status, metadata FROM bridge_jobs WHERE id=%s AND job_type=%s", (job_id, lane.JOB_TYPE))
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"success": False, "error": "job not found"}), 404
+    meta = row["metadata"] or {}
+    problem = apply_svc.apply_precondition(row["status"], meta)
+    if problem:
+        return jsonify({"success": False, "error": problem}), 409
+    content = apply_svc.strip_fences((meta.get("result") or {}).get("response") or "")
+    if not content.strip():
+        return jsonify({"success": False, "error": "the answer is empty — nothing to apply"}), 409
+    requested_by = f"cockpit:{getattr(g, 'internal_caller', 'archie_comms')}"
+    approval_id = apply_svc.request_tier2_approval(job_id=job_id, meta=meta, content=content, requested_by=requested_by)
+    if approval_id is None:
+        return (
+            jsonify({"success": False, "error": "an apply is already waiting for approval — decide that one first"}),
+            409,
+        )
+    stamp = {"apply_approval_id": approval_id, "apply_requested_at": apply_svc._now_iso(), "apply_error": None}
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE bridge_jobs SET metadata = COALESCE(metadata,'{}'::jsonb) || %s::jsonb, updated_at=NOW() WHERE id=%s",
+            (_json.dumps(stamp), job_id),
+        )
+    return jsonify({"success": True, "job_id": job_id, "approval_id": approval_id, "status": "pending_approval"}), 202
 
 
 @app.route("/api/internal/cloud-code/runs", methods=["GET"])
@@ -6121,6 +6211,12 @@ def api_internal_cloud_code_runs():
                 "error": row["error_message"],
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                 "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
+                # Apply-lane state only — still no prompt text and no full response here.
+                "target_path": meta.get("target_path"),
+                "pr_number": meta.get("pr_number"),
+                "pr_url": meta.get("pr_url"),
+                "apply_approval_id": meta.get("apply_approval_id"),
+                "apply_error": meta.get("apply_error"),
                 "result": (
                     {
                         k: res.get(k)
@@ -6162,6 +6258,154 @@ def api_internal_cloud_code_providers():
             }
         )
     return jsonify({"success": True, "providers": providers})
+
+
+# ---- Cockpit Work pane: projects + tasks (#6679 Phase 4b) ----------------------------
+# Thin routes over services/task_service (the single writer). LookupError → 404,
+# ValueError → 400 with the message verbatim (comms shows it as-is), anything else → 500.
+def _task_error(exc):
+    if isinstance(exc, LookupError):
+        return jsonify({"success": False, "error": str(exc)}), 404
+    if isinstance(exc, ValueError):
+        return jsonify({"success": False, "error": str(exc)}), 400
+    logger.error("cockpit task route failed: %s", exc)
+    return jsonify({"success": False, "error": "task read/write failed"}), 500
+
+
+@app.route("/api/internal/projects", methods=["GET"])
+@require_internal_scope("tasks:read")
+def api_internal_projects_list():
+    from services import task_service as ts
+
+    a = request.args
+    try:
+        rows, total = ts.list_projects(status=a.get("status"), limit=a.get("limit"), offset=a.get("offset"))
+    except Exception as exc:
+        return _task_error(exc)
+    limit, offset = ts.clamp_page(a.get("limit"), a.get("offset"))
+    return jsonify(
+        {"success": True, "projects": [_cockpit_row(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+    )
+
+
+@app.route("/api/internal/tasks", methods=["GET"])
+@require_internal_scope("tasks:read")
+def api_internal_tasks_list():
+    from services import task_service as ts
+
+    a = request.args
+    try:
+        rows, total, facets = ts.list_tasks(
+            q=a.get("q"),
+            project_id=a.get("project_id") or None,
+            status=a.get("status"),
+            min_priority=a.get("min_priority") or None,
+            limit=a.get("limit"),
+            offset=a.get("offset"),
+        )
+    except Exception as exc:
+        return _task_error(exc)
+    limit, offset = ts.clamp_page(a.get("limit"), a.get("offset"))
+    return jsonify(
+        {
+            "success": True,
+            "tasks": [_cockpit_row(r) for r in rows],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "facets": facets,
+        }
+    )
+
+
+@app.route("/api/internal/tasks/<int:task_id>", methods=["GET"])
+@require_internal_scope("tasks:read")
+def api_internal_task_detail(task_id):
+    from services import task_service as ts
+
+    try:
+        task = ts.get_task(task_id)
+    except Exception as exc:
+        return _task_error(exc)
+    if not task:
+        return jsonify({"success": False, "error": "task not found"}), 404
+    return jsonify({"success": True, "task": _cockpit_row(task)})
+
+
+@app.route("/api/internal/tasks", methods=["POST"])
+@require_internal_scope("tasks:write")
+def api_internal_task_create():
+    from services import task_service as ts
+
+    data = request.get_json(silent=True) or {}
+    try:
+        task = ts.create_task(
+            data.get("project_id"),
+            data.get("title"),
+            description=data.get("description") or "",
+            priority=data.get("priority", 5),
+            task_type=data.get("task_type") or "implementation",
+            requested_by="cockpit",
+        )
+    except Exception as exc:
+        return _task_error(exc)
+    return jsonify({"success": True, "task": _cockpit_row(task)}), 201
+
+
+@app.route("/api/internal/tasks/<int:task_id>/status", methods=["POST"])
+@require_internal_scope("tasks:write")
+def api_internal_task_status(task_id):
+    from services import task_service as ts
+
+    data = request.get_json(silent=True) or {}
+    try:
+        task = ts.set_status(task_id, (data.get("status") or "").strip(), requested_by="cockpit")
+    except Exception as exc:
+        return _task_error(exc)
+    return jsonify({"success": True, "task": _cockpit_row(task)})
+
+
+@app.route("/api/internal/tasks/<int:task_id>/priority", methods=["POST"])
+@require_internal_scope("tasks:write")
+def api_internal_task_priority(task_id):
+    from services import task_service as ts
+
+    data = request.get_json(silent=True) or {}
+    try:
+        task = ts.set_priority(task_id, data.get("priority"), requested_by="cockpit")
+    except Exception as exc:
+        return _task_error(exc)
+    return jsonify({"success": True, "task": _cockpit_row(task)})
+
+
+@app.route("/api/internal/tasks/<int:task_id>/note", methods=["POST"])
+@require_internal_scope("tasks:write")
+def api_internal_task_note(task_id):
+    from services import task_service as ts
+
+    data = request.get_json(silent=True) or {}
+    try:
+        note = ts.add_note(task_id, data.get("text"), author="cockpit")
+        task = ts.get_task(task_id)
+    except Exception as exc:
+        return _task_error(exc)
+    return jsonify({"success": True, "note": note, "task": _cockpit_row(task)})
+
+
+@app.route("/api/internal/tasks/<int:task_id>/delegate", methods=["POST"])
+@require_internal_scope("tasks:write")
+def api_internal_task_delegate(task_id):
+    from services import task_service as ts
+
+    data = request.get_json(silent=True) or {}
+    try:
+        task = ts.delegate(task_id, data.get("capability"), requested_by="cockpit")
+    except Exception as exc:
+        return _task_error(exc)
+    return (
+        jsonify({"success": True, "task": _cockpit_row(task), "worker": "delegate_task_worker", "claims_within_s": 30}),
+        202,
+    )
 
 
 @app.route("/api/internal/delegation/submit", methods=["POST"])

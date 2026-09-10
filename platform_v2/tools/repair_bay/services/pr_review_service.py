@@ -713,25 +713,27 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     # branch+PR only, then a human /merge-pr (mirrors codex's never-auto-merge rule
     # + ADR-003). The engine names branches "engine/<slug>" (build_loop._branch_name)
     # and titles PRs "[engine] ...". Fail-safe ON; tunable via
-    # FORGE_NO_AUTOMERGE_BRANCH_PREFIXES (comma-separated, default "engine/").
+    # FORGE_NO_AUTOMERGE_BRANCH_PREFIXES (comma-separated, default "engine/,cockpit/").
+    # Phase 4b (#6680): cockpit applies ("cockpit/…", "[cockpit] …") carry cloud-model
+    # content with no test gate — same human-merge rule.
     _branch = _review.get("branch") or _review.get("head_branch") or ""
     _title = _review.get("title") or ""
     _no_auto_prefixes = tuple(
-        p.strip() for p in _os.getenv("FORGE_NO_AUTOMERGE_BRANCH_PREFIXES", "engine/").split(",") if p.strip()
+        p.strip() for p in _os.getenv("FORGE_NO_AUTOMERGE_BRANCH_PREFIXES", "engine/,cockpit/").split(",") if p.strip()
     )
-    if (_no_auto_prefixes and _branch.startswith(_no_auto_prefixes)) or _title.startswith("[engine]"):
+    if (_no_auto_prefixes and _branch.startswith(_no_auto_prefixes)) or _title.startswith(("[engine]", "[cockpit]")):
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "
                 "VALUES (%s, %s, 'warning', 'forge', 'all')",
                 (
-                    f"PR #{pr_number} needs human merge (engine-authored)",
-                    f"F.O.R.G.E. approved engine PR #{pr_number} (branch {_branch!r}) — autonomous "
+                    f"PR #{pr_number} needs human merge (autonomous or cockpit-authored)",
+                    f"F.O.R.G.E. approved autonomous/cockpit PR #{pr_number} (branch {_branch!r}) — autonomous "
                     f"code is NEVER auto-merged; gated for a human /merge-pr.",
                 ),
             )
         logger.info(
-            "[F.O.R.G.E.] PR #%s is engine-authored (branch=%s) — GATED from auto-merge (human merge required)",
+            "[F.O.R.G.E.] PR #%s is autonomous/cockpit-authored (branch=%s) — GATED from auto-merge (human merge required)",
             pr_number,
             _branch,
         )

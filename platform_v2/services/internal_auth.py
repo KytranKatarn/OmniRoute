@@ -88,6 +88,8 @@ SCOPES: frozenset[str] = frozenset(
         "agents:manage",  # cockpit agent lifecycle: create(Tier-2)/assign/shift-state/skills/budget (#6663 Phase 2)
         "cloud:code",  # cockpit ask-first cloud CODING lane: explicit, per-call, never auto-escalation (#6653 Phase 3a)
         "agents:read",  # cockpit roster/agent/skills/budget READS — comms only (#6653 Phase 4)
+        "tasks:read",  # cockpit Work pane: projects/tasks READS — comms only (#6679 Phase 4b)
+        "tasks:write",  # cockpit Work pane: create/status/priority/note/delegate — comms only (#6679 Phase 4b)
     }
 )
 
@@ -105,6 +107,8 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
             "agents:manage",
             "cloud:code",
             "agents:read",
+            "tasks:read",
+            "tasks:write",
         }
     ),
     # the engine builds and reports; it never approves, never touches sessions or mail.

@@ -104,3 +104,15 @@ def test_prefix_is_env_tunable(merges, monkeypatch):
     _review(monkeypatch, branch="engine/zzz", title="x")
     prs.mark_review_done(999, "VERDICT: APPROVE", repo="KytranKatarn/archie-platform")
     assert merges == [999]
+
+
+def test_cockpit_branch_pr_is_gated(merges, monkeypatch):
+    _review(monkeypatch, branch="cockpit/apply-1-docs-a-md", title="feat: looks normal")
+    prs.mark_review_done(999, "VERDICT: APPROVE", repo="KytranKatarn/archie-platform")
+    assert merges == []  # a cockpit apply is cloud-model content with no test gate — human merge only
+
+
+def test_cockpit_title_pr_is_gated(merges, monkeypatch):
+    _review(monkeypatch, branch="fix/normal-looking", title="[cockpit] docs/a.md: sneaky")
+    prs.mark_review_done(999, "VERDICT: APPROVE", repo="KytranKatarn/archie-platform")
+    assert merges == []  # gated by the [cockpit] title even on a normal branch

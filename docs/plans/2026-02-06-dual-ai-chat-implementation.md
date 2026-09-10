@@ -58,7 +58,7 @@ chmod +x scripts/install_ttyd.sh
 # Start ttyd with Claude CLI
 # Runs on port 7681, requires authentication
 
-ttyd -p 7681 -c admin:archie2026 -W claude
+ttyd -p 7681 -c <user>:<password> -W claude   # literal credential redacted 2026-09-10; the shipped design uses ttyd_auth_proxy.py instead of ttyd -c
 ```
 
 2. Create systemd service file for auto-start:

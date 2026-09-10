@@ -12,8 +12,11 @@ ExecStart=/mnt/archie_brain/scripts/start_ttyd.sh
 Restart=always
 RestartSec=5
 Environment=TTYD_PORT=7681
-Environment=TTYD_USER=admin
-Environment=TTYD_PASS=archie2026
+# NOTE: there are deliberately no TTYD_USER/TTYD_PASS here. ttyd itself runs with NO
+# credentials of its own, bound to 127.0.0.1; authentication is ttyd_auth_proxy.py on
+# :7681, which checks the platform `users` table for is_active AND is_admin. Two dead
+# Environment= lines carrying a plaintext user/password sat here and were consumed by
+# nothing — removed 2026-09-10. Do not reintroduce credentials into this unit.
 
 # Security
 NoNewPrivileges=true

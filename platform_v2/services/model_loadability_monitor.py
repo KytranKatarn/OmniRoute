@@ -309,8 +309,14 @@ def _persist(findings: List[Dict[str, Any]]) -> None:
                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
                 (_SETTING_LAST, payload),
             )
-    except Exception as exc:  # noqa: BLE001 — persistence is not the job's purpose
-        logger.debug("loadability: persist failed: %s", exc)
+    except Exception as exc:  # noqa: BLE001 — a failed write must not kill the check
+        # ⚠️ WARNING, not debug. This write IS the panel's data source: if it
+        # fails, the Cluster tab keeps rendering the last successful findings
+        # forever and nothing says so — stale data presented as current, which
+        # is the failure mode this whole module exists to detect. At debug level
+        # (below the configured threshold) that would be invisible. Found while
+        # diagnosing #6694, where exactly this kind of silence cost hours.
+        logger.warning("loadability: persist FAILED — panel will show stale findings: %s", exc)
 
 
 def findings_for_display() -> List[Dict[str, Any]]:
@@ -349,6 +355,10 @@ def check_model_loadability() -> Dict[str, Any]:
     """Entry point. NEVER raises — an observer that can break its caller is
     worse than no observer (same contract as residency_monitor.check_residency).
     """
+    # #6694 — an observer whose RUNS are invisible cannot be told apart from one
+    # that never runs. This line is the difference: a clean cycle writes [] and
+    # would otherwise leave no trace anywhere a human looks.
+    logger.info("loadability: check starting")
     try:
         t = _thresholds()
         rows = _load_rows(t["window_hours"])
@@ -386,4 +396,10 @@ def check_model_loadability() -> Dict[str, Any]:
         except Exception as exc:  # noqa: BLE001 — comms down must not break the loop
             logger.warning("loadability: telegram unavailable: %s", exc)
 
+    logger.info(
+        "loadability: checked %d node/model pairs, %d finding(s), %d alerted",
+        len(rows),
+        len(findings),
+        len(alerted),
+    )
     return {"ok": True, "checked": len(rows), "findings": findings, "alerted": alerted}

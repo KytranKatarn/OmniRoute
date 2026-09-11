@@ -610,6 +610,30 @@ JOB_DEPARTMENT_MAP = {
 }
 
 
+def _log_scheduled(job, label):
+    """Say that a job is REGISTERED and when it will first run.
+
+    #6694: the loadability observer was merged, the scheduler was restarted, no
+    "not scheduled" warning appeared — and the job never ran. Registration could
+    not be distinguished from silent non-execution, because APScheduler uses a
+    MEMORY jobstore (nothing to query from outside) and these jobs bypass
+    JobService (so autonomy_loop_log cannot see them). That is the same
+    unmonitored-while-appearing-monitored shape #6688 exists to catch.
+
+    next_run_time is the load-bearing part: "registered" with next_run_time None
+    means registered and NEVER SCHEDULED, which looks identical from outside.
+    """
+    try:
+        logger.info(
+            "[Agent Loop] %s scheduled — id=%s next_run=%s",
+            label,
+            getattr(job, "id", "?"),
+            getattr(job, "next_run_time", None),
+        )
+    except Exception:  # noqa: BLE001 — a log line must never break startup
+        pass
+
+
 class AgentLoop:
     """
     Proactive agent loop that processes queues on a schedule.
@@ -1180,7 +1204,7 @@ class AgentLoop:
         try:
             from services.backup_posture_monitor import check_backup_posture
 
-            self.scheduler.add_job(
+            _bpm_job = self.scheduler.add_job(
                 with_app_context(check_backup_posture),
                 trigger=IntervalTrigger(minutes=15),
                 id="backup_posture_monitor",
@@ -1189,6 +1213,7 @@ class AgentLoop:
                 coalesce=True,
                 replace_existing=True,
             )
+            _log_scheduled(_bpm_job, "backup posture monitor")
         except Exception as _bpm_err:
             logger.warning("Backup posture monitor not scheduled: %s", _bpm_err)
 
@@ -1203,7 +1228,7 @@ class AgentLoop:
         try:
             from services.model_loadability_monitor import check_model_loadability
 
-            self.scheduler.add_job(
+            _mlm_job = self.scheduler.add_job(
                 with_app_context(check_model_loadability),
                 trigger=IntervalTrigger(minutes=30),
                 id="model_loadability_monitor",
@@ -1212,6 +1237,7 @@ class AgentLoop:
                 coalesce=True,
                 replace_existing=True,
             )
+            _log_scheduled(_mlm_job, "model loadability monitor")
         except Exception as _mlm_err:
             logger.warning("Model loadability monitor not scheduled: %s", _mlm_err)
 
@@ -1228,7 +1254,7 @@ class AgentLoop:
         try:
             from services.residency_monitor import check_residency
 
-            self.scheduler.add_job(
+            _rm_job = self.scheduler.add_job(
                 with_app_context(check_residency),
                 trigger=IntervalTrigger(minutes=30),
                 id="residency_monitor",
@@ -1237,6 +1263,7 @@ class AgentLoop:
                 coalesce=True,
                 replace_existing=True,
             )
+            _log_scheduled(_rm_job, "warm residency observer")
         except Exception as _rm_err:
             logger.warning("Residency monitor not scheduled: %s", _rm_err)
 

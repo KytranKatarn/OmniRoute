@@ -228,14 +228,25 @@ def is_priority_project(project_name: Optional[str], mode: str) -> bool:
 # from NON-family batch work on capped fleet nodes so focused work always finds
 # a slot (rides the EXISTING _node_at_cap reserve lane — same clamp, hub exempt,
 # interactive work keeps full cap exactly as before).
+# ⚠️ A WARM-PIN IS WASTED ON A BUSY MODEL (#6662, measured 2026-09-11).
+#
+# This map used to hold ONE model per family, chosen as the family's DOMINANT
+# workload ("reviews are 4:1 over code-gen, so warm the review model"). That
+# reasoning is backwards, and the fleet measured it:
+#
+#   qwen2.5:7b        — 2,664 runs/day fleet-wide. At one request every ~30s
+#                       against KEEP_ALIVE=60m it NEVER goes cold. Pinning it
+#                       buys nothing; demand already holds it resident.
+#   qwen2.5-coder:7b  —     3 runs/day, 0 successes, 401s avg. It is cold on
+#                       EVERY request, which is precisely what a pin fixes.
+#
+# So the pin earns its keep on the LOW-frequency, high-value model, not the
+# demand leader. Values are now an ORDERED TUPLE (highest pin-value first) and
+# are DISTRIBUTED across GPU nodes by fit — never broadcast to every node, which
+# spent both Starship slots on one already-warm model (fleet_jobs.py TOP_K=1).
+# A bare string is still accepted so an out-of-tree family keeps working.
 FAMILY_WARM_MODELS = {
-    # Reviews are the DOMINANT repair_bay workload (~4:1 over code-gen by dispatch
-    # count) and run qwen2.5:7b — the code_review agent's model — NOT
-    # qwen2.5-coder:7b. So the focus warm-pin must warm the REVIEW model, else
-    # reviews still cold-load while AUX repair_bay is armed (the whole point of the
-    # focus is to remove that cold load). code-gen (qwen2.5-coder:7b) is lower-volume
-    # and on-demand; one model per focus, so reviews win. (#6662 follow-up.)
-    "repair_bay": "qwen2.5:7b",
+    "repair_bay": ("qwen2.5-coder:7b", "qwen2.5:7b"),
     "consciousness": "mistral:7b",
     "email": "qwen2.5:7b",
     "social": "qwen2.5:7b",
@@ -243,19 +254,90 @@ FAMILY_WARM_MODELS = {
 }
 
 
-def get_focus_warm_model() -> str:
-    """The focused family's key model, or '' when no focus is active.
+def _as_model_tuple(value) -> tuple:
+    """Normalise a FAMILY_WARM_MODELS value to a tuple. str → 1-tuple."""
+    if not value:
+        return ()
+    if isinstance(value, str):
+        return (value,)
+    return tuple(m for m in value if m)
 
-    Gated on mode=='platform' AND a valid focus — reads both config keys.
-    Fail-safe '' (no warm-pin) on any error.
+
+def get_focus_warm_models() -> tuple:
+    """The focused family's models in pin-priority order, or () when inactive.
+
+    Gated on mode=='platform' AND a valid focus. Fail-safe () on any error.
     """
     try:
         if get_dispatch_mode() != "platform":
-            return ""
+            return ()
         focus = get_dispatch_focus()
-        return FAMILY_WARM_MODELS.get(focus, "") if focus else ""
+        return _as_model_tuple(FAMILY_WARM_MODELS.get(focus)) if focus else ()
     except Exception:
-        return ""
+        return ()
+
+
+def get_focus_warm_model() -> str:
+    """BACK-COMPAT: the single highest-priority focus model, or ''.
+
+    Retained because callers outside this module still expect a scalar. New
+    code should use get_focus_warm_models() + plan_focus_warm_assignments(),
+    which can fill more than one node.
+    """
+    models = get_focus_warm_models()
+    return models[0] if models else ""
+
+
+def plan_focus_warm_assignments(models, nodes) -> dict:
+    """PURE: map varchar node_id → the ONE focus model that node should warm.
+
+    ``nodes`` are dicts as selected by fleet_jobs' warm-up query: node_id,
+    gpu_available, gpu_vram_gb, and ``models`` (that node's live inventory).
+
+    Rules, in order:
+      • A node is eligible only if it has a GPU and already HAS the model —
+        the warm-pin must never queue a pull (outpost-vps.md trap).
+      • The model must FIT the node's card (``vram_gb`` from services.model_sizes).
+        A 5.5GB 7B does not fit USS-245's 4GB card; assigning it there would
+        pin a model that can only CPU-demote.
+      • Biggest card first, so the highest-priority model lands on the best
+        hardware, and one model per node (TOP_K=1 — a 5.5GB model in an 8GB
+        card leaves no room for a second).
+
+    Fail-safe {}: any error means "no pin", never a wrong pin.
+    """
+    try:
+        from services.model_sizes import lookup
+    except Exception:
+        return {}
+
+    try:
+        assignments: dict = {}
+        taken = set()
+        gpu_nodes = sorted(
+            (n for n in (nodes or []) if n.get("gpu_available")),
+            key=lambda n: float(n.get("gpu_vram_gb") or 0),
+            reverse=True,
+        )
+        for model in _as_model_tuple(models):
+            try:
+                need = float(lookup(model).vram_gb)
+            except Exception:
+                continue
+            for n in gpu_nodes:
+                nid = n.get("node_id")
+                if not nid or nid in taken:
+                    continue
+                if model not in set(n.get("models") or ()):
+                    continue
+                if float(n.get("gpu_vram_gb") or 0) < need:
+                    continue
+                assignments[nid] = model
+                taken.add(nid)
+                break
+        return assignments
+    except Exception:
+        return {}
 
 
 # ── AUX POWER phase 3 (#6099 p2): protected cluster-head node(s) per family ──
@@ -266,7 +348,16 @@ def get_focus_warm_model() -> str:
 # id (the fleet identity invariants trap). Only families with a measured cluster
 # head are listed; a missing entry means no steering for that focus.
 FAMILY_FOCUS_NODES = {
-    "repair_bay": ("starship_5501c2766526e746",),  # Runabout — the #5861 review cluster head
+    # Defiant (USS-246): RTX 3070 8GB + i9-12900K + 29GB RAM — the fleet's best
+    # coding hardware, and the ONLY card a 5.5GB 7B coder fits on (Runabout's
+    # 3050 is 4GB, so a 7B there can only CPU-demote).
+    #
+    # ⚠️ MOVED from Runabout (starship_5501c2766526e746) on 2026-09-11, not added.
+    # Protecting BOTH Starships would steer every non-family dispatch onto the
+    # hub — which is the saturated node this whole change exists to relieve, and
+    # measured 24h it carries 622 WTF beat_classification runs off USS-246 alone.
+    # Runabout keeps taking that batch work (928 mistral runs/24h already).
+    "repair_bay": ("starship_76583490e36955ab",),  # Defiant — the coding cluster head
 }
 
 

@@ -90,10 +90,24 @@ class TestFocusDemotionNodes:
         monkeypatch.setattr(fdp, "get_dispatch_mode", lambda: mode)
         monkeypatch.setattr(fdp, "get_dispatch_focus", lambda: focus)
 
-    def test_non_family_work_is_steered_off_runabout_under_focus(self, monkeypatch):
+    def test_non_family_work_is_steered_off_defiant_under_focus(self, monkeypatch):
+        """MOVED Runabout -> Defiant on 2026-09-11 (#6662).
+
+        Steering protects the focus family's best HARDWARE. For repair_bay that
+        is now Defiant: its RTX 3070 (8GB) is the only Starship card a 5.5GB 7B
+        coder fits on — Runabout's 3050 is 4GB, where the same model can only
+        CPU-demote. Reviews are unaffected: they reach Runabout through the
+        separate preferred_node ordering asserted above, not through steering.
+
+        ⚠️ Exactly ONE node is protected, deliberately. Steering both Starships
+        would push every non-family dispatch onto the hub — measured 24h, that
+        is 622 WTF beat_classification runs off Defiant alone, landing on the
+        node that is already saturated.
+        """
         self._arm(monkeypatch)
-        assert fdp.focus_demotion_nodes("wtf_hub") == (_RUNABOUT,)
-        assert fdp.focus_demotion_nodes(None) == (_RUNABOUT,)
+        assert fdp.focus_demotion_nodes("wtf_hub") == (_DEFIANT,)
+        assert fdp.focus_demotion_nodes(None) == (_DEFIANT,)
+        assert _RUNABOUT not in fdp.focus_demotion_nodes("wtf_hub")
 
     def test_family_work_is_NEVER_steered(self, monkeypatch):
         self._arm(monkeypatch)
@@ -153,16 +167,124 @@ class TestDrainFocusBoostWiring:
         assert src.index("drain:max_fixes") < src.index("drain:focus_max_fixes")
 
 
-def test_repair_bay_warm_model_is_the_review_model(monkeypatch):
-    """AUX repair_bay must pre-warm the model REVIEWS actually run (qwen2.5:7b),
-    not the code-gen model. Reviews are the dominant repair_bay workload
-    (~3000 qwen2.5:7b code_review runs / 30d vs ~700 qwen2.5-coder:7b); warming
-    qwen2.5-coder:7b left every review cold-loading while the focus was armed —
-    the exact miswiring this fixes (#6662 follow-up)."""
+def test_repair_bay_warms_the_COLD_model_first_not_the_busy_one(monkeypatch):
+    """REVERSED 2026-09-11 (#6662). This test used to assert the opposite —
+    that repair_bay warms qwen2.5:7b because "reviews are the dominant workload
+    (~3000 runs/30d vs ~700 code-gen)". Dominance is the wrong criterion, and
+    the fleet measured why:
+
+      qwen2.5:7b        2,664 runs/day  -> a request every ~30s against
+                                           KEEP_ALIVE=60m. It is NEVER cold.
+                                           A pin buys nothing.
+      qwen2.5-coder:7b      3 runs/day, 0 ok, 401s avg -> cold on EVERY request.
+
+    A warm-pin only pays for itself on the model that is actually cold. The
+    reviewer stays hot on the hub from its own demand (1,649 runs/day there).
+    """
     import services.fleet_dispatch_profile as fdp
 
-    assert fdp.FAMILY_WARM_MODELS["repair_bay"] == "qwen2.5:7b"
-    assert fdp.FAMILY_WARM_MODELS["repair_bay"] != "qwen2.5-coder:7b"
+    models = fdp._as_model_tuple(fdp.FAMILY_WARM_MODELS["repair_bay"])
+    assert models[0] == "qwen2.5-coder:7b", "the COLD model must be pinned first"
+    assert "qwen2.5:7b" in models, "the reviewer stays declared, just lower priority"
+
     monkeypatch.setattr(fdp, "get_dispatch_mode", lambda: "platform")
     monkeypatch.setattr(fdp, "get_dispatch_focus", lambda: "repair_bay")
-    assert fdp.get_focus_warm_model() == "qwen2.5:7b"
+    assert fdp.get_focus_warm_models() == ("qwen2.5-coder:7b", "qwen2.5:7b")
+    # the scalar accessor still works for out-of-tree callers
+    assert fdp.get_focus_warm_model() == "qwen2.5-coder:7b"
+
+
+def test_focus_models_are_empty_unless_platform_mode_and_a_focus(monkeypatch):
+    """Inert by default. Shipping this must change NOTHING until AUX is armed."""
+    import services.fleet_dispatch_profile as fdp
+
+    monkeypatch.setattr(fdp, "get_dispatch_mode", lambda: "auto")
+    monkeypatch.setattr(fdp, "get_dispatch_focus", lambda: "repair_bay")
+    assert fdp.get_focus_warm_models() == ()
+
+    monkeypatch.setattr(fdp, "get_dispatch_mode", lambda: "platform")
+    monkeypatch.setattr(fdp, "get_dispatch_focus", lambda: "")
+    assert fdp.get_focus_warm_models() == ()
+
+
+def test_a_bare_string_value_still_works():
+    """Back-compat: the other four families are still plain strings."""
+    import services.fleet_dispatch_profile as fdp
+
+    assert fdp._as_model_tuple("mistral:7b") == ("mistral:7b",)
+    assert fdp._as_model_tuple(None) == ()
+    assert fdp._as_model_tuple(("a", "", "b")) == ("a", "b")
+
+
+class TestFocusWarmAssignment:
+    """The distribution rule: one model per node, by fit, biggest card first.
+
+    The bug being fixed: the old code pinned ONE model to the head of EVERY GPU
+    node's single warm slot (TOP_K=1), so both Starships warmed the same model.
+    """
+
+    # Real fleet shapes, measured 2026-09-11.
+    DEFIANT = {  # RTX 3070 8GB — a 5.5GB 7B fits
+        "node_id": "starship_76583490e36955ab",
+        "gpu_available": True,
+        "gpu_vram_gb": 8,
+        "models": ["qwen2.5-coder:7b", "qwen2.5:7b", "mistral:7b"],
+    }
+    RUNABOUT = {  # RTX 3050 4GB — a 5.5GB 7B does NOT fit
+        "node_id": "starship_5501c2766526e746",
+        "gpu_available": True,
+        "gpu_vram_gb": 4,
+        "models": ["qwen2.5-coder:7b", "qwen2.5:7b", "mistral:7b"],
+    }
+    OUTPOST = {  # no GPU at all
+        "node_id": "outpost_us_001",
+        "gpu_available": False,
+        "gpu_vram_gb": 0,
+        "models": ["qwen2.5:7b"],
+    }
+
+    def _plan(self, models, nodes):
+        import services.fleet_dispatch_profile as fdp
+
+        return fdp.plan_focus_warm_assignments(models, nodes)
+
+    def test_the_priority_model_takes_the_biggest_card(self):
+        got = self._plan(("qwen2.5-coder:7b", "qwen2.5:7b"), [self.RUNABOUT, self.DEFIANT])
+        assert got[self.DEFIANT["node_id"]] == "qwen2.5-coder:7b"
+
+    def test_one_model_per_node_never_the_same_model_twice(self):
+        """THE REGRESSION GUARD. The old broadcast gave both Starships the same
+        model; with TOP_K=1 that wasted half the GPU fleet."""
+        got = self._plan(("qwen2.5-coder:7b", "qwen2.5:7b"), [self.DEFIANT, self.RUNABOUT])
+        assert len(set(got.values())) == len(got.values()), f"a model was pinned twice: {got}"
+        assert len(got) <= 2
+
+    def test_a_model_that_cannot_fit_the_card_is_not_assigned_there(self):
+        """qwen2.5:7b is 5.5GB; Runabout's card is 4GB. Pinning it there would
+        reserve the slot for something that can only CPU-demote."""
+        got = self._plan(("qwen2.5:7b",), [self.RUNABOUT])
+        assert got == {}
+
+    def test_a_node_without_the_model_is_skipped_never_pulled(self):
+        """The warm-pin must never queue a pull (outpost-vps.md trap)."""
+        bare = dict(self.DEFIANT, models=["mistral:7b"])
+        assert self._plan(("qwen2.5-coder:7b",), [bare]) == {}
+
+    def test_cpu_nodes_are_never_pinned(self):
+        assert self._plan(("qwen2.5:7b",), [self.OUTPOST]) == {}
+
+    def test_empty_and_garbage_inputs_fail_safe_to_no_pin(self):
+        assert self._plan((), [self.DEFIANT]) == {}
+        assert self._plan(("qwen2.5-coder:7b",), []) == {}
+        assert self._plan(("no-such-model:999b",), [self.DEFIANT]) == {}
+
+
+def test_the_coding_cluster_head_is_defiant_not_runabout():
+    """USS-246 is the only Starship whose card fits a 5.5GB 7B coder (8GB vs
+    4GB), and it has the i9-12900K. Steering protects ONE node deliberately:
+    protecting both would push every non-family dispatch onto the saturated hub.
+    """
+    import services.fleet_dispatch_profile as fdp
+
+    heads = fdp.FAMILY_FOCUS_NODES["repair_bay"]
+    assert heads == ("starship_76583490e36955ab",), f"expected Defiant only, got {heads}"

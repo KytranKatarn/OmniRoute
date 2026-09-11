@@ -427,7 +427,7 @@ def _kin_fleet_warmth_policy():
         with get_db_cursor(commit=True) as (_c, cur):
             cur.execute(
                 """
-                SELECT rn.id, rn.node_name, rn.deployment_mode,
+                SELECT rn.id, rn.node_id, rn.node_name, rn.deployment_mode,
                        -- #5947: the capacity predicate reads these. Without them
                        -- can_node_run_model() sees gpu 0 / ram 0 and refuses EVERY
                        -- model, silently killing warm-up. rn.id is the PK, so the
@@ -445,6 +445,23 @@ def _kin_fleet_warmth_policy():
                 """
             )
             nodes = cur.fetchall()
+
+            # #6662: plan the focus warm-pin ACROSS all GPU nodes ONCE, before the
+            # per-node loop. The old code called get_focus_warm_model() inside the
+            # loop and pinned the SAME model to every GPU node — with TOP_K=1 that
+            # spent both Starship slots on one model (and, measured, on the model
+            # whose 2,664 runs/day already keep it permanently resident, while the
+            # coder sat at 0 successes). Assignment is by fit: biggest card first,
+            # model must be present on that node and fit its VRAM.
+            try:
+                from services.fleet_dispatch_profile import (
+                    get_focus_warm_models,
+                    plan_focus_warm_assignments,
+                )
+
+                _focus_assignments = plan_focus_warm_assignments(get_focus_warm_models(), nodes)
+            except Exception:
+                _focus_assignments = {}
 
             for n in nodes:
                 # REST: leave laptops asleep during the rest window.
@@ -468,9 +485,7 @@ def _kin_fleet_warmth_policy():
                 # (a 7B warm-pin on a CPU outpost is the outpost-vps.md trap).
                 # Fail-safe: any error leaves the profile/demand targets as-is.
                 try:
-                    from services.fleet_dispatch_profile import get_focus_warm_model
-
-                    _focus_model = get_focus_warm_model()
+                    _focus_model = _focus_assignments.get(n.get("node_id"))
                     if _focus_model and _focus_model in available and n.get("gpu_available"):
                         targets = ([_focus_model] + [t for t in (targets or []) if t != _focus_model])[:TOP_K]
                 except Exception:

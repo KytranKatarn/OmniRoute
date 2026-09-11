@@ -1192,6 +1192,54 @@ class AgentLoop:
         except Exception as _bpm_err:
             logger.warning("Backup posture monitor not scheduled: %s", _bpm_err)
 
+        # #6688 — CAN A NODE STILL LOAD A MODEL?
+        #
+        # On 2026-09-11 the hub could not cold-load any non-resident model for
+        # 2+ days (KB #315235). Repair Bay code-gen sat at 0 successes and
+        # NOTHING alerted, because the already-resident models kept succeeding
+        # and every success-rate view read green. Passive by design: an active
+        # prober would have to load a model each cycle, causing the very
+        # eviction churn it is meant to detect. Alert-only, never mutates.
+        try:
+            from services.model_loadability_monitor import check_model_loadability
+
+            self.scheduler.add_job(
+                with_app_context(check_model_loadability),
+                trigger=IntervalTrigger(minutes=30),
+                id="model_loadability_monitor",
+                name="Agent Loop: Model Loadability Monitor (#6688)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _mlm_err:
+            logger.warning("Model loadability monitor not scheduled: %s", _mlm_err)
+
+        # #6688 — WIRE THE EXISTING RESIDENCY OBSERVER.
+        #
+        # services/residency_monitor.py has been complete and correct since
+        # #2987, and had ZERO callers: its only references were docstrings in
+        # residency_activation.py and residency_profiles.py ASSERTING it was
+        # "already live". Same family as the prune_vps policy with no pruner and
+        # the `backups` table that did not exist — unmonitored while appearing
+        # monitored. It is pure observation (loads nothing, evicts nothing,
+        # changes no routing), so scheduling it is safe; it answers "what is
+        # resident?" while the monitor above answers "can anything load?".
+        try:
+            from services.residency_monitor import check_residency
+
+            self.scheduler.add_job(
+                with_app_context(check_residency),
+                trigger=IntervalTrigger(minutes=30),
+                id="residency_monitor",
+                name="Agent Loop: Warm Residency Observer (#2987, wired #6688)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _rm_err:
+            logger.warning("Residency monitor not scheduled: %s", _rm_err)
+
         # Per-lane coder dormancy (#380). Every autonomous coder on this platform was
         # built, merged, and then quietly stopped — Codex last dispatched 2026-06-28,
         # the archie_engine build loop 2026-07-20 — and nothing reported the silence.

@@ -1,7 +1,7 @@
 """Warm-residency ACTIVATION — step 3 of the warmboot spec.
 
 Spec: docs/superpowers/specs/2026-08-31-warmboot-residency-profiles-design.md
-  step 1 services/residency_monitor.py    — observe   (merged, #2987)
+  step 1 services/residency_monitor.py    — observe   (merged #2987; SCHEDULED #6688)
   step 2 services/residency_profiles.py   — declare   (#2988)
   step 3 THIS FILE                        — act
 

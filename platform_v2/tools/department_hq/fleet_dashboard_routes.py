@@ -1547,6 +1547,21 @@ def register_dashboard_routes(bp, auth_decorator):
             logger.error(f"Workload scores error: {e}")
             return jsonify(success=False, error=str(e)[:200]), 500
 
+    def _loadability_findings():
+        """#6688 — nodes that can no longer LOAD a model, for the Cluster panel.
+
+        Imported lazily and wrapped: this is a WARNING surface, and a warning
+        that can 500 the panel it warns on is worse than no warning. Any failure
+        degrades to [] and the panel renders exactly as it did before.
+        """
+        try:
+            from services.model_loadability_monitor import findings_for_display
+
+            return findings_for_display()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("queue-status: loadability unavailable: %s", exc)
+            return []
+
     @bp.route("/api/fleet/queue-status")
     @auth_decorator
     def api_fleet_queue_status():
@@ -1658,10 +1673,28 @@ def register_dashboard_routes(bp, auth_decorator):
                 with get_db_cursor(commit=False) as (_, cur2):
                     cur2.execute(
                         """
+                        -- LOADED MODELS asserts CURRENT state, so it must be
+                        -- constrained on both liveness and freshness.
+                        --
+                        -- Measured 2026-09-11: this panel was rendering
+                        -- model_load_state rows for Outpost-Singapore, -Lithuania
+                        -- and -UK, all saved 2026-08-29 — the day those VPSs were
+                        -- RETIRED and cancelled. Thirteen-day-old rows from machines
+                        -- that no longer exist, shown as currently-loaded models.
+                        -- "14 loaded" was really 11. NODE HEALTH, on the same page,
+                        -- filters correctly and showed 5 — the table was never the
+                        -- problem, each panel deciding for itself was.
+                        --
+                        -- Both clauses earn their place: status catches a retired
+                        -- node, and saved_at catches a LIVE node whose state saver
+                        -- (job #46, every 5m) has stopped — which status alone
+                        -- would render as fresh forever.
                         SELECT mls.model_name, mls.size_gb, rn.node_name
                         FROM model_load_state mls
                         JOIN remote_nodes rn ON rn.id = mls.node_db_id
                         WHERE mls.host_type = 'node'
+                          AND rn.status = 'online'
+                          AND mls.saved_at > NOW() - INTERVAL '30 minutes'
                         ORDER BY rn.node_name, mls.model_name
                         """
                     )
@@ -1715,6 +1748,18 @@ def register_dashboard_routes(bp, auth_decorator):
                 running_real=totals_real.get("running", 0),
                 items=items,
                 loaded=loaded,
+                # #6688 — the counterweight to `loaded`.
+                #
+                # On 2026-09-11 this panel showed 4 healthy resident models on the
+                # hub for two days while NOTHING new could load — Repair Bay's
+                # code-gen sat at 0 successes and every view here read green,
+                # because "what is loaded" and "what can load" are different
+                # questions and only the first was ever asked.
+                #
+                # Display-only accessor: never alerts (a page refresh must not
+                # send Telegram) and is TTL-cached, so polling costs nothing.
+                # Fail-safe [] — a panel must never break on its own warning.
+                loadability=_loadability_findings(),
                 platform_queues=platform_queues,
                 rest=rest,
             )

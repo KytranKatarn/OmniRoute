@@ -1,7 +1,11 @@
 """Warm-residency PROFILES — the declarative layer (step 2 of the warmboot spec).
 
 Spec: docs/superpowers/specs/2026-08-31-warmboot-residency-profiles-design.md
-Step 1 (the observer, services/residency_monitor.py) is already live.
+Step 1 (the observer, services/residency_monitor.py) is scheduled since #6688.
+⚠️ From #2987 until 2026-09-11 this line asserted the observer was running.
+It was not: it had ZERO callers, and the claim here plus the one in
+residency_activation.py were its only two references anywhere. Unmonitored
+while appearing monitored -- the claim itself is what stopped anyone looking.
 
 WHAT A PROFILE IS
 A statement about what should be RESIDENT — per node, per tier — for a named

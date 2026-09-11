@@ -5444,6 +5444,50 @@ function loadQueueStatus() {
             var lp = document.getElementById('loadedModelsPanel');
             if (lp) {
                 lp.textContent = '';
+
+                // #6688 — CAN anything still LOAD? The counterweight to the list below.
+                //
+                // On 2026-09-11 this panel showed 4 healthy resident models on the hub
+                // for two days while NOTHING new could load: Repair Bay's code-gen sat
+                // at 0 successes and every view here read green. "What is loaded" and
+                // "what can load" are different questions and only the first was asked.
+                // Rendered FIRST and in red, above the reassuring list, because the
+                // whole failure mode was reassurance.
+                //
+                // textContent throughout — this panel is XSS-safe DOM building and
+                // model/node names come from the DB. Do not switch it to innerHTML.
+                if (data.loadability && data.loadability.length) {
+                    var warn = document.createElement('div');
+                    warn.style.cssText = 'margin-bottom:8px;padding:6px 8px;border-left:3px solid #ef4444;'
+                        + 'background:rgba(239,68,68,0.08);border-radius:4px;font-size:0.72rem;';
+                    var wh = document.createElement('div');
+                    wh.style.cssText = 'color:#ef4444;font-weight:600;margin-bottom:3px;letter-spacing:0.03em;';
+                    // Two different faults — see model_loadability_monitor.derive_findings.
+                    // "cannot load" is a scheduler problem (a restart fixed the hub);
+                    // "too slow" means the model DOES run, just past its deadline, where
+                    // a restart changes nothing. Naming them apart is the whole point.
+                    var nSlow = data.loadability.filter(function(x){ return x.kind === 'too_slow'; }).length;
+                    var nDead = data.loadability.length - nSlow;
+                    var parts = [];
+                    if (nDead) parts.push(nDead + ' cannot load');
+                    if (nSlow) parts.push(nSlow + ' too slow for deadline');
+                    wh.textContent = '⚠ ' + parts.join(' · ');
+                    warn.appendChild(wh);
+                    data.loadability.forEach(function(f) {
+                        var line = document.createElement('div');
+                        line.style.cssText = 'color:var(--dhq-text-dim);font-family:\'IBM Plex Mono\',monospace;';
+                        line.textContent = (f.model || '?') + ' on ' + (f.node_name || '?')
+                            + (f.kind === 'too_slow'
+                                ? ' · runs at ' + Math.round(f.success_seconds || 0) + 's vs a '
+                                  + Math.round(f.avg_fail_seconds || 0) + 's wall'
+                                : ' · ' + (f.attempts || 0) + ' attempts, 0 ok')
+                            + ' · last success ' + Math.round(f.hours_since_success || 0) + 'h ago';
+                        line.title = f.detail || '';
+                        warn.appendChild(line);
+                    });
+                    lp.appendChild(warn);
+                }
+
                 if (!data.loaded || data.loaded.length === 0) {
                     var none = document.createElement('span');
                     none.style.cssText = 'color:var(--dhq-text-dim);font-style:italic;';
@@ -5553,7 +5597,14 @@ function loadClusterActivity() {
 
                 // Activity counts: 5-min window is primary (60s is too narrow — tasks take 15-30s each)
                 // For nodes with no heartbeat (registered but agent stack not yet running), show status label
-                var okPct = dispatches5m > 0 ? Math.round(successRate * 100) : null;
+                // ⚠️ A PERCENTAGE OVER A TINY SAMPLE IS NOISE, NOT A HEALTH SIGNAL.
+                // Measured 2026-09-11: USS-246 rendered a red "0% ok" off 2 dispatches
+                // in the 5-minute window while it was actually running 98-99% over the
+                // preceding 2 hours (331/324 and 157/156). Shown beside the hub's 100%
+                // from n=214, it read as a node in trouble. Below the floor we show the
+                // raw counts instead — honest, and still tells you it is quiet.
+                var OK_PCT_MIN_SAMPLE = 5;
+                var okPct = dispatches5m >= OK_PCT_MIN_SAMPLE ? Math.round(successRate * 100) : null;
                 var okBadge = okPct !== null
                     ? ' <span style="color:' + (okPct >= 90 ? '#10b981' : (okPct >= 70 ? '#f59e0b' : '#ef4444')) + ';">' + okPct + '% ok</span>'
                     : '';

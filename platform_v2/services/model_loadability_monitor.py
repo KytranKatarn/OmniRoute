@@ -221,13 +221,36 @@ def derive_findings(rows: List[Dict[str, Any]], thresholds: Optional[Dict[str, f
     return findings
 
 
+# ⚠️ THE SHAPE OF THIS QUERY IS LOAD-BEARING — read before rearranging it.
+#
+# The success stats (WHEN a model last worked here, and HOW LONG it takes when it
+# does) used to come from a LATERAL joined to `scoped` — i.e. to the RAW ROWS —
+# with the GROUP BY applied afterwards. A LATERAL correlated to `s.node_name,
+# s.model_used` re-executes once per OUTER ROW, so a 30-day scan ran ~1,773 times
+# (one per dispatch in the window) to answer 14 questions (one per node×model).
+#
+# Postgres 16 CAN rescue that with a Memoize node, and sometimes did — which is
+# exactly why it was so hard to see. Measured 2026-09-11: the same statement took
+# 10-16s from `archie_platform` and **8m46s** in `archie_scheduler`, where it was
+# cancelled still running. That is worse than a slow query: the cost depended on a
+# planner choice, so the job silently stopped completing while every log line it
+# emits ("check starting") still looked healthy. The stored findings froze at the
+# last manual run and the panel rendered them as current.
+#
+# So: AGGREGATE FIRST, then join a single grouped 30-day CTE. One pass over the
+# window, one pass over 30 days, no correlated re-execution, no dependence on the
+# planner finding a Memoize. Measured at **901ms** on the same data.
+#
+# The 30-day bound still costs nothing real: a model whose last success here is
+# older than that reads as NULL, which the rule already treats as "never succeeded
+# on this node" and therefore not-a-finding. Correct anyway — a model idle for a
+# month is unused, not frozen.
 _SQL = """
 WITH scoped AS (
     SELECT COALESCE(r.node_name, 'hub') AS node_name,
            t.model_used,
            t.success,
-           t.duration_ms,
-           t.created_at
+           t.duration_ms
       FROM task_execution_log t
       LEFT JOIN remote_nodes r ON r.id = t.node_used_id
      WHERE t.created_at > now() - (%(window)s || ' hours')::interval
@@ -243,49 +266,59 @@ per_node AS (
     SELECT node_name,
            100.0 * count(*) FILTER (WHERE success) / NULLIF(count(*), 0) AS node_success_pct
       FROM scoped GROUP BY node_name
+),
+agg AS (
+    -- The grouping happens HERE, before anything is joined to it. `agg` is a
+    -- couple of dozen rows; `scoped` is thousands.
+    SELECT node_name,
+           model_used,
+           count(*) AS attempts,
+           count(*) FILTER (WHERE success) AS successes,
+           COALESCE(avg(duration_ms) FILTER (WHERE NOT success), 0) / 1000.0 AS avg_fail_seconds
+      FROM scoped GROUP BY node_name, model_used
+),
+succ30 AS (
+    -- BOTH halves of the success picture in ONE grouped pass. The duration is what
+    -- separates "will not load" from "runs fine but misses its deadline" — see
+    -- derive_findings(). Grouped, never correlated: this scans 30 days once,
+    -- whatever the window holds.
+    SELECT COALESCE(r2.node_name, 'hub') AS node_name,
+           t2.model_used,
+           EXTRACT(EPOCH FROM (now() - max(t2.created_at))) / 3600.0 AS hours_since_success,
+           avg(t2.duration_ms) / 1000.0                              AS success_seconds
+      FROM task_execution_log t2
+      LEFT JOIN remote_nodes r2 ON r2.id = t2.node_used_id
+     WHERE t2.created_at > now() - interval '30 days'
+       AND t2.success
+       AND t2.model_used IS NOT NULL
+     GROUP BY 1, 2
 )
-SELECT s.node_name,
-       s.model_used,
-       count(*) AS attempts,
-       count(*) FILTER (WHERE s.success) AS successes,
-       COALESCE(avg(s.duration_ms) FILTER (WHERE NOT s.success), 0) / 1000.0 AS avg_fail_seconds,
+SELECT a.node_name,
+       a.model_used,
+       a.attempts,
+       a.successes,
+       a.avg_fail_seconds,
        p.node_success_pct,
-       -- ⚠️ BOUNDED DELIBERATELY, and ONE lateral rather than two correlated
-       -- subqueries. Unbounded this scanned task_execution_log once per
-       -- (node, model) and measured 16.0s; the bound plus the lateral keeps the
-       -- JOB around 10s. It must never run on a request path — see
-       -- findings_for_display().
-       --
-       -- The 30-day bound costs nothing real: a model whose last success here is
-       -- older than that reads as NULL, which the rule already treats as "never
-       -- succeeded on this node" and therefore not-a-finding. Correct anyway — a
-       -- model idle for a month is unused, not frozen.
-       succ.hours_since_success,
-       succ.success_seconds
-  FROM scoped s
-  JOIN per_node p ON p.node_name = s.node_name
-  LEFT JOIN LATERAL (
-      -- BOTH halves of the success picture in one pass: WHEN it last worked, and
-      -- HOW LONG it takes when it does. The duration is what separates "will not
-      -- load" from "runs fine but misses its deadline" — see derive_findings.
-      SELECT EXTRACT(EPOCH FROM (now() - max(t2.created_at))) / 3600.0 AS hours_since_success,
-             avg(t2.duration_ms) / 1000.0                              AS success_seconds
-        FROM task_execution_log t2
-        LEFT JOIN remote_nodes r2 ON r2.id = t2.node_used_id
-       WHERE t2.created_at > now() - interval '30 days'
-         AND COALESCE(r2.node_name, 'hub') = s.node_name
-         AND t2.model_used = s.model_used
-         AND t2.success
-  ) succ ON TRUE
- GROUP BY s.node_name, s.model_used, p.node_success_pct,
-          succ.hours_since_success, succ.success_seconds
+       sc.hours_since_success,
+       sc.success_seconds
+  FROM agg a
+  JOIN per_node p ON p.node_name = a.node_name
+  LEFT JOIN succ30 sc ON sc.node_name = a.node_name
+                     AND sc.model_used = a.model_used
 """
+
+# An observer that can hang its caller is worse than no observer. The rewrite above
+# makes the hang implausible; this makes it IMPOSSIBLE. SET LOCAL is scoped to the
+# implicit transaction, so it is reverted when the pooled connection is returned —
+# it can never leak a timeout onto an unrelated caller.
+_STATEMENT_TIMEOUT_MS = 60_000
 
 
 def _load_rows(window_hours: float) -> List[Dict[str, Any]]:
     from database import get_db_cursor
 
     with get_db_cursor(commit=False) as (_c, cur):
+        cur.execute("SET LOCAL statement_timeout = %s", (_STATEMENT_TIMEOUT_MS,))
         cur.execute(_SQL, {"window": str(window_hours)})
         return [dict(r) for r in (cur.fetchall() or [])]
 

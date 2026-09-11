@@ -484,3 +484,271 @@ def warm_for_backlog(job_type: str = "wtf_backlog") -> Dict[str, Any]:
     except Exception as exc:  # the backlog must drain even if warming cannot
         logger.warning("[warmboot] %s warm skipped: %s", job_type, exc)
         return {"warmed": False, "reason": f"error: {exc}"}
+
+
+# ── demand-driven CODER warmth (#6703) ─────────────────────────────────────
+# Owner ask 2026-09-11: "if there is a coder request keep it warm for next hours".
+#
+# ⚠️ WHY THIS IS NOT A PROFILE, AND MUST NOT BECOME ONE.
+# activate() writes ONE profile name into _ACTIVE_KEY with ONE expiry, and
+# warm_for_backlog() refuses outright when `status()['active']` is set. The WTF
+# backlog re-arms that slot every few minutes, so a coder caller routed through
+# the profile system would have returned {"warmed": False, "reason": "already
+# active"} essentially always — warming NOTHING while logging plausibly. That is
+# the same shape as the 'news'-profile-that-did-not-exist bug (KB #300145):
+# armed-looking and inert. So coder warmth gets its OWN keys and its OWN TTL and
+# never touches the profile slot. The two axes are independent by construction,
+# not by convention.
+#
+# ⚠️ AND IT MUST NOT JUST TARGET "ANY GPU NODE". can_node_run_model() returns
+# True for the hub (5.9GB model, 12GB TITAN), but the active 'news' profile
+# already puts qwen2.5:7b on that same card. Stacking a second 7B beside it is
+# the measured 2026-08-15 failure: VRAM budget hit 0.0GB, qwen2.5:7b demoted to
+# CPU, and fact_check failed 89% that hour on 240s timeouts. So the target is
+# derived from an EXISTING declaration that already means "this VRAM is set
+# aside for coding" — reserved_for == 'code_review' — rather than from capacity
+# alone. Today that resolves to the Defiant (USS-246), which also already has
+# qwen2.5-coder:7b pulled.
+_CODER_ENABLED_KEY = "warmboot:coder:enabled"
+_CODER_TTL_KEY = "warmboot:coder:ttl_min"
+_CODER_NODES_KEY = "warmboot:coder:nodes"  # optional CSV override of the derived targets
+_CODER_ACTIVE_KEY = "fleet:residency:coder_active"
+_CODER_EXPIRES_KEY = "fleet:residency:coder_expires"
+
+_CODER_DEFAULT_TTL_MIN = 180  # "the next hours" — 3h, inside _MAX_TTL_MIN
+# A SHORT lease taken BEFORE warming, so four gunicorn workers racing the same
+# first request cannot each spawn a warm-up (KB #282671). Extended to the full
+# TTL only once a warm actually got requested — a transient failure must not
+# leave the feature inert for three hours.
+_CODER_CLAIM_MIN = 5
+_CODER_FAMILY = "repair_bay"  # FAMILY_WARM_MODELS already names the coder models
+
+
+def coder_status() -> Dict[str, Any]:
+    """Is coder warmth currently claimed, and when does it lapse?
+
+    Deliberately separate from status(): that one answers "which residency
+    PROFILE is active", this one answers "is the coder set being held warm".
+    Conflating them is precisely the collision this feature avoids.
+
+    ⚠️ `active` means WE ASKED, not "it is warm" — same caveat as status().
+    For actual residency use residency_monitor.check_residency().
+    """
+    from services import residency_profiles as rp
+
+    claimed, expires = None, None
+    try:
+        claimed = rp._read_setting(_CODER_ACTIVE_KEY)
+        raw = rp._read_setting(_CODER_EXPIRES_KEY)
+        expires = int(raw) if raw else None
+    except Exception:
+        pass
+
+    now = int(time.time())
+    lapsed = bool(expires and now >= expires)
+    return {
+        "claimed_by": claimed,
+        "active": bool(claimed) and not lapsed,
+        "lapsed": lapsed,
+        "expires_at": expires,
+        "seconds_remaining": max(0, expires - now) if expires else None,
+    }
+
+
+def _record_coder_claim(reason: str, ttl_minutes: int) -> None:
+    """Absolute epoch, never a duration — a duration restarts its own clock on
+    every restart and turns a 3h lease into a permanent one."""
+    from database import get_db_cursor
+
+    expires = int(time.time()) + max(1, int(ttl_minutes)) * 60
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            for key, val in ((_CODER_ACTIVE_KEY, reason), (_CODER_EXPIRES_KEY, str(expires))):
+                cur.execute(
+                    """
+                    INSERT INTO platform_settings (key, value)
+                         VALUES (%s, %s)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    """,
+                    (key, val),
+                )
+    except Exception as exc:
+        logger.warning("[warmboot] coder: could not record claim: %s", exc)
+
+
+def coder_models() -> tuple:
+    """The coder warm set, from the SAME constant AUX POWER pins (#6081).
+
+    One source of truth: changing FAMILY_WARM_MODELS['repair_bay'] changes both
+    the AUX POWER pin and this. A second hardcoded list here is how the two
+    silently drift apart.
+    """
+    try:
+        from services.fleet_dispatch_profile import FAMILY_WARM_MODELS, _as_model_tuple
+
+        return _as_model_tuple(FAMILY_WARM_MODELS.get(_CODER_FAMILY))
+    except Exception as exc:
+        logger.warning("[warmboot] coder: could not read FAMILY_WARM_MODELS: %s", exc)
+        return ()
+
+
+def coder_target_nodes() -> Dict[str, str]:
+    """node_id -> why, for nodes whose VRAM is already declared for coding.
+
+    Derived from the ACTIVE profile's `reserved_for == 'code_review'`, so the
+    target follows a declaration that already exists and already means this.
+    An explicit CSV in warmboot:coder:nodes overrides it for an operator who
+    needs to move it without a deploy.
+
+    Returns {} rather than falling back to "every capable node" — see the VRAM
+    note above; the fallback IS the incident.
+    """
+    from services import residency_profiles as rp
+
+    override = (rp._read_setting(_CODER_NODES_KEY) or "").strip()
+    if override:
+        return {n.strip(): "explicit warmboot:coder:nodes override" for n in override.split(",") if n.strip()}
+
+    out: Dict[str, str] = {}
+    try:
+        for node_id, intent in (rp.nodes_for(rp.active_name()) or {}).items():
+            if str((intent or {}).get("reserved_for", "")).strip().lower() == "code_review":
+                out[node_id] = f"profile {rp.active_name()!r} reserves this node for code_review"
+    except Exception as exc:
+        logger.warning("[warmboot] coder: could not derive target nodes: %s", exc)
+    return out
+
+
+def warm_for_coder(reason: str = "coder_request", block: bool = False) -> Dict[str, Any]:
+    """Hold the coder models resident for the next few hours, on demand.
+
+    Called when a coder actually shows up — a code/code_review dispatch, or a
+    coder terminal lane being opened. NEVER raises: a warm-up is an
+    optimisation, so every failure path returns a reason and the caller carries
+    on.
+
+    ⚠️ block=False BY DEFAULT, and that is load-bearing. _warm_all carries a 45s
+    wall, and this is called from the dispatch path — a blocking call would add
+    up to 45 seconds to the first coder request in every TTL window. The TTL
+    check happens BEFORE the thread is spawned, so the steady-state cost of this
+    function is a single settings read.
+
+    ⚠️ The daemon thread is safe HERE because archie_platform's gunicorn workers
+    and archie_scheduler are long-lived processes. Calling this from a one-shot
+    `python3 -c` would let the process exit mid-warm (KB #270002) — pass
+    block=True there, which is what the tests do.
+    """
+    try:
+        from services import residency_profiles as rp
+
+        if (rp._read_setting(_CODER_ENABLED_KEY) or "").strip().lower() != "true":
+            return {"warmed": False, "reason": "disabled"}
+
+        st = coder_status()
+        if st.get("active"):
+            return {
+                "warmed": False,
+                "reason": "already warm",
+                "claimed_by": st.get("claimed_by"),
+                "seconds_remaining": st.get("seconds_remaining"),
+            }
+
+        models = coder_models()
+        if not models:
+            return {"warmed": False, "reason": "no coder models declared in FAMILY_WARM_MODELS"}
+
+        targets = coder_target_nodes()
+        if not targets:
+            # A DISTINCT reason string on purpose. "declares no nodes" and
+            # "everything was refused" are different faults with the same
+            # symptom, and conflating them is KB #300145.
+            return {"warmed": False, "reason": "no node reserved for code_review — refusing to target the hub"}
+
+        try:
+            ttl = int(rp._read_setting(_CODER_TTL_KEY) or _CODER_DEFAULT_TTL_MIN)
+        except (TypeError, ValueError):
+            ttl = _CODER_DEFAULT_TTL_MIN
+        ttl = max(1, min(ttl, _MAX_TTL_MIN))
+
+        # Take the SHORT lease first so concurrent workers do not all warm.
+        _record_coder_claim(reason, _CODER_CLAIM_MIN)
+
+        if block:
+            return _warm_coder_now(reason, models, targets, ttl)
+
+        import threading
+
+        threading.Thread(
+            target=_warm_coder_now,
+            args=(reason, models, targets, ttl),
+            name="warm-for-coder",
+            daemon=True,
+        ).start()
+        return {"warmed": False, "reason": "scheduled", "scheduled": True, "models": list(models), "ttl_minutes": ttl}
+    except Exception as exc:
+        logger.warning("[warmboot] coder warm skipped: %s", exc)
+        return {"warmed": False, "reason": f"error: {exc}"}
+
+
+def _warm_coder_now(reason: str, models: tuple, targets: Dict[str, str], ttl: int) -> Dict[str, Any]:
+    """Do the warming. Reuses the SAME gates and the SAME bounded warm loop as
+    activate() — a second copy of that logic is how the two drift apart."""
+    report: Dict[str, Any] = {"ok": True, "requested": [], "refused": [], "skipped": [], "errors": []}
+    try:
+        live = _node_rows()
+        try:
+            from services.fleet_resource_router import can_node_run_model, node_has_model
+        except Exception:  # pragma: no cover - router must exist in prod
+            can_node_run_model = node_has_model = None
+
+        pending = []
+        for node_id, why in targets.items():
+            node = live.get(node_id)
+            if node is None:
+                report["skipped"].append({"node": node_id, "reason": "not online"})
+                continue
+            for model in models:
+                if can_node_run_model is not None:
+                    try:
+                        if not can_node_run_model(node, model):
+                            report["refused"].append({"node": node_id, "model": model, "reason": "capacity gate"})
+                            continue
+                    except Exception as exc:
+                        report["errors"].append(f"{node_id}/{model}: capacity check failed ({exc})")
+                # FAIL-OPEN by design (#5862): an empty heartbeat inventory
+                # returns True, so a stale reading can never starve warming.
+                if node_has_model is not None:
+                    try:
+                        if not node_has_model(node, model):
+                            report["refused"].append(
+                                {"node": node_id, "model": model, "reason": "presence gate: not pulled here"}
+                            )
+                            continue
+                    except Exception as exc:
+                        report["errors"].append(f"{node_id}/{model}: presence check failed ({exc})")
+                entry = {"node": node_id, "node_name": node.get("node_name"), "model": model, "why": why}
+                pending.append((entry, model, _target_host(node), node_id))
+                report["requested"].append(entry)
+
+        if pending:
+            _warm_all(pending, report)
+            # Only now extend the short lease to the full TTL. A run that
+            # requested nothing keeps the 5-minute claim and retries sooner.
+            _record_coder_claim(reason, ttl)
+
+        n_req = len(report["requested"])
+        logger.info(
+            "[warmboot] coder reason=%s requested=%d refused=%d skipped=%d ttl=%smin",
+            reason,
+            n_req,
+            len(report["refused"]),
+            len(report["skipped"]),
+            ttl if n_req else _CODER_CLAIM_MIN,
+        )
+        report["warmed"] = bool(n_req)
+        report["ttl_minutes"] = ttl if n_req else _CODER_CLAIM_MIN
+        return report
+    except Exception as exc:
+        logger.warning("[warmboot] coder warm failed: %s", exc, exc_info=True)
+        report.update(ok=False, warmed=False, errors=report["errors"] + [str(exc)])
+        return report

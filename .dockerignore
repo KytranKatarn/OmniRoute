@@ -6,6 +6,7 @@
 !mcp-gateway/
 !codex/
 !scripts/start_codex_terminal.sh
+!scripts/start_opencode_terminal.sh
 !config/agents/codex.yaml
 **/.env
 **/.env.*

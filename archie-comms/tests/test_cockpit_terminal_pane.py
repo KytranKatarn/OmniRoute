@@ -15,6 +15,7 @@ Two things this file exists to stop:
 """
 
 import os
+import pathlib
 import re
 
 import pytest
@@ -102,8 +103,24 @@ def _lane_button(html: str, lane: str) -> str:
 
 
 def test_the_claude_lane_is_marked_as_the_host():
-    """The label that matters: claude has NO container boundary."""
-    html = _read(TEMPLATE)
+    """The label that matters: claude has NO container boundary.
+
+    Renders rather than reading source: the lane buttons became a registry-driven
+    Jinja loop when the 4th lane (opencode) landed, so the literal markup this used
+    to scan no longer exists in the file.
+    """
+    from jinja2 import Environment, FileSystemLoader
+
+    from services import terminal_lanes as tl
+
+    tpl = pathlib.Path(TEMPLATE)  # TEMPLATE is a str in this module
+    env = Environment(loader=FileSystemLoader(str(tpl.parent)))
+    html = env.get_template(tpl.name).render(
+        lanes=[
+            {"key": k, "label": c.get("label", k), "sandboxed": bool(c.get("sandboxed"))}
+            for k, c in tl.LANES.items()
+        ]
+    )
     claude = _lane_button(html, "claude")
     codex = _lane_button(html, "codex")
     assert "HOST" in claude, "the claude lane must carry a visible host marker"

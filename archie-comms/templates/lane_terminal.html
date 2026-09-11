@@ -1,0 +1,134 @@
+{#
+  A lane's full-page terminal, on the SAME LCARS frame as /chat.
+
+  Everything is driven by `lane` + `lanes` (services/terminal_lanes.LANES), so the
+  menu bar, the shortcuts strip and the accent all follow the registry. Adding
+  opencode is a registry entry — this file does not change.
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ lane.label }} Terminal — Kytran Empowerment Inc.</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/lcars-header.css">
+  <link rel="stylesheet" href="/static/css/archie-chat.css">
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; background: #0a0a1a; color: #e0e0e0; font-family: 'IBM Plex Mono', monospace; }
+    .lt-body { display: flex; flex-direction: column; height: 100vh; }
+    .lt-stage { flex: 1; display: flex; flex-direction: column; min-height: 0; background: #000; }
+    .lt-frame { flex: 1; width: 100%; border: none; background: #000; }
+    /* The lane is NOT mounted until Open is pressed — never auto-open a host shell
+       on page load. Until then the stage is simply black, which reads as "nothing
+       connected yet" and costs no vertical space to say. The state and the Open
+       control live in the bar above, with everything else about this lane. */
+    #lt-open { border-color: {{ lane.accent }}; color: {{ lane.accent }};
+               background: rgba(0, 255, 255, 0.10); }
+    .lt-err { color: #fca5a5; font-size: 0.72rem; }
+  </style>
+</head>
+<body class="lt-body">
+
+{% set cat_accent = lane.accent %}
+{% set cat_accent_dark = lane.accent %}
+{% set cat_label = 'CODER LANES' %}
+{% set module_title = lane.label ~ ' TERMINAL' %}
+{% set module_back_url = '/' ~ lane.key %}
+{# The menu bar carries a shortcut to every OTHER lane plus the cockpit — the
+   cross-lane switcher the owner asked for. Built from the registry. #}
+{% set header_shortcuts = [("Cockpit", "layout-grid", "/cockpit"), ("Chat", "message-square", "/chat")] %}
+{% for l in lanes %}{% if l.key != lane.key %}
+  {% set _ = header_shortcuts.append((l.label, "terminal", "/" ~ l.key ~ "/terminal")) %}
+{% endif %}{% endfor %}
+{% set header_tabs = [] %}
+{% include 'lcars-header.html' %}
+
+<div class="ac-tty-bar">
+  <span class="ac-tty-name" style="color:{{ lane.accent }}">{{ lane.label }}</span>
+  {% if lane.sandboxed %}
+    <span class="ac-tty-badge sandboxed" title="Runs inside a container — the filesystem it sees is not the host's">sandboxed</span>
+  {% else %}
+    <span class="ac-tty-badge host" title="A shell on the host itself. No container boundary.">&#9888; HOST</span>
+  {% endif %}
+  <span class="ac-tty-blurb">{{ lane.blurb }}</span>
+  <span style="flex:1"></span>
+  {# ONE bar. Open, Reconnect, the state and any error all live here beside the
+     lane's name and marker. There used to be a second strip below carrying its own
+     Open button and its own "not connected" text — which repeated what this bar
+     already said and cost the terminal a row of screen to say it twice. #}
+  <span class="ac-tty-state" id="lt-state">not connected</span>
+  <span class="lt-err" id="lt-err"></span>
+  <button class="ac-tty-btn" id="lt-open" type="button" title="Mint a token and open this lane">Open</button>
+  <button class="ac-tty-btn" id="lt-reconnect" type="button" title="Mint a fresh token and reload (Alt+R)" hidden>Reconnect</button>
+</div>
+
+<div class="lt-stage">
+  <iframe id="lt-frame" class="lt-frame" src="about:blank" hidden
+          allow="clipboard-read; clipboard-write" title="{{ lane.label }} terminal"></iframe>
+</div>
+
+<script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+<script src="/static/js/lcars-header.js"></script>
+<script>
+  // Mint a one-time, LANE-BOUND token, then point the frame at the URL it returns.
+  // The mint (/api/cockpit/terminal/<lane>/token) is admin-gated and is the ONE place
+  // in this service that creates a shell token.
+  (function () {
+    var LANE = {{ lane.key | tojson }};
+    var frame = document.getElementById('lt-frame');
+    var err = document.getElementById('lt-err');
+    var state = document.getElementById('lt-state');
+    var openBtn = document.getElementById('lt-open');
+    var reconnectBtn = document.getElementById('lt-reconnect');
+
+    // Exactly ONE of Open/Reconnect is ever offered: Open before the lane is
+    // mounted, Reconnect after. Showing both at once was the repetition — two
+    // controls for the same action, in two different bars.
+    function showAction(connected) {
+      openBtn.hidden = connected;
+      reconnectBtn.hidden = !connected;
+    }
+
+    function fail(msg) {
+      // Say WHY, always. A blank frame with no explanation is the failure mode
+      // this page exists to avoid.
+      err.textContent = msg;
+      state.textContent = 'not connected';
+      frame.hidden = true;
+      showAction(false);
+    }
+
+    function mount() {
+      err.textContent = '';
+      state.textContent = 'connecting…';
+      fetch('/api/cockpit/terminal/' + encodeURIComponent(LANE) + '/token', { method: 'POST' })
+        .then(function (r) {
+          if (r.status === 403) throw new Error('A terminal needs an admin account.');
+          if (r.status === 401) throw new Error('Signed out — reload this page to sign in.');
+          if (r.status === 404) throw new Error('This lane is not registered.');
+          if (!r.ok) throw new Error('The lane did not respond (' + r.status + ').');
+          return r.json();
+        })
+        .then(function (d) {
+          if (!d || !d.url) throw new Error('The mint returned no URL.');
+          frame.src = d.url;
+          frame.hidden = false;
+          state.textContent = 'connected';
+          showAction(true);
+        })
+        .catch(function (e) { fail(e.message); });
+    }
+
+    document.getElementById('lt-open').addEventListener('click', mount);
+    document.getElementById('lt-reconnect').addEventListener('click', mount);
+    // Alt+R reconnects after the 15-minute session lapses — no page reload needed.
+    document.addEventListener('keydown', function (e) {
+      if (e.altKey && (e.key === 'r' || e.key === 'R')) { e.preventDefault(); mount(); }
+    });
+    if (window.lucide) window.lucide.createIcons();
+  })();
+</script>
+</body>
+</html>

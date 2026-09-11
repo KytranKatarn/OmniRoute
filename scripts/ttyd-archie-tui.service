@@ -1,0 +1,29 @@
+[Unit]
+Description=ttyd A.R.C.H.I.E. TUI (platform lane) for ARCHIE
+Documentation=https://github.com/tsl0922/ttyd
+After=network.target
+
+[Service]
+Type=simple
+User=kytran
+Group=kytran
+WorkingDirectory=/mnt/archie_brain
+ExecStart=/mnt/archie_brain/scripts/start_archie_tui.sh
+Restart=always
+RestartSec=5
+# ⚠️ 1768x is the BACKEND range. Never point this at a 768x port — those belong to the
+# auth proxies, and a backend on a proxy's port is exactly how the orphaned ttyd in
+# task #6698 came to exist (the repo copy of ttyd-claude.service said 7681).
+Environment=TTYD_PORT=17683
+# No credentials here, ever. ttyd runs with none of its own, bound to 127.0.0.1;
+# authentication is ttyd_auth_proxy.py on :7684. (The installed ttyd-claude.service
+# still carries stale plaintext TTYD_USER/TTYD_PASS lines — see #6698. Do not copy that.)
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/mnt/archie_brain
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

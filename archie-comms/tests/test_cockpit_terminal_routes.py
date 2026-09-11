@@ -68,11 +68,19 @@ def test_lanes_requires_a_session(client):
 
 
 def test_mint_refuses_a_non_admin_session(client):
-    """Currently unreachable — and the point is that it stays refused if that changes."""
+    """Currently unreachable — and the point is that it stays refused if that changes.
+
+    ⚠️ The REASON broadened in #6700 and the wording follows it. A non-admin is no
+    longer refused for "not being an admin" — they may now hold an explicit per-lane
+    grant — so the refusal is about lane ACCESS. What must not change is that the
+    403 still STATES a reason: a bare status code tells the caller nothing about
+    whether to ask for a grant or to sign in as someone else.
+    """
     _login(client, role="user")
     resp = client.post("/api/cockpit/terminal/claude/token")
     assert resp.status_code == 403
-    assert "admin" in resp.get_json()["error"].lower()
+    err = resp.get_json()["error"].lower()
+    assert "access" in err or "admin" in err, f"403 gave no reason: {err!r}"
 
 
 def test_lanes_refuses_a_non_admin_session(client):
@@ -147,7 +155,14 @@ def test_a_mint_failure_is_500_not_a_leaked_traceback(client, monkeypatch):
 def test_lane_list_shape(client):
     _login(client)
     body = client.get("/api/cockpit/terminal/lanes").get_json()
-    assert {row["lane"] for row in body["lanes"]} == {"claude", "codex"}
+    # Membership is frozen once, in test_terminal_token_lane.VALID_LANES. Here the
+    # subject is SHAPE: the route must report every registered lane with the full
+    # key set. Re-freezing the names here made a lane addition fail in two places
+    # and taught nothing the first assertion did not already say.
+    from services import terminal_lanes as tl
+
+    assert {row["lane"] for row in body["lanes"]} == set(tl.LANES)
+    assert len(body["lanes"]) >= 2
     for row in body["lanes"]:
         assert set(row) >= {"lane", "label", "reachable", "sandboxed", "single_seat", "busy"}
 

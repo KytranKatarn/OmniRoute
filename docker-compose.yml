@@ -568,8 +568,16 @@ services:
         condition: service_healthy
     secrets:
       - db_password
+      # ⚠️ Do NOT add uid/gid/mode here. Those keys are SWARM-ONLY; in plain
+      # `docker compose` a secret is a bind-mount of the host file and they are
+      # silently ignored — measured 2026-09-11, the mount stayed 1000:1000 0600.
+      # Readability is set by the HOST file's owner, which must be the container
+      # user (999 archie). See secrets/archie-comms/.
       - comms_kytran_client_secret
       - comms_claude_client_secret
+      - comms_codex_client_secret
+      - comms_tui_client_secret
+      - comms_opencode_client_secret
     deploy:
       resources:
         limits:
@@ -1359,6 +1367,34 @@ services:
   # container (no host fs/secrets; only a read-only auth.json seed + a read-scoped KB
   # bearer). ttyd bound to localhost; fronted by the admin auth proxy
   # (ttyd-codex-auth-proxy.service :7682) → Beacon codex.kytranempowerment.com.
+  archie_opencode_terminal:
+    build:
+      context: .
+      dockerfile: opencode/Dockerfile.terminal
+    image: archie_brain-archie_opencode_terminal:latest
+    container_name: archie_opencode_terminal
+    restart: unless-stopped
+    ports:
+      # 127.0.0.1 ONLY. The in-container ttyd has no auth of its own — the host
+      # auth proxy on :7685 is the only path in. Binding 0.0.0.0 here would publish
+      # a writable shell to the LAN, which is exactly how the claude lane was found
+      # exposed once before.
+      - "127.0.0.1:17685:7681"
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    environment:
+      TZ: America/Toronto
+      OPENCODE_HOME: /opencode-home
+    volumes:
+      - opencode_terminal_home:/opencode-home
+      - opencode_terminal_work:/work
+    networks:
+      # Its own network, like codex — so nothing else on archie_internal can reach
+      # the unauthenticated in-container ttyd.
+      - opencode_terminal_net
+
   archie_codex_terminal:
     build:
       context: .
@@ -1414,8 +1450,16 @@ secrets:
     file: ./secrets/archie-comms/kytran_client_secret.txt
   comms_claude_client_secret:
     file: ./secrets/archie-comms/claude_client_secret.txt
+  comms_codex_client_secret:
+    file: ./secrets/archie-comms/codex_client_secret.txt
+  comms_tui_client_secret:
+    file: ./secrets/archie-comms/tui_client_secret.txt
+  comms_opencode_client_secret:
+    file: ./secrets/archie-comms/opencode_client_secret.txt
 
 networks:
+  opencode_terminal_net:
+    driver: bridge
   archie_internal:
     driver: bridge
     name: archie_network
@@ -1430,6 +1474,12 @@ networks:
     driver: bridge
 
 volumes:
+  opencode_terminal_home:
+    driver: local
+    name: archie_opencode_terminal_home
+  opencode_terminal_work:
+    driver: local
+    name: archie_opencode_terminal_work
   omniroute_data:
     driver: local
     name: archie_omniroute_data

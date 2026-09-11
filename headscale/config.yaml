@@ -61,7 +61,36 @@ dns:
   base_domain: mesh.archie
   nameservers:
     global:
-      - 192.168.1.200
+      # ⚠️ ORDER AND REACHABILITY BOTH MATTER, and this list had neither right.
+      #
+      # It was [192.168.1.200, 1.1.1.1]. 192.168.1.200 is a LAN address: a mesh
+      # client that is not ALSO on the home LAN cannot reach it (the hub's
+      # 192.168.1.0/24 subnet route is disabled), so it times out and falls through
+      # to 1.1.1.1 — which answers the lane hostnames with Citadel's PUBLIC ip.
+      # The device then leaves the tunnel, arrives with a public source address and
+      # is refused by the mesh gate, while appearing to be fully on the mesh.
+      #
+      # Measured 2026-09-11 from Citadel's access log: the owner's phone reached
+      # codex.kytranempowerment.com from 209.107.108.214 — a public address — while
+      # shuttle-kytran (100.64.0.9) was online on the tailnet.
+      #
+      # 100.64.0.4 is the hub's MESH address, reachable from anywhere on the
+      # tailnet, and it serves the same AdGuard instance. LAN address kept second
+      # for a client whose tunnel is down but which is still on the home network;
+      # 1.1.1.1 stays last so DNS survives AdGuard being unavailable — but it is
+      # now genuinely a last resort rather than the routine answer.
+      # ⚠️ 192.168.1.200 was REMOVED from this list 2026-09-11, the same day it was
+      # demoted from first place. The justification for keeping it as a fallback —
+      # "a client whose tunnel is down but is still on the home LAN" — does not hold:
+      # a client with no tunnel never RECEIVES this list at all, it uses DHCP. So the
+      # entry could only ever be consulted by tailnet clients, every one of which can
+      # reach 100.64.0.4. Off-LAN it is pure added latency: a timeout before the
+      # fallthrough. scripts/mesh_dns_monitor.py flagged it on its first run.
+      - 100.64.0.4
+      # Last resort so DNS survives AdGuard being down. It answers the lane names
+      # with the PUBLIC ip, which is why it must never be reached routinely — a
+      # client following it leaves the tunnel and gets the CLEARANCE NOT GRANTED
+      # page rather than a terminal. Visible and explained, but wrong.
       - 1.1.1.1
   search_domains: []
   # Padlock-over-mesh (#4287): push these A records via MagicDNS so mesh clients resolve
@@ -98,6 +127,43 @@ dns:
     - name: "platform.kytranempowerment.com"
       type: "A"
       value: "2.25.133.122"
+    # --- Coder lanes -> Citadel's MESH address (added 2026-09-11) -----------------
+    # Pushed by headscale itself, so TAILSCALE's own resolver answers them on every
+    # mesh device regardless of what that device's system DNS is set to. The AdGuard
+    # rewrite alone was not enough: a phone that prefers its router/carrier resolver
+    # never consults AdGuard, resolves the PUBLIC ip, arrives off-mesh and is refused.
+    #
+    # Off the mesh these names are not pushed at all, so public DNS applies, the
+    # request lands on Citadel's public ip, and the page renders CLEARANCE NOT
+    # GRANTED — which is the intended behaviour, not a failure.
+    #
+    # ⚠️ mesh.kytranempowerment.com is DELIBERATELY NOT HERE. It is the Headscale
+    # control plane: a client that resolved it to a mesh address would need the mesh
+    # in order to reach the thing that admits it to the mesh. Bootstrap deadlock.
+    - name: "claude.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "codex.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "tui.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "opencode.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "terminal.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "codex-tty.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "tui-tty.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
+    - name: "opencode-tty.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.10"
 
 # Unix socket for headscale CLI
 unix_socket: /var/run/headscale/headscale.sock

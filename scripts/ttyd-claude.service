@@ -11,7 +11,11 @@ WorkingDirectory=/mnt/archie_brain
 ExecStart=/mnt/archie_brain/scripts/start_ttyd.sh
 Restart=always
 RestartSec=5
-Environment=TTYD_PORT=7681
+# ⚠️ 17681, NOT 7681. 7681 is the AUTH PROXY's port. start_ttyd.sh does
+# TTYD_PORT=${TTYD_PORT:-17681}, so this file saying 7681 made an install start the
+# BACKEND on the proxy's port — which is exactly the orphaned `ttyd -p 7681` in #6698.
+# The installed unit has always said 17681; only this repo copy was wrong.
+Environment=TTYD_PORT=17681
 # NOTE: there are deliberately no TTYD_USER/TTYD_PASS here. ttyd itself runs with NO
 # credentials of its own, bound to 127.0.0.1; authentication is ttyd_auth_proxy.py on
 # :7681, which checks the platform `users` table for is_active AND is_admin. Two dead

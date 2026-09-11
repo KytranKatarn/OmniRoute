@@ -10,6 +10,20 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 from services import cockpit_proxy as cp
 from services import terminal_lanes as tl
 
+
+def _lane_shapes():
+    """Lane list for the cockpit switcher — same shape the comms landing
+    pages use, so the two surfaces can never disagree about which lanes
+    exist or which of them are host shells."""
+    return [
+        {
+            "key": k,
+            "label": c.get("label", k),
+            "sandboxed": bool(c.get("sandboxed")),
+        }
+        for k, c in tl.LANES.items()
+    ]
+
 cockpit_bp = Blueprint("cockpit", __name__)
 
 
@@ -32,7 +46,7 @@ def _pass(result):
 def cockpit_page():
     if not session.get("user_id"):
         return redirect("/login?next=/cockpit")
-    return render_template("cockpit.html")
+    return render_template("cockpit.html", lanes=_lane_shapes())
 
 
 # ---- Crew ----------------------------------------------------------------------------
@@ -152,8 +166,24 @@ def _require_admin(fn):
     def _wrapped(*a, **k):
         if not session.get("user_id"):
             return jsonify({"error": "Not authenticated"}), 401
-        if session.get("role") != "admin":
+
+        # Per-LANE authority when the route names a lane; admin-only otherwise
+        # (e.g. the lane LIST, which enumerates every lane and so needs the
+        # broadest right). tl.may_use_lane is THE answer — admins by role,
+        # everyone else by an explicit grant — and it fails closed.
+        lane = k.get("lane")
+        if lane is not None and lane in tl.LANES:
+            if not tl.may_use_lane(session["user_id"], session.get("role"), lane):
+                return jsonify({"error": "You do not have access to this terminal"}), 403
+        elif lane is None and session.get("role") != "admin":
+            # No lane in the route (e.g. the lane LIST, which enumerates every lane
+            # and so needs the broadest right).
             return jsonify({"error": "A terminal needs an admin account"}), 403
+        # ⚠️ An UNKNOWN lane deliberately falls through to the route, which raises
+        # UnknownLane -> 404. Answering 403 there would be wrong twice: it claims an
+        # authorization failure for something that does not exist, and it makes
+        # "no such lane" indistinguishable from "not allowed". Caught by
+        # test_an_unknown_lane_is_404_not_500 when this gate first returned 403.
         return fn(*a, **k)
 
     return _wrapped

@@ -18,12 +18,22 @@
 {% set cat_label = 'COMMUNICATIONS' %}
 {% set module_title = 'A.R.C.H.I.E. COMMS' %}
 {% set module_back_url = '/' %}
+{# Lane shortcuts on the strip jump to each lane's OWN full-page landing; the tabs
+   below embed the same lane inline. BOTH are built from `lanes`, so a new lane
+   (opencode next) shows up in the menu bar and the tab row with no edit to this file.
+   That is the fix for the actual defect: the tab list used to be literal markup, so
+   /chat carried a Claude tab and nothing else while three lanes were live. #}
 {% set header_shortcuts = [("Cockpit", "layout-grid", "/cockpit#crew")] %}
+{% set lane_tabs = [] %}
+{% for l in lanes %}
+  {% set _ = header_shortcuts.append((l.label, "terminal", "/" ~ l.key)) %}
+  {% set _ = lane_tabs.append(("tty-" ~ l.key, l.label, "terminal")) %}
+{% endfor %}
 {% set header_tabs = [
     ("chat", "Chat", "message-square"),
     ("history", "History", "clock"),
-    ("collaboration", "Collaboration", "users"),
-    ("terminal", "Claude TTY", "terminal"),
+    ("collaboration", "Collaboration", "users")
+  ] + lane_tabs + [
     ("coms", "COMs", "radio"),
     ("mail", "Mail", "mail")
 ] %}
@@ -182,15 +192,30 @@
     </div>
 </div>
 
-<!-- TAB: CLAUDE TTY -->
-<div id="panel-terminal" class="comms-panel">
+<!-- TABS: one per coder lane, generated from the registry -->
+{% for l in lanes %}
+<div id="panel-tty-{{ l.key }}" class="comms-panel">
     <div style="display:flex;flex-direction:column;height:100%;background:#000;">
-        <iframe id="ttyd-frame" src="about:blank"
+        <div class="ac-tty-bar">
+            <span class="ac-tty-name" style="color:{{ l.accent }}">{{ l.label }}</span>
+            {% if l.sandboxed %}
+              <span class="ac-tty-badge sandboxed" title="Runs inside a container — the filesystem it sees is not the host's">sandboxed</span>
+            {% else %}
+              <span class="ac-tty-badge host" title="A shell on the host itself. No container boundary.">&#9888; HOST</span>
+            {% endif %}
+            <span class="ac-tty-blurb">{{ l.blurb }}</span>
+            <span style="flex:1"></span>
+            <span class="ac-tty-state" id="ac-tty-state-{{ l.key }}"></span>
+            <button class="ac-tty-btn" data-tty-reconnect="{{ l.key }}" type="button">Reconnect</button>
+            <a class="ac-tty-btn" href="/{{ l.key }}/terminal" target="_blank" rel="noopener" title="Open this lane full-page">Full page &#8599;</a>
+        </div>
+        <iframe id="ac-tty-frame-{{ l.key }}" src="about:blank"
                 style="flex:1;border:none;width:100%;background:#000;"
                 allow="clipboard-read; clipboard-write"
-                title="Claude Terminal"></iframe>
+                title="{{ l.label }} terminal"></iframe>
     </div>
 </div>
+{% endfor %}
 
 <!-- TAB: COMs — Telegram ops feed + config/migration (COO command surface) -->
 <div id="panel-coms" class="comms-panel">
@@ -209,18 +234,61 @@
 </div>
 
 <script>
-// Lazy-load TTYd only when terminal tab is activated (saves resources)
-(function() {
-    var ttydLoaded = false;
-    window.onLcarsTabSwitch = function(tabId) {
-        if (tabId === 'terminal' && !ttydLoaded) {
-            ttydLoaded = true;
-            document.getElementById('ttyd-frame').src = 'http://192.168.1.200:7681';
-        }
-        document.querySelectorAll('.comms-panel').forEach(function(p) {
-            p.classList.toggle('active', p.id === 'panel-' + tabId);
-        });
-    };
+// Lane terminals: mint a one-time, LANE-BOUND token, then point the frame at the
+// URL the mint returns.
+//
+// This replaced `frame.src = 'http://192.168.1.200:7681'`. That hardcoded URL was
+// broken in three independent ways and only ever appeared to work from a LAN browser
+// that already held a cookie: it is plain http inside an https page (mixed content,
+// blocked on archie.kytranempowerment.com), it is a LAN IP (unreachable off-LAN), and
+// it carries no token — so it depended on the proxy's auth having already happened
+// somewhere else. Every lane now goes through the ONE admin-gated mint.
+(function () {
+  var loaded = {};
+
+  function setState(lane, text) {
+    var el = document.getElementById('ac-tty-state-' + lane);
+    if (el) el.textContent = text;   // textContent: lane/error text is never markup
+  }
+
+  function mount(lane) {
+    var frame = document.getElementById('ac-tty-frame-' + lane);
+    if (!frame) return;
+    setState(lane, 'connecting…');
+    fetch('/api/cockpit/terminal/' + encodeURIComponent(lane) + '/token', { method: 'POST' })
+      .then(function (r) {
+        if (r.status === 403) throw new Error('a terminal needs an admin account');
+        if (r.status === 401) throw new Error('signed out — reload to sign in');
+        if (r.status === 404) throw new Error('lane is not registered');
+        if (!r.ok) throw new Error('mint failed (' + r.status + ')');
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d || !d.url) throw new Error('mint returned no url');
+        frame.src = d.url;
+        loaded[lane] = true;
+        setState(lane, '');
+      })
+      .catch(function (e) {
+        loaded[lane] = false;          // a failure must not latch the lane as loaded
+        setState(lane, e.message);     // say WHY — never leave a blank frame
+      });
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-tty-reconnect]');
+    if (btn) mount(btn.getAttribute('data-tty-reconnect'));
+  });
+
+  window.onLcarsTabSwitch = function (tabId) {
+    if (tabId.indexOf('tty-') === 0) {
+      var lane = tabId.slice(4);
+      if (!loaded[lane]) mount(lane);   // lazy: never open a host shell on page load
+    }
+    document.querySelectorAll('.comms-panel').forEach(function (p) {
+      p.classList.toggle('active', p.id === 'panel-' + tabId);
+    });
+  };
 })();
 </script>
 

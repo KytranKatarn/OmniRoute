@@ -1,0 +1,33 @@
+# Sandboxed OpenCode web terminal — opencode + ttyd/tmux for an interactive browser
+# terminal. The CONTAINER is the isolation boundary, exactly as it is for codex: no
+# host filesystem, no platform DB credentials, its own volumes, cap_drop ALL.
+#
+# Why containerised and not a host lane like claude/archie-tui: the owner's call
+# ("the codex and opencode can be container"), and it is the right default for a
+# tool that is new to this cluster. A host lane has to earn that placement — the
+# archie-tui lane is on the host because it must reach archie_engine on
+# 127.0.0.1:9090, and it carries a HOST marker on every surface as the price.
+FROM node:22-bookworm-slim
+
+# tmux from apt; ttyd is not in the Debian repos, so fetch the static release and
+# verify it by digest — an unpinned binary fetched at build time is a supply-chain
+# hole, and this is a terminal.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tmux curl ca-certificates git \
+    && curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /tmp/ttyd \
+    && echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /tmp/ttyd" | sha256sum -c - \
+    && install -m 0755 /tmp/ttyd /usr/local/bin/ttyd && rm /tmp/ttyd \
+    && apt-get purge -y curl && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pinned exactly — a floating tag would let the lane's behaviour change under a
+# rebuild with nothing in git to show for it.
+RUN npm install -g opencode-ai@1.18.30 \
+    && npm cache clean --force \
+    && opencode --version
+
+COPY scripts/start_opencode_terminal.sh /start.sh
+RUN chmod +x /start.sh
+
+EXPOSE 7681
+ENTRYPOINT ["/start.sh"]

@@ -120,7 +120,15 @@
   }
 
   function setLane(lane) {
-    laneChoice = lane === 'codex' ? 'codex' : 'claude';
+    // ⚠️ This was `lane === 'codex' ? 'codex' : 'claude'` — a hardcoded TWO-lane
+    // ternary. Any third lane fell through to 'claude', so clicking a new lane's
+    // button would have opened the HOST shell. Same shape as the switchArmadaSection
+    // bug, but security-relevant here. Drive it from the buttons the server rendered,
+    // and on an unknown lane change NOTHING rather than falling back to the most
+    // privileged lane.
+    const known = [...document.querySelectorAll('#ck-lanes button')].map((b) => b.dataset.lane);
+    if (!known.includes(lane)) return;
+    laneChoice = lane;
     document.querySelectorAll('#ck-lanes button').forEach((b) => b.classList.toggle('ck-lane-on', b.dataset.lane === laneChoice));
     // Switching lanes tears the old terminal down: one slot, never two live shells.
     const frame = $('ck-term');

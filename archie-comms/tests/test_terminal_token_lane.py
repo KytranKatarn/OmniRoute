@@ -25,7 +25,7 @@ pytestmark = pytest.mark.skipif(
     not os.path.isdir(COMMS), reason=f"archie-comms not reachable at {COMMS}"
 )
 
-VALID_LANES = {"claude", "codex"}
+VALID_LANES = {"claude", "codex", "archie-tui", "opencode"}
 
 
 def _python_sources():
@@ -86,8 +86,13 @@ def lanes():
     return terminal_lanes
 
 
-def test_only_the_two_real_lanes_exist(lanes):
-    """The engine is NOT a lane — :9090 is a bearer-auth websocket API with no shell."""
+def test_only_the_real_lanes_exist(lanes):
+    """The engine is NOT a lane — :9090 is a bearer-auth websocket API with no shell.
+
+    VALID_LANES is deliberately FROZEN. Every lane is a shell someone can reach, so
+    adding one must trip a test and be updated on purpose — never arrive as a silent
+    registry edit. Updating this set is the deliberate act.
+    """
     assert set(lanes.LANES) == VALID_LANES
     assert "engine" not in lanes.LANES
 
@@ -105,8 +110,16 @@ def test_lane_urls_are_distinct_and_https(lanes):
 
 
 def test_lane_ports_are_distinct(lanes):
+    """Two lanes sharing a proxy port would silently open the wrong terminal.
+
+    This asserted a literal [7681, 7683] — which broke on the third lane while
+    checking nothing its own name promises. Distinctness is the property; the
+    768x range is the other half (backends live on 1768x, bound to 127.0.0.1, and
+    a backend in the proxy range would be published straight to the LAN).
+    """
     ports = [c["proxy_port"] for c in lanes.LANES.values()]
-    assert sorted(ports) == [7681, 7683], ports
+    assert len(set(ports)) == len(ports), f"two lanes share a proxy port: {ports}"
+    assert all(7680 <= p <= 7699 for p in ports), f"proxy ports outside the 768x range: {ports}"
 
 
 def test_an_unknown_lane_is_refused(lanes):

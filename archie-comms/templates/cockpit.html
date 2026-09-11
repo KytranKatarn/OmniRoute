@@ -120,13 +120,19 @@
           <button type="button" data-right="terminal" aria-pressed="true">Terminal</button>
         </div>
       </div>
+      {# Lane buttons from services.terminal_lanes.LANES — the LAST hardcoded lane
+         list in the app. It was literal markup, so registering opencode gave it a
+         landing page, a sign-in, a menu-bar entry and a /chat tab, and left the
+         cockpit switcher silently one lane short. Caught by
+         test_host_lanes_carry_the_host_marker_in_the_markup. #}
       <div id="ck-lanes" class="ck-lanes" role="group" aria-label="Coder lane">
-        <button type="button" data-lane="claude" class="ck-lane-on">
-          Claude <span class="ck-pill ck-pill-host">⚠ HOST · no container</span>
+        {% for l in lanes %}
+        <button type="button" data-lane="{{ l.key }}"{% if loop.first %} class="ck-lane-on"{% endif %}>
+          {{ l.label }}
+          {% if l.sandboxed %}<span class="ck-pill">sandboxed</span>
+          {% else %}<span class="ck-pill ck-pill-host">&#9888; HOST &middot; no container</span>{% endif %}
         </button>
-        <button type="button" data-lane="codex">
-          Codex <span class="ck-pill">sandboxed</span>
-        </button>
+        {% endfor %}
       </div>
       <p id="ck-lane-note" class="ck-muted"></p>
       <div id="ck-lane-state" class="ck-lane-state">

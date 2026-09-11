@@ -42,6 +42,45 @@ def _read_secret(name: str, env_fallback: str) -> str:
 _KYTRAN_CLIENT_SECRET = _read_secret("comms_kytran_client_secret", "KYTRAN_CLIENT_SECRET")
 _CLAUDE_CLIENT_SECRET = _read_secret("comms_claude_client_secret", "CLAUDE_CLIENT_SECRET")
 
+# One OAuth client PER LANE HOSTNAME. OAuth validates redirect_uri against a
+# registered allowlist, so a lane hostname cannot assert its own callback — each
+# needs a real oauth_clients row (claude-terminal / codex-terminal / tui-terminal).
+# Without this, SSO from codex. redirects back to archie. and the flow dead-ends.
+_LANE_OAUTH = {
+    "claude": {
+        "client_id": os.getenv("CLAUDE_CLIENT_ID", "claude-terminal"),
+        "secret": _CLAUDE_CLIENT_SECRET,
+        "redirect_uri": os.getenv(
+            "CLAUDE_REDIRECT_URI",
+            "https://claude.kytranempowerment.com/auth/kytran/callback",
+        ),
+    },
+    "codex": {
+        "client_id": os.getenv("CODEX_CLIENT_ID", "codex-terminal"),
+        "secret": _read_secret("comms_codex_client_secret", "CODEX_CLIENT_SECRET"),
+        "redirect_uri": os.getenv(
+            "CODEX_REDIRECT_URI",
+            "https://codex.kytranempowerment.com/auth/kytran/callback",
+        ),
+    },
+    "opencode": {
+        "client_id": os.getenv("OPENCODE_CLIENT_ID", "opencode-terminal"),
+        "secret": _read_secret("comms_opencode_client_secret", "OPENCODE_CLIENT_SECRET"),
+        "redirect_uri": os.getenv(
+            "OPENCODE_REDIRECT_URI",
+            "https://opencode.kytranempowerment.com/auth/kytran/callback",
+        ),
+    },
+    "archie-tui": {
+        "client_id": os.getenv("TUI_CLIENT_ID", "tui-terminal"),
+        "secret": _read_secret("comms_tui_client_secret", "TUI_CLIENT_SECRET"),
+        "redirect_uri": os.getenv(
+            "TUI_REDIRECT_URI",
+            "https://tui.kytranempowerment.com/auth/kytran/callback",
+        ),
+    },
+}
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 # Session secret MUST be persistent + shared across gunicorn workers. A random
@@ -97,14 +136,25 @@ def _setup_dynamic_oauth():
 
     @app.before_request
     def _set_oauth_client():
-        host = request.host.lower()
-        if "claude" in host:
-            kytran_auth.client_id = os.getenv("CLAUDE_CLIENT_ID", "claude-terminal")
-            kytran_auth.client_secret = _CLAUDE_CLIENT_SECRET
-            kytran_auth.redirect_uri = os.getenv(
-                "CLAUDE_REDIRECT_URI",
-                "https://claude.kytranempowerment.com/auth/kytran/callback",
-            )
+        """Pick the OAuth client for the hostname being served.
+
+        ⚠️ This was `if "claude" in host`, which ALSO matches claude-cli. and
+        notclaude. — and, more importantly, sent codex. and tui. down the `else`
+        branch, so their sign-in redirected to archie.'s callback and the user
+        landed on comms instead of the lane they asked for.
+
+        Resolution is by exact first label via terminal_lanes.lane_for_host. A lane
+        with no registered OAuth client falls through to the comms client rather
+        than presenting a client_id the provider will reject — the failure is then
+        a visible wrong-destination, not an opaque OAuth error.
+        """
+        from services import terminal_lanes as tl
+
+        cfg = _LANE_OAUTH.get(tl.lane_for_host(request.host) or "")
+        if cfg and cfg["secret"]:
+            kytran_auth.client_id = cfg["client_id"]
+            kytran_auth.client_secret = cfg["secret"]
+            kytran_auth.redirect_uri = cfg["redirect_uri"]
         else:
             kytran_auth.client_id = os.getenv("KYTRAN_CLIENT_ID", "archie-comms")
             kytran_auth.client_secret = _KYTRAN_CLIENT_SECRET
@@ -643,12 +693,31 @@ def api_send():
 
 @app.route("/")
 def index():
-    """Route based on subdomain — archie.* gets comms, claude.* gets terminal."""
-    from flask import render_template
+    """Route on the subdomain: each lane's own hostname serves its landing page.
 
-    host = request.host.lower()
-    if "claude" in host:
-        return render_template("claude_landing.html")
+    claude. / codex. / tui. each land on that lane's page; archie. gets comms.
+    The mapping lives in the registry (terminal_lanes.lane_for_host), so a new
+    lane's front door needs a `landing_host` and nothing here.
+
+    ⚠️ This replaced `if "claude" in host`. A substring test also matches
+    `claude-cli.` and `notclaude.` — it would serve the wrong lane's landing page
+    and point its Connect button at the wrong terminal. lane_for_host matches the
+    first label exactly.
+    """
+    from flask import render_template, session
+
+    from services import terminal_lanes as tl
+
+    lane_key = tl.lane_for_host(request.host)
+    if lane_key:
+        ctx = _lane_view_context(lane_key)
+        # The landing page is the public front door and carries the Connect CTA —
+        # it must render logged-out, and off-mesh too. It is the lane's shopfront:
+        # it says what the lane DOES, then tells you plainly whether your current
+        # network can reach it. Everything BEHIND it is mesh + admin.
+        ctx["authenticated"] = "kytran_user" in session
+        ctx["mesh_clearance"] = _mesh_clearance()
+        return render_template("lane_landing.html", **ctx)
     return render_template("landing.html")
 
 
@@ -662,16 +731,23 @@ def login():
     """
     from flask import render_template, request, redirect, session
 
-    next_url = request.args.get("next", "/chat")
+    from services import terminal_lanes as tl
+
+    lane_key = tl.lane_for_host(request.host)
+    # On a lane hostname the destination after sign-in is THAT lane's terminal —
+    # never /chat, which lives on a different hostname and would bounce the user
+    # across domains mid-login.
+    default_next = f"/{lane_key}/terminal" if lane_key else "/chat"
+    next_url = request.args.get("next", default_next)
 
     # Already authenticated via Kytran SSO → skip login page
     if "kytran_user" in session:
         return redirect(next_url)
 
-    # Render SSO-only landing (hostname-branched)
-    host = request.host.lower()
-    if "claude" in host:
-        return render_template("claude_login.html", next_url=next_url)
+    if lane_key:
+        return render_template(
+            "lane_login.html", next_url=next_url, **_lane_view_context(lane_key)
+        )
     return render_template("login.html", next_url=next_url)
 
 
@@ -680,11 +756,13 @@ def logout():
     """Clear session and redirect to landing page."""
     from flask import session, redirect
 
+    from services import terminal_lanes as tl
+
+    lane_key = tl.lane_for_host(request.host)
     session.clear()
-    host = request.host.lower()
-    if "claude" in host:
-        return redirect("/claude")
-    return redirect("/")
+    # Back to the front door of the hostname they are actually on. The old
+    # `if "claude" in host` sent every lane's logout to /claude.
+    return redirect(f"/{lane_key}" if lane_key else "/")
 
 
 @app.route("/chat")
@@ -694,7 +772,10 @@ def chat():
 
     if "kytran_user" not in session:
         return redirect("/login")
-    return render_template("chat.html")
+    # Lanes drive the TTY tabs. Passing the registry (rather than hardcoding tabs)
+    # is why /chat had a Claude tab and nothing else for three lanes: the tab list
+    # was markup, so every new lane needed someone to remember this file.
+    return render_template("chat.html", lanes=_lane_shapes())
 
 
 @app.route("/api/director/report", methods=["POST"])
@@ -1067,22 +1148,160 @@ def api_collab_message():
     })
 
 
-@app.route("/claude")
-def claude_landing():
-    """Claude TTY landing page — protected terminal access."""
-    from flask import render_template
+def _mesh_clearance():
+    """Is this request coming from the Kytran mesh?
 
-    return render_template("claude_landing.html")
+    Citadel's Caddy stamps `X-Mesh-Clearance: granted|denied` on the lane landing
+    vhosts, from a `remote_ip 100.64.0.0/10` match. BOTH branches set it, which is
+    what makes it trustworthy — a client sending its own header is overwritten, not
+    merged. Never treat a client-supplied value here as authoritative for anything
+    but presentation plus the mesh half of the terminal gate.
+
+    ⚠️ ABSENT is not DENIED. A missing header means the request never went through
+    Citadel — i.e. it arrived directly on :3002, which is only reachable from the
+    LAN, the mesh, or a sibling container. Failing closed there would break the
+    cockpit at http://192.168.1.200:3002, which is how the owner works locally.
+    Only an explicit "denied" is a refusal.
+    """
+    raw = (request.headers.get("X-Mesh-Clearance") or "").strip().lower()
+    if raw == "granted":
+        return True
+    if raw == "denied":
+        return False
+    return True  # no header ⇒ direct LAN/mesh/container access
 
 
-@app.route("/claude/terminal")
-def claude_terminal():
-    """Claude TTY terminal — admin only, embeds TTYd."""
-    from flask import render_template, session, redirect
+def _lane_shapes():
+    """Every registered lane, shaped for a template. ONE definition.
+
+    `sandboxed` is carried on every shape and must be rendered wherever a lane is
+    named: claude and archie-tui are shells on the host with no container boundary,
+    codex is contained, and they look identical otherwise.
+    """
+    from services import terminal_lanes as tl
+
+    return [
+        {
+            "key": key,
+            "label": cfg.get("label", key),
+            "blurb": cfg.get("blurb", ""),
+            "accent": cfg.get("accent", "#a78bfa"),
+            "sandboxed": bool(cfg.get("sandboxed")),
+            "landing_host": cfg.get("landing_host", ""),
+            # The shopfront copy. Defaults are deliberately EMPTY rather than
+            # invented: a lane with no features listed renders no feature cards,
+            # which is honest. Filling them with generic filler would make every
+            # lane claim the same things.
+            "icon": cfg.get("icon", ""),
+            "role": cfg.get("role", ""),
+            "status": cfg.get("status", ""),
+            "features": cfg.get("features", []),
+        }
+        for key, cfg in tl.LANES.items()
+    ]
+
+
+def _lane_view_context(lane_key):
+    """Template context for ONE lane, plus the full list for the menu bar.
+
+    Everything comes from services.terminal_lanes.LANES, so adding a lane (opencode
+    next) needs no route and no template change — only a registry entry.
+    """
+    shapes = _lane_shapes()
+    return {
+        "lane": next(s for s in shapes if s["key"] == lane_key),
+        "lanes": shapes,
+    }
+
+
+def _lane_landing(lane_key):
+    """Public landing page for a lane — the pattern /claude has always used.
+
+    Public on purpose: it carries the "Connect with Kytran Empowerment" CTA, so it
+    has to render logged-out. Everything BEHIND it is gated.
+    """
+    from flask import render_template, session
+
+    ctx = _lane_view_context(lane_key)
+    ctx["authenticated"] = "kytran_user" in session
+    ctx["mesh_clearance"] = _mesh_clearance()
+    return render_template("lane_landing.html", **ctx)
+
+
+def _lane_terminal(lane_key):
+    """The embedded ttyd for a lane.
+
+    Session-gated only. The REAL authority check is the mint — `_require_admin` on
+    `/api/cockpit/terminal/<lane>/token` (cockpit_routes.py) — which is deliberately the
+    ONE place in this service that creates a shell token. This guard exists so a logged-out
+    visitor is sent to the landing page instead of staring at a frame that could never load;
+    it is not, and must not become, a second gate with its own idea of who may have a shell.
+    """
+    from flask import redirect, render_template, session
+
+    # MESH first — it is the cheaper check and the one the owner can act on
+    # without credentials ("connect to the tailnet"), so say that before asking
+    # anyone to sign in.
+    if not _mesh_clearance():
+        logger.warning("terminal page refused: off-mesh lane=%s", lane_key)
+        return redirect(f"/{lane_key}?denied=mesh")
 
     if "user_id" not in session and "kytran_user" not in session:
-        return redirect("/claude")
-    return render_template("claude_terminal.html")
+        return redirect(f"/{lane_key}")
+
+    # ADMIN, checked HERE and not inferred from the login path.
+    #
+    # Today every comms session is an admin: on_sso_login discards any session
+    # whose role != "admin". So this is currently redundant — and it is required
+    # anyway, for the same reason _require_admin states on the mint. The page's
+    # protection must be a property this code ASSERTS, not a side effect of who
+    # the SSO gate happens to admit. A future change letting non-admins into
+    # comms for some unrelated feature would otherwise hand them the terminal
+    # page silently.
+    #
+    # It renders the lane's own front door rather than a bare 403 so an
+    # authenticated non-admin gets somewhere useful and is told why.
+    # Same authority function the MINT uses — one answer, checked in both places.
+    # A page that renders for someone who can never mint is its own bug, and a mint
+    # reachable without the page is why this cannot live in only one of them.
+    from services import terminal_lanes as _tl
+
+    if not _tl.may_use_lane(session.get("user_id"), session.get("role"), lane_key):
+        logger.warning(
+            "terminal page refused: user=%s role=%s lane=%s (no lane access)",
+            session.get("username") or session.get("user_id"),
+            session.get("role"),
+            lane_key,
+        )
+        return redirect(f"/{lane_key}?denied=admin")
+
+    return render_template("lane_terminal.html", **_lane_view_context(lane_key))
+
+
+def _register_lane_routes():
+    """Register /<lane> and /<lane>/terminal for every registered lane.
+
+    ⚠️ EXPLICIT rules per lane, never a `/<lane>` catch-all. A catch-all dynamic rule
+    invites shadowing of real routes (/chat, /login, /cockpit) and would turn a typo
+    into a 200 on the wrong page. Explicit registration also means an unknown lane is
+    a plain 404 from Werkzeug rather than something this code has to decide.
+    """
+    from functools import partial
+
+    from services import terminal_lanes as tl
+
+    for key in tl.LANES:
+        app.add_url_rule(
+            f"/{key}", endpoint=f"lane_landing__{key}", view_func=partial(_lane_landing, key)
+        )
+        app.add_url_rule(
+            f"/{key}/terminal",
+            endpoint=f"lane_terminal__{key}",
+            view_func=partial(_lane_terminal, key),
+        )
+
+
+_register_lane_routes()
 
 
 @app.route("/api/chat/conversations", methods=["GET"])

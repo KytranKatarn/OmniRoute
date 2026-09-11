@@ -212,3 +212,6 @@ ds-bundle/
 
 # design handoff archives — the extracted bundle is committed, the zip is not
 *.zip
+
+# Built binaries (archie-tui is built from /mnt/standalone/archie-code/archie-tui)
+bin/

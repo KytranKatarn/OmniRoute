@@ -1,0 +1,33 @@
+[Unit]
+Description=Auth proxy for the A.R.C.H.I.E. TUI terminal lane
+After=network.target ttyd-archie-tui.service
+
+[Service]
+Type=simple
+User=kytran
+Group=kytran
+WorkingDirectory=/mnt/archie_brain
+# EnvironmentFile FIRST so the explicit Environment= lines below override it.
+EnvironmentFile=/mnt/archie_brain/.env
+Environment=PROXY_HOST=0.0.0.0
+Environment=PROXY_PORT=7684
+# THE LANE. ttyd_auth_proxy.py refuses any token minted for a different lane, and an
+# EMPTY value means REFUSE rather than "any lane" — so this line is load-bearing.
+Environment=PROXY_LANE=archie-tui
+# QUOTED: systemd splits Environment= on whitespace, so an unquoted list silently
+# truncates to the first origin.
+Environment="TTYD_FRAME_ANCESTORS=https://archie.kytranempowerment.com https://claude.kytranempowerment.com https://codex.kytranempowerment.com https://tui.kytranempowerment.com https://opencode.kytranempowerment.com http://192.168.1.200:3002"
+Environment=TTYD_HOST=127.0.0.1
+Environment=TTYD_PORT=17683
+# DB_HOST forced in the shell: .env sets DB_HOST=archie_database (a Docker name this
+# host process cannot resolve), and this systemd version applies EnvironmentFile AFTER
+# Environment=, so it must be overridden here rather than above.
+ExecStart=/bin/sh -c 'DB_HOST=192.168.1.200 exec /usr/bin/python3 /mnt/archie_brain/scripts/ttyd_auth_proxy.py'
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

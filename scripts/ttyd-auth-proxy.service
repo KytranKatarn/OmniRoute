@@ -27,7 +27,7 @@ Environment=PROXY_LANE=claude
 # drops every origin after the first (systemd-analyze verify: "Invalid environment
 # assignment, ignoring: http://192.168.1.200:3002"). The unit would look correct
 # while the cockpit's own LAN origin was refused embedding.
-Environment="TTYD_FRAME_ANCESTORS=https://archie.kytranempowerment.com http://192.168.1.200:3002"
+Environment="TTYD_FRAME_ANCESTORS=https://archie.kytranempowerment.com https://claude.kytranempowerment.com https://codex.kytranempowerment.com https://tui.kytranempowerment.com https://opencode.kytranempowerment.com http://192.168.1.200:3002"
 Environment=TTYD_HOST=127.0.0.1
 Environment=TTYD_PORT=17681
 Environment=DB_HOST=192.168.1.200

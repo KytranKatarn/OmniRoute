@@ -83,6 +83,23 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
    their blast radii are not. Red, not the muted pill used for "sandboxed". */
 .ck-pill-host { color: #ff6b6b; border-color: #ff6b6b; }
 .ck-lane-state { display: flex; flex-direction: column; gap: 8px; }
+/* `hidden` MUST win here. `.ck-lane-state` is a class rule (0,0,1,0) and the UA
+   stylesheet's `[hidden] { display: none }` is weaker, so mountLane()'s
+   `state.hidden = true` set the attribute and changed nothing: the pane read
+   "Opening the <lane> lane…" FOREVER, sitting on top of a live, rendering host
+   shell. Found by the Task 7 live drive, 2026-09-11 — no static test saw it,
+   because the JS is correct and the CSS silently defeats it.
+   ⚠️ Deliberately NOT a blanket `[hidden] { display: none !important }` reset:
+   `#ck-agent[hidden]` and `#ck-task[hidden]` are set to `display: flex` ON PURPOSE
+   (those sheets are toggled by `.ck-show`), and a global reset would break both. */
+.ck-lane-state[hidden] { display: none; }
+/* Same defect, found by the same drive: #ck-more and #ck-work-more ("show more")
+   are `.ck-btn .ck-block`, and BOTH classes set a display that outranks `[hidden]`,
+   so those buttons rendered permanently — even with nothing more to show.
+   Class-scoped (0,0,2,0), so the deliberate `#ck-agent[hidden]` / `#ck-task[hidden]`
+   inversions (1,0,1,0) still win. That is why a targeted override is safe here and
+   a blanket reset is not. */
+.ck-btn[hidden], .ck-block[hidden] { display: none; }
 .ck-term { flex: 1; min-height: 320px; width: 100%; border: 1px solid #2a2a55; border-radius: 8px; background: #000; }
 .ck-switch { display: none; gap: 6px; margin-bottom: 8px; }
 .ck-switch button { font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b90b3; background: none; border: 1px solid #2a2a55; border-radius: 6px; padding: 4px 10px; cursor: pointer; }

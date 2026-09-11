@@ -735,6 +735,56 @@ docker compose up -d --build --no-deps archie_comms
 
 ---
 
+---
+
+## STATUS — closed out 2026-09-11
+
+⚠️ The checkboxes below were never ticked as work shipped, so this file read 0/48 while
+Tasks 1-6 were merged AND deployed. Trust this block and git over the boxes.
+
+| Task | State | Evidence |
+|---|---|---|
+| 1-3 token lane binding, sliding cookie, frame-ancestors | ✅ merged | PRs #3286, #3287 |
+| 4-5 mint helper + cockpit routes | ✅ merged | PR #3288 |
+| 6 the fifth pane | ✅ merged | PR #3289 |
+| 7 the live drive | ◐ mostly done — see below | this session |
+| 8 close out | ✅ | ADR-1110, task #6698 |
+
+**Task 7, verified live 2026-09-11** (comms rebuilt from main, image `12:46:35`):
+
+- Step 1 ✅ unauthenticated mint refused **401** on both lanes.
+- Step 2 ✅ the §3.1 failure does NOT reproduce: `GET /?token=…` **200** then `GET /token`
+  **200** — the second request is the one that would 401 under a one-shot token.
+  Cookie measured `Max-Age=900, Path=/, HttpOnly, Secure, SameSite=None`.
+- Step 4 ✅ **the security one.** ONE codex-lane token, both directions: claude proxy
+  :7681 → **401** with `used` still `'f'` (refused, not burned); the same token to codex
+  :7683 → **200**, `used` → `'t'`. Directional, and a refusal does not consume it.
+- Step 7 ✅ **1280**: Builder/Terminal share grid col 3 / row 1-2, exactly one visible,
+  12/12 `elementFromPoint` samples in-pane, no horizontal scroll. **390**: 5 tabs
+  including Terminal, exactly one pane, no horizontal scroll.
+- Step 8 ✅ `frame-ancestors https://archie.kytranempowerment.com http://192.168.1.200:3002`
+  on both lanes, no wildcard. ⚠️ Measured on the **authenticated 200** — reading it off
+  the 401 shows it absent and is how this was first mis-scored.
+
+**Still open, and why:**
+
+- Step 3 — partially. The shared-session DESIGN is confirmed in `scripts/start_ttyd.sh`:
+  one named tmux session (`claude-code`), `claude` launched in it, every client
+  `tmux attach-session`. ⚠️ Which means **an automated drive must never type in the claude
+  pane** — it lands in the owner's live session. Exercise the input path on the sandboxed
+  codex lane instead.
+- Step 5 — the 15-minute idle lapse is the one genuinely time-gated check. The static half
+  is done (`Max-Age=900`, and the sliding refresh proven by Step 2's second 200).
+- Step 6 — codex seat. Unresolved, and possibly unresolvable as written: the spec already
+  says the seat is unobservable without consuming it. ⚠️ It may also be occupied by the
+  orphan in **#6698** (`--max-clients 1` attached to the `codex` tmux session).
+- Step 1's non-admin case — only the UNAUTHENTICATED path was proven (401). A genuine
+  non-admin *authenticated* session needs a second account that does not exist today;
+  note that `app_comms` rejects any SSO login whose role != admin, so the cockpit check is
+  defence in depth rather than the only gate.
+
+---
+
 ### Task 7: The live drive — the only thing that settles this phase
 
 Static tests cannot show that a terminal renders. Do this in a real browser at `http://192.168.1.200:3002/cockpit`.

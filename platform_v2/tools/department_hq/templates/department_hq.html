@@ -734,59 +734,12 @@
         <button onclick="switchArmadaSection('cluster')" id="armadaBtn-cluster" class="dhq-traffic-btn dhq-traffic-btn-active">CLUSTER</button>
         <button onclick="switchArmadaSection('dispatch')" id="armadaBtn-dispatch" class="dhq-traffic-btn">DISPATCH</button>
         <button onclick="switchArmadaSection('traffic')" id="armadaBtn-traffic" class="dhq-traffic-btn">TRAFFIC</button>
-        <button onclick="switchArmadaSection('network')" id="armadaBtn-network" class="dhq-traffic-btn">NETWORK</button>
         <button onclick="switchArmadaSection('orchestration')" id="armadaBtn-orchestration" class="dhq-traffic-btn">ORCHESTRATION</button>
       </div>
 
       <!-- CLUSTER SECTION: Cluster Activity + Queue/Models + WTF Status -->
       <div id="armadaSection-cluster">
 
-      <!-- Fleet Network Content: map + usage + providers. Hidden until NETWORK tab opens. -->
-      <div id="fleetNetworkContent" style="display:none;">
-
-      <!-- Fleet Map -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">A.R.M.A.D.A. FLEET NETWORK
-          <span style="margin-left:12px;font-size:0.7rem;">
-            <span style="color:#10b981;">&bull;</span> Hub
-            <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
-            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
-          </span>
-          <span style="float:right;display:flex;gap:4px;align-items:center;">
-            <button onclick="openRepairNodeModal()" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">⚙ REPAIR NODE</button>
-            <button onclick="openAddNodeModal()" style="background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
-          </span>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
-          <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>
-          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- contractors</span>
-        </div>
-        <div style="display:flex;align-items:flex-start;justify-content:center;flex-wrap:wrap;gap:16px;margin-bottom:20px;position:relative;z-index:0;isolation:isolate;">
-          <!-- Node Index Panel -->
-          <div id="fleetNodeIndex" style="width:160px;min-width:140px;flex-shrink:1;display:flex;flex-direction:column;gap:6px;padding-top:12px;">
-            <div style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(0,220,170,0.5);margin-bottom:4px;">NODES</div>
-          </div>
-          <!-- Map Circle — responsive: max 560px, shrinks on narrow screens -->
-          <div id="fleetMapContainer" style="width:min(560px,calc(100vw - 210px));height:min(560px,calc(100vw - 210px));border-radius:50%;overflow:hidden;border:2px solid rgba(0,220,170,0.45);box-shadow:0 0 40px rgba(0,220,170,0.15),0 0 0 1px rgba(0,220,170,0.08),inset 0 0 80px rgba(0,0,0,0.6);flex-shrink:1;position:relative;z-index:0;">
-            <div id="fleetMap" style="width:100%;height:100%;background:#050d0d;"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Fleet Usage Summary -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">FLEET USAGE (30 DAYS)</div>
-        <div style="display:flex;gap:24px;padding:8px 0;font-size:0.8rem;">
-          <div>Calls: <strong id="fleetUsageCalls">--</strong></div>
-          <div>Cost: <strong id="fleetUsageCost">--</strong></div>
-          <div>Providers: <strong id="fleetUsageProviders">--</strong></div>
-        </div>
-      </div>
-
-      <!-- Provider cards moved to Contractors tab -->
-      <div id="fleetProvidersGrid" style="display:none;"></div>
-
-      </div><!-- end fleetNetworkContent -->
 
       <!-- FLEET COMMAND — one place to see and command the dock state (#5816) -->
       <div class="dhq-dispatch-section" id="fleetCommandSection" style="margin-bottom:12px;">
@@ -831,18 +784,57 @@
         <div id="crBody" style="padding:8px 0;font-size:0.8rem;color:var(--dhq-text-dim);">Loading&hellip;</div>
       </div>
 
-      <!-- Cluster World Map — geo presence of fleet nodes (#3230) -->
-      <div class="dhq-dispatch-section" style="margin-bottom:12px;">
-        <div class="dhq-section-title">
-          FLEET WORLD MAP
-          <span style="margin-left:10px;font-size:0.65rem;letter-spacing:0.5px;">
-            <span style="color:#f5a623;">●</span> Hub
-            <span style="color:#00ffff;margin-left:6px;">●</span> Starship
-            <span style="color:#a855f7;margin-left:6px;">●</span> Outpost
+      <!-- A.R.M.A.D.A. FLEET NETWORK — moved here from the retired NETWORK
+           sub-tab (2026-09-11). It REPLACES the old "FLEET WORLD MAP"
+           (#clusterGeoMap, #3230), which drew the same nodes as plain coloured
+           dots: this map is a strict superset — our aries-logo per node, live
+           online/offline styling, and the contractor favicons. Two Leaflet
+           instances painting one /api/fleet-map response was the only thing
+           keeping them apart.
+           ⚠️ #fleetProvidersGrid stays (hidden) — loadCloudProviders() and
+           loadProviderManagement() both write into it; the CARDS moved to the
+           Contractors tab but the container did not. -->
+      <!-- Fleet Map -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">A.R.M.A.D.A. FLEET NETWORK
+          <span style="margin-left:12px;font-size:0.7rem;">
+            <span style="color:#10b981;">&bull;</span> Hub
+            <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
+            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
+          </span>
+          <span style="float:right;display:flex;gap:4px;align-items:center;">
+            <button onclick="openRepairNodeModal()" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">⚙ REPAIR NODE</button>
+            <button onclick="openAddNodeModal()" style="background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
           </span>
         </div>
-        <div id="clusterGeoMap" style="width:100%;height:220px;border-radius:6px;border:1px solid rgba(0,220,170,0.2);background:#050d0d;"></div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
+          <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>
+          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- contractors</span>
+        </div>
+        <!-- Index first, 3 columns, full width; map below. Layout + sizing live in
+             department-hq.css (.fleet-map-frame / .fleet-sonar / #fleetNodeIndex) —
+             the old inline width:min(560px,calc(100vw - 210px)) measured the WINDOW
+             while the box lives in a padded column, so flex-shrink narrowed the
+             width, left the height alone, and drew an egg. -->
+        <div id="fleetNodeIndex">
+          <div class="fleet-index-head">NODES</div>
+        </div>
+        <!-- Rectangular map; the circle is now a non-interactive SONAR overlay, so
+             it cannot distort with the container and cannot eat map gestures. -->
+        <div id="fleetMapContainer" class="fleet-map-frame">
+          <div id="fleetMap"></div>
+          <div class="fleet-sonar" aria-hidden="true">
+            <span class="fleet-sonar-cross h"></span>
+            <span class="fleet-sonar-cross v"></span>
+            <span class="fleet-sonar-ring r1"></span>
+            <span class="fleet-sonar-ring r2"></span>
+            <span class="fleet-sonar-ring r3"></span>
+            <span class="fleet-sonar-sweep"></span>
+          </div>
+        </div>
       </div>
+      <div id="fleetProvidersGrid" style="display:none;"></div>
+
 
       <!-- Cluster Activity — live task routing across nodes -->
       <div class="dhq-dispatch-section" id="clusterActivitySection">
@@ -947,7 +939,6 @@
 
 
       <!-- NETWORK SECTION: Fleet Map + Fleet Usage + Providers -->
-      <div id="armadaSection-network" style="display:none;"></div>
 
       <!-- ORCHESTRATION SECTION: Cluster Orchestration panel (populated via JS on first open) -->
       <div id="armadaSection-orchestration" style="display:none;">
@@ -995,6 +986,23 @@
       <div id="contractors-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
       <div id="contractorProvidersContent"></div>
       <div id="contractorDefinitionsContent"></div>
+      <!-- FLEET USAGE — re-homed from the retired A.R.M.A.D.A. NETWORK sub-tab
+           (2026-09-11). It belongs beside PROVIDER BUDGETS, not on Cluster:
+           total_cost and distinct-cloud-providers-called are CONTRACTOR spend,
+           not node state. It complements the budget table rather than repeating
+           it — that table is per-provider, this is the roll-up.
+           Both are painted by the SAME loadFleetUsage() call, so they can never
+           disagree. ⚠️ That function is also what fills #fleetBudgetTableBody —
+           do not delete it if this panel is ever removed again. -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">FLEET USAGE (30 DAYS)</div>
+        <div style="display:flex;gap:24px;padding:8px 0;font-size:0.8rem;">
+          <div>Calls: <strong id="fleetUsageCalls">--</strong></div>
+          <div>Cost: <strong id="fleetUsageCost">--</strong></div>
+          <div>Providers: <strong id="fleetUsageProviders">--</strong></div>
+        </div>
+      </div>
+
       <!-- Budget Table (moved from Fleet — belongs with contractor definitions) -->
       <div class="dhq-dispatch-section" id="fleetBudgetSection">
         <div class="dhq-section-title">PROVIDER BUDGETS</div>

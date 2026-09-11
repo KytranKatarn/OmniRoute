@@ -675,12 +675,13 @@
    sticky LCARS header (z-index 100) and renders the map OVER the nav bar on
    scroll. Make each map container its own stacking context so all Leaflet
    children stay confined below the header. (No !important — scoped to the maps.) */
-#fleetMapContainer,
-#clusterGeoMap {
+#fleetMapContainer {
     position: relative;
     z-index: 0;
     isolation: isolate;
 }
+/* (#clusterGeoMap was removed with the duplicate dot map — a selector for a
+   container that does not exist is dead weight that reads as coverage.) */
 
 /* ── Agent Detail Modal (LCARS) ── */
 #agentDetailOverlay {
@@ -1876,39 +1877,22 @@
     grid-column: 1 / -1;
 }
 
-/* Fleet Network sidebar — horizontal strip above radar on mobile */
-@media (max-width: 767px) {
-    /* Become a full-width horizontal flex row above the map */
-    #fleetNodeIndex {
-        width: 100% !important;
-        flex-direction: row !important;
-        flex-wrap: wrap !important;
-        gap: 4px !important;
-        padding-top: 0 !important;
-        align-items: center !important;
-    }
-    /* NODES label: full width row header */
-    #fleetNodeIndex > div:first-child {
-        flex-basis: 100%;
-        margin-bottom: 0 !important;
-    }
-    /* Node items: 2 per row, compact */
-    #fleetNodeIndex > div:not(:first-child):not(#fleetContractorSection) {
-        flex: 1 1 calc(50% - 4px);
-        min-width: 120px;
-        max-width: calc(50% - 4px);
-        margin-bottom: 0 !important;
-    }
-    /* Hide 25 contractor items on mobile — count shown in fleetStatProviders */
-    #fleetContractorSection {
-        display: none !important;
-    }
-    /* Map takes full available width */
-    #fleetMapContainer {
-        width: min(500px, calc(100vw - 40px)) !important;
-        height: min(500px, calc(100vw - 40px)) !important;
-    }
-}
+/* Fleet Network index/map responsiveness — RETIRED 2026-09-11.
+   This @media (max-width:767px) block was a mobile-only workaround for the
+   problem the layout now solves everywhere: it forced #fleetNodeIndex out of its
+   160px column into a wrapping row, and re-sized #fleetMapContainer to a SQUARE
+   with `width/height: min(500px, calc(100vw - 40px)) !important`.
+
+   All three parts had to go, not just move:
+   - the `!important` flex properties fight the grid that #fleetNodeIndex now is;
+   - `> div:first-child` / `> div:not(:first-child)` select by POSITION, which
+     breaks the moment a header is identified by class instead of order;
+   - the square sizing re-creates the circular map box — the exact egg this
+     change removed — and `!important` means it would win.
+   It also hid #fleetContractorSection outright, justified by "count shown in
+   fleetStatProviders" — the count that read "26 providers active" beside six
+   pins. Hiding the rows made the wrong number the only thing left to read.
+   The breakpoints now live with the grid definition further down. */
 
 /* ── Light mode (#1998) ────────────────────────────────────────────────────────
    department-hq's --dhq-* tokens are dark literals at :root, and --dhq-card-bg is
@@ -2057,4 +2041,137 @@ div.ag-ok { font-weight: 600; }
 @media (max-width: 768px) {
     .ag-row-2col { grid-template-columns: 1fr; gap: 0; }
     .ag-checkbox-row-top-align { margin-top: 4px; }
+}
+
+/* ==========================================================================
+   A.R.M.A.D.A. FLEET NETWORK — rectangular map + sonar overlay (2026-09-11)
+   --------------------------------------------------------------------------
+   The map used to be a CIRCLE: a square box with border-radius:50%, sized
+   width:min(560px,calc(100vw - 210px)) and height the same expression, sitting
+   in a flex row with flex-shrink:1.
+
+   That renders an EGG, and it is not a rounding error. flex-shrink applies to
+   the MAIN axis only, so the flex algorithm narrowed the width while the height
+   kept its computed value — the two stopped matching the moment the row ran out
+   of room. The viewport-relative calc() made it worse: it measures the WINDOW,
+   but the box lives inside a padded column inside an LCARS frame, so the value
+   was always too large for the space actually available and shrink was
+   guaranteed to fire.
+
+   The fix is not a better calc. A map is rectangular; it should fill its column
+   and get taller on a big screen. The circle was the part worth keeping, so it
+   is now a decorative SONAR overlay painted on top — which cannot distort,
+   because rings take their size from the container's height and hold
+   aspect-ratio:1 themselves.
+   ========================================================================== */
+
+.fleet-map-frame {
+    position: relative;
+    width: 100%;
+    /* fills the column, grows with the viewport, never taller than useful */
+    height: clamp(320px, 46vh, 560px);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 220, 170, 0.35);
+    box-shadow: 0 0 30px rgba(0, 220, 170, 0.10),
+                inset 0 0 70px rgba(0, 0, 0, 0.55);
+}
+
+.fleet-map-frame > #fleetMap {
+    width: 100%;
+    height: 100%;
+    background: #050d0d;
+}
+
+/* ⚠️ pointer-events:none is LOAD-BEARING — without it the overlay swallows
+   every drag and scroll and the map silently stops panning and zooming. */
+.fleet-sonar {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: grid;
+    place-items: center;
+    /* Leaflet panes: tiles 200, overlay 400, markers 600, controls 1000.
+       450 puts the rings above the tiles but UNDER the node pins, so the
+       decoration never dims the data. */
+    z-index: 450;
+}
+
+.fleet-sonar-ring,
+.fleet-sonar-sweep {
+    position: absolute;
+    /* sized off HEIGHT + aspect-ratio, so a wide container still gets a circle */
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+}
+
+.fleet-sonar-ring { border: 1px solid rgba(0, 220, 170, 0.16); }
+.fleet-sonar-ring.r1 { height: 94%; }
+.fleet-sonar-ring.r2 { height: 63%; }
+.fleet-sonar-ring.r3 { height: 32%; }
+
+.fleet-sonar-cross {
+    position: absolute;
+    background: rgba(0, 220, 170, 0.10);
+}
+.fleet-sonar-cross.h { width: 94%; height: 1px; }
+.fleet-sonar-cross.v { height: 94%; width: 1px; }
+
+.fleet-sonar-sweep {
+    height: 94%;
+    background: conic-gradient(from 0deg,
+                rgba(0, 220, 170, 0.20),
+                rgba(0, 220, 170, 0.05) 35deg,
+                rgba(0, 220, 170, 0) 70deg);
+    animation: fleet-sonar-spin 7s linear infinite;
+}
+
+@keyframes fleet-sonar-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .fleet-sonar-sweep { animation: none; opacity: 0.3; }
+}
+
+/* NODES / CONTRACTORS index — 3 columns, above the map.
+   It was a 160px single-column strip beside the map; once the map went
+   full-width the strip stacked above it and ran long. */
+#fleetNodeIndex {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 14px;
+    width: 100%;
+    padding-top: 4px;
+    margin-bottom: 12px;
+}
+
+/* section headers and the contractor block span the full width — set here AND
+   in JS (buildIndexItem's siblings) so neither can drift from the other */
+#fleetNodeIndex > .fleet-index-head,
+#fleetNodeIndex > #fleetMeshSection,
+#fleetNodeIndex > #fleetHostedSection,
+#fleetNodeIndex > #fleetContractorSection { grid-column: 1 / -1; }
+
+#fleetMeshSection,
+#fleetHostedSection,
+#fleetContractorSection {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 14px;
+}
+#fleetMeshSection > .fleet-index-head,
+#fleetHostedSection > .fleet-index-head,
+#fleetContractorSection > .fleet-index-head { grid-column: 1 / -1; }
+
+@media (max-width: 900px) {
+    #fleetNodeIndex,
+    #fleetMeshSection,
+    #fleetHostedSection,
+    #fleetContractorSection { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+    #fleetNodeIndex,
+    #fleetMeshSection,
+    #fleetHostedSection,
+    #fleetContractorSection { grid-template-columns: 1fr; }
+    .fleet-map-frame { height: clamp(260px, 40vh, 360px); }
 }

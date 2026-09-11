@@ -5004,9 +5004,13 @@ var _armadaSection = 'cluster';
 var _armadaMounted = {};
 
 function switchArmadaSection(s) {
+    // NETWORK retired 2026-09-11 — its map + node buttons moved into CLUSTER,
+    // its usage panel into Contractors. A stored preference of 'network' would
+    // otherwise match NO section and blank the whole tab, so normalise first.
+    var sections = ['cluster', 'dispatch', 'traffic', 'orchestration'];
+    if (sections.indexOf(s) === -1) s = 'cluster';
     _armadaSection = s;
     try { localStorage.setItem('dhq_armada_section', s); } catch (_) {}
-    var sections = ['cluster', 'dispatch', 'traffic', 'network', 'orchestration'];
     sections.forEach(function(name) {
         var sec = document.getElementById('armadaSection-' + name);
         var btn = document.getElementById('armadaBtn-' + name);
@@ -5051,25 +5055,15 @@ function switchArmadaSection(s) {
         loadClaudeFeed();
     }
 
-    // NETWORK: move fleet map + usage + providers into armadaSection-network on first open
-    if (s === 'network' && !_armadaMounted.network) {
-        _armadaMounted.network = true;
-        var networkTarget = document.getElementById('armadaSection-network');
-        var networkSrc = document.getElementById('fleetNetworkContent');
-        if (networkTarget && networkSrc) {
-            networkTarget.appendChild(networkSrc);
-            networkSrc.style.display = '';  // clear display:none set in template to prevent cluster bleed
-        }
-        // Leaflet only initialises once (guard: if (fleetMap) return).
-        // If map was already init'd in cluster view, invalidate so it re-renders in new container.
-        loadFleetData(); initFleetMap(); loadFleetUsage();
-        setTimeout(function() { if (fleetMap) fleetMap.invalidateSize(); }, 50);
-    }
-
-    // CLUSTER: refresh live data + world map
+    // CLUSTER: refresh live data + the fleet map (inherited from NETWORK)
     if (s === 'cluster') {
         loadQueueStatus(); loadClusterActivity(); loadClusterStats(); loadWtfAgentStatus();
-        loadClusterMap(); loadClusterRest();
+        loadClusterRest();
+        // The map now lives here. initFleetMap() self-guards (if (fleetMap) return),
+        // so this is idempotent; invalidateSize is still required because Leaflet
+        // measures 0x0 while the section is display:none and never re-measures.
+        loadFleetData(); initFleetMap();
+        setTimeout(function() { if (fleetMap) fleetMap.invalidateSize(); }, 50);
     }
 
     // ORCHESTRATION: move cluster-orchestration-panel into its section on first open
@@ -5097,7 +5091,6 @@ function loadFleet() {
         loadProviderManagement();
         loadQueueStatus();
         loadClusterActivity();
-        loadClusterMap();
         loadDispatchComponents();
         loadDispatchMode();
         if (typeof window.ahFetch === 'function') window.ahFetch(true);
@@ -6047,67 +6040,10 @@ function initFleetMap() {
 }
 
 var fleetFpsRafId = null;
-/* ── Cluster World Map (#3230) ────────────────────────────────────────── */
-var _clusterGeoMap = null;
-var _clusterGeoMarkers = [];
-
-function loadClusterMap() {
-    var el = document.getElementById('clusterGeoMap');
-    if (!el) return;
-    if (!_clusterGeoMap) {
-        _clusterGeoMap = L.map('clusterGeoMap', {
-            center: [30, 10], zoom: 2,
-            zoomControl: true, attributionControl: false
-        });
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 8
-        }).addTo(_clusterGeoMap);
-    }
-    _clusterGeoMarkers.forEach(function(m) { _clusterGeoMap.removeLayer(m); });
-    _clusterGeoMarkers = [];
-    fetch('/tools/department-hq/api/fleet-map')
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            var colorMap = {
-                'starbase': '#f5a623', 'starship': '#00ffff',
-                'outpost': '#a855f7', 'starbase_outpost': '#a855f7',
-                'satellite': '#3b82f6', 'citadel': '#f5a623'
-            };
-            var bounds = [];
-            var allNodes = (d.nodes || []);
-            if (d.hub && d.hub.lat && d.hub.lon) allNodes = [{
-                node_id: 'hub', name: d.hub.name || 'Hub',
-                lat: d.hub.lat, lon: d.hub.lon,
-                status: d.hub.status || 'online', deployment_mode: 'starbase',
-                location_city: d.hub.city || 'Montreal'
-            }].concat(allNodes);
-            allNodes.forEach(function(n) {
-                var lat = parseFloat(n.lat), lon = parseFloat(n.lon);
-                if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
-                var mode = n.deployment_mode || 'outpost';
-                var color = colorMap[mode] || '#888';
-                var online = (n.status || '').toLowerCase() === 'online';
-                var c = L.circleMarker([lat, lon], {
-                    radius: 7, fillColor: color, fillOpacity: online ? 0.85 : 0.3,
-                    color: color, weight: 2, opacity: online ? 1 : 0.4
-                }).addTo(_clusterGeoMap);
-                var label = n.name || n.node_id || '';
-                var city = n.location_city || '';
-                c.bindPopup(
-                    '<b style="color:' + color + ';">' + label + '</b>' +
-                    (city ? '<br><span style="color:#888;">' + city + '</span>' : '') +
-                    '<br>' + (online
-                        ? '<span style="color:#10b981;">online</span>'
-                        : '<span style="color:#555;">offline</span>')
-                );
-                _clusterGeoMarkers.push(c);
-                if (online) bounds.push([lat, lon]);
-            });
-            if (bounds.length >= 2) _clusterGeoMap.fitBounds(bounds, { padding: [30, 30] });
-            else if (_clusterGeoMarkers.length === 1 && bounds.length === 1) _clusterGeoMap.setView(bounds[0], 4);
-            setTimeout(function() { _clusterGeoMap.invalidateSize(); }, 50);
-        });
-}
+/* Cluster World Map (#3230) — REMOVED 2026-09-11. Its #clusterGeoMap
+   container is gone: the richer circular fleet map (initFleetMap) took its
+   place in the CLUSTER tab and draws the same /api/fleet-map response with
+   node logos, live online/offline styling and the contractor favicons. */
 
 function _initFleetFpsOverlay() {
     var mapEl = document.getElementById('fleetMap');
@@ -6266,57 +6202,159 @@ var PROVIDER_DOMAINS = {
     'perplexity': 'perplexity.ai', 'replicate': 'replicate.com', 'fireworks': 'fireworks.ai',
 };
 
-function jitterClusteredProviders(providers) {
-    var CLUSTER_DEG = 0.18;
-    var JITTER_DEG = 0.22;
-    var used = new Array(providers.length).fill(false);
-    var result = providers.map(function(p) { return Object.assign({}, p); });
+// Spread markers that share a point so each one can be seen and clicked.
+// ⚠️ The RADIUS is the whole argument. Providers are continental (two SF offices
+// 24 km apart is meaningless), but USS-245 and USS-246 sit at BYTE-IDENTICAL
+// coordinates — 45.5017/-73.667, the same house — so no zoom level separates
+// them and the provider-sized 0.22° would claim they are in different towns.
+// Nodes get a radius that is visible at max zoom and honest at low zoom:
+// ~1.3 km reads as ~40 px apart at zoom 12 and as one point when zoomed out,
+// which is exactly what they are.
+function spreadCoincident(items, clusterDeg, spreadDeg) {
+    var used = new Array(items.length).fill(false);
+    var result = items.map(function(p) { return Object.assign({}, p); });
 
-    providers.forEach(function(p, i) {
+    items.forEach(function(p, i) {
         if (used[i] || !p.lat || !p.lon) return;
         var cluster = [i];
-        providers.forEach(function(q, j) {
+        items.forEach(function(q, j) {
             if (j === i || used[j] || !q.lat || !q.lon) return;
             var d = Math.sqrt(Math.pow(p.lat - q.lat, 2) + Math.pow(p.lon - q.lon, 2));
-            if (d < CLUSTER_DEG) cluster.push(j);
+            if (d < clusterDeg) cluster.push(j);
         });
         if (cluster.length < 2) return;
         cluster.forEach(function(idx) { used[idx] = true; });
-        var cLat = cluster.reduce(function(s, idx) { return s + providers[idx].lat; }, 0) / cluster.length;
-        var cLon = cluster.reduce(function(s, idx) { return s + providers[idx].lon; }, 0) / cluster.length;
+        var cLat = cluster.reduce(function(s, idx) { return s + items[idx].lat; }, 0) / cluster.length;
+        var cLon = cluster.reduce(function(s, idx) { return s + items[idx].lon; }, 0) / cluster.length;
         var step = (2 * Math.PI) / cluster.length;
         cluster.forEach(function(idx, k) {
-            result[idx].lat = cLat + JITTER_DEG * Math.sin(k * step);
-            result[idx].lon = cLon + JITTER_DEG * Math.cos(k * step);
+            result[idx].lat = cLat + spreadDeg * Math.sin(k * step);
+            result[idx].lon = cLon + spreadDeg * Math.cos(k * step);
+            // the pin moved — say so, and keep the true position readable
+            result[idx].spread_from = [items[idx].lat, items[idx].lon];
         });
     });
     return result;
+}
+
+// Unchanged provider behaviour, now expressed through the shared spreader.
+function jitterClusteredProviders(providers) {
+    return spreadCoincident(providers, 0.18, 0.22);
+}
+
+// ~2 km grouping, ~1.3 km spread — only genuinely co-located machines move.
+function spreadCoincidentNodes(nodes) {
+    return spreadCoincident(nodes, 0.02, 0.012);
 }
 
 function renderFleetIndex(data) {
     var panel = document.getElementById('fleetNodeIndex');
     if (!panel) return;
     while (panel.firstChild) panel.removeChild(panel.firstChild);
-    var hdr = document.createElement('div');
-    hdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(0,220,170,0.5);margin-bottom:4px;';
-    hdr.textContent = 'NODES';
-    panel.appendChild(hdr);
-    var entries = [];
-    if (data.hub) entries.push({ label: data.hub.name || 'HUB', lat: data.hub.lat, lon: data.hub.lon, online: true });
-    (data.nodes || []).forEach(function(n) {
-        if (!n.lat || !n.lon) return; // skip nodes with no coordinates
-        entries.push({ label: n.name || n.hostname || n.node_id || 'Node', lat: n.lat, lon: n.lon, online: n.status === 'online' });
-    });
-    entries.forEach(function(e, i) {
-        panel.appendChild(buildIndexItem(i + 1, e.label, e.lat, e.lon, e.online, '#00dcaa'));
-    });
+    function indexHead(text, color) {
+        var h = document.createElement('div');
+        h.className = 'fleet-index-head';  // grid-column: 1 / -1 — see department-hq.css
+        h.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:'
+            + color + ';margin-bottom:4px;';
+        h.textContent = text;
+        return h;
+    }
 
-    // CONTRACTORS section — wrapped so CSS can hide on mobile
-    var contractors = (data.providers || []).filter(function(p) { return p.lat && p.lon; });
+    // STARBASE — the hub gets its own heading above NODES. It is the tier above
+    // them (Starbase > Citadel / Outpost / Starship) and the one machine that is
+    // not a remote node, so listing it as node #1 flattened the hierarchy.
+    // data.hub is now enriched from its OWN remote_nodes row (see
+    // fleet_service.get_fleet_map_data), which is why the row below carries a
+    // real status instead of the hardcoded `online: true` this used to assert —
+    // the hub rendered green even when its row said otherwise.
+    if (data.hub) {
+        panel.appendChild(indexHead('STARBASE', 'rgba(245,166,35,0.6)'));
+        panel.appendChild(buildIndexItem(
+            1, data.hub.name || 'HUB', data.hub.lat, data.hub.lon,
+            (data.hub.status || 'online') === 'online', '#f5a623'));
+    }
+
+    // NODES — everything else. is_hub is the SAME machine as data.hub above; the
+    // tab used to list "A.R.C.H.I.E. Hub" and "Archie Starbase" as two rows for
+    // one computer, which is why the index showed 6 while the stat said 5.
+    var entries = [];
+    spreadCoincidentNodes((data.nodes || []).filter(function(n) { return !n.is_hub; }))
+        .forEach(function(n) {
+            if (!n.lat || !n.lon) return; // skip nodes with no coordinates
+            entries.push({ label: n.name || n.hostname || n.node_id || 'Node', lat: n.lat, lon: n.lon, online: n.status === 'online' });
+        });
+    if (entries.length) {
+        panel.appendChild(indexHead('NODES', 'rgba(0,220,170,0.5)'));
+        entries.forEach(function(e, i) {
+            panel.appendChild(buildIndexItem(i + 1, e.label, e.lat, e.lon, e.online, '#00dcaa'));
+        });
+    }
+
+    // MESH — devices on the Headscale tailnet that are NOT fleet nodes. The map
+    // reads remote_nodes, so these could never appear at any zoom: measured
+    // 2026-09-11, headscale had 7 members online while the tab drew 5. The two
+    // missing were shuttle-kytran (a personal device) and archie-starbase-subnet
+    // (the archie_tailscale LAN subnet router). They are connected but they run
+    // no work, which is exactly why they belong in their own section rather than
+    // among NODES. No coordinates, so no pin and no click-to-zoom.
+    var meshOnly = data.mesh || [];
+    if (meshOnly.length) {
+        var meshSection = document.createElement('div');
+        meshSection.id = 'fleetMeshSection';
+        meshSection.appendChild(indexHead('MESH', 'rgba(59,130,246,0.6)'));
+        meshOnly.forEach(function(m, i) {
+            var item = buildIndexItem(i + 1, (m.name || 'unknown').toUpperCase(),
+                                      null, null, m.online, '#3b82f6');
+            var ipTag = document.createElement('span');
+            ipTag.style.cssText = 'font-size:0.52rem;letter-spacing:0.5px;margin-left:4px;color:rgba(59,130,246,0.6);';
+            ipTag.textContent = m.mesh_ip || '';
+            ipTag.title = 'On the mesh, not a fleet node — no agents, no inference.';
+            item.appendChild(ipTag);
+            meshSection.appendChild(item);
+        });
+        panel.appendChild(meshSection);
+    }
+
+    // HOSTED section — providers we reach at an address on our OWN infrastructure
+    // (docker service name / loopback / private IP). They sit at the hub, so they
+    // get no pin of their own: four markers stacked on the hub marker is worse
+    // than none. self_hosted is derived from base_url server-side.
+    // ⚠️ local_compute is the STRONGER claim and only two qualify — omniroute and
+    // claude answer here but think elsewhere. The row says which, because
+    // "hosted" alone would read as "we run Claude", which we do not.
+    var hosted = (data.providers || []).filter(function(p) { return p.self_hosted; });
+    if (hosted.length) {
+        var hostedSection = document.createElement('div');
+        hostedSection.id = 'fleetHostedSection';
+        var hhdr = document.createElement('div');
+        hhdr.className = 'fleet-index-head';
+        hhdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(0,220,170,0.5);margin-top:10px;margin-bottom:4px;';
+        hhdr.textContent = 'HOSTED';
+        hostedSection.appendChild(hhdr);
+        hosted.forEach(function(h, i) {
+            var label = (h.provider_key || 'Unknown').toUpperCase();
+            var item = buildIndexItem(i + 1, label, null, null, h.is_active, '#00dcaa');
+            var kind = document.createElement('span');
+            kind.style.cssText = 'font-size:0.52rem;letter-spacing:0.5px;margin-left:4px;color:'
+                + (h.local_compute ? 'rgba(0,220,170,0.65)' : 'rgba(249,115,22,0.7)') + ';';
+            kind.textContent = h.local_compute ? 'local gpu' : 'gateway';
+            kind.title = h.local_compute
+                ? 'Runs on our own hardware.'
+                : 'Endpoint is ours; the inference happens at an external provider.';
+            item.appendChild(kind);
+            hostedSection.appendChild(item);
+        });
+        panel.appendChild(hostedSection);
+    }
+
+    // CONTRACTORS section — EXTERNAL providers only; the hosted ones above are
+    // not contractors and counting them here double-counted the fleet.
+    var contractors = (data.providers || []).filter(function(p) { return !p.self_hosted && p.lat && p.lon; });
     if (contractors.length) {
         var contractorSection = document.createElement('div');
         contractorSection.id = 'fleetContractorSection';
         var chdr = document.createElement('div');
+        chdr.className = 'fleet-index-head';
         chdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(249,115,22,0.5);margin-top:10px;margin-bottom:4px;';
         chdr.textContent = 'CONTRACTORS';
         contractorSection.appendChild(chdr);
@@ -6380,7 +6418,10 @@ function renderFleetPins(data) {
     }
 
     window._fleetNodeRegistry = window._fleetNodeRegistry || {};
-    (data.nodes || []).forEach(function(node) {
+    // Skip the hub's own node row (its pin is drawn above) and spread the rest,
+    // so the two Starships at identical coordinates are both clickable.
+    spreadCoincidentNodes((data.nodes || []).filter(function(n) { return !n.is_hub; }))
+        .forEach(function(node) {
         if (!node.lat || !node.lon) return;
         var isOnline = node.status === 'online';
         var isOutpost = node.inference_type === 'cpu' ||
@@ -6444,7 +6485,10 @@ function renderFleetPins(data) {
         fleetMarkers.push(marker);
     });
 
-    jitterClusteredProviders(data.providers || []).forEach(function(prov) {
+    // Self-hosted providers live AT the hub — pinning them drops extra markers on
+    // top of the hub's own pin and makes the cluster look bigger than it is.
+    var pinnable = (data.providers || []).filter(function(p) { return !p.self_hosted; });
+    jitterClusteredProviders(pinnable).forEach(function(prov) {
         if (!prov.lat || !prov.lon) return;
         var key = (prov.provider_key || '').toLowerCase();
         var style = PROVIDER_STYLES[key] || { color: '#f97316', label: (prov.provider_key || '?').charAt(0).toUpperCase() };
@@ -6487,11 +6531,32 @@ function buildFleetPopup(title, rows, footer) {
 
 function updateFleetStats(data) {
     var nodeCount = (data.nodes || []).filter(function(n) { return n.status === 'online'; }).length;
-    var provCount = (data.providers || []).filter(function(p) { return p.is_active; }).length;
+    // ⚠️ HONESTY: this label sits beside the MAP, so it must count what the map
+    // can actually draw. It used to read "26 providers active" while six pins
+    // were rendered — every provider whose key is absent from
+    // fleet_service.PROVIDER_LOCATIONS has no lat/lon and is silently dropped by
+    // the pin filter below. Same shape as the "14 loaded models" and "0% ok"
+    // defects: an honest number describing a different population.
+    var activeProviders = (data.providers || []).filter(function(p) { return p.is_active; });
+    var hostedCount = activeProviders.filter(function(p) { return p.self_hosted; }).length;
+    var external = activeProviders.filter(function(p) { return !p.self_hosted; });
+    var mappable = external.filter(function(p) { return p.lat && p.lon; }).length;
+    var provCount = external.length;
     var nodeEl = document.getElementById('fleetStatNodes');
     var provEl = document.getElementById('fleetStatProviders');
     if (nodeEl) nodeEl.textContent = nodeCount + ' node' + (nodeCount !== 1 ? 's' : '') + ' online';
-    if (provEl) provEl.textContent = provCount + ' provider' + (provCount !== 1 ? 's' : '') + ' active';
+    if (provEl) {
+        var label = (mappable === provCount)
+            ? provCount + ' contractor' + (provCount !== 1 ? 's' : '') + ' active'
+            : mappable + ' of ' + provCount + ' contractors mapped';
+        if (hostedCount) label += ' · ' + hostedCount + ' hosted';
+        provEl.textContent = label;
+        provEl.title = provCount + ' external contractors (the same contractor_providers '
+            + 'list the Contractors tab shows), ' + (provCount - mappable) + ' with no '
+            + 'location on file; plus ' + hostedCount + ' hosted on our own '
+            + 'infrastructure, listed above the contractors and not pinned because they '
+            + 'sit at the hub.';
+    }
 }
 
 async function loadCloudProviders() {

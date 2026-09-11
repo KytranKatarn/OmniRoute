@@ -11,7 +11,12 @@ Import:
     )
 """
 
+import json
 import logging
+import re
+import subprocess
+import time
+
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
@@ -29,9 +34,122 @@ PROVIDER_LOCATIONS = {
     "together": {"city": "San Francisco, CA", "lat": 37.7680, "lon": -122.4050},
     "huggingface": {"city": "New York, NY", "lat": 40.7484, "lon": -73.9967},
     "cloudflare": {"city": "San Francisco, CA", "lat": 37.7806, "lon": -122.3900},
+    # --- added 2026-09-11 ------------------------------------------------
+    # The A.R.M.A.D.A. map pinned 6 of 26 active contractors and said "26
+    # providers active" next to them. Three of the twenty misses were pure KEY
+    # mismatches — the coordinates were already sitting here under a name no
+    # provider row uses. `anthropic`, `cloudflare`, `grok`, `google` and
+    # `ollama` above match NOTHING in contractor_providers; the real keys are:
+    "claude": {"city": "San Francisco, CA", "lat": 37.7891, "lon": -122.4020},
+    "cloudflare_ai": {"city": "San Francisco, CA", "lat": 37.7806, "lon": -122.3900},
+    "xai": {"city": "San Francisco, CA", "lat": 37.7750, "lon": -122.4180},
+    # Well-known head offices for the rest:
+    "groq": {"city": "Mountain View, CA", "lat": 37.3900, "lon": -122.0800},
+    "perplexity": {"city": "San Francisco, CA", "lat": 37.7850, "lon": -122.4000},
+    "deepseek": {"city": "Hangzhou, China", "lat": 30.2741, "lon": 120.1551},
+    "qwen3_cloud": {"city": "Hangzhou, China", "lat": 30.2500, "lon": 120.2100},
+    "minimax_cloud": {"city": "Shanghai, China", "lat": 31.2304, "lon": 121.4737},
+    "replicate": {"city": "San Francisco, CA", "lat": 37.7700, "lon": -122.4130},
+    "replicate_audio": {"city": "San Francisco, CA", "lat": 37.7700, "lon": -122.4130},
+    "fal_ai": {"city": "San Francisco, CA", "lat": 37.7820, "lon": -122.4090},
+    "cerebras": {"city": "Sunnyvale, CA", "lat": 37.3688, "lon": -122.0363},
+    "stability_ai": {"city": "London, UK", "lat": 51.5074, "lon": -0.1278},
+    "stability_audio": {"city": "London, UK", "lat": 51.5074, "lon": -0.1278},
+    "elevenlabs": {"city": "New York, NY", "lat": 40.7128, "lon": -74.0060},
+    # Self-hosted: these run on OUR hardware, so the hub is not an approximation
+    # here — it is the literal location.
+    "comfyui": {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673},
+    "ollama_diffuser": {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673},
+    # ⚠️ omniroute is SELF-HOSTED, not a third-party router. Its row reads
+    # "OmniRoute (self-hosted gateway)" and its base_url is
+    # http://omniroute:20128/v1 — a Docker service name, i.e. a container on the
+    # hub (verified running, 2026-09-11). It was first excluded here on the
+    # strength of the word "route" in its name, alongside OpenRouter; reading the
+    # base_url settles it. The hub is its literal location.
+    "omniroute": {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673},
+    # DELIBERATELY ABSENT — openrouter and pollinations. openrouter
+    # (openrouter.ai) is a genuine third-party ROUTER: it brokers to whichever
+    # upstream wins, so it has no single inference location and pinning it to an
+    # office would draw a fact that is not true. pollinations
+    # (image.pollinations.ai) has no location I can confirm, and inventing one
+    # for a map is fabricating data. They stay unmapped, and the panel's label
+    # says "N of M contractors mapped" instead of implying every row has a pin.
 }
 
+# ⚠️ A head office is NOT where inference runs — a US provider serves from
+# datacenters worldwide. These pins show WHO the fleet can reach, not where the
+# GPU is. The convention predates this dict's expansion; it is kept, not fixed,
+# because per-request datacenter attribution is not something we measure.
+
 HUB_LOCATION = {"city": "Montreal, QC", "lat": 45.5017, "lon": -73.5673}
+
+
+# Providers whose MODELS run on our own GPUs. Deliberately a short explicit set,
+# because it is NOT derivable: omniroute and claude are also reached at an
+# address we own, but they broker to someone else's compute. A panel that calls
+# all four "hosted" is claiming we run Claude, which we do not.
+LOCAL_COMPUTE_PROVIDERS = frozenset({"comfyui", "ollama_diffuser"})
+
+
+def is_self_hosted_url(base_url):
+    """True when we call this provider at an address on our OWN infrastructure.
+
+    Derived from the URL, never from a name list, so adding a self-hosted
+    provider needs no code change. The four live cases are all distinguishable
+    this way (measured 2026-09-11):
+
+        http://archie_comfyui:8188    docker service name — no dot in the host
+        http://archie_diffuser:11435  docker service name
+        http://omniroute:20128/v1     docker service name
+        http://localhost:7682/v1      loopback
+
+    versus every external one, which is an https:// public FQDN.
+
+    ⚠️ SELF-HOSTED IS ABOUT THE ENDPOINT, NOT THE COMPUTE. omniroute is a
+    gateway and claude is a local proxy to Anthropic — both answer here, both
+    do their thinking elsewhere. Use ``LOCAL_COMPUTE_PROVIDERS`` for the
+    stronger claim.
+
+    Fail-safe: anything unparseable reads as EXTERNAL. Mislabelling a cloud API
+    as ours understates where data goes, which is the expensive direction.
+    """
+    if not base_url:
+        return False
+    try:
+        raw = str(base_url).strip()
+        # sentinel values that are not URLs at all (qwen3_cloud/minimax_cloud
+        # carry "ollama_cloud_proxy") are external by definition
+        if "://" not in raw:
+            return False
+        host = raw.split("://", 1)[1].split("/", 1)[0].split("@")[-1]
+        host = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+        host = host.strip("[]").lower()
+        # ⚠️ An EMPTY host must be external. "://" parses to host "" which has
+        # no dot, so the bare-docker-service rule below fires and calls it ours
+        # — fail-OPEN, in the one direction that understates where data goes.
+        if not host:
+            return False
+        if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+            return True
+        if "." not in host:  # bare docker service name
+            return True
+        if host.endswith(".local") or host.endswith(".internal"):
+            return True
+        octets = host.split(".")
+        if len(octets) == 4 and all(o.isdigit() for o in octets):
+            a, b = int(octets[0]), int(octets[1])
+            # RFC1918 + the 100.64.0.0/10 Headscale mesh
+            if a == 10 or a == 127:
+                return True
+            if a == 172 and 16 <= b <= 31:
+                return True
+            if a == 192 and b == 168:
+                return True
+            if a == 100 and 64 <= b <= 127:
+                return True
+        return False
+    except Exception:  # noqa: BLE001 — a display classifier never raises
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +178,126 @@ def list_nodes():
         )
         rows = cur.fetchall()
         return [dict(r) for r in rows]
+
+
+def live_nodes():
+    """Nodes that still EXIST — the accessor any display panel should use.
+
+    ``list_nodes()`` deliberately returns every row, retired hardware included,
+    because node MANAGEMENT needs to see a retired node to act on it. Every
+    read-only panel wants the opposite, and on 2026-09-11 the A.R.M.A.D.A. fleet
+    map was rendering Beacon plus the three EU/Asia outposts retired on
+    2026-08-29 — machines whose subscriptions are cancelled — as live pins and
+    index entries.
+
+    That is the THIRD instance of this exact shape: LOADED MODELS rendered the
+    same three outposts from ``model_load_state`` (#3290), and NODE HEALTH on
+    the same page filtered correctly all along. The bug is never the table — it
+    is each panel deciding for itself whether to filter. This is the one place
+    to decide it.
+
+    ⚠️ Not a hard-coded name list: it filters on ``status``, so retiring the
+    next node needs no code change. ``retired`` is the only excluded value —
+    ``offline``/``unknown`` nodes still render, because a node that is down is
+    news and a node that no longer exists is noise.
+    """
+    return [n for n in list_nodes() if (n.get("status") or "").lower() != "retired"]
+
+
+# ---------------------------------------------------------------------------
+# Headscale mesh — who is CONNECTED, which is a different question from who
+# runs work. The A.R.M.A.D.A. map only ever read remote_nodes, so a device on
+# the mesh with no fleet row could not appear at any zoom: on 2026-09-11
+# headscale had 7 members online while the map drew 5. The two invisible ones
+# were shuttle-kytran (100.64.0.9, a personal device) and archie-starbase-subnet
+# (100.64.0.1, the archie_tailscale LAN subnet router).
+# ---------------------------------------------------------------------------
+
+_MESH_TTL_S = 60.0
+_mesh_cache = {"at": 0.0, "rows": []}
+
+
+def _mesh_tokens(name):
+    return [t for t in re.split(r"[^a-z0-9]+", (name or "").lower()) if t]
+
+
+def _norm_name(name):
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def mesh_members():
+    """Headscale's view of the tailnet. FAIL-SAFE: never raises, never blocks.
+
+    Shells to the headscale container the same way the authkey route already
+    does (fleet_mesh_routes.py) — archie_platform mounts the docker socket.
+
+    ⚠️ On ANY failure this returns the LAST GOOD list, or [] if there has never
+    been one. A mesh section that vanishes is honest; a fleet map that 500s
+    because a side panel could not reach headscale is not. Cached for 60s
+    because /api/fleet-map is on a 30s refresh and this is a subprocess.
+    """
+    now = time.monotonic()
+    if _mesh_cache["rows"] and (now - _mesh_cache["at"]) < _MESH_TTL_S:
+        return _mesh_cache["rows"]
+    try:
+        out = subprocess.run(
+            ["docker", "exec", "archie_headscale", "headscale", "nodes", "list", "-o", "json"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if out.returncode != 0:
+            logger.debug("mesh_members: headscale exited %s", out.returncode)
+            return _mesh_cache["rows"]
+        rows = json.loads(out.stdout)
+    except Exception as exc:  # noqa: BLE001 — a display source never breaks its caller
+        logger.debug("mesh_members: unavailable (%s)", exc)
+        return _mesh_cache["rows"]
+
+    members = []
+    for m in rows or []:
+        ips = m.get("ip_addresses") or []
+        members.append(
+            {
+                "name": m.get("given_name") or m.get("name") or "unknown",
+                "mesh_ip": next((i for i in ips if ":" not in i), ""),
+                "online": bool(m.get("online")),
+            }
+        )
+    _mesh_cache.update(at=now, rows=members)
+    return members
+
+
+def mesh_only_members(nodes):
+    """Mesh members that are NOT one of the fleet nodes we already draw.
+
+    Matched by mesh IP first, then by NAME — every alphanumeric token of the
+    headscale given_name appearing in the node's name. Both are needed, measured
+    against the live tailnet:
+
+      starship-246   -> IP 100.64.0.3 matches remote_nodes            (IP)
+      archie-starbase-> its row stores mesh_ip 'host.docker.internal',
+                        which is not a mesh IP at all, so ONLY the name
+                        rescues the hub from listing as a stranger  (NAME)
+      shuttle-kytran -> neither matches; genuinely mesh-only
+
+    ⚠️ The 'host.docker.internal' value in remote_nodes.mesh_ip for the hub is a
+    DATA BUG (headscale says 100.64.0.4). The name fallback hides it here rather
+    than fixing it — deliberately, because remote_nodes is fleet identity and
+    correcting a row is the owner's call, not a side effect of a UI change.
+    """
+    ips = {(n.get("mesh_ip") or "").strip() for n in (nodes or [])}
+    ips.discard("")
+    names = [_norm_name(n.get("name") or n.get("node_name")) for n in (nodes or [])]
+    out = []
+    for m in mesh_members():
+        if m["mesh_ip"] and m["mesh_ip"] in ips:
+            continue
+        toks = _mesh_tokens(m["name"])
+        if toks and any(all(t in nm for t in toks) for nm in names):
+            continue
+        out.append(m)
+    return out
 
 
 def get_node_status(node_id):
@@ -318,8 +556,8 @@ def get_fleet_map_data():
         "status": "online",
     }
 
-    # Nodes from DB
-    nodes_raw = list_nodes()
+    # Nodes from DB — live only; a retired node is not a place work can run
+    nodes_raw = live_nodes()
     nodes = []
     for n in nodes_raw:
         node_id = n.get("id")
@@ -385,10 +623,43 @@ def get_fleet_map_data():
                 "budget": float(p["monthly_budget_usd"]) if p.get("monthly_budget_usd") else None,
                 "usage": float(p["current_month_cost_usd"]) if p.get("current_month_cost_usd") else None,
                 "capabilities": p.get("capabilities"),
+                # Where we CONNECT (derived from base_url) and, separately,
+                # whether the model actually runs here. A self-hosted endpoint
+                # sits at the hub, so the panel lists it under HOSTED instead of
+                # dropping a fourth pin on top of the hub marker.
+                "self_hosted": is_self_hosted_url(p.get("base_url")),
+                "local_compute": key in LOCAL_COMPUTE_PROVIDERS,
             }
         )
 
-    return {"hub": hub, "nodes": nodes, "providers": providers}
+    # ── ONE hub, not two ────────────────────────────────────────────────
+    # `hub` above is hardcoded from HUB_LOCATION, and remote_nodes ALSO carries a
+    # real row for the same machine ("Archie Starbase", deployment_mode
+    # 'starbase'). They sat 22 m apart (45.5017/-73.5673 vs 45.5019/-73.5674),
+    # so the tab drew two pins and listed two rows for ONE computer — while the
+    # stat line said 5 nodes and the index showed 6.
+    #
+    # The DB row wins: it is the canonical identity every other panel shows, and
+    # it carries real hardware/status/heartbeat instead of a frozen literal. The
+    # row is flagged is_hub so a renderer can draw it once; it STAYS in `nodes`
+    # so the fleet count keeps counting the machine it is.
+    #
+    # ⚠️ EXACT match on 'starbase'. Citadel is 'starbase_outpost', and a
+    # substring test ("starbase" in mode) flags it as a second hub — the same
+    # class of bug as everything else on this tab: a check that is nearly right.
+    hub_node = next((n for n in nodes if (n.get("deployment_mode") or "") == "starbase"), None)
+    if hub_node:
+        hub_node["is_hub"] = True
+        hub = dict(
+            hub,
+            name=hub_node.get("name") or hub["name"],
+            lat=hub_node.get("lat") if hub_node.get("lat") is not None else hub["lat"],
+            lon=hub_node.get("lon") if hub_node.get("lon") is not None else hub["lon"],
+            status=hub_node.get("status") or hub["status"],
+            node_id=hub_node.get("node_id"),
+        )
+
+    return {"hub": hub, "nodes": nodes, "providers": providers, "mesh": mesh_only_members(nodes)}
 
 
 # ---------------------------------------------------------------------------

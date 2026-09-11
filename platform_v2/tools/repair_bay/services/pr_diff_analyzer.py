@@ -1050,7 +1050,40 @@ def _evidence_polarity(evidence: str, diff: str) -> str:
                 return "absent"
         if not verdicts:
             return "added"  # nothing evaluable -> don't drop
-        return "added" if "added" in verdicts else "removed_only"
+        # #5857: a MIXED citation is a POLARITY failure, not a grounded one.
+        #
+        # This read `"added" in verdicts`, so ONE genuinely-added line laundered an
+        # entire block — including lines the PR DELETED. That is precisely the
+        # inversion #5075 exists to catch, arriving through the back door.
+        #
+        # Measured on PR #3298 (2026-09-11). A WARNING blocked the PR citing:
+        #     @app.route("/claude")                 <- added   (real)
+        #     def claude_terminal():                <- REMOVED (this PR deletes it)
+        #     ...                                   <- unevaluable, skipped
+        #     logger.warning("terminal page refused: off-mesh lane=%s", lane_key)
+        #                                           <- added   (real)
+        # verdicts = [added, removed_only, added] -> "added" -> grounded -> survived
+        # every ADR-001 gate -> REQUEST CHANGES stood on a defect described against a
+        # function that does not exist after the merge.
+        #
+        # #5839 already settled the principle for the absent case one branch above:
+        # "a finding is only as grounded as its weakest cited line". It applied that
+        # to ABSENT and not to REMOVED, which is the hole. A model that stitched
+        # deleted code into its evidence lost +/- polarity mid-citation, and mixing in
+        # a real added line is not mitigation — it is the symptom.
+        #
+        # NOT affected: an ordinary MODIFIED line is present on BOTH sides, so it
+        # matches the added side FIRST and votes "added" (the loop checks added
+        # first, deliberately). A cited CONTEXT line is in neither side and already
+        # returns "absent" above.
+        #
+        # The carve-out still holds downstream: _verify_evidence() keeps a
+        # removed_only finding whose own prose critiques the REMOVAL ("this PR drops
+        # a needed guard"), which is the one legitimate reason to cite deleted code.
+        # And evidence_only_removed deliberately does NOT count toward
+        # _count_ungrounded, so the #5009 APPROVE floor is untouched — the model WAS
+        # reading, it read the wrong side.
+        return "added" if all(v == "added" for v in verdicts) else "removed_only"
 
     core = _normalize_match(_re.sub(r"^[+\-\s]+", "", evidence))
     if len(core) < 6:

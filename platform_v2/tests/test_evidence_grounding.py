@@ -109,9 +109,35 @@ class TestPolarityPerLine(unittest.TestCase):
     def test_removed_side_still_detected(self):
         self.assertEqual(_evidence_polarity("-def legacy_helper(x):", DIFF), "removed_only")
 
-    def test_mixed_added_and_removed_prefers_added(self):
+    def test_mixed_added_and_removed_is_a_polarity_failure(self):
+        """CHANGED 2026-09-11 (#5857). This asserted "added" — one real added line
+        laundered a citation that also quoted DELETED code.
+
+        Measured on PR #3298: a WARNING blocked the PR citing `@app.route("/claude")`
+        (added) + `def claude_terminal():` (REMOVED by that PR) + a real added
+        logger line. verdicts = [added, removed_only, added] -> "added" -> grounded
+        -> survived all four ADR-001 gates -> REQUEST CHANGES stood on a defect
+        described against a function that does not exist after the merge.
+
+        Why the expectation flips rather than the case being special-cased: #5839
+        already settled the principle one branch up — "a finding is only as grounded
+        as its weakest cited line" — and applied it to ABSENT lines only. And this
+        module ALREADY drops a pure removed-only citation on polarity grounds, so
+        dropping on polarity is established policy; the mixed case was simply not
+        considered. A model that stitched deleted code into its evidence lost +/-
+        polarity mid-citation, and a real added line beside it is the symptom, not
+        mitigation.
+
+        ⚠️ The trade-off is real and is accepted deliberately: a finding whose added
+        lines WOULD have located a genuine defect is now dropped if it also quotes a
+        deleted line. Two things bound the cost — the drop is reported with reason
+        `evidence_only_removed` rather than silently discarded, and
+        `_critiques_the_removal()` still keeps the one legitimate reason to cite
+        deleted code ("this PR removes a needed guard"). The deliberate fail-open
+        cases live in TestDoesNotOverDrop below and are untouched.
+        """
         ev = "+def prioritize(diff, cap=None):\n-def legacy_helper(x):"
-        self.assertEqual(_evidence_polarity(ev, DIFF), "added")
+        self.assertEqual(_evidence_polarity(ev, DIFF), "removed_only")
 
     def test_wholly_invented_multiline_is_absent(self):
         ev = "+def nonexistent_thing(zzz):\n+    raise SystemExit(42)"

@@ -93,6 +93,20 @@ def register_github_routes(bp, admin_required):
         if method not in ("squash", "merge", "rebase"):
             return jsonify({"success": False, "error": "Invalid merge method"}), 400
 
+        # CROSS-REPO (2026-09-11): the PR Review tab lists rows from every repo F.O.R.G.E.
+        # has reviewed (review_pr(repo=…) stores them), but this route looked the verdict
+        # up and merged WITHOUT the repo. Measured on archie-code #64/#65: both held a
+        # clean APPROVE and the button answered 422 "no stored F.O.R.G.E. review" — the
+        # lookup searched archie-platform for the same number. Worse, had a same-numbered
+        # archie-platform PR carried an approval, the override would have merged THAT one.
+        # The row's repo travels with the click; absent → the default repo (back-compat).
+        from .services.pr_review_service import _is_valid_repo
+
+        _repo_in = data.get("repo")
+        if _repo_in is not None and not _is_valid_repo(_repo_in):
+            return jsonify({"success": False, "error": "Invalid repo"}), 400
+        _repo = _repo_in or None
+
         # human_override: this endpoint is @login_required @admin_required — an operator
         # clicking merge is an attended decision, so it bypasses the unattended-merge
         # governance gate (#5194). Automated callers must never pass this.
@@ -110,7 +124,7 @@ def register_github_routes(bp, admin_required):
                 verdict_is_approved,
             )
 
-            _row = get_review(pr_number) or {}
+            _row = get_review(pr_number, repo=_repo) or {}
             _summary = _row.get("ai_summary") or ""
             _ack = bool(data.get("coverage_ack"))
             _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary), coverage_ack=_ack)
@@ -121,7 +135,7 @@ def register_github_routes(bp, admin_required):
             _refusal = f"could not verify the verdict ({_exc}) — refusing rather than guessing"
             _dropped = []
         if _refusal:
-            logger.warning("[FORGE] refusing merge of PR #%s: %s", pr_number, _refusal)
+            logger.warning("[FORGE] refusing merge of PR #%s (%s): %s", pr_number, _repo or "default repo", _refusal)
             return (
                 jsonify(
                     {
@@ -138,18 +152,25 @@ def register_github_routes(bp, admin_required):
                 422,
             )
 
-        result = merge_pr(pr_number, method, human_override=True)
+        result = merge_pr(pr_number, method, repo=_repo, human_override=True)
         if result.get("success") or result.get("merged"):
-            logger.info(f"[FORGE] PR #{pr_number} merged via {method} (human override)")
+            logger.info(
+                "[FORGE] PR #%s (%s) merged via %s (human override)", pr_number, _repo or "default repo", method
+            )
             # THIRD SURFACE, same row (#5283/#5338). Telegram and the Approvals
             # tab already converge via resolve_pr_merge_approval; without this
             # the Repair Bay button was the odd one out — merging the PR while
             # leaving a pending pr_merge approval behind to expire, or worse to
             # be tapped later against an already-merged PR.
             try:
+                from .services.github_service import REPO_FULL
                 from .services.pr_review_service import resolve_pr_merge_approval
 
-                resolve_pr_merge_approval(pr_number, approved=True, user_id=getattr(current_user, "id", None))
+                # pr_merge approval rows exist only for the polled default repo and are
+                # keyed by number alone — resolving one for a cross-repo PR would close a
+                # DIFFERENT PR's approval that happens to share the number.
+                if not _repo or _repo == REPO_FULL:
+                    resolve_pr_merge_approval(pr_number, approved=True, user_id=getattr(current_user, "id", None))
             except Exception as exc:  # noqa: BLE001 — bookkeeping never fails a real merge
                 logger.warning("[FORGE] PR #%s merged but approval row not resolved: %s", pr_number, exc)
         return jsonify(result)
@@ -963,7 +984,14 @@ def register_github_routes(bp, admin_required):
         from .services.pr_review_service import get_review
         from .services.github_service import merge_pr
 
-        review = get_review(pr_number)
+        # Same cross-repo lookup as forge_merge_pr (2026-09-11): the row's repo comes with
+        # the request; without it a cross-repo PR's verdict is looked up in the wrong repo.
+        from .services.pr_review_service import _is_valid_repo
+
+        _repo_in = (request.get_json(silent=True) or {}).get("repo")
+        if _repo_in is not None and not _is_valid_repo(_repo_in):
+            return jsonify({"success": False, "error": "Invalid repo"}), 400
+        review = get_review(pr_number, repo=_repo_in or None)
         if not review:
             return jsonify({"error": f"PR #{pr_number} not found"}), 404
 

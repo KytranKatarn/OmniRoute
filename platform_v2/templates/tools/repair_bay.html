@@ -3712,7 +3712,7 @@ window.loadPRReviews = function(state) {
                 // A disabled button must carry its REASON — reachable without clicking.
                 if (ms && ms.hint) mergeBtn.title = ms.hint;
                 if (_can) {
-                    mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number); };
+                    mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number, false, pr.repo); };
                 } else {
                     mergeBtn.disabled = true;
                 }
@@ -3879,11 +3879,14 @@ function triggerPRAnalysis(prNumber) {
         }).catch(function(e){ alert('Analyze request failed.'); });
 }
 
-function confirmMergePR(prNumber, coverageAck) {
-    if (!coverageAck && !confirm('Merge PR #' + prNumber + ' into main?')) return;
+function confirmMergePR(prNumber, coverageAck, repo) {
+    // `repo` is the ROW's repo (pr.repo from /api/forge/pr-reviews). The tab lists
+    // cross-repo rows, and a merge that omits it lands on the default repo's PR of the
+    // same number — refused as "no stored review" at best, the wrong PR at worst.
+    if (!coverageAck && !confirm('Merge PR #' + prNumber + (repo ? ' (' + repo + ')' : '') + ' into main?')) return;
     fetch('/tools/repair-bay/api/forge/prs/' + prNumber + '/merge',
           {method:'POST', headers:{'Content-Type':'application/json'},
-           body: JSON.stringify({method:'squash', coverage_ack: !!coverageAck})})
+           body: JSON.stringify({method:'squash', coverage_ack: !!coverageAck, repo: repo || null})})
         .then(function(r){ return r.json(); }).then(function(d) {
             if (d.success) { window.loadPRReviews(_prStateFilter); return; }
             // Coverage-only demotion: the model approved what it read. Dischargeable by a
@@ -3897,7 +3900,7 @@ function confirmMergePR(prNumber, coverageAck) {
                     + 'F.O.R.G.E. APPROVED everything it read, but ' + files.length
                     + ' file(s) were truncated away before it saw them:' + list
                     + '\n\nMerging now means YOU have read those files. Cancel to re-review instead.')) {
-                    confirmMergePR(prNumber, true);
+                    confirmMergePR(prNumber, true, repo);
                 }
                 return;
             }

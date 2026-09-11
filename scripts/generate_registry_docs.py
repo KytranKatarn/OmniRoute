@@ -43,16 +43,27 @@ from services.time_utils import format_local  # noqa: E402
 OUT = Path("/mnt/archie_brain/.claude/rules/module-capability-index.md")
 OUT_SERVICES = Path("/mnt/archie_brain/.claude/rules/service-registry.md")
 
+# Order here IS the section order of the generated doc (see the sort at the bottom of
+# render_modules), so it is kept in step with dashboard_generator.get_categories_info()
+# priorities — the doc then reads in the same order as the dashboard itself.
+#
+# ⚠️ A category missing from this map renders its RAW SLUG as a heading. Three were
+# doing exactly that before 2026-09-11: `what_the_fact`, `placeholders_future` (whose
+# key here was the never-used `coming_soon`), and — briefly — the new ones. Nothing
+# joined this map to the ModuleCategory enum; tests/test_dashboard_categories.py now
+# does, so a new category cannot ship as a slug again.
 _CATEGORY_TITLES = {
     "admin_operations": "Admin Operations",
     "ai_command": "AI Command",
+    "what_the_fact": "What The Fact",
+    "creed": "C.R.E.E.D.",
     "saas_services": "SaaS Services",
     "project_knowledge": "Project & Knowledge",
     "applications_concepts": "Applications & Concepts",
-    "creative_studios": "Creative Studios",
     "crypto": "Crypto",
-    "media_outreach": "Media & Outreach (standalones)",
-    "coming_soon": "Coming Soon",
+    "watch_series": "The Watch Series",
+    "creative_studios": "Creative Studios",
+    "placeholders_future": "Coming Soon",
 }
 
 

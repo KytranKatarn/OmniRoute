@@ -191,8 +191,9 @@ window.timeAgo = function timeAgo(isoString) {
             admin_operations: '#ef4444', ai_command: '#00ffff',
             saas_services: '#f59e0b', project_knowledge: '#00ff41',
             applications_concepts: '#0ea5e9', crypto: '#eab308',
-            media_outreach: '#10b981', creative_studios: '#ec4899',
-            placeholder_future: '#6b7280', core_services: '#00808f'
+            what_the_fact: '#3b82f6', watch_series: '#10b981', creed: '#a855f7',
+            creative_studios: '#ec4899',
+            placeholders_future: '#6b7280'
         };
 
         // Category display names
@@ -200,9 +201,10 @@ window.timeAgo = function timeAgo(isoString) {
             admin_operations: 'Admin Operations', ai_command: 'AI Command',
             saas_services: 'SaaS Services',
             project_knowledge: 'Project & Knowledge', applications_concepts: 'Applications & Concepts',
-            crypto: 'Crypto', media_outreach: 'Media Outreach',
+            crypto: 'Crypto', what_the_fact: 'What The Fact',
+            watch_series: 'The Watch Series', creed: 'C.R.E.E.D.',
             creative_studios: 'Creative Studios',
-            placeholder_future: 'Coming Soon', core_services: 'Core Services'
+            placeholders_future: 'Coming Soon'
         };
 
         // Build module index from DOM

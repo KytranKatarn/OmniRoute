@@ -54,7 +54,9 @@ def _fetch_platform_features():
         "project_knowledge": "Project & Knowledge",
         "applications_concepts": "Applications & Concepts",
         "crypto": "Crypto",
-        "media_outreach": "Media Outreach",
+        "what_the_fact": "What The Fact",
+        "creed": "C.R.E.E.D.",
+        "watch_series": "The Watch Series",
         "creative_studios": "Creative Studios",
         "placeholders_future": "Coming Soon",
     }

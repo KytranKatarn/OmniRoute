@@ -7,7 +7,7 @@
 
 # Master Module Capability Index
 
-**Generated**: 2026-09-10 08:46:04 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
+**Generated**: 2026-09-11 12:17:13 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
 
 **42 modules registered** — 37 enabled, 5 disabled/coming-soon, 0 absent. 35 carry curated notes.
 
@@ -102,7 +102,7 @@
 
 ---
 
-## AI Command (8)
+## AI Command (7)
 
 ### Agent Academy — `agent_academy`
 
@@ -143,24 +143,6 @@
 - **Integrations**: MCP `store_memory`/`search_knowledge`/`recall_context`/`create_task`/`log_decision`. Repair Bay Code Health: findings → proposals → deploy → re-verify (loop closed, PR #1402).
 - **Audit**: KB 256840 · **Rules**: `consciousness.md`, `project-knowledge.md`
 - **Token Economy — ONE cloud classifier (2026-09-09, PRs #3256/#3257/#3258, ADR-037, KB #311791)**: the `token-buckets` and `token-usage` endpoints share `services/token_provenance.py` — an ALLOWLIST of provably-local providers (ollama, fleet_node, local, llamacpp, comfyui, ollama_vision, comfyui_deferred, prefix `starship:`), `:cloud`/`-cloud` model tags external, everything else CLOUD by default; **`worker_type` is never consulted** (the older "cloud/CLI→contract agentless" phrasing above described the pre-#3257 Buckets rule, which put 637,900 ollama_cloud tokens in the agent-local bucket). Estimated backfill (`request_metadata.token_source`) is a SIXTH bucket (`estimated`, violet) excluded from the live cloud/local split on BOTH panels; payloads carry `estimated_tokens`, and `local_tokens`/`pct_local` describe the live split only. Cost: series query ~4x slower at range=90 (5.4s→19.6s EA), cache is per gunicorn worker — precomputed flags tracked as #6658. Tests: `tests/test_token_provenance.py` (seeds `archie_test`; prod drift pins opt-in `ARCHIE_PROD_RO_PINS=1`, read-only). Adding a LOCAL write site = add it to `LOCAL_PROVIDERS` AND the frozen `EXPECTED_LOCAL` in the test.
-
-### C.R.E.E.D. Command — `creed_command`
-
-- **Status**: ✅ enabled · **Route**: `/tools/creed-command` · **Version**: 1.0
-- **Description**: E.T.H.O.S. governance command center · Mail • Grants • Marketing • Files • Governance
-- **Access**: role `ADMIN` · tier `staff` · no explicit perms
-- **Blueprint**: `tools.creed_command:creed_command_bp`
-- **Tags**: creed, ethics, governance, ethos, email, grants, marketing
-- **Notes** (curated, survives regeneration): - **Capability**: E.T.H.O.S. (agent #336) governance work dashboard. 7 tabs — Dashboard (live CREED governance KPIs + weekly ethics brief), **Inbox** (5 Hostinger creed-ai.org boxes over IMAP → E.T.H.O.S. triage → draft → **send-as** via SMTP), **Grants** (pipeline + E.T.H.O.S. drafting), **Marketing** (channel-specific promo gen, grounded, no auto-publish; **'Send to S.I.G.N.A.L. →'** on LinkedIn assets → linkedin_post approval queue post_type=creed, PR #1563), **Tenants** (#3945, PR #1565 — multi-tenant ops: org applications approve+mint-key/reject, active-tenant directory w/ grade/freshness/tier, per-tenant key mgmt; thin hub-local proxies in `tenants_routes.py` → standalone `/api/internal/tenants|applications` + approve/reject/keys, authed w/ shared `CREED_INTERNAL_KEY`), **Files** (in-DB bytea document library + grant linking), Governance (live CREED surface links).
-- **Multi-tenant (kytran_creed standalone)**: `internal_or_admin` decorator (X-Internal-Key OR admin session) gates tenant-admin; 10 tenants provisioned (per-product self-transparency #3958, spec KB #272125): creed-institute(public)/kytran-empowerment/what-the-fact/gov-watch/civic-watch/legal-watch/market-watch/media-hub/kso/kbs. **Routing LIVE (#3958 DONE, PR #1569, 2026-06-10)**: every governance event routes to the EMITTING agent's product tenant — `agents.creed_tenant` (migration 428; NULL→kytran-empowerment default; 15 seeded incl. dept-traps M.A.V.E.N.→media-hub, G.A.V.E.L.→platform) + `services/creed_emit.py` shared emitter (`emit_event()`/`auth_header_for_agent()`, TTL-cached resolve, per-product `CREED_INGEST_KEY_<X>` in BOTH .env files, fallback product→default→legacy, `module` tag for core-platform drill-down, `routed_tenant` audit field, DB password via Docker secret file). All 4 hub push sites migrated: agent_loop governance reporter, bias_sampling, carbon_footprint (module=Infrastructure), incident_service (first affected agent). Flip each tenant preview→public when it passes the provisional gate. NEW agent→product assignment = data update on `agents.creed_tenant`, no code.
-- **Scoring pillar gate (kytran-creed PR #21, 2026-06-10)**: pillars with <`CREED_PILLAR_MIN_EVENTS` (default 100) events are `provisional` (raw score still shown + note) and EXCLUDED from overall; if NO pillar qualifies → legacy averaging flagged `overall_provisional` (low-volume tenants get no fake confident grade). `/api/v1/scores` adds `overall_provisional`/`pillar_min_events`/`overall_categories`. Fixed live institute 89.6/B+ (2-event env pillar artifact) → 99.6/A+. Real env fix = carbon estimator #3254 (now feeds kytran-empowerment tenant). KB #272128.
-- **Mail (self-contained, NOT Email Manager — Stalwart-only, ADR-003/#675)**: `mail_routes.py` → imap.hostinger.com:993 + smtp.hostinger.com:465, per-box `CREED_MAIL_*_PASSWORD` in root `.env`. Read-only IMAP (BODY.PEEK); send gated on explicit human click. Routes: `/api/mail/{status,inbox,message,triage,draft,ai,send}`.
-- **Routes**: `grants_routes.py`, `mail_routes.py`, `marketing_routes.py`, `files_routes.py` — all `register_*_routes(bp, admin_required)`. Admin-only.
-- **E.T.H.O.S. dispatch**: `capability='policy_assessment'`, `prefer_agent='E.T.H.O.S.'`, **`preferred_node=['Starship-246','Starship-245']`** (GPU cluster, ~1-3s). Async+poll+DB for all AI ops.
-- **Tables**: `creed_grants`, `creed_mail_ai`, `creed_marketing_assets`, `creed_files` (migrations 412–416).
-- **KB Docs**: #269978–269992 (coder+user per PR) · **PRs**: #1354–1358 (+#1353 GPU routing). Project #367 (feature-complete 2026-06-01).
-
----
 
 ### Cross-Watch Alerts — `cross_watch`
 
@@ -254,6 +236,104 @@
 - **deploy_approve executor ships via ship_as_pr (2026-08-27, PRs #2870/#2871, ADR-012 decision #1035)**: the Telegram/DHQ approval executor (agent_loop) was a THIRD deploy entry point still calling the #5808 no-op — approving a deploy marked the proposal `deployed | manual` with NO PR and NO code applied (measured live: the owner's 15-deploy batch). Now gate → `ship_as_pr(proposal_id, skip_gate=True)`; pin test extended to agent_loop. ALSO: `_proposal_fix_fields` resolves scanner placeholders (`[APP_CORE]/`→`platform_v2/` etc.) via `audit_pipeline.resolve_proposal_source` (display-path only — its exists-check is mount-dependent in-container), so placeholder-path Code Health proposals are shippable for the first time; `[dispatch_routing]` skip-labels stay untouched. ⚠️ deploy_via_forge pushes the branch BEFORE applying the patch — a patch failure strands an orphan `archie/forge/*` branch; delete on sight. ⚠️ ship_as_pr refuses status 'deployed' — remediating a false-deployed row means flipping it to 'approved' first. The 15 batch proposals were re-shipped as PRs #2872–#2886, all merged, all `deployed | code_applied: true`. Docs: KB #296563 (user) / #296564 (coder) / mistake #296561.
 - **Dedup + honest tiles (2026-08-27, PRs #2896/#2897, ADR #1037)**: proposal dedup is now CROSS-DETECTOR at creation — `code_issue_reconciler.finding_fingerprint()` makes the ruff (F401, backtick-quoted) and static (PYFLAKES) spellings of one defect ONE finding in `_has_open_audit_proposal` (lint-family-scoped, fail-safe); the reconciler needle normalizes ruff backticks so `finding_still_reproduces` can match pyflakes' own output — this ends the daily archive-while-present/recreate oscillator (~30 rows per finding over 6 weeks; the 11235/11259 twin burned a human approval). Dashboard tiles now read ONE `GET /api/proposals/stats` fetch: ADDITIVE `get_stats()` keys `archived` / `live` (Repairs tile) / `completed_verified` (the renamed "Completed (Verified)" — only `code_applied:'true'`) / `shipped_24h`; `loadProposals` no longer overwrites the Repairs tile with a FILTERED list length; invariants pinned in `tests/test_repair_ledger_honesty.py`. The 22 apply-unknown legacy deployed rows carry `metadata.legacy_deploy_unverified` (owner-approved) and stay in `apply_unknown`. This RESOLVES the 2026-08-20 "two misleading labels, owner decision pending" item. Related: archie-code #60 (#5933) gates engine autopull to MECHANICAL classes fail-closed — `non_mechanical_refused` in autopull results is design, not a fault (KB #296579–#296584).
 - **One master sheet + honest approvals (2026-08-28, PRs #2915/#2916, ADR-014/decision #1045, task #6107)**: improvement_proposals keyed by finding_fingerprint is THE unique list. log_audit's per-module roll-up writer RETIRED (proposal_source='code_health_scan', 44 zero-reader duplicates archived via scripts/2026-08-28_archive_rollup_proposals.sql; live 2,939->2,897). Red audit proposals now CARD into Approvals->Ship (_load_unapproved_reds widened past scan_tier='static'; improvement_approve_red dedups per-PROPOSAL — 4th coarse-dedup instance). Nightly reconciler covers ready_for_review AND cancels an archived proposal's pending deploy/red cards (stats key cards_cancelled). Merged fixes re-audit their module within the poll cycle (forge_pipeline._reaudit_module, 120s TTL) — mark_stale_audits alone never decremented the visible Issues count. Gate-failure cards lead with the sandbox's real error, not "0/0 P.R.O.B.E. tests". Residual in #6107: actionable-vs-info Issues split; AGENT_HIGH_FAILURE_RATE findings still mint unfixable code-proposals (belongs with K.I.N./#5829).
+
+## What The Fact (2)
+
+### What The Fact — `what_the_fact`
+
+- **Status**: ✅ enabled · **Route**: `/external/wtf` · **Version**: 1.0
+- **Description**: AI-powered transparent news · Bias detection • Fact-check summaries • Audit trails
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://what-the-fact.com
+- **Tags**: standalone, product, watch-series
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
+- **Capability**: 10 Canadian sources, RSS 30min, story clustering (Jaccard), extractive summarization, bias scoring, fact-checking. OAuth SSO paywall (bias free, rationale/Deep Dive gated).
+- **Schema**: `wtf.sources`, `wtf.articles`, `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`. Plus the **shared entity graph** `wtf.shared.*` (Project #373: `entities` 452k, `entity_mentions`, `entity_relationships`, `chain_link_types`) + `parliament.*`.
+- **Cross-Watch surface (2026-06-24, #3331 Phase 1, PRs #1919-#1921, ADR-009)**: `/entity/<id>` cross-product accountability footprint (free=products+coverage, premium=chain links), article-page Cross-Watch teaser, `/cross-watch` explorer. API `GET /api/entities/<id>/footprint`. Reads the live graph, no new ingest. **Municipal** `/municipal` (#3330, PR #1918) = `beat='municipal'` (NOT geo_scope). ⚠️ `shared.entities` is IMMUTABLE — `entities_guard()` forbids DELETE; retire via `status='suppressed'`. Product→graph adapters POST `wtf-ingest-api:8106/api/internal/entity-graph/ingest` + read the TMX company set via `GET /api/internal/entity-graph/companies` (#3059, PR #1926). **Legal #3059 competition→company linking LIVE** (legal-watch `--source competition` → `competition_enforcement` mentions via slug POINTERS; surfaced as the free "Named in Competition Bureau items" section on `/entity/<id>`). Market #4471 entity build-up still pending (upstream data). Coder docs KB #275529; user KB #275528.
+- **A.U.R.O.R.A. weather (project #393, 2026-08-18, PRs #2675–#2685 — LIVE)**: `/weather` now carries REAL environmental data, not just climate-beat articles. Phase 1 = CWFIS wildfire/hotspot/fire-weather (385 **Canadian** stations); Phase 2 = MSC Datamart city observations + forecasts, **25 cities covering all 13 provinces & territories**, hourly. Tables `wtf.aurora_firewx_obs` / `_fire_hotspot_daily` / `_fire_perimeters` / `_city_site` / `_city_obs` / `_city_forecast` (migrations 053, 055). Ingest `ingest/weather/{cwfis,citypage}.py` (both never raise; heartbeat to `parliament.ingest_log` on success, exception AND swallowed-error paths; both registered in `drift_guard._MAX_AGE_DAYS` *and* `_REQUIRED_TASKS`). Parsing is in stdlib-only `citypage_parse.py` + `consumer/aurora_map.py` so guard tests cannot silently SKIP (KB #290497).
+  · **`wtf.aurora_layer_status` is the ONLY source of source names** — templates LOOP it. Hardcoding one is how the page advertised "Environment Canada + NASA + NOAA" while holding no weather data (KB #290491). The view gained **`stale_after_hours`** (city_obs **3h**, city_forecast 12h, fire 48h) — the old hardcoded 48h let a 40-hour-old "current condition" render as fresh.
+  · ⚠️ **ADR-001**: `dd.weather.gc.ca` ONLY. `api.weather.gc.ca/collections/*/items` is robots-disallowed; **`dd.alpha.weather.gc.ca` is `Disallow: /`**. Path is `/{YYYYMMDD}/WXO-DD/citypage_weather/{PROV}/{HH}/` — the **dated** form (today/ flips at 00:00Z), `WXO-DD` mandatory, no `xml/` segment, filenames NOT constructible (list the hour dir, take max()). `siteList.xml` is **ISO-8859-1**, not UTF-8. Full detail KB #290553 / **#290573 (correction)**.
+  · 🔴 **FIVE encodings of absence**, and forecast **`<gust>00</gust>` means NO GUST while parsing cleanly as `0`** — it hit **290 of 310** live forecast periods, so `int(x or 0)` would fabricate a measurement on 94% of them. `<speed>calm</speed>` is a MEASUREMENT (own `wind_is_calm` column), not absence. Station coords are hemisphere-SUFFIXED strings (`"79.63W"`) — `float()` raises, stripping the letter puts Canada in Asia.
+  · 🔑 **The two fire layers cover DISJOINT halves of Canada** (stations east, hotspots west/north), so a single choropleth is a lie either way: the map switches layers and greys uncovered provinces explicitly. KB #290498.
+  · **Province codes: CWFIS emits `NF`, Datamart emits `NL`, the GeoJSON says `NL`.** `consumer/aurora_map._canon_prov` is the ONE canonicalisation boundary — a second one is how a province goes missing.
+- **Site shell + data integrity (2026-08-18, PRs #2677–#2685)**: `/blindspot`, `/divergence`, `/economy`, `/municipal`, `/weather` were STANDALONE documents (own `<html>`, own nav, own palette) — all now extend `base.html` with namespaced classes (`wtf-bs-`/`wtf-dv-`/`wtf-ec-`/`wtf-mu-`/`wtf-wx-`); guard `tests/test_site_shell_continuity.py`. The nav "LIVE · N SOURCES" counter is ONE cached context processor (it read **0** on /lobbying and /claims and disagreed 46-vs-41 elsewhere). **Three French sources were declared `en`** (La Presse 491, Le Journal de Montréal 13765, L'actualité 13766), putting **2,785 French articles on the English side** of the public `/divergence` EN-vs-FR comparison — migration 054 corrects them, identified by CONTENT not name (Edmonton Journal matches a French-name heuristic and IS English). **La Presse was ingested via a Google News proxy** — 74/180 titles were the literal `- La Presse+`; migration 056 re-points it to `lapresse.ca/actualites/rss`, adds reversible `wtf.articles.suppressed_reason`, and `ingest/persist.is_publisher_suffix_title()` rejects publisher-only titles at ingest. ⚠️ **10 of 46 sources use a Google News feed** — migration 056 reports them all on every run; the other 9 sit at 73–98% title uniqueness vs La Presse's 43.9%.
+- **CRITICAL**: NEVER pass `WTF_TECH_URL` to browser JS — always add server-side proxy route first (KB #267314).
+- **Hub**: `tools/wtf_hub/wtf_hub.html` extends base.html, teal `#00ffff`. Hub dispatch: `bias_analysis`→B.I.A.S., `fact_check`→V.E.R.I.F.Y., `geo_extraction`→L.O.C.A.L.
+- **WTF Hub Inbox** (cont-110): Inbox tab in `/tools/wtf-hub` + `/api/mail/*` routes — per-mailbox News-dept agent mail over Stalwart IMAP (read + AI triage + drafts per box), mirrors the CREED Command mail pattern; send gated on explicit human click.
+- **Refinement program (2026-07-14, PRs #2270-#2285 — ALL LIVE)**: canonical paid-tier set `consumer/tiers.py`; `/score` GET public; province map polygons+circles lean-coloured (Canadian party ramp on continuous `avg_bias`, ADR-011; world rendering owned solely by `loadArticlesGeo`); own-tenant CREED (`/api/v1/orgs/what-the-fact/scores`) + public `/governance` + live footer badge; **newsletter capture** (`wtf.newsletter_subscribers` migr 047 w/ **wtfuser GRANTs**, tokenized unsubscribe, Monday digest via the outpost-us SMTP relay 100.64.0.2:25 ADR-014, KBS CRM sync via X-Internal-Key ADR-015); **verdict chips** homepage informative-only (ADR-013: ✓ Established/⚡ Developing/⚠ Contested, grey suppressed; /news keeps grey; `descriptive_reporting` = no chip); **fact-check rubric** enum-constrained w/ `mostly_true`=attributed+consistent (#2283) + fence-tolerant `_parse_llm_json` (#2285); analyze callers MUST honor `retry_after` (#2276); **sitemap sources** `rss_feed='sitemap:<url>'` revive RSS-less publishers (#2282, Postmedia ×3); `wtf_beat_coverage` watchdog armed.
+
+- **Colour semantics converged on /article (2026-09-03, PR #3097, ADR-023)**: article.html
+  had accumulated 5 independent lean-colour maps and 4 independent verdict-colour maps
+  (V.E.R.I.F.Y. panel, kicker chip, third-party fact-checks, claim_tracker #3013's own
+  vocabulary) that disagreed with each other. Two were live defects, not drift: the band
+  label's LEFT and RIGHT poles were both red (indistinguishable), and 4 of 5 lean maps put
+  GREEN at the centre of the scale on the B.I.A.S. bar itself -- a verdict colour, implying
+  centrist = correct, exactly what lean_pill()'s own docstring had already forbidden but
+  never enforced at the call sites (same shape as #5194/#5862/#6035). Now ONE resolver per
+  axis in _archetypes.html: lean_token(bucket, fallback) -> a --wtf-* token,
+  verdict_class(verdict) -> a CSS class (established/developing/contested/unestablished;
+  partially_true->developing, misleading->contested). An unscored outlet now reads muted,
+  never centre. 27 tests, non-vacuity measured against the pre-fix file from git (4/6
+  file-scanners fail on it). Deferred: 7 hardcoded paywall CTAs on the same page -- touches
+  checkout, filed as task #6309 with an owner-decision flag (the full panel offers
+  subscribe+signin as two actions; paywall() collapses to one).
+
+- **DB separation from the Hub — COMPLETE (2026-09-05, decision #1077).** what-the-fact.com/.tech
+  now run against a dedicated `wtf-postgres` Postgres instance on Citadel (same docker-compose
+  project as wtf-consumer/wtf-tech/wtf-ingest/wtf-ingest-api), not the hub's `archie_database`.
+  All 8 schemas moved together (wtf/parliament/shared/market_watch/legal_watch/gov_watch/securities/public)
+  — investigation confirmed WTF is the sole direct-DB owner of all of them; the 4 external Watch
+  products only reach `shared` via HTTP (wtf-ingest-api), never a DB connection, so nothing else
+  broke. `WTF_DATABASE_URL` now points at `wtf-postgres` (Docker service-name DNS), not
+  `100.64.0.4`. Old hub `wtf` database kept intact for a 14-day rollback window (~2026-09-19,
+  task #6603). Coder detail + every gotcha hit (read_only breaks initdb, missing cross-role
+  grants, pg_trgm not enabled) in the vault_note "WTF now runs on its own database" and
+  mistake_learned #305494 (a secrets-file incident during the cutover). A separate
+  `KytranKatarn/kytran-what-the-fact` repo also exists now (git subtree, full history) but is
+  a history mirror only — the deployed CODE source is still `archie-platform`'s `what-the-fact/`,
+  unchanged by this migration.
+
+### WTF Hub — `wtf_hub`
+
+- **Status**: ✅ enabled · **Route**: `/tools/wtf-hub` · **Version**: 1.0
+- **Description**: Orchestration hub for what-the-fact.com — Bridge dispatch, ingest pipeline, story clustering
+- **Access**: role `ADMIN` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.wtf_hub:wtf_hub_bp`
+- **Tags**: wtf, news, orchestration, ai-command
+
+## C.R.E.E.D. (2)
+
+### C.R.E.E.D. Command — `creed_command`
+
+- **Status**: ✅ enabled · **Route**: `/tools/creed-command` · **Version**: 1.0
+- **Description**: E.T.H.O.S. governance command center · Mail • Grants • Marketing • Files • Governance
+- **Access**: role `ADMIN` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.creed_command:creed_command_bp`
+- **Tags**: creed, ethics, governance, ethos, email, grants, marketing
+- **Notes** (curated, survives regeneration): - **Capability**: E.T.H.O.S. (agent #336) governance work dashboard. 7 tabs — Dashboard (live CREED governance KPIs + weekly ethics brief), **Inbox** (5 Hostinger creed-ai.org boxes over IMAP → E.T.H.O.S. triage → draft → **send-as** via SMTP), **Grants** (pipeline + E.T.H.O.S. drafting), **Marketing** (channel-specific promo gen, grounded, no auto-publish; **'Send to S.I.G.N.A.L. →'** on LinkedIn assets → linkedin_post approval queue post_type=creed, PR #1563), **Tenants** (#3945, PR #1565 — multi-tenant ops: org applications approve+mint-key/reject, active-tenant directory w/ grade/freshness/tier, per-tenant key mgmt; thin hub-local proxies in `tenants_routes.py` → standalone `/api/internal/tenants|applications` + approve/reject/keys, authed w/ shared `CREED_INTERNAL_KEY`), **Files** (in-DB bytea document library + grant linking), Governance (live CREED surface links).
+- **Multi-tenant (kytran_creed standalone)**: `internal_or_admin` decorator (X-Internal-Key OR admin session) gates tenant-admin; 10 tenants provisioned (per-product self-transparency #3958, spec KB #272125): creed-institute(public)/kytran-empowerment/what-the-fact/gov-watch/civic-watch/legal-watch/market-watch/media-hub/kso/kbs. **Routing LIVE (#3958 DONE, PR #1569, 2026-06-10)**: every governance event routes to the EMITTING agent's product tenant — `agents.creed_tenant` (migration 428; NULL→kytran-empowerment default; 15 seeded incl. dept-traps M.A.V.E.N.→media-hub, G.A.V.E.L.→platform) + `services/creed_emit.py` shared emitter (`emit_event()`/`auth_header_for_agent()`, TTL-cached resolve, per-product `CREED_INGEST_KEY_<X>` in BOTH .env files, fallback product→default→legacy, `module` tag for core-platform drill-down, `routed_tenant` audit field, DB password via Docker secret file). All 4 hub push sites migrated: agent_loop governance reporter, bias_sampling, carbon_footprint (module=Infrastructure), incident_service (first affected agent). Flip each tenant preview→public when it passes the provisional gate. NEW agent→product assignment = data update on `agents.creed_tenant`, no code.
+- **Scoring pillar gate (kytran-creed PR #21, 2026-06-10)**: pillars with <`CREED_PILLAR_MIN_EVENTS` (default 100) events are `provisional` (raw score still shown + note) and EXCLUDED from overall; if NO pillar qualifies → legacy averaging flagged `overall_provisional` (low-volume tenants get no fake confident grade). `/api/v1/scores` adds `overall_provisional`/`pillar_min_events`/`overall_categories`. Fixed live institute 89.6/B+ (2-event env pillar artifact) → 99.6/A+. Real env fix = carbon estimator #3254 (now feeds kytran-empowerment tenant). KB #272128.
+- **Mail (self-contained, NOT Email Manager — Stalwart-only, ADR-003/#675)**: `mail_routes.py` → imap.hostinger.com:993 + smtp.hostinger.com:465, per-box `CREED_MAIL_*_PASSWORD` in root `.env`. Read-only IMAP (BODY.PEEK); send gated on explicit human click. Routes: `/api/mail/{status,inbox,message,triage,draft,ai,send}`.
+- **Routes**: `grants_routes.py`, `mail_routes.py`, `marketing_routes.py`, `files_routes.py` — all `register_*_routes(bp, admin_required)`. Admin-only.
+- **E.T.H.O.S. dispatch**: `capability='policy_assessment'`, `prefer_agent='E.T.H.O.S.'`, **`preferred_node=['Starship-246','Starship-245']`** (GPU cluster, ~1-3s). Async+poll+DB for all AI ops.
+- **Tables**: `creed_grants`, `creed_mail_ai`, `creed_marketing_assets`, `creed_files` (migrations 412–416).
+- **KB Docs**: #269978–269992 (coder+user per PR) · **PRs**: #1354–1358 (+#1353 GPU routing). Project #367 (feature-complete 2026-06-01).
+
+---
+
+### C.R.E.E.D. Institute — `creed_institute`
+
+- **Status**: ✅ enabled · **Route**: `/external/creed` · **Version**: 1.0
+- **Description**: AI ethics and governance institute · Compliance frameworks • Agent welfare • Public transparency
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://creed.kytranempowerment.com
+- **Tags**: standalone, product, ethics, governance, creed
+- **Notes** (curated, survives regeneration): - **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).
+- **Capability**: Governance/ethics enforcement, public transparency, grant-target nonprofit.
+- **Public APIs (all no-auth, CORS-open `*`, 60s cache)**: `GET /api/public/score` → `{score, grade, events_today, active_categories, last_checked}` (#3362, `routes/public_routes.py`); `GET /api/v1/scores` → `{overall, grade, event_count, by_category{accountability|fairness|privacy|safety|transparency}}` (`api_routes.py`, CORS added kytran-creed PR #3 — powers creed-ai.org governance widget); `GET /api/v1/badge/overall` → SVG badge (`badge_routes.py`). Consumed by creed-ai.org + WTF. Live (99.5/A+). **Verify cross-origin from EXTERNAL vantage** — hub-LAN browser hits Chrome PNA (split-horizon DNS → private IP), KB #269948/#269951.
+- **Rules**: `standalone-extraction.md`
+
+---
 
 ## SaaS Services (7)
 
@@ -431,6 +511,73 @@
 - **Notes** (curated, survives regeneration): - **Capability**: 691 LOC · 12 routes · River agent (Wellness Therapist). Crisis detection → 988/Crisis Text Line, mood companion SERENE, grounding exercises (4-7-8, body scan, 5-4-3-2-1).
 - **Audit**: KB 256846
 
+## Crypto (2)
+
+### Archie Pool — `archie_pool`
+
+- **Status**: ✅ enabled · **Route**: `/tools/archie-pool` · **Version**: 1.0
+- **Description**: Ravencoin mining pool dashboard · Real-time hashrate • Earnings tracker • Auto payouts
+- **Access**: role `USER` · tier `enterprise` · no explicit perms
+- **Blueprint**: `tools.archie_pool.routes:archie_pool_bp`
+- **Tags**: mining, crypto, ravencoin, standalone, android
+- **Notes** (curated, survives regeneration): - **Capability**: 398 LOC · 11 routes. Pool stats display (Ravencoin hardcoded). **No auth, no persistence, sample data fallback. Demo only.**
+- **Audit**: KB 256846
+
+### Pool Management — `pool_management`
+
+- **Status**: ✅ enabled · **Route**: `/tools/pool-management` · **Version**: 1.0
+- **Description**: Mining pool administration · Miner management • Payout config • Conversions • Analytics
+- **Access**: role `ADMIN` · tier `enterprise` · perms `admin:access`
+- **Blueprint**: `tools.pool_management.routes:pool_management_bp`
+- **Tags**: mining, admin, management, payouts, conversions
+- **Notes** (curated, survives regeneration): - **Capability**: 777 LOC · 18 routes. Pool admin dashboard — proxies external pool API, no DB owned, sample-data fallback.
+- **Audit**: KB 256846
+
+---
+
+## The Watch Series (4)
+
+### Kytran Civic Watch — `kytran_civic_watch`
+
+- **Status**: ✅ enabled · **Route**: `/external/civic` · **Version**: 1.0
+- **Description**: Civic engagement intelligence · Local government • Community alerts • Transparency tracking
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://civic.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8099 (`root@100.64.0.10:/opt/archie-products/civic-watch/`, container kytran_watch_api), civic.kytranempowerment.com
+
+### Kytran Gov Watch — `kytran_gov_watch`
+
+- **Status**: ✅ enabled · **Route**: `/external/gov` · **Version**: 1.0
+- **Description**: Government tender intelligence · P.R.O.C.U.R.E. agent (Analytics &amp; Intelligence) • Live tenders • RFP analysis • Personalized bids
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://gov.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8102 (`root@100.64.0.10:/opt/archie-products/gov-watch/`, local `gov_watch_db` postgres), gov.kytranempowerment.com.
+- **Source**: `/mnt/standalone/kytran-gov-watch/` (**NOT** `/mnt/archie_brain/kytran-gov-watch/` — that path is empty).
+- **Capability**: CanadaBuys + PSPC/CRA tender intelligence. P.R.O.C.U.R.E. agent (#349, qwen2.5:7b). 21 endpoints, Kytran SSO. Hub dispatch: `POST /api/procure/dispatch` (JWT bearer).
+- **_sync_user_tier gotcha**: CASE clause only protects `('agency','team','solo')` — `'kytran'` tier gets reset to free on every login. Fix: numeric hierarchy lookup, never downgrade higher→lower.
+
+### Kytran Legal Watch — `kytran_legal_watch`
+
+- **Status**: ✅ enabled · **Route**: `/external/legal` · **Version**: 1.0
+- **Description**: Legal intelligence platform · Case monitoring • Regulatory alerts • Compliance tracking
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://legal.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8100 (`root@100.64.0.10:/opt/archie-products/legal-watch/`), legal.kytranempowerment.com
+- **Capability (repaired 2026-06-24, PRs #7/#8/#9, KB #275548–275554)**: G.A.V.E.L. dashboard + APIs (regulations / ethics / events / digest / canlii / scc). **SCC case law** via the official Lexum RSS `decisions.scc-csc.ca/scc-csc/scc-csc/en/rss.do` (the old CanLII RSS is DataDome-walled → 404; `scc_decisions` 0→100). **Live CanLII search** `/api/canlii/*` — key in the **platform root `.env`**; `caseBrowse` needs a databaseId (e.g. `csc-scc`), no full-text search. Regulations (Canada Gazette) + legal news refresh **daily** via a leader-gated ingest cron in `digest/scheduler.py`.
+- **ARCH GOTCHA**: the gunicorn target MUST invoke `create_app()` (module-level `app = create_app()`); `__main__`-only gating silently drops ALL blueprints + the scheduler (was 7 routes; now 35). Keep hub git == live deploy (rsync excludes `.env`). See `reference_watch-products-deploy-drift` / KB mistake #275549.
+
+### Kytran Market Watch — `kytran_market_watch`
+
+- **Status**: ✅ enabled · **Route**: `/external/market` · **Version**: 1.0
+- **Description**: Market intelligence platform · Autonomous trading • Real-time feeds • Portfolio analytics
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://market.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8101 (`root@100.64.0.10:/opt/archie-products/market-watch/`), market.kytranempowerment.com. StockBot migrated here.
+
 ## Creative Studios (4)
 
 ### Code Builder — `code_builder`
@@ -479,151 +626,6 @@
 - **Access**: role `USER` · tier `staff` · no explicit perms
 - **Standalone** (launch tile only — no in-platform blueprint): https://business.kytranempowerment.com/plugins/website-builder/
 - **Tags**: website, site-builder, kbs, standalone, product, ai, creative-studios
-
-## Crypto (2)
-
-### Archie Pool — `archie_pool`
-
-- **Status**: ✅ enabled · **Route**: `/tools/archie-pool` · **Version**: 1.0
-- **Description**: Ravencoin mining pool dashboard · Real-time hashrate • Earnings tracker • Auto payouts
-- **Access**: role `USER` · tier `enterprise` · no explicit perms
-- **Blueprint**: `tools.archie_pool.routes:archie_pool_bp`
-- **Tags**: mining, crypto, ravencoin, standalone, android
-- **Notes** (curated, survives regeneration): - **Capability**: 398 LOC · 11 routes. Pool stats display (Ravencoin hardcoded). **No auth, no persistence, sample data fallback. Demo only.**
-- **Audit**: KB 256846
-
-### Pool Management — `pool_management`
-
-- **Status**: ✅ enabled · **Route**: `/tools/pool-management` · **Version**: 1.0
-- **Description**: Mining pool administration · Miner management • Payout config • Conversions • Analytics
-- **Access**: role `ADMIN` · tier `enterprise` · perms `admin:access`
-- **Blueprint**: `tools.pool_management.routes:pool_management_bp`
-- **Tags**: mining, admin, management, payouts, conversions
-- **Notes** (curated, survives regeneration): - **Capability**: 777 LOC · 18 routes. Pool admin dashboard — proxies external pool API, no DB owned, sample-data fallback.
-- **Audit**: KB 256846
-
----
-
-## Media & Outreach (standalones) (5)
-
-### C.R.E.E.D. Institute — `creed_institute`
-
-- **Status**: ✅ enabled · **Route**: `/external/creed` · **Version**: 1.0
-- **Description**: AI ethics and governance institute · Compliance frameworks • Agent welfare • Public transparency
-- **Access**: role `USER` · tier `explorer` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://creed.kytranempowerment.com
-- **Tags**: standalone, product, ethics, governance, creed
-- **Notes** (curated, survives regeneration): - **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).
-- **Capability**: Governance/ethics enforcement, public transparency, grant-target nonprofit.
-- **Public APIs (all no-auth, CORS-open `*`, 60s cache)**: `GET /api/public/score` → `{score, grade, events_today, active_categories, last_checked}` (#3362, `routes/public_routes.py`); `GET /api/v1/scores` → `{overall, grade, event_count, by_category{accountability|fairness|privacy|safety|transparency}}` (`api_routes.py`, CORS added kytran-creed PR #3 — powers creed-ai.org governance widget); `GET /api/v1/badge/overall` → SVG badge (`badge_routes.py`). Consumed by creed-ai.org + WTF. Live (99.5/A+). **Verify cross-origin from EXTERNAL vantage** — hub-LAN browser hits Chrome PNA (split-horizon DNS → private IP), KB #269948/#269951.
-- **Rules**: `standalone-extraction.md`
-
----
-
-### Kytran Civic Watch — `kytran_civic_watch`
-
-- **Status**: ✅ enabled · **Route**: `/external/civic` · **Version**: 1.0
-- **Description**: Civic engagement intelligence · Local government • Community alerts • Transparency tracking
-- **Access**: role `USER` · tier `explorer` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://civic.kytranempowerment.com
-- **Tags**: standalone, product
-- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8099 (`root@100.64.0.10:/opt/archie-products/civic-watch/`, container kytran_watch_api), civic.kytranempowerment.com
-
-### Kytran Gov Watch — `kytran_gov_watch`
-
-- **Status**: ✅ enabled · **Route**: `/external/gov` · **Version**: 1.0
-- **Description**: Government tender intelligence · P.R.O.C.U.R.E. agent (Analytics &amp; Intelligence) • Live tenders • RFP analysis • Personalized bids
-- **Access**: role `USER` · tier `explorer` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://gov.kytranempowerment.com
-- **Tags**: standalone, product
-- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8102 (`root@100.64.0.10:/opt/archie-products/gov-watch/`, local `gov_watch_db` postgres), gov.kytranempowerment.com.
-- **Source**: `/mnt/standalone/kytran-gov-watch/` (**NOT** `/mnt/archie_brain/kytran-gov-watch/` — that path is empty).
-- **Capability**: CanadaBuys + PSPC/CRA tender intelligence. P.R.O.C.U.R.E. agent (#349, qwen2.5:7b). 21 endpoints, Kytran SSO. Hub dispatch: `POST /api/procure/dispatch` (JWT bearer).
-- **_sync_user_tier gotcha**: CASE clause only protects `('agency','team','solo')` — `'kytran'` tier gets reset to free on every login. Fix: numeric hierarchy lookup, never downgrade higher→lower.
-
-### Kytran Legal Watch — `kytran_legal_watch`
-
-- **Status**: ✅ enabled · **Route**: `/external/legal` · **Version**: 1.0
-- **Description**: Legal intelligence platform · Case monitoring • Regulatory alerts • Compliance tracking
-- **Access**: role `USER` · tier `explorer` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://legal.kytranempowerment.com
-- **Tags**: standalone, product
-- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8100 (`root@100.64.0.10:/opt/archie-products/legal-watch/`), legal.kytranempowerment.com
-- **Capability (repaired 2026-06-24, PRs #7/#8/#9, KB #275548–275554)**: G.A.V.E.L. dashboard + APIs (regulations / ethics / events / digest / canlii / scc). **SCC case law** via the official Lexum RSS `decisions.scc-csc.ca/scc-csc/scc-csc/en/rss.do` (the old CanLII RSS is DataDome-walled → 404; `scc_decisions` 0→100). **Live CanLII search** `/api/canlii/*` — key in the **platform root `.env`**; `caseBrowse` needs a databaseId (e.g. `csc-scc`), no full-text search. Regulations (Canada Gazette) + legal news refresh **daily** via a leader-gated ingest cron in `digest/scheduler.py`.
-- **ARCH GOTCHA**: the gunicorn target MUST invoke `create_app()` (module-level `app = create_app()`); `__main__`-only gating silently drops ALL blueprints + the scheduler (was 7 routes; now 35). Keep hub git == live deploy (rsync excludes `.env`). See `reference_watch-products-deploy-drift` / KB mistake #275549.
-
-### Kytran Market Watch — `kytran_market_watch`
-
-- **Status**: ✅ enabled · **Route**: `/external/market` · **Version**: 1.0
-- **Description**: Market intelligence platform · Autonomous trading • Real-time feeds • Portfolio analytics
-- **Access**: role `USER` · tier `explorer` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://market.kytranempowerment.com
-- **Tags**: standalone, product
-- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8101 (`root@100.64.0.10:/opt/archie-products/market-watch/`), market.kytranempowerment.com. StockBot migrated here.
-
-## what_the_fact (2)
-
-### What The Fact — `what_the_fact`
-
-- **Status**: ✅ enabled · **Route**: `/external/wtf` · **Version**: 1.0
-- **Description**: AI-powered transparent news · Bias detection • Fact-check summaries • Audit trails
-- **Access**: role `USER` · tier `explorer` · no explicit perms
-- **Standalone** (launch tile only — no in-platform blueprint): https://what-the-fact.com
-- **Tags**: standalone, product, watch-series
-- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
-- **Capability**: 10 Canadian sources, RSS 30min, story clustering (Jaccard), extractive summarization, bias scoring, fact-checking. OAuth SSO paywall (bias free, rationale/Deep Dive gated).
-- **Schema**: `wtf.sources`, `wtf.articles`, `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`. Plus the **shared entity graph** `wtf.shared.*` (Project #373: `entities` 452k, `entity_mentions`, `entity_relationships`, `chain_link_types`) + `parliament.*`.
-- **Cross-Watch surface (2026-06-24, #3331 Phase 1, PRs #1919-#1921, ADR-009)**: `/entity/<id>` cross-product accountability footprint (free=products+coverage, premium=chain links), article-page Cross-Watch teaser, `/cross-watch` explorer. API `GET /api/entities/<id>/footprint`. Reads the live graph, no new ingest. **Municipal** `/municipal` (#3330, PR #1918) = `beat='municipal'` (NOT geo_scope). ⚠️ `shared.entities` is IMMUTABLE — `entities_guard()` forbids DELETE; retire via `status='suppressed'`. Product→graph adapters POST `wtf-ingest-api:8106/api/internal/entity-graph/ingest` + read the TMX company set via `GET /api/internal/entity-graph/companies` (#3059, PR #1926). **Legal #3059 competition→company linking LIVE** (legal-watch `--source competition` → `competition_enforcement` mentions via slug POINTERS; surfaced as the free "Named in Competition Bureau items" section on `/entity/<id>`). Market #4471 entity build-up still pending (upstream data). Coder docs KB #275529; user KB #275528.
-- **A.U.R.O.R.A. weather (project #393, 2026-08-18, PRs #2675–#2685 — LIVE)**: `/weather` now carries REAL environmental data, not just climate-beat articles. Phase 1 = CWFIS wildfire/hotspot/fire-weather (385 **Canadian** stations); Phase 2 = MSC Datamart city observations + forecasts, **25 cities covering all 13 provinces & territories**, hourly. Tables `wtf.aurora_firewx_obs` / `_fire_hotspot_daily` / `_fire_perimeters` / `_city_site` / `_city_obs` / `_city_forecast` (migrations 053, 055). Ingest `ingest/weather/{cwfis,citypage}.py` (both never raise; heartbeat to `parliament.ingest_log` on success, exception AND swallowed-error paths; both registered in `drift_guard._MAX_AGE_DAYS` *and* `_REQUIRED_TASKS`). Parsing is in stdlib-only `citypage_parse.py` + `consumer/aurora_map.py` so guard tests cannot silently SKIP (KB #290497).
-  · **`wtf.aurora_layer_status` is the ONLY source of source names** — templates LOOP it. Hardcoding one is how the page advertised "Environment Canada + NASA + NOAA" while holding no weather data (KB #290491). The view gained **`stale_after_hours`** (city_obs **3h**, city_forecast 12h, fire 48h) — the old hardcoded 48h let a 40-hour-old "current condition" render as fresh.
-  · ⚠️ **ADR-001**: `dd.weather.gc.ca` ONLY. `api.weather.gc.ca/collections/*/items` is robots-disallowed; **`dd.alpha.weather.gc.ca` is `Disallow: /`**. Path is `/{YYYYMMDD}/WXO-DD/citypage_weather/{PROV}/{HH}/` — the **dated** form (today/ flips at 00:00Z), `WXO-DD` mandatory, no `xml/` segment, filenames NOT constructible (list the hour dir, take max()). `siteList.xml` is **ISO-8859-1**, not UTF-8. Full detail KB #290553 / **#290573 (correction)**.
-  · 🔴 **FIVE encodings of absence**, and forecast **`<gust>00</gust>` means NO GUST while parsing cleanly as `0`** — it hit **290 of 310** live forecast periods, so `int(x or 0)` would fabricate a measurement on 94% of them. `<speed>calm</speed>` is a MEASUREMENT (own `wind_is_calm` column), not absence. Station coords are hemisphere-SUFFIXED strings (`"79.63W"`) — `float()` raises, stripping the letter puts Canada in Asia.
-  · 🔑 **The two fire layers cover DISJOINT halves of Canada** (stations east, hotspots west/north), so a single choropleth is a lie either way: the map switches layers and greys uncovered provinces explicitly. KB #290498.
-  · **Province codes: CWFIS emits `NF`, Datamart emits `NL`, the GeoJSON says `NL`.** `consumer/aurora_map._canon_prov` is the ONE canonicalisation boundary — a second one is how a province goes missing.
-- **Site shell + data integrity (2026-08-18, PRs #2677–#2685)**: `/blindspot`, `/divergence`, `/economy`, `/municipal`, `/weather` were STANDALONE documents (own `<html>`, own nav, own palette) — all now extend `base.html` with namespaced classes (`wtf-bs-`/`wtf-dv-`/`wtf-ec-`/`wtf-mu-`/`wtf-wx-`); guard `tests/test_site_shell_continuity.py`. The nav "LIVE · N SOURCES" counter is ONE cached context processor (it read **0** on /lobbying and /claims and disagreed 46-vs-41 elsewhere). **Three French sources were declared `en`** (La Presse 491, Le Journal de Montréal 13765, L'actualité 13766), putting **2,785 French articles on the English side** of the public `/divergence` EN-vs-FR comparison — migration 054 corrects them, identified by CONTENT not name (Edmonton Journal matches a French-name heuristic and IS English). **La Presse was ingested via a Google News proxy** — 74/180 titles were the literal `- La Presse+`; migration 056 re-points it to `lapresse.ca/actualites/rss`, adds reversible `wtf.articles.suppressed_reason`, and `ingest/persist.is_publisher_suffix_title()` rejects publisher-only titles at ingest. ⚠️ **10 of 46 sources use a Google News feed** — migration 056 reports them all on every run; the other 9 sit at 73–98% title uniqueness vs La Presse's 43.9%.
-- **CRITICAL**: NEVER pass `WTF_TECH_URL` to browser JS — always add server-side proxy route first (KB #267314).
-- **Hub**: `tools/wtf_hub/wtf_hub.html` extends base.html, teal `#00ffff`. Hub dispatch: `bias_analysis`→B.I.A.S., `fact_check`→V.E.R.I.F.Y., `geo_extraction`→L.O.C.A.L.
-- **WTF Hub Inbox** (cont-110): Inbox tab in `/tools/wtf-hub` + `/api/mail/*` routes — per-mailbox News-dept agent mail over Stalwart IMAP (read + AI triage + drafts per box), mirrors the CREED Command mail pattern; send gated on explicit human click.
-- **Refinement program (2026-07-14, PRs #2270-#2285 — ALL LIVE)**: canonical paid-tier set `consumer/tiers.py`; `/score` GET public; province map polygons+circles lean-coloured (Canadian party ramp on continuous `avg_bias`, ADR-011; world rendering owned solely by `loadArticlesGeo`); own-tenant CREED (`/api/v1/orgs/what-the-fact/scores`) + public `/governance` + live footer badge; **newsletter capture** (`wtf.newsletter_subscribers` migr 047 w/ **wtfuser GRANTs**, tokenized unsubscribe, Monday digest via the outpost-us SMTP relay 100.64.0.2:25 ADR-014, KBS CRM sync via X-Internal-Key ADR-015); **verdict chips** homepage informative-only (ADR-013: ✓ Established/⚡ Developing/⚠ Contested, grey suppressed; /news keeps grey; `descriptive_reporting` = no chip); **fact-check rubric** enum-constrained w/ `mostly_true`=attributed+consistent (#2283) + fence-tolerant `_parse_llm_json` (#2285); analyze callers MUST honor `retry_after` (#2276); **sitemap sources** `rss_feed='sitemap:<url>'` revive RSS-less publishers (#2282, Postmedia ×3); `wtf_beat_coverage` watchdog armed.
-
-- **Colour semantics converged on /article (2026-09-03, PR #3097, ADR-023)**: article.html
-  had accumulated 5 independent lean-colour maps and 4 independent verdict-colour maps
-  (V.E.R.I.F.Y. panel, kicker chip, third-party fact-checks, claim_tracker #3013's own
-  vocabulary) that disagreed with each other. Two were live defects, not drift: the band
-  label's LEFT and RIGHT poles were both red (indistinguishable), and 4 of 5 lean maps put
-  GREEN at the centre of the scale on the B.I.A.S. bar itself -- a verdict colour, implying
-  centrist = correct, exactly what lean_pill()'s own docstring had already forbidden but
-  never enforced at the call sites (same shape as #5194/#5862/#6035). Now ONE resolver per
-  axis in _archetypes.html: lean_token(bucket, fallback) -> a --wtf-* token,
-  verdict_class(verdict) -> a CSS class (established/developing/contested/unestablished;
-  partially_true->developing, misleading->contested). An unscored outlet now reads muted,
-  never centre. 27 tests, non-vacuity measured against the pre-fix file from git (4/6
-  file-scanners fail on it). Deferred: 7 hardcoded paywall CTAs on the same page -- touches
-  checkout, filed as task #6309 with an owner-decision flag (the full panel offers
-  subscribe+signin as two actions; paywall() collapses to one).
-
-- **DB separation from the Hub — COMPLETE (2026-09-05, decision #1077).** what-the-fact.com/.tech
-  now run against a dedicated `wtf-postgres` Postgres instance on Citadel (same docker-compose
-  project as wtf-consumer/wtf-tech/wtf-ingest/wtf-ingest-api), not the hub's `archie_database`.
-  All 8 schemas moved together (wtf/parliament/shared/market_watch/legal_watch/gov_watch/securities/public)
-  — investigation confirmed WTF is the sole direct-DB owner of all of them; the 4 external Watch
-  products only reach `shared` via HTTP (wtf-ingest-api), never a DB connection, so nothing else
-  broke. `WTF_DATABASE_URL` now points at `wtf-postgres` (Docker service-name DNS), not
-  `100.64.0.4`. Old hub `wtf` database kept intact for a 14-day rollback window (~2026-09-19,
-  task #6603). Coder detail + every gotcha hit (read_only breaks initdb, missing cross-role
-  grants, pg_trgm not enabled) in the vault_note "WTF now runs on its own database" and
-  mistake_learned #305494 (a secrets-file incident during the cutover). A separate
-  `KytranKatarn/kytran-what-the-fact` repo also exists now (git subtree, full history) but is
-  a history mirror only — the deployed CODE source is still `archie-platform`'s `what-the-fact/`,
-  unchanged by this migration.
-
-### WTF Hub — `wtf_hub`
-
-- **Status**: ✅ enabled · **Route**: `/tools/wtf-hub` · **Version**: 1.0
-- **Description**: Orchestration hub for what-the-fact.com — Bridge dispatch, ingest pipeline, story clustering
-- **Access**: role `ADMIN` · tier `staff` · no explicit perms
-- **Blueprint**: `tools.wtf_hub:wtf_hub_bp`
-- **Tags**: wtf, news, orchestration, ai-command
 
 ---
 

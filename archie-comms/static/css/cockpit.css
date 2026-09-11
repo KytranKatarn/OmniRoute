@@ -70,6 +70,20 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
 .ck-badge { position: absolute; top: 6px; right: 22%; background: #f6c343; color: #2a2000; font-size: 10px; font-weight: 600; border-radius: 999px; padding: 0 5px; }
 .ck-toast { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); background: #1a1a3a; border: 1px solid #3a3a70; border-radius: 8px; padding: 8px 12px; max-width: 92vw; z-index: 7; }
 .ck-toast.ck-err { border-color: rgba(239,68,68,.7); }
+/* Phase 5 terminal pane. Mirrors .ck-switch below: hidden at base because BELOW 768 the
+   tab bar (.ck-tabs) is the navigation — the switcher would be a redundant second control
+   on a phone. Promoted to flex inside the 768 block, where .ck-tabs is display:none. */
+.ck-switch-right { display: none; gap: 6px; }
+.ck-switch-right button { font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b90b3; background: none; border: 1px solid #2a2a55; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.ck-switch-right button[aria-pressed="true"] { color: #00d4ff; border-color: #00d4ff; }
+.ck-lanes { display: flex; gap: 8px; flex-wrap: wrap; }
+.ck-lanes button { font: inherit; font-size: 12px; display: flex; align-items: center; gap: 6px; color: #8b90b3; background: none; border: 1px solid #2a2a55; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.ck-lanes button.ck-lane-on { color: #00d4ff; border-color: #00d4ff; }
+/* The host marker is deliberately loud: the two lanes are otherwise indistinguishable and
+   their blast radii are not. Red, not the muted pill used for "sandboxed". */
+.ck-pill-host { color: #ff6b6b; border-color: #ff6b6b; }
+.ck-lane-state { display: flex; flex-direction: column; gap: 8px; }
+.ck-term { flex: 1; min-height: 320px; width: 100%; border: 1px solid #2a2a55; border-radius: 8px; background: #000; }
 .ck-switch { display: none; gap: 6px; margin-bottom: 8px; }
 .ck-switch button { font: inherit; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b90b3; background: none; border: 1px solid #2a2a55; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
 .ck-switch button[aria-pressed="true"] { color: #00d4ff; border-color: #00d4ff; }
@@ -94,9 +108,20 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
   #pane-work { display: none; }
   body.ck-left-work #pane-work { display: flex; }
   #pane-crew, #pane-work { grid-column: 1; grid-row: 2; }
-  #pane-builder { grid-column: 2; grid-row: 1 / span 2; }
+  /* Phase 5: the Terminal shares the RIGHT column with Code Builder. Same hazard as the
+     #pane-work pair above, so the same bare-id form (0,1,0,0) — it always loses to the
+     .ck-right-terminal show-rule (0,1,1,1) and always beats a stale .ck-show (0,0,2,0)
+     left over from the phone tab switch, regardless of source order. Do NOT "tidy" this
+     into a :not() form. Two panes visible in one grid cell is the Phase 4b defect: a grid
+     ITEM with a non-auto z-index paints as if positioned even at position:static, so the
+     later element in DOM order silently covers the earlier one. */
+  #pane-terminal { display: none; }
+  body.ck-right-terminal #pane-terminal { display: flex; }
+  body.ck-right-terminal #pane-builder { display: none; }
+  #pane-builder, #pane-terminal { grid-column: 2; grid-row: 1 / span 2; }
   #pane-approvals { display: none !important; }
   .ck-tabs { display: none; }
+  .ck-switch-right { display: flex; }
   .ck-strip { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 14px; background: rgba(246,195,67,.08); border-bottom: 1px solid rgba(246,195,67,.35); }
   .ck-strip .ck-card { width: auto; display: flex; gap: 8px; align-items: center; padding: 5px 10px; }
   .ck-strip:empty { display: none; }
@@ -109,7 +134,9 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
   #ck-agent, #ck-task { position: static; padding: 0; background: transparent; grid-column: 2; grid-row: 1 / span 2; }
   #ck-agent[hidden], #ck-task[hidden] { display: flex; }
   #ck-agent-close, #ck-task-close { display: none; }
-  #pane-builder { grid-column: 3; grid-row: 1 / span 2; }
+  /* Both right-column panes move together — if these placements ever diverge, one of them
+     silently lands in a cell nobody is looking at. */
+  #pane-builder, #pane-terminal { grid-column: 3; grid-row: 1 / span 2; }
   /* The two entry forms (#ck-hire, #ck-task-new) leave the fixed overlay layer here. They are
      NOT direct children of .ck-main, so they cannot be given a grid column the way #ck-agent /
      #ck-task are above — and left as `position: fixed; inset: 0; z-index: 6` they sit on the

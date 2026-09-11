@@ -105,7 +105,11 @@ def test_template_has_the_work_pane_switch_sheet_form_and_target_field():
         'id="ck-target"', 'name="target_path"', 'data-pane="work"',
     ):
         assert needle in html, needle
-    assert html.count('data-pane="') == 4
+    # 5 since Phase 5 added the Terminal tab. Asserted as a SET so a renamed or duplicated
+    # tab fails loudly instead of leaving a count that happens to still add up.
+    assert {m for m in re.findall(r'data-pane="([^"]+)"', html)} == {
+        "crew", "work", "builder", "approvals", "terminal",
+    }
 
 
 def test_css_places_the_work_pane_and_task_sheet_like_crew_and_agent():

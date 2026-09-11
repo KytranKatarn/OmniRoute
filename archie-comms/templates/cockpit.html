@@ -83,7 +83,14 @@
     </section>
 
     <section id="pane-builder" class="ck-pane" aria-label="Code Builder">
-      <div class="ck-pane-head"><h2>Code Builder</h2><span class="ck-pill ck-pill-cloud">cloud · ask-first</span></div>
+      <div class="ck-pane-head">
+        <h2>Code Builder</h2>
+        <div class="ck-switch-right" role="group" aria-label="Right column">
+          <button type="button" data-right="builder" aria-pressed="true">Builder</button>
+          <button type="button" data-right="terminal" aria-pressed="false">Terminal</button>
+        </div>
+        <span class="ck-pill ck-pill-cloud">cloud · ask-first</span>
+      </div>
       <form id="ck-compose" class="ck-form">
         <div class="ck-two">
           <label>Provider <select id="ck-provider"></select></label>
@@ -102,6 +109,33 @@
       <div class="ck-pane-head"><h2>Approvals <span id="ck-approvals-count" class="ck-count"></span></h2><span class="ck-muted">also in Telegram</span></div>
       <div id="ck-approvals" class="ck-approvals" role="list"></div>
     </section>
+
+    <!-- Phase 5: the two coder lanes. Terminal bytes never pass through comms — the cockpit
+         mints a one-time, lane-bound token and the iframe talks to the ttyd proxy directly. -->
+    <section id="pane-terminal" class="ck-pane" aria-label="Terminal">
+      <div class="ck-pane-head">
+        <h2>Terminal</h2>
+        <div class="ck-switch-right" role="group" aria-label="Right column">
+          <button type="button" data-right="builder" aria-pressed="false">Builder</button>
+          <button type="button" data-right="terminal" aria-pressed="true">Terminal</button>
+        </div>
+      </div>
+      <div id="ck-lanes" class="ck-lanes" role="group" aria-label="Coder lane">
+        <button type="button" data-lane="claude" class="ck-lane-on">
+          Claude <span class="ck-pill ck-pill-host">⚠ HOST · no container</span>
+        </button>
+        <button type="button" data-lane="codex">
+          Codex <span class="ck-pill">sandboxed</span>
+        </button>
+      </div>
+      <p id="ck-lane-note" class="ck-muted"></p>
+      <div id="ck-lane-state" class="ck-lane-state">
+        <button id="ck-lane-open" class="ck-btn ck-primary" type="button">Open the claude lane</button>
+      </div>
+      <!-- ONE slot: mountLane() swaps src. Deliberately starts empty — a host shell must
+           never open itself on page load. -->
+      <iframe id="ck-term" class="ck-term" title="Coder terminal" hidden></iframe>
+    </section>
   </main>
 
   <nav id="ck-tabs" class="ck-tabs" aria-label="Cockpit panes">
@@ -109,6 +143,7 @@
     <button type="button" data-pane="work">Work</button>
     <button type="button" data-pane="builder">Builder</button>
     <button type="button" data-pane="approvals">Approvals <span id="ck-tab-badge" class="ck-badge" hidden></span></button>
+    <button type="button" data-pane="terminal">Terminal</button>
   </nav>
 
   <div id="ck-toast" class="ck-toast" role="status" aria-live="polite" hidden></div>

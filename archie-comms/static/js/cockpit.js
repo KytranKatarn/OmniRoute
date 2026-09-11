@@ -53,7 +53,7 @@
   const errText = (res) => (res.data && (res.data.error || res.data.status)) || ('HTTP ' + res.status);
 
   // ---- panes / tabs ----------------------------------------------------------------
-  const PANES = { crew: 'pane-crew', work: 'pane-work', builder: 'pane-builder', approvals: 'pane-approvals' };
+  const PANES = { crew: 'pane-crew', work: 'pane-work', builder: 'pane-builder', approvals: 'pane-approvals', terminal: 'pane-terminal' };
   let leftChoice = 'crew';
   try { leftChoice = localStorage.getItem('ck-left') === 'work' ? 'work' : 'crew'; } catch (e) { /* private mode */ }
   // Nothing may fetch before the boot block runs: `work` and `workLoaded` are declared further
@@ -74,6 +74,94 @@
     if (booted && leftChoice === 'work' && !workLoaded) loadWork(true);
   }
   setLeft(leftChoice, false);
+
+  // ---- right column: Builder <-> Terminal (Phase 5) ---------------------------------
+  // At >=768 .ck-tabs is display:none, so the tab bar cannot reach the Terminal on desktop
+  // — this switcher is the only affordance there, exactly as #ck-switch is for the left
+  // column. Below 768 it is hidden and the 5th tab does the job instead.
+  let rightChoice = 'builder';
+  try { rightChoice = localStorage.getItem('ck-right') === 'terminal' ? 'terminal' : 'builder'; } catch (e) { /* private mode */ }
+  // Declared ABOVE setRight on purpose: setRight runs immediately below, and a `let` it
+  // referenced from further down would be in its temporal dead zone — the same trap the
+  // `booted` guard exists for in setLeft.
+  let lanesLoaded = false;
+  function setRight(name, persist) {
+    rightChoice = name === 'terminal' ? 'terminal' : 'builder';
+    // Persist ONLY on a deliberate click — same reason as setLeft: arriving at /cockpit#…
+    // also runs the show path, and writing there silently reset a saved preference.
+    if (persist) { try { localStorage.setItem('ck-right', rightChoice); } catch (e) { /* ignore */ } }
+    document.body.classList.toggle('ck-right-terminal', rightChoice === 'terminal');
+    document.querySelectorAll('.ck-switch-right button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.right === rightChoice)));
+    // From tablet up the Terminal is shown by body.ck-right-terminal, NOT by a pane tab, so
+    // showPane('terminal') cannot be the only loader — with a saved 'terminal' preference the
+    // column would render with no lane status and no error. Same shape as setLeft/loadWork.
+    if (rightChoice === 'terminal' && !lanesLoaded) { lanesLoaded = true; loadLanes(); }
+  }
+  setRight(rightChoice, false);
+  document.querySelectorAll('.ck-switch-right button').forEach((b) => b.addEventListener('click', () => setRight(b.dataset.right, true)));
+
+  // ---- terminal lanes ---------------------------------------------------------------
+  // The cockpit mints a one-time, LANE-BOUND token; the iframe then talks to the ttyd proxy
+  // directly. No terminal byte passes through comms — pointing at the existing proxy is what
+  // keeps this from becoming a second gate for shell access.
+  let laneChoice = 'claude';
+  let laneStatus = {};
+
+  function renderLaneNote() {
+    const cfg = laneStatus[laneChoice] || {};
+    const bits = [];
+    if (cfg.sandboxed === false) bits.push('This is the HOST shell — no container boundary.');
+    else if (cfg.sandboxed === true) bits.push('Sandboxed container.');
+    // busy is null = UNKNOWN. The seat is not observable from outside without opening a
+    // websocket, which would CONSUME it when free, so never render this as availability.
+    if (cfg.single_seat) bits.push('Seat state unknown — one viewer at a time.');
+    if (cfg.reachable === false) bits.push('This lane is not responding.');
+    $('ck-lane-note').textContent = bits.join(' ');
+  }
+
+  function setLane(lane) {
+    laneChoice = lane === 'codex' ? 'codex' : 'claude';
+    document.querySelectorAll('#ck-lanes button').forEach((b) => b.classList.toggle('ck-lane-on', b.dataset.lane === laneChoice));
+    // Switching lanes tears the old terminal down: one slot, never two live shells.
+    const frame = $('ck-term');
+    frame.removeAttribute('src'); frame.hidden = true;
+    $('ck-lane-state').hidden = false;
+    $('ck-lane-open').textContent = 'Open the ' + laneChoice + ' lane';
+    renderLaneNote();
+  }
+
+  async function loadLanes() {
+    const res = await api('/api/cockpit/terminal/lanes');
+    if (!res.ok) { $('ck-lane-note').textContent = res.status === 403 ? 'A terminal needs an admin account.' : 'Lane status unavailable.'; return; }
+    (res.data.lanes || []).forEach((l) => { laneStatus[l.lane] = l; });
+    renderLaneNote();
+  }
+
+  async function mountLane(lane) {
+    const state = $('ck-lane-state');
+    state.textContent = 'Opening the ' + lane + ' lane…';
+    const res = await api('/api/cockpit/terminal/' + encodeURIComponent(lane) + '/token', { method: 'POST' });
+    if (!res.ok) {
+      // Honest reason, never a blank frame (spec section 6).
+      const why = res.status === 403 ? 'A terminal needs an admin account.'
+        : res.status === 404 ? 'That lane does not exist.'
+        : (res.data && res.data.error) || 'Could not open the lane.';
+      state.textContent = '';
+      const msg = mk('p', 'ck-muted', why);
+      const retry = mk('button', 'ck-btn', 'Reconnect');
+      retry.type = 'button';
+      retry.addEventListener('click', () => mountLane(lane));
+      state.appendChild(msg); state.appendChild(retry);
+      return;
+    }
+    const frame = $('ck-term');
+    frame.src = res.data.url;
+    frame.hidden = false;
+    state.hidden = true;
+  }
+
+  document.querySelectorAll('#ck-lanes button').forEach((b) => b.addEventListener('click', () => setLane(b.dataset.lane)));
+  $('ck-lane-open').addEventListener('click', () => mountLane(laneChoice));
   function showPane(name) {
     Object.keys(PANES).forEach((k) => { $(PANES[k]).classList.toggle('ck-show', k === name); });
     document.querySelectorAll('#ck-tabs button').forEach((b) => b.classList.toggle('ck-tab-on', b.dataset.pane === name));
@@ -81,6 +169,10 @@
     if (name !== 'crew') { $('ck-agent').classList.remove('ck-show'); $('ck-hire').hidden = true; }
     if (name !== 'work') { $('ck-task').classList.remove('ck-show'); $('ck-task-new').hidden = true; clearInterval(taskWatch); }
     if (name === 'work' && !workLoaded) loadWork(true);
+    // Leaving the pane tears the shell down. A live terminal left running inside a hidden
+    // pane is a websocket nobody can see and a session nobody knows is open.
+    if (name !== 'terminal') { const f = $('ck-term'); if (f && !f.hidden) { f.removeAttribute('src'); f.hidden = true; $('ck-lane-state').hidden = false; } }
+    if (name === 'terminal' && !lanesLoaded) { lanesLoaded = true; loadLanes(); }
   }
   document.querySelectorAll('#ck-switch button').forEach((b) => b.addEventListener('click', () => { setLeft(b.dataset.left, true); location.hash = b.dataset.left; showPane(b.dataset.left); }));
   document.querySelectorAll('#ck-tabs button').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.pane; showPane(b.dataset.pane); }));

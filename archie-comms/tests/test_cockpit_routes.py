@@ -78,11 +78,32 @@ def test_page_renders_for_a_session():
     assert r.status_code == 200 and b'id="pane-crew"' in r.data and b'id="pane-builder"' in r.data
 
 
-def test_cockpit_blueprint_has_nineteen_rules():
+def test_cockpit_blueprint_exposes_every_expected_rule():
+    """Named rules, not a magic total.
+
+    This was `..._has_nineteen_rules` and went red the moment Phase 5 added the two
+    terminal routes — a count in the assertion (and in the NAME) only ever gets bumped,
+    which teaches the next person to bump it rather than look. What matters is that each
+    rule below is present and that nothing was silently dropped.
+    """
     rules = [r.rule for r in _app().url_map.iter_rules() if r.endpoint.startswith("cockpit.")]
-    assert len(rules) == 19, sorted(rules)
-    for r in ("/api/cockpit/projects", "/api/cockpit/tasks", "/api/cockpit/tasks/<int:task_id>", "/api/cockpit/tasks/<int:task_id>/<action>", "/api/cockpit/build/<int:job_id>/apply"):
-        assert r in rules
+    for r in (
+        "/cockpit",
+        "/api/cockpit/projects",
+        "/api/cockpit/tasks",
+        "/api/cockpit/tasks/<int:task_id>",
+        "/api/cockpit/tasks/<int:task_id>/<action>",
+        "/api/cockpit/build/<int:job_id>/apply",
+        # Phase 5
+        "/api/cockpit/terminal/lanes",
+        "/api/cockpit/terminal/<lane>/token",
+    ):
+        assert r in rules, f"{r} missing from {sorted(rules)}"
+    # NOT `len(rules) == len(set(rules))`: the same path is legitimately registered twice
+    # with different methods (/api/cockpit/tasks is GET=list and POST=create). The real
+    # invariant is that no ENDPOINT is registered twice.
+    endpoints = [r.endpoint for r in _app().url_map.iter_rules() if r.endpoint.startswith("cockpit.")]
+    assert len(endpoints) == len(set(endpoints)), f"duplicate endpoint: {sorted(endpoints)}"
 
 
 def test_task_routes_are_401_without_a_session():

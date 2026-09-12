@@ -142,6 +142,22 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
   .ck-strip { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 14px; background: rgba(246,195,67,.08); border-bottom: 1px solid rgba(246,195,67,.35); }
   .ck-strip .ck-card { width: auto; display: flex; gap: 8px; align-items: center; padding: 5px 10px; }
   .ck-strip:empty { display: none; }
+  /* The approvals banner is a STRIP, not a page section. It wraps one card per pending
+     approval with no bound, so its height is set by the backlog rather than the design:
+     measured at 27 pending = 1013px, which on its own pushed the Terminal pane to
+     top:1067 with 0px visible. Bound it and let it scroll in place. */
+  .ck-strip { max-height: 20vh; overflow-y: auto; }
+
+  /* Same failure from the other end. #ck-roster grows one row per crew member (50 rows =
+     3493px, and "Load more" adds to it), and because the right-column panes span BOTH grid
+     rows, a tall left column drags #pane-terminal / #pane-builder down with it — the pane
+     measured 4046px tall with none of it on screen. Cap the LIST, not the pane, so the
+     heading, search box and filter chips stay pinned and only the roster scrolls.
+     ⚠️ min-height:0 on .ck-pane is load-bearing: a column flex item defaults to
+     min-height:auto and refuses to shrink below its content, so a child's overflow-y
+     never engages and the max-height silently does nothing. */
+  .ck-pane { min-height: 0; }
+  #ck-roster { max-height: 52vh; overflow-y: auto; overscroll-behavior: contain; }
 }
 @media (min-width: 1024px) {
   .ck-main { grid-template-columns: 320px 1fr 400px; padding-bottom: 20px; }

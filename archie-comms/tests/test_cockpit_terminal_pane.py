@@ -236,3 +236,55 @@ def test_the_codex_seat_is_never_reported_as_free():
         "do not branch on busy === false — the API never asserts the seat is free"
     )
     assert not re.search(r"['\"]seat[^'\"]*free", js, re.I), "never render the seat as free"
+
+
+# ---------------------------------------------------------------------------
+# Pane heights — the Terminal has to be REACHABLE, not merely present
+# ---------------------------------------------------------------------------
+
+
+def test_the_roster_and_strip_are_bounded_in_the_desktop_block():
+    """Both grow with DATA, not with the design, and drag the Terminal pane off screen.
+
+    Measured live at 1280x900 before this bound: .ck-strip 1013px at 27 pending approvals
+    and #ck-roster 3493px at 50 crew rows, which put #pane-terminal at top:810 with a
+    height of 4683 and only 90px on screen. The right-column panes span BOTH grid rows, so
+    a tall left column is what moves them — capping the pane instead of the list would hide
+    the search box and filter chips with it.
+    """
+    block = _media_block(_read(CSS), "768px")
+    roster = re.search(r"#ck-roster\s*\{[^}]*\}", block)
+    assert roster, "#ck-roster must be bounded inside the desktop block"
+    assert "max-height" in roster.group(0), "#ck-roster needs a max-height or it grows unbounded"
+    assert "overflow-y: auto" in roster.group(0), (
+        "#ck-roster must SCROLL, not clip — a bound without overflow hides crew members"
+    )
+    strip = re.findall(r"\.ck-strip\s*\{[^}]*\}", block)
+    assert any("max-height" in s and "overflow-y: auto" in s for s in strip), (
+        ".ck-strip must be bounded AND scrollable — at 27 approvals it alone filled the viewport"
+    )
+
+
+def test_min_height_zero_is_present_on_the_pane():
+    """Load-bearing, and silently so.
+
+    A column flex item defaults to min-height:auto and refuses to shrink below its content,
+    so #ck-roster's overflow-y never engages and its max-height does nothing at all. The
+    bound would look correct in the stylesheet and have no effect in the browser.
+    """
+    block = _media_block(_read(CSS), "768px")
+    assert re.search(r"\.ck-pane\s*\{[^}]*min-height:\s*0", block), (
+        "min-height:0 on .ck-pane is what makes the roster bound take effect — do not remove it"
+    )
+
+
+def test_the_bounds_do_not_leak_below_the_desktop_breakpoint():
+    """On a phone each pane is full-screen and the page itself scrolls — capping the list
+    there would put a scroll region inside a scroll region for no reason. Verified live at
+    390: max-height resolves to `none` and overflow-y to `visible`."""
+    css = _read(CSS)
+    before = css[: css.index("@media (min-width: 768px)")]
+    assert "#ck-roster" not in before, "the roster bound must stay inside the desktop block"
+    assert not re.search(r"\.ck-strip\s*\{[^}]*max-height", before), (
+        "the strip bound must stay inside the desktop block"
+    )

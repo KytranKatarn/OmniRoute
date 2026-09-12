@@ -33,3 +33,49 @@ def test_negative_input_raises_value_error():
         tu.format_duration(-1)
     with pytest.raises(ValueError):
         tu.format_duration(-1000)
+
+
+def test_parse_duration_accepts_emitted_forms():
+    assert tu.parse_duration("500ms") == 500
+    assert tu.parse_duration("1.5s") == 1500
+    assert tu.parse_duration("2m") == 120000
+    assert tu.parse_duration("1m 5s") == 65000
+
+
+def test_parse_duration_milliseconds_edge_cases():
+    assert tu.parse_duration("0ms") == 0
+    assert tu.parse_duration("999ms") == 999
+
+
+def test_parse_duration_decimal_seconds():
+    assert tu.parse_duration("1.0s") == 1000
+    assert tu.parse_duration("59.9s") == 59900
+
+
+def test_parse_duration_minutes_with_and_without_seconds():
+    assert tu.parse_duration("1m") == 60000
+    assert tu.parse_duration("2m 5s") == 125000
+    assert tu.parse_duration("60m") == 3600000
+
+
+def test_parse_duration_is_inverse_of_format_duration():
+    for ms in range(0, 3_600_000):
+        rendered = tu.format_duration(ms)
+        assert tu.format_duration(tu.parse_duration(rendered)) == rendered
+
+
+def test_parse_duration_rejects_unparseable_input():
+    with pytest.raises(ValueError):
+        tu.parse_duration("")
+    with pytest.raises(ValueError):
+        tu.parse_duration("   ")
+    with pytest.raises(ValueError):
+        tu.parse_duration("5")
+    with pytest.raises(ValueError):
+        tu.parse_duration("foo")
+    with pytest.raises(ValueError):
+        tu.parse_duration("1h")
+    with pytest.raises(ValueError):
+        tu.parse_duration("-500ms")
+    with pytest.raises(ValueError):
+        tu.parse_duration("2m 5x")

@@ -22,6 +22,7 @@ Examples:
   age = format_local(row["created_at"], "%b %d, %I:%M %p")  # → "May 5, 02:32 PM"
 """
 
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -105,3 +106,44 @@ def format_duration(ms: int) -> str:
     if secs:
         return f"{minutes}m {secs}s"
     return f"{minutes}m"
+
+
+# Compact duration grammar, as emitted by format_duration().
+#   500ms | 1.5s | 1m 5s | 2m
+_DURATION_RE = re.compile(r"(?:\s*(?P<minutes>\d+)m\s*)?(?:" r"(?P<seconds>\d+(?:\.\d+)?)s|(?P<mills>\d+)ms)?")
+
+
+def parse_duration(text: str) -> int:
+    """Parse a compact duration string into milliseconds.
+
+    Inverse of :func:`format_duration` — accepts the exact forms it emits:
+
+    * ``"500ms"``      → 500
+    * ``"1.5s"``       → 1500
+    * ``"1m 5s"``      → 65000
+    * ``"2m"``         → 120000
+
+    Whitespace around components is tolerated, but empty input and any
+    string that is not a full compact duration (e.g. ``"5"``, ``"1h"``,
+    ``"foo"``) raises :class:`ValueError`."""
+    if not isinstance(text, str):
+        raise ValueError(f"cannot parse duration from non-string: {text!r}")
+    text = text.strip()
+    if not text:
+        raise ValueError("cannot parse empty string as a duration")
+    match = _DURATION_RE.fullmatch(text)
+    if match is None:
+        raise ValueError(f"cannot parse duration: {text!r}")
+    minutes = match.group("minutes")
+    seconds = match.group("seconds")
+    mills = match.group("mills")
+    if minutes is None and seconds is None and mills is None:
+        raise ValueError(f"cannot parse duration: {text!r}")
+    total_ms = 0
+    if minutes:
+        total_ms += int(minutes) * 60_000
+    if seconds:
+        total_ms += int(round(float(seconds) * 1000))
+    if mills:
+        total_ms += int(mills)
+    return total_ms

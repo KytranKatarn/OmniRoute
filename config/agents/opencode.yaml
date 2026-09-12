@@ -1,0 +1,76 @@
+# opencode lane agent config (#6736). Mirrors config/agents/codex.yaml and is read by
+# the SAME deny-by-default guard, services/agents/codex_scope.check_diff_paths — the
+# guard takes (paths, cfg) and knows nothing about which agent it is guarding, so there
+# is one scope implementation rather than two that can drift apart.
+#
+# The lane itself is credential-free by design (opencode/Dockerfile.terminal: "the
+# CONTAINER is the isolation boundary … no host filesystem, no platform DB credentials,
+# its own volumes, cap_drop ALL"). scripts/agents/run-opencode-task.sh keeps it that way:
+# the container edits, the HOST verifies and ships.
+opencode:
+  model: "auto/coding:free"       # via OmniRoute; informational for telemetry
+  auth_mode: "omniroute"          # no paid key — owner directive, free tier only
+  max_concurrent: 1
+  max_runtime_sec: 1800           # 30 min hard cap per task
+  max_files_changed: 25
+
+  # SCOPE. Deliberately the SAME low-data module set already approved for codex,
+  # rather than a new surface invented for a second agent: those six modules were
+  # chosen because they hold no real production data, and that reasoning does not
+  # change with the agent. media_studio / game_studio / media_hub stay OUT for the
+  # documented reason — real prod rows, DB isolation first.
+  #
+  # Widening this is an OWNER DECISION, not a convenience. opencode's measured work
+  # quality is good (2026-09-12: a correct format_duration with non-vacuous tests, and
+  # a repo-wide recon more complete than the grep written to check it) — but quality
+  # is an argument for MORE tasks inside the scope, never for a wider blast radius.
+  allowed_paths:
+    # module code dirs
+    - "platform_v2/tools/fitness/"
+    - "platform_v2/tools/family_tree/"
+    - "platform_v2/tools/therapy/"
+    - "platform_v2/tools/faith/"
+    - "platform_v2/tools/brainstorm/"
+    - "platform_v2/tools/doc/"
+    # module UI in the shared trees
+    - "platform_v2/templates/tools/fitness.html"
+    - "platform_v2/templates/tools/therapy.html"
+    - "platform_v2/templates/tools/faith.html"
+    - "platform_v2/templates/tools/brainstorm.html"
+    - "platform_v2/templates/tools/doc.html"
+    - "platform_v2/static/js/fitness-chat.js"
+    - "platform_v2/static/js/therapy-chat.js"
+    - "platform_v2/static/js/faith-chat.js"
+    - "platform_v2/static/js/family-tree-chat.js"
+    - "platform_v2/static/js/doc-chat.js"
+    - "platform_v2/static/css/fitness.css"
+    - "platform_v2/static/css/therapy.css"
+    # tests — where a coder lane earns its keep, and where opencode has already
+    # produced non-vacuous work (PR #3312)
+    - "platform_v2/tests/"
+    # pure, dependency-free helpers it has demonstrated on. Named individually, not
+    # as services/, because that directory also holds agent_service, delegation and
+    # the backup path.
+    - "platform_v2/services/time_utils.py"
+
+  blocked_globs:                  # always denied even under an allowed path
+    - "*.env"
+    - ".env*"
+    - "docker-compose*"
+    - "scripts/dr/*"
+    - ".github/*"
+    # the lane must never edit its own cage — scope config, runner, or image
+    - "config/agents/*"
+    - "scripts/agents/*"
+    - "opencode/*"
+
+  preflight:
+    - "git status --porcelain"    # the lane must be clean before a task starts
+  postflight:
+    - "git diff --check"          # whitespace / conflict markers
+    - "pre-commit run --files {changed}"
+
+  # The lane gets NO secrets. Its only outbound reach is OmniRoute on its own
+  # network (docker-compose: opencode_terminal_net), and it holds no git credential
+  # in either direction — see the runner's header for why that is deliberate.
+  env_allowlist: ["HOME", "PATH", "TERM", "LANG", "OPENCODE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"]

@@ -234,6 +234,14 @@ def _node_allows_model(extra: dict[str, Any], model: str) -> bool:
     one that serves too much, and this mirrors node_has_model's empty-list rule.
     It NARROWS only: allowlisting a model never makes it fit, because the capacity
     checks still run afterwards.
+
+    ⚠️ CALLED FROM BOTH can_node_run_model AND score_node_for_model, and it has to
+    stay that way. can_node_run_model is consulted only on the PREFERRED-PINNED
+    dispatch branch; UNPINNED work — the overwhelming majority of the queue — picks
+    its node through score_node_for_model. Wiring this into only the first left
+    USS-246 serving 28 dispatches of a model it was supposedly pinned away from,
+    while every predicate reported the pin correctly. `test_both_gates_agree_for_
+    every_model_on_a_pinned_node` exists to make that divergence a red test.
     """
     allow = extra.get("model_allowlist")
     if not isinstance(allow, (list, tuple, set)) or not allow:
@@ -299,6 +307,8 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     extra = node.get("extra_capabilities") or {}
     if not isinstance(extra, dict):
         extra = {}
+    if not _node_allows_model(extra, model):
+        return None  # per-node pin — MUST mirror can_node_run_model, see below
 
     gpu_avail = bool(node.get("gpu_available"))
     gpu_vram = float(_safe(node.get("gpu_vram_gb"), 0))

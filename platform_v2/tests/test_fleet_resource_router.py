@@ -541,3 +541,38 @@ def test_allowlist_does_not_override_a_hard_capacity_refusal():
     tiny["ram_gb"] = 4.0
     tiny["extra_capabilities"] = {"max_model_gb": 4, "model_allowlist": ["gemma3:12b"]}
     assert can_node_run_model(tiny, "gemma3:12b") is False
+
+
+def test_the_scorer_disqualifies_a_non_allowlisted_model_too():
+    """THE BUG THIS FIXES. can_node_run_model is only consulted on the PREFERRED-PINNED
+    dispatch branch; UNPINNED work — which is the overwhelming majority — selects a node
+    through score_node_for_model instead. Wiring the allowlist into only one of the two
+    left USS-246 taking 28 qwen2.5:1.5b dispatches it was supposedly pinned away from.
+
+    The two functions are deliberately parallel (can_node_run_model's docstring says it
+    "mirrors the disqualify branch of score_node_for_model"); a guard added to one and not
+    the other is how a pin silently does nothing.
+    """
+    node = _with_allowlist(STARSHIP_246, ["qwen2.5:7b"])
+    assert score_node_for_model(node, "qwen2.5:7b") is not None
+    assert score_node_for_model(node, "qwen2.5:1.5b") is None
+
+
+def test_the_scorer_is_unaffected_without_an_allowlist():
+    """Fail-open on the scoring path too — every other node must score exactly as before."""
+    node = _with_allowlist(STARSHIP_246, None)
+    assert score_node_for_model(node, "qwen2.5:1.5b") is not None
+    assert score_node_for_model(HUB, "qwen2.5:1.5b") is not None
+
+
+def test_both_gates_agree_for_every_model_on_a_pinned_node():
+    """The invariant that keeps them parallel: if one gate disqualifies, so must the other.
+    Divergence is the failure mode — it looks configured and routes anyway."""
+    node = _with_allowlist(STARSHIP_246, ["qwen2.5:7b"])
+    for model in ("qwen2.5:7b", "qwen2.5:1.5b", "mistral:7b", "llama3.2:3b"):
+        capacity_ok = can_node_run_model(node, model)
+        scored = score_node_for_model(node, model) is not None
+        assert capacity_ok == scored, (
+            f"{model}: can_node_run_model={capacity_ok} but scorer={scored} — "
+            f"the two gates must agree or a pin silently leaks"
+        )

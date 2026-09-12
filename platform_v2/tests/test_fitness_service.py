@@ -3,15 +3,34 @@
 from __future__ import annotations
 
 import sys
+import types
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.modstub import stub_module_scoped
+
 PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 if str(PLATFORM_ROOT) not in sys.path:
     sys.path.insert(0, str(PLATFORM_ROOT))
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolate_fitness_package():
+    """Load fitness_service without running tools/fitness/__init__.py.
+
+    The package __init__ imports routes.py, which imports the department dispatcher,
+    which does `from db import _get_db_password` — a bare ``db`` that only resolves at
+    runtime once ai_bridge/ is on sys.path. These unit tests exercise only the service
+    layer, so we synthesize the tools.fitness package (pointing at the real directory)
+    and skip __init__ entirely; submodule imports still hit the real service file.
+    """
+    pkg = types.ModuleType("tools.fitness")
+    pkg.__path__ = [str(PLATFORM_ROOT / "tools" / "fitness")]
+    with stub_module_scoped("tools.fitness", pkg):
+        yield
 
 
 def _mock_cursor(row=None, rows=None, rowcount=0):

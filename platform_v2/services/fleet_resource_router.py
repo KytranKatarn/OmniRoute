@@ -198,6 +198,50 @@ def gpu_perf_weight(gpu_model) -> float:
     return 0.3
 
 
+def _canon_tag(name: str) -> str:
+    """Drop a trailing ':latest' so both spellings of one model compare equal.
+
+    Mirrors node_has_model's _norm — a node reports 'dolphin3:latest' via /api/tags
+    while an operator writing an allowlist by hand will type 'dolphin3'.
+    """
+    if isinstance(name, str) and name.endswith(":latest"):
+        return name[:-7]
+    return name
+
+
+def _node_allows_model(extra: dict[str, Any], model: str) -> bool:
+    """Per-node pin: when `extra_capabilities.model_allowlist` names models, only
+    those may run on this node.
+
+    WHY THIS EXISTS. The fleet-wide `model_hardware_blocklist()` is the wrong tool
+    for a per-node problem: qwen2.5:7b and qwen2.5:1.5b both run fine on the hub, so
+    blocking either fleet-wide deletes the good path (the 2026-08-21 gemma3 reversal
+    is the precedent). And capacity CANNOT express it — `can_node_run_model`'s GPU
+    branch returns True for any prefer_gpu model that fits the card, before
+    `max_model_gb` is even read, so a 1.4GB model can never be refused from an 8GB
+    node on size.
+
+    WHY HERE. This one function gates BOTH dispatch routing AND the warm-up drain
+    (#5862 / PR #2738). USS-246's 8GB card holds one model in practice, and the
+    failure always follows whichever model is NOT resident — a switch costs 37s+ or
+    hangs outright, and each hang ties up the hub's single-instance
+    model_dispatch_worker. Removing the model from the node does not hold: the
+    warm-up path re-pulls it and the reconciler then recreates its registry row from
+    the live node (KB #315652). Gating here stops both arms.
+
+    FAILS OPEN in every uncertain direction — absent, empty, or malformed all mean
+    "no restriction". A node that silently serves nothing is far more expensive than
+    one that serves too much, and this mirrors node_has_model's empty-list rule.
+    It NARROWS only: allowlisting a model never makes it fit, because the capacity
+    checks still run afterwards.
+    """
+    allow = extra.get("model_allowlist")
+    if not isinstance(allow, (list, tuple, set)) or not allow:
+        return True
+    wanted = _canon_tag(model)
+    return any(_canon_tag(m) == wanted for m in allow if isinstance(m, str))
+
+
 def can_node_run_model(node: dict[str, Any], model: str) -> bool:
     """Capacity-only check: can this node physically hold *model*?
 
@@ -219,6 +263,8 @@ def can_node_run_model(node: dict[str, Any], model: str) -> bool:
     extra = node.get("extra_capabilities") or {}
     if not isinstance(extra, dict):
         extra = {}
+    if not _node_allows_model(extra, model):
+        return False  # per-node pin — see _node_allows_model()
     gpu_avail = bool(node.get("gpu_available"))
     gpu_vram = float(_safe(node.get("gpu_vram_gb"), 0))
     ram_gb = float(_safe(node.get("ram_gb"), 0))

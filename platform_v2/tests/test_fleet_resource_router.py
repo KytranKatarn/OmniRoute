@@ -447,3 +447,97 @@ def test_model_hardware_blocklist_default_is_empty():
     import services.fleet_resource_router as frr
 
     assert frr._MODEL_BLOCKLIST_DEFAULT == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# Per-node model allowlist (#6714)
+#
+# The FLEET-WIDE blocklist is the wrong tool for a per-node problem: mistral:7b
+# and qwen2.5:7b both run fine on the hub, so blocking either there deletes the
+# good path (the 2026-08-21 gemma3 reversal is the precedent). This is the
+# per-node analogue, and it lives in can_node_run_model because that one
+# function gates BOTH dispatch routing AND the warm-up drain — the two arms of
+# the ratchet that put a removed model back on USS-246 within 45 minutes.
+# ---------------------------------------------------------------------------
+
+STARSHIP_246 = {
+    "node_id": "starship_76583490e36955ab",
+    "node_name": "Starship - Defiant - USS-246",
+    "gpu_available": True,
+    "gpu_vram_gb": 8.0,
+    "ram_gb": 29.4,
+    "current_load": 0,
+    "max_concurrent": 4,
+    "priority": 10,
+    "last_heartbeat": _fresh_hb(),
+    "extra_capabilities": {},
+}
+
+
+def _with_allowlist(node, allowlist):
+    clone = dict(node)
+    extra = dict(clone.get("extra_capabilities") or {})
+    if allowlist is None:
+        extra.pop("model_allowlist", None)
+    else:
+        extra["model_allowlist"] = allowlist
+    clone["extra_capabilities"] = extra
+    return clone
+
+
+def test_absent_allowlist_restricts_nothing():
+    """Fail-OPEN, like the fleet-wide blocklist. A node with no allowlist behaves
+    exactly as before — this is what keeps the change inert for every other node."""
+    node = _with_allowlist(STARSHIP_246, None)
+    assert can_node_run_model(node, "qwen2.5:7b") is True
+    assert can_node_run_model(node, "qwen2.5:1.5b") is True
+
+
+def test_allowlisted_model_still_runs():
+    node = _with_allowlist(STARSHIP_246, ["qwen2.5:7b"])
+    assert can_node_run_model(node, "qwen2.5:7b") is True
+
+
+def test_non_allowlisted_model_is_refused_even_though_it_physically_fits():
+    """The whole point. qwen2.5:1.5b fits an 8GB card trivially, so capacity can
+    never refuse it — the GPU branch returns True before max_model_gb is even
+    read. Only the allowlist can express 'this node serves one model'."""
+    node = _with_allowlist(STARSHIP_246, ["qwen2.5:7b"])
+    assert can_node_run_model(_with_allowlist(STARSHIP_246, None), "qwen2.5:1.5b") is True
+    assert can_node_run_model(node, "qwen2.5:1.5b") is False
+
+
+def test_empty_allowlist_is_treated_as_unset_not_as_deny_all():
+    """An empty list is far more likely to be a config accident than an intent to
+    idle a GPU node, and a node that silently serves nothing is the expensive
+    failure. Same fail-open reasoning as node_has_model's empty model list."""
+    for empty in ([], (), ""):
+        node = _with_allowlist(STARSHIP_246, empty)
+        assert can_node_run_model(node, "qwen2.5:1.5b") is True
+
+
+def test_a_malformed_allowlist_never_disqualifies():
+    """A string or dict where a list belongs must not silently deny everything."""
+    for junk in ("qwen2.5:7b", {"qwen2.5:7b": True}, 7):
+        node = _with_allowlist(STARSHIP_246, junk)
+        assert can_node_run_model(node, "qwen2.5:1.5b") is True
+
+
+def test_allowlist_tolerates_the_latest_tag_on_either_side():
+    """node_has_model normalises ':latest'; an allowlist that did not would refuse
+    a model the node genuinely serves."""
+    node = _with_allowlist(STARSHIP_246, ["dolphin3"])
+    assert can_node_run_model(node, "dolphin3:latest") is True
+    node2 = _with_allowlist(STARSHIP_246, ["dolphin3:latest"])
+    assert can_node_run_model(node2, "dolphin3") is True
+
+
+def test_allowlist_does_not_override_a_hard_capacity_refusal():
+    """Allowlisting is a NARROWING filter, never a grant. Listing a model that
+    cannot fit must not make it fit."""
+    tiny = dict(STARSHIP_246)
+    tiny["gpu_available"] = False
+    tiny["gpu_vram_gb"] = None
+    tiny["ram_gb"] = 4.0
+    tiny["extra_capabilities"] = {"max_model_gb": 4, "model_allowlist": ["gemma3:12b"]}
+    assert can_node_run_model(tiny, "gemma3:12b") is False

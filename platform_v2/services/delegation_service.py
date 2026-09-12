@@ -27,7 +27,7 @@ import logging
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from database import get_db_cursor
 
@@ -1057,6 +1057,70 @@ def render_conversation(turns: Any) -> str:
         who = "User" if turn["role"] == "user" else "You"
         lines.append(f"  {who}: {turn['content']}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Reading a finished delegation back out (#6733)
+# ---------------------------------------------------------------------------
+#
+# The delegated answer has always landed in `work_notes`, but only a human could
+# use it: the status endpoint returned every note glued together -- dispatch
+# banner, retries and the reply in one blob. The engine (and any other caller
+# that wants to put the answer in front of whoever asked) needs the reply NAMED.
+#
+# These are pure, and they live here rather than in app.py so the vocabulary has
+# exactly one definition. A caller that keeps a private copy of the terminal set
+# drifts the moment a status is added, and the failure is silent: it polls a
+# finished task forever, or stops early on one still running.
+
+# Written by the paths below in this module:
+#   completed  -- the two record-result paths
+#   cancelled  -- dismissed, or failed past the retry cap
+#   blocked    -- the reclaimer's retries-EXHAUSTED branch. Note the reclaimer
+#                 flips back to 'pending' while retries remain, so reaching
+#                 'blocked' really is the end of the line, not a pause.
+# Everything else ('pending', 'in_progress') is still moving.
+DELEGATION_TERMINAL_STATUSES = frozenset({"completed", "cancelled", "blocked"})
+
+# The note type that carries the reply, per execution path.
+DELEGATION_RESULT_NOTE_TYPES = ("delegation_output", "delegation_result")
+
+
+def is_delegation_terminal(status: Any) -> bool:
+    """True when a delegated task has stopped moving. See the set above."""
+    return status in DELEGATION_TERMINAL_STATUSES
+
+
+def resolve_delegation_result(
+    output_note: Optional[str], result_note: Optional[str]
+) -> Tuple[Optional[str], Optional[str]]:
+    """Pick the note that IS the answer. Returns (text, note_type-or-None).
+
+    Which note carries the reply depends on how the task executed, and the two
+    paths disagree. Measured 2026-09-12 over 451 completed delegations:
+
+      * LLM dispatch (72 of them) -- ``delegation_result`` is only a banner
+        ("Dispatched to agent=M.O.D.U.L. model=qwen2.5:7b") and the reply is in
+        ``delegation_output``.
+      * known-tool shortcut (379) -- there is NO ``delegation_output`` at all,
+        and ``delegation_result`` IS the whole answer
+        ("Documented PR #3309 -> KB vault_note #315657").
+
+    So output-then-result is not a preference, it is the only ordering correct
+    on both paths: reading ``delegation_output`` alone comes back empty on 84%
+    of tasks, and reading ``delegation_result`` alone hands an LLM caller a
+    dispatch banner and calls it the reply.
+
+    Whitespace-only is treated as absent -- an empty string presented as "the
+    answer" is the masking failure this whole change exists to remove.
+    """
+    for text, note_type in (
+        (output_note, "delegation_output"),
+        (result_note, "delegation_result"),
+    ):
+        if isinstance(text, str) and text.strip():
+            return text, note_type
+    return None, None
 
 
 def _execute_via_dispatcher(

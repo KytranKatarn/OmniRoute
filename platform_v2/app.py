@@ -6589,8 +6589,12 @@ def api_internal_delegation_submit():
 @app.route("/api/internal/delegation/<int:task_id>/status")
 @require_internal_scope("delegation")
 def api_internal_delegation_status(task_id):
-    """Return current status and work_notes for a delegated task."""
+    """Return current status, the delegated ANSWER, and work_notes for a task."""
     from database import get_db_cursor
+    from services.delegation_service import (
+        is_delegation_terminal,
+        resolve_delegation_result,
+    )
 
     try:
         with get_db_cursor() as (conn, cur):
@@ -6598,8 +6602,17 @@ def api_internal_delegation_status(task_id):
                 """
                 SELECT t.id, t.title, t.status, t.blockers, t.created_at, t.updated_at,
                        (t.delegation_args->>'capability') AS capability,
-                       (SELECT string_agg(wn.content, E'\n' ORDER BY wn.created_at)
-                        FROM work_notes wn WHERE wn.task_id = t.id) AS work_notes
+                       (SELECT string_agg(wn.content, E'\n' ORDER BY wn.created_at, wn.id)
+                        FROM work_notes wn WHERE wn.task_id = t.id) AS work_notes,
+                       (SELECT wn.content FROM work_notes wn
+                         WHERE wn.task_id = t.id AND wn.note_type = 'delegation_output'
+                         ORDER BY wn.created_at DESC, wn.id DESC LIMIT 1) AS output_note,
+                       (SELECT wn.content FROM work_notes wn
+                         WHERE wn.task_id = t.id AND wn.note_type = 'delegation_result'
+                         ORDER BY wn.created_at DESC, wn.id DESC LIMIT 1) AS result_note,
+                       (SELECT wn.content FROM work_notes wn
+                         WHERE wn.task_id = t.id AND wn.note_type = 'delegation_failure'
+                         ORDER BY wn.created_at DESC, wn.id DESC LIMIT 1) AS failure_note
                 FROM unified_tasks t
                 WHERE t.id = %s AND t.delegation_source IS NOT NULL
                 """,
@@ -6613,11 +6626,23 @@ def api_internal_delegation_status(task_id):
     if not row:
         return jsonify({"error": "Not found"}), 404
 
+    # THE ANSWER, named. `work_notes` is every note glued together -- dispatch
+    # banner, retries and the reply in one blob -- which a human can read and a
+    # caller cannot use. Which note IS the reply depends on the execution path;
+    # resolve_delegation_result owns that rule (and the measurements behind it).
+    result_text, result_source = resolve_delegation_result(row["output_note"], row["result_note"])
+
     return jsonify(
         {
             "task_id": row["id"],
             "status": row["status"],
+            # Server-side so a poller never keeps its own copy of the status
+            # vocabulary -- see is_delegation_terminal for why that matters.
+            "terminal": is_delegation_terminal(row["status"]),
             "capability": row["capability"],
+            "result": result_text,
+            "result_source": result_source,
+            "failure": row["failure_note"],
             "work_notes": row["work_notes"],
             "title": row["title"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,

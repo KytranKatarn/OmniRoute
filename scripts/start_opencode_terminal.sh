@@ -20,7 +20,10 @@ if [ -f /run/secrets/opencode_auth ] && [ ! -f "$XDG_DATA_HOME/opencode/auth.jso
     chmod 600 "$XDG_DATA_HOME/opencode/auth.json" 2>/dev/null || true
 fi
 
-cd /work
+# Start IN THE REPO, not the bare volume. Until 2026-09-12 /work held only scratch
+# files (hello.py) and the lane had nothing to work on — the repo is now cloned to
+# /work/archie-platform, so land there or opencode opens with no codebase in scope.
+cd /work/archie-platform 2>/dev/null || cd /work
 
 # ⚠️ Kill a stale session by EXACT name. `tmux kill-server` would also take out any
 # other session in this container, and a bare prefix match can hit a neighbour.

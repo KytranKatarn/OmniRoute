@@ -917,6 +917,13 @@ services:
       - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD}
     networks:
       - archie_internal
+      # The sandboxed opencode coder lane lives on its OWN network and cannot resolve
+      # service names on archie_internal. Rather than attach the LANE to the core network
+      # (which would also give it the database and platform) or publish 20128 on the host
+      # (which is half of why the critical `next` CVE is unreachable — #6664), the GATEWAY
+      # joins the lane's network. Narrowest grant that works: opencode resolves omniroute,
+      # and still gets ENOTFOUND for archie_platform and archie_database — verified.
+      - opencode_terminal_net
 
   # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
   archie_headscale:

@@ -1415,6 +1415,23 @@ services:
     cpus: 1.0
     cap_drop:
       - ALL
+    # Run as the uid that OWNS the work tree (#6736). Measured 2026-09-12: opencode
+    # ran as uid 0 while /work/archie-platform is node:node (uid 1000), and with
+    # cap_drop ALL root has no CAP_DAC_OVERRIDE — so it fell into "other" (r-x) and
+    # could not write a single file in the repo it was given. `touch` and `mkdir`
+    # both denied. It could read the platform and reason about it well, and change
+    # nothing.
+    #
+    # Fixing it HERE rather than by chowning the tree, for two reasons: root inside
+    # the container cannot chown its way out either (CAP_CHOWN is dropped too), and
+    # dropping to uid 1000 is strictly LESS privilege than running the lane as root.
+    # The compose `user:` is applied by the daemon at start, before cap_drop binds,
+    # which is why it works where an in-container su/setpriv cannot.
+    #
+    # ⚠️ TRAP for anyone testing this lane: `docker exec -u node` writes fine, so a
+    # check run as the wrong user reports the lane HEALTHY. Test as the user the
+    # lane actually runs as — read it from /proc, not from the docker exec default.
+    user: "1000:1000"
     environment:
       TZ: America/Toronto
       OPENCODE_HOME: /opencode-home

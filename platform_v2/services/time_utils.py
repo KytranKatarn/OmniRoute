@@ -97,10 +97,10 @@ def format_duration(ms: int) -> str:
         raise ValueError(f"duration cannot be negative: {ms}")
     if ms < 1000:
         return f"{ms}ms"
-    seconds = ms / 1000.0
-    if seconds < 60:
-        return f"{seconds:.1f}s"
-    total_s = int(seconds)
+    tenths = (ms + 50) // 100
+    if tenths < 600:
+        return f"{tenths / 10:.1f}s"
+    total_s = (tenths + 5) // 10
     minutes, secs = divmod(total_s, 60)
     if secs:
         return f"{minutes}m {secs}s"

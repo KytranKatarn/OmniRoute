@@ -14,7 +14,7 @@ def test_milliseconds_fractional_below_one_second():
 def test_one_decimal_second_below_a_minute():
     assert tu.format_duration(1000) == "1.0s"
     assert tu.format_duration(1500) == "1.5s"
-    assert tu.format_duration(59999) == "60.0s"
+    assert tu.format_duration(59999) == "1m"
 
 
 def test_minutes_with_remaining_seconds():

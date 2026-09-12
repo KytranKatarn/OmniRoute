@@ -6502,13 +6502,22 @@ def api_internal_delegation_submit():
     import psycopg2.extras as _psyext
     from database import get_db_cursor
 
-    from services.delegation_service import VALID_DELEGATION_SOURCES
+    from services.delegation_service import (
+        VALID_DELEGATION_SOURCES,
+        clamp_conversation,
+    )
 
     data = request.get_json(silent=True) or {}
     capability = (data.get("capability") or "general").strip()
     reason = (data.get("reason") or "").strip()
     args = data.get("args") or {}
     priority = int(data.get("priority") or 5)
+    # #6729: prior turns, so a follow-up ("is IT bigger than…") has a referent.
+    # Re-clamped HERE and not trusted from the caller: the bounds protect the 7B
+    # fleet's KV cache, so they have to hold for any caller holding the internal
+    # key. A malformed shape degrades to [] — never a 400, because losing history
+    # must not cost the task.
+    conversation = clamp_conversation(data.get("conversation"))
 
     # #5333: the skill bridge fires through THIS endpoint, so the source has to
     # be a parameter. It was hardcoded 'web_chat', which meant the 'tui' and
@@ -6548,7 +6557,14 @@ def api_internal_delegation_submit():
                     priority,
                     "implementation",
                     delegation_source,
-                    _psyext.Json({"capability": capability, "args": args, "reason": reason}),
+                    _psyext.Json(
+                        {
+                            "capability": capability,
+                            "args": args,
+                            "reason": reason,
+                            "conversation": conversation,
+                        }
+                    ),
                 ),
             )
             task_id = cur.fetchone()["id"]

@@ -277,6 +277,7 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
         capability = args.get("capability")
         payload = args.get("args") or {}
         reason = args.get("reason", "")
+        conversation = args.get("conversation")
         delegation_source = task.get("delegation_source") or args.get("delegation_source") or "mcp_client"
 
         if not capability:
@@ -324,6 +325,7 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
             origin=delegation_source,
             task_id=task.get("id"),
             task_priority=task.get("priority") or 5,
+            conversation=conversation,
         )
     except Exception as exc:
         logger.exception("execute_delegated_task failed for task #%s", task.get("id"))
@@ -976,6 +978,87 @@ def _match_scan_sources(changed_paths: list) -> list:
     return matched
 
 
+# ---------------------------------------------------------------------------
+# Conversation context (#6729)
+# ---------------------------------------------------------------------------
+# A delegated follow-up used to arrive with NO history at all: the engine sent
+# ``history_length`` -- a COUNT -- and the turns themselves were never
+# transmitted. Measured on task #6727: one turn after answering "Titan", the
+# agent was asked "Is it bigger than Mercury? ...name it explicitly", could not
+# name it, and asserted the opposite of the truth in a confident single
+# sentence. It never asked what "it" meant, because nothing told it there was a
+# referent to resolve.
+#
+# History deliberately does NOT ride in ``args``: that is rendered as
+# ``json.dumps(payload)[:500]`` -- raw JSON, truncated mid-token -- which is an
+# unusable vehicle for dialogue and would silently drop most of it.
+#
+# Both bounds are enforced HERE, server-side, and not merely at the sender:
+# the 7B fleet models run NUM_PARALLEL=1 with real KV-cache pressure, and an
+# oversized prompt degrades every concurrent dispatch on that node, so the
+# budget cannot be left to the caller's good behaviour.
+
+_CONV_MAX_TURNS = 8
+_CONV_MAX_CHARS = 4000
+_CONV_MAX_CHARS_PER_TURN = 800
+# system/tool rows are engine bookkeeping, not dialogue -- they burn the budget
+# without helping a 7B resolve a pronoun.
+_CONV_ROLES = ("user", "assistant")
+
+
+def clamp_conversation(
+    turns: Any,
+    max_turns: int = _CONV_MAX_TURNS,
+    max_chars: int = _CONV_MAX_CHARS,
+) -> List[Dict[str, str]]:
+    """Sanitize + bound conversation turns. Returns [] for anything unusable.
+
+    Fail-safe by construction: every malformed shape degrades to "no history",
+    which is exactly today's behaviour. It must never raise into a dispatch --
+    losing context is a bad answer, raising is a lost task.
+
+    Keeps the NEWEST turns (a follow-up depends on the most recent exchange,
+    not the opening one) and returns them oldest-first for natural reading.
+    """
+    if not isinstance(turns, (list, tuple)):
+        return []
+    cleaned: List[Dict[str, str]] = []
+    for turn in turns:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get("role")
+        content = turn.get("content")
+        if role not in _CONV_ROLES or not isinstance(content, str):
+            continue
+        content = content.strip()
+        if not content:
+            continue
+        if len(content) > _CONV_MAX_CHARS_PER_TURN:
+            content = content[:_CONV_MAX_CHARS_PER_TURN] + " […truncated]"
+        cleaned.append({"role": role, "content": content})
+
+    if max_turns > 0:
+        cleaned = cleaned[-max_turns:]
+
+    # Drop from the OLDEST end until the block fits. Trimming the newest would
+    # discard the turn the follow-up actually refers to.
+    while cleaned and sum(len(t["content"]) for t in cleaned) > max_chars:
+        cleaned.pop(0)
+    return cleaned
+
+
+def render_conversation(turns: Any) -> str:
+    """Render clamped turns as a dialogue block, or "" when there is nothing."""
+    clamped = clamp_conversation(turns)
+    if not clamped:
+        return ""
+    lines = ["Recent conversation (oldest first, for resolving references):"]
+    for turn in clamped:
+        who = "User" if turn["role"] == "user" else "You"
+        lines.append(f"  {who}: {turn['content']}")
+    return "\n".join(lines)
+
+
 def _execute_via_dispatcher(
     capability: str,
     payload: Dict[str, Any],
@@ -983,6 +1066,7 @@ def _execute_via_dispatcher(
     origin: str = "mcp_client",
     task_id: Optional[int] = None,
     task_priority: int = 5,
+    conversation: Any = None,
 ) -> Dict[str, Any]:
     """Fallback: hand to the Department HQ dispatcher.
 
@@ -1011,6 +1095,11 @@ def _execute_via_dispatcher(
             yield
 
     prompt_lines = [f"Delegated task — capability: {capability}"]
+    # Context BEFORE the instruction: the agent needs the referents in hand by
+    # the time it reads what is being asked (#6729).
+    conversation_block = render_conversation(conversation)
+    if conversation_block:
+        prompt_lines.append(conversation_block)
     if reason:
         prompt_lines.append(f"Reason: {reason}")
     if payload:

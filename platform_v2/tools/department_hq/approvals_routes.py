@@ -329,8 +329,27 @@ def _deny_bridge(source_id: int, user_id: int, reason: str) -> bool:
 
 def parse_approval_id(approval_id):
     """('autonomy:123') -> ('autonomy', 123). Mirrors the split the session
-    approve/deny routes already do (partition on ':')."""
-    source, _, sid = str(approval_id).partition(":")
+    approve/deny routes already do (partition on ':').
+
+    Raises ValueError with an ACTIONABLE message on anything malformed. It used to
+    raise the bare ``invalid literal for int() with base 10: ''`` instead, because
+    ``'15231'.partition(':')`` yields ``('15231', '', '')`` — an unprefixed id put an
+    empty string into int(). That surfaced as a 500 ``{"error_type":"ValueError"}``
+    on the internal approve/deny routes (#6666, observed 2026-09-09 from archie_comms).
+
+    ⚠️ A bare numeric id is NOT defaulted to 'autonomy'. Each source keeps its own id
+    sequence — autonomy_approval_queue.id, contractor_approval_requests.id and
+    bridge_jobs.id can all be 5 — so guessing the source on an APPROVE route risks
+    approving a different pending item than the caller meant. Callers already have the
+    prefixed form: list_pending_approvals() returns source-prefixed ids.
+    """
+    raw = str(approval_id)
+    source, sep, sid = raw.partition(":")
+    if not sep or not source or not sid.strip().isdigit():
+        raise ValueError(
+            f"malformed approval id {raw!r} — expected '<source>:<int>' "
+            f"(e.g. 'autonomy:123'); sources: autonomy, contractor, bridge"
+        )
     return source, int(sid)
 
 

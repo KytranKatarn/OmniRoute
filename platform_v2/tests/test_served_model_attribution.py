@@ -176,3 +176,30 @@ def test_dispatch_to_contractor_records_the_served_model(monkeypatch):
     assert res.provider == "contractor:omniroute"
     assert res.metadata["served_model_resolved"] is True
     assert res.metadata["routing_decision"] == "provider=deepseek"
+
+
+# ── #6670: a contractor row is self-describing ───────────────────────────────
+
+
+def test_both_contractor_metadata_dicts_stamp_is_cloud():
+    """A task_execution_log row from a contractor must say so ITSELF, rather than
+    depending on the provider-name allowlist in services/token_provenance.py to infer
+    it. Measured motivation: failed cloud-code attempts landed with provider='ollama',
+    which that allowlist classifies as LOCAL.
+
+    BOTH branches of _dispatch_to_contractor carry it — the cloud-proxy branch
+    (is_cloud_proxy=True) and the standard OpenAI-compatible branch
+    (is_cloud_proxy=False). is_cloud_proxy says WHICH branch served it; is_cloud says
+    it was cloud either way, so asserting only one branch would miss the other.
+    """
+    src = (
+        Path(__file__).resolve().parents[1] / "tools" / "department_hq" / "services" / "department_dispatcher.py"
+    ).read_text(encoding="utf-8")
+
+    for proxy_flag in ('"is_cloud_proxy": True,', '"is_cloud_proxy": False,'):
+        idx = src.index(proxy_flag)
+        window = src[idx : idx + 220]
+        assert '"is_cloud": True' in window, (
+            f"the contractor metadata dict containing {proxy_flag.strip()} must also "
+            f'carry "is_cloud": True — a contractor row has to be self-describing'
+        )

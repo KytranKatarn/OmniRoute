@@ -4946,7 +4946,13 @@ def api_internal_approvals_approve(approval_id):
     from tools.department_hq.approvals_routes import _approve_autonomy, parse_approval_id
 
     user_id = (request.get_json(silent=True) or {}).get("user_id") or 2
-    source, source_id = parse_approval_id(approval_id)
+    try:
+        source, source_id = parse_approval_id(approval_id)
+    except ValueError as exc:
+        # A caller's malformed id is a 400, not a 500 (#6666). Deliberately NOT
+        # defaulted to 'autonomy': each source has its own id sequence, so a bare
+        # '5' is ambiguous and guessing could approve the wrong pending item.
+        return jsonify({"ok": False, "error": str(exc)}), 400
     if source != "autonomy":
         return jsonify({"ok": False, "error": f"source '{source}' not supported yet"}), 501
     ok, action_type = _approve_autonomy(source_id, user_id)
@@ -4962,7 +4968,10 @@ def api_internal_approvals_deny(approval_id):
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id") or 2
     reason = data.get("reason") or "denied via cockpit"
-    source, source_id = parse_approval_id(approval_id)
+    try:
+        source, source_id = parse_approval_id(approval_id)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400  # see approve, #6666
     if source != "autonomy":
         return jsonify({"ok": False, "error": f"source '{source}' not supported yet"}), 501
     ok = _deny_autonomy(source_id, user_id, reason)

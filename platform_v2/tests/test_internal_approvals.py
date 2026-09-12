@@ -108,3 +108,56 @@ def test_internal_approve_non_autonomy_source_501(client, monkeypatch):
     )
     assert r.status_code == 501
     assert r.get_json()["ok"] is False
+
+
+# ── #6666: a malformed approval id is a 400, never a 500 ─────────────────────
+
+
+def test_parse_approval_id_rejects_a_bare_numeric_id_with_an_actionable_message():
+    """`'15231'.partition(':')` yields ('15231','',''), so the old code put an empty
+    string into int() and raised `invalid literal for int() with base 10: ''` — which
+    surfaced as a 500 {"error_type":"ValueError"} from archie_comms on 2026-09-09.
+
+    The message must name the expected form; the bare int() error told the caller
+    nothing about what to send instead.
+    """
+    import pytest
+
+    ar = importlib.import_module("tools.department_hq.approvals_routes")
+    with pytest.raises(ValueError) as exc:
+        ar.parse_approval_id("15231")
+    msg = str(exc.value)
+    assert "malformed approval id" in msg
+    assert "<source>:<int>" in msg, "the error must state the expected form"
+    assert "autonomy" in msg, "the error must name at least one valid source"
+
+
+def test_parse_approval_id_rejects_the_other_malformed_shapes():
+    import pytest
+
+    ar = importlib.import_module("tools.department_hq.approvals_routes")
+    for bad in ("", ":", "autonomy:", ":123", "autonomy:abc", "autonomy:12x"):
+        with pytest.raises(ValueError):
+            ar.parse_approval_id(bad)
+
+
+def test_a_bare_id_is_NOT_silently_treated_as_autonomy():
+    """Deliberate refusal, not an oversight. autonomy_approval_queue.id,
+    contractor_approval_requests.id and bridge_jobs.id are independent sequences, so
+    a bare '5' is genuinely ambiguous — guessing on an APPROVE route could approve a
+    different pending item than the caller meant. Callers already have the prefixed
+    form: list_pending_approvals() returns source-prefixed ids.
+    """
+    import pytest
+
+    ar = importlib.import_module("tools.department_hq.approvals_routes")
+    with pytest.raises(ValueError):
+        ar.parse_approval_id("5")
+
+
+def test_the_valid_form_still_parses():
+    """The fix must not narrow what already worked."""
+    ar = importlib.import_module("tools.department_hq.approvals_routes")
+    assert ar.parse_approval_id("autonomy:123") == ("autonomy", 123)
+    assert ar.parse_approval_id("contractor:7") == ("contractor", 7)
+    assert ar.parse_approval_id("bridge:99") == ("bridge", 99)

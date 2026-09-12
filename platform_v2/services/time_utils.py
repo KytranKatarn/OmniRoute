@@ -83,3 +83,25 @@ def format_local(dt: Optional[datetime], fmt: str = FMT_DATETIME_LOCAL) -> str:
     if local is None:
         return ""
     return local.strftime(fmt)
+
+
+def format_duration(ms: int) -> str:
+    """Render a millisecond duration as a compact human string.
+
+    * < 1000 ms        → "500ms"
+    * < 60 s           → one decimal second, e.g. "1.5s"
+    * ≥ 60 s           → "1m 5s" (seconds omitted when zero, e.g. "2m")
+
+    Raises ValueError on negative input."""
+    if ms < 0:
+        raise ValueError(f"duration cannot be negative: {ms}")
+    if ms < 1000:
+        return f"{ms}ms"
+    seconds = ms / 1000.0
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    total_s = int(seconds)
+    minutes, secs = divmod(total_s, 60)
+    if secs:
+        return f"{minutes}m {secs}s"
+    return f"{minutes}m"

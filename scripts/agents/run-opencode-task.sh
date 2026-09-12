@@ -27,6 +27,13 @@ CONTAINER="${CONTAINER:-archie_opencode_terminal}"
 LANE_REPO="${LANE_REPO:-/work/archie-platform}"
 TASK="${1:?usage: run-opencode-task.sh \"<scoped task>\"}"
 SLUG="$(echo "$TASK" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)"
+# A commit SUBJECT, not the whole prompt. The first run shipped a subject that was
+# the entire multi-sentence task ("Add a pure function parse_duration... Run the
+# tests yourself with: cd ... Only modify those two files."), which is unreadable
+# in `git log --oneline`, in the PR list and in every blame view thereafter. Take
+# the first sentence, cap it, and keep the full task in the commit BODY where the
+# detail belongs.
+SUBJECT="$(printf '%s' "$TASK" | sed 's/\. .*//' | cut -c1-64)"
 BRANCH="opencode/$SLUG-$(date +%s)"
 # Default under the user cache, not /mnt: creating a directory at /mnt needs root,
 # and a runner that cannot run unprivileged is a runner nobody runs. (The codex
@@ -117,7 +124,15 @@ fi
 PATCH="$(mktemp -t opencode-XXXXXX.patch)"
 trap 'rm -f "$PATCH"' EXIT
 lane_git diff --cached --binary > "$PATCH"
-lane_git reset -q     # leave the lane clean for the next run
+
+# ACTUALLY clean the lane. `git reset` (mixed) only UNSTAGES — the working-tree
+# changes survive, so the next run's preflight sees a dirty lane and refuses. Found
+# by simply trying to run twice: the runner could not. The work is already captured
+# in $PATCH and about to be committed to a branch, so discarding the lane's copy is
+# safe; `clean -fd` is needed as well because reset --hard leaves untracked files
+# (and a "create tests/..." task produces exactly those).
+lane_git reset --hard -q HEAD
+lane_git clean -fdq
 
 mkdir -p "$WT_BASE"
 git -C "$REPO" worktree add -q -b "$BRANCH" "$WT" "$BASE_SHA"
@@ -221,10 +236,13 @@ if [ "$SUCCESS" != true ]; then
     exit 1
 fi
 
-git -C "$WT" commit -q -m "feat(opencode): $TASK
+git -C "$WT" commit -q -m "feat(opencode): $SUBJECT
 
 Authored by the opencode lane; verified and shipped by
 scripts/agents/run-opencode-task.sh (the lane holds no git credential).
+
+Task as given:
+$TASK
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 git -C "$WT" push --no-verify -q -u origin "$BRANCH"
@@ -233,7 +251,7 @@ git -C "$WT" push --no-verify -q -u origin "$BRANCH"
 # create would look successful and the pushed branch would strand with no PR — exactly
 # how a codex branch was orphaned once.
 PR_OUT="$(gh pr create --head "$BRANCH" \
-    --title "feat(opencode): $TASK" \
+    --title "feat(opencode): $SUBJECT" \
     --body "$(printf '## opencode lane\n\n- **Task**: %s\n- **Branch**: `%s`\n- **Base**: `%s`\n\nAuthored in the sandboxed opencode lane and carried out as a patch by `scripts/agents/run-opencode-task.sh` — the lane holds no git credential in either direction, by design.\n\nScope-checked against `config/agents/opencode.yaml` (deny-by-default) and put through the repo pre-commit gates before this PR was opened.\n\n## Test Plan\n- [ ] F.O.R.G.E. review passes\n- [ ] Merge via `/merge-pr` after approval\n\n🤖 opencode via OmniRoute — review in Repair Bay → PR Review' "$TASK" "$BRANCH" "${BASE_SHA:0:9}")" \
     2>&1)" && PR_RC=0 || PR_RC=$?
 PR_URL="$(printf '%s\n' "$PR_OUT" | tail -1)"

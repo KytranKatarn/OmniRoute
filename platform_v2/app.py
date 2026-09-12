@@ -6548,7 +6548,7 @@ def api_internal_delegation_submit():
                     priority,
                     "implementation",
                     delegation_source,
-                    _psyext.Json({"capability": capability, "args": args}),
+                    _psyext.Json({"capability": capability, "args": args, "reason": reason}),
                 ),
             )
             task_id = cur.fetchone()["id"]

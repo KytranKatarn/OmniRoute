@@ -258,3 +258,104 @@ def test_calculate_macros_returns_mifflin_st_jeor_estimates(kwargs, expected):
     from tools.fitness.services import fitness_service as svc
 
     assert svc.calculate_macros(**kwargs) == expected
+
+
+def test_calculate_macros_uses_default_gender_activity_and_goal():
+    from tools.fitness.services import fitness_service as svc
+
+    assert svc.calculate_macros(weight=85, height=175, age=29) == {
+        "bmr": 1804,
+        "tdee": 2796,
+        "target_calories": 2796,
+        "macros": {"protein": 170, "carbs": 354, "fat": 78},
+    }
+
+
+def test_calculate_macros_falls_back_to_moderate_multiplier_for_unknown_activity():
+    from tools.fitness.services import fitness_service as svc
+
+    assert svc.calculate_macros(
+        weight=70,
+        height=175,
+        age=25,
+        gender="male",
+        activity_level="extreme",
+        goal="maintain",
+    ) == {
+        "bmr": 1674,
+        "tdee": 2594,
+        "target_calories": 2594,
+        "macros": {"protein": 140, "carbs": 346, "fat": 72},
+    }
+
+
+def test_calculate_macros_treats_unknown_gender_as_female_formula():
+    from tools.fitness.services import fitness_service as svc
+
+    assert svc.calculate_macros(
+        weight=60,
+        height=160,
+        age=25,
+        gender="other",
+        activity_level="sedentary",
+        goal="maintain",
+    ) == {
+        "bmr": 1314,
+        "tdee": 1577,
+        "target_calories": 1577,
+        "macros": {"protein": 120, "carbs": 176, "fat": 44},
+    }
+
+
+def test_calculate_macros_handles_zero_weight():
+    from tools.fitness.services import fitness_service as svc
+
+    assert svc.calculate_macros(weight=0, height=180, age=30) == {
+        "bmr": 980,
+        "tdee": 1519,
+        "target_calories": 1519,
+        "macros": {"protein": 0, "carbs": 285, "fat": 42},
+    }
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        (
+            {
+                "weight": 65,
+                "height": 165,
+                "age": 28,
+                "gender": "female",
+                "activity_level": "light",
+                "goal": "lose",
+            },
+            {
+                "bmr": 1380,
+                "tdee": 1898,
+                "target_calories": 1398,
+                "macros": {"protein": 130, "carbs": 132, "fat": 39},
+            },
+        ),
+        (
+            {
+                "weight": 100,
+                "height": 185,
+                "age": 45,
+                "gender": "male",
+                "activity_level": "very_active",
+                "goal": "gain",
+            },
+            {
+                "bmr": 1936,
+                "tdee": 3679,
+                "target_calories": 3979,
+                "macros": {"protein": 200, "carbs": 546, "fat": 111},
+            },
+        ),
+    ],
+)
+def test_calculate_macros_covers_remaining_activity_levels(kwargs, expected):
+    from tools.fitness.services import fitness_service as svc
+
+    assert svc.calculate_macros(**kwargs) == expected

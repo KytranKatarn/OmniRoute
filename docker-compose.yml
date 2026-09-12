@@ -873,6 +873,30 @@ services:
     stop_grace_period: 40s
     mem_limit: 4g
     cpus: 2.0
+    # #6664 hardening. Compliance baseline (compliance-standards.md) is read_only on every
+    # container; this one is also the gateway that will hold PAID upstream keys once Phase 3b
+    # lands, and it ships a CRITICAL-rated `next` 16.3.1 (16.0.0-16.3.2, fixed in 16.3.5) for
+    # which NO fixed upstream release exists — 3.8.50 IS latest; `main`/`next` are dev branches.
+    # The RCE is not reachable here (Linux, so the windows-server path is N/A; /_next/image and
+    # /_next/static both 404 on this non-`-web` variant; the port is unpublished) but read_only
+    # bounds the blast radius if a future image variant does serve it.
+    #
+    # ⚠️ The task's premise was STALE and applying read_only on it would have broken the
+    # gateway: it recorded `docker diff omniroute` = ZERO lines at boot on 2026-09-09. Measured
+    # 2026-09-12 it is 421 lines. The container genuinely writes OUTSIDE its named volume, so
+    # each path below is required, not decorative:
+    #   /app/.build/next/cache  Next fetch-cache + image cache (the ONLY written part of
+    #                           /app/.build — the other 1.2 GB there is baked image content,
+    #                           so tmpfs the cache subdir, never /app/.build itself)
+    #   /home/node/.npm         npm _cacache, 64 MB and 410 of the 421 diff lines
+    #   /tmp                    scratch
+    # Everything durable still lives in the omniroute_data volume at /app/data (storage.sqlite,
+    # server.env, logs, db_backups) and is unaffected by read_only.
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m
+      - /home/node/.npm:size=256m
+      - /app/.build/next/cache:size=512m
     volumes:
       - omniroute_data:/app/data
     environment:

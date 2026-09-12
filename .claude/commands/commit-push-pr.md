@@ -50,6 +50,20 @@ Extract the PR number from the output (e.g. `https://github.com/.../pull/613` �
 
 ---
 
+### Step 3.5: Declare merge order (when it matters)
+
+If this PR must land AFTER another open PR — it calls something the other adds, or
+its migration builds on the other's — write it in the PR body, on its own line:
+
+```
+Depends on #<N>
+```
+(`Blocked by #N`, `Merge after #N` and `Requires #N` are equivalent.) Repair Bay's
+PR Review tab ranks open PRs from these markers plus shared-file overlap, and
+`merge_pr` REFUSES a PR whose declared dependency is still open — for every actor,
+including the human click. A bare `#N` ("fixes #N", "see #N") is deliberately NOT
+a dependency, so cite freely.
+
 ### Step 4: Register in Repair Bay (Claude tracking)
 
 After PR creation, immediately register it in the pipeline:

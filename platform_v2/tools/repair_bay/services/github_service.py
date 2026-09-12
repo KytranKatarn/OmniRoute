@@ -576,6 +576,61 @@ def pr_is_open(pr_number: int, repo: str = None) -> Optional[bool]:
     return state == "open"
 
 
+def pr_body(pr_number: int, repo: str = None) -> Optional[str]:
+    """The PR description — "" when GitHub has none, None when it could not be read.
+
+    The distinction is load-bearing for ``_dependency_refusal``: "no body" means no
+    declared dependencies; "unreadable" means we cannot know, and a merge is not the
+    place to guess.
+    """
+    target = repo or REPO_FULL
+    ok, data = _api_get(f"/repos/{target}/pulls/{pr_number}")
+    if not ok or not isinstance(data, dict):
+        return None
+    return data.get("body") or ""
+
+
+def pr_files(pr_number: int, repo: str = None, max_pages: int = 3) -> Optional[List[str]]:
+    """Changed paths of a PR (read token; up to 300 files). None when unreadable."""
+    target = repo or REPO_FULL
+    paths: List[str] = []
+    for page in range(1, max_pages + 1):
+        ok, data = _api_get(f"/repos/{target}/pulls/{pr_number}/files", params={"per_page": 100, "page": page})
+        if not ok or not isinstance(data, list):
+            return None
+        paths.extend(str(f.get("filename")) for f in data if isinstance(f, dict) and f.get("filename"))
+        if len(data) < 100:
+            break
+    return paths
+
+
+def _dependency_refusal(pr_number: int, repo: str = None) -> Optional[str]:
+    """MERGE ORDER (2026-09-11): the HARD half. A PR whose body declares
+    ``Depends on #N`` / ``Blocked by #N`` / ``Merge after #N`` / ``Requires #N``
+    must not merge while #N is still open.
+
+    Reads GitHub at merge time — never the display cache — and fails CLOSED:
+    an unreadable body, or a dependency whose open/merged state cannot be read
+    (``pr_is_open`` → None, whose contract is "treat as still open"), refuses.
+    A merge is unrevertable; the cost of a wrong refusal is a re-click.
+    """
+    from .merge_order import declared_dependencies
+
+    body = pr_body(pr_number, repo)
+    if body is None:
+        return "could not read the PR body to check declared dependencies — refusing rather than guessing"
+    for dep in sorted(d for d in declared_dependencies(body) if d != pr_number):
+        state = pr_is_open(dep, repo)
+        if state is None:
+            return (
+                f"declares it depends on #{dep} and that PR's state could not be read — "
+                "refusing rather than guessing"
+            )
+        if state:
+            return f"declares it depends on #{dep}, which is still open — merge #{dep} first"
+    return None
+
+
 def get_pr_status(pr_number: int) -> Dict:
     """Get PR status including checks and reviews."""
     ok, data = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")
@@ -1097,6 +1152,22 @@ def merge_pr(
                 "stale_verdict": True,
                 "error": f"Refusing to merge PR #{pr_number}: {_fresh_why}",
             }
+
+    # MERGE ORDER (2026-09-11): a PR that DECLARES "Depends on #N" does not merge while
+    # #N is open. A safety property, so it binds EVERY actor — the gated path and the
+    # human override alike (decision #953: safety is universal, authority is per-actor)
+    # — and it fails CLOSED when GitHub cannot say whether #N is open. The tab's order
+    # badge is a mirror of this rule, never a second gate.
+    _dep_why = _dependency_refusal(pr_number, repo)
+    if _dep_why:
+        logger.warning("[MergeGate] refusing PR #%s (merge order): %s", pr_number, _dep_why)
+        return {
+            "success": False,
+            "merged": False,
+            "governance_blocked": True,
+            "dependency_blocked": True,
+            "error": f"Refusing to merge PR #{pr_number}: {_dep_why}",
+        }
 
     pre_ok, pre = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
     if pre_ok:

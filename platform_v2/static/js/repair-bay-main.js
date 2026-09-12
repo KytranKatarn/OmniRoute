@@ -338,6 +338,18 @@ function _buildReviewCard(pr) {
     var ms = pr.merge_state || {};
     var msOk = !!ms.mergeable;
     var ghOk = pr.mergeable === 'MERGEABLE';
+    // MERGE ORDER — server-computed (merge_order_service); this only renders it.
+    var mo = pr.merge_order || null;
+    var orderBlocked = !!(mo && mo.blocked);
+    if (mo && (mo.label || mo.unavailable)) {
+        var moCol = orderBlocked ? '#f97316' : (mo.unavailable ? '#64748b' : ((mo.after || []).length ? '#f59e0b' : '#94a3b8'));
+        var orderBadge = _rbMakeEl('span', {
+            style: 'padding:6px 10px; font-size:0.72rem; font-family:"IBM Plex Mono",monospace; color:' + moCol + '; border:1px solid ' + moCol + '55; border-radius:3px; white-space:nowrap;',
+            text: mo.unavailable ? 'order n/a' : mo.label
+        });
+        orderBadge.title = mo.reason || '';
+        actions.appendChild(orderBadge);
+    }
 
     if (pr.mergeable === 'CONFLICTING') {
         // Checked FIRST: a conflict blocks the merge whatever the verdict says.
@@ -346,6 +358,17 @@ function _buildReviewCard(pr) {
             text: 'Needs rebase'
         });
         actions.appendChild(conflictBadge);
+    } else if (orderBlocked) {
+        // A declared dependency that is still open: the server refuses this merge for
+        // every actor (github_service._dependency_refusal); say so before the click.
+        var orderBtn = _rbMakeEl('button', {
+            cls: 'dp-btn',
+            style: 'padding:6px 14px; font-size:0.8rem; background:rgba(249,115,22,0.12); color:#f97316; border:1px solid #f9731655; border-radius:3px; cursor:not-allowed; white-space:nowrap;',
+            text: 'Blocked \u2014 after #' + (mo.declared_after || []).join(', #')
+        });
+        orderBtn.disabled = true;
+        orderBtn.title = mo.reason || '';
+        actions.appendChild(orderBtn);
     } else if (msOk && ghOk) {
         // coverage_only is mergeable ONLY with an explicit ack. _doMergePr already
         // handles that round-trip (422 -> _rbCoverageAckPrompt naming the files), so

@@ -70,6 +70,16 @@ def register_github_routes(bp, admin_required):
             stamp_merge_states(data.get("prs") or [])
         except Exception as exc:
             logger.warning("forge_list_prs: merge_state stamping failed: %s", exc)
+        # MERGE ORDER (2026-09-11): same contract as merge_state — computed here, only
+        # rendered by the client. Best-effort: a failure stamps "unavailable", never
+        # an invented rank, and never takes the listing down.
+        try:
+            from .services.github_service import REPO_FULL
+            from .services.merge_order_service import stamp_merge_order
+
+            stamp_merge_order(data.get("prs") or [], number_key="number", default_repo=REPO_FULL)
+        except Exception as exc:
+            logger.warning("forge_list_prs: merge_order stamping failed: %s", exc)
         return jsonify(data)
 
     @bp.route("/api/forge/prs/<int:pr_number>", methods=["GET"])
@@ -715,6 +725,13 @@ def register_github_routes(bp, admin_required):
                 return jsonify({"reviews": data, "cached": True})
 
         result = list_reviews(state=state, review_status=review_status, limit=limit)
+        # MERGE ORDER (2026-09-11): rows carry `repo`; open rows are ranked per repo.
+        try:
+            from .services.merge_order_service import stamp_merge_order
+
+            stamp_merge_order(result)
+        except Exception as exc:
+            logger.warning("forge_pr_reviews_list: merge_order stamping failed: %s", exc)
         _pr_reviews_cache[cache_key] = (now, result)
         return jsonify({"reviews": result})
 

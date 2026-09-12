@@ -3662,6 +3662,17 @@ window.loadPRReviews = function(state) {
             else if (_stale) badge.title = 'This row has not refreshed in over a minute.';
 
             header.appendChild(num); header.appendChild(title); header.appendChild(badge);
+            // MERGE ORDER — server-computed (merge_order_service), rendered only. ① ② ③ with
+            // "after #N" for a declared dependency and "shares files with #N" for overlap.
+            var _mo = pr.merge_order || null;
+            if (_mo && (_mo.label || _mo.unavailable)) {
+                var orderBadge = document.createElement('span');
+                var _moCol = _mo.blocked ? '#f97316' : (_mo.unavailable ? '#6b7280' : ((_mo.after || []).length ? '#fbbf24' : '#94a3b8'));
+                orderBadge.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:4px;border:1px solid ' + _moCol + ';color:' + _moCol + ';font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;';
+                orderBadge.textContent = _mo.unavailable ? 'order n/a' : _mo.label;
+                orderBadge.title = _mo.reason || '';
+                header.appendChild(orderBadge);
+            }
 
             var actions = document.createElement('div');
             actions.style.cssText = 'display:flex;gap:6px;';
@@ -3690,9 +3701,16 @@ window.loadPRReviews = function(state) {
                 // to click and read the refusal (measured on #2736: click -> 422 -> click).
                 var _st = ms ? ms.state : null;
                 var _can = ms ? !!ms.mergeable : true;   // no state (stale payload) => legacy
+                // A declared, still-open dependency disables the button; the server refuses
+                // it too (github_service._dependency_refusal) — this is the honest preview.
+                var _orderBlocked = !!(pr.merge_order && pr.merge_order.blocked);
+                if (_orderBlocked) { _can = false; }
                 var _n = (ms && ms.dropped_files) ? ms.dropped_files.length : 0;
                 var _text = 'Merge', _col = '#4ade80', _bg = 'rgba(34,197,94,0.15)', _br = 'rgba(34,197,94,0.4)';
-                if (_st === 'coverage_only') {
+                if (_orderBlocked) {
+                    _text = 'Blocked \u2014 after #' + (pr.merge_order.declared_after || []).join(', #'); _col = '#f97316';
+                    _bg = 'rgba(249,115,22,0.10)'; _br = 'rgba(249,115,22,0.35)';
+                } else if (_st === 'coverage_only') {
                     _text = 'Merge (' + _n + ' unread)'; _col = '#fbbf24';
                     _bg = 'rgba(251,191,36,0.15)'; _br = 'rgba(251,191,36,0.45)';
                 } else if (_st === 'changes_requested') {
@@ -3710,7 +3728,8 @@ window.loadPRReviews = function(state) {
                     (_can ? 'pointer' : 'not-allowed') + ';' + (_can ? '' : 'opacity:0.6;');
                 mergeBtn.textContent = _text;
                 // A disabled button must carry its REASON — reachable without clicking.
-                if (ms && ms.hint) mergeBtn.title = ms.hint;
+                if (_orderBlocked) mergeBtn.title = pr.merge_order.reason || '';
+                else if (ms && ms.hint) mergeBtn.title = ms.hint;
                 if (_can) {
                     mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number, false, pr.repo); };
                 } else {

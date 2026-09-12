@@ -35,6 +35,11 @@ def test_negative_input_raises_value_error():
         tu.format_duration(-1000)
 
 
+def test_format_duration_rejects_non_integer():
+    with pytest.raises((TypeError, ValueError)):
+        tu.format_duration("abc")
+
+
 def test_parse_duration_accepts_emitted_forms():
     assert tu.parse_duration("500ms") == 500
     assert tu.parse_duration("1.5s") == 1500

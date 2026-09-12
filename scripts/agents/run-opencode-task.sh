@@ -197,13 +197,48 @@ if [ "$SUCCESS" = true ]; then
             # so a piped form would report a FAILING suite as a pass — the same trap
             # this runner already guards for `gh pr create`. Verified: a deliberately
             # broken assertion exits non-zero here and reads 0 through a pipe.
-            TEST_RC=0
-            docker run --rm -v "$WT/platform_v2":/app:ro -w /app --network none \
-                "$PLATFORM_IMG" python3 -m pytest $TEST_FILES -q --noconftest \
-                -p no:cacheprovider || TEST_RC=$?
-            if [ "$TEST_RC" -ne 0 ]; then
-                echo "TESTS FAILED (exit $TEST_RC) — no PR." >&2
+            # Compare against a BASELINE, do not demand absolute green. Measured
+            # 2026-09-12: opencode added 6 passing tests to test_fitness_service.py
+            # and the run was failed by test_log_workout_inserts_valid_workout...,
+            # which ALREADY fails on main (1 failed / 10 passed there) because the
+            # module's import chain reaches `from db import ...` and `db` only
+            # resolves after a runtime _ensure_import_paths() (KB #272154). Failing
+            # the agent for pre-existing breakage makes the runner unusable on any
+            # module that has one — and teaches nothing, because the agent cannot
+            # fix what it is not allowed to touch.
+            #
+            # So: collect failing test IDs BEFORE the patch and AFTER, and fail only
+            # on NEW failures. A pre-existing failure is reported, not charged.
+            # ⚠️ `|| true` is load-bearing. pytest EXITS NON-ZERO when tests fail —
+            # which is the case this function exists to measure — and with
+            # `set -o pipefail` the whole pipeline inherits that, so `set -e` killed
+            # the runner silently the moment a baseline had any failure. The run died
+            # right after printing "running changed tests" with no gate output at all.
+            # Exactly the class of bug this gate was written to catch, introduced by
+            # the gate itself.
+            _failing() {  # $1 = tree to mount
+                { docker run --rm -v "$1/platform_v2":/app:ro -w /app --network none \
+                    "$PLATFORM_IMG" python3 -m pytest $TEST_FILES -q --noconftest \
+                    -p no:cacheprovider 2>/dev/null || true; } \
+                    | sed -n -e 's/^FAILED \([^ ]*\).*/\1/p' -e 's/^ERROR \([^ ]*\).*/\1/p' | sort -u
+            }
+            BASE_WT="$(mktemp -d -t opencode-base-XXXXXX)"
+            git -C "$REPO" worktree add -q --detach "$BASE_WT" "$BASE_SHA" || true
+            BASE_FAILS="$(_failing "$BASE_WT")"
+            NEW_FAILS="$(_failing "$WT")"
+            git -C "$REPO" worktree remove --force "$BASE_WT" 2>/dev/null || true
+
+            REGRESSIONS="$(comm -13 <(printf '%s\n' "$BASE_FAILS") <(printf '%s\n' "$NEW_FAILS"))"
+            if [ -n "$BASE_FAILS" ]; then
+                echo "pre-existing failures on $BASE_SHA (NOT charged to this run):"
+                printf '%s\n' "$BASE_FAILS" | sed 's/^/    /'
+            fi
+            if [ -n "$REGRESSIONS" ]; then
+                echo "TESTS REGRESSED — no PR. New failures:" >&2
+                printf '%s\n' "$REGRESSIONS" | sed 's/^/    /' >&2
                 SUCCESS=false
+            else
+                echo "no new test failures"
             fi
         else
             # Never silently skip a verification gate: say so, loudly.

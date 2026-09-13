@@ -80,7 +80,7 @@ button.ck-card:focus-visible, .ck-btn:focus-visible, .ck-chip:focus-visible { ou
 .ck-lanes button { font: inherit; font-size: 12px; display: flex; align-items: center; gap: 6px; color: #8b90b3; background: none; border: 1px solid #2a2a55; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .ck-lanes button.ck-lane-on { color: #00d4ff; border-color: #00d4ff; }
 /* The host marker is deliberately loud: the two lanes are otherwise indistinguishable and
-   their blast radii are not. Red, not the muted pill used for "sandboxed". */
+   their blast radii are not. Red, not the muted pill used for "contained". */
 .ck-pill-host { color: #ff6b6b; border-color: #ff6b6b; }
 .ck-lane-state { display: flex; flex-direction: column; gap: 8px; }
 /* `hidden` MUST win here. `.ck-lane-state` is a class rule (0,0,1,0) and the UA

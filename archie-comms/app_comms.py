@@ -1174,9 +1174,13 @@ def _mesh_clearance():
 def _lane_shapes():
     """Every registered lane, shaped for a template. ONE definition.
 
-    `sandboxed` is carried on every shape and must be rendered wherever a lane is
+    `contained` is carried on every shape and must be rendered wherever a lane is
     named: claude and archie-tui are shells on the host with no container boundary,
-    codex is contained, and they look identical otherwise.
+    codex and opencode are contained, and they look identical otherwise.
+
+    `contained` is about the FILESYSTEM only. Every lane has `platform_access` —
+    a contained lane still creates Dev HQ tasks, manages agents and spends fleet
+    compute through the gateway. Never render `contained` as "sandboxed".
     """
     from services import terminal_lanes as tl
 
@@ -1186,7 +1190,8 @@ def _lane_shapes():
             "label": cfg.get("label", key),
             "blurb": cfg.get("blurb", ""),
             "accent": cfg.get("accent", "#a78bfa"),
-            "sandboxed": bool(cfg.get("sandboxed")),
+            "contained": bool(cfg.get("contained")),
+            "platform_access": bool(cfg.get("platform_access")),
             "landing_host": cfg.get("landing_host", ""),
             # The shopfront copy. Defaults are deliberately EMPTY rather than
             # invented: a lane with no features listed renders no feature cards,

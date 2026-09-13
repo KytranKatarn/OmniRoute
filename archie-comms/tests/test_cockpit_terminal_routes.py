@@ -111,11 +111,11 @@ def test_an_admin_can_mint_for_each_real_lane(client):
         assert f"token={body['token']}" in body["url"]
 
 
-def test_the_mint_reports_whether_the_lane_is_sandboxed(client):
+def test_the_mint_reports_whether_the_lane_is_contained(client):
     """The pane must be able to mark the claude lane as the host, not a sandbox."""
     _login(client)
-    assert client.post("/api/cockpit/terminal/claude/token").get_json()["sandboxed"] is False
-    assert client.post("/api/cockpit/terminal/codex/token").get_json()["sandboxed"] is True
+    assert client.post("/api/cockpit/terminal/claude/token").get_json()["contained"] is False
+    assert client.post("/api/cockpit/terminal/codex/token").get_json()["contained"] is True
 
 
 def test_an_unknown_lane_is_404_not_500(client):
@@ -164,7 +164,7 @@ def test_lane_list_shape(client):
     assert {row["lane"] for row in body["lanes"]} == set(tl.LANES)
     assert len(body["lanes"]) >= 2
     for row in body["lanes"]:
-        assert set(row) >= {"lane", "label", "reachable", "sandboxed", "single_seat", "busy"}
+        assert set(row) >= {"lane", "label", "reachable", "contained", "single_seat", "busy"}
 
 
 def test_lane_list_does_not_claim_the_codex_seat_is_free(client):

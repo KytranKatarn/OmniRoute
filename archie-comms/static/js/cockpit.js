@@ -110,8 +110,11 @@
   function renderLaneNote() {
     const cfg = laneStatus[laneChoice] || {};
     const bits = [];
-    if (cfg.sandboxed === false) bits.push('This is the HOST shell — no container boundary.');
-    else if (cfg.sandboxed === true) bits.push('Sandboxed container.');
+    if (cfg.contained === false) bits.push('This is the HOST shell — no container boundary.');
+    else if (cfg.contained === true) bits.push('Contained — its own container and filesystem.');
+    // contained is about the FILESYSTEM. Say the other half out loud, because "contained"
+    // on its own reads as "harmless" and this lane can spend fleet compute.
+    if (cfg.platform_access) bits.push('Reaches the platform: Dev HQ tasks, agents, fleet delegation.');
     // busy is null = UNKNOWN. The seat is not observable from outside without opening a
     // websocket, which would CONSUME it when free, so never render this as availability.
     if (cfg.single_seat) bits.push('Seat state unknown — one viewer at a time.');

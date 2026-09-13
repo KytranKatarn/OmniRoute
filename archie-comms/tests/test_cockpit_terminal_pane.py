@@ -117,7 +117,7 @@ def test_the_claude_lane_is_marked_as_the_host():
     env = Environment(loader=FileSystemLoader(str(tpl.parent)))
     html = env.get_template(tpl.name).render(
         lanes=[
-            {"key": k, "label": c.get("label", k), "sandboxed": bool(c.get("sandboxed"))}
+            {"key": k, "label": c.get("label", k), "contained": bool(c.get("contained"))}
             for k, c in tl.LANES.items()
         ]
     )
@@ -125,7 +125,12 @@ def test_the_claude_lane_is_marked_as_the_host():
     codex = _lane_button(html, "codex")
     assert "HOST" in claude, "the claude lane must carry a visible host marker"
     assert "sandbox" not in claude.lower(), "the claude lane must NOT be described as sandboxed"
-    assert "sandbox" in codex.lower(), "the codex lane must be marked sandboxed"
+    # The contained lanes are LABELLED "contained", never "contained" (2026-09-13): they
+    # reach Dev HQ, agents and fleet delegation through the gateway, so "contained" is a
+    # false claim. The pill's own tooltip may still say "not sandboxed" — this checks the
+    # rendered LABEL, which is what a reader actually sees.
+    assert ">contained<" in codex, "the codex lane must be marked contained"
+    assert not re.search(r">\s*sandboxed\s*<", codex), "no lane may be LABELLED sandboxed"
     assert "HOST" not in codex, "only the claude lane is the host"
 
 

@@ -68,7 +68,7 @@ CALLER_ENV: dict[str, str] = {
     # the opencode coder lane, via archie_mcp_gateway. The lane itself holds NO key
     # and cannot resolve archie_platform; the GATEWAY carries this key on its behalf,
     # so the lane's reach is exactly the gateway's tool list and nothing more.
-    "opencode": "INTERNAL_API_KEY_OPENCODE",
+    "coder_lanes": "INTERNAL_API_KEY_CODER_LANES",
 }
 
 # Route FAMILIES. Finer than the 5 verbs (approve is not "write"), coarser than
@@ -139,7 +139,17 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
     # spend fleet compute), no dhq:chat, no approvals, no engine, no repair. Deliberately
     # NARROWER than archie_comms and archie_engine — it is a third-party coding agent, and
     # this is the whole of its authenticated reach into the platform.
-    "opencode": frozenset({"tasks:read", "tasks:write"}),
+    # The archie_mcp_gateway, acting for BOTH coder lanes (codex, opencode). The lanes
+    # themselves hold no internal key and cannot resolve archie_platform; the gateway
+    # carries this one on their behalf, so their reach is exactly its tool list.
+    #
+    # Deliberately does NOT include: approvals:decide (a coding agent must not approve
+    # its own work), coo, mail, sessions, engine, repair:write, cloud:code, fleet,
+    # compliance, notify. Those are other actors' jobs.
+    #
+    # Per-LANE identity is preserved one layer up, by the bearer the gateway validates
+    # (codex-full vs opencode-full); the hub sees the gateway as one caller.
+    "coder_lanes": frozenset({"tasks:read", "tasks:write", "agents:read", "agents:manage", "delegation"}),
 }
 
 # endpoint name -> scope, filled by the decorator at registration time. The

@@ -59,15 +59,19 @@ class TestLaneRegistry:
             assert 7680 <= p <= 7699, f"{lane}: proxy_port {p} is outside the 768x front range"
 
     def test_every_lane_declares_its_isolation(self):
-        """`sandboxed` drives the ⚠ HOST marker — the most important label on the page.
-        A lane that forgets it renders as if it were contained."""
-        for lane, cfg in _lanes().items():
-            assert "sandboxed" in cfg, f"{lane} does not declare `sandboxed`"
+        """`contained` drives the ⚠ HOST marker — the most important label on the page.
+        A lane that forgets it renders as if it were contained.
 
-    def test_archie_tui_is_marked_host_not_sandboxed(self):
+        `platform_access` is the OTHER half and is just as required: a contained lane
+        that omits it reads as cut off from the platform, which no lane is."""
+        for lane, cfg in _lanes().items():
+            assert "contained" in cfg, f"{lane} does not declare `contained`"
+            assert "platform_access" in cfg, f"{lane} does not declare `platform_access`"
+
+    def test_archie_tui_is_marked_host_not_contained(self):
         """It runs beside the engine on the host, deliberately. If this ever flips to
         True the UI stops warning about a host surface."""
-        assert _lanes()["archie-tui"]["sandboxed"] is False
+        assert _lanes()["archie-tui"]["contained"] is False
 
 
 
@@ -82,7 +86,7 @@ def _render_cockpit():
 
     env = Environment(loader=FileSystemLoader(str(HTML.parent)))
     lanes = [
-        {"key": k, "label": c.get("label", k), "sandboxed": bool(c.get("sandboxed"))}
+        {"key": k, "label": c.get("label", k), "contained": bool(c.get("contained"))}
         for k, c in _lanes().items()
     ]
     return env.get_template(HTML.name).render(lanes=lanes)
@@ -129,8 +133,8 @@ class TestLaneSelectionIsNotHardcoded:
             m = re.search(r'data-lane="%s"(.*?)</button>' % re.escape(lane), html, re.S)
             assert m, f"no button block for {lane}"
             has_host_pill = "ck-pill-host" in m.group(1)
-            assert has_host_pill == (not cfg["sandboxed"]), (
-                f"{lane}: sandboxed={cfg['sandboxed']} but host pill present={has_host_pill}"
+            assert has_host_pill == (not cfg["contained"]), (
+                f"{lane}: contained={cfg['contained']} but host pill present={has_host_pill}"
             )
 
 

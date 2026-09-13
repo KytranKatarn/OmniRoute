@@ -59,7 +59,7 @@
             <div class="login-title">{{ lane.label|upper }}</div>
             <div class="login-subtitle">{{ lane.blurb }}</div>
             <div class="login-badge">Admin Access Only</div>
-            {% if not lane.sandboxed %}
+            {% if not lane.contained %}
             <div class="login-badge" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.45);color:#fca5a5;">&#9888; HOST &mdash; no container boundary</div>
             {% endif %}
         </div>

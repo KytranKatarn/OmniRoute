@@ -19,7 +19,8 @@ def _lane_shapes():
         {
             "key": k,
             "label": c.get("label", k),
-            "sandboxed": bool(c.get("sandboxed")),
+            "contained": bool(c.get("contained")),
+            "platform_access": bool(c.get("platform_access")),
         }
         for k, c in tl.LANES.items()
     ]

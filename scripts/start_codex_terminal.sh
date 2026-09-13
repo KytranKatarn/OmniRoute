@@ -1,8 +1,14 @@
 #!/bin/sh
-# In-container launcher for the SANDBOXED Codex web terminal.
-# Runs interactive `codex` in a tmux session exposed via ttyd. The container is the
-# sandbox: no host fs (except a read-only auth.json seed), no DB creds — only a
-# read-scoped MCP bearer for the archie_kb gateway. Workspace is the /work volume.
+# In-container launcher for the CONTAINED Codex web terminal.
+# Runs interactive `codex` in a tmux session exposed via ttyd. The container bounds the
+# FILESYSTEM: no host fs (except a read-only auth.json seed), no DB creds. Workspace is
+# the /work volume.
+#
+# ⚠️ It is NOT a sandbox, and this header said "SANDBOXED … read-scoped MCP bearer"
+# until 2026-09-13. The bearer is now read+write (owner decision): through
+# archie_mcp_gateway this lane creates and closes Dev HQ tasks, manages team members
+# and spends fleet compute. It still holds no DB credential and cannot approve its own
+# work. Scope set: platform_v2/services/internal_auth.py, caller `coder_lanes`.
 set -e
 
 CODEX_HOME="${CODEX_HOME:-/codex-home}"

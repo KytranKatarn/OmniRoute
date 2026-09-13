@@ -58,7 +58,7 @@
         .footer-products a{padding:5px 14px;border:1px solid var(--border);border-radius:20px;font-size:0.7rem;transition:border-color 0.2s,color 0.2s;}
         .footer-products a:hover,.footer-products a.active{border-color:var(--accent);color:var(--accent);}
         @media(max-width:768px){.hero h1{font-size:1.8rem;}.features{grid-template-columns:1fr;}}
-    
+
         /* Cluster clearance — added for the mesh gate. Sits above the CTA because
            on the wrong network signing in cannot help, and the button must not
            pretend it can. */
@@ -79,7 +79,7 @@
                      background:#111827;border:1px solid #1f2937;color:#9ca3af;}
         .ll-tag{font-size:0.55rem;letter-spacing:.5px;padding:1px 5px;border-radius:3px;margin-left:4px;}
         .ll-tag.host{background:rgba(239,68,68,.16);color:#fca5a5;}
-        .ll-tag.sandboxed{background:rgba(34,211,238,.14);color:#67e8f9;}
+        .ll-tag.contained{background:rgba(34,211,238,.14);color:#67e8f9;}
         .ll-lanechip.is-current{border-color:{{ lane.accent }};color:{{ lane.accent }};}
 </style>
 </head>
@@ -125,9 +125,11 @@
           Your account is signed in but is not an administrator.</div>
         {% endif %}
 
-        {% if lane.sandboxed %}
-        <div class="ll-sandwarn"><strong>Sandboxed.</strong> This lane runs inside a container.
-          The filesystem it sees is not the host's, and what it can reach is bounded by that container.</div>
+        {% if lane.contained %}
+        <div class="ll-sandwarn"><strong>Contained &mdash; not sandboxed.</strong> This lane runs inside a
+          container, so the filesystem it sees is not the host's. It is <em>not</em> cut off from the
+          platform: through the gateway it creates and closes Dev HQ tasks, manages team members and
+          spends fleet compute. It cannot approve its own work.</div>
         {% else %}
         <div class="ll-hostwarn"><strong>&#9888; HOST lane &mdash; no container boundary.</strong>
           This is a shell on the machine that runs the platform. Commands here act on the host
@@ -160,7 +162,7 @@
         <div class="ll-lanes">
         {% for l in lanes %}
           <a class="ll-lanechip{% if l.key == lane.key %} is-current{% endif %}" href="/{{ l.key }}"
-             title="{{ l.blurb }}">{{ l.label }}{% if l.sandboxed %} <span class="ll-tag sandboxed">sandboxed</span>{% else %} <span class="ll-tag host">&#9888; HOST</span>{% endif %}</a>
+             title="{{ l.blurb }}">{{ l.label }}{% if l.contained %} <span class="ll-tag contained">contained</span>{% else %} <span class="ll-tag host">&#9888; HOST</span>{% endif %}</a>
         {% endfor %}
         </div>
     </div>

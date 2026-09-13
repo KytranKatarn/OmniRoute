@@ -198,8 +198,8 @@
     <div style="display:flex;flex-direction:column;height:100%;background:#000;">
         <div class="ac-tty-bar">
             <span class="ac-tty-name" style="color:{{ l.accent }}">{{ l.label }}</span>
-            {% if l.sandboxed %}
-              <span class="ac-tty-badge sandboxed" title="Runs inside a container — the filesystem it sees is not the host's">sandboxed</span>
+            {% if l.contained %}
+              <span class="ac-tty-badge contained" title="Runs inside a container — the filesystem it sees is not the host's. It still reaches the platform (Dev HQ tasks, agents, fleet delegation) through the gateway: contained, not sandboxed.">contained</span>
             {% else %}
               <span class="ac-tty-badge host" title="A shell on the host itself. No container boundary.">&#9888; HOST</span>
             {% endif %}

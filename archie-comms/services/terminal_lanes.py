@@ -6,12 +6,29 @@ and it refuses a token whose lane does not match — a NULL lane outright. So a 
 minting tokens with its own idea of the gate is precisely the "second gate for shell
 access" the design exists to avoid.
 
-⚠️ The two lanes have very different blast radii and nothing here may blur them:
+⚠️ TWO SEPARATE FACTS, and this file is where they stop being conflated.
 
-    claude — the real `claude` CLI on the HOST as user kytran, inside tmux `claude-code`.
-             NO container boundary. `sandboxed` is False and the UI must say so.
-    codex  — `codex` inside the archie_codex_terminal container, --max-clients 1, its own
-             volumes, on a bridge network with no reach to any platform container.
+`contained` answers ONE question: is there a container boundary between the lane and the
+host filesystem? It says NOTHING about what the lane can reach over the network.
+
+    contained=False  claude, archie-tui — running on the HOST as user kytran. No container
+                     boundary at all. This is the most important label on the page.
+    contained=True   codex, opencode — their own containers, their own volumes, their own
+                     networks. The filesystem they see is not the host's.
+
+`platform_access` answers the OTHER question, and it is True for every lane today.
+Through `archie_mcp_gateway` the contained lanes can create and close Dev HQ tasks,
+manage team members (assign, shift-state, skills) and SPEND FLEET COMPUTE by delegating.
+archie-tui reaches the same surface through `archie_engine`.
+
+🔴 So no lane is a SANDBOX, and nothing here may call one that. Until 2026-09-13 this
+docstring said codex sat "on a bridge network with no reach to any platform container"
+and the UI stamped a `sandboxed` pill on it. Both were true when written and both are now
+false — owner decision 2026-09-13 granted both coder lanes platform manage/update access
+(scoped `tasks:read/write, agents:read/manage, delegation`; see
+`platform_v2/tests/test_coder_lane_task_scopes.py` for the exact set and the line that
+still holds — they cannot approve their own work). "Contained" is the honest word: the
+filesystem is walled, the platform is not.
 
 The engine is NOT a lane: `archie_engine` publishes a bearer-auth websocket API on :9090
 with no shell behind it. Do not add it.
@@ -63,7 +80,9 @@ LANES = {
         "landing_host": "claude.kytranempowerment.com",
         "proxy_port": 7681,
         # The HOST shell. This is the single most important fact on the page.
-        "sandboxed": False,
+        "contained": False,
+        # Claude Code with the full MCP tool surface.
+        "platform_access": True,
         "single_seat": False,
     },
     "codex": {
@@ -75,11 +94,11 @@ LANES = {
              "Runs in its own container with its own volumes. The filesystem it sees is not the host's."),
             ("\U0001F464", "One Seat",
              "ttyd --max-clients 1. A single viewer at a time, so two people never fight over one keyboard."),
-            ("\U0001F6E1", "Scoped by Design",
-             "On a bridge network with no reach into any platform container. Blast radius is the box it lives in."),
+            ("\U0001F517", "Reaches The Platform",
+             "Contained, not sandboxed: through the gateway it creates and closes Dev HQ tasks, manages team members and spends fleet compute. It cannot approve its own work."),
         ],
         "label": "Codex",
-        "blurb": "The containerised Codex CLI lane. One viewer at a time.",
+        "blurb": "The containerised Codex CLI lane, wired to the platform. One viewer at a time.",
         "accent": "#22d3ee",
         # ⚠️ codex.kytranempowerment.com served the ttyd PROXY directly until
         # 2026-09-11. It is now the LANDING host (matching claude), and the proxy
@@ -88,7 +107,9 @@ LANES = {
         "url": "https://codex-tty.kytranempowerment.com",
         "landing_host": "codex.kytranempowerment.com",
         "proxy_port": 7683,
-        "sandboxed": True,
+        "contained": True,
+        # Via archie_mcp_gateway (owner decision 2026-09-13). Contained != sandboxed.
+        "platform_access": True,
         "single_seat": True,  # ttyd --max-clients 1
     },
     "archie-tui": {
@@ -120,12 +141,14 @@ LANES = {
         # engine over a websocket, which is why it is the lane earmarked for approved
         # staff later (explicit per-user allowlist, owner decision 2026-09-11). That
         # widening is NOT in this change: the mint stays admin-only.
-        "sandboxed": False,
+        "contained": False,
+        # Via archie_engine's websocket API.
+        "platform_access": True,
         "single_seat": False,
     },
     "opencode": {
         "label": "OpenCode",
-        "blurb": "The containerised OpenCode lane \u2014 a second sandboxed coder, so a task never waits on one tool.",
+        "blurb": "The containerised OpenCode lane \u2014 a second coder wired to the platform, so a task never waits on one tool.",
         "accent": "#fbbf24",
         # Same split as the others: opencode. is the landing host, opencode-tty. the proxy.
         "url": "https://opencode-tty.kytranempowerment.com",
@@ -134,10 +157,12 @@ LANES = {
         # CONTAINED, like codex. Owner's call ("the codex and opencode can be
         # container") and the right default for a tool new to this cluster: a host
         # lane has to earn that placement the way archie-tui did.
-        "sandboxed": True,
+        "contained": True,
+        # Via archie_mcp_gateway, same grant as codex.
+        "platform_access": True,
         "single_seat": True,  # ttyd --max-clients 1
         "icon": "\U0001F7E1",
-        "role": "Second Sandboxed Coder \u2014 Kytran Empowerment",
+        "role": "Second Contained Coder \u2014 Kytran Empowerment",
         "status": "TTYd Online \u2014 OpenCode Ready",
         "features": [
             ("\U0001F501", "A Second Opinion",
@@ -208,7 +233,8 @@ def mint_token(user_id: int, lane: str) -> dict:
         "url": f"{config['url']}?token={token}",
         "expires_in": TOKEN_TTL_SECONDS,
         "lane": lane,
-        "sandboxed": config["sandboxed"],
+        "contained": config["contained"],
+        "platform_access": config["platform_access"],
     }
 
 
@@ -369,7 +395,8 @@ def lane_status() -> list:
                 "lane": lane,
                 "label": config["label"],
                 "reachable": _probe(config["proxy_port"]),
-                "sandboxed": config["sandboxed"],
+                "contained": config["contained"],
+                "platform_access": config["platform_access"],
                 "single_seat": config["single_seat"],
                 "busy": None,
             }

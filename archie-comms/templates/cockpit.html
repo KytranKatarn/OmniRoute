@@ -129,7 +129,7 @@
         {% for l in lanes %}
         <button type="button" data-lane="{{ l.key }}"{% if loop.first %} class="ck-lane-on"{% endif %}>
           {{ l.label }}
-          {% if l.sandboxed %}<span class="ck-pill">sandboxed</span>
+          {% if l.contained %}<span class="ck-pill" title="Its own container and filesystem &mdash; but it still reaches the platform through the gateway. Contained is not sandboxed.">contained</span>
           {% else %}<span class="ck-pill ck-pill-host">&#9888; HOST &middot; no container</span>{% endif %}
         </button>
         {% endfor %}

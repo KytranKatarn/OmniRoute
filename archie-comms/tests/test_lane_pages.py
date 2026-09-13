@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(
     TEMPLATES is None, reason="comms templates not reachable from this test root"
 )
 
-# A deliberately ODD set: two host lanes and one sandboxed, none of them named in
+# A deliberately ODD set: two host lanes and one contained, none of them named in
 # any template. If a template hardcodes "Claude", these fixtures will not match it.
 LANES = [
     {
@@ -44,21 +44,21 @@ LANES = [
         "label": "Alpha Lane",
         "blurb": "first lane blurb",
         "accent": "#a78bfa",
-        "sandboxed": False,
+        "contained": False,
     },
     {
         "key": "bravo",
         "label": "Bravo Lane",
         "blurb": "second lane blurb",
         "accent": "#22d3ee",
-        "sandboxed": True,
+        "contained": True,
     },
     {
         "key": "charlie-tui",
         "label": "Charlie TUI",
         "blurb": "third lane blurb",
         "accent": "#34d399",
-        "sandboxed": False,
+        "contained": False,
     },
 ]
 
@@ -113,19 +113,19 @@ class TestHostMarker:
     """An unmarked host lane is the expensive failure — never a cosmetic one."""
 
     @pytest.mark.parametrize("lane", LANES, ids=lambda l: l["key"])
-    def test_each_page_marks_host_vs_sandboxed(self, lane):
+    def test_each_page_marks_host_vs_contained(self, lane):
         for page in ("lane_landing.html", "lane_terminal.html"):
             html = _code_only(_render(page, lane=lane, lanes=LANES))
-            if lane["sandboxed"]:
-                assert "sandboxed" in html, f"{page}/{lane['key']}: no sandboxed marker"
+            if lane["contained"]:
+                assert "contained" in html, f"{page}/{lane['key']}: no contained marker"
             else:
                 assert "HOST" in html, f"{page}/{lane['key']}: HOST lane not marked"
 
     def test_chat_marks_every_lane_in_its_own_panel(self):
         html = _code_only(_render("chat.html", lanes=LANES))
         # one marker per lane — a HOST lane that renders without one is the bug
-        assert html.count("ac-tty-badge host") == sum(1 for l in LANES if not l["sandboxed"])
-        assert html.count("ac-tty-badge sandboxed") == sum(1 for l in LANES if l["sandboxed"])
+        assert html.count("ac-tty-badge host") == sum(1 for l in LANES if not l["contained"])
+        assert html.count("ac-tty-badge contained") == sum(1 for l in LANES if l["contained"])
 
 
 class TestMintingGoesThroughTheOneGate:

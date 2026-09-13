@@ -1,17 +1,27 @@
-"""Dev HQ access for the coder lanes: scope grants + gateway write gating (#6749 follow-on).
+"""Platform access for the coder lanes: scope grants + gateway write gating (#6749 follow-on).
 
-Two lanes, two very different trust levels, and the tests exist to keep them apart:
+  archie_engine (archie-tui) — a trusted internal caller. Gains tasks:read/write so the
+  TUI can SEE and CLOSE its own work. Until now it could only create task rows as a side
+  effect of delegating: write-only and blind. Its 5 tui-sourced tasks sat unclosed from
+  2026-08-23 because nothing on that side could reach them.
 
-  archie_engine (archie-tui) — already a trusted internal caller. Gains tasks:read and
-  tasks:write so the TUI can SEE and CLOSE its own work. Until now it could only create
-  task rows as a side effect of delegating: write-only and blind. The 5 tui-sourced tasks
-  it opened sat unclosed from 2026-08-23 because nothing on that side could reach them.
+  coder_lanes (codex + opencode, via archie_mcp_gateway) — owner decision 2026-09-13:
+  both lanes get platform manage/update access. They hold no internal key and still
+  cannot resolve archie_platform; the gateway carries the key on their behalf, so their
+  reach is exactly its tool list.
 
-  opencode — a THIRD-PARTY coding agent in an isolated container that cannot resolve
-  archie_platform at all. It reaches Dev HQ only through archie_mcp_gateway, which holds
-  the key on its behalf. Its scope set is therefore deliberately the narrowest of any
-  caller: tasks only. No delegation (it must not be able to spend fleet compute), no
-  dhq:chat, no approvals, no engine, no repair, no sessions, no mail.
+⚠️ THESE LANES ARE NO LONGER "SANDBOXED" IN THE SENSE THAT MATTERS. The container
+isolation is unchanged — no platform DNS, no DB — but through the gateway they can now
+create and close Dev HQ tasks, manage team members (assign, shift-state, skills) and
+SPEND FLEET COMPUTE via delegation. An earlier version of this docstring said "tasks
+only, no delegation, it must not be able to spend fleet compute"; that is now false and
+contradicted by the exact-set test below. Anything describing these lanes as a sandbox —
+UI markers, module docs, the cockpit terminal pane's `sandboxed` label — is describing
+the old posture and should say "isolated container, platform WRITE access" instead.
+
+What stays out of reach, and why it is the line: approvals:decide (an agent that can
+both raise and approve is its own reviewer), plus coo, mail, sessions, engine,
+repair:write, cloud:code, fleet, compliance, notify.
 """
 
 import os
@@ -63,25 +73,47 @@ class TestEngineGainedTaskAccess:
             assert forbidden not in scopes, forbidden
 
 
-class TestOpencodeIsTheNarrowestCaller:
-    def test_opencode_is_registered_with_its_own_key(self):
-        assert ia.CALLER_ENV["opencode"] == "INTERNAL_API_KEY_OPENCODE"
+class TestCoderLaneScopes:
+    def test_coder_lanes_caller_is_registered(self):
+        assert ia.CALLER_ENV["coder_lanes"] == "INTERNAL_API_KEY_CODER_LANES"
 
-    def test_opencode_has_tasks_and_nothing_else(self):
+    def test_coder_lanes_scope_set_is_exact(self):
         """Exact-set assertion on purpose: a future grant here must be deliberate."""
-        assert ia.CALLER_SCOPES["opencode"] == {"tasks:read", "tasks:write"}
+        assert ia.CALLER_SCOPES["coder_lanes"] == {
+            "tasks:read",
+            "tasks:write",
+            "agents:read",
+            "agents:manage",
+            "delegation",
+        }
 
-    def test_opencode_cannot_spend_fleet_compute(self):
-        """`delegation` would let a third-party agent queue work onto the GPU fleet."""
-        assert "delegation" not in ia.CALLER_SCOPES["opencode"]
+    def test_coder_lanes_cannot_approve_their_own_work(self):
+        """Delegation IS granted (owner decision) so the lanes can use platform skills.
+        Self-approval is the line that stays: an agent that can both raise and approve
+        is its own reviewer."""
+        for forbidden in ("approvals:decide", "mail", "sessions", "coo", "repair:write"):
+            assert forbidden not in ia.CALLER_SCOPES["coder_lanes"], forbidden
 
-    def test_opencode_is_not_wider_than_the_engine(self):
-        """A third-party lane must never outrank a first-party one."""
-        assert ia.CALLER_SCOPES["opencode"] <= ia.CALLER_SCOPES["archie_engine"]
+    def test_coder_lanes_never_gain_the_scopes_reserved_to_other_actors(self):
+        """The lanes are NOT a subset of the engine any more — they manage agents and
+        it does not — so the meaningful invariant is which scopes stay out of reach."""
+        reserved = {
+            "approvals:decide",
+            "coo",
+            "mail",
+            "sessions",
+            "engine",
+            "repair:write",
+            "cloud:code",
+            "fleet",
+            "compliance",
+            "notify",
+        }
+        assert not (ia.CALLER_SCOPES["coder_lanes"] & reserved)
 
-    def test_every_opencode_scope_is_a_real_scope(self):
+    def test_every_coder_lane_scope_is_real(self):
         """A typo'd scope silently grants nothing and 403s at runtime instead."""
-        assert ia.CALLER_SCOPES["opencode"] <= ia.SCOPES
+        assert ia.CALLER_SCOPES["coder_lanes"] <= ia.SCOPES
 
 
 class TestGatewayWriteGating:
@@ -103,18 +135,62 @@ class TestGatewayWriteGating:
                 "%s does not check _needs_write() — a read-scoped bearer could call it" % tool
             )
 
-    def test_read_tools_do_not_require_write(self):
-        """Reads must stay available to the existing read-only bearer."""
+    def test_reads_are_registry_driven_not_hand_listed(self):
+        """Reads come from mcp_server.tools.get_all_tools(), so a tool added to the
+        platform appears here automatically WITH its real schema. The earlier design
+        hand-wrote three read tools; a hand-written copy of a schema drifts, and a
+        stale schema is worse than none."""
         src = self._src()
-        for tool in ("get_projects", "get_my_tasks", "get_task"):
-            body = re.search(r"async def %s\(.*?(?=\n@mcp\.tool|\nclass )" % tool, src, re.S)
-            assert body, tool
-            assert "_needs_write()" not in body.group(0), tool
+        assert "get_all_tools()" in src
+        assert "_build_read_tool" in src
+
+    def test_read_wrapper_does_not_gate_on_write(self):
+        """Reads must stay reachable by a read-only bearer — the write gate belongs
+        only on the hub-backed write tools."""
+        src = self._src()
+        body = re.search(r"def _build_read_tool\(.*?(?=\nmcp = FastMCP)", src, re.S)
+        assert body, "_build_read_tool not found"
+        assert "_needs_write()" not in body.group(0)
 
     def test_task_tools_go_over_http_not_the_database(self):
         """The gateway's Postgres role is read-only `codex_ro`; task writes MUST route
         through the hub's scoped, audited internal API instead."""
         src = self._src()
         assert "/api/internal/tasks" in src
-        assert "INTERNAL_API_KEY_OPENCODE" in src
+        assert "INTERNAL_API_KEY_CODER_LANES" in src
         assert "codex_ro" in src, "the read-only DB role note must survive"
+
+
+class TestGatewayKeepsTheReadOnlyDatabaseRole:
+    """Option 2's whole point: writes go through the hub's scoped API, so this
+    container keeps a Postgres role that CANNOT write.
+
+    If someone later flips the gateway to a write-capable role, the bearer check
+    becomes the only control left — exactly the posture that was rejected. This test
+    is the tripwire for that, and it reads compose rather than trusting a comment.
+    """
+
+    def _compose(self):
+        here = os.path.abspath(os.path.dirname(__file__))
+        while True:
+            cand = os.path.join(here, "docker-compose.yml")
+            if os.path.exists(cand):
+                return open(cand).read()
+            parent = os.path.dirname(here)
+            if parent == here:
+                break
+            here = parent
+        fallback = "/mnt/archie_brain/docker-compose.yml"
+        if os.path.exists(fallback):
+            return open(fallback).read()
+        pytest.skip("docker-compose.yml not reachable (repo root not mounted)")
+
+    def test_gateway_service_still_uses_the_read_only_role(self):
+        compose = self._compose()
+        block = re.search(r"\n  archie_mcp_gateway:.*?(?=\n  [a-z_]+:\n)", compose, re.S)
+        assert block, "archie_mcp_gateway service not found in compose"
+        body = block.group(0)
+        assert "DB_USER: codex_ro" in body, (
+            "the gateway's Postgres role is no longer codex_ro — writes must go through "
+            "the hub's scoped API, not a write-capable DB role"
+        )

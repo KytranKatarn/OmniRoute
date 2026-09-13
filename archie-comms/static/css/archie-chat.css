@@ -1777,7 +1777,7 @@ body {
 .ac-skills-status { font-size: 9px; color: #8899aa; margin-top: 5px; min-height: 11px; }
 
 /* ── Lane TTY bar (one per coder-lane tab) ─────────────────────────────────
-   The HOST vs sandboxed badge is the load-bearing element here. claude and
+   The HOST vs contained badge is the load-bearing element here. claude and
    archie-tui are shells on the host with no container boundary; codex is
    contained. The lanes are otherwise visually identical, so the badge is the
    only thing separating "edit a file" from "edit the host's files".       */
@@ -1790,7 +1790,7 @@ body {
 .ac-tty-name { font-weight: 600; letter-spacing: 1px; }
 .ac-tty-badge { padding: 2px 7px; border-radius: 3px; font-size: 0.58rem; letter-spacing: 1px; white-space: nowrap; }
 .ac-tty-badge.host { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); color: #fca5a5; }
-.ac-tty-badge.sandboxed { background: rgba(34, 211, 238, 0.12); border: 1px solid rgba(34, 211, 238, 0.35); color: #67e8f9; }
+.ac-tty-badge.contained { background: rgba(34, 211, 238, 0.12); border: 1px solid rgba(34, 211, 238, 0.35); color: #67e8f9; }
 .ac-tty-blurb { color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ac-tty-state { color: #fbbf24; }
 .ac-tty-btn {

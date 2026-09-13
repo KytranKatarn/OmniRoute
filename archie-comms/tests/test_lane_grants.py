@@ -31,7 +31,7 @@ except Exception as exc:  # pragma: no cover
     pytest.skip(f"terminal_lanes not importable: {exc}", allow_module_level=True)
 
 LANES = sorted(tl.LANES)
-HOST_LANES = sorted(k for k, c in tl.LANES.items() if not c.get("sandboxed"))
+HOST_LANES = sorted(k for k, c in tl.LANES.items() if not c.get("contained"))
 
 
 @pytest.fixture

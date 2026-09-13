@@ -99,8 +99,8 @@ def test_only_the_real_lanes_exist(lanes):
 
 def test_the_claude_lane_is_marked_as_the_host_not_a_sandbox(lanes):
     """The most important label on the page: claude has NO container boundary."""
-    assert lanes.LANES["claude"]["sandboxed"] is False
-    assert lanes.LANES["codex"]["sandboxed"] is True
+    assert lanes.LANES["claude"]["contained"] is False
+    assert lanes.LANES["codex"]["contained"] is True
 
 
 def test_lane_urls_are_distinct_and_https(lanes):
@@ -156,10 +156,10 @@ def test_mint_points_the_url_at_the_matching_lane(lanes, monkeypatch):
         assert f"token={result['token']}" in result["url"]
 
 
-def test_mint_surfaces_whether_the_lane_is_sandboxed(lanes, monkeypatch):
+def test_mint_surfaces_whether_the_lane_is_contained(lanes, monkeypatch):
     monkeypatch.setattr(lanes, "_insert_token", lambda *a, **k: None)
-    assert lanes.mint_token(4, "claude")["sandboxed"] is False
-    assert lanes.mint_token(4, "codex")["sandboxed"] is True
+    assert lanes.mint_token(4, "claude")["contained"] is False
+    assert lanes.mint_token(4, "codex")["contained"] is True
 
 
 def test_each_token_is_unique(lanes, monkeypatch):
@@ -178,7 +178,7 @@ def test_lane_status_shape(lanes, monkeypatch):
     rows = lanes.lane_status()
     assert {r["lane"] for r in rows} == VALID_LANES
     for row in rows:
-        assert set(row) >= {"lane", "label", "reachable", "sandboxed", "single_seat", "busy"}
+        assert set(row) >= {"lane", "label", "reachable", "contained", "single_seat", "busy"}
 
 
 def test_reachable_reflects_the_probe(lanes, monkeypatch):

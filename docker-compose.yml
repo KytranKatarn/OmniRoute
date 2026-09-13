@@ -1386,12 +1386,17 @@ services:
       # {tasks:read, tasks:write} — see services/internal_auth.CALLER_SCOPES["opencode"].
       # Empty => the task tools return "not configured" and the KB tools are unaffected.
       ARCHIE_HUB_URL: http://archie_platform:3000
-      INTERNAL_API_KEY_OPENCODE: ${INTERNAL_API_KEY_OPENCODE:-}
+      # Scoped to {tasks, agents, delegation} — see internal_auth.CALLER_SCOPES.
+      # Empty => the write tools report "not configured"; read tools are unaffected.
+      INTERNAL_API_KEY_CODER_LANES: ${INTERNAL_API_KEY_CODER_LANES:-}
     secrets:
       - codex_db_ro
     networks:
       - archie_internal
-      - codex_terminal_net   # so the isolated codex terminal can reach the gateway
+      - codex_terminal_net      # so the isolated codex terminal can reach the gateway
+      - opencode_terminal_net   # ...and the opencode terminal. The GATEWAY joins THEIR
+                                # networks, never the reverse: the lanes still cannot
+                                # resolve archie_platform or archie_database.
     depends_on:
       - archie_database
     healthcheck:
@@ -1441,6 +1446,29 @@ services:
     environment:
       TZ: America/Toronto
       OPENCODE_HOME: /opencode-home
+      ARCHIE_KB_GATEWAY: http://archie_mcp_gateway:7800/mcp
+    secrets:
+      # uid/mode are load-bearing: this service runs as user "1000:1000" while the host
+      # secret is root-owned 0600, so a DEFAULT mount is unreadable by the process that
+      # needs it and MCP would silently 401. Same class as the uid-0 write trap above.
+      # ⚠️ NO uid/gid/mode HERE — this Compose ignores them on a file-based secret and
+      # says so: "secrets `uid`, `gid` and `mode` are not supported, they will be
+      # ignored". They were written on 2026-09-13 precisely to let this uid-1000 lane
+      # read the file, were silently dropped, and the lane came up unable to open its
+      # own bearer (EACCES) — a declared protection that protected nothing, the same
+      # shape as the phantom `backups` table.
+      #
+      # A file secret is BIND-MOUNTED, so the container sees the HOST file's owner and
+      # mode. The grant therefore lives on the host file, and this is its only home:
+      #     secrets/opencode/mcp_bearer.txt  ->  root:1000, 0640
+      # root still owns it; gid 1000 (kytran on the host, node in the container) may
+      # READ it and nothing more. `provision_coder_lane_keys.sh` must preserve that —
+      # it writes 0600 root:root, which locks this lane out again.
+      #
+      # codex needs none of this: that lane runs as root (no `user:`), so root:root
+      # 0600 is readable there. The difference is the uid, not the secret.
+      - source: opencode_kb_bearer
+        target: opencode_kb_bearer
     volumes:
       - opencode_terminal_home:/opencode-home
       - opencode_terminal_work:/work
@@ -1486,6 +1514,8 @@ secrets:
     file: ./secrets/codex/db_ro_password.txt
   codex_kb_bearer:
     file: ./secrets/codex/mcp_bearer.txt
+  opencode_kb_bearer:
+    file: ./secrets/opencode/mcp_bearer.txt
   codex_auth:
     file: ./secrets/codex/codex_auth.json
   codex_github_token:

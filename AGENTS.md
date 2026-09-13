@@ -1,8 +1,22 @@
-# AGENTS.md — Codex operating guide (A.R.C.H.I.E. platform)
+# AGENTS.md — coder-lane operating guide (A.R.C.H.I.E. platform)
 
-You are **Codex**, a contributor to the A.R.C.H.I.E. platform working on the
-**Applications & Concepts** modules. You run either headless (`run-codex-task.sh`)
-or interactively in the web terminal at `codex.kytranempowerment.com`.
+You are a coding agent contributing to the A.R.C.H.I.E. platform, working on the
+**Applications & Concepts** modules.
+
+**Two lanes read this file, and they are NOT interchangeable.** Work out which one
+you are before you rely on anything below — the wrong answer sends you to the wrong
+scope file and a ship command you do not have:
+
+| | **codex** | **opencode** |
+|---|---|---|
+| runs | headless `run-codex-task.sh`, or the `codex.kytranempowerment.com` terminal | the `archie_opencode_terminal` container |
+| your scope | `config/agents/codex.yaml` | `config/agents/opencode.yaml` |
+| git credentials | yes | **none, deliberately** |
+| how work ships | you run `codex-pr` yourself | **you do not ship.** A HOST runner collects your work |
+
+Tell them apart: if your checkout is `/work/archie-platform`, you are **opencode**.
+`codex-pr` does not exist for you and `git push` will fail — that is the design, not a
+fault. See "Workflow" below.
 
 ## Who we are & what you're building
 **Kytran Empowerment Inc.** runs A.R.C.H.I.E., a self-hosted platform (a hub + a small
@@ -40,11 +54,22 @@ In the interactive terminal, the human states the goal; if it's unclear, ask bef
 
 ## Your scope — deny-by-default
 
-You may ONLY edit paths in `config/agents/codex.yaml → allowed_paths` (currently the
-Applications/Concepts modules + their templates/static + `platform_v2/tests/`). A
-pre-push scope guard **rejects** any push touching anything else — including infra,
-secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, and any
-`department_dispatcher.py`. Don't fight it; stay in your lane.
+You may ONLY edit paths in **your own lane's** `allowed_paths` —
+`config/agents/codex.yaml` for codex, `config/agents/opencode.yaml` for opencode. They
+are similar but NOT identical, so read yours; the other lane's list is not a licence.
+Both cover the Applications/Concepts modules + their templates/static +
+`platform_v2/tests/`.
+
+The same deny-by-default guard (`services/agents/codex_scope.check_diff_paths`) enforces
+both — it is agent-agnostic, and anything not explicitly allowed is refused. Always
+refused: infra, secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, any
+`department_dispatcher.py`, and each lane's own cage (`config/agents/*`,
+`scripts/agents/*`). Don't fight it; stay in your lane.
+
+**Where the guard runs differs by lane**, and it changes what a failure looks like:
+codex is checked pre-push; opencode is checked on the HOST after the fact, so an
+out-of-scope edit is not rejected as you make it — it is dropped later, and your work is
+wasted. Check the path before you edit, not after.
 
 ## Before you program — READ THESE (they're in this repo)
 1. `CLAUDE.md` (repo root) — platform overview, the 6 Rules, key files.
@@ -54,6 +79,40 @@ secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, and any
 3. **Search the knowledge base FIRST** via your `archie_kb` MCP tools (read-only):
    `search_knowledge`, `search_mistakes`, `recall_context`. There are 290+ recorded
    mistakes — check them before building so you don't repeat a known error.
+4. **`.claude/commands/*.md` and `.claude/skills/*/SKILL.md` — the platform's PROCEDURES.**
+   See below; they are in your checkout and nothing loads them for you.
+
+## The procedure playbooks (`.claude/commands/`, `.claude/skills/`)
+
+These are how this platform does recurring work — written down, corrected over time, and
+usually paid for by an outage. They live in your checkout and **no tooling loads them
+into your prompt**; you have to open them. They are plain markdown: read one, follow it.
+
+They are written for Claude Code's slash commands, so a step may name a tool you do not
+have. **Take the reasoning, not the keystrokes** — the ordering and the gates are the
+part that matters, and they apply to any agent doing that job.
+
+Worth reading before the matching task:
+
+| You are about to… | Read |
+|---|---|
+| verify a change is real | `.claude/skills/archie-status/`, `commands/archie-qa.md` |
+| touch a module | `.claude/skills/archie-patterns/`, `skills/archie-module-creation/` |
+| ship / review / merge | `commands/commit-push-pr.md`, `commands/merge-pr.md` |
+| deploy anything | `.claude/skills/archie-deploy/`, `.claude/rules/deploy-provenance.md` |
+| search for prior art | `.claude/skills/archie-search/`, `skills/recall/` |
+| touch dispatch or the fleet | `.claude/skills/cluster-architecture/`, `skills/archie-dispatch-debug/` |
+
+Three procedures are load-bearing enough to state outright, because agents (and humans)
+keep rediscovering them the expensive way:
+
+- **A merge is not a deploy.** Image-baked products (`COPY .`) keep running the old code
+  until rebuilt; volume-mounted hub code runs whatever branch is *checked out*, so
+  `git checkout main && git pull` IS the deploy step there. `.claude/rules/deploy-provenance.md`.
+- **Verify through the RUNNING process, not the file.** A bind mount makes the file
+  current while the imported module is stale. Prove it where it executes.
+- **A test that passes proves nothing until you know it CAN fail.** Re-introduce the bug
+  in a COPY and watch the test go red. Never mutate the live file to check.
 
 ## Infrastructure (so you don't introduce wrong calls)
 - The platform is a **hub + fleet of mesh nodes** (Headscale `100.64.0.x`). Inter-service
@@ -80,12 +139,23 @@ secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, and any
 - Templates live in `platform_v2/templates/tools/<module>.html`; static in
   `platform_v2/static/{js,css}/`. Match the existing LCARS patterns in the file you edit.
 
-## Workflow (interactive terminal)
+## Workflow — differs by lane
 
+**codex (interactive terminal):**
 1. Edit files within your allowed scope.
 2. When ready, run: `codex-pr "feat(<module>): <what you did>"`
    - It commits, pushes a `codex/*` branch, and opens a PR against `main`.
-3. **F.O.R.G.E.** (Repair Bay) reviews the PR; a **human merges**. You never merge.
+
+**opencode:** you hold no git credential and you do not push. Edit in your checkout and
+**leave the changes in the working tree** — do not try to commit, branch, or push, and do
+not hand back a patch in prose. The host runner (`scripts/agents/run-opencode-task.sh`)
+stages what you changed, scope-checks it, runs pre-commit and the tests in a throwaway
+container, and opens the PR. Your job ends at "the edit is on disk and correct".
+
+**Both lanes:** **F.O.R.G.E.** (Repair Bay) reviews the PR and a **human merges**. You
+never merge. If you cannot finish the task, say so plainly and say why — a clear refusal
+is worth more than a plausible guess, and both lanes have been measured doing the right
+thing here.
 
 ## Hard rules
 

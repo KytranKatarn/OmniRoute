@@ -329,6 +329,89 @@ def _canonical_model_name(model: str) -> str:
     return model if ":" in model else f"{model}:latest"
 
 
+def _model_is_warm(model: str, warm_by_model: dict) -> bool:
+    """Is `model` warm anywhere, comparing BARE and ``:latest`` forms as equal? (#6749)
+
+    The queue stores what the caller asked for (``qwen25-classify``); the warm
+    inventory stores what Ollama reports (``qwen25-classify:latest``). A raw
+    ``model in warm_by_model`` is therefore False for a model that is resident and
+    actively serving — measured 2026-09-12: 91/91 successful executions while the
+    drain declared "no warm node has qwen25-classify" on every cycle and fired a
+    blocking cold-load for it.
+
+    `_canonical_model_name` already existed for exactly this and was already applied
+    at the reconcile site and inside the claim SQL; this membership test was the one
+    place it was missing. Only bare<->:latest are equated — qwen2.5:7b and
+    qwen2.5:1.5b must never cross-match.
+    """
+    if not model:
+        return False
+    if model in warm_by_model:
+        return True
+    canon = _canonical_model_name(model)
+    return any(_canonical_model_name(k) == canon for k in warm_by_model)
+
+
+def _drain_order(warm_by_model: dict, head_ages: dict) -> list:
+    """Warm models ordered by QUEUE PRESSURE — oldest waiting row first (#6749).
+
+    The drain used to walk `warm_by_model.items()` in dict INSERTION order while the
+    per-cycle unpinned budget is small (measured: 3, and 0 whenever 4+ of the 6 pool
+    threads are busy). Whichever backlogged model happened to sort first took the
+    whole budget every cycle and the loop `break`-ed before reaching the rest.
+    Measured 2026-09-12: qwen25-classify at position 1 with 183 rows monopolised the
+    budget while qwen2.5:1.5b at position 13 was never reached at all — its head
+    aged by exactly the wall-clock elapsed for over two hours.
+
+    Ordering by head age makes the most-starved lane go first, so no lane can be
+    starved indefinitely by a neighbour's standing backlog. Models with no queued
+    work sort LAST (they cost only an empty claim query).
+
+    PURE: takes the inventory and a {canonical_model: head_age_seconds} map, so it is
+    unit-testable without a DB. `head_ages` missing a model simply means "no work".
+    """
+
+    def sort_key(item):
+        # Negated so the LARGEST head age sorts first; no queued work -> +1.0 -> last.
+        return -head_ages.get(_canonical_model_name(item[0]), -1.0)
+
+    return sorted(warm_by_model.items(), key=sort_key)
+
+
+def _queue_head_age_by_model() -> dict:
+    """{canonical_model_name: seconds the oldest CLAIMABLE queued row has waited}.
+
+    Mirrors the claim predicate (unpinned + unexpired) so the ordering reflects what
+    `_claim_tasks` could actually take. Fail-safe: on any error return {}, which
+    makes `_drain_order` degrade to the previous dict ordering rather than stall the
+    drain — a broken ordering hint must never be able to stop the queue.
+    """
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT model_needed,
+                       EXTRACT(EPOCH FROM (NOW() - MIN(queued_at))) AS head_age_s
+                FROM dispatch_pending_queue
+                WHERE status = 'queued'
+                  AND model_needed IS NOT NULL
+                  AND preferred_node_id IS NULL
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                GROUP BY model_needed
+                """
+            )
+            ages: dict = {}
+            for row in cur.fetchall():
+                key = _canonical_model_name(row["model_needed"])
+                age = float(row["head_age_s"] or 0.0)
+                # Two spellings can collapse to one canonical key — keep the oldest.
+                ages[key] = max(ages.get(key, 0.0), age)
+            return ages
+    except Exception as exc:
+        log.warning("model_dispatch: queue head-age probe failed (keeping dict order): %s", exc)
+        return {}
+
+
 def _is_pullable(model: str) -> bool:
     if model in _runtime_unpullable:
         return False
@@ -1760,7 +1843,8 @@ def model_dispatch_worker() -> None:
     #    is claimed that cannot start; double-claim is impossible because _claim_tasks
     #    only touches status='queued'. Results/errors surface via _on_task_done.
     unpinned_budget = min(MAX_TASKS_PER_CYCLE, max(0, free_slots - PINNED_RESERVED_SLICE))
-    for model_name, node_ids in all_warm_by_model.items():
+    # #6749: drain by queue pressure, never dict insertion order — see _drain_order.
+    for model_name, node_ids in _drain_order(all_warm_by_model, _queue_head_age_by_model()):
         if total_executed >= unpinned_budget:
             break
         for node_id in node_ids:
@@ -1794,7 +1878,7 @@ def model_dispatch_worker() -> None:
     #    starved until something else happened to warm it. Trigger on the actual
     #    condition instead: queued work exists for a model with no warm home.
     next_model = _get_highest_priority_queued_model()
-    if next_model and next_model not in all_warm_by_model:
+    if next_model and not _model_is_warm(next_model, all_warm_by_model):
         log.info("model_dispatch: no warm node has %s — preparing to load it", next_model)
         try:
             # Clear RAM before attempting load — evict idle models if needed

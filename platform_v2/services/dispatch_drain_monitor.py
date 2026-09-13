@@ -48,6 +48,11 @@ HEARTBEAT_STALL_MIN_DEFAULT = 5.0
 # non-warmup work with zero claim progress means the drain has effectively stopped.
 QUEUE_STALL_MIN_DEFAULT = 30.0
 
+# A lane that has not been claimed at all in this long is starved, not merely busy.
+# Deliberately above QUEUE_STALL_MIN so a broad slow patch pages once (check 2)
+# rather than once per lane as well.
+LANE_STARVE_MIN_DEFAULT = 45.0
+
 
 def heartbeat_is_stale(age_min, limit_min: float) -> bool:
     """PURE decision: is the newest worker heartbeat too old?
@@ -74,6 +79,34 @@ def queue_is_stalled(stalled_rows: int, newest_claim_age_min, limit_min: float) 
     return float(newest_claim_age_min) > float(limit_min)
 
 
+def starved_lanes(lanes, limit_min: float) -> list:
+    """PURE decision: which (module_id, model) lanes are aging with no claim of THEIR OWN?
+
+    Check 2 above asks "is ANY claim advancing?" using one global MAX(claimed_at)
+    over the whole queue. That aggregate cannot see per-lane starvation, and on
+    2026-09-12 it reported healthy for hours while real lanes sat frozen: one model
+    with a standing backlog was claimed every cycle (keeping the global claim age
+    near zero) while wtf_hub_quick/qwen2.5:1.5b held 258 rows whose head aged by
+    exactly the wall-clock elapsed — 133 minutes without a single claim.
+
+    A lane is starved when its oldest QUEUED row is older than the limit AND its own
+    newest claim is older than the limit (or it has never been claimed at all). Both
+    halves matter: rows merely being old is normal under load; rows being old while
+    that lane specifically makes no progress is starvation.
+
+    Returns the offending lane dicts unchanged, so the caller owns formatting.
+    """
+    out = []
+    for lane in lanes or []:
+        head = lane.get("head_age_min")
+        if head is None or float(head) <= float(limit_min):
+            continue
+        claim = lane.get("lane_claim_age_min")
+        if claim is None or float(claim) > float(limit_min):
+            out.append(lane)
+    return out
+
+
 def _threshold(cur, key: str, default: float) -> float:
     """Read one platform_settings threshold (minutes). Never raises."""
     try:
@@ -95,6 +128,7 @@ def check_drain_liveness():
         "heartbeat_age_min": None,
         "stalled_rows": 0,
         "newest_claim_age_min": None,
+        "starved_lanes": [],
     }
     try:
         # Lazy imports: the pure decision helpers above must stay importable
@@ -184,6 +218,71 @@ def check_drain_liveness():
                     cooldown_hours=2.0,
                 )
                 result["alerted"].append("drain_queue_stalled")
+
+            # ---- 3. PER-LANE STARVATION (#6749) ---------------------------------
+            # Check 2's single global MAX(claimed_at) goes near-zero whenever ANY
+            # model is draining, which is exactly when a starved lane is invisible.
+            # Group the same question per (module_id, model) and ask it of each lane.
+            lane_limit = _threshold(cur, "dispatch:liveness:lane_starve_min", LANE_STARVE_MIN_DEFAULT)
+            cur.execute(
+                """
+                SELECT module_id, model_needed,
+                       COUNT(*) FILTER (WHERE status = 'queued') AS queued_rows,
+                       EXTRACT(EPOCH FROM (NOW() - MIN(queued_at)
+                           FILTER (WHERE status = 'queued'))) / 60.0 AS head_age_min,
+                       EXTRACT(EPOCH FROM (NOW() - MAX(claimed_at))) / 60.0 AS lane_claim_age_min
+                FROM dispatch_pending_queue
+                WHERE COALESCE(capability, '') <> 'warmup'
+                  AND queued_at > NOW() - INTERVAL '24 hours'
+                GROUP BY module_id, model_needed
+                HAVING COUNT(*) FILTER (WHERE status = 'queued') > 0
+                """
+            )
+            lanes = [dict(r) for r in (cur.fetchall() or [])]
+            starved = starved_lanes(lanes, lane_limit)
+            result["starved_lanes"] = [
+                {
+                    "module_id": s_lane.get("module_id"),
+                    "model": s_lane.get("model_needed"),
+                    "rows": int(s_lane.get("queued_rows") or 0),
+                    "head_age_min": round(float(s_lane.get("head_age_min") or 0.0), 1),
+                }
+                for s_lane in starved
+            ]
+
+            if starved:
+                # ONE alert listing every starved lane. send_system dedups on title,
+                # so a per-lane title would let one lane mute all the others (the
+                # same trap the backup monitor hit with per-tier titles).
+                detail = "; ".join(
+                    "%s/%s: %d row(s), head %.0f min, %s"
+                    % (
+                        s_lane.get("module_id") or "?",
+                        s_lane.get("model_needed") or "?",
+                        int(s_lane.get("queued_rows") or 0),
+                        float(s_lane.get("head_age_min") or 0.0),
+                        (
+                            "never claimed"
+                            if s_lane.get("lane_claim_age_min") is None
+                            else "last claim %.0f min ago" % float(s_lane.get("lane_claim_age_min"))
+                        ),
+                    )
+                    for s_lane in starved[:8]
+                )
+                more = "" if len(starved) <= 8 else " (+%d more lane(s) not listed)" % (len(starved) - 8)
+                send_system(
+                    "Dispatch drain: lanes starved while others drain",
+                    "%d dispatch lane(s) have queued work older than %.0f min with no claim "
+                    "of their own, while the queue as a whole looks healthy — check 2 cannot "
+                    "see this because its claim-progress signal is global. Starved: %s%s. "
+                    "Root cause when this first fired (#6749): the drain claimed models in "
+                    "dict insertion order against a small per-cycle budget, so one backlogged "
+                    "model took every slot. Check per-cycle items_processed/free_slots in "
+                    "autonomy_loop_log before assuming a node or model fault."
+                    % (len(starved), lane_limit, detail, more),
+                    cooldown_hours=2.0,
+                )
+                result["alerted"].append("drain_lane_starved")
 
     except Exception as exc:
         # A watchdog that crashes is a watchdog that stops watching. Log loudly,

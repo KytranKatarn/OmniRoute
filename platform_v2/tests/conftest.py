@@ -543,21 +543,48 @@ def _seed_admin_user(_isolated_test_db):
             # callers already assume is a smaller and less fragile change than rewiring
             # three sites to thread a fixture value through.
             # `name` and `spec` are NOT NULL; suite_type/is_active take their defaults.
-            cur.execute(
-                """
-                INSERT INTO qa_test_suites (id, name, description, spec)
-                VALUES (2, 'test-fixture-suite',
-                        'Seeded by tests/conftest.py so qa_test_runs.suite_id FK resolves',
-                        '{}'::jsonb)
-                ON CONFLICT (id) DO NOTHING
-                """
-            )
-            # Explicit ids do NOT advance the sequence, so a later plain INSERT would try to
-            # reuse id 2 and fail on the PK. Push the sequence past whatever is now present.
-            cur.execute(
-                "SELECT setval(pg_get_serial_sequence('qa_test_suites','id'),"
-                " GREATEST((SELECT COALESCE(MAX(id), 1) FROM qa_test_suites), 1))"
-            )
+            # FAIL-SOFT, and deliberately so. This block is a CONVENIENCE for three test
+            # files; the fixture's actual contract is the admin user seeded above. It is
+            # autouse and session-scoped, so anything that raises here fails the SETUP of
+            # EVERY test in the repo — a bolt-on convenience taking down 100% of the suite.
+            # That is exactly what happened (2026-09-13): `ON CONFLICT (id)` raised
+            # InvalidColumnReference because archie_test's qa_test_suites has NO primary
+            # key, and all 18 tests of an unrelated file errored at setup with a message
+            # that named neither this table nor the real cause.
+            #
+            # ROOT CAUSE, not fixed here because it is far larger than this fixture:
+            # archie_test has 723 tables with no primary key. The test database was built
+            # without constraints, so ANY ON CONFLICT against it is a latent suite-killer.
+            # Tracked separately; this change stops one missing constraint from being fatal.
+            try:
+                # Constraint-INDEPENDENT idempotent insert. `ON CONFLICT (id)` needs a
+                # unique index on id; `WHERE NOT EXISTS` needs nothing, so it works whether
+                # or not archie_test ever grows the PK that production has.
+                cur.execute(
+                    """
+                    INSERT INTO qa_test_suites (id, name, description, spec)
+                    SELECT 2, 'test-fixture-suite',
+                           'Seeded by tests/conftest.py so qa_test_runs.suite_id FK resolves',
+                           '{}'::jsonb
+                     WHERE NOT EXISTS (SELECT 1 FROM qa_test_suites WHERE id = 2)
+                    """
+                )
+                # Explicit ids do NOT advance the sequence, so a later plain INSERT would
+                # try to reuse id 2 and fail on the PK. Push the sequence past what is now
+                # present. pg_get_serial_sequence returns NULL when id is not a serial (it
+                # is not, in archie_test); setval is STRICT, so that is a NULL no-op, not
+                # an error — but it stays inside the guard rather than relying on that.
+                cur.execute(
+                    "SELECT setval(pg_get_serial_sequence('qa_test_suites','id'),"
+                    " GREATEST((SELECT COALESCE(MAX(id), 1) FROM qa_test_suites), 1))"
+                )
+            except Exception as exc:  # noqa: BLE001 - a convenience seed must never be fatal
+                # Loud enough to find, quiet enough not to fail unrelated tests. The three
+                # files that need suite_id=2 will fail on their own FK, naming themselves.
+                print(
+                    "conftest: qa_test_suites seed skipped (%s: %s). Tests that assume "
+                    "suite_id=2 will fail individually; the rest are unaffected." % (type(exc).__name__, exc)
+                )
     finally:
         conn.close()
     yield

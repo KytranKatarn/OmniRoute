@@ -65,6 +65,10 @@ CALLER_ENV: dict[str, str] = {
     "kbs": "INTERNAL_API_KEY_KBS",
     "kso": "INTERNAL_API_KEY_KSO",
     "watch": "INTERNAL_API_KEY_WATCH",  # WTF / gov / civic / legal / market products
+    # the opencode coder lane, via archie_mcp_gateway. The lane itself holds NO key
+    # and cannot resolve archie_platform; the GATEWAY carries this key on its behalf,
+    # so the lane's reach is exactly the gateway's tool list and nothing more.
+    "opencode": "INTERNAL_API_KEY_OPENCODE",
 }
 
 # Route FAMILIES. Finer than the 5 verbs (approve is not "write"), coarser than
@@ -112,7 +116,14 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
         }
     ),
     # the engine builds and reports; it never approves, never touches sessions or mail.
-    "archie_engine": frozenset({"dhq:chat", "delegation", "engine", "repair:read", "repair:write"}),
+    # the engine builds and reports; it never approves, never touches sessions or mail.
+    # tasks:read/write added so archie-tui can SEE and CLOSE its own Dev HQ work. Until
+    # now the engine could only create task rows as a side effect of delegating — it was
+    # write-only and blind, and the 5 tui-sourced tasks it opened have sat unclosed since
+    # 2026-08-23 because nothing on that side could reach them.
+    "archie_engine": frozenset(
+        {"dhq:chat", "delegation", "engine", "repair:read", "repair:write", "tasks:read", "tasks:write"}
+    ),
     "media_hub": frozenset({"notify", "approvals:request", "fleet"}),
     "browser": frozenset({"sessions"}),
     "scripts": frozenset({"notify"}),
@@ -124,6 +135,11 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
     # mechanism no require_internal_scope route enforces — so it bought watch
     # nothing and would have 403'd its real call on cutover.)
     "watch": frozenset({"notify"}),
+    # opencode gets Dev HQ tasks and NOTHING else: no delegation (it must not be able to
+    # spend fleet compute), no dhq:chat, no approvals, no engine, no repair. Deliberately
+    # NARROWER than archie_comms and archie_engine — it is a third-party coding agent, and
+    # this is the whole of its authenticated reach into the platform.
+    "opencode": frozenset({"tasks:read", "tasks:write"}),
 }
 
 # endpoint name -> scope, filled by the decorator at registration time. The

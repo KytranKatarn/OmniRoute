@@ -1381,6 +1381,12 @@ services:
       DB_PASSWORD_FILE: /run/secrets/codex_db_ro
       DB_PASSWORD: ""
       PYTHONPATH: /app
+      # Dev HQ task tools call the hub's INTERNAL HTTP API (never the DB), so the
+      # Postgres role above stays read-only. This key is scoped to
+      # {tasks:read, tasks:write} — see services/internal_auth.CALLER_SCOPES["opencode"].
+      # Empty => the task tools return "not configured" and the KB tools are unaffected.
+      ARCHIE_HUB_URL: http://archie_platform:3000
+      INTERNAL_API_KEY_OPENCODE: ${INTERNAL_API_KEY_OPENCODE:-}
     secrets:
       - codex_db_ro
     networks:

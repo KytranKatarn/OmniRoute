@@ -10,6 +10,13 @@
 set -e
 
 OPENCODE_HOME="${OPENCODE_HOME:-/opencode-home}"
+
+# git refuses to operate on a repo owned by another uid ("detected dubious ownership").
+# /mnt/archie_brain is owned by uid 1000 on the host and this lane runs as root, so
+# WITHOUT this every git command in the live tree fails — which would defeat the whole
+# point of mounting it. Scoped to the one path, not a blanket "*". Added 2026-09-13.
+git config --global --add safe.directory /mnt/archie_brain 2>/dev/null || true
+
 export XDG_CONFIG_HOME="$OPENCODE_HOME/config"
 export XDG_DATA_HOME="$OPENCODE_HOME/data"
 mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" /work

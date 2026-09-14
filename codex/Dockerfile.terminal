@@ -1,6 +1,10 @@
-# Sandboxed Codex web terminal — the codex image + ttyd/tmux for an interactive
-# browser terminal. The container is the isolation boundary (no host fs/secrets;
-# only a read-only auth.json seed + a read-scoped MCP bearer). See start_codex_terminal.sh.
+# Codex web terminal — the codex image + ttyd/tmux for an interactive browser terminal.
+#
+# ⚠️ This header said "Sandboxed … the container is the isolation boundary (no host fs/
+# secrets)" until 2026-09-13. Under option B the compose file mounts the live platform
+# tree and /var/run/docker.sock, and the bearer is read+write — so the container stops
+# being the boundary. Whether that applies is decided in docker-compose.yml, not here;
+# read it there rather than trusting this file. See start_codex_terminal.sh.
 FROM archie_brain-archie_codex:latest
 
 # tmux from apt; ttyd is not in Debian repos → fetch the static release binary.
@@ -9,6 +13,20 @@ RUN apt-get update \
     && curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /tmp/ttyd \
     && echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /tmp/ttyd" | sha256sum -c - \
     && install -m 0755 /tmp/ttyd /usr/local/bin/ttyd && rm /tmp/ttyd \
+    # Docker CLIENT ONLY (no daemon) + the compose plugin, pinned. Added 2026-09-13
+    # for option B: mounting /var/run/docker.sock gives a lane the ABILITY to drive
+    # docker, but the socket is useless without a client — both lanes had none, so a
+    # correctly-applied mount would still have failed with "docker: not found".
+    #
+    # ⚠️ INERT WITHOUT THE SOCKET. Shipping this binary grants nothing on its own; it
+    # is the socket mount in docker-compose.yml that confers host-equivalent power.
+    # Removing the mount disables this again without touching the image.
+    && curl -fsSL https://download.docker.com/linux/static/stable/x86_64/docker-29.8.0.tgz \
+         | tar -xz -C /usr/local/bin --strip-components=1 docker/docker \
+    && mkdir -p /usr/local/lib/docker/cli-plugins \
+    && curl -fsSL https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-x86_64 \
+         -o /usr/local/lib/docker/cli-plugins/docker-compose \
+    && chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose \
     && apt-get purge -y curl && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 

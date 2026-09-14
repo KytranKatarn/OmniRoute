@@ -926,6 +926,12 @@ services:
       - opencode_terminal_net
 
   # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
+      # ...and the codex lane, for the same reason (#6653 follow-on 2026-09-13).
+      # codex reached omniroute as ENOTFOUND until this line: it was on neither
+      # network, so its config had no provider and it fell back to a dead ChatGPT
+      # auth — the lane could reach the platform but could not run inference.
+      - codex_terminal_net
+
   archie_headscale:
     image: headscale/headscale:0.25
     container_name: archie_headscale
@@ -1469,9 +1475,29 @@ services:
       # 0600 is readable there. The difference is the uid, not the secret.
       - source: opencode_kb_bearer
         target: opencode_kb_bearer
+    # uid 1000 cannot open a gid-988 0660 socket without being in that group.
+    # Read from the host at apply time, never hardcoded. Fails CLOSED if wrong.
+    group_add:
+      - "988"
     volumes:
       - opencode_terminal_home:/opencode-home
       - opencode_terminal_work:/work
+      # ───────────────────────────────────────────────────────────────────────
+      # 🔴 HOST-EQUIVALENT. Owner decision 2026-09-13 (option B), applied by
+      # scripts/apply_option_b_coder_lane_host_access.sh.
+      #
+      # /var/run/docker.sock IS ROOT ON THIS HOST. A process holding it can start
+      # a privileged container mounting / . cap_drop, read_only and the dedicated
+      # network below still look like a boundary and are not one. That is why this
+      # lane is labelled HOST in the UI (terminal_lanes.py `contained: False`) —
+      # do NOT "tidy" that back to True.
+      #
+      # /mnt/archie_brain is the LIVE tree archie_platform serves, not a clone. An
+      # edit here is served on the next request. Same path as the host so
+      # CLAUDE.md, .claude/rules and scripts/ resolve exactly as claude sees them.
+      # ───────────────────────────────────────────────────────────────────────
+      - /mnt/archie_brain:/mnt/archie_brain
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       # Its own network, like codex — so nothing else on archie_internal can reach
       # the unauthenticated in-container ttyd.
@@ -1494,6 +1520,12 @@ services:
       TZ: America/Toronto
       CODEX_HOME: /codex-home
       ARCHIE_KB_GATEWAY: http://archie_mcp_gateway:7800/mcp
+      # Consumed by config.toml's `env_key`, so codex reads the key from the ENVIRONMENT
+      # and it is never written into the config file. opencode stores the same credential
+      # INLINE in opencode.json; this is the better half of that pair, not a copy of it.
+      OMNIROUTE_API_KEY: ${OMNIROUTE_API_KEY:-}
+      OMNIROUTE_BASE_URL: ${OMNIROUTE_BASE_URL:-http://omniroute:20128/v1}
+      OMNIROUTE_MODEL: ${OMNIROUTE_MODEL:-auto/coding:free}
     secrets:
       - codex_kb_bearer
       - codex_auth
@@ -1502,6 +1534,22 @@ services:
       - codex_terminal_home:/codex-home
       - codex_terminal_work:/work
       - ./codex/skills:/opt/archie-codex-skills:ro
+      # ───────────────────────────────────────────────────────────────────────
+      # 🔴 HOST-EQUIVALENT. Owner decision 2026-09-13 (option B), applied by
+      # scripts/apply_option_b_coder_lane_host_access.sh.
+      #
+      # /var/run/docker.sock IS ROOT ON THIS HOST. A process holding it can start
+      # a privileged container mounting / . cap_drop, read_only and the dedicated
+      # network below still look like a boundary and are not one. That is why this
+      # lane is labelled HOST in the UI (terminal_lanes.py `contained: False`) —
+      # do NOT "tidy" that back to True.
+      #
+      # /mnt/archie_brain is the LIVE tree archie_platform serves, not a clone. An
+      # edit here is served on the next request. Same path as the host so
+      # CLAUDE.md, .claude/rules and scripts/ resolve exactly as claude sees them.
+      # ───────────────────────────────────────────────────────────────────────
+      - /mnt/archie_brain:/mnt/archie_brain
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       # Dedicated network shared ONLY with the gateway — so no other container on
       # archie_internal can reach the unauthenticated in-container ttyd (HIGH fix).

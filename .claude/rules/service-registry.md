@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-09-09 19:12:12 EDT · **Provenance measured**: 2026-09-09 03:40:08 EDT
+**Collected**: 2026-09-14 13:39:53 EDT · **Provenance measured**: 2026-09-14 03:40:08 EDT
 
-48/50 hub containers running · 9 image-baked products · 0 absent.
+50/52 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -25,7 +25,7 @@
 | `kso` | ✅ in_sync | `e163d2f46` | `e163d2f46` | http://192.168.1.200:8085/version |
 | `legal_watch` | ⚪ fail_open | `unknown` | `4c85b6d15` | http://100.64.0.10:8100/version |
 | `market_watch` | ⚪ fail_open | `unknown` | `7b5116ee3` | http://100.64.0.10:8101/version |
-| `media_hub` | ✅ in_sync | `01d894128` | `f4c0fb437` | http://192.168.1.200:8105/version |
+| `media_hub` | 🔴 DRIFT | `01d894128` | `9d712c7d3` | http://192.168.1.200:8105/version |
 | `wtf_consumer` | ⚪ fail_open | `unknown` | `51a24365c` | http://100.64.0.10:8103/version |
 | `wtf_tech` | ⚪ fail_open | `unknown` | `51a24365c` | http://100.64.0.10:8104/version |
 
@@ -44,6 +44,7 @@
 | `archie_llamacpp` | running | archie_brain | — | `ghcr.io/ggml-org/llama.cpp:server` |
 | `archie_mcp_gateway` | running | archie_brain | 17800->7800/tcp | `archie_brain-archie_mcp_gateway:latest` |
 | `archie_ollama` | running | archie_brain | — | `ollama/ollama:0.6.2` |
+| `archie_opencode_terminal` | running | archie_brain | 17685->7681/tcp | `archie_brain-archie_opencode_terminal:latest` |
 | `archie_platform` | running | archie_brain | 3000->3000/tcp | `archie_brain-archie_platform:latest` |
 | `archie_scheduler` | running | archie_brain | — | `archie_brain-archie_scheduler:latest` |
 | `archie_scraper` | running | archie_brain | 4243->4243/tcp | `archie_brain-archie_scraper:latest` |
@@ -51,6 +52,7 @@
 | `archie_staging_db` | running | archie_brain | 5433->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_tailscale` | running | archie_brain | — | `tailscale/tailscale:v1.80.3` |
 | `archie_whisper` | running | archie_brain | — | `archie_brain-archie_whisper:latest` |
+| `omniroute` | running | archie_brain | 20128->20128/tcp | `diegosouzapw/omniroute:3.8.50` |
 | `security_nikto` | running | archie_brain | — | `secfigo/nikto:latest` |
 | `security_nmap` | running | archie_brain | — | `instrumentisto/nmap:7.94` |
 | `security_nuclei` | running | archie_brain | — | `projectdiscovery/nuclei:latest` |

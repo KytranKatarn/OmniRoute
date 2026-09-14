@@ -5,43 +5,46 @@ codex:
   max_concurrent: 1
   max_runtime_sec: 1800           # 30 min hard cap per task
   max_files_changed: 25
-  # SCOPE = exactly six low-data modules: fitness, family_tree, therapy, faith,
-  # brainstorm, doc (+ tests). media_studio/game_studio/media_hub were REMOVED
-  # (they hold real prod data — media_library 346, agent_portraits 154 — so they
-  # need DB isolation before Codex write-work; tracked as a future task).
+  # SCOPE — PLATFORM-WIDE since 2026-09-14, by explicit owner decision.
+  #
+  # ⚠️ THIS REVERSES A STANDING EXCLUSION. This block previously scoped the lane to
+  # six low-data modules and said media_studio/game_studio/media_hub were REMOVED
+  # because "they hold real prod data — media_library 346, agent_portraits 154 — so
+  # they need DB isolation before write-work". The owner chose full parity with the
+  # Claude CLI lane instead, so all three are now IN SCOPE and that DB-isolation
+  # prerequisite is knowingly unmet. Recorded rather than deleted: the risk it named
+  # did not go away, only the decision about it did.
+  #
+  # Deny-by-default over PREFIXES, so these are directory roots. What keeps this safe
+  # is now blocked_globs below — read that before adding anything here.
   allowed_paths:
-    # module code dirs (family_tree + brainstorm keep templates/static under tools/<m>/)
-    - "platform_v2/tools/fitness/"
-    - "platform_v2/tools/family_tree/"
-    - "platform_v2/tools/therapy/"
-    - "platform_v2/tools/faith/"
-    - "platform_v2/tools/brainstorm/"
-    - "platform_v2/tools/doc/"
-    # module UI in the shared trees (templates + chat JS/CSS)
-    - "platform_v2/templates/tools/fitness.html"
-    - "platform_v2/templates/tools/therapy.html"
-    - "platform_v2/templates/tools/faith.html"
-    - "platform_v2/templates/tools/brainstorm.html"
-    - "platform_v2/templates/tools/doc.html"
-    - "platform_v2/static/js/fitness-chat.js"
-    - "platform_v2/static/js/therapy-chat.js"
-    - "platform_v2/static/js/faith-chat.js"
-    - "platform_v2/static/js/family-tree-chat.js"
-    - "platform_v2/static/js/doc-chat.js"
-    - "platform_v2/static/css/fitness.css"
-    - "platform_v2/static/css/therapy.css"
-    # tests
-    - "platform_v2/tests/"
-    # versioned Codex skill compatibility layer (owner-authorized)
-    - "codex/skills/"
-    - "codex/Dockerfile.terminal"
-    - "codex/workspace/start-with-skills.sh"
+    - "platform_v2/"          # whole module tree, services, templates, static, tests
+    - "ai_bridge/"            # agent_service + department_dispatcher stay BLOCKED
+    - "archie-comms/"         # cockpit + lane surfaces
+    - "what-the-fact/"        # WTF consumer/ingest (in-tree, not its own repo)
+    - "mcp-gateway/"
+    - "docs/"
+    - "scripts/"              # scripts/dr/* and scripts/agents/* stay BLOCKED
+    - "config/"               # config/agents/* stays BLOCKED (no self-widening)
   blocked_globs:                  # always denied even if under an allowed path
+    # With a platform-wide allowlist THIS LIST is the control, not the allowlist.
     - "*.env"
     - ".env*"
     - "docker-compose*"
-    - "scripts/dr/*"
+    - "scripts/dr/*"            # DR flips prod DNS — never from a lane
     - ".github/*"
+    # No self-widening. The guard reads a BAKED copy, so an edit here could not take
+    # effect until a rebuild — but "needs a rebuild to exploit" is not a reason to
+    # leave it open. codex lacked this until 2026-09-14; opencode already had it.
+    - "config/agents/*"
+    - "scripts/agents/*"
+    # Reachable for the FIRST TIME now that scope is platform-wide. Under the old
+    # six-module allowlist nothing here was in range, so its absence cost nothing.
+    - "secrets/*"
+    # Single-writer + dispatch invariants (CLAUDE.md, ADR-013). Guarded elsewhere by
+    # pre-commit hooks; blocking here fails EARLIER, at push.
+    - "platform_v2/services/agent_service.py"
+    - "**/department_dispatcher.py"
   preflight:
     - "git status --porcelain"    # must be empty in the fresh worktree
   postflight:

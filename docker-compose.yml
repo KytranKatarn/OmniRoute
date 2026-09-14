@@ -869,6 +869,11 @@ services:
   omniroute:
     image: diegosouzapw/omniroute:3.8.50
     container_name: omniroute
+    ports:
+      # LOOPBACK ONLY — the host codex CLI needs a STABLE endpoint. Lanes keep using
+      # Docker DNS (omniroute:20128) and are unaffected. See the read_only note below
+      # for why this does not reopen the next 16.3.1 CVE.
+      - "127.0.0.1:20128:20128"
     restart: unless-stopped
     stop_grace_period: 40s
     mem_limit: 4g
@@ -878,8 +883,19 @@ services:
     # lands, and it ships a CRITICAL-rated `next` 16.3.1 (16.0.0-16.3.2, fixed in 16.3.5) for
     # which NO fixed upstream release exists — 3.8.50 IS latest; `main`/`next` are dev branches.
     # The RCE is not reachable here (Linux, so the windows-server path is N/A; /_next/image and
-    # /_next/static both 404 on this non-`-web` variant; the port is unpublished) but read_only
-    # bounds the blast radius if a future image variant does serve it.
+    # /_next/static both 404 on this non-`-web` variant) but read_only bounds the blast radius
+    # if a future image variant does serve it.
+    #
+    # ⚠️ CORRECTED 2026-09-14: this reasoning used to include "the port is unpublished" as one
+    # of the grounds. It is now published on LOOPBACK ONLY (127.0.0.1:20128, see ports: below)
+    # so the HOST codex CLI can reach the gateway — the lanes use Docker DNS (omniroute:20128)
+    # and were never affected. The two PRIMARY grounds above (wrong platform, endpoints 404)
+    # are untouched and still carry the argument; loopback publishing is the same exposure the
+    # MCP gateway already accepts at 127.0.0.1:17800. It is NOT network-reachable.
+    #
+    # The alternative was pinning a 172.x bridge IP in the host config, which ai-bridge.md
+    # documents as a trap: ComfyUI's pinned .11 was actually .21 after a recreate, because
+    # bridge IPs are reassigned per-recreate. A loopback publish is stable; an IP is not.
     #
     # ⚠️ The task's premise was STALE and applying read_only on it would have broken the
     # gateway: it recorded `docker diff omniroute` = ZERO lines at boot on 2026-09-09. Measured
@@ -1475,6 +1491,18 @@ services:
       # 0600 is readable there. The difference is the uid, not the secret.
       - source: opencode_kb_bearer
         target: opencode_kb_bearer
+      # GitHub PAT so this lane can push an opencode/* branch and open a PR via
+      # `opencode-pr`. Same ownership rule as the bearer above: a file secret is
+      # BIND-MOUNTED, so the container sees the HOST file's owner/mode and this lane
+      # is uid 1000 — a root:root 0600 file locks it out with EACCES. Write it with
+      # scripts/set_lane_github_token.sh, which gets that right.
+      #
+      # ⚠️ The file must EXIST before this service can start; compose errors out on a
+      # missing secret source. A 0-byte placeholder is committed-adjacent and fine:
+      # `opencode-pr` tests `[ -s ]` and stops with "this lane has no GitHub
+      # credential" rather than failing somewhere confusing inside git.
+      - source: opencode_github_token
+        target: opencode_github_token
     # uid 1000 cannot open a gid-988 0660 socket without being in that group.
     # Read from the host at apply time, never hardcoded. Fails CLOSED if wrong.
     group_add:
@@ -1568,6 +1596,8 @@ secrets:
     file: ./secrets/codex/codex_auth.json
   codex_github_token:
     file: ./secrets/codex/github_token.txt
+  opencode_github_token:
+    file: ./secrets/opencode/github_token.txt
   db_password:
     file: ./secrets/database/password.txt
   stripe_secret_key:

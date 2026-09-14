@@ -23,9 +23,18 @@ import sys
 ZERO = "0000000000000000000000000000000000000000"
 ALLOWLIST_FILE = os.environ.get("CODEX_ALLOWLIST_FILE", "/opt/codex-guard/allowlist.yaml")
 
+# Which lane is this guard protecting? Sets BOTH the top-level key read from the
+# baked allowlist AND the branch prefix a push must carry. Defaults to "codex" so
+# the codex lane's behaviour is byte-identical to before this was parameterised.
+#
+# It is ONE guard, not two: config/agents/opencode.yaml was written to be read by
+# the same deny-by-default logic, and two copies of a security check drift apart
+# — the exact failure this cluster has hit three times (#5194, #5862, #2738).
+LANE = os.environ.get("LANE_NAME", "codex")
+
 
 def _die(msg: str) -> None:
-    sys.stderr.write("\n\033[31m[codex scope-guard] PUSH BLOCKED\033[0m\n")
+    sys.stderr.write(f"\n\033[31m[{LANE} scope-guard] PUSH BLOCKED\033[0m\n")
     sys.stderr.write(msg.rstrip() + "\n\n")
     sys.exit(1)
 
@@ -79,7 +88,7 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001
         _die(f"PyYAML unavailable ({e}) — refusing to push (fail-closed)")
     try:
-        cfg = yaml.safe_load(open(ALLOWLIST_FILE))["codex"]
+        cfg = yaml.safe_load(open(ALLOWLIST_FILE))[LANE]
         allowed = cfg.get("allowed_paths", []) or []
         blocked = cfg.get("blocked_globs", []) or []
         if not allowed:
@@ -105,9 +114,13 @@ def main() -> None:
         # refs/heads/ prefix (do NOT rsplit on '/', that drops the 'codex/' part).
         branch = rref[len("refs/heads/"):] if rref.startswith("refs/heads/") else rref
         if branch in ("main", "master"):
-            _die("direct pushes to main are not allowed — push a codex/* branch + open a PR")
-        if not branch.startswith("codex/"):
-            _die(f"branch '{branch}' must start with 'codex/'")
+            _die(
+                "direct pushes to main are not allowed — "
+                f"push a {LANE}/* branch + open a PR.\n"
+                "main is PR-only and F.O.R.G.E. reviews every PR before a human merges."
+            )
+        if not branch.startswith(f"{LANE}/"):
+            _die(f"branch '{branch}' must start with '{LANE}/'")
         try:
             mb = _run(["git", "merge-base", base, lsha])
             changed = _run(["git", "diff", "--name-only", mb, lsha]).splitlines()
@@ -116,7 +129,7 @@ def main() -> None:
         offending.extend([p for p in changed if p and not _in_scope(p, allowed, blocked)])
 
     if offending:
-        _die("these files are outside Codex's allowed scope:\n  " + "\n  ".join(sorted(set(offending))))
+        _die(f"these files are outside the {LANE} lane's allowed scope:\n  " + "\n  ".join(sorted(set(offending))))
 
 
 if __name__ == "__main__":

@@ -20,9 +20,12 @@ FROM node:22-bookworm-slim
 # environment, so I can't run pytest") rather than claiming success, which is why
 # giving it one is worth the layer. From apt, not pip, so the image stays
 # deterministic and needs no network at runtime. #6736
+# python3-yaml is NOT optional: the pre-push scope guard reads the baked allowlist
+# with PyYAML and FAILS CLOSED if the import fails. Without it every push from this
+# lane is refused — correct, but confusingly so.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tmux curl ca-certificates git \
-       python3 python3-pytest \
+       python3 python3-pytest python3-yaml \
     && curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /tmp/ttyd \
     && echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /tmp/ttyd" | sha256sum -c - \
     && install -m 0755 /tmp/ttyd /usr/local/bin/ttyd && rm /tmp/ttyd \
@@ -40,6 +43,14 @@ RUN apt-get update \
     && curl -fsSL https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-x86_64 \
          -o /usr/local/lib/docker/cli-plugins/docker-compose \
     && chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose \
+    # gh — owner request (open/inspect PRs from the lane). Pinned tarball + digest
+    # rather than an apt repo, matching ttyd above. Lands at /usr/bin/gh and is
+    # SHADOWED by the guard below; see scripts/lane_gh_guard.sh.
+    && curl -fsSL https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_amd64.tar.gz -o /tmp/gh.tgz \
+    && echo "912fdb1ca29cb005fb746fc5d2b787a289078923a29d0f9ec19a0b00272ded00  /tmp/gh.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/gh.tgz -C /tmp \
+    && install -m 0755 /tmp/gh_2.63.2_linux_amd64/bin/gh /usr/bin/gh \
+    && rm -rf /tmp/gh.tgz /tmp/gh_2.63.2_linux_amd64 \
     && apt-get purge -y curl && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,7 +61,28 @@ RUN npm install -g opencode-ai@1.18.30 \
     && opencode --version
 
 COPY scripts/start_opencode_terminal.sh /start.sh
-RUN chmod +x /start.sh
+
+# Ship path, mirroring codex exactly (see opencode/workspace/opencode-pr.sh).
+#
+# Baked, tamper-resistant scope guard: the hook and a COPY of the allowlist live in
+# the IMAGE, never the working tree, so editing repo files cannot loosen the guard.
+# It is the SAME pre-push script codex uses — config/agents/opencode.yaml was written
+# to be read by the same deny-by-default logic — selected by LANE_NAME, which also
+# sets the required branch prefix (opencode/*). One guard, two lanes: two copies of a
+# security check drift apart, which this cluster has now been bitten by three times
+# (#5194, #5862, #2738).
+COPY opencode/workspace/opencode-pr.sh /usr/local/bin/opencode-pr
+COPY codex/workspace/git-hooks/pre-push /opt/lane-guard/pre-push
+COPY config/agents/opencode.yaml /opt/lane-guard/allowlist.yaml
+# gh guard — shadows /usr/bin/gh on PATH and refuses merge/approve/protection ops.
+COPY scripts/lane_gh_guard.sh /usr/local/bin/gh
+RUN chmod +x /start.sh /usr/local/bin/opencode-pr /opt/lane-guard/pre-push /usr/local/bin/gh
+
+# Read by the baked guard; set here so it cannot be forgotten at run time, where a
+# missing LANE_NAME would silently fall back to "codex" and look for a 'codex:' key
+# that opencode.yaml does not have (fail-closed, but for a confusing reason).
+ENV LANE_NAME=opencode \
+    CODEX_ALLOWLIST_FILE=/opt/lane-guard/allowlist.yaml
 
 EXPOSE 7681
 ENTRYPOINT ["/start.sh"]

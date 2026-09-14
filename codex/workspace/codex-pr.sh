@@ -15,7 +15,29 @@ REPO_SLUG="KytranKatarn/archie-platform"
 TOKEN_FILE="/run/secrets/codex_github_token"
 [ -s "$TOKEN_FILE" ] || { echo "codex-pr: missing $TOKEN_FILE (PAT not configured)"; exit 1; }
 
-cd "$(git rev-parse --show-toplevel)"
+# ⚠️ REFUSE TO SHIP FROM THE LIVE SHARED TREE.
+#
+# Since option B this lane also mounts /mnt/archie_brain — the OWNER'S working
+# checkout. Two independent reasons this helper must not run there:
+#
+#   1. `git add -A` below would sweep whatever the owner has in progress into this
+#      lane's commit. That is not hypothetical: an untracked .oc-lane-test/ (a full
+#      platform_v2 copy) was swept into an index exactly this way on 2026-09-13.
+#   2. That tree's core.hooksPath points at its OWN .git/hooks, NOT the baked
+#      /opt/*-guard — measured live 2026-09-14 in both lanes. So a push from there
+#      runs with NO scope guard. Re-pointing it would overwrite the owner's hooks,
+#      so the answer is not to push from there.
+#
+# The live tree is for editing, restarting and verifying the platform. Shipping
+# happens from this lane's own clone, on its own branch.
+TOPLEVEL="$(git rev-parse --show-toplevel)"
+if [ "$TOPLEVEL" = "/mnt/archie_brain" ]; then
+  echo "REFUSED: this is the owner's live checkout (/mnt/archie_brain), not a lane clone."
+  echo "  Shipping from here would commit the owner's in-progress work and would run"
+  echo "  with no scope guard. Work in the lane clone instead, then re-run."
+  exit 1
+fi
+cd "$TOPLEVEL"
 
 # Refuse to work on main — carve a codex/ branch from the current state.
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"

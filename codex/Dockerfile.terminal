@@ -27,6 +27,16 @@ RUN apt-get update \
     && curl -fsSL https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-linux-x86_64 \
          -o /usr/local/lib/docker/cli-plugins/docker-compose \
     && chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose \
+    # gh — owner request, so the lane can open/inspect PRs without hand-rolling the
+    # API. Not in Debian bookworm, so take the pinned release tarball + digest rather
+    # than adding an apt repo; same supply-chain posture as ttyd above. It lands at
+    # /usr/bin/gh and is SHADOWED on PATH by the guard copied in below — see
+    # scripts/lane_gh_guard.sh for why (`gh pr merge` bypasses the F.O.R.G.E. gate).
+    && curl -fsSL https://github.com/cli/cli/releases/download/v2.63.2/gh_2.63.2_linux_amd64.tar.gz -o /tmp/gh.tgz \
+    && echo "912fdb1ca29cb005fb746fc5d2b787a289078923a29d0f9ec19a0b00272ded00  /tmp/gh.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/gh.tgz -C /tmp \
+    && install -m 0755 /tmp/gh_2.63.2_linux_amd64/bin/gh /usr/bin/gh \
+    && rm -rf /tmp/gh.tgz /tmp/gh_2.63.2_linux_amd64 \
     && apt-get purge -y curl && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
@@ -40,7 +50,12 @@ COPY codex/workspace/git-hooks/pre-push /opt/codex-guard/pre-push
 COPY config/agents/codex.yaml /opt/codex-guard/allowlist.yaml
 COPY codex/skills/ /opt/archie-codex-skills/
 COPY codex/workspace/start-with-skills.sh /start-with-skills.sh
-RUN chmod +x /start.sh /start-with-skills.sh /init-workspace.sh /usr/local/bin/codex-pr /opt/codex-guard/pre-push
+# gh guard — /usr/local/bin precedes /usr/bin on PATH, so this shadows the real gh
+# and refuses `pr merge` / `pr review` / protection edits, pointing at /merge-pr
+# instead. A guardrail, not a boundary (the lane is root-equivalent since option B);
+# the header of the script is explicit about that and about the server-side fix.
+COPY scripts/lane_gh_guard.sh /usr/local/bin/gh
+RUN chmod +x /start.sh /start-with-skills.sh /init-workspace.sh /usr/local/bin/codex-pr /opt/codex-guard/pre-push /usr/local/bin/gh
 
 EXPOSE 7681
 ENTRYPOINT ["/start-with-skills.sh"]

@@ -74,6 +74,29 @@ else
     echo "[opencode] WARNING: /run/secrets/opencode_kb_bearer is not mounted — KB tools will 401" >&2
 fi
 
+# ---------------------------------------------------------------------------
+# Git identity + the BAKED scope guard on the lane's own clone.
+#
+# Mirrors codex/workspace/init-workspace.sh. core.hooksPath is set PER-REPO on the
+# clone (not --global) on purpose: a global setting would also apply to the mounted
+# live tree /mnt/archie_brain, and git gives the repo-LOCAL value precedence there
+# anyway, so a global would look like coverage it does not provide. Pushes from the
+# live tree are refused by opencode-pr instead — see the header of that script.
+if [ -d /work/archie-platform/.git ]; then
+    git config --global user.name "OpenCode (CLI)" 2>/dev/null || true
+    git config --global user.email "opencode@kytranempowerment.com" 2>/dev/null || true
+    git config --global --add safe.directory /work/archie-platform 2>/dev/null || true
+    git -C /work/archie-platform config core.hooksPath /opt/lane-guard 2>/dev/null \
+        && echo "[opencode] scope guard armed on the lane clone (opencode/* branches only)" >&2 \
+        || echo "[opencode] WARNING: could not arm the scope guard — pushes are unprotected" >&2
+    # The credential helper matches codex's shape. The secret is NOT mounted yet
+    # (owner decision); with no file, git simply fails to authenticate, which is the
+    # honest outcome — it never silently pushes as someone else.
+    git config --global credential.helper \
+        '!f() { echo username=x-access-token; echo "password=$(cat /run/secrets/opencode_github_token)"; }; f' \
+        2>/dev/null || true
+fi
+
 # Start IN THE REPO, not the bare volume. Until 2026-09-12 /work held only scratch
 # files (hello.py) and the lane had nothing to work on — the repo is now cloned to
 # /work/archie-platform, so land there or opencode opens with no codebase in scope.

@@ -5,9 +5,12 @@
 *
 !mcp-gateway/
 !codex/
+!opencode/workspace/
 !scripts/start_codex_terminal.sh
 !scripts/start_opencode_terminal.sh
+!scripts/lane_gh_guard.sh
 !config/agents/codex.yaml
+!config/agents/opencode.yaml
 **/.env
 **/.env.*
 **/__pycache__/

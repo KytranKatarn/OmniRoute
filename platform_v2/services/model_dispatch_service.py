@@ -39,6 +39,14 @@ MAX_TASKS_PER_CYCLE = 20
 # MAX_TASKS_PER_CYCLE — otherwise the pinned drain is skipped forever under load
 # and fleet warmups starve → expire unclaimed → warm-keep never lands (#3804/#375).
 PINNED_RESERVED_SLICE = 2
+
+# #6749: the unpinned queue must always be able to make SOME forward progress.
+# PINNED_RESERVED_SLICE is subtracted from free_slots, so with a 6-thread pool and
+# 4+ threads in flight — the normal state — `free_slots - PINNED_RESERVED_SLICE`
+# is <= 0 and the unpinned drain claimed NOTHING. Measured 2026-09-13: a budget of
+# exactly 0 in 15 of 24 consecutive cycles, while a lane sat 133 minutes unclaimed.
+# That is a cliff, not a gradient: the reserve silently became a total block.
+UNPINNED_MIN_SLICE = 1
 # Thread pool for concurrent CPU-model dispatches (prevents blocking the worker thread)
 _CPU_EXECUTOR = ThreadPoolExecutor(max_workers=6, thread_name_prefix="mdw_cpu")
 
@@ -72,6 +80,28 @@ def _executor_free_slots() -> int:
     for fut in [f for f in _INFLIGHT if f.done()]:
         _INFLIGHT.discard(fut)
     return max(0, _CPU_EXECUTOR._max_workers - len(_INFLIGHT))
+
+
+def _unpinned_budget(free_slots: int) -> int:
+    """How many unpinned rows may be claimed this cycle (#6749).
+
+    The pinned reserve (#3804) exists so a sustained unpinned queue cannot starve
+    fleet warm-keeps. It was implemented as a flat subtraction, which on a 6-thread
+    pool means the UNPINNED side hits zero first and stays there — the opposite
+    starvation, and the one measured in #6749.
+
+    Rule: honour the reserve whenever the pool has room for both, but never let it
+    drive the unpinned budget to zero while a thread is actually free.
+
+    CRITICAL: when `free_slots` is 0 the budget stays 0. Claiming a row flips it to
+    'running'; a row claimed with no thread to start it rots until the 900s reaper,
+    which is the exact defect #5699 fixed. Forward progress never justifies claiming
+    into a full pool.
+    """
+    budget = min(MAX_TASKS_PER_CYCLE, max(0, int(free_slots) - PINNED_RESERVED_SLICE))
+    if budget == 0 and int(free_slots) > 0:
+        return min(UNPINNED_MIN_SLICE, int(free_slots))
+    return budget
 
 
 def _on_task_done(fut) -> None:
@@ -1842,7 +1872,7 @@ def model_dispatch_worker() -> None:
     #    (926 skips/72h). Claims are bounded by FREE pool threads instead, so nothing
     #    is claimed that cannot start; double-claim is impossible because _claim_tasks
     #    only touches status='queued'. Results/errors surface via _on_task_done.
-    unpinned_budget = min(MAX_TASKS_PER_CYCLE, max(0, free_slots - PINNED_RESERVED_SLICE))
+    unpinned_budget = _unpinned_budget(free_slots)
     # #6749: drain by queue pressure, never dict insertion order — see _drain_order.
     for model_name, node_ids in _drain_order(all_warm_by_model, _queue_head_age_by_model()):
         if total_executed >= unpinned_budget:

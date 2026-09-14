@@ -87,6 +87,46 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# --- queue TTL -------------------------------------------------------------
+# Stamped onto every row the two enqueue sites below write, so an abandoned row
+# can be reaped instead of sitting queued forever (947 such rows measured
+# 2026-09-14, none ever claimed, oldest 137 min). Read ONLY by
+# services/dispatch_queue_reaper.py — the drain does not consult expires_at, so
+# this changes no dispatch behaviour.
+#
+# CACHED: this is on the enqueue hot path, and an uncached settings read would add
+# a DB round-trip to every cold-model dispatch. 60s is short enough that a live
+# retune is picked up promptly and long enough to cost nothing.
+_QUEUE_TTL_CACHE: dict = {"value": None, "at": 0.0}
+_QUEUE_TTL_CACHE_S = 60.0
+
+
+def _queue_ttl_minutes() -> int:
+    """Minutes before an unclaimed queue row is considered orphaned.
+
+    Single-sourced from services.dispatch_queue_reaper so the stamp and the sweep
+    can never disagree. Fail-safe: any error yields the module default rather than
+    0 — a 0 would stamp every row already-expired and the reaper would delete live
+    work on its next pass.
+    """
+    import time as _t
+
+    now = _t.monotonic()
+    if _QUEUE_TTL_CACHE["value"] is not None and (now - _QUEUE_TTL_CACHE["at"]) < _QUEUE_TTL_CACHE_S:
+        return _QUEUE_TTL_CACHE["value"]
+    try:
+        from services.dispatch_queue_reaper import get_ttl_minutes
+
+        val = int(get_ttl_minutes())
+        if val <= 0:
+            raise ValueError(f"non-positive TTL {val}")
+    except Exception as exc:  # noqa: BLE001 - never let this break an enqueue
+        logger.warning("queue TTL lookup failed (%s) — using 30m default", exc)
+        val = 30
+    _QUEUE_TTL_CACHE.update(value=val, at=now)
+    return val
+
+
 def _node_url(node_id: str) -> str:
     """Resolve node_id → base URL for Ollama API calls.
 
@@ -8559,8 +8599,17 @@ class DepartmentDispatcher:
                                 (capability, model_needed, model_type, prompt,
                                  system_prompt, json_mode, agent_name, agent_id,
                                  module_id, source_product, requested_by,
-                                 user_id, priority, preferred_node_id)
-                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                 user_id, priority, preferred_node_id, expires_at)
+                            -- expires_at: bounds the orphan leak. A caller that gives up
+                            -- after poll_timeout_s used to leave this row queued FOREVER
+                            -- (947 such rows measured 2026-09-14, none ever claimed).
+                            -- The drain does not read this column, so stamping it changes
+                            -- no dispatch behaviour; services/dispatch_queue_reaper.py
+                            -- consumes it. Bound as a PARAMETER, not interpolated — this
+                            -- SQL is a plain string, so an f-string brace would have been
+                            -- inserted literally and broken every enqueue.
+                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                    now() + (%s * interval '1 minute'))
                             RETURNING id
                             """,
                             (
@@ -8581,6 +8630,7 @@ class DepartmentDispatcher:
                                 # beats CPU VPS for GPU-preferred models). Colocation wins when
                                 # home node scores within 80% of best.
                                 _pick_fleet_node(model, agent),
+                                _queue_ttl_minutes(),
                             ),
                         )
                         _cpu_row = _qcur2.fetchone()
@@ -8689,8 +8739,11 @@ class DepartmentDispatcher:
                                 (capability, model_needed, model_type, prompt,
                                  system_prompt, json_mode, agent_name, agent_id,
                                  module_id, source_product, requested_by,
-                                 user_id, priority)
-                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                 user_id, priority, expires_at)
+                            -- See the sibling INSERT above: expires_at bounds the orphan
+                            -- leak and is read only by services/dispatch_queue_reaper.py.
+                            VALUES (%s,%s,'llama',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                                    now() + (%s * interval '1 minute'))
                             RETURNING id
                             """,
                             (
@@ -8706,6 +8759,7 @@ class DepartmentDispatcher:
                                 agent.get("name") if agent else "dispatcher",
                                 user_id,
                                 priority_int,
+                                _queue_ttl_minutes(),
                             ),
                         )
                         row = _qcur.fetchone()

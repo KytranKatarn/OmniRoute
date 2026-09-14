@@ -1081,6 +1081,33 @@ def dispatch_retention_prune():
         logger.exception("dispatch_retention_prune failed")
 
 
+def dispatch_queue_reaper():
+    """Expire orphaned dispatch_pending_queue rows (see services/dispatch_queue_reaper).
+
+    A caller that gives up after its poll timeout used to leave its row queued
+    FOREVER: measured 2026-09-14, 947 rows, zero with a TTL, zero ever claimed,
+    oldest 137 min. Queue depth is what the starved-lane monitor pages on, so the
+    dead rows made a healthy fleet read as starved and buried the one real signal.
+
+    Every 15 min, not nightly: the monitor samples continuously, so a nightly sweep
+    would leave a false backlog visible for most of the day. Pure DB maintenance —
+    no LLM, no dispatch. The service is fail-safe and bounded (MAX_SWEEP).
+    """
+    try:
+        from services.dispatch_queue_reaper import reap_orphaned_queue_rows
+
+        res = reap_orphaned_queue_rows(dry_run=False)
+        if res.get("reaped"):
+            logger.info(
+                "dispatch_queue_reaper: expired %s orphaned row(s) by module: %s%s",
+                res["reaped"],
+                res.get("by_module"),
+                " (TRUNCATED — more remain)" if res.get("truncated") else "",
+            )
+    except Exception:
+        logger.exception("dispatch_queue_reaper failed")
+
+
 def family_research_worker(flask_app=None):
     """#5343 (#5211): scheduled drain for family_research_queue.
 
@@ -1938,6 +1965,19 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=4, minute=15, timezone="America/Toronto"),
         id="dispatch_retention_prune",
         name="Agent Loop: Dispatch Retention Prune",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Orphaned-queue reaper — every 15 min. Bounds the leak that let ~950 abandoned
+    # rows accumulate and page the starved-lane monitor (2026-09-14). Deliberately
+    # NOT nightly: the monitor samples continuously.
+    scheduler.add_job(
+        with_ctx(dispatch_queue_reaper),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="dispatch_queue_reaper",
+        name="Agent Loop: Dispatch Queue Orphan Reaper",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

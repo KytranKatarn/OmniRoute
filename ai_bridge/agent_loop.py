@@ -33,6 +33,12 @@ if "/mnt/archie_brain/platform_v2" not in sys.path:
     sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 from services.time_utils import now_local_str
+from services.ollama_warm_classify import (
+    OUTCOME_DEFERRED,
+    OUTCOME_FAILED,
+    OUTCOME_RELOADED,
+    classify_ollama_warm_status,
+)
 from services.agent_service import (
     recover_idle,
 )
@@ -10988,8 +10994,19 @@ class AgentLoop:
                     else:
                         timeout = 90
                     r = req.post(f"{ollama_host}/api/{endpoint}", json=data, timeout=timeout)
-                    if r.status_code == 200:
+                    outcome = classify_ollama_warm_status(r.status_code)
+                    if outcome == OUTCOME_RELOADED:
                         reloaded += 1
+                    elif outcome == OUTCOME_DEFERRED:
+                        # Non-200 hub contention — not a model problem, same class as
+                        # the timeout case below (KB #270033): 409 means the model is
+                        # already being loaded by a concurrent dispatch, 503/429 a
+                        # busy or rate-limited queue. The warm POST did not get to
+                        # run; retry next 30-min cycle.
+                        deferred += 1
+                        logger.info(
+                            f"Ollama health: {model_name} warm deferred (HTTP {r.status_code}, hub busy/loading)"
+                        )
                     else:
                         actual_failed += 1
                         logger.warning(f"Ollama health: {model_name} returned {r.status_code}")
@@ -11004,15 +11021,23 @@ class AgentLoop:
                     # to a wasted VRAM-drift misdiagnosis. Defer instead. (KB #270033)
                     deferred += 1
                     logger.info(f"Ollama health: {model_name} warm deferred (hub busy)")
+                except req.exceptions.ConnectionError:
+                    # /api/ps succeeded at the top of this same cycle, so a
+                    # ConnectionError mid-POST is a transient blip (hub restart,
+                    # DNS flap) rather than a model health failure. Defer instead
+                    # of erroring every blip cycle (KB #270033).
+                    deferred += 1
+                    logger.info(f"Ollama health: {model_name} warm deferred (hub unreachable)")
                 except Exception as e:
                     actual_failed += 1
                     logger.warning(f"Ollama health: {model_name} failed: {e}")
 
             duration_ms = int((time.time() - start) * 1000)
-            # items_failed = actual load failures only. Warm-POST timeouts under a
-            # busy hub queue are counted as `deferred`, not failed, so a contended
-            # hub doesn't false-error every cycle (KB #270033). details surfaces the
-            # full warm set size + deferred count for context.
+            # items_failed = actual load failures only. Warm-POST timeouts,
+            # ConnectionError blips, and busy/loading HTTP statuses (409/503/429)
+            # under a busy hub queue are counted as `deferred`, not failed, so a
+            # contended hub doesn't false-error every cycle (KB #270033). details
+            # surfaces the full warm set size + deferred count for context.
             self._log_cycle(
                 "ollama_model_health",
                 reloaded,

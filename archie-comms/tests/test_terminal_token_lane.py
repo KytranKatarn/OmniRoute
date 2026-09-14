@@ -100,7 +100,8 @@ def test_only_the_real_lanes_exist(lanes):
 def test_the_claude_lane_is_marked_as_the_host_not_a_sandbox(lanes):
     """The most important label on the page: claude has NO container boundary."""
     assert lanes.LANES["claude"]["contained"] is False
-    assert lanes.LANES["codex"]["contained"] is True
+    # option B 2026-09-13: codex holds /var/run/docker.sock, so no boundary remains.
+    assert lanes.LANES["codex"]["contained"] is False
 
 
 def test_lane_urls_are_distinct_and_https(lanes):
@@ -159,7 +160,7 @@ def test_mint_points_the_url_at_the_matching_lane(lanes, monkeypatch):
 def test_mint_surfaces_whether_the_lane_is_contained(lanes, monkeypatch):
     monkeypatch.setattr(lanes, "_insert_token", lambda *a, **k: None)
     assert lanes.mint_token(4, "claude")["contained"] is False
-    assert lanes.mint_token(4, "codex")["contained"] is True
+    assert lanes.mint_token(4, "codex")["contained"] is False
 
 
 def test_each_token_is_unique(lanes, monkeypatch):

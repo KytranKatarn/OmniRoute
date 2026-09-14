@@ -63,15 +63,24 @@ class TestNonAdminsNeedAnExplicitGrant:
         assert tl.may_use_lane(77, "user", lane) is True
 
     def test_a_grant_is_per_lane_not_global(self, monkeypatch):
-        """The whole point of a per-user allowlist: access to the CONTAINED codex lane
-        must not imply access to a HOST shell."""
+        """The whole point of a per-user allowlist: a grant for ONE lane must not imply
+        any other.
+
+        ⚠️ Reworded 2026-09-13. This read "access to the CONTAINED codex lane must not
+        imply access to a HOST shell" and looped over HOST_LANES — which, since option B
+        made every lane host-equivalent, now INCLUDES codex, so it asserted that a codex
+        grant must not reach codex and failed. The invariant was never about which lanes
+        are contained; it is that a grant is per-lane. That is strictly more important
+        now: every lane on this list is a host shell, so any leak hands over the host."""
         monkeypatch.setattr(
             tl, "_live_grant_exists", lambda uid, lane: lane == "codex"
         )
         assert tl.may_use_lane(77, "user", "codex") is True
-        for lane in HOST_LANES:
+        others = [l for l in LANES if l != "codex"]
+        assert others, "a one-lane registry cannot test leakage"
+        for lane in others:
             assert tl.may_use_lane(77, "user", lane) is False, (
-                f"a codex grant leaked into {lane}, which is a HOST shell"
+                f"a codex grant leaked into {lane} — every lane is a host shell"
             )
 
 

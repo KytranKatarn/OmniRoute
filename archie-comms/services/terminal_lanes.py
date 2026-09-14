@@ -11,10 +11,16 @@ access" the design exists to avoid.
 `contained` answers ONE question: is there a container boundary between the lane and the
 host filesystem? It says NOTHING about what the lane can reach over the network.
 
-    contained=False  claude, archie-tui — running on the HOST as user kytran. No container
-                     boundary at all. This is the most important label on the page.
-    contained=True   codex, opencode — their own containers, their own volumes, their own
-                     networks. The filesystem they see is not the host's.
+    contained=False  ALL FOUR LANES, since 2026-09-13. claude and archie-tui run on the
+                     HOST as user kytran. codex and opencode run in containers that mount
+                     /var/run/docker.sock and the live platform tree — a container that
+                     holds the docker socket can start a privileged one mounting /, so
+                     the container is no longer a boundary and the flag says so.
+
+    ⚠️ The field therefore carries NO distinguishing information right now: every lane
+    shows ⚠ HOST. That is the honest state, not a bug — but if a genuinely bounded lane
+    is ever added, this flag is what will separate it, so do not delete it as "always
+    False". contained answers "is there a boundary", never "is there a container".
 
 `platform_access` answers the OTHER question, and it is True for every lane today.
 Through `archie_mcp_gateway` the contained lanes can create and close Dev HQ tasks,
@@ -107,7 +113,13 @@ LANES = {
         "url": "https://codex-tty.kytranempowerment.com",
         "landing_host": "codex.kytranempowerment.com",
         "proxy_port": 7683,
-        "contained": True,
+        # 🔴 FLIPPED True->False 2026-09-13 (option B, applied by the owner).
+        # This lane now mounts /var/run/docker.sock — ROOT on the host — and the
+        # LIVE platform tree. Verified: it drives docker (51 containers) and git
+        # in /mnt/archie_brain. A container still exists; it is no longer a
+        # BOUNDARY, and this flag answers "is there a boundary", not "is there
+        # a container". Revert only with the socket mount.
+        "contained": False,
         # Via archie_mcp_gateway (owner decision 2026-09-13). Contained != sandboxed.
         "platform_access": True,
         "single_seat": True,  # ttyd --max-clients 1
@@ -157,7 +169,13 @@ LANES = {
         # CONTAINED, like codex. Owner's call ("the codex and opencode can be
         # container") and the right default for a tool new to this cluster: a host
         # lane has to earn that placement the way archie-tui did.
-        "contained": True,
+        # 🔴 FLIPPED True->False 2026-09-13 (option B, applied by the owner).
+        # This lane now mounts /var/run/docker.sock — ROOT on the host — and the
+        # LIVE platform tree. Verified: it drives docker (51 containers) and git
+        # in /mnt/archie_brain. A container still exists; it is no longer a
+        # BOUNDARY, and this flag answers "is there a boundary", not "is there
+        # a container". Revert only with the socket mount.
+        "contained": False,
         # Via archie_mcp_gateway, same grant as codex.
         "platform_access": True,
         "single_seat": True,  # ttyd --max-clients 1

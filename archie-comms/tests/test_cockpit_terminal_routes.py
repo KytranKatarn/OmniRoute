@@ -115,7 +115,9 @@ def test_the_mint_reports_whether_the_lane_is_contained(client):
     """The pane must be able to mark the claude lane as the host, not a sandbox."""
     _login(client)
     assert client.post("/api/cockpit/terminal/claude/token").get_json()["contained"] is False
-    assert client.post("/api/cockpit/terminal/codex/token").get_json()["contained"] is True
+    # False since 2026-09-13 (option B): codex mounts the docker socket, so there is no
+    # boundary left to report. Every lane is host-equivalent now.
+    assert client.post("/api/cockpit/terminal/codex/token").get_json()["contained"] is False
 
 
 def test_an_unknown_lane_is_404_not_500(client):

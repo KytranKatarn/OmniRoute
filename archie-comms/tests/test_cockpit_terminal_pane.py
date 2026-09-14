@@ -129,9 +129,13 @@ def test_the_claude_lane_is_marked_as_the_host():
     # reach Dev HQ, agents and fleet delegation through the gateway, so "contained" is a
     # false claim. The pill's own tooltip may still say "not sandboxed" — this checks the
     # rendered LABEL, which is what a reader actually sees.
-    assert ">contained<" in codex, "the codex lane must be marked contained"
     assert not re.search(r">\s*sandboxed\s*<", codex), "no lane may be LABELLED sandboxed"
-    assert "HOST" not in codex, "only the claude lane is the host"
+    # ⚠️ INVERTED 2026-09-13 (option B). codex now mounts /var/run/docker.sock — root on
+    # the host — so it carries the SAME host marker as claude. This test previously read
+    # "only the claude lane is the host"; asserting that now would pin a claim the
+    # deployment contradicts, which is the failure this whole file exists to prevent.
+    assert "HOST" in codex, "codex holds the docker socket — it must carry the host marker"
+    assert ">contained<" not in codex, "codex is no longer contained"
 
 
 def test_the_iframe_is_not_auto_mounted():

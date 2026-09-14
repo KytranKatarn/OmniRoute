@@ -234,6 +234,56 @@
 <svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
 {%- endmacro %}
 
+{# Weather / emergency icons — stroked SVG, never emoji, same rule as lock_icon.
+   weather.html was MISSED by the #3162/#3163 emoji sweep: that pass converted 11
+   templates (map.html among them) and left ⚠️/🚨/🔴/🟡 live on /weather. Emoji
+   render unpredictably across platforms and are announced inconsistently by screen
+   readers — weather.html's own JS comment at ~L1395 already says so about its
+   condition glyphs, so the page argued for this and then kept the emoji anyway.
+
+   These take currentColor, so severity/status colour stays with the CSS class on
+   the row (.sev-* / .status-*) and is never baked into the icon — one colour axis,
+   per ADR-023. #}
+{# ONE weather-icon resolver keyed by name, rather than a macro per glyph. The
+   mockup renders these as `.layer-btn .wxi` SVGs; the live page shipped raw emoji
+   (🍁🔥🌡🌤🌫🔗🌱🔬📰📊💨💧⚠), which is what "the weather logos aren't updated"
+   means. All take currentColor so the active/inactive button state keeps owning
+   the colour. Add a glyph = one dict entry. #}
+{% set _WX_PATHS = {
+  'fire':    '<path d="M12 2s4 4.5 4 8a4 4 0 0 1-8 0c0-1.2.5-2.3 1-3 0 1.7 1 2.5 1.8 2.5.9 0 1.2-.8 1.2-1.7C12 5.5 12 2 12 2z"/><path d="M6.5 14a6 6 0 1 0 11 0"/>',
+  'thermo':  '<path d="M14 14.8V4a2 2 0 1 0-4 0v10.8a4 4 0 1 0 4 0z"/><path d="M12 8v7"/>',
+  'cloudsun':'<circle cx="7.5" cy="7.5" r="2.6"/><path d="M7.5 2.4v1.4M7.5 11.2v1.4M2.4 7.5h1.4M11.2 7.5h1.4"/><path d="M9 20h8.5a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.6 1.3A3.2 3.2 0 0 0 9 20z"/>',
+  'haze':    '<path d="M3 8h13M5 12h15M3 16h11M8 20h12"/>',
+  'maple':   '<path d="M12 2l1.8 4.2 3-1-1 3.3 4.2-.8-2.6 2.8 1.6 1.3-4.6 1.6.7 3.2-3.1-1.4L12 22l-.9-5.8-3.1 1.4.7-3.2-4.6-1.6 1.6-1.3L3.1 7.7l4.1.8-1-3.3 3 1z"/>',
+  'link':    '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12.2 19"/>',
+  'sprout':  '<path d="M12 21V11"/><path d="M12 11C12 7 9 5 5 5c0 4 3 6 7 6z"/><path d="M12 13c0-3.3 2.5-5 6-5 0 3.3-2.5 5-6 5z"/>',
+  'science': '<path d="M9 2v6.4L3.8 18A2 2 0 0 0 5.6 21h12.8a2 2 0 0 0 1.8-3L15 8.4V2"/><path d="M8 2h8"/><path d="M7.5 15h9"/>',
+  'news':    '<path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/>',
+  'chart':   '<path d="M3 21h18"/><path d="M6 17v-5M11 17V7M16 17v-8M21 17v-3"/>',
+  'wind':    '<path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 16h13a3 3 0 1 1-3 3"/><path d="M3 12h16"/>',
+  'droplet': '<path d="M12 2.7S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.7 12 2.7z"/>',
+  'warn':    '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
+} %}
+{% macro wx_icon(name, size=14) -%}
+<svg class="wxi" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{{ _WX_PATHS.get(name, _WX_PATHS['warn'])|safe }}</svg>
+{%- endmacro %}
+
+{% macro alert_icon(size=16) -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+{%- endmacro %}
+
+{% macro evac_icon(size=16) -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18v-5a6 6 0 0 1 12 0v5"/><path d="M4 18h16"/><path d="M12 3V1.6"/><path d="M19.8 6.2 20.9 5"/><path d="M4.2 6.2 3.1 5"/><path d="M9 21h6"/></svg>
+{%- endmacro %}
+
+{# Filled disc for the BC Order/Alert distinction. Shape is identical for both —
+   ONLY the colour differs, and that colour comes from the row's .status-* class,
+   so a colour-blind reader still gets the status from the adjacent text label
+   rather than from the dot alone. #}
+{% macro evac_status_icon(size=14) -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="7"/></svg>
+{%- endmacro %}
+
 {% macro paywall(title, blurb, next_url, plans_href="/join") -%}
 <div class="wtf-a-pay">
   <div class="wtf-a-pay-t">{{ lock_icon() }}{{ title }}</div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import alert_icon, evac_icon, evac_status_icon, wx_icon %}
 {% block title %}Weather &amp; Climate Intelligence — A.U.R.O.R.A. · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Canadian wildfire, fire-weather and climate intelligence — active perimeters, satellite hotspots by province, and live station wind, with every layer's source and last pull shown.">
@@ -265,7 +266,11 @@
 .wtf-wx-alert + .wtf-wx-alert { border-top:1px solid #0a1a2a; }
 .wtf-wx-alert.sev-moderate { background:#1a1206; border-left-color:#f59e0b; }
 .wtf-wx-alert.sev-minor, .wtf-wx-alert.sev-unknown { background:#0a1420; border-left-color:var(--wtf-aurora); }
-.wtf-wx-alert-icon { font-size:16px; line-height:1; flex-shrink:0; }
+.wtf-wx-scope-btn, .wtf-wx-layer-btn { display:inline-flex; align-items:center; gap:6px; }
+.wtf-wx-layer-btn .wxi { opacity:.72; transition:opacity .16s; }
+.wtf-wx-layer-btn.active .wxi, .wtf-wx-scope-btn.active .wxi { opacity:1; }
+.wtf-wx-cluster-link .wxi, .wtf-wx-accuracy-link .wxi, .wtf-wx-layercard-stale-flag .wxi { vertical-align:-2px; margin-right:3px; }
+.wtf-wx-alert-icon { display:inline-flex; align-items:center; line-height:1; flex-shrink:0; color:currentColor; }
 .wtf-wx-alert-body { flex:1; min-width:0; }
 .wtf-wx-alert-head { font-size:12px; font-weight:700; color:#fff; line-height:1.4; }
 .wtf-wx-alert-meta { font-size:10px; color:#9ca3af; margin-top:3px; letter-spacing:0.3px; }
@@ -289,7 +294,12 @@
 .wtf-wx-evac + .wtf-wx-evac { border-top:1px solid #0a1a2a; }
 .wtf-wx-evac.sev-moderate, .wtf-wx-evac.status-alert { background:#1a1206; border-left-color:#f59e0b; }
 .wtf-wx-evac.sev-minor, .wtf-wx-evac.sev-unknown { background:#0a1420; border-left-color:var(--wtf-aurora); }
-.wtf-wx-evac-icon { font-size:16px; line-height:1; flex-shrink:0; }
+.wtf-wx-evac-icon { display:inline-flex; align-items:center; line-height:1; flex-shrink:0; color:currentColor; }
+/* Order vs Alert is carried by the dot's COLOUR *and* the adjacent text label —
+   never the shape, which is identical for both (see evac_status_icon). */
+.wtf-wx-evac.status-order .wtf-wx-evac-icon { color:#ef4444; }
+.wtf-wx-evac.status-alert .wtf-wx-evac-icon { color:#f59e0b; }
+.wtf-wx-evac-sechead svg { vertical-align:-2px; margin-right:4px; }
 .wtf-wx-evac-body { flex:1; min-width:0; }
 .wtf-wx-evac-head { font-size:12px; font-weight:700; color:#fff; line-height:1.4; }
 .wtf-wx-evac-status { display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase;
@@ -325,7 +335,7 @@
 <div class="wtf-wx-alertstrip">
   {% for al in active_alerts %}
   <div class="wtf-wx-alert sev-{{ (al.severity or 'unknown')|lower }}">
-    <span class="wtf-wx-alert-icon">⚠️</span>
+    <span class="wtf-wx-alert-icon">{{ alert_icon() }}</span>
     <div class="wtf-wx-alert-body">
       <div class="wtf-wx-alert-head">{{ al.headline or al.event or 'Weather alert' }}</div>
       <div class="wtf-wx-alert-meta">
@@ -349,11 +359,11 @@
    expected common case, not an error state. #}
 {% if active_evacuations_naad or active_evacuations_bc %}
 <div class="wtf-wx-evacpanel">
-  <div class="wtf-wx-evac-sechead">🚨 Evacuation orders &amp; alerts — Alert Ready (national)</div>
+  <div class="wtf-wx-evac-sechead">{{ evac_icon(15) }} Evacuation orders &amp; alerts — Alert Ready (national)</div>
   {% if active_evacuations_naad %}
     {% for ev in active_evacuations_naad %}
     <div class="wtf-wx-evac sev-{{ (ev.severity or 'unknown')|lower }}">
-      <span class="wtf-wx-evac-icon">🚨</span>
+      <span class="wtf-wx-evac-icon">{{ evac_icon() }}</span>
       <div class="wtf-wx-evac-body">
         <div class="wtf-wx-evac-head">{{ ev.headline or ev.event or 'Evacuation alert' }}</div>
         <div class="wtf-wx-evac-meta">
@@ -374,7 +384,7 @@
   <div class="wtf-wx-evac-sechead">British Columbia — Emergency Management BC</div>
     {% for ev in active_evacuations_bc %}
     <div class="wtf-wx-evac status-{{ (ev.order_alert_status or '')|lower }}">
-      <span class="wtf-wx-evac-icon">{{ '🔴' if ev.order_alert_status == 'Order' else '🟡' }}</span>
+      <span class="wtf-wx-evac-icon">{{ evac_status_icon() }}</span>
       <div class="wtf-wx-evac-body">
         <div class="wtf-wx-evac-head">
           {{ ev.event_name or ev.order_alert_name or 'Evacuation notice' }}
@@ -418,7 +428,7 @@
     <div class="wtf-wx-section-title">Explore by area</div>
 
     <div class="wtf-wx-scope">
-      <button class="wtf-wx-scope-btn active" data-prov="" type="button">🍁 Canada</button>
+      <button class="wtf-wx-scope-btn active" data-prov="" type="button">{{ wx_icon("maple") }} Canada</button>
       {% for code in aurora_map.prov_order %}
         {% set P = aurora_map.provinces.get(code) %}
         <button class="wtf-wx-scope-btn{% if not P %} is-empty{% endif %}"
@@ -433,10 +443,10 @@
       </div>
       <div class="wtf-wx-mapwrap">
         <div class="wtf-wx-layerbar">
-          <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
-          <button class="wtf-wx-layer-btn" data-layer="wx" type="button">🌡 Fire weather</button>
-          <button class="wtf-wx-layer-btn" data-layer="cities" type="button">🌤 Current weather</button>
-          <button class="wtf-wx-layer-btn" data-layer="aqhi" type="button">🌫 Air quality</button>
+          <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">{{ wx_icon("fire") }} Fire activity</button>
+          <button class="wtf-wx-layer-btn" data-layer="wx" type="button">{{ wx_icon("thermo") }} Fire weather</button>
+          <button class="wtf-wx-layer-btn" data-layer="cities" type="button">{{ wx_icon("cloudsun") }} Current weather</button>
+          <button class="wtf-wx-layer-btn" data-layer="aqhi" type="button">{{ wx_icon("haze") }} Air quality</button>
           <div class="wtf-wx-toolbar-extra">
             <label class="wtf-wx-toolbar-label" for="wtf-wx-city-select">My city</label>
             <select id="wtf-wx-city-select" class="wtf-wx-city-select"
@@ -444,7 +454,7 @@
               <option value="">— choose a city —</option>
             </select>
             <button type="button" id="wtf-wx-copy-link" class="wtf-wx-toolbar-btn"
-                    aria-label="Copy link to this view">🔗 Copy link to this view</button>
+                    aria-label="Copy link to this view">{{ wx_icon("link") }} Copy link to this view</button>
             <label class="wtf-wx-cb-toggle" for="wtf-wx-cb-toggle">
               <input type="checkbox" id="wtf-wx-cb-toggle">
               Colourblind-safe colours
@@ -508,7 +518,7 @@
         <div class="wtf-wx-article-card">
           <div class="wtf-wx-card-meta">
             <span class="beat-pill {% if a.beat == 'climate' %}beat-climate{% else %}beat-science{% endif %}">
-              {{ '🌱 climate' if a.beat == 'climate' else '🔬 sci-tech' }}
+              {% if a.beat == 'climate' %}{{ wx_icon("sprout", 12) }} climate{% else %}{{ wx_icon("science", 12) }} sci-tech{% endif %}
             </span>
             <a href="#" class="wtf-wx-outlet-link">{{ a.source or '' }}</a>
             {% if a.province_code %}<span class="wtf-wx-province-tag">{{ a.province_code }}</span>{% endif %}
@@ -518,7 +528,7 @@
           <a href="/article/{{ a.id }}" class="wtf-wx-card-title">{{ a.title }}</a>
           {% if a.cluster_size and a.cluster_size > 1 %}
           <div class="wtf-wx-card-footer">
-            <a href="/cluster/{{ a.cluster_id }}" class="wtf-wx-cluster-link">📰 {{ a.cluster_size }} outlets covering this</a>
+            <a href="/cluster/{{ a.cluster_id }}" class="wtf-wx-cluster-link">{{ wx_icon("news", 12) }} {{ a.cluster_size }} outlets covering this</a>
           </div>
           {% endif %}
         </div>
@@ -558,7 +568,7 @@
        pointing to it from here (Batch 11, #6280). One honest card, no new
        ingest, no new query. #}
     <div class="wtf-wx-accuracy-card">
-      <a href="/weather/accuracy" class="wtf-wx-accuracy-link">📊 How accurate was our forecast? →</a>
+      <a href="/weather/accuracy" class="wtf-wx-accuracy-link">{{ wx_icon("chart", 12) }} How accurate was our forecast? →</a>
       <div class="wtf-wx-accuracy-note">
         Every published city forecast, checked against what the stations
         actually recorded — broken down by how many days ahead it was made.
@@ -584,7 +594,7 @@
             {{ L.issuing_body }}<br>
             <span class="wtf-wx-layercard-dataset">{{ L.dataset_id }}</span><br>
             {% if L.is_stale %}
-            <span class="wtf-wx-layercard-stale-flag">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
+            <span class="wtf-wx-layercard-stale-flag">{{ wx_icon("warn", 11) }} STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
             {% else %}
             pulled {{ L.last_pull.strftime('%Y-%m-%d %H:%M') }} UTC
             {% endif %}
@@ -664,6 +674,23 @@
    not load it: this tag was missing on the first pass and the page would have
    thrown "WTFMap is not defined", taking the whole map with it. #}
 <script src="{{ url_for('static', filename='js/wtf-map.js') }}"></script>
+<script>
+  /* Inline SVG twins of the Jinja wx_icon() macros, for the JS-rendered chips.
+     A macro cannot be called from JS, so these are duplicated ON PURPOSE and kept
+     minimal; if a glyph changes, change BOTH. Same viewBox/stroke as the macro so
+     they sit identically next to server-rendered ones. */
+  var _WXI = function (d) {
+    return '<svg class="wxi" width="12" height="12" viewBox="0 0 24 24" fill="none" ' +
+           'stroke="currentColor" stroke-width="1.9" stroke-linecap="round" ' +
+           'stroke-linejoin="round" aria-hidden="true" focusable="false">' + d + '</svg>';
+  };
+  var WXI = {
+    wind:    _WXI('<path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 16h13a3 3 0 1 1-3 3"/><path d="M3 12h16"/>'),
+    droplet: _WXI('<path d="M12 2.7S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.7 12 2.7z"/>'),
+    fire:    _WXI('<path d="M12 2s4 4.5 4 8a4 4 0 0 1-8 0c0-1.2.5-2.3 1-3 0 1.7 1 2.5 1.8 2.5.9 0 1.2-.8 1.2-1.7C12 5.5 12 2 12 2z"/><path d="M6.5 14a6 6 0 1 0 11 0"/>'),
+    warn:    _WXI('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>')
+  };
+</script>
 <script>
 (function () {
   "use strict";
@@ -1218,8 +1245,8 @@
       var tp = document.createElement("div"); tp.className = "wtf-wx-card-temp";
       tp.textContent = s.t + "°C";
       var rw = document.createElement("div"); rw.className = "wtf-wx-card-row";
-      [["💨", s.w === null ? null : s.w + " km/h"], ["💧", s.h === null ? null : s.h + "%"],
-       ["🔥", s.f === null ? null : "FWI " + s.f]].forEach(function (x) {
+      [[WXI.wind, s.w === null ? null : s.w + " km/h"], [WXI.droplet, s.h === null ? null : s.h + "%"],
+       [WXI.fire, s.f === null ? null : "FWI " + s.f]].forEach(function (x) {
         if (x[1] === null) return;
         var e = document.createElement("span"); e.textContent = x[0] + " " + x[1]; rw.appendChild(e);
       });
@@ -1429,7 +1456,10 @@
         age.className += " wtf-wx-age-silent"; age.textContent = "observation time unknown";
       } else {
         age.className += stale ? " wtf-wx-age-stale" : " wtf-wx-age-ok";
-        age.textContent = (stale ? "⚠ " : "") + _ago(c.age_min);
+        // textContent would print SVG markup as literal text — use innerHTML for the
+    // icon branch only, with no interpolated data in it.
+    if (stale) { age.innerHTML = WXI.warn + " "; age.append(_ago(c.age_min)); }
+    else { age.textContent = _ago(c.age_min); }
       }
       card.appendChild(age);
       wrap.appendChild(card);

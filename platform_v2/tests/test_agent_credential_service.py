@@ -60,7 +60,7 @@ class TestScope:
     def test_agent_accounts_accepted_case_insensitively(self, monkeypatch):
         db = _RecordingDB()
         monkeypatch.setattr(acs, "get_db_cursor", db)
-        res = acs.reset_agent_password("Claude", env_paths=())
+        res = acs.reset_agent_password("Claude", env_paths=(os.getenv("ARCHIE_TEST_ENV_PATH"),))
         assert res["success"] is True
         assert res["username"] == "claude"
 

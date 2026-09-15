@@ -16,7 +16,7 @@ class TestEncryption:
         """_encrypt and _decrypt are inverses."""
         from services.credential_vault_service import CredentialVault
 
-        vault = CredentialVault(vault_key=None)
+        vault = CredentialVault(vault_key=os.getenv("CREDENTIAL_VAULT_KEY"))
         original = "my_super_secret_password_123!"
         encrypted = vault._encrypt(original)
         assert encrypted != original

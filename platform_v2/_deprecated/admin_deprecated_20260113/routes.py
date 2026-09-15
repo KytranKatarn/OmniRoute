@@ -2322,7 +2322,7 @@ def assign_team_to_proposal_endpoint(proposal_id):
         data = request.get_json() or {}
         force_internal = data.get("force_internal", True)
 
-        from ai_bridge.team_assignment_engine import assign_team_to_proposal
+        from ai_bridge.team_assignment_engine import TeamAssignmentEngine, assign_team_to_proposal
 
         result = assign_team_to_proposal(
             proposal_id=proposal_id,

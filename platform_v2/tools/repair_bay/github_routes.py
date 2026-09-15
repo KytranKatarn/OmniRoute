@@ -181,8 +181,37 @@ def register_github_routes(bp, admin_required):
                 # DIFFERENT PR's approval that happens to share the number.
                 if not _repo or _repo == REPO_FULL:
                     resolve_pr_merge_approval(pr_number, approved=True, user_id=getattr(current_user, "id", None))
+
+                # MERGE → AUTO-DEPLOY (deploy-provenance #5375/#2543): a GitHub merge of
+                # the DEFAULT repo deploys nothing by itself — the hub bind-mounts
+                # /mnt/archie_brain, so the host must fast-forward the checkout and
+                # restart the containers. Enqueue the signed hub_deploy host command
+                # (async, NOT submit_and_wait: the host restarts archie_platform, which
+                # is THIS container — waiting would kill the request mid-reply).
+                # Cross-repo merges (watch products, KBS, creed…) never deploy the hub.
+                if not _repo or _repo == REPO_FULL:
+                    try:
+                        from tools.system_operations.host_command_client import submit_host_command
+
+                        command_id = submit_host_command(
+                            "hub_deploy",
+                            {},
+                            submitted_by="repair_bay_merge",
+                            user_id=getattr(current_user, "id", None),
+                        )
+                        result["deploy"] = {
+                            "enqueued": True,
+                            "command_id": command_id,
+                            "command_type": "hub_deploy",
+                        }
+                        logger.info("[FORGE] PR #%s merged — hub_deploy enqueued (%s)", pr_number, command_id)
+                    except Exception as deploy_exc:
+                        logger.warning("[FORGE] PR #%s merged but hub_deploy not enqueued: %s", pr_number, deploy_exc)
+                        result["deploy"] = {"enqueued": False, "error": str(deploy_exc)}
+                else:
+                    result["deploy"] = {"enqueued": False, "reason": "cross-repo merge does not deploy the hub"}
             except Exception as exc:  # noqa: BLE001 — bookkeeping never fails a real merge
-                logger.warning("[FORGE] PR #%s merged but approval row not resolved: %s", pr_number, exc)
+                logger.warning("[FORGE] PR #%s merged but post-merge bookkeeping failed: %s", pr_number, exc)
         return jsonify(result)
 
     @bp.route("/api/forge/prs/<int:pr_number>/comment", methods=["POST"])
@@ -857,6 +886,7 @@ def register_github_routes(bp, admin_required):
             _fetch_diff,
             _build_prompt,
             _run_forge_review,
+            _obtain_review_summary,
             _notify_pr_reviewed,
         )
 
@@ -889,13 +919,28 @@ def register_github_routes(bp, admin_required):
 
         repo = review.get("repo", "KytranKatarn/archie-platform")
 
+        # #6769 — `wide` re-runs the review with the WHOLE diff shown to the reviewer.
+        # Parsed here (in the request context), not inside the thread, so a missing body
+        # degrades to the default freeform path exactly as before.
+        wide = bool((request.get_json(silent=True) or {}).get("wide"))
+
         def _run_in_background():
             try:
                 mark_review_started(pr_number, repo)
                 diff = _fetch_diff(diff_url)
-                prompt = _build_prompt(review, diff)
-                # DHQ dispatch — goes through queue+orchestration pipeline
-                summary = _run_forge_review(prompt)
+                if wide:
+                    # Re-review the FILES the last pass never saw. The freeform prompt
+                    # below would use the SAME capped window and drop the SAME files, so
+                    # route the whole diff through the coverage-aware path instead: its
+                    # size rule (#6023) already escalates an over-window diff to the
+                    # patient full-window reviewer, and it re-stamps an honest coverage
+                    # note if anything still falls out — a clean re-review can never read
+                    # like the #5836 approval that only saw part of the diff.
+                    summary = _obtain_review_summary(review, diff, pr_number, repo)
+                else:
+                    prompt = _build_prompt(review, diff)
+                    # DHQ dispatch — goes through queue+orchestration pipeline
+                    summary = _run_forge_review(prompt)
                 if summary:
                     mark_review_done(pr_number, summary, repo)
                     _notify_pr_reviewed(pr_number, repo, review.get("title", ""), summary)

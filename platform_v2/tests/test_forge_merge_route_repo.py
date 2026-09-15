@@ -91,6 +91,39 @@ class TestTheClickCarriesTheRepo(unittest.TestCase):
         self.assertIn("confirmMergePR(prNumber, true, repo)", src)
 
 
+class TestHubDeployEnqueueIsRepoScoped(unittest.TestCase):
+    """Merging the DEFAULT repo must enqueue the hub auto-deploy (host pull + restart),
+    and a cross-repo merge must NEVER deploy the hub."""
+
+    def test_cross_repo_merge_never_deploys_the_hub(self):
+        body = _merge_route_source()
+        # The refusal line must be the else-branch of the default-repo gate: the gate
+        # appears before it and an `else:` separates them.
+        idx = body.index('"cross-repo merge does not deploy the hub"')
+        prefix = body[:idx]
+        gate = prefix.rfind("if not _repo or _repo == REPO_FULL:")
+        self.assertGreaterEqual(gate, 0)
+        self.assertIn("else:", prefix[gate:])
+
+    def test_hub_deploy_enqueue_is_async_never_sync_wait(self):
+        body = _merge_route_source()
+        # The host restarts archie_platform — the container this request runs in. A
+        # submit_and_wait() call would kill the reply mid-request, so only submit_host_command
+        # is acceptable here. (The words appear in the doc comment; the CALL must not.)
+        self.assertIn("submit_host_command(", body)
+        self.assertNotRegex(body, r"submit_and_wait\s*\(")
+
+    def test_hub_deploy_surfaces_in_the_merge_response(self):
+        body = _merge_route_source()
+        self.assertIn('result["deploy"]', body)
+        self.assertIn('"enqueued"', body)
+
+    def test_hub_deploy_uses_heredoc_style_branching(self):
+        body = _merge_route_source()
+        # Enqueue failure must never fail the merge.
+        self.assertIn("enqueue failure never fails the merge", body)
+
+
 class TestRepoValidator(unittest.TestCase):
     def test_shapes(self):
         from tools.repair_bay.services.pr_review_service import _is_valid_repo

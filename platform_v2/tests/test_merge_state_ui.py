@@ -116,6 +116,81 @@ class TestVerdictRuleHasNotLeakedIntoTheClient(unittest.TestCase):
             self.assertEqual(hits, [], f"verdict rule leaked into the client via {pattern!r}: {hits[:2]}")
 
 
+class TestCoverageFilesVisibleBeforeTheClick(unittest.TestCase):
+    """#6769 — 'COVERAGE · N unread' counted the files but never named them, so the
+    decision 'is this a README or the deploy path' was unreachable until a refused
+    merge. The row now carries an Info button, the detail panel LISTS the dropped
+    files (clickable to read on GitHub, from the SERVER's dropped_files — never
+    parsed from the summary client-side), and a re-review button routes the WHOLE
+    diff through the coverage-aware full-window reviewer. This class guards
+    disclosure before any click; the merge-gate tests own the blocked-until-clicked
+    property.
+    """
+
+    def test_an_info_button_opens_the_detail(self):
+        src = _TEMPLATE.read_text()
+        self.assertIn("infoBtn.textContent = 'Info'", src)
+        self.assertIn("showPRDetail(pr);", src)
+
+    def test_the_detail_lists_the_dropped_files_from_server_state(self):
+        src = _TEMPLATE.read_text()
+        # The coverage box may render ONLY when the server state says coverage_only,
+        # and it must consume the server's list, not build one.
+        idx = src.index("msCov.dropped_files")
+        self.assertIn("state === 'coverage_only'", src[:idx])
+        self.assertIn("covList.appendChild(rowEl)", src)
+
+    def test_the_dropped_files_are_clickable_to_read_at_the_pr_head(self):
+        """Each dropped path opens GitHub blob/{head_branch} — the PR's own commit,
+        not main's pre-merge state — with the host taken from the row (cross-repo)."""
+        src = _TEMPLATE.read_text()
+        self.assertIn("prFileUrl(pr, f)", src)
+        self.assertIn("pr.head_branch", src)
+        self.assertIn("'/blob/'", src)
+        self.assertIn("fl.target = '_blank'", src)
+
+    def test_re_review_routes_the_whole_diff(self):
+        """The re-review button must post `wide`, not re-trigger the same capped pass."""
+        src = _TEMPLATE.read_text()
+        self.assertIn("triggerPRReReview", src)
+        self.assertIn("{wide: true}", src)
+
+    def test_the_client_never_rebuilds_the_unread_list_from_the_summary(self):
+        """Re-deriving the dropped list from the review text would be the verdict rule
+        leaking into the client (the same #2722/#2458 hazard) — the count already got
+        that wrong once; the list must not."""
+        src = _TEMPLATE.read_text()
+        for pat in (r"coverage_dropped_paths", r"review_coverage", r"NOT\s*REVIEWED"):
+            hits = [
+                ln
+                for ln in src.splitlines()
+                if re.search(pat, ln) and not ln.strip().startswith(("//", "*", "<!--"))
+            ]
+            self.assertEqual(hits, [], f"client rebuilds the coverage list via {pat!r}: {hits[:2]}")
+
+
+class TestWideReReviewUsesTheCoverageAwarePath(unittest.TestCase):
+    """#6769 — the `wide` re-review must use the machinery that ESCALATES and MEASURES
+    the window (_obtain_review_summary: size-rule model escalation + honest coverage
+    note). A re-review down the freeform prompt would reuse the SAME capped window and
+    re-drop the same files while looking like progress — the #5836 failure shape."""
+
+    _ROUTES = Path(__file__).resolve().parents[1] / "tools" / "repair_bay" / "github_routes.py"
+
+    def test_route_reads_wide_from_the_body(self):
+        routes = self._ROUTES.read_text()
+        self.assertIn('wide = bool((request.get_json(silent=True) or {}).get("wide"))', routes)
+
+    def test_wide_branch_calls_the_coverage_aware_summary(self):
+        routes = self._ROUTES.read_text()
+        self.assertIn("_obtain_review_summary(review, diff, pr_number, repo)", routes)
+        self.assertIn(
+            "_build_prompt",
+            routes,
+            "the default (non-wide) path must stay the original freeform prompt",
+        )
+
+
 class TestOverviewLivesOnTheDashboard(unittest.TestCase):
     def test_overview_block_is_inside_a_tab_panel(self):
         """It used to sit outside every .tab-content, so it rendered on EVERY tab."""

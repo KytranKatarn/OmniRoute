@@ -112,6 +112,32 @@ def scan_pending_pushes():
     return rows
 
 
+def pending_commit_subjects(branch, limit=20):
+    """One-line subjects of the commits on *branch* not on origin/*branch*.
+
+    Used by the Create-PR route to build the PR body.  Falls back to an
+    empty list when the rev-list fails (e.g. no remote).
+    """
+    if not branch:
+        return []
+    has_remote = bool(_git("rev-parse", "--short", f"refs/remotes/origin/{branch}"))
+    if has_remote:
+        raw = _git(
+            "log",
+            "--format=%s",
+            f"--max-count={limit}",
+            f"refs/remotes/origin/{branch}..refs/heads/{branch}",
+        )
+    else:
+        raw = _git(
+            "log",
+            "--format=%s",
+            f"--max-count={limit}",
+            f"refs/heads/{branch}",
+        )
+    return [ln for ln in raw.split("\n") if ln.strip()] if raw else []
+
+
 def summarize():
     """Summary for the API and boot dashboard."""
     rows = scan_pending_pushes()

@@ -466,6 +466,26 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
             "error": f"Merge failed: {merge_result.get('error')}",
         }
 
+    # 4b. MERGE → AUTO-DEPLOY (deploy-provenance #5375/#2543): the hub bind-mounts
+    # /mnt/archie_brain, so a merged PR is not live until the HOST fast-forwards the
+    # checkout and restarts the containers. Enqueue the signed hub_deploy command
+    # async (NEVER submit_and_wait — the host restarts archie_platform, the container
+    # we run inside, so waiting would kill this request mid-reply).
+    deploy_info = {"enqueued": False}
+    try:
+        from tools.system_operations.host_command_client import submit_host_command
+
+        command_id = submit_host_command(
+            "hub_deploy",
+            {},
+            submitted_by="forge_deploy",
+        )
+        deploy_info = {"enqueued": True, "command_id": command_id, "command_type": "hub_deploy"}
+        logger.info("[FORGE] deploy_via_merge: PR #%s merged — hub_deploy enqueued (%s)", pr_number, command_id)
+    except Exception as deploy_exc:
+        logger.warning("[FORGE] deploy_via_merge: PR #%s merged but hub_deploy not enqueued: %s", pr_number, deploy_exc)
+        deploy_info = {"enqueued": False, "error": str(deploy_exc)}
+
     # 5. Update proposal status if provided
     if proposal_id:
         try:
@@ -546,6 +566,7 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
         "sha": merge_result.get("sha", ""),
         "approved_by": [r.get("user") for r in approved],
         "method": "forge_merge",
+        "deploy": deploy_info,
     }
 
 

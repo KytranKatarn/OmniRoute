@@ -479,6 +479,105 @@ def push_changes(
 
 
 # ============================================================================
+# PENDING-PUSH PUBLISH — ship local-only commits (Create PR from Pushes tab)
+# ============================================================================
+# The container clone only ever holds origin's state, so a branch whose tip
+# commits exist ONLY in the live checkout (/mnt/archie_brain) cannot be pushed
+# from there. Each call therefore spins up a scratch clone that READS the
+# branch out of REPO_PATH — fetching from a local path never writes to the
+# source — then PUSHES that scratch clone to GitHub. All git writes stay under
+# /tmp; neither the shared checkout nor the shared pipeline clone is touched.
+
+
+def _run_scratch_git(cwd: str, args: List[str], timeout: int = 300) -> Tuple[bool, str, str]:
+    """Run git in <cwd> with token auth (env), mirroring _run_git_clone."""
+    try:
+        result = subprocess.run(
+            ["git"] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=cwd,
+            env=_git_env(),
+        )
+        return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return False, "", f"git command timed out after {timeout}s"
+    except Exception as e:
+        return False, "", str(e)
+
+
+def push_pending_branch(branch_name: str) -> Dict:
+    """Push a branch whose commits exist only in the live checkout.
+
+    Used by the Repair Bay Pushes tab "Create PR" action. Steps:
+      1. scratch-clone a bare repo under /tmp (an init + remote add);
+      2. fetch the branch FROM REPO_PATH — local-path fetch runs an
+         upload-pack in the host checkout, which git refuses as root, so both
+         the parent command and the spawned upload-pack carry
+         `safe.directory=/mnt/archie_brain/.git`. `--no-filter` keeps the
+         blob:none filter from stripping the commits' blobs (otherwise the
+         push fails on missing objects). Fetching never writes to REPO_PATH;
+      3. push the fetched refs/remotes/origin/<branch> to GitHub as a heads ref
+         (token auth via _git_env());
+      4. remove the scratch clone in a finally.
+    """
+    allowed, rl = check_before_write(token=_get_token())
+    if not allowed:
+        logger.warning("push of %s blocked by rate guard: %s", branch_name, rl.get("reason"))
+        return {
+            "success": False,
+            "error": f"github rate limit guard: {rl.get('reason')}",
+            "rate_limited": True,
+            "rate_limit": rl,
+        }
+
+    import shutil
+    import tempfile
+
+    scratch = tempfile.mkdtemp(prefix="rb_pending_", dir="/tmp")
+    try:
+        ok, _, err2 = _run_scratch_git(scratch, ["init", "-q"])
+        if not ok:
+            return {"success": False, "error": f"scratch init failed: {err2[:200]}"}
+
+        safe_cfg = f"safe.directory={REPO_PATH}/.git"
+        ok, _, err2 = _run_scratch_git(
+            scratch,
+            [
+                "-c",
+                safe_cfg,
+                "fetch",
+                "--no-filter",
+                "--no-tags",
+                f"--upload-pack=git -c {safe_cfg} upload-pack",
+                REPO_PATH,
+                f"refs/heads/{branch_name}:refs/remotes/origin/{branch_name}",
+            ],
+        )
+        if not ok:
+            return {"success": False, "error": f"read from live checkout failed: {err2[:300]}"}
+
+        ok, _, err2 = _run_scratch_git(
+            scratch,
+            ["remote", "add", "origin", f"https://github.com/{REPO_FULL}.git"],
+        )
+        if not ok:
+            return {"success": False, "error": f"origin add failed: {err2[:200]}"}
+
+        ok, _, err2 = _run_scratch_git(
+            scratch,
+            ["push", "origin", f"refs/remotes/origin/{branch_name}:refs/heads/{branch_name}"],
+        )
+        if not ok:
+            return {"success": False, "error": f"push failed: {err2[:300]}"}
+
+        return {"success": True, "branch": branch_name}
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+# ============================================================================
 # PULL REQUESTS
 # ============================================================================
 

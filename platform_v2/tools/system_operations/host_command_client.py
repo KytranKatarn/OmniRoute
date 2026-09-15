@@ -22,15 +22,17 @@ PENDING_DIR = os.path.join(COMMANDS_DIR, "pending")
 COMPLETED_DIR = os.path.join(COMMANDS_DIR, "completed")
 
 # Command types whose payload authorizes a privileged root operation on the host
-# (arbitrary `sudo bash -c`, sysctl writes, file edits, service restarts). These
-# MUST carry an HMAC signed with the shared INTERNAL_API_KEY so that a plain JSON
-# file dropped into the shared/bind-mounted queue cannot trigger a root action.
+# (arbitrary `sudo bash -c`, sysctl writes, file edits, service restarts, hub
+# auto-deploy → git pull + container restart). These MUST carry an HMAC signed
+# with the shared INTERNAL_API_KEY so that a plain JSON file dropped into the
+# shared/bind-mounted queue cannot trigger a root action.
 # This set and command_signature() MUST stay identical to scripts/host_monitor.py.
 SIGNED_COMMAND_TYPES = {
     "compliance_fix_command",
     "compliance_fix_sysctl",
     "compliance_fix_file_line",
     "compliance_fix_service",
+    "hub_deploy",
 }
 
 

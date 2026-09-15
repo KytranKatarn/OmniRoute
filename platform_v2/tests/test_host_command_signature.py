@@ -76,6 +76,43 @@ def test_all_privileged_compliance_types_are_signed():
         assert t in SIGNED_COMMAND_TYPES
 
 
+def test_hub_deploy_is_gated_like_a_privileged_command():
+    """Hub auto-deploy (git pull + container restart as root) is a privileged
+    mutation — it must be HMAC-signed exactly like the compliance_fix_* family."""
+    assert "hub_deploy" in SIGNED_COMMAND_TYPES
+    sig = command_signature("hub_deploy", {}, "sekret")
+    assert sig == _reference("hub_deploy", {}, "sekret")
+    # Empty params are the canonical payload; a non-empty/different payload differs.
+    assert sig != command_signature("hub_deploy", {"dry_run": True}, "sekret")
+
+
+def test_hub_deploy_handler_and_registry_exist_on_host():
+    import pytest
+
+    if not _HOST_MONITOR:
+        pytest.skip("host_monitor.py not reachable in this environment")
+    src = open(_HOST_MONITOR).read()
+    # Handler defined and dispatchable.
+    assert "def handle_hub_deploy" in src
+    assert 'handle_hub_deploy": handle_hub_deploy' in src
+    # Registry entry names the handler.
+    assert '"hub_deploy": {' in src
+    # The handler refuses to fast-forward when the tree is diverged (--ff-only) and
+    # only then restarts — the safety spine must not drift away.
+    assert '"--ff-only"' in src
+    assert "origin/main" in src
+
+
+def test_hub_deploy_restart_is_scoped_to_two_containers():
+    import pytest
+
+    if not _HOST_MONITOR:
+        pytest.skip("host_monitor.py not reachable in this environment")
+    src = open(_HOST_MONITOR).read()
+    # The restart must target ONLY the two hub containers, never the whole stack.
+    assert '["docker", "compose", "restart", "archie_platform", "archie_scheduler"]' in src
+
+
 def test_host_monitor_stays_in_sync():
     """host_monitor.py must use the identical canonical message + signed set."""
     import pytest

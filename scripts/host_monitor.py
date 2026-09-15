@@ -2287,11 +2287,13 @@ def get_container_bandwidth():
 # ============================================================================
 
 
-def run_command_full(cmd, timeout=120):
+def run_command_full(cmd, timeout=120, cwd=None, env=None):
     """Run a command and return full result dict with returncode, stdout, stderr.
-    cmd must be a list (no shell=True) to prevent injection."""
+    cmd must be a list (no shell=True) to prevent injection.
+    cwd: optional working directory (e.g. /mnt/archie_brain for docker compose).
+    env: optional env dict to pass through (e.g. token-auth GIT_* vars for fetch)."""
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False, cwd=cwd, env=env)
         return {
             "returncode": result.returncode,
             "stdout": result.stdout,
@@ -2784,6 +2786,14 @@ COMMAND_REGISTRY = {
         "params": {
             "command": {"required": True},
         },
+    },
+    # Hub auto-deploy — git pull (ff-only) + restart containers on the HOST. Runs as
+    # root against the bind-mounted /mnt/archie_brain tree, so it is HMAC-gated and
+    # marked dangerous (privileged: touches the hub's containers).
+    "hub_deploy": {
+        "handler": "handle_hub_deploy",
+        "dangerous": True,
+        "params": {},
     },
 }
 
@@ -5800,6 +5810,150 @@ def handle_compliance_fix_service(params):
     }
 
 
+def _hub_read_token() -> str:
+    """GitHub token for the host-side fetch — same file the container uses."""
+    token_path = "/mnt/archie_brain/secrets/api/github_token.txt"
+    try:
+        if os.path.exists(token_path):
+            with open(token_path, "r") as f:
+                return f.read().strip()
+    except Exception:
+        pass
+    return os.environ.get("GITHUB_TOKEN", "")
+
+
+def _hub_checkout_owner(path):
+    """(uid, gid) that owns the checkout, so git runs AS the owner, not root.
+
+    The platform's own deployment rule: the bind-mounted tree is host-user-owned and
+    writes happen as that user (container root + safe.directory would root-poison the
+    host .git — the exact hazard task #3926 made the container avoid). The host daemon
+    runs as root too, so without a privilege drop every ref write here would leave
+    root-owned lock/ref files the owner can no longer update.
+    """
+    try:
+        st = os.stat(path)
+        return st.st_uid, st.st_gid
+    except OSError:
+        return os.geteuid(), os.getegid()
+
+
+def _hub_run_git(checkout, args, timeout=120):
+    """Run `git -C checkout args` AS the checkout owner, with token auth env.
+
+    Mirrors github_service._git_env / _run_git: the shared remote needs
+    x-access-token URL rewriting or the fetch auth-prompts and dies (GIT_TERMINAL_PROMPT=0).
+    Returns {"returncode", "stdout", "stderr"} like run_command_full.
+    """
+    owner_uid, owner_gid = _hub_checkout_owner(checkout)
+    env = os.environ.copy()
+    token = _hub_read_token()
+    if token:
+        env["GIT_ASKPASS"] = "/bin/echo"
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_CONFIG_COUNT"] = "1"
+        env["GIT_CONFIG_KEY_0"] = f"url.https://x-access-token:{token}@github.com/.insteadOf"
+        env["GIT_CONFIG_VALUE_0"] = "https://github.com/"
+
+    cmd = ["git", "-C", checkout, "-c", f"safe.directory={checkout}"] + args
+
+    def _drop_privs():
+        os.setgid(owner_gid)
+        os.setuid(owner_uid)
+
+    try:
+        kwargs = {"preexec_fn": _drop_privs} if (os.geteuid() == 0 and owner_uid != 0) else {}
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env, **kwargs)
+        return {"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+    except subprocess.TimeoutExpired:
+        return {"returncode": -1, "stdout": "", "stderr": f"git {args[0] if args else ''} timed out after {timeout}s"}
+    except Exception as e:
+        return {"returncode": -1, "stdout": "", "stderr": str(e)}
+
+
+def handle_hub_deploy(params):
+    """Merge -> auto-deploy the hub: ff-only pull origin/main, then restart containers.
+
+    Called by the Repair Bay Merge button (default repo) via a signed host command.
+    The platform bind-mounts /mnt/archie_brain, so a GitHub merge deploys NOTHING
+    until the HOST checkout actually contains the commit AND the containers restart
+    (deploy-provenance rule: git checkout main && git pull IS the deploy step).
+
+    Safe by construction:
+      * `git merge --ff-only origin/main` fast-forwards or FAILS — it never rewrites
+        or 3-way-merges, so uncommitted local work and divergent local history are
+        never touched or destroyed.
+      * The compose restart runs AFTER a successful merge, scoped to exactly
+        archie_platform + archie_scheduler (never `up -d` against the whole stack).
+      * Fetch runs FIRST and its outcome is honest: a failed fetch means origin/main
+        cannot be proven fresh, so the merge is NOT attempted and nothing is restarted
+        (deploy-provenance honesty: unverified state reports failure, never "in_sync").
+      * git runs as the CHECKOUT OWNER, never root, so host .git ownership is preserved.
+    """
+    checkout = "/mnt/archie_brain"
+    docker_compose_yml = os.path.join(checkout, "docker-compose.yml")
+
+    if not os.path.isdir(os.path.join(checkout, ".git")):
+        return {"success": False, "error": f"{checkout} is not a git checkout"}
+    if not os.path.exists(docker_compose_yml):
+        return {"success": False, "error": f"{docker_compose_yml} not found — refusing deploy"}
+
+    # 1. Refresh origin/main. The shared .git ref is only as fresh as the last fetch —
+    #    everything else in the platform writes to /tmp clones (#3926), so a stale ref
+    #    here would fast-forward the checkout to OLD code and report green. Fail closed
+    #    if the ref cannot be proven fresh — an honest error beats a stale deploy.
+    fetch = _hub_run_git(checkout, ["fetch", "origin"], timeout=120)
+    if fetch["returncode"] != 0:
+        return {
+            "success": False,
+            "step": "fetch",
+            "error": (fetch["stderr"] or fetch["stdout"] or "git fetch origin failed").strip()[:1000],
+            "hint": "origin/main could not be refreshed, so no merge/restart was attempted. "
+            "Check host network / the GitHub token, then retry.",
+        }
+
+    # 2. Fast-forward main to origin/main. Fails loudly (and safely) on divergence.
+    merge = _hub_run_git(checkout, ["merge", "--ff-only", "origin/main"], timeout=120)
+    if merge["returncode"] != 0:
+        return {
+            "success": False,
+            "step": "merge",
+            "error": (merge["stderr"] or merge["stdout"] or "git merge --ff-only origin/main failed").strip()[:1000],
+            "hint": "The checkout is diverged or dirty. Resolve locally (git status) then retry.",
+        }
+
+    merged = "Already up to date" not in ((merge["stdout"] or "") + (merge["stderr"] or ""))
+    if not merged:
+        return {
+            "success": True,
+            "applied": False,
+            "changed": False,
+            "message": "Already up to date — no restart needed.",
+        }
+
+    # 3. Restart from the compose file's directory (restart = load the newly
+    #    fast-forwarded bind-mounted code). Runs as root on the host.
+    restart = run_command_full(
+        ["docker", "compose", "restart", "archie_platform", "archie_scheduler"], timeout=180, cwd=checkout
+    )
+    if restart["returncode"] != 0:
+        return {
+            "success": False,
+            "step": "restart",
+            "error": (restart["stderr"] or restart["stdout"] or "docker compose restart failed").strip()[:1000],
+        }
+
+    head = _hub_run_git(checkout, ["rev-parse", "--short", "HEAD"], timeout=30)
+    return {
+        "success": True,
+        "applied": True,
+        "changed": True,
+        "merged": True,
+        "head": (head["stdout"] or "").strip() if head["returncode"] == 0 else "",
+        "message": ("Hub checkout fast-forwarded to origin/main and archie_platform/" "archie_scheduler restarted"),
+    }
+
+
 # Handler dispatch table
 _HANDLER_MAP = {
     "handle_service_control": handle_service_control,
@@ -5853,6 +6007,8 @@ _HANDLER_MAP = {
     "handle_compliance_restore_file": handle_compliance_restore_file,
     "handle_compliance_fix_command": handle_compliance_fix_command,
     "handle_compliance_check_command": handle_compliance_check_command,
+    # Hub auto-deploy
+    "handle_hub_deploy": handle_hub_deploy,
 }
 
 
@@ -5916,6 +6072,7 @@ _SIGNED_COMMAND_TYPES = {
     "compliance_fix_sysctl",
     "compliance_fix_file_line",
     "compliance_fix_service",
+    "hub_deploy",
 }
 
 

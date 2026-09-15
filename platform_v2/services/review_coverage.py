@@ -280,6 +280,54 @@ def prioritize(diff: str | None, cap: int | None = None) -> str | None:
     return "".join(b for _, b in preamble + files)
 
 
+def file_plan(diff: str | None, max_files: int) -> list:
+    """One review pass per FILE, each with the whole window to itself (#6779).
+
+    ``chunk_plan`` PACKS files into bins of <= cap. That is the right question when the
+    goal is "fit this diff into N windows", and the wrong one when a SINGLE file is larger
+    than the cap: that file takes a bin alone and ``_truncate_diff`` then cuts it at its
+    only boundary. For a NEWLY ADDED file the only boundary is the ``@@`` header near the
+    top, so the reviewer sees the header and nothing else.
+
+    Measured 2026-09-15 on PR #3339, ``omniroute_telemetry.py`` (a new 342-line file):
+    **15,950 chars in, 214 chars out** — 1.3%. The review then flagged an import as unused
+    whose only use sat in the truncated-away region. A false blocking finding, from a file
+    the reviewer had effectively never seen.
+
+    Per-file planning removes the packing decision entirely. Each file is judged on its own,
+    which also means a finding can no longer be attributed to the wrong file — with packed
+    bins the model sees several files at once and nothing binds a finding to one of them.
+
+    TRADE-OFF, deliberately taken: small files no longer share a pass, so a 9-file PR costs
+    9 serial dispatches instead of 1-3. Reviewing is slower; it is not truncated. Bound the
+    cost with ``max_files`` rather than by re-packing — a packed bin is what this exists to
+    avoid. Files beyond the bound are DROPPED, and ``coverage`` reports them as dropped, so
+    the cost of the bound is visible rather than silent.
+
+    ``max_files <= 1`` returns the diff UNCHANGED — the same killswitch property
+    ``chunk_plan`` has, so the mode is inert until switched on. Blocks are banded with
+    ``file_band`` (code before tests before docs) so a truncating bound spends its passes on
+    the files that matter; see the note in the body on why this does not go through
+    ``prioritize``.
+    """
+    if not diff:
+        return []
+    if max_files <= 1:
+        return [diff]
+    blocks = [pb for pb in split_blocks(diff) if pb[0] != ""]
+    if not blocks:
+        # An unparseable diff must still be reviewable — fall back to one whole-diff pass
+        # rather than returning [] (which the caller would read as "nothing to review").
+        return [diff]
+    # Band the blocks DIRECTLY rather than via `prioritize`: that helper is deliberately
+    # gated on `len(diff) > cap` (reordering a diff the model sees in full buys nothing),
+    # and there is no single cap here — each file gets its own window. For per-file
+    # planning the order decides which files get a pass AT ALL when `max_files` truncates,
+    # so it has to hold unconditionally. Stable, so ties keep GitHub's ordering.
+    blocks.sort(key=lambda pb: file_band(pb[0]))
+    return [block for _path, block in blocks[:max_files]]
+
+
 def chunk_plan(diff: str | None, cap: int, max_chunks: int) -> list:
     """Pack whole diff blocks into at most ``max_chunks`` bins of <= ``cap`` chars (#5848).
 

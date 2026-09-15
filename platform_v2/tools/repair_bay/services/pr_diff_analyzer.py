@@ -12,7 +12,7 @@ import re
 
 import requests
 
-from services.review_coverage import annotate, chunk_plan, coverage, prioritize, summarize
+from services.review_coverage import annotate, chunk_plan, coverage, file_plan, prioritize, summarize
 from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
     get_review,
@@ -263,7 +263,27 @@ def _truncate_diff(diff: str, max_chars: int = None) -> tuple:
     a long SQL ``CREATE TABLE`` migration) is never chopped mid-statement. Only when the nearest
     file boundary sits in the first half of the window (so it would drop most of the shown diff) do
     we fall back to the finer hunk boundary (``\\n@@``) — still complete hunks, just more of them.
-    Last resort is a raw byte cut (a single file larger than the cap with no earlier boundary)."""
+    Last resort is a raw byte cut (a single file larger than the cap with no earlier boundary).
+
+    #6779 — A BOUNDARY NEAR THE TOP IS NOT A BOUNDARY WORTH HONOURING. The rule above picks
+    the last structural boundary before the cap; when the only one sits near byte 0 it
+    "safely" throws away everything. That is not hypothetical:
+
+        a NEWLY ADDED file's diff contains exactly ONE "\n@@" — its header,
+        e.g. `@@ -0,0 +1,342 @@` at byte 214
+
+    so for any new file larger than the cap, `file_cut` is -1 (the block starts at offset 0,
+    no preceding newline), the hunk fallback finds that single header, and we return **214 of
+    15,950 chars**. Measured on PR #3339: the reviewer judged a 342-line new file having seen
+    its header and nothing else, then raised a false "unused import" against a symbol whose
+    use sat in the discarded 98.7%.
+
+    So: if the chosen boundary would keep less than half the window, prefer a LINE boundary
+    near the cap instead. A line cut can land mid-function — but the docstring above already
+    accepts a raw BYTE cut as the last resort, and a line cut is strictly better than that,
+    which makes this a tightening of the fallback, not a loosening of the rule. When the
+    chosen boundary is already >= cap // 2 (the ordinary case) nothing below changes it, so
+    this is byte-identical for every diff that was not hitting the degenerate case."""
     cap = max_chars if max_chars is not None else _diff_max_chars()
     if len(diff) <= cap:
         return diff, False
@@ -273,6 +293,10 @@ def _truncate_diff(diff: str, max_chars: int = None) -> tuple:
     else:
         hunk_cut = diff.rfind("\n@@", 0, cap)
         cut = hunk_cut if hunk_cut > 0 else file_cut
+    if cut < cap // 2:
+        # Degenerate: the only structural boundary is near the top. Keep whole LINES up to
+        # the cap rather than discarding the file. max() so we never move the cut BACKWARDS.
+        cut = max(cut, diff.rfind("\n", 0, cap))
     return (diff[:cut] if cut > 0 else diff[:cap]), True
 
 
@@ -469,7 +493,9 @@ _HARDCODE_IS_REAL_RE = re.compile(
 # false demotion hides a defect. Measured cost on 1,741 real issue lines: 4 findings stop being
 # demoted, and one of them is a genuine "[WARNING] SQL Injection Risk: ... queries use string
 # formatting directly" that the gate had been silently demoting.
-_CONTRASTIVE_RE = re.compile(r"\b(however|but|although|though|that\s+said|nevertheless|nonetheless|whereas)\b", re.I)
+_CONTRASTIVE_RE = re.compile(
+    r"\b(however|but|although|though|that\s+said|nevertheless|nonetheless|whereas)\b", re.I
+)
 
 
 # SPECULATIVE COVERAGE (#5846) — the FOURTH non-finding shape, and the one that blocked
@@ -625,7 +651,7 @@ _UNICODE_BULLET_RE = re.compile(
     "^\\s*(?:"
     "[·•‣⁃▪●◦]\\s*\\S"  # · • ‣ ⁃ ▪ ● ◦
     "|[⚠❗✅❌ℹ⭐]️?\\s*\\S"  # ⚠ ❗ ✅ ❌ ℹ ⭐ (+ optional VS16)
-    "|[\U0001F300-\U0001FAFF]\\s*\\S"  # emoji planes (🔴 📌 …)
+    "|[\U0001f300-\U0001faff]\\s*\\S"  # emoji planes (🔴 📌 …)
     ")"
 )
 # Code-ish structure that a prose bullet does not have. If ANY appears, we do NOT treat the
@@ -805,7 +831,9 @@ def _build_json_prompt(review: dict, diff: str, strong: bool = False) -> str:
     ST-3: ``strong`` (the Tier-3 gemma3:12b path) keeps the full window-aware diff cap; the 7B
     (strong=False) gets the tighter _DIFF_MAX_7B cap so the review finishes inside the 240s window."""
     diff_content, truncated = _truncate_diff(diff, _diff_cap_for_model(strong))
-    note = "\n[diff truncated at a hunk boundary — judge only the complete hunks shown]\n" if truncated else ""
+    note = (
+        "\n[diff truncated at a hunk boundary — judge only the complete hunks shown]\n" if truncated else ""
+    )
     return (
         "You are F.O.R.G.E., A.R.C.H.I.E.'s code-review engine.\n\n"
         + _FALSE_POSITIVE_RUBRIC
@@ -962,7 +990,9 @@ def _normalize_match(s: str) -> str:
 def _side_text(diff: str, sign: str) -> str:
     """Normalized text of every diff line on ONE side ('+' added / '-' removed)."""
     skip = "+++" if sign == "+" else "---"
-    return _normalize_match(" ".join(ln[1:] for ln in (diff or "").splitlines() if ln[:1] == sign and ln[:3] != skip))
+    return _normalize_match(
+        " ".join(ln[1:] for ln in (diff or "").splitlines() if ln[:1] == sign and ln[:3] != skip)
+    )
 
 
 def _token_present(tok: str, haystack_n: str) -> bool:
@@ -1347,7 +1377,9 @@ def _verify_evidence(issues: list, diff: str):
 
 def _count_ungrounded(dropped: list) -> int:
     """How many issues were dropped specifically because their evidence was NOT in the diff."""
-    return sum(1 for d in dropped or [] if isinstance(d, dict) and d.get("_drop_reason") == "evidence_not_in_diff")
+    return sum(
+        1 for d in dropped or [] if isinstance(d, dict) and d.get("_drop_reason") == "evidence_not_in_diff"
+    )
 
 
 def _should_floor_ungrounded(verdict: str, n_ungrounded: int, surviving_issues: list) -> bool:
@@ -1517,7 +1549,9 @@ def review_quality_flags(
     return flags
 
 
-def _quality_suffix(structured: str, n_ungrounded: int, surviving_issues: list, unsupported_claims: list = None) -> str:
+def _quality_suffix(
+    structured: str, n_ungrounded: int, surviving_issues: list, unsupported_claims: list = None
+) -> str:
     """Render flags for the [review-meta] line. Empty string when the review is clean."""
     flags = review_quality_flags(structured, n_ungrounded, surviving_issues, unsupported_claims)
     return (" quality=" + ",".join(flags)) if flags else ""
@@ -1561,7 +1595,11 @@ def _demote_unevidenced_blocking(verdict: str, issues: list) -> bool:
     """
     if verdict != "REQUEST CHANGES" or not issues:
         return False
-    blocking = [i for i in issues if isinstance(i, dict) and str(i.get("severity", "")).upper() in _BLOCKING_SEVERITIES]
+    blocking = [
+        i
+        for i in issues
+        if isinstance(i, dict) and str(i.get("severity", "")).upper() in _BLOCKING_SEVERITIES
+    ]
     if not blocking:
         return False
     return all(not str((i or {}).get("evidence", "")).strip() for i in blocking)
@@ -1577,7 +1615,12 @@ def _evidence_verification_enabled() -> bool:
 
 
 def _self_refute_enabled() -> bool:
-    return str(_get_setting("forge:self_refute_enabled", "true")).strip().lower() in ("1", "true", "yes", "on")
+    return str(_get_setting("forge:self_refute_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def _ungrounded_review_floor_enabled() -> bool:
@@ -1737,6 +1780,37 @@ def _review_max_chunks() -> int:
     return max(1, min(n, 3))
 
 
+def _review_plan() -> str:
+    """Which planner decides what each pass SEES: ``"packed"`` (default) or ``"per_file"``.
+
+    ``packed`` is ``chunk_plan`` — today's behaviour, byte-for-byte. ``per_file`` is
+    ``file_plan``: one file per pass, each with the whole window. Anything unrecognised
+    falls back to ``packed``, so a typo degrades to the known path rather than to a
+    surprising one. Rollback is this value, not a deploy."""
+    try:
+        value = str(_get_setting("forge:review_plan", "packed") or "packed").strip().lower()
+    except Exception:  # noqa: BLE001 — a settings read must never break a review
+        return "packed"
+    return value if value in ("packed", "per_file") else "packed"
+
+
+def _review_max_files() -> int:
+    """Upper bound on per-file passes. Only consulted when ``forge:review_plan=per_file``.
+
+    Clamped to [1, 25]. This is a WALL-CLOCK bound, not a safety one: each pass is a serial
+    dispatch, so 10 files is roughly 10x one review. Files past the bound are dropped and
+    ``coverage`` reports them as dropped — the bound is visible, never silent.
+
+    1 collapses to a single whole-diff pass (the killswitch ``file_plan`` shares with
+    ``chunk_plan``), so setting this to 1 disables per-file review without changing
+    ``forge:review_plan``."""
+    try:
+        n = int(_get_setting("forge:review_max_files", 10) or 10)
+    except (TypeError, ValueError):
+        return 10
+    return max(1, min(n, 25))
+
+
 def forge_settings_snapshot() -> dict:
     """ST-4: the EFFECTIVE value of every forge:* review knob, read through the same accessors the
     pipeline uses (so the defaults match exactly — no drift, no seeded platform_settings rows
@@ -1752,6 +1826,9 @@ def forge_settings_snapshot() -> dict:
         "forge:self_refute_failclosed_enabled": _self_refute_failclosed_enabled(),
         "forge:false_positive_writeback_enabled": _writeback_enabled(),
         "forge:review_confidence_min": _review_confidence_min(),
+        "forge:review_max_chunks": _review_max_chunks(),
+        "forge:review_plan": _review_plan(),
+        "forge:review_max_files": _review_max_files(),
         "diff_cap_7b": _diff_cap_for_model(False),
         "diff_cap_strong": _diff_cap_for_model(True),
     }
@@ -1769,7 +1846,8 @@ def _writeback_enabled() -> bool:
 def _self_refute_failclosed_enabled() -> bool:
     """ST-2: when the gemma3:12b auditor is UNAVAILABLE (cold/queued/exception/unparseable) we cannot
     verify a CRITICAL. Fail CLOSED — send the unverified CRITICAL to a human (NEEDS REVIEW) instead of
-    fail-open keeping it as an auto-block. Default ON; rollback: forge:self_refute_failclosed_enabled=false."""
+    fail-open keeping it as an auto-block. Default ON; rollback: forge:self_refute_failclosed_enabled=false.
+    """
     return str(_get_setting("forge:self_refute_failclosed_enabled", "true")).strip().lower() in (
         "1",
         "true",
@@ -1794,7 +1872,8 @@ def _self_refute_criticals(review: dict, diff: str, criticals: list) -> tuple:
 
     diff_content, _ = _truncate_diff(diff)  # gemma3:12b audit — full window cap is correct
     listing = "\n".join(
-        f"{i + 1}. {(c or {}).get('title', '')}: {(c or {}).get('evidence', '')}" for i, c in enumerate(criticals)
+        f"{i + 1}. {(c or {}).get('title', '')}: {(c or {}).get('evidence', '')}"
+        for i, c in enumerate(criticals)
     )
     prompt = (
         _FALSE_POSITIVE_RUBRIC
@@ -1942,7 +2021,9 @@ def _check_dockerfile_provenance(diff: str) -> list:
             path = m.group(1) if m else "Dockerfile"
             if not path.rsplit("/", 1)[-1].startswith("Dockerfile"):
                 continue
-            added = "\n".join(ln[1:] for ln in sec.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
+            added = "\n".join(
+                ln[1:] for ln in sec.splitlines() if ln.startswith("+") and not ln.startswith("+++")
+            )
             # Only when the change ADDS a whole-context copy (COPY .  /  COPY ./  /  COPY . .).
             if not re.search(r"^\s*COPY\s+\.\.?/?(\s|$)", added, re.MULTILINE):
                 continue
@@ -2047,7 +2128,9 @@ def _structured_review(
                 if len(confirmed) != len(criticals):
                     cset = {id(c) for c in confirmed}
                     issues = [
-                        i for i in issues if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
+                        i
+                        for i in issues
+                        if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
                     ]
                     note = (
                         note + "; " if note else ""
@@ -2077,7 +2160,9 @@ def _structured_review(
         dockerfile_findings = _check_dockerfile_provenance(ground_diff)
     if dockerfile_findings:
         issues.extend(dockerfile_findings)
-        note = (note + "; " if note else "") + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
+        note = (
+            note + "; " if note else ""
+        ) + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
     parsed["issues"] = issues
     # ST-2: an unverified CRITICAL must not ASSERT a block — exclude it from the verdict computation,
     # then floor to NEEDS REVIEW so it reaches a human (unless a real blocker already requests changes).
@@ -2109,7 +2194,9 @@ def _structured_review(
     # content — demote to NEEDS REVIEW (never APPROVE) so a human decides and auto-merge can't.
     if _unevidenced_demotion_enabled() and _demote_unevidenced_blocking(verdict, verdict_issues):
         verdict = "NEEDS REVIEW"
-        note = (note + "; " if note else "") + "blocking issue(s) cite no evidence — demoted to NEEDS REVIEW (#5287)"
+        note = (
+            note + "; " if note else ""
+        ) + "blocking issue(s) cite no evidence — demoted to NEEDS REVIEW (#5287)"
         logger.warning(
             "[PR Review] PR #%s — blocking verdict demoted to NEEDS REVIEW: every blocking issue cites no evidence",
             pr_number,
@@ -2322,7 +2409,9 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
         # unactionable review this work exists to stop producing, so keep its prose.
         if chunk_blocks and len(findings) == before:
             raw = " ".join(
-                x.strip() for x in s.splitlines() if x.strip() and not x.strip().startswith(("VERDICT:", "[review-"))
+                x.strip()
+                for x in s.splitlines()
+                if x.strip() and not x.strip().startswith(("VERDICT:", "[review-"))
             )
             if raw:
                 findings.append(f"- [WARNING] pass {idx} blocked without a parseable finding — {raw[:300]}")
@@ -2392,7 +2481,15 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # truncated away. At the default forge:review_max_chunks=1, chunk_plan returns [diff]
     # UNCHANGED, so every line below runs exactly as it did pre-chunking. That byte-identity
     # IS the killswitch — it is pinned by tests/test_chunked_review_loop.py, do not weaken it.
-    _chunks = chunk_plan(diff, _cap, _review_max_chunks()) or [diff]
+    # #6779 — two planners, one loop. `packed` (default) is chunk_plan, unchanged. `per_file`
+    # gives every file its own pass so no file has to share a window, which is what stops an
+    # oversized file being cut down to its header (see _truncate_diff). Everything below —
+    # the coverage union, full-diff grounding, the verdict lattice — is planner-agnostic and
+    # needs no change; only the CONTENTS of _chunks differ.
+    if _review_plan() == "per_file":
+        _chunks = file_plan(diff, _review_max_files()) or [diff]
+    else:
+        _chunks = chunk_plan(diff, _cap, _review_max_chunks()) or [diff]
     # Coverage is measured over the UNION of what the passes actually show, never over a
     # single window — otherwise chunking would keep reporting as dropped the very files it
     # just started reading.
@@ -2441,7 +2538,9 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
                 len(_chunk or ""),
                 _diff_cap_for_model(False),
             )
-        summary = _structured_review(review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov)
+        summary = _structured_review(
+            review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
+        )
         if summary:
             _caps_used.append(_diff_cap_for_model(_strong))
         else:
@@ -2471,7 +2570,8 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
                 review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
             )
             summary = (
-                retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
+                retry
+                + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
                 if retry
                 else summary
                 + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
@@ -2621,7 +2721,10 @@ def _notify_pr_reviewed(pr_number: int, repo: str, title: str, ai_summary: str) 
     platform_url = "http://192.168.1.200:3000/tools/repair-bay#pr-review"
 
     message = (
-        f"VERDICT: {verdict}\n\n" f"{snippet}\n\n" f"View in Repair Bay: {platform_url}\n" f"GitHub PR: {github_url}"
+        f"VERDICT: {verdict}\n\n"
+        f"{snippet}\n\n"
+        f"View in Repair Bay: {platform_url}\n"
+        f"GitHub PR: {github_url}"
     )
 
     try:

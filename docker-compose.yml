@@ -271,6 +271,15 @@ services:
       # so _export_bundle can write translations.json for standalone sites.
       - /mnt/standalone/websites/what-the-fact.com/data:/mnt/standalone/websites/what-the-fact.com/data:rw
       - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
+      # OmniRoute's own call log, READ-ONLY (#6763). services/omniroute_telemetry.py
+      # mirrors call_logs -> task_execution_log so the codex/opencode/host-CLI token
+      # spend is visible in Token Economy + A.R.M.A.D.A. instead of invisible: those
+      # three call the gateway over HTTP and never touch the DHQ dispatcher, so
+      # nothing was logging them at all (measured: a 17,399-token run wrote 0 rows).
+      # :ro is load-bearing — this is a third-party container's live database and we
+      # are a reader of it, never a writer. The collector additionally opens it with
+      # immutable=1 so it cannot touch the -wal/-shm sidecars.
+      - omniroute_data:/omniroute-data:ro
     ports:
       - "3000:3000"
     networks:
@@ -467,6 +476,11 @@ services:
       # so _export_bundle can write translations.json for the standalone site.
       - /mnt/standalone/websites/what-the-fact.com/data:/mnt/standalone/websites/what-the-fact.com/data:rw
       - ./stalwart-mail:/mnt/archie_brain/stalwart-mail:ro
+      # OmniRoute call log, READ-ONLY. MUST mirror archie_platform: the
+      # omniroute_telemetry JOB runs HERE, and a volume that exists on the platform
+      # but not the scheduler is a documented way to silently degrade scheduled work
+      # (KB #263303 — a missing mount once dropped Code Health by 35% with no error).
+      - omniroute_data:/omniroute-data:ro
     networks:
       - archie_internal
       - network_tools_ext

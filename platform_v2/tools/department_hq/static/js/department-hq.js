@@ -4505,7 +4505,11 @@ function _dhqSourceLabel(source) {
         'fleet_warmup': 'Fleet warm-up',
         'kin_warmth': 'K.I.N. warm-up',
         'model_dispatch': 'Cold-load queue',
-        'coverage_scan': 'Coverage scan'
+        'coverage_scan': 'Coverage scan',
+        // #6763 — codex/opencode/host-CLI token spend, mirrored out of OmniRoute's
+        // own call log. Attributed to the GATEWAY, not a lane: one shared API key
+        // means the gateway cannot say which interface called.
+        'omniroute_gateway': 'OmniRoute \u00b7 gateway'
     };
     return MAP[s.toLowerCase()] || s || '—';
 }

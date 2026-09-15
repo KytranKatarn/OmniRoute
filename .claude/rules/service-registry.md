@@ -6,7 +6,7 @@
 
 # Service Registry
 
-**Collected**: 2026-09-14 13:39:53 EDT · **Provenance measured**: 2026-09-14 03:40:08 EDT
+**Collected**: 2026-09-14 18:12:44 EDT · **Provenance measured**: 2026-09-14 03:40:08 EDT
 
 50/52 hub containers running · 9 image-baked products · 0 absent.
 

@@ -1108,6 +1108,38 @@ def dispatch_queue_reaper():
         logger.exception("dispatch_queue_reaper failed")
 
 
+def omniroute_telemetry_collect():
+    """Mirror OmniRoute's call log into task_execution_log (#6763).
+
+    codex, opencode and the host codex CLI call the OmniRoute gateway directly over
+    HTTP, so they never reach the DHQ dispatcher and nothing logged their token
+    spend: measured 2026-09-14, a 17,399-token host-codex run wrote ZERO rows while
+    the newest provider='omniroute' row was four days old. Two of the three coding
+    interfaces were invisible to Token Economy and A.R.M.A.D.A.
+
+    Every 10 min: pure DB maintenance (a read-only sqlite walk plus a bounded
+    insert) — no LLM, no dispatch, nothing on the inference path. The service is
+    fail-safe, idempotent on a watermark, and bounded by MAX_BATCH per pass.
+
+    ⚠️ These rows are attributed to the GATEWAY, not to a lane. One shared API key
+    means call_logs cannot say which interface called; per-lane keys are what makes
+    that split possible, and the service picks it up with no change here.
+    """
+    try:
+        from services.omniroute_telemetry import collect
+
+        res = collect(dry_run=False)
+        if res.get("written"):
+            logger.info(
+                "omniroute_telemetry: imported %s call(s) into task_execution_log",
+                res["written"],
+            )
+        elif res.get("error"):
+            logger.warning("omniroute_telemetry: %s", res["error"])
+    except Exception:
+        logger.exception("omniroute_telemetry failed")
+
+
 def family_research_worker(flask_app=None):
     """#5343 (#5211): scheduled drain for family_research_queue.
 
@@ -1978,6 +2010,19 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
         id="dispatch_queue_reaper",
         name="Agent Loop: Dispatch Queue Orphan Reaper",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # OmniRoute token telemetry — every 10 min. The gateway is the ONLY record of
+    # what codex/opencode/host-CLI spend, because they bypass the dispatcher
+    # entirely; without this their tokens exist nowhere in the platform (#6763).
+    scheduler.add_job(
+        with_ctx(omniroute_telemetry_collect),
+        trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
+        id="omniroute_telemetry",
+        name="Agent Loop: OmniRoute Token Telemetry",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

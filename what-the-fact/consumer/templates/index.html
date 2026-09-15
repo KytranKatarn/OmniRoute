@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import icon %}
 {% block content %}
 {# Page CSS lives in static/style.css ("Phase 2: the HOMEPAGE" block).
    An inline page stylesheet renders AFTER base.html's stylesheet link, so
@@ -19,7 +20,7 @@
   <button class="wtf-beat-pill" data-beat="crime" onclick="setBeat(this,'crime')">CRIME</button>
   <button class="wtf-beat-pill" data-beat="parliament" onclick="setBeat(this,'parliament')">PARLIAMENT</button>
   <button class="wtf-beat-pill" data-beat="business" onclick="setBeat(this,'business')">BUSINESS</button>
-  <button class="wtf-beat-pill" data-beat="economy" onclick="setBeat(this,'economy')">💰 ECONOMY</button>
+  <button class="wtf-beat-pill" data-beat="economy" onclick="setBeat(this,'economy')">ECONOMY</button>
 </div>
 
 <!-- Beat context banner — shown when a non-ALL beat is active -->
@@ -33,7 +34,7 @@
 <div id="wtf-province-banner" style="display:none;">
   <span id="wtf-province-banner-label"></span>
   <span class="wtf-h-banner-sub">Map + feed filtered to this province</span>
-  <button onclick="clearProvince()" class="wtf-h-clear-btn">✕ Clear</button>
+  <button onclick="clearProvince()" class="wtf-h-clear-btn">{{ icon('close', 12) }} Clear</button>
 </div>
 
 <!-- Featured Story Strip -->
@@ -115,14 +116,14 @@
     <div class="wtf-h-map-controls">
       <!-- Province selector -->
       <div id="wtf-province-selector">
-        <button id="wtf-province-btn" class="wtf-map-btn" onclick="toggleProvinceDropdown(event)">📍 PROVINCE ▾</button>
+        <button id="wtf-province-btn" class="wtf-map-btn" onclick="toggleProvinceDropdown(event)">{{ icon('pin', 12) }}<span id="wtf-province-btn-label">PROVINCE ▾</span></button>
         <div id="wtf-province-dropdown">
           <div onclick="clearProvince()" class="wtf-h-province-dd-all" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
         </div>
       </div>
       <div class="wtf-map-toggle">
-        <button id="btn-canada" class="wtf-map-btn active" onclick="setMapMode('canada')">🍁 CANADA</button>
-        <button id="btn-world" class="wtf-map-btn" onclick="setMapMode('world')">🌍 WORLD</button>
+        <button id="btn-canada" class="wtf-map-btn active" onclick="setMapMode('canada')">{{ icon('maple', 12) }} CANADA</button>
+        <button id="btn-world" class="wtf-map-btn" onclick="setMapMode('world')">{{ icon('globe', 12) }} WORLD</button>
       </div>
     </div>
   </div>
@@ -170,8 +171,8 @@
       <div class="wtf-section-label">LATEST NEWS</div>
       <div class="wtf-h-feed-links-row">
         <a href="/news" class="wtf-h-viewall-link">View all &rarr;</a>
-        <a href="/blindspot" class="wtf-h-blindspot-link">👁 Blindspot</a>
-        <a href="/divergence" class="wtf-h-divergence-link">🇨🇦 FR/EN</a>
+        <a href="/blindspot" class="wtf-h-blindspot-link">{{ icon('eye', 12) }} Blindspot</a>
+        <a href="/divergence" class="wtf-h-divergence-link">{{ icon('globe', 12) }} FR/EN</a>
       </div>
     </div>
     <div id="wtf-feed-articles">
@@ -246,13 +247,30 @@ Object.keys(VERDICT_COLOURS).forEach(function (k) {
   if (!VERDICT_COLOURS[k]) { VERDICT_COLOURS[k] = _leanToken("--wtf-text-muted") || "#7d8590"; }
 });
 
+
+// Icon markup for the chips this script builds as HTML strings.
+// SOURCED FROM the icon() macro, not copied from it: a Jinja macro CAN be called
+// from inside a JS string via |tojson, which emits a properly escaped JS string
+// literal (it \u003c-escapes the angle brackets, so it is also safe in <script>).
+// An earlier revision duplicated the 24x24 path geometry here, which is how a
+// homepage chip and its own design-system icon are free to drift apart --
+// the same defect class as the five independent lean-colour maps in #3097.
+// Adding a key here needs only the name; the geometry lives in _ICON_PATHS.
+// WARNING: innerHTML-bound builders only. The textContent sinks above deliberately
+// carry no mark; an svg string assigned to textContent renders as visible markup.
+var ICO = {
+{%- for _k in ['news', 'parliament', 'check', 'bolt', 'warn'] %}
+  {{ _k }}: {{ icon(_k, 11)|trim|tojson }}{{ "," if not loop.last }}
+{%- endfor %}
+};
+
 var map = L.map("wtf-canada-map", {
   center: [60, -96], zoom: 3,
   zoomControl: true,
   attributionControl: false
 });
 
-// ⚠️ ATTRIBUTION IS REQUIRED, NOT DECORATIVE (#6145).
+// WARNING: ATTRIBUTION IS REQUIRED, NOT DECORATIVE (#6145).
 // CARTO's free basemap terms and the OSM licence both require visible credit.
 // This map ran with `attributionControl: false` and no `attribution` option, i.e.
 // no credit at all — and on 2026-08-30 the basemap rendered as repeating
@@ -772,13 +790,13 @@ setInterval(loadAgentActivity, 60000);  // refresh activity every 1 min
 setInterval(loadArticlesGeo, 1800000);  // refresh geo pins every 30 min
 
 var BEAT_CONFIG = {
-  'sports':     { color: '#f97316', label: '🏒 SPORTS MODE',     path: '/news?beat=sports' },
-  'healthcare': { color: '#10b981', label: '🏥 HEALTH MODE',      path: '/news?beat=healthcare' },
-  'climate':    { color: '#3b82f6', label: '🌍 CLIMATE MODE',     path: '/news?beat=climate' },
-  'crime':      { color: '#ef4444', label: '⚖️ CRIME MODE',       path: '/news?beat=crime' },
-  'parliament': { color: '#8b5cf6', label: '🏛️ PARLIAMENT MODE',  path: '/news?beat=parliament' },
-  'business':   { color: '#f59e0b', label: '📊 BUSINESS MODE',    path: '/news?beat=business' },
-  'economy':    { color: '#06b6d4', label: '💰 ECONOMY MODE',     path: '/news?beat=economy' },
+  'sports':     { color: '#f97316', label: 'SPORTS MODE',     path: '/news?beat=sports' },
+  'healthcare': { color: '#10b981', label: 'HEALTH MODE',      path: '/news?beat=healthcare' },
+  'climate':    { color: '#3b82f6', label: 'CLIMATE MODE',     path: '/news?beat=climate' },
+  'crime':      { color: '#ef4444', label: 'CRIME MODE',       path: '/news?beat=crime' },
+  'parliament': { color: '#8b5cf6', label: 'PARLIAMENT MODE',  path: '/news?beat=parliament' },
+  'business':   { color: '#f59e0b', label: 'BUSINESS MODE',    path: '/news?beat=business' },
+  'economy':    { color: '#06b6d4', label: 'ECONOMY MODE',     path: '/news?beat=economy' },
 };
 
 var PROVINCE_LIST = [
@@ -840,11 +858,11 @@ function loadArticleFeed() {
         if (IS_SUBSCRIBER) {
           if (a.ai_analyzed) badges += '<span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>';
           if (a.cluster_size && a.cluster_size > 1) {
-            badges += '<a href="/cluster/' + parseInt(a.cluster_id) + '" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;" title="' + a.cluster_size + ' outlets covering this story">📰 ' + a.cluster_size + ' sources</a>';
+            badges += '<a href="/cluster/' + parseInt(a.cluster_id) + '" class="wtf-card-badge" style="background:#0a2a3a;color:#0af;border:1px solid #0af3;text-decoration:none;" title="' + a.cluster_size + ' outlets covering this story">' + ICO.news + ' ' + a.cluster_size + ' sources</a>';
           }
           if (a.mp_mentions) {
             var mp = esc(a.mp_mentions.length > 40 ? a.mp_mentions.slice(0,40) + '…' : a.mp_mentions);
-            badges += '<span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="' + escAttr(a.mp_mentions) + '">🏛 ' + mp + '</span>';
+            badges += '<span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="' + escAttr(a.mp_mentions) + '">' + ICO.parliament + ' ' + mp + '</span>';
           }
         }
         // Fact-check verdict chip — PUBLIC, informative verdicts only. 94.5%
@@ -863,8 +881,11 @@ function loadArticleFeed() {
             var vc = vEst ? VERDICT_COLOURS.established
                      : v === 'mixed' ? VERDICT_COLOURS.developing
                      : VERDICT_COLOURS.contested;
-            var vl = vEst ? '✓ Established' : v === 'mixed' ? '⚡ Developing' : '⚠ Contested';
-            badges += '<span class="wtf-card-badge" style="background:' + vc + '15;color:' + vc + ';border:1px solid ' + vc + '33;" title="' + escAttr('Certainty: ' + v.replace(/_/g, ' ')) + '">' + esc(vl) + '</span>';
+            // The mark sits BESIDE the word, so it is decoration: 'Established'
+            // still carries the meaning for a screen reader.
+            var vIco = vEst ? ICO.check : v === 'mixed' ? ICO.bolt : ICO.warn;
+            var vl = vEst ? 'Established' : v === 'mixed' ? 'Developing' : 'Contested';
+            badges += '<span class="wtf-card-badge" style="background:' + vc + '15;color:' + vc + ';border:1px solid ' + vc + '33;" title="' + escAttr('Certainty: ' + v.replace(/_/g, ' ')) + '">' + vIco + ' ' + esc(vl) + '</span>';
           }
         }
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
@@ -881,12 +902,18 @@ function loadArticleFeed() {
 function setProvince(pc) {
   currentProvince = pc;
   var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
-  var btn = document.getElementById('wtf-province-btn');
-  if (btn) btn.textContent = '📍 ' + pc + ' ▾';
+  // Write the LABEL span, never the button itself: assigning textContent to
+  // the button deletes the svg beside it, so the icon would be right on first
+  // paint and vanish on first use. textContent (not innerHTML) also keeps the
+  // province value escaped, per the WTF XSS rule.
+  var btnLabel = document.getElementById('wtf-province-btn-label');
+  if (btnLabel) btnLabel.textContent = pc + ' ▾';
   var banner = document.getElementById('wtf-province-banner');
   if (banner) {
     banner.style.display = 'flex';
-    document.getElementById('wtf-province-banner-label').textContent = '📍 ' + pname.toUpperCase();
+    // textContent sink: an svg string would render here as visible markup, so
+    // this label carries no mark and the words do the work.
+    document.getElementById('wtf-province-banner-label').textContent = pname.toUpperCase();
   }
   // Zoom map to province bounds (works whether triggered by click or dropdown)
   if (provinceLayer) {
@@ -903,8 +930,8 @@ function setProvince(pc) {
 
 function clearProvince() {
   currentProvince = null;
-  var btn = document.getElementById('wtf-province-btn');
-  if (btn) btn.textContent = '📍 PROVINCE ▾';
+  var btnLabel2 = document.getElementById('wtf-province-btn-label');
+  if (btnLabel2) btnLabel2.textContent = 'PROVINCE ▾';
   var banner = document.getElementById('wtf-province-banner');
   if (banner) banner.style.display = 'none';
   var dd = document.getElementById('wtf-province-dropdown');

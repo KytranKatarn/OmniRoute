@@ -2110,7 +2110,11 @@ function _renderApprovalCard(a) {
 
     // ---- Hire source: render expandable shortlist picker ----
     var hireState = { chosenAgentId: null, newAgent: null };
-    if (a.category === 'hiring' && a.payload && Array.isArray(a.payload.shortlist)) {
+    // SOURCE, not category: `category` is re-stamped server-side by category_of(action_type)
+    // (approvals_routes.py ~725), which maps hire_candidate -> 'agents'. 'hiring' is not a
+    // value in that taxonomy at all, so this branch was dead and the shortlist never rendered.
+    // `source` is set once per builder and never reassigned. (#6779 follow-up)
+    if (a.source === 'hire' && a.payload && Array.isArray(a.payload.shortlist)) {
         var shortlistBox = document.createElement('div');
         shortlistBox.style.cssText = 'background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.2);padding:8px 12px;border-radius:4px;margin-bottom:12px';
         var slHeader = document.createElement('div');
@@ -2293,7 +2297,11 @@ function _renderApprovalCard(a) {
     var approveBtn = document.createElement('button');
     approveBtn.className = 'btn btn-sm btn-primary';
     approveBtn.textContent = 'Approve';
-    if (a.category === 'hiring') {
+    // SOURCE, not category — see the note on the shortlist branch above. Keying off the
+    // re-stamped `category` sent hires down _dhqApproveApproval, which POSTs the raw
+    // "hire:<id>" to the GENERIC endpoint; its guard admits only autonomy/contractor/bridge,
+    // so every hire approval died on "Invalid approval ID format".
+    if (a.source === 'hire') {
         approveBtn.textContent = 'Approve Selected';
         (function(capturedHireState) {
             approveBtn.onclick = function() { _dhqApproveHire(a.id, capturedHireState, approveBtn); };
@@ -2306,7 +2314,8 @@ function _renderApprovalCard(a) {
     denyBtn.className = 'btn btn-sm';
     denyBtn.style.cssText = 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef4444';
     denyBtn.textContent = 'Deny';
-    if (a.category === 'hiring') {
+    // SOURCE, not category — the reject path failed identically (approvals_routes.py:1035).
+    if (a.source === 'hire') {
         denyBtn.textContent = 'Reject';
         denyBtn.onclick = function() { _dhqRejectHire(a.id, denyBtn); };
     } else {

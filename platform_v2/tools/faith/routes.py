@@ -711,14 +711,34 @@ def _load_bhagavad_gita_arnold() -> list[JsonDict]:
     )
 
 
+_TAO_CHAPTER_START = re.compile(r"^(?:Ch\.\s+)?(\d+)\.\s+1\.\s*(.*)$")
+
+
 @lru_cache(maxsize=1)
 def _load_tao_legge() -> list[JsonDict]:
-    return _gutenberg_sectioned_paragraphs(
-        "tao_legge",
-        TAO_LEGGE_PATH,
-        "Tao Teh King",
-        [(r"^Ch\.\s+(\d+)\.\s*(.*)$", "Tao Teh King Chapter {}")],
-    )
+    records: list[JsonDict] = []
+    section = "Tao Teh King"
+    paragraph: list[str] = []
+
+    def flush() -> None:
+        nonlocal paragraph
+        text = " ".join(part.strip() for part in paragraph if part.strip())
+        paragraph = []
+        if len(text) > 24:
+            records.append(_scripture_record("tao_legge", section, text))
+
+    for raw in _gutenberg_body(TAO_LEGGE_PATH, "*** START"):
+        line = raw.strip()
+        match = _TAO_CHAPTER_START.match(line)
+        if match:
+            flush()
+            section = f"Tao Teh King Chapter {int(match.group(1))}"
+            if match.group(2):
+                paragraph.append(match.group(2))
+            continue
+        paragraph.append(line)
+    flush()
+    return records
 
 
 @lru_cache(maxsize=1)
@@ -751,6 +771,157 @@ def _load_scripture_corpus() -> JsonDict:
         counts[passage["collection"]] = counts.get(passage["collection"], 0) + 1
     collections = [{**item, "passage_count": counts.get(item["id"], 0)} for item in SCRIPTURE_COLLECTIONS]
     return {"collections": collections, "passages": passages}
+
+
+def _roman_to_int(value: str) -> int:
+    """Parse a classic subtractive roman numeral (I, V, X, L, C, D, M)."""
+    numerals = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+    total = 0
+    previous = 0
+    for char in reversed(value.upper().strip()):
+        current = numerals.get(char, 0)
+        if current < previous:
+            total -= current
+        else:
+            total += current
+        previous = current
+    return total
+
+
+def _sura_display_name(reference: str) -> str:
+    """Clean a Rodwell sura reference like ``SURA1 XCVI.–THICK BLOOD, OR CLOTS OF BLOOD [I.]``."""
+    cleaned = re.sub(r"\[[^\]]*\]", "", str(reference))
+    cleaned = re.sub(r"\s*\d+\s*$", "", cleaned)
+    dash = re.search(r"[\u2013\u2014-]", cleaned)
+    if not dash:
+        return reference
+    cleaned = re.sub(r"^[^A-Za-z]*", "", cleaned[dash.end() :])
+    return cleaned.strip()
+
+
+@lru_cache(maxsize=1)
+def _reader_units() -> list[dict]:
+    """Derive reading units from the scripture corpus, tagged per collection.
+
+    Returns NEW dicts (``{**passage, "book": ..., "chapter": ...}``) so the
+    cached ``_load_scripture_corpus()`` records are never mutated.
+    """
+    units: list[dict] = []
+    quran_ordinals: dict[str, str] = {}
+    current_analects_book: str | None = None
+    for passage in _load_scripture_corpus()["passages"]:
+        unit = {**passage}
+        collection = unit["collection"]
+        reference = unit["reference"]
+        book: str | None = None
+        chapter: str | None = None
+
+        if collection in ("web", "jps1917"):
+            match = re.match(r"^(.*?)\s+(\d+):(\d+)$", reference)
+            if match:
+                book = match.group(1)
+                chapter = str(int(match.group(2)))
+        elif collection == "quran_rodwell":
+            book = "quran"
+            ordinal = quran_ordinals.get(reference)
+            if ordinal is None:
+                ordinal = str(len(quran_ordinals) + 1)
+                quran_ordinals[reference] = ordinal
+            chapter = ordinal
+        elif collection == "dhammapada_muller":
+            book = "dhammapada"
+            match = re.match(r"^Dhammapada\s+\d+\s+\u2014\s+(.*)$", reference)
+            chapter = match.group(1) if match else "Dhammapada"
+        elif collection == "bhagavad_gita_arnold":
+            book = "gita"
+            match = re.match(r"^Bhagavad Gita Chapter\s+([IVXLCDM]+)$", reference)
+            if match:
+                chapter = str(_roman_to_int(match.group(1)))
+        elif collection == "tao_legge":
+            book = "tao"
+            match = re.match(r"^Tao Teh King Chapter\s+(\d+)$", reference)
+            if match:
+                chapter = match.group(1)
+        elif collection == "analects_legge":
+            book_match = re.match(r"^Analects Book\s+([IVXLCDM]+)$", reference)
+            if book_match:
+                current_analects_book = str(_roman_to_int(book_match.group(1)))
+                book = current_analects_book
+                chapter = "whole"
+            else:
+                chapter_match = re.match(r"^Analects Chapter\s+([IVXLCDM]+)$", reference)
+                if chapter_match:
+                    book = current_analects_book if current_analects_book is not None else "1"
+                    chapter = str(_roman_to_int(chapter_match.group(1)))
+                else:
+                    book = None
+
+        unit["book"] = book
+        unit["chapter"] = chapter
+        units.append(unit)
+    return units
+
+
+def _reader_book_label(collection: str, book_key: str) -> str:
+    if collection in ("web", "jps1917"):
+        return book_key
+    return _collection_meta(collection).get("name", book_key)
+
+
+def _reader_chapter_label(collection: str, chapter_key: str, reference: str) -> str:
+    if collection in ("web", "jps1917"):
+        return f"Chapter {chapter_key}"
+    if collection == "quran_rodwell":
+        return f"Sura {chapter_key} — {_sura_display_name(reference)}"
+    if collection == "dhammapada_muller":
+        return "Whole book" if chapter_key == "Dhammapada" else chapter_key
+    if collection in ("bhagavad_gita_arnold", "tao_legge"):
+        return f"Chapter {chapter_key}"
+    if collection == "analects_legge":
+        return "Whole book" if chapter_key == "whole" else f"Section {chapter_key}"
+    return chapter_key
+
+
+@lru_cache(maxsize=1)
+def _scripture_toc() -> dict[str, JsonDict]:
+    """Reading table of contents grouped per collection, in first-appearance order."""
+    toc: dict[str, JsonDict] = {}
+    for unit in _reader_units():
+        collection = unit["collection"]
+        book_key = unit.get("book")
+        if book_key is None:
+            continue
+        entry = toc.get(collection)
+        if entry is None:
+            entry = {"collection": {**_collection_meta(collection), "id": collection}, "books": []}
+            toc[collection] = entry
+        book_node = next((book for book in entry["books"] if book["key"] == book_key), None)
+        if book_node is None:
+            book_node = {
+                "key": book_key,
+                "name": _reader_book_label(collection, book_key),
+                "chapters": [],
+                "chapter_index": {},
+            }
+            entry["books"].append(book_node)
+        chapter_key = unit.get("chapter")
+        if chapter_key is None:
+            continue
+        key = str(chapter_key)
+        if key in book_node["chapter_index"]:
+            book_node["chapter_index"][key]["count"] += 1
+        else:
+            chapter_node = {
+                "key": key,
+                "name": _reader_chapter_label(collection, key, unit["reference"]),
+                "count": 0,
+            }
+            book_node["chapter_index"][key] = chapter_node
+            book_node["chapters"].append(chapter_node)
+    for entry in toc.values():
+        for book_node in entry["books"]:
+            book_node.pop("chapter_index", None)
+    return toc
 
 
 @lru_cache(maxsize=1)
@@ -1007,6 +1178,62 @@ def scriptures_meta() -> Response:
             "storage": "local_saved_copies",
             "collections": corpus["collections"],
             "passage_count": len(corpus["passages"]),
+            "toc": _scripture_toc(),
+        }
+    )
+
+
+@faith_bp.route("/api/faith/scriptures/passage")
+@login_required
+def scriptures_passage() -> JsonResponse:
+    collection = (request.args.get("collection") or "").strip()
+    if not _collection_meta(collection):
+        return jsonify({"success": False, "error": "unknown collection"}), 404
+    toc = _scripture_toc()
+    entry = toc.get(collection)
+    book_requested = (request.args.get("book") or "").strip()
+    chapter_requested = (request.args.get("chapter") or "").strip()
+    if not book_requested:
+        book_requested = entry["books"][0]["key"] if entry and entry["books"] else ""
+    book_node = (
+        next((book for book in entry["books"] if book["key"] == book_requested), None)
+        if entry and book_requested
+        else None
+    )
+    if book_node is None:
+        return jsonify({"success": False, "error": "unknown book for collection"}), 404
+    if not chapter_requested:
+        chapter_requested = book_node["chapters"][0]["key"] if book_node["chapters"] else ""
+    chapter_node = (
+        next((chapter for chapter in book_node["chapters"] if chapter["key"] == chapter_requested), None)
+        if chapter_requested
+        else None
+    )
+    if chapter_node is None:
+        return jsonify({"success": False, "error": "unknown chapter for book"}), 404
+
+    passages = [
+        _public_scripture_record(unit)
+        for unit in _reader_units()
+        if unit["collection"] == collection
+        and unit.get("book") == book_requested
+        and unit.get("chapter") == chapter_requested
+    ]
+    if not passages:
+        return jsonify({"success": False, "error": "passage not found"}), 404
+    if collection in ("web", "jps1917"):
+        for passage in passages:
+            _ref, sep, tail = passage["reference"].rpartition(":")
+            if sep and tail.isdigit():
+                passage["verse"] = int(tail)
+    return jsonify(
+        {
+            "success": True,
+            "collection": entry["collection"],
+            "book": book_node["name"] or book_node["key"],
+            "chapter": chapter_node["name"] or chapter_node["key"],
+            "passages": passages,
+            "count": len(passages),
         }
     )
 

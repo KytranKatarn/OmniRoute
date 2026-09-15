@@ -10,11 +10,32 @@ Run: docker exec archie_platform python -m pytest tests/test_faith_routes.py -v
 
 from __future__ import annotations
 
+import types
+
 import pytest
 from flask import Flask
 from flask_login import LoginManager, UserMixin
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
+
+from tests.modstub import stub_module_scoped
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _stub_department_dispatcher():
+    """Stub the DHQ dispatcher for this module (#272154).
+
+    routes.py imports `dispatch` at module import time, and the real module
+    pulls `from db import _get_db_password` from a module that is not
+    importable under the coder-lane pytest invocation (--noconftest). Every
+    LLM-facing test here mocks archie_bridge, so the stub is never invoked.
+    """
+    stub = types.ModuleType("tools.department_hq.services.department_dispatcher")
+    stub.dispatch = lambda *args, **kwargs: {"success": False, "response": "(dispatcher stubbed)"}
+    stub.__file__ = __file__
+    stub.__package__ = "tools.department_hq.services"
+    with stub_module_scoped("tools.department_hq.services.department_dispatcher", stub):
+        yield stub
 
 
 @contextmanager
@@ -560,3 +581,123 @@ def test_encyclopedia_search_accepts_query_over_500_chars(faith_client):
     assert data["query"] == long_query
     assert data["count"] == 0
     assert data["entries"] == []
+
+
+def test_scriptures_meta_reader_toc_covers_all_collections(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/meta")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    toc = data["toc"]
+    expected_collections = {
+        "web",
+        "jps1917",
+        "quran_rodwell",
+        "dhammapada_muller",
+        "bhagavad_gita_arnold",
+        "tao_legge",
+        "analects_legge",
+    }
+    assert set(toc.keys()) == expected_collections
+    genesis = next((book for book in toc["web"]["books"] if book["key"] == "Genesis"), None)
+    assert genesis is not None
+    assert genesis["chapters"]
+    assert genesis["chapters"][0]["count"] > 0
+
+
+def test_scriptures_passage_reads_bible_chapter(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=web&book=Genesis&chapter=3")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+    assert any(passage.get("verse") == 16 for passage in data["passages"])
+    assert all(passage["collection"] == "web" for passage in data["passages"])
+
+
+def test_scriptures_passage_reads_tanakh_chapter(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=jps1917&book=Genesis&chapter=1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+    assert all(passage["reference"] and passage["text"] for passage in data["passages"])
+
+
+def test_scriptures_passage_reads_quran_sura(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=quran_rodwell&chapter=1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+    assert "Sura 1" in data["chapter"]
+
+
+def test_scriptures_passage_reads_dhammapada_chapter(faith_client):
+    _login(faith_client)
+    resp = faith_client.get(
+        "/tools/faith/api/faith/scriptures/passage?collection=dhammapada_muller"
+        "&chapter=Chapter%20I.%20The%20Twin-Verses"
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+
+
+def test_scriptures_passage_reads_gita_chapter(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=bhagavad_gita_arnold&chapter=1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+
+
+def test_scriptures_passage_reads_analects_book(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=analects_legge&book=1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+
+
+def test_scriptures_passage_reads_tao_chapter(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=tao_legge&chapter=2")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["count"] > 0
+
+
+def test_scriptures_passage_rejects_unknown_collection(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=apocrypha&book=X&chapter=1")
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "unknown collection"
+
+
+def test_scriptures_passage_rejects_unknown_chapter(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/passage?collection=web&book=Genesis&chapter=999")
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "unknown chapter for book"
+
+
+def test_tao_loader_splits_multiple_chapters():
+    from tools.faith.routes import _load_tao_legge, _reader_units
+
+    tao_records = _load_tao_legge()
+    references = [record["reference"] for record in tao_records]
+    assert "Tao Teh King Chapter 2" in references
+    assert len(set(references)) > 1
+    tao_chapters = {
+        unit["chapter"] for unit in _reader_units() if unit["collection"] == "tao_legge" and unit["chapter"] is not None
+    }
+    assert len(tao_chapters) > 1

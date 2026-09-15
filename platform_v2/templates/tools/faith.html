@@ -92,6 +92,7 @@
       <span id="bibleMetaText">Saved local copies: Bible, Tanakh, Qur'an, Dhammapada, Gita, Tao, Analects</span>
     </div>
     <div class="faith-bible-reader-controls">
+      <select id="bibleCollectionSelect" class="form-control" aria-label="Scripture collection"></select>
       <select id="bibleBookSelect" class="form-control" aria-label="Bible book"></select>
       <select id="bibleChapterSelect" class="form-control" aria-label="Bible chapter"></select>
       <button id="bibleLoadBtn" onclick="loadBiblePassage()" class="btn btn-primary">Read</button>
@@ -392,6 +393,7 @@ var bibleMetaLoaded = false;
 var bibleBooks = [];
 var scriptureMetaLoaded = false;
 var scriptureCollections = [];
+var scriptureToc = {};
 
 async function loadBibleMeta() {
   if (bibleMetaLoaded) return;
@@ -402,14 +404,15 @@ async function loadBibleMeta() {
     if (!data.success) throw new Error(data.error || "Could not load Bible metadata.");
     bibleBooks = data.books || [];
     setHtml(document.getElementById("bibleMetaText"), escHtml(data.translation.name + " · " + data.translation.verse_count + " verses · local saved copy"));
-    var bookSelect = document.getElementById("bibleBookSelect");
-    setHtml(bookSelect, bibleBooks.map(function(book) {
-      return "<option value='" + escHtml(book.code) + "'>" + escHtml(book.name) + "</option>";
-    }).join(""));
-    bookSelect.value = "GEN";
-    bookSelect.onchange = populateBibleChapters;
-    populateBibleChapters();
     renderEncyclopediaEntries(data.encyclopedia_sources || []);
+
+    var metaRes = await fetch(FAITH_BASE + "/scriptures/meta");
+    var metaData = await metaRes.json();
+    if (!metaData.success) throw new Error(metaData.error || "Could not load scripture metadata.");
+    scriptureCollections = metaData.collections || [];
+    scriptureToc = metaData.toc || {};
+    populateReaderCollections();
+
     bibleMetaLoaded = true;
     loadScriptureMeta();
     loadBiblePassage();
@@ -420,28 +423,57 @@ async function loadBibleMeta() {
   }
 }
 
+function populateReaderCollections() {
+  var select = document.getElementById("bibleCollectionSelect");
+  setHtml(select, scriptureCollections.map(function(item) {
+    return "<option value='" + escHtml(item.id) + "'>" + escHtml(item.name) + "</option>";
+  }).join(""));
+  select.onchange = populateReaderBooks;
+  populateReaderBooks();
+}
+
+function populateReaderBooks() {
+  var collection = document.getElementById("bibleCollectionSelect").value;
+  var entry = scriptureToc[collection] || { books: [] };
+  var bookSelect = document.getElementById("bibleBookSelect");
+  setHtml(bookSelect, entry.books.map(function(book) {
+    return "<option value='" + escHtml(book.key) + "'>" + escHtml(book.name) + "</option>";
+  }).join(""));
+  bookSelect.onchange = populateBibleChapters;
+  populateBibleChapters();
+}
+
 function populateBibleChapters() {
-  var bookCode = document.getElementById("bibleBookSelect").value;
-  var book = bibleBooks.find(function(item) { return item.code === bookCode; });
+  var collection = document.getElementById("bibleCollectionSelect").value;
+  var bookKey = document.getElementById("bibleBookSelect").value;
+  var entry = scriptureToc[collection] || { books: [] };
+  var book = entry.books.find(function(item) { return item.key === bookKey; });
   var chapterSelect = document.getElementById("bibleChapterSelect");
-  if (!book) { setHtml(chapterSelect, ""); return; }
+  if (!book) { setHtml(chapterSelect, "<option value=''>Select a chapter</option>"); return; }
   setHtml(chapterSelect, book.chapters.map(function(chapter) {
-    return "<option value='" + escHtml(String(chapter)) + "'>" + escHtml(String(chapter)) + "</option>";
+    return "<option value='" + escHtml(chapter.key) + "'>" + escHtml(chapter.name + " (" + chapter.count + ")") + "</option>";
   }).join(""));
 }
 
 async function loadBiblePassage() {
-  var book = document.getElementById("bibleBookSelect").value || "GEN";
-  var chapter = document.getElementById("bibleChapterSelect").value || "1";
+  var collection = document.getElementById("bibleCollectionSelect").value;
+  var book = document.getElementById("bibleBookSelect").value;
+  var chapter = document.getElementById("bibleChapterSelect").value;
+  if (!collection || !book || !chapter) return;
   setRegionBusy("bibleReader", true);
   setTriggerLoading("bibleLoadBtn", true);
   setHtml(document.getElementById("bibleReader"), "<span class='faith-spinner' aria-hidden='true'></span><span>Loading passage...</span>");
   try {
-    var res = await fetch(FAITH_BASE + "/bible/passage?book=" + encodeURIComponent(book) + "&chapter=" + encodeURIComponent(chapter));
+    var res = await fetch(FAITH_BASE + "/scriptures/passage?collection=" + encodeURIComponent(collection) + "&book=" + encodeURIComponent(book) + "&chapter=" + encodeURIComponent(chapter));
     var data = await res.json();
     if (!data.success) throw new Error(data.error || "Passage not found.");
-    var html = "<h3>" + escHtml(data.reference) + "</h3>" + data.verses.map(function(verse) {
-      return "<p><sup>" + escHtml(String(verse.verse)) + "</sup> " + escHtml(verse.text) + "</p>";
+    var heading = (data.collection.name || data.collection.id) + " · " + data.book;
+    if (data.chapter) heading += ", " + data.chapter;
+    var html = "<h3>" + escHtml(heading) + "</h3>" + data.passages.map(function(passage) {
+      if (passage.verse != null) {
+        return "<p><sup>" + escHtml(String(passage.verse)) + "</sup> " + escHtml(passage.text) + "</p>";
+      }
+      return "<p>" + escHtml(passage.text) + "</p>";
     }).join("");
     setHtml(document.getElementById("bibleReader"), html);
   } catch (err) {
@@ -455,10 +487,13 @@ async function loadBiblePassage() {
 async function loadScriptureMeta() {
   if (scriptureMetaLoaded) return;
   try {
-    var res = await fetch(FAITH_BASE + "/scriptures/meta");
-    var data = await res.json();
-    if (!data.success) throw new Error(data.error || "Could not load scripture metadata.");
-    scriptureCollections = data.collections || [];
+    if (scriptureCollections.length === 0) {
+      var res = await fetch(FAITH_BASE + "/scriptures/meta");
+      var data = await res.json();
+      if (!data.success) throw new Error(data.error || "Could not load scripture metadata.");
+      scriptureCollections = data.collections || [];
+      scriptureToc = data.toc || {};
+    }
     var select = document.getElementById("scriptureCollectionSelect");
     var options = ["<option value='all'>All saved copies</option>"].concat(scriptureCollections.map(function(item) {
       return "<option value='" + escHtml(item.id) + "'>" + escHtml(item.name + " · " + item.tradition) + "</option>";
@@ -864,7 +899,7 @@ async function sendEmmanuel() {
 }
 .faith-bible-reader-controls {
     display: grid;
-    grid-template-columns: minmax(160px, 1fr) minmax(84px, 120px) auto;
+    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1.15fr) minmax(150px, 1.15fr) auto;
     gap: 8px;
     margin-bottom: 12px;
 }

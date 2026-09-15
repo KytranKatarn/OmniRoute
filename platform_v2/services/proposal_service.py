@@ -875,7 +875,7 @@ def regenerate_plan(proposal_id):
 
 def retry_proposal(proposal_id, user_id):
     try:
-        from improvement_conversation_engine import retry_proposal_with_escalation
+        from ai_bridge.improvement_conversation_engine import retry_proposal_with_escalation
 
         result = retry_proposal_with_escalation(proposal_id=proposal_id, user_id=user_id)
         if result["success"]:

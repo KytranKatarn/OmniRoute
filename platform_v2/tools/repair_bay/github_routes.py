@@ -1038,6 +1038,79 @@ def register_github_routes(bp, admin_required):
         mark_review_skipped(pr_number)
         return jsonify({"success": True})
 
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/retry", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_review_retry(pr_number):
+        """Cancel a stuck 'Reviewing…' and put the PR back in the review queue.
+
+        The escape hatch for an orphaned review: ``mark_review_started`` set the row
+        'in_progress', its dispatch then died, and ``mark_review_done`` never ran (KB
+        #270002). ``reap_stale_reviews`` already recovers these, but only after a 20m
+        window on a 5m tick — so until now an operator who could SEE it was stuck had
+        no way to act, and the Analyze button is disabled in exactly that state.
+
+        ⚠️ DELIBERATELY NARROW: 'in_progress' only. Resetting a *reviewed* row would
+        discard a stored verdict, and that verdict is what the merge gate reads — so a
+        stray click here could turn a REQUEST CHANGES into a fresh, possibly-different
+        review. Re-reviewing a finished PR already has its own affordance (Analyze).
+        Everything else is refused with 409 and the row is left exactly as it was.
+
+        ⚠️ Repo comes from the BODY, like the merge routes: PR numbers collide across
+        repos (1-20 each exist in 2-5 of them), so a bare lookup silently resolves a
+        plausible WRONG row rather than erroring.
+        """
+        from .services.pr_review_service import (
+            _is_valid_repo,
+            get_review,
+            mark_review_pending,
+            review_progress,
+        )
+
+        _repo_in = (request.get_json(silent=True) or {}).get("repo")
+        if _repo_in is not None and not _is_valid_repo(_repo_in):
+            return jsonify({"success": False, "error": "Invalid repo"}), 400
+
+        review = get_review(pr_number, repo=_repo_in or None)
+        if not review:
+            return jsonify({"success": False, "error": f"PR #{pr_number} not found"}), 404
+
+        status = review.get("review_status")
+        if status != "in_progress":
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": (
+                            f"PR #{pr_number} is '{status}', not a review in flight. "
+                            "Retry only cancels a stuck review; use Analyze to re-review."
+                        ),
+                        "review_status": status,
+                    }
+                ),
+                409,
+            )
+
+        prog = review_progress(status, review.get("updated_at"))
+        mark_review_pending(pr_number, repo=_repo_in or None)
+        logger.info(
+            "[F.O.R.G.E.] review retry: PR #%s (%s) reset after %sm in_progress by %s",
+            pr_number,
+            _repo_in or "default repo",
+            prog.get("elapsed_minutes"),
+            getattr(current_user, "username", "?"),
+        )
+        # reap_count is deliberately left alone: a human retry should not hand a
+        # permanently-broken review a fresh budget to loop on.
+        return jsonify(
+            {
+                "success": True,
+                "pr_number": pr_number,
+                "was_running_minutes": prog.get("elapsed_minutes"),
+                "review_status": "pending",
+            }
+        )
+
     @bp.route("/api/forge/pr-reviews/<int:pr_number>/merge", methods=["POST"])
     @login_required
     @admin_required

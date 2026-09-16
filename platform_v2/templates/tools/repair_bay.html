@@ -3708,8 +3708,19 @@ window.loadPRReviews = function(state) {
                 analyzeBtn.textContent = 'View Review';
                 analyzeBtn.onclick = function(e){ e.stopPropagation(); showPRDetail(pr); };
             } else if (pr.review_status === 'in_progress') {
-                analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(34,211,238,0.1);border:1px solid rgba(34,211,238,0.3);color:#67e8f9;border-radius:4px;cursor:not-allowed;opacity:0.6;';
-                analyzeBtn.textContent = 'Analyzing…';
+                // The button used to read a bare "Analyzing…" forever. A review that would
+                // finish in 40s and one whose dispatch died 45 minutes ago rendered
+                // IDENTICALLY, so the only way to tell them apart was the CLI (hit live on
+                // #3385 + archie-code #71). `pr.review_progress` is computed server-side
+                // (pr_review_service.review_progress) against the SAME window the
+                // stuck-review reaper uses — never re-derive the threshold here, or the UI
+                // will promise a recovery the reaper is not actually going to perform.
+                var rp = pr.review_progress || null;
+                var _overdue = !!(rp && rp.stale);
+                var _rpCol = _overdue ? '239,68,68' : '34,211,238';
+                analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(' + _rpCol + ',0.1);border:1px solid rgba(' + _rpCol + ',0.3);color:' + (_overdue ? '#fca5a5' : '#67e8f9') + ';border-radius:4px;cursor:not-allowed;opacity:0.75;';
+                analyzeBtn.textContent = (rp && rp.label ? rp.label : 'Analyzing…') + (_overdue ? ' ⚠' : '');
+                if (rp && rp.hint) analyzeBtn.title = rp.hint;
                 analyzeBtn.disabled = true;
             } else {
                 analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
@@ -3718,6 +3729,47 @@ window.loadPRReviews = function(state) {
             }
 
             actions.appendChild(analyzeBtn);
+
+            // RETRY — the only escape from a stuck 'Reviewing…'. Analyze is disabled in
+            // exactly this state, so before this an orphaned review could ONLY be cleared
+            // from the CLI or by waiting out the reaper's 20m window. Server-side the route
+            // refuses anything that is not in_progress (409), so this can never discard a
+            // stored verdict; it is shown only here to match that rule.
+            if (pr.review_status === 'in_progress') {
+                var retryBtn = document.createElement('button');
+                retryBtn.className = 'dp-pr-action';
+                var _rCol = (pr.review_progress && pr.review_progress.stale) ? '#fbbf24' : 'rgba(148,163,184,0.85)';
+                retryBtn.style.cssText = 'font-size:0.6rem;padding:2px 7px;background:rgba(148,163,184,0.12);border:1px solid ' + _rCol + ';color:' + _rCol + ';border-radius:4px;cursor:pointer;';
+                retryBtn.textContent = 'Retry';
+                retryBtn.title = 'Cancel this stuck review and put the PR back in the queue. Does not touch a finished verdict.';
+                retryBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    // The repo MUST ride along: PR numbers collide across repos, so a bare
+                    // lookup resolves a plausible WRONG row (archie-code #71 vs platform #71).
+                    retryBtn.disabled = true;
+                    retryBtn.textContent = 'Resetting…';
+                    fetch(API + '/forge/pr-reviews/' + pr.pr_number + '/retry', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ repo: pr.repo || null })
+                    }).then(function(r) { return r.json().then(function(b) { return { ok: r.ok, body: b }; }); })
+                      .then(function(res) {
+                          if (!res.ok || !res.body.success) {
+                              retryBtn.disabled = false;
+                              retryBtn.textContent = 'Retry';
+                              alert(res.body.error || 'Retry failed.');
+                              return;
+                          }
+                          window.loadPRReviews();
+                      }).catch(function(err) {
+                          retryBtn.disabled = false;
+                          retryBtn.textContent = 'Retry';
+                          console.error('[PR Retry]', err);
+                          alert('Retry failed — see console.');
+                      });
+                };
+                actions.appendChild(retryBtn);
+            }
 
             // #6769 — an explicit info affordance. The only existing hint was the one-line
             // hover tooltip (title = merge_state.hint), which for a coverage gate names the
@@ -3928,9 +3980,17 @@ function showPRDetail(pr) {
     } else {
         var noReview = document.createElement('div');
         noReview.style.cssText = 'font-size:0.78rem;color:rgba(255,255,255,0.3);padding:8px 0;';
-        noReview.textContent = pr.review_status === 'in_progress'
-            ? 'F.O.R.G.E. is reviewing this PR…'
-            : 'No review yet. Click Analyze to request F.O.R.G.E. review.';
+        // Same defect as the list button: "F.O.R.G.E. is reviewing this PR…" was shown
+        // for a live review and an orphaned one alike. review_progress is server-computed.
+        var _dp = pr.review_progress || null;
+        if (pr.review_status === 'in_progress') {
+            noReview.textContent = (_dp && _dp.hint)
+                ? 'F.O.R.G.E. is reviewing this PR — ' + _dp.hint
+                : 'F.O.R.G.E. is reviewing this PR…';
+            if (_dp && _dp.stale) noReview.style.color = '#fca5a5';
+        } else {
+            noReview.textContent = 'No review yet. Click Analyze to request F.O.R.G.E. review.';
+        }
         wrap.appendChild(noReview);
     }
 

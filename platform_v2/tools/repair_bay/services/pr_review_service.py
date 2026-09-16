@@ -953,7 +953,25 @@ def decide_reap_action(reap_count: int, max_retries: int = 3) -> str:
     return "reset" if reap_count < max_retries else "skip"
 
 
-def reap_stale_reviews(stale_minutes: int = 20, max_retries: int = 3) -> dict:
+# ---------------------------------------------------------------------------
+# THE STUCK-REVIEW WINDOW — one definition, two consumers.
+#
+# ``reap_stale_reviews`` (below) decides WHEN a stuck review is recovered; the
+# ``review_progress`` UI helper decides when to TELL the operator it is overdue.
+# Those two must agree, so the numbers live here rather than being retyped at
+# each site. A UI measuring staleness on its own clock would confidently promise
+# a recovery that never comes — or cry stale at a review the reaper thinks is fine.
+#
+# _REAP_INTERVAL_MINUTES mirrors the ``forge_review_reaper`` IntervalTrigger in
+# ai_bridge/agent_loop.py. It is used ONLY to word the hint ("re-driven within
+# ~5m"); nothing schedules off it here, so a drift is cosmetic, not behavioural.
+# ---------------------------------------------------------------------------
+
+_REAP_STALE_MINUTES = 20
+_REAP_INTERVAL_MINUTES = 5
+
+
+def reap_stale_reviews(stale_minutes: int = _REAP_STALE_MINUTES, max_retries: int = 3) -> dict:
     """Recover PR reviews stuck in 'in_progress' past the stale window (#4583).
 
     When an on-demand review_pr() dies mid-flight (CLI killed, session ended), the row is left
@@ -1179,6 +1197,117 @@ def _merge_hint(summary: str, verdict_ok: bool) -> str:
         return ""
 
 
+def _elapsed_minutes(ts, now=None) -> int | None:
+    """Whole minutes between ``ts`` and now, or None if that cannot be computed.
+
+    Defensive about tz-awareness on purpose: ``pr_reviews.updated_at`` is TIMESTAMPTZ,
+    but several platform tables deviate from that convention (``forge_reviews.created_at``,
+    ``agent_emotional_state.timestamp``), and a naive/aware subtraction raises TypeError.
+    Here that would blank a whole row over a formatting detail, so an un-subtractable
+    value degrades to "unknown" instead.
+    """
+    if ts is None:
+        return None
+    try:
+        from datetime import datetime, timezone
+
+        ref = now or datetime.now(timezone.utc)
+        if getattr(ts, "tzinfo", None) is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if getattr(ref, "tzinfo", None) is None:
+            ref = ref.replace(tzinfo=timezone.utc)
+        seconds = (ref - ts).total_seconds()
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        # Narrowed deliberately (F.O.R.G.E. review of #3389): these are the four ways a
+        # bad timestamp actually arrives — a non-datetime (AttributeError on .tzinfo), a
+        # naive/aware mismatch the guards above missed (TypeError), an unparseable or
+        # out-of-range value (ValueError/OverflowError). A bare `except Exception` also
+        # swallowed genuine programming errors in this function, which is the one class
+        # of failure that should be loud.
+        return None
+    # A row written microseconds ago, or mild clock skew, can read slightly negative.
+    # Clamp rather than render a negative age.
+    return max(0, int(seconds // 60))
+
+
+def _humanize_minutes(mins: int) -> str:
+    if mins < 1:
+        return "just started"
+    if mins < 60:
+        return f"{mins}m"
+    hours, rem = divmod(mins, 60)
+    return f"{hours}h" if rem == 0 else f"{hours}h {rem}m"
+
+
+def review_progress(
+    review_status: str | None,
+    updated_at=None,
+    now=None,
+    stale_minutes: int = _REAP_STALE_MINUTES,
+) -> dict:
+    """What an in-flight "Reviewing…" row should SAY. Pure — no DB, no Flask.
+
+    THE DEFECT THIS ADDRESSES: an in-flight review rendered as a bare, disabled
+    "Analyzing…" with no elapsed time and no way out, so a review that would finish in
+    40 seconds and one whose dispatch died 45 minutes ago were pixel-identical. The only
+    way to tell them apart was the CLI — which is exactly what happened on archie-platform
+    #3385 and archie-code #71: both read "Reviewing…", one had a live dispatch, the other
+    had already had one reaped.
+
+    ⚠️ The threshold is NOT cosmetic — it is ``reap_stale_reviews``' own window, measured
+    off the same column (``pr_reviews.updated_at``). Keeping them in step is the whole
+    point: this function only ever *predicts* what the reaper will do.
+
+    Returns {active, elapsed_minutes, label, stale, hint, reap_minutes}. ``active`` is
+    False for every non-``in_progress`` status, so callers can render unconditionally.
+    """
+    idle = {
+        "active": False,
+        "elapsed_minutes": None,
+        "label": None,
+        "stale": False,
+        "hint": None,
+        "reap_minutes": stale_minutes,
+    }
+    if (review_status or "") != "in_progress":
+        return idle
+
+    elapsed = _elapsed_minutes(updated_at, now)
+    if elapsed is None:
+        # We do NOT know how long it has run. Say that. Rendering "0m" here would read
+        # as "just started" — a claim the data does not support, and the precise kind of
+        # confident-but-unfounded status this change exists to remove.
+        return {
+            "active": True,
+            "elapsed_minutes": None,
+            "label": "Analyzing…",
+            "stale": False,
+            "hint": "Elapsed time unknown — this row carries no updated_at.",
+            "reap_minutes": stale_minutes,
+        }
+
+    stale = elapsed >= stale_minutes
+    if stale:
+        hint = (
+            f"Running {_humanize_minutes(elapsed)} — past the {stale_minutes}m stuck-review "
+            f"window. The reaper resets it within ~{_REAP_INTERVAL_MINUTES}m, or use Retry "
+            f"to reset it now."
+        )
+    else:
+        hint = (
+            f"Running {_humanize_minutes(elapsed)}. A per-file review is several SERIAL "
+            f"dispatches, so minutes are expected; it is only overdue past {stale_minutes}m."
+        )
+    return {
+        "active": True,
+        "elapsed_minutes": elapsed,
+        "label": f"Analyzing… {_humanize_minutes(elapsed)}",
+        "stale": stale,
+        "hint": hint,
+        "reap_minutes": stale_minutes,
+    }
+
+
 def list_reviews(state: str = None, review_status: str = None, limit: int = 50) -> list:
     """List PR reviews with optional filters."""
     query = "SELECT * FROM pr_reviews WHERE 1=1"
@@ -1199,6 +1328,9 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     # copy of it in SQL would be the same duplication the JS copy would have been.
     for row in rows:
         row["merge_state"] = merge_state(row.get("review_status"), row.get("ai_summary"), row.get("base_branch"))
+        # Same rule as merge_state: the elapsed time AND the overdue threshold are decided
+        # server-side, so the template cannot drift from the reaper's actual window.
+        row["review_progress"] = review_progress(row.get("review_status"), row.get("updated_at"))
     return rows
 
 

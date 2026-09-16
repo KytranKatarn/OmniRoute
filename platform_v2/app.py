@@ -4572,12 +4572,27 @@ def api_internal_dhq_chat():
             priority="high" if is_cockpit_chat else "normal",
         )
         if result.success and (result.response or "").strip():
+            # Token usage is returned because the CALLER cannot derive it (#6775).
+            # `DispatchResult` has carried prompt_tokens/completion_tokens all along and
+            # the STREAMING sibling below already emits both in its done-frame — this
+            # non-streaming twin dropped them, so archie-tui (Lane 3, the platform's own
+            # builder) logged 20 of 22 runs at ZERO tokens over 7 days. That made it
+            # invisible to Token Economy and, worse, un-comparable against the codex and
+            # opencode lanes, which is exactly the measurement the engine exists to win.
+            #
+            # ⚠️ Additive only: existing keys are untouched, so a caller that ignores
+            # these is byte-identical to before. Defaulted via getattr so an older
+            # DispatchResult (or a contractor path that never set them) yields 0 rather
+            # than a 500 — a missing count must degrade to "unknown", never to an error
+            # on the inference path.
             return jsonify(
                 {
                     "success": True,
                     "response": result.response.strip(),
                     "agent_name": result.agent_name,
                     "model_used": result.model_used,
+                    "prompt_tokens": int(getattr(result, "prompt_tokens", 0) or 0),
+                    "completion_tokens": int(getattr(result, "completion_tokens", 0) or 0),
                 }
             )
         # Dispatch ran but produced nothing usable — let the caller fall back to direct Ollama.

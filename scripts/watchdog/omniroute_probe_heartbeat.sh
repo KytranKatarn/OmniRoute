@@ -25,7 +25,7 @@ VERBOSE="${OMNIROUTE_HB_VERBOSE:-0}"; [ "${1:-}" = "-v" ] && VERBOSE=1
 log(){ [ "$VERBOSE" = "1" ] && echo "[$(date -u +%H:%M:%SZ)] $*"; return 0; }
 
 probe_line="$(bash "$PROBE_SCRIPT" 2>/dev/null)"
-[ -n "$probe_line" ] || probe_line='tier1=fail tier2=skipped detail="probe script produced no output"'
+[ -n "$probe_line" ] || probe_line='tier1=fail tier2=skipped detail="PROBE HARNESS ERROR: probe script produced no output"'
 
 payload="ts=$(date +%s) $probe_line"
 

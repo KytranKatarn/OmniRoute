@@ -60,12 +60,13 @@ observe_omniroute; observe_omniroute
 check "a second alert" 2 "$(alerts_n)"
 check "says recovered" "yes" "$(has 'recovered')"
 
-echo "=== T6: tier1=fail alerts as a container-down message, not a provider one ==="
+echo "=== T6: tier1=fail alerts as a container-down message, not a provider one — and carries the specific detail ==="
 reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
 write_hb 'tier1=fail tier2=skipped detail="health endpoint returned 500"'
 observe_omniroute; observe_omniroute
 check "one alert" 1 "$(alerts_n)"
 check "says DOWN, not degraded" "yes" "$(has 'is DOWN')"
+check "carries the specific detail (not just DOWN)" "yes" "$(has 'health endpoint returned 500')"
 
 echo "=== T7: 🔴 THE FALSE-POSITIVE GUARD — a stale heartbeat alerts distinctly from a reported failure ==="
 reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
@@ -82,20 +83,40 @@ observe_omniroute; observe_omniroute
 check "silent during planned maintenance" 0 "$(alerts_n)"
 check "suppression is logged" "yes" "$(grep -q 'SUPPRESSED' "$LOGS" && echo yes || echo no)"
 
-echo "=== T9: 🔴 must never touch DR failover state ==="
+echo "=== T9: 🔴 must never touch DR failover state (seeded, not just absent) ==="
 reset
 touch "$DR/.failed_over"
+echo "consec_down=5" > "$DR/watchdog_state"
+before_state="$(cat "$DR/watchdog_state")"
 before_failed_over="$(md5sum "$DR/.failed_over" 2>/dev/null)"
 write_hb 'tier1=fail tier2=skipped detail="x"'
 observe_omniroute; observe_omniroute
-check "consec_down untouched" "" "$(cat "$DR/watchdog_state" 2>/dev/null)"
+check "watchdog_state (consec_down/armed_at) untouched" "$before_state" "$(cat "$DR/watchdog_state" 2>/dev/null)"
 check ".failed_over still present" "yes" "$([ -f "$DR/.failed_over" ] && echo yes || echo no)"
+check ".failed_over content unchanged" "$before_failed_over" "$(md5sum "$DR/.failed_over" 2>/dev/null)"
 
 echo "=== T10: observation must never break its caller, even with a garbled heartbeat ==="
 reset
 printf 'garbage not a real heartbeat line' > "$OMNIROUTE_HEARTBEAT_FILE"
 observe_omniroute; rc=$?
 check "returns 0 on a garbled heartbeat" 0 "$rc"
+
+echo "=== T11: 🔴 a malformed ts (multi-line or leading-zero) must never abort the function — falls through to stale ==="
+reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
+printf 'ts=%s tier1=ok tier2=ok detail="ok"\nts=%s tier1=ok tier2=ok detail="ok"\n' "$FAKE_NOW" "$FAKE_NOW" > "$OMNIROUTE_HEARTBEAT_FILE"
+observe_omniroute; rc=$?
+check "multi-line ts: first read still returns 0" 0 "$rc"
+observe_omniroute; rc=$?
+check "multi-line ts: second read still returns 0" 0 "$rc"
+check "multi-line ts confirmed as stale (not silently ignored)" "yes" "$(has 'heartbeat is stale')"
+
+reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
+printf 'ts=0%s tier1=ok tier2=ok detail="ok"\n' "$FAKE_NOW" > "$OMNIROUTE_HEARTBEAT_FILE"
+observe_omniroute; rc=$?
+check "leading-zero ts: first read still returns 0" 0 "$rc"
+observe_omniroute; rc=$?
+check "leading-zero ts: second read still returns 0" 0 "$rc"
+check "leading-zero ts confirmed as stale (not silently ignored)" "yes" "$(has 'heartbeat is stale')"
 
 echo
 echo "=== RESULT: $pass pass · $fail fail ==="

@@ -486,6 +486,7 @@ observe_omniroute(){
   local confirm="${OMNIROUTE_CONFIRM:-2}" obs last streak now line ts detail
 
   mkdir -p "$RELIABILITY_DIR" 2>/dev/null || true
+  [ -w "$RELIABILITY_DIR" ] || log "omniroute observation: WARN $RELIABILITY_DIR not writable — state cannot persist; alerting is DEGRADED."
 
   if [ -f "$OMNIROUTE_DISABLED_FLAG" ]; then
     log "omniroute observation: alerts SUPPRESSED by $OMNIROUTE_DISABLED_FLAG (planned maintenance)."
@@ -495,9 +496,15 @@ observe_omniroute(){
   now="$(now_epoch)"
   line="$(cat "$hf" 2>/dev/null || echo '')"
   ts="$(printf '%s\n' "$line" | sed -n 's/.*ts=\([0-9][0-9]*\).*/\1/p')"
+  # Reject anything that would break the arithmetic below: empty, non-numeric,
+  # multi-line (sed emits one match PER LINE — two heartbeat lines yields a
+  # two-line $ts), or a leading zero (bash treats 0-prefixed numbers as octal
+  # and aborts the whole script on an invalid digit). A malformed heartbeat
+  # must fall through to "stale" below, never abort dr_watchdog.sh's cycle.
+  case "$ts" in ''|*[!0-9]*|0?*) ts="" ;; esac
   detail="$(printf '%s\n' "$line" | sed -n 's/.*detail="\([^"]*\)".*/\1/p')"
 
-  if [ -z "$ts" ] || [ $(( now - ts )) -gt "${OMNIROUTE_HEARTBEAT_MAX_AGE:-600}" ]; then
+  if [ -z "$ts" ] || [ $(( now - ts )) -lt 0 ] || [ $(( now - ts )) -gt "${OMNIROUTE_HEARTBEAT_MAX_AGE:-600}" ]; then
     obs="stale"
     detail="no heartbeat received in the last ${OMNIROUTE_HEARTBEAT_MAX_AGE}s — check the hub-side cron and SSH push"
   elif printf '%s\n' "$line" | grep -q 'tier1=fail'; then
@@ -539,6 +546,7 @@ observe_omniroute(){
     down)
       log "omniroute observation: container unreachable confirmed over ${confirm} checks — alerting."
       tg_notify "🔴 <b>OmniRoute is DOWN</b> — the container itself is not answering on the hub.
+${detail}
 <i>Check: docker ps --filter name=omniroute · docker logs omniroute</i>
 <i>Observation only — does not affect hub DR posture.</i>"
       ;;

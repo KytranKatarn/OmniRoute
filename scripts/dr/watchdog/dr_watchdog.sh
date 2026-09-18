@@ -110,6 +110,15 @@ DRY_RUN="${DRY_RUN:-0}"
 # → auto-failover is SUPPRESSED (promoting would split-brain a live DB).
 HEARTBEAT_FILE="${HEARTBEAT_FILE:-$DR/.hub_heartbeat}"
 HEARTBEAT_MAX_AGE="${HEARTBEAT_MAX_AGE:-300}"   # seconds; older = stale (hub really gone)
+# OmniRoute reliability heartbeat (Deep Space Nine phase 1). Pushed by
+# omniroute_probe_heartbeat.sh on the hub every 5 min over this SAME SSH
+# path. Separate file/state from the hub-DR heartbeat above — this watchdog
+# never touches DR failover state (see observe_omniroute()).
+OMNIROUTE_HEARTBEAT_FILE="${OMNIROUTE_HEARTBEAT_FILE:-$DR/.omniroute_heartbeat}"
+OMNIROUTE_HEARTBEAT_MAX_AGE="${OMNIROUTE_HEARTBEAT_MAX_AGE:-600}"   # seconds; ~2x the hub's 5-min push interval
+OMNIROUTE_CONFIRM="${OMNIROUTE_CONFIRM:-2}"   # consecutive bad readings before alerting
+RELIABILITY_DIR="${RELIABILITY_DIR:-/opt/archie-reliability}"
+OMNIROUTE_DISABLED_FLAG="${OMNIROUTE_DISABLED_FLAG:-$RELIABILITY_DIR/.omniroute_watchdog_disabled}"
 
 log(){ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 now_epoch(){ date +%s; }
@@ -459,10 +468,105 @@ Products on Citadel are unaffected. <code>platform.kytranempowerment.com</code> 
   return 0
 }
 
+# ── OMNIROUTE OBSERVATION LANE (Deep Space Nine phase 1) ────────────────────
+# Reads a heartbeat PUSHED from the hub (omniroute_probe_heartbeat.sh, over
+# the same SSH channel hub_heartbeat.sh already uses) rather than probing
+# OmniRoute directly — its port is loopback-only on purpose (tracked,
+# unpatched CRITICAL CVE; see the design spec §3). Never reach for it over
+# the mesh.
+#
+# SAFE BY CONSTRUCTION, identical guarantee to observe_and_alert(): observes
+# only, never touches consec_down/armed_at/.failed_over/.watchdog_disabled,
+# never returns non-zero. All of ITS OWN state lives under $RELIABILITY_DIR,
+# never under $DR, so it can never be confused with — or cleared by — DR
+# failover bookkeeping.
+observe_omniroute(){
+  local hf="$OMNIROUTE_HEARTBEAT_FILE"
+  local sf="$RELIABILITY_DIR/.omniroute_observed_state" kf="$RELIABILITY_DIR/.omniroute_observed_streak"
+  local confirm="${OMNIROUTE_CONFIRM:-2}" obs last streak now line ts detail
+
+  mkdir -p "$RELIABILITY_DIR" 2>/dev/null || true
+
+  if [ -f "$OMNIROUTE_DISABLED_FLAG" ]; then
+    log "omniroute observation: alerts SUPPRESSED by $OMNIROUTE_DISABLED_FLAG (planned maintenance)."
+    return 0
+  fi
+
+  now="$(now_epoch)"
+  line="$(cat "$hf" 2>/dev/null || echo '')"
+  ts="$(printf '%s\n' "$line" | sed -n 's/.*ts=\([0-9][0-9]*\).*/\1/p')"
+  detail="$(printf '%s\n' "$line" | sed -n 's/.*detail="\([^"]*\)".*/\1/p')"
+
+  if [ -z "$ts" ] || [ $(( now - ts )) -gt "${OMNIROUTE_HEARTBEAT_MAX_AGE:-600}" ]; then
+    obs="stale"
+    detail="no heartbeat received in the last ${OMNIROUTE_HEARTBEAT_MAX_AGE}s — check the hub-side cron and SSH push"
+  elif printf '%s\n' "$line" | grep -q 'tier1=fail'; then
+    obs="down"
+  elif printf '%s\n' "$line" | grep -q 'tier2=fail'; then
+    obs="degraded"
+  else
+    obs="ok"
+  fi
+
+  last="$(cat "$sf" 2>/dev/null || echo '')"
+
+  # Steady state — nothing to say. Clearing the streak here is what makes a
+  # single flapping cycle unable to accumulate into a false report.
+  if [ "$obs" = "$last" ]; then rm -f "$kf"; return 0; fi
+
+  # First ever run: adopt current state silently, same as observe_and_alert.
+  if [ -z "$last" ]; then
+    echo "$obs" > "$sf"
+    log "omniroute observation: baseline recorded as $obs (no alert on first observation)."
+    return 0
+  fi
+
+  streak=$(( $(cat "$kf" 2>/dev/null || echo 0) + 1 ))
+  echo "$streak" > "$kf"
+  if [ "$streak" -lt "$confirm" ]; then
+    log "omniroute observation: looks $obs (${streak}/${confirm} confirmations) — holding."
+    return 0
+  fi
+
+  rm -f "$kf"
+  echo "$obs" > "$sf"
+
+  case "$obs" in
+    ok)
+      log "omniroute observation: RECOVERED — alerting."
+      tg_notify "✅ <b>OmniRoute recovered</b> — OpenCode routing is healthy again."
+      ;;
+    down)
+      log "omniroute observation: container unreachable confirmed over ${confirm} checks — alerting."
+      tg_notify "🔴 <b>OmniRoute is DOWN</b> — the container itself is not answering on the hub.
+<i>Check: docker ps --filter name=omniroute · docker logs omniroute</i>
+<i>Observation only — does not affect hub DR posture.</i>"
+      ;;
+    degraded)
+      log "omniroute observation: provider degraded confirmed over ${confirm} checks — alerting."
+      tg_notify "🟠 <b>OmniRoute is up, but OpenCode routing is broken</b>
+${detail}
+<i>Re-auth via Settings → Providers (SSH tunnel: ssh -L 20128:127.0.0.1:20128 kytran@192.168.1.200).</i>
+<i>Observation only — does not affect hub DR posture.</i>"
+      ;;
+    stale)
+      log "omniroute observation: heartbeat stale confirmed over ${confirm} checks — alerting."
+      tg_notify "🟡 <b>OmniRoute heartbeat is stale</b>
+${detail}
+<i>This may be the hub-side cron or SSH push, not necessarily OmniRoute itself.</i>"
+      ;;
+  esac
+  return 0
+}
+
 main(){
   # 0. OBSERVE + ALERT. Deliberately ABOVE every gate below — see the comment on
   #    observe_and_alert. `|| true` so observation can never break promotion logic.
   observe_and_alert || true
+  # 0b. OmniRoute reliability observation (Deep Space Nine phase 1) — same
+  #     "never gated, never breaks the caller" guarantee, own independent
+  #     kill switch, own state directory. See observe_omniroute() above.
+  observe_omniroute || true
   # 1. Disarm / planned-maintenance kill switch.
   if [ -f "$DISABLED_FLAG" ]; then log "disabled ($DISABLED_FLAG present) — exit."; exit 0; fi
   # 2. Post-failover recovery: hub came back — auto-repoint then request approval for DB rebuild.

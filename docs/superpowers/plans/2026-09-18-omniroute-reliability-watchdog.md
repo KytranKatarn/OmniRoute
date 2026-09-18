@@ -194,7 +194,7 @@ import sys, json, urllib.request
 host, port, key, timeout = sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4])
 req = urllib.request.Request(
     "http://%s:%s/v1/chat/completions" % (host, port),
-    data=json.dumps({"model": "opencode/auto", "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}).encode(),
+    data=json.dumps({"model": "auto/coding:free", "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1}).encode(),
     headers={"Content-Type": "application/json", "Authorization": "Bearer %s" % key},
     method="POST",
 )

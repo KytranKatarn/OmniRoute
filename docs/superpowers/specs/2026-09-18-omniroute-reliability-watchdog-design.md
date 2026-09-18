@@ -30,7 +30,7 @@ The first draft of this design had Citadel probe OmniRoute directly over a new m
 🔴 **CORRECTED during implementation (2026-09-18, Task 1 of the plan).** This section originally specified a middle "provider state" tier authenticated with `OMNIROUTE_API_KEY` against `/api/status`/`/api/providers`. **Verified live: that key gets `403 {"error":{"code":"AUTH_001","message":"Invalid management token"}}` on both endpoints.** `OMNIROUTE_API_KEY` is the OpenAI-compatible *data-plane* key (`_call_openai_compatible` uses it against `/v1/chat/completions`, confirmed working in production per the Phase 3 spec's live proof) — `/api/status`/`/api/providers` need a *separate* "management token" that exists nowhere in the container's own config (`/app/data/server.env` holds only a storage-encryption key version) and appears to be owner-provisioned through OmniRoute's own web UI, not self-service. Rather than build a probe around field names inferred from reading the container's TypeScript source (unverified against a real response — a first attempt at this task did exactly that and was rejected on review), **the middle tier is dropped.** Two tiers remain:
 
 1. **Liveness** — `GET /api/health` (no auth). Non-200/unreachable → OmniRoute itself is down.
-2. **Canary** — one minimal real completion through OmniRoute's actual OpenCode combo path (`model: "opencode/auto"`, `max_tokens: 1`), using the `OMNIROUTE_API_KEY` we actually have and know works. Runs every cycle now, not throttled — it's the only remaining signal, so it can't be an occasional backstop. This is arguably a *more* faithful test than the abandoned tier ever would have been: it exercises the exact end-to-end path OpenCode CLI itself uses, rather than inferring health from a credential count that doesn't prove a request would actually succeed.
+2. **Canary** — one minimal real completion through OmniRoute's actual OpenCode combo path (`model: "auto/coding:free"`, `max_tokens: 1`), using the `OMNIROUTE_API_KEY` we actually have and know works. Runs every cycle now, not throttled — it's the only remaining signal, so it can't be an occasional backstop. This is arguably a *more* faithful test than the abandoned tier ever would have been: it exercises the exact end-to-end path OpenCode CLI itself uses, rather than inferring health from a credential count that doesn't prove a request would actually succeed.
 
 New cron interval: **every 5 minutes** (was 2), trading a little detection latency for keeping real free-tier completion cost low (~288 tiny 1-token pings/day). At `K=2` consecutive confirmations, a break is still caught within ~10-15 minutes — far inside the "within minutes, not 22 hours" goal.
 
@@ -55,7 +55,7 @@ Consecutive-failure counting and the kill switch live in a new, separate directo
 
 1. Cron fires `omniroute_probe_heartbeat.sh`.
 2. Tier 1 (`/api/health`) fails → skip tier 2, push `tier1=fail tier2=skipped`.
-3. Tier 1 OK → tier 2: one real completion through the OpenCode combo path (`model: "opencode/auto"`, `max_tokens: 1`).
+3. Tier 1 OK → tier 2: one real completion through the OpenCode combo path (`model: "auto/coding:free"`, `max_tokens: 1`).
 4. Push one line to `/opt/archie-dr/.omniroute_heartbeat` on Citadel over the existing SSH channel, always — including on full success, so staleness itself is meaningful.
 
 **Citadel side (folded into the existing `dr_watchdog.sh` 60s cycle):**

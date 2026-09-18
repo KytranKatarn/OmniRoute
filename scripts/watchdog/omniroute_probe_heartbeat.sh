@@ -33,10 +33,10 @@ if [ ! -f "$SSH_KEY" ]; then
   log "WARN: SSH key $SSH_KEY missing — cannot post heartbeat."
   exit 0
 fi
-if ssh -i "$SSH_KEY" -o ConnectTimeout="$SSH_TIMEOUT" -o BatchMode=yes \
+if printf '%s\n' "$payload" | ssh -i "$SSH_KEY" -o ConnectTimeout="$SSH_TIMEOUT" -o BatchMode=yes \
        -o StrictHostKeyChecking=accept-new \
        "${DR_NODE_USER}@${DR_NODE_PUBLIC}" \
-       "umask 022; printf '%s\n' '$payload' > '$HEARTBEAT_FILE'" >/dev/null 2>&1; then
+       "umask 022; cat > '$HEARTBEAT_FILE'" >/dev/null 2>&1; then
   log "posted -> ${DR_NODE_USER}@${DR_NODE_PUBLIC}:${HEARTBEAT_FILE}  [$payload]"
 else
   log "WARN: could not reach ${DR_NODE_PUBLIC} to post heartbeat (it will age out)."

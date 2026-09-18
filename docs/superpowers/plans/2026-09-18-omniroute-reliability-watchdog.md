@@ -4,7 +4,7 @@
 
 **Goal:** Detect an OmniRoute/OpenCode routing failure (the exact shape that went unnoticed for 22+ hours on 2026-09-17) within minutes, and alert through a path independent of OmniRoute and the hub.
 
-**Architecture:** A hub-local cron script probes OmniRoute over loopback (3 tiers: liveness, authenticated provider-state, throttled deep canary) and pushes one heartbeat line to Citadel over the existing `hub_heartbeat.sh` SSH channel. A new `observe_omniroute()` function, folded into `dr_watchdog.sh`'s existing cycle at the same "never gated, always runs" position as `observe_and_alert()`, reads that heartbeat and alerts via the existing `tg_notify` helper on a confirmed bad reading or staleness. No new network exposure, no new SSH credential, no new systemd unit.
+**Architecture:** A hub-local cron script (every 5 min) probes OmniRoute over loopback — liveness, then a real canary completion through the actual OpenCode path (a middle "authenticated provider-state" tier was planned but dropped during Task 1: the endpoint needs a management token this environment doesn't have) — and pushes one heartbeat line to Citadel over the existing `hub_heartbeat.sh` SSH channel. A new `observe_omniroute()` function, folded into `dr_watchdog.sh`'s existing cycle at the same "never gated, always runs" position as `observe_and_alert()`, reads that heartbeat and alerts via the existing `tg_notify` helper on a confirmed bad reading or staleness. No new network exposure, no new SSH credential, no new systemd unit.
 
 **Tech Stack:** bash, python3 (stdlib `urllib` only — matches every existing DR script; no new dependencies), existing DR SSH/Telegram infrastructure.
 
@@ -26,8 +26,8 @@
 
 | File | Responsibility |
 |---|---|
-| `scripts/watchdog/probe_omniroute.sh` | Pure 3-tier probe against `127.0.0.1:20128`. No SSH, no push — just prints one result line. Independently testable. |
-| `scripts/watchdog/omniroute_probe_heartbeat.sh` | Hub-cron orchestrator: calls `probe_omniroute.sh` (throttling the deep canary), pushes the result to Citadel over SSH — mirrors `hub_heartbeat.sh`'s push exactly. |
+| `scripts/watchdog/probe_omniroute.sh` | Pure 2-tier probe (liveness + canary) against `127.0.0.1:20128`. No SSH, no push — just prints one result line. Independently testable. |
+| `scripts/watchdog/omniroute_probe_heartbeat.sh` | Hub-cron orchestrator (every 5 min): calls `probe_omniroute.sh`, pushes the result to Citadel over SSH — mirrors `hub_heartbeat.sh`'s push exactly. |
 | `scripts/watchdog/test_probe_omniroute.sh` | Unit tests for the probe's pure classification logic (no network). |
 | `scripts/dr/watchdog/dr_watchdog.sh` | **Modified**: new `observe_omniroute()` function + 4 new config vars, one new call site in `main()`. |
 | `scripts/dr/watchdog/test_observe_omniroute.sh` | Unit tests for `observe_omniroute()`, mirroring `test_observe_alert.sh`'s exact harness style. |
@@ -56,9 +56,9 @@ http.get({host:'127.0.0.1',port:20128,path:'/api/status',headers:{Authorization:
 
 Note whether the `opencode` provider's credential count and circuit-breaker state appear under those field names or different ones (e.g. `credentialCount` vs `credentials`, nested under a `providers` array vs a top-level object keyed by provider name). If `/api/status` doesn't carry per-provider detail, try `/api/providers` instead (also seen in the container's route surface this session).
 
-- [ ] **Step 3: Adjust the grep patterns in Task 2's `probe_omniroute.sh` to match**
+- [ ] **Step 3: Resolved — see below, this step is done**
 
-The implementation in Task 2 below uses `grep -qi '"opencode"[^}]*"credentials"[[:space:]]*:[[:space:]]*0'` and a matching pattern for the circuit-breaker flag — placeholders for the *real* field names found in Step 2, not for the *logic*. Update both patterns (and the JSON key names in the `detail=` messages) to match what you actually observed before moving on. If the shape is structurally different (e.g. an array), rewrite the two `grep` checks as a short inline `python3 -c` JSON parse instead — the rest of the script is unaffected either way.
+**RESOLUTION (recorded 2026-09-18, during execution):** `/api/status` and `/api/providers` both return `403 {"error":{"code":"AUTH_001","message":"Invalid management token"}}` for `OMNIROUTE_API_KEY` — verified live. That key is the OpenAI-compatible data-plane key; the management/admin endpoints need a separate "management token" that exists nowhere in the container's own config and is not self-service-obtainable from this environment. **Ruling: the authenticated provider-state tier is dropped.** Task 2 below is written for a **two-tier** probe (liveness + a real canary completion, no middle tier) — see the corrected spec §4 for the full rationale. Do not attempt to reintroduce a `/api/status`-based check without first confirming a management token exists.
 
 ---
 
@@ -69,7 +69,9 @@ The implementation in Task 2 below uses `grep -qi '"opencode"[^}]*"credentials"[
 - Test: `scripts/watchdog/test_probe_omniroute.sh`
 
 **Interfaces:**
-- Produces: a stdout contract — exactly one line, `tier1=ok|fail tier2=ok|fail|skipped tier3=ok|fail|skipped detail="..."` — consumed by Task 3's heartbeat script (which forwards the line verbatim to Citadel) and Task 4's `observe_omniroute()` (which greps it for `tier1=fail`/`tier2=fail`/`tier3=fail`).
+- Produces: a stdout contract — exactly one line, `tier1=ok|fail tier2=ok|fail|skipped detail="..."` — consumed by Task 3's heartbeat script (which forwards the line verbatim to Citadel) and Task 4's `observe_omniroute()` (which greps it for `tier1=fail`/`tier2=fail`).
+
+**Note on scope (read before starting):** this task originally specified a middle "provider state" tier authenticated against `/api/status`. That endpoint needs a management token this environment does not have and cannot self-provision (verified live: `OMNIROUTE_API_KEY` gets `403 Invalid management token`). Build the two-tier version below — liveness, then a real canary completion — not a three-tier one.
 
 - [ ] **Step 1: Write the pure classification helpers (no I/O, unit-testable)**
 
@@ -78,21 +80,23 @@ Create `scripts/watchdog/probe_omniroute.sh`:
 ```bash
 #!/bin/bash
 # ============================================================================
-# A.R.C.H.I.E. reliability — OmniRoute 3-tier local probe (Deep Space Nine
+# A.R.C.H.I.E. reliability — OmniRoute 2-tier local probe (Deep Space Nine
 # phase 1). Runs ON THE HUB against loopback ONLY — OmniRoute's port is not
 # mesh-reachable by design (it carries a tracked, unpatched CRITICAL CVE; see
 # docs/superpowers/specs/2026-09-18-omniroute-reliability-watchdog-design.md
 # §3 for why this must never change).
 #
 # Emits exactly one line on stdout:
-#   tier1=ok|fail tier2=ok|fail|skipped tier3=ok|fail|skipped detail="..."
+#   tier1=ok|fail tier2=ok|fail|skipped detail="..."
 #
 # tier1: GET /api/health (no auth) — is the process even listening.
-# tier2: GET /api/status (Bearer $OMNIROUTE_API_KEY) — real per-provider
-#        credential/circuit-breaker state, no LLM cost. Skipped if tier1 failed.
-# tier3: one real completion through the OpenCode combo path. Only runs when
-#        the caller passes DEEP_CANARY=1 (throttled by omniroute_probe_heartbeat.sh,
-#        since it costs a real free-tier call). Skipped otherwise or if tier1/2 failed.
+# tier2: one real completion through the OpenCode combo path
+#        (POST /v1/chat/completions, Bearer $OMNIROUTE_API_KEY — the same
+#        data-plane key the platform already uses successfully against this
+#        gateway). This is the only remaining signal (§4 of the design spec
+#        explains why the cheaper credential-count tier was dropped), so it
+#        runs every cycle, not throttled. Skipped if tier1 failed — no point
+#        spending a real completion call checking a dead container.
 # ============================================================================
 set -u
 
@@ -100,9 +104,8 @@ HOST="${OMNIROUTE_HOST:-127.0.0.1}"
 PORT="${OMNIROUTE_PORT:-20128}"
 API_KEY="${OMNIROUTE_API_KEY:-}"
 TIMEOUT="${PROBE_TIMEOUT:-8}"
-DEEP_CANARY="${DEEP_CANARY:-0}"
 
-# ---- Pure helpers: classify an (http_code, body) pair. No network. ----
+# ---- Pure helpers: classify an http status code. No network. ----
 # Each echoes ok|fail and, on fail, a one-line reason on the second line.
 classify_tier1(){
   local code="$1"
@@ -110,19 +113,6 @@ classify_tier1(){
   echo "fail"; echo "health endpoint returned '${code:-no response}'"
 }
 classify_tier2(){
-  local code="$1" body="$2"
-  if [ "$code" != "200" ]; then
-    echo "fail"; echo "status endpoint returned '${code:-no response}'"; return
-  fi
-  if printf '%s' "$body" | grep -qi '"opencode"[^}]*"credentials"[[:space:]]*:[[:space:]]*0'; then
-    echo "fail"; echo "opencode provider reports 0 credentials"; return
-  fi
-  if printf '%s' "$body" | grep -qi '"opencode"[^}]*"circuitBreaker"[[:space:]]*:[[:space:]]*true'; then
-    echo "fail"; echo "opencode provider circuit breaker is open"; return
-  fi
-  echo "ok"
-}
-classify_tier3(){
   local code="$1"
   [ "$code" = "200" ] && { echo ok; return; }
   echo "fail"; echo "canary completion returned '${code:-no response}'"
@@ -145,26 +135,16 @@ pass=0; fail=0
 check(){ if [ "$2" = "$3" ]; then echo "  PASS  $1"; pass=$((pass+1));
          else echo "  FAIL  $1 (expected '$2', got '$3')"; fail=$((fail+1)); fi; }
 
-echo "=== tier1 ==="
+echo "=== tier1 (liveness) ==="
 check "200 is ok"      "ok"   "$(classify_tier1 200 | head -1)"
 check "500 is fail"    "fail" "$(classify_tier1 500 | head -1)"
 check "no response is fail" "fail" "$(classify_tier1 '' | head -1)"
 
-echo "=== tier2 ==="
-check "non-200 is fail" "fail" "$(classify_tier2 401 '' | head -1)"
-check "zero credentials is fail" "fail" \
-  "$(classify_tier2 200 '{"providers":{"opencode":{"credentials":0}}}' | head -1)"
-check "breaker open is fail" "fail" \
-  "$(classify_tier2 200 '{"providers":{"opencode":{"credentials":3,"circuitBreaker":true}}}' | head -1)"
-check "healthy is ok" "ok" \
-  "$(classify_tier2 200 '{"providers":{"opencode":{"credentials":3,"circuitBreaker":false}}}' | head -1)"
-echo "=== 🔴 THE REGRESSION THIS PINS: a lone free-tier model failing in the fallback combo must NOT count ==="
-check "unrelated model 402 in the body is still ok" "ok" \
-  "$(classify_tier2 200 '{"providers":{"opencode":{"credentials":3,"circuitBreaker":false}},"lastError":"muse-spark-1.2: 402 quota exhausted"}' | head -1)"
-
-echo "=== tier3 ==="
-check "200 is ok"   "ok"   "$(classify_tier3 200 | head -1)"
-check "502 is fail" "fail" "$(classify_tier3 502 | head -1)"
+echo "=== tier2 (canary) ==="
+check "200 is ok"   "ok"   "$(classify_tier2 200 | head -1)"
+check "502 is fail" "fail" "$(classify_tier2 502 | head -1)"
+check "401 is fail" "fail" "$(classify_tier2 401 | head -1)"
+check "no response is fail" "fail" "$(classify_tier2 '' | head -1)"
 
 echo
 echo "=== RESULT: $pass pass · $fail fail ==="
@@ -184,7 +164,7 @@ chmod +x scripts/watchdog/probe_omniroute.sh scripts/watchdog/test_probe_omnirou
 bash scripts/watchdog/test_probe_omniroute.sh
 ```
 
-Expected: `classify_tier1`/`classify_tier2`/`classify_tier3` are undefined (script only has the guard so far) — FAIL with "command not found."
+Expected: `classify_tier1`/`classify_tier2` are undefined (script only has the guard so far) — FAIL with "command not found."
 
 - [ ] **Step 4: Add the network glue (the part that calls the classify helpers)**
 
@@ -192,14 +172,12 @@ Append to `scripts/watchdog/probe_omniroute.sh`, after the library guard from St
 
 ```bash
 _get(){
-  # _get <path> [auth] — prints "STATUS\nBODY"; STATUS empty on connection failure.
-  local path="$1" auth="${2:-0}"
-  python3 - "$HOST" "$PORT" "$path" "$auth" "$API_KEY" "$TIMEOUT" <<'PY'
+  # _get <path> — prints "STATUS\nBODY"; STATUS empty on connection failure.
+  local path="$1"
+  python3 - "$HOST" "$PORT" "$path" "$TIMEOUT" <<'PY'
 import sys, urllib.request
-host, port, path, auth, key, timeout = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5], float(sys.argv[6])
+host, port, path, timeout = sys.argv[1], sys.argv[2], sys.argv[3], float(sys.argv[4])
 req = urllib.request.Request("http://%s:%s%s" % (host, port, path))
-if auth == "1" and key:
-    req.add_header("Authorization", "Bearer %s" % key)
 try:
     resp = urllib.request.urlopen(req, timeout=timeout)
     print(resp.getcode()); print(resp.read(2000).decode("utf-8", "replace"))
@@ -229,38 +207,27 @@ except Exception:
 PY
 }
 
-out1="$(_get /api/health 0)"; code1="$(printf '%s\n' "$out1" | sed -n '1p')"
+out1="$(_get /api/health)"; code1="$(printf '%s\n' "$out1" | sed -n '1p')"
 t1_result="$(classify_tier1 "$code1")"; tier1="$(printf '%s\n' "$t1_result" | sed -n '1p')"
 
 if [ "$tier1" = "fail" ]; then
   detail="$(printf '%s\n' "$t1_result" | sed -n '2p')"
-  echo "tier1=fail tier2=skipped tier3=skipped detail=\"$detail\""
+  echo "tier1=fail tier2=skipped detail=\"$detail\""
   exit 0
 fi
 
 if [ -z "$API_KEY" ]; then
   tier2=fail; t2_detail="OMNIROUTE_API_KEY not set"
 else
-  out2="$(_get /api/status 1)"
-  code2="$(printf '%s\n' "$out2" | sed -n '1p')"
-  body2="$(printf '%s\n' "$out2" | sed -n '2,$p')"
-  t2_result="$(classify_tier2 "$code2" "$body2")"
+  code2="$(_canary)"
+  t2_result="$(classify_tier2 "$code2")"
   tier2="$(printf '%s\n' "$t2_result" | sed -n '1p')"
   t2_detail="$(printf '%s\n' "$t2_result" | sed -n '2p')"
 fi
 
-tier3=skipped; t3_detail=""
-if [ "$DEEP_CANARY" = "1" ] && [ "$tier2" = "ok" ]; then
-  code3="$(_canary)"
-  t3_result="$(classify_tier3 "$code3")"
-  tier3="$(printf '%s\n' "$t3_result" | sed -n '1p')"
-  t3_detail="$(printf '%s\n' "$t3_result" | sed -n '2p')"
-fi
-
 detail="ok"
 [ "$tier2" = "fail" ] && detail="$t2_detail"
-[ "$tier3" = "fail" ] && detail="$t3_detail"
-echo "tier1=ok tier2=$tier2 tier3=$tier3 detail=\"$detail\""
+echo "tier1=ok tier2=$tier2 detail=\"$detail\""
 ```
 
 - [ ] **Step 5: Run the unit test again to verify it passes**
@@ -269,22 +236,22 @@ echo "tier1=ok tier2=$tier2 tier3=$tier3 detail=\"$detail\""
 bash scripts/watchdog/test_probe_omniroute.sh
 ```
 
-Expected: `RESULT: 8 pass · 0 fail`.
+Expected: `RESULT: 7 pass · 0 fail`.
 
-- [ ] **Step 6: Manual live check against the real hub (requires Task 1's confirmed field names)**
+- [ ] **Step 6: Manual live check against the real hub**
 
 ```bash
 OMNIROUTE_API_KEY="$(grep '^OMNIROUTE_API_KEY=' /mnt/archie_brain/.env | cut -d= -f2-)" \
   bash scripts/watchdog/probe_omniroute.sh
 ```
 
-Expected right now (OmniRoute's OpenCode credential is still broken as of this session): `tier1=ok tier2=fail tier3=skipped detail="..."`. If tier2 instead reports `ok`, the field names from Task 1 don't match reality yet — go back and fix them before continuing.
+Expected right now (OmniRoute's OpenCode credential is still broken as of this session): `tier1=ok tier2=fail detail="canary completion returned '...'"`. If tier2 instead reports `ok`, either the credential has already been fixed (check via the DR ledger / ask the controller) or something in the request payload is wrong — investigate before continuing, don't just accept it.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add scripts/watchdog/probe_omniroute.sh scripts/watchdog/test_probe_omniroute.sh
-git commit -m "feat(watchdog): add OmniRoute 3-tier local probe"
+git commit -m "feat(watchdog): add OmniRoute 2-tier local probe (liveness + canary)"
 ```
 
 ---
@@ -307,12 +274,15 @@ Create `scripts/watchdog/omniroute_probe_heartbeat.sh`:
 # ============================================================================
 # A.R.C.H.I.E. reliability — OmniRoute heartbeat (producer side, hub cron).
 #
-# Runs ON THE HUB via cron. Probes OmniRoute over loopback (probe_omniroute.sh)
-# and pushes the result to Citadel over the SAME SSH channel hub_heartbeat.sh
-# already uses — same key, same target, no new credential.
+# Runs ON THE HUB via cron (every 5 min — see Task 5). Probes OmniRoute over
+# loopback (probe_omniroute.sh) and pushes the result to Citadel over the SAME
+# SSH channel hub_heartbeat.sh already uses — same key, same target, no new
+# credential.
 #
-# Throttles the deep canary (tier 3) to roughly every 15th invocation, tracked
-# in a local counter file, since it costs a real free-tier completion.
+# No throttling here: the canary IS the only remaining signal (the cheaper
+# credential-count tier was dropped — see the design spec §4), so it runs
+# every invocation. The 5-minute cron interval itself is what bounds the real
+# free-tier completion cost (~288 tiny 1-token pings/day).
 # ============================================================================
 set -uo pipefail
 
@@ -322,20 +292,12 @@ HEARTBEAT_FILE="${HEARTBEAT_FILE:-/opt/archie-dr/.omniroute_heartbeat}"   # path
 SSH_KEY="${DR_SSH_KEY:-$HOME/.ssh/id_ed25519}"
 SSH_TIMEOUT="${HB_SSH_TIMEOUT:-8}"
 PROBE_SCRIPT="${PROBE_SCRIPT:-$(cd "$(dirname "$0")" && pwd)/probe_omniroute.sh}"
-COUNTER_FILE="${COUNTER_FILE:-/opt/archie_omniroute_watchdog/.cycle_count}"
-CANARY_EVERY="${CANARY_EVERY:-15}"
 VERBOSE="${OMNIROUTE_HB_VERBOSE:-0}"; [ "${1:-}" = "-v" ] && VERBOSE=1
 
 log(){ [ "$VERBOSE" = "1" ] && echo "[$(date -u +%H:%M:%SZ)] $*"; return 0; }
 
-mkdir -p "$(dirname "$COUNTER_FILE")" 2>/dev/null || true
-n=$(( $(cat "$COUNTER_FILE" 2>/dev/null || echo 0) + 1 ))
-echo "$n" > "$COUNTER_FILE"
-deep=0
-[ $(( n % CANARY_EVERY )) -eq 0 ] && deep=1
-
-probe_line="$(DEEP_CANARY="$deep" bash "$PROBE_SCRIPT" 2>/dev/null)"
-[ -n "$probe_line" ] || probe_line='tier1=fail tier2=skipped tier3=skipped detail="probe script produced no output"'
+probe_line="$(bash "$PROBE_SCRIPT" 2>/dev/null)"
+[ -n "$probe_line" ] || probe_line='tier1=fail tier2=skipped detail="probe script produced no output"'
 
 payload="ts=$(date +%s) $probe_line"
 
@@ -362,7 +324,7 @@ OMNIROUTE_API_KEY="$(grep '^OMNIROUTE_API_KEY=' /mnt/archie_brain/.env | cut -d=
   bash scripts/watchdog/omniroute_probe_heartbeat.sh -v
 ```
 
-Expected: a `posted -> root@2.25.133.122:/opt/archie-dr/.omniroute_heartbeat  [ts=... tier1=ok tier2=fail tier3=skipped detail="..."]` line (reflecting the current live, still-broken OpenCode credential).
+Expected: a `posted -> root@2.25.133.122:/opt/archie-dr/.omniroute_heartbeat  [ts=... tier1=ok tier2=fail detail="..."]` line (reflecting the current live, still-broken OpenCode credential).
 
 - [ ] **Step 3: Verify the file actually landed on Citadel**
 
@@ -397,11 +359,11 @@ In `scripts/dr/watchdog/dr_watchdog.sh`, immediately after the existing line `HE
 
 ```bash
 # OmniRoute reliability heartbeat (Deep Space Nine phase 1). Pushed by
-# omniroute_probe_heartbeat.sh on the hub every ~2 min over this SAME SSH
+# omniroute_probe_heartbeat.sh on the hub every 5 min over this SAME SSH
 # path. Separate file/state from the hub-DR heartbeat above — this watchdog
 # never touches DR failover state (see observe_omniroute()).
 OMNIROUTE_HEARTBEAT_FILE="${OMNIROUTE_HEARTBEAT_FILE:-$DR/.omniroute_heartbeat}"
-OMNIROUTE_HEARTBEAT_MAX_AGE="${OMNIROUTE_HEARTBEAT_MAX_AGE:-240}"   # seconds; ~2x the hub's push interval
+OMNIROUTE_HEARTBEAT_MAX_AGE="${OMNIROUTE_HEARTBEAT_MAX_AGE:-600}"   # seconds; ~2x the hub's 5-min push interval
 OMNIROUTE_CONFIRM="${OMNIROUTE_CONFIRM:-2}"   # consecutive bad readings before alerting
 RELIABILITY_DIR="${RELIABILITY_DIR:-/opt/archie-reliability}"
 OMNIROUTE_DISABLED_FLAG="${OMNIROUTE_DISABLED_FLAG:-$RELIABILITY_DIR/.omniroute_watchdog_disabled}"
@@ -441,12 +403,12 @@ observe_omniroute(){
   ts="$(printf '%s\n' "$line" | sed -n 's/.*ts=\([0-9][0-9]*\).*/\1/p')"
   detail="$(printf '%s\n' "$line" | sed -n 's/.*detail="\([^"]*\)".*/\1/p')"
 
-  if [ -z "$ts" ] || [ $(( now - ts )) -gt "${OMNIROUTE_HEARTBEAT_MAX_AGE:-240}" ]; then
+  if [ -z "$ts" ] || [ $(( now - ts )) -gt "${OMNIROUTE_HEARTBEAT_MAX_AGE:-600}" ]; then
     obs="stale"
     detail="no heartbeat received in the last ${OMNIROUTE_HEARTBEAT_MAX_AGE}s — check the hub-side cron and SSH push"
   elif printf '%s\n' "$line" | grep -q 'tier1=fail'; then
     obs="down"
-  elif printf '%s\n' "$line" | grep -qE 'tier2=fail|tier3=fail'; then
+  elif printf '%s\n' "$line" | grep -q 'tier2=fail'; then
     obs="degraded"
   else
     obs="ok"
@@ -574,12 +536,12 @@ reset(){ : > "$ALERTS"; : > "$LOGS"
         "$OMNIROUTE_DISABLED_FLAG" "$OMNIROUTE_HEARTBEAT_FILE"; }
 
 echo "=== T1: first observation is a silent baseline ==="
-reset; write_hb 'tier1=ok tier2=ok tier3=skipped detail="ok"'; observe_omniroute
+reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
 check "no alert on first sight" 0 "$(alerts_n)"
 check "state recorded ok" "ok" "$(cat "$RELIABILITY_DIR/.omniroute_observed_state" 2>/dev/null)"
 
 echo "=== T2: one bad cycle must NOT alert (confirmation threshold) ==="
-write_hb 'tier1=ok tier2=fail tier3=skipped detail="opencode provider reports 0 credentials"'
+write_hb 'tier1=ok tier2=fail detail="opencode provider reports 0 credentials"'
 observe_omniroute
 check "still silent after 1/2" 0 "$(alerts_n)"
 
@@ -594,29 +556,29 @@ observe_omniroute; observe_omniroute
 check "still exactly one alert" 1 "$(alerts_n)"
 
 echo "=== T5: recovery alerts ==="
-write_hb 'tier1=ok tier2=ok tier3=skipped detail="ok"'
+write_hb 'tier1=ok tier2=ok detail="ok"'
 observe_omniroute; observe_omniroute
 check "a second alert" 2 "$(alerts_n)"
 check "says recovered" "yes" "$(has 'recovered')"
 
 echo "=== T6: tier1=fail alerts as a container-down message, not a provider one ==="
-reset; write_hb 'tier1=ok tier2=ok tier3=skipped detail="ok"'; observe_omniroute
-write_hb 'tier1=fail tier2=skipped tier3=skipped detail="health endpoint returned 500"'
+reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
+write_hb 'tier1=fail tier2=skipped detail="health endpoint returned 500"'
 observe_omniroute; observe_omniroute
 check "one alert" 1 "$(alerts_n)"
 check "says DOWN, not degraded" "yes" "$(has 'is DOWN')"
 
 echo "=== T7: 🔴 THE FALSE-POSITIVE GUARD — a stale heartbeat alerts distinctly from a reported failure ==="
-reset; write_hb 'tier1=ok tier2=ok tier3=skipped detail="ok"'; observe_omniroute
-FAKE_NOW=$((FAKE_NOW + 1000))   # older than OMNIROUTE_HEARTBEAT_MAX_AGE (240s default)
+reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
+FAKE_NOW=$((FAKE_NOW + 1000))   # older than OMNIROUTE_HEARTBEAT_MAX_AGE (600s default)
 observe_omniroute; observe_omniroute
 check "one alert" 1 "$(alerts_n)"
 check "says heartbeat stale, not OmniRoute down" "yes" "$(has 'heartbeat is stale')"
 
 echo "=== T8: .omniroute_watchdog_disabled suppresses alerts — and says so in the log ==="
-reset; write_hb 'tier1=ok tier2=ok tier3=skipped detail="ok"'; observe_omniroute
+reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
 touch "$OMNIROUTE_DISABLED_FLAG"
-write_hb 'tier1=fail tier2=skipped tier3=skipped detail="x"'
+write_hb 'tier1=fail tier2=skipped detail="x"'
 observe_omniroute; observe_omniroute
 check "silent during planned maintenance" 0 "$(alerts_n)"
 check "suppression is logged" "yes" "$(grep -q 'SUPPRESSED' "$LOGS" && echo yes || echo no)"
@@ -625,7 +587,7 @@ echo "=== T9: 🔴 must never touch DR failover state ==="
 reset
 touch "$DR/.failed_over"
 before_failed_over="$(md5sum "$DR/.failed_over" 2>/dev/null)"
-write_hb 'tier1=fail tier2=skipped tier3=skipped detail="x"'
+write_hb 'tier1=fail tier2=skipped detail="x"'
 observe_omniroute; observe_omniroute
 check "consec_down untouched" "" "$(cat "$DR/watchdog_state" 2>/dev/null)"
 check ".failed_over still present" "yes" "$([ -f "$DR/.failed_over" ] && echo yes || echo no)"
@@ -686,7 +648,7 @@ git commit -m "feat(watchdog): add OmniRoute observation lane to dr_watchdog.sh,
 The hub already runs these scripts locally (this repo IS `/mnt/archie_brain` on the hub) — no `scp` needed for the hub side. Just add the cron entry:
 
 ```bash
-(crontab -l 2>/dev/null; echo "*/2 * * * * OMNIROUTE_API_KEY=\"\$(grep '^OMNIROUTE_API_KEY=' /mnt/archie_brain/.env | cut -d= -f2-)\" /mnt/archie_brain/scripts/watchdog/omniroute_probe_heartbeat.sh >/dev/null 2>&1") | crontab -
+(crontab -l 2>/dev/null; echo "*/5 * * * * OMNIROUTE_API_KEY=\"\$(grep '^OMNIROUTE_API_KEY=' /mnt/archie_brain/.env | cut -d= -f2-)\" /mnt/archie_brain/scripts/watchdog/omniroute_probe_heartbeat.sh >/dev/null 2>&1") | crontab -
 crontab -l | grep omniroute
 ```
 

@@ -27,11 +27,12 @@ The first draft of this design had Citadel probe OmniRoute directly over a new m
 
 ## 4. Architecture
 
-**On the hub** (new cron, e.g. every 2 minutes): `scripts/watchdog/omniroute_probe_heartbeat.sh` runs a 3-tier check against `127.0.0.1:20128`:
+🔴 **CORRECTED during implementation (2026-09-18, Task 1 of the plan).** This section originally specified a middle "provider state" tier authenticated with `OMNIROUTE_API_KEY` against `/api/status`/`/api/providers`. **Verified live: that key gets `403 {"error":{"code":"AUTH_001","message":"Invalid management token"}}` on both endpoints.** `OMNIROUTE_API_KEY` is the OpenAI-compatible *data-plane* key (`_call_openai_compatible` uses it against `/v1/chat/completions`, confirmed working in production per the Phase 3 spec's live proof) — `/api/status`/`/api/providers` need a *separate* "management token" that exists nowhere in the container's own config (`/app/data/server.env` holds only a storage-encryption key version) and appears to be owner-provisioned through OmniRoute's own web UI, not self-service. Rather than build a probe around field names inferred from reading the container's TypeScript source (unverified against a real response — a first attempt at this task did exactly that and was rejected on review), **the middle tier is dropped.** Two tiers remain:
 
 1. **Liveness** — `GET /api/health` (no auth). Non-200/unreachable → OmniRoute itself is down.
-2. **Provider state** — `GET /api/status` (or `/api/providers`), authenticated with `OMNIROUTE_API_KEY` (already in root `.env`, 0600, uncommitted — same key `_call_openai_compatible` already uses per the Phase 3 spec). Parses the `opencode` provider's credential count / circuit-breaker flag directly — the exact signal that sat unread in logs for 22 hours.
-3. **Deep canary** (throttled to roughly every 15th cycle, ~30 min, tracked in a local hub-side state file) — one minimal real completion through OmniRoute's actual OpenCode combo path. Catches the gap between tiers 1-2 and reality: tier 2 can report "credentials present" while the provider still silently rejects requests, which is part of why this went undetected before.
+2. **Canary** — one minimal real completion through OmniRoute's actual OpenCode combo path (`model: "opencode/auto"`, `max_tokens: 1`), using the `OMNIROUTE_API_KEY` we actually have and know works. Runs every cycle now, not throttled — it's the only remaining signal, so it can't be an occasional backstop. This is arguably a *more* faithful test than the abandoned tier ever would have been: it exercises the exact end-to-end path OpenCode CLI itself uses, rather than inferring health from a credential count that doesn't prove a request would actually succeed.
+
+New cron interval: **every 5 minutes** (was 2), trading a little detection latency for keeping real free-tier completion cost low (~288 tiny 1-token pings/day). At `K=2` consecutive confirmations, a break is still caught within ~10-15 minutes — far inside the "within minutes, not 22 hours" goal.
 
 The script then pushes one status line to Citadel via the same SSH mechanism `hub_heartbeat.sh` uses, to a new file `/opt/archie-dr/.omniroute_heartbeat` (co-located with `.hub_heartbeat` since it rides the same push channel — but tracked and read independently; it is not part of the DR failover decision).
 
@@ -43,21 +44,19 @@ Consecutive-failure counting and the kill switch live in a new, separate directo
 
 | Component | Location | Purpose |
 |---|---|---|
-| `omniroute_probe_heartbeat.sh` | `scripts/watchdog/`, deployed to the hub, cron every 2 min | 3-tier probe + push |
-| `probe_omniroute.sh` | `scripts/watchdog/` | the probe logic alone, split out for independent testing (mirrors `probe_hub.sh`'s split from `dr_watchdog.sh`) — emits a `PROBE_RESULT=` stdout sentinel per tier, never relies on a bare exit code |
-| `.omniroute_heartbeat` | `/opt/archie-dr/` on Citadel (pushed file) | `ts=… tier1=ok/fail tier2=ok/fail/skipped tier3=ok/fail/skipped detail=…` |
-| `.last_canary` | hub-local (e.g. `/opt/archie_omniroute_watchdog/`) | throttles the deep canary to ~every 15th cycle |
+| `omniroute_probe_heartbeat.sh` | `scripts/watchdog/`, deployed to the hub, cron every 5 min | 2-tier probe + push |
+| `probe_omniroute.sh` | `scripts/watchdog/` | the probe logic alone, split out for independent testing (mirrors `probe_hub.sh`'s split from `dr_watchdog.sh`) — emits one result line, never relies on a bare exit code |
+| `.omniroute_heartbeat` | `/opt/archie-dr/` on Citadel (pushed file) | `ts=… tier1=ok/fail tier2=ok/fail/skipped detail=…` |
 | watchdog state + kill switch | `/opt/archie-reliability/` on Citadel | consecutive-failure count, last-known-good timestamp, `.omniroute_watchdog_disabled` |
 | alerting | reuses `dr_watchdog.sh`'s existing Telegram function | no new channel |
 | the one code change | `dr_watchdog.sh` gains one additive step at the end of its cycle | reads the heartbeat, alerts on stale/bad, touches nothing else |
 
-## 6. Data flow (hub side, every 2 minutes)
+## 6. Data flow (hub side, every 5 minutes)
 
 1. Cron fires `omniroute_probe_heartbeat.sh`.
-2. Tier 1 (`/api/health`) fails → skip tiers 2-3, push `tier1=fail`.
-3. Tier 1 OK → tier 2 (`/api/status`, authed) — parse for the `opencode` provider's credential/breaker state.
-4. Every ~15th cycle only: tier 3 deep canary (one real completion through the OpenCode combo path).
-5. Push one line to `/opt/archie-dr/.omniroute_heartbeat` on Citadel over the existing SSH channel, always — including on full success, so staleness itself is meaningful.
+2. Tier 1 (`/api/health`) fails → skip tier 2, push `tier1=fail tier2=skipped`.
+3. Tier 1 OK → tier 2: one real completion through the OpenCode combo path (`model: "opencode/auto"`, `max_tokens: 1`).
+4. Push one line to `/opt/archie-dr/.omniroute_heartbeat` on Citadel over the existing SSH channel, always — including on full success, so staleness itself is meaningful.
 
 **Citadel side (folded into the existing `dr_watchdog.sh` 60s cycle):**
 
@@ -67,22 +66,22 @@ Consecutive-failure counting and the kill switch live in a new, separate directo
 
 ## 7. Error handling & the false-positive guard
 
-- **Tier 1 fails, tiers 2-3 skipped** → alert says "OmniRoute container itself is down." Different remediation (restart container) than a provider break.
-- **Tier 1 OK, tier 2/3 fail** → alert says "OmniRoute is up, but the `opencode` provider is broken" — today's actual failure shape.
-- **False-positive guard, load-bearing**: a single free-tier *model* failing inside the fallback combo (quota-exhausted 402, upstream-unavailable 400 — both observed live in today's logs for unrelated models) is normal, expected behavior for a free-tier aggregator and must **never** alert on its own. Only a provider-wide breaker trip, a zero-credential reading, or a full canary failure counts.
+- **Tier 1 fails, tier 2 skipped** → alert says "OmniRoute container itself is down." Different remediation (restart container) than a provider break.
+- **Tier 1 OK, tier 2 (canary) fails** → alert says "OmniRoute is up, but the `opencode` provider is broken" — today's actual failure shape.
+- **False-positive guard, load-bearing**: the canary's completion request rides the SAME multi-model fallback combo OpenCode CLI itself uses, so one individual free-tier model being quota-exhausted or temporarily unavailable is not by itself a failure — the combo is expected to fall through to a working model, and only an overall non-200 (the whole combo exhausted, exactly what happened during the real incident) counts. The K-consecutive-confirmations gate (§6) is what actually prevents a single transient combo hiccup from alerting — there is no separate per-model guard to write, because there is no longer a tier that inspects individual models.
 - **Heartbeat push itself fails** (SSH hiccup, not an OmniRoute problem) → Citadel sees staleness, not a false "down" reading with wrong detail — the alert for pure staleness should say so distinctly from a reported tier failure, so remediation isn't misdirected at OmniRoute when the actual fault is the push channel.
 - **Citadel itself is down** → this check can't run at all. Same accepted blind spot the DR watchdog already has; not worth a second vantage just for this.
 - **Kill switch**: `.omniroute_watchdog_disabled` in `/opt/archie-reliability/`, checked before alerting — set before any planned OmniRoute restart or re-auth.
 
 ## 8. Testing
 
-- `test_probe_omniroute.sh` (same style as the existing `dr/watchdog/test_probe_sentinel.sh` / `test_quorum.sh`): stub each tier's HTTP response; prove the false-positive guard actually holds (a lone 402/400 on one fallback model must NOT count as failure; a zero-credential or breaker-tripped reading MUST).
+- `test_probe_omniroute.sh` (same style as the existing `dr/watchdog/test_probe_sentinel.sh` / `test_quorum.sh`): stub each tier's HTTP response; prove the classification is exactly `200 -> ok`, anything else `-> fail`, and that tier 1 failing skips tier 2 (never wastes a real completion call checking a dead container).
 - `DRY_RUN=1` on both the hub probe and the Citadel-side check (matching `dr_watchdog.sh`'s existing convention) — runs the full cycle, logs what it would push/alert, touches neither the real Telegram API nor a real completion.
 - A real drill: disconnect the OpenCode provider in OmniRoute's own Settings UI (the state we are literally in right now), confirm the heartbeat reflects it within one push cycle and the Citadel-side alert fires within K cycles, then reconnect and confirm the recovery alert. Per this repo's testing standard, prove the test fails against the current (unmonitored) state before the fix ships, not just that it looks plausible after.
 
 ## 9. Rollout
 
-1. Ship `probe_omniroute.sh` + `omniroute_probe_heartbeat.sh`, deploy to the hub, add the cron line. Runs standalone first (logs locally) before wiring the push, so tier-1/2/3 logic is proven against live OmniRoute before anything reaches Citadel.
+1. Ship `probe_omniroute.sh` + `omniroute_probe_heartbeat.sh`, deploy to the hub, add the cron line. Runs standalone first (logs locally) before wiring the push, so tier-1/2 logic is proven against live OmniRoute before anything reaches Citadel.
 2. Wire the SSH push to `/opt/archie-dr/.omniroute_heartbeat`, reusing the existing key/target — no new credential provisioning.
 3. Add the one additive step to `dr_watchdog.sh`'s cycle (read heartbeat, alert on stale/bad) — reviewed carefully to confirm it cannot touch `consec_down`/`armed_at`/`.failed_over`.
 4. Create `/opt/archie-reliability/` on Citadel for this watchdog's own state.

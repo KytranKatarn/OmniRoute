@@ -324,6 +324,15 @@
         <div class="cc-link-t">creed-ai.org</div>
         <div class="cc-link-d">Public C.R.E.E.D. Institute site</div></a>
     </div>
+    <div class="cc-card">
+      <h2>Redress queue</h2>
+      <p>Requests filed via the Accountability &amp; Redress page above. Never auto-resolved
+         &mdash; review each one and set its outcome. Soonest SLA due date first.</p>
+      <div id="cc-redress-counts" class="cc-muted">Loading…</div>
+    </div>
+    <div class="cc-card">
+      <div id="cc-redress-list" class="cc-muted">Loading…</div>
+    </div>
     {% endcall %}
   </div>
 
@@ -348,5 +357,5 @@
   </div>
 </div>
 
-<script src="{{ url_for('creed_command.static', filename='js/creed-command.js', v='3946') }}" defer></script>
+<script src="{{ url_for('creed_command.static', filename='js/creed-command.js', v='3947') }}" defer></script>
 {% endblock %}

@@ -27,9 +27,11 @@ from .mail_routes import register_mail_routes  # noqa: E402
 from .marketing_routes import register_marketing_routes  # noqa: E402
 from .files_routes import register_files_routes  # noqa: E402
 from .tenants_routes import register_tenants_routes  # noqa: E402
+from .redress_routes import register_redress_routes  # noqa: E402
 
 register_grants_routes(creed_command_bp, routes.admin_required)
 register_mail_routes(creed_command_bp, routes.admin_required)
 register_marketing_routes(creed_command_bp, routes.admin_required)
 register_files_routes(creed_command_bp, routes.admin_required)
 register_tenants_routes(creed_command_bp, routes.admin_required)
+register_redress_routes(creed_command_bp, routes.admin_required)

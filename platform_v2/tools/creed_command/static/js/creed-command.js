@@ -893,6 +893,97 @@
       }).catch(function () {});
   }
 
+  /* ---- Redress queue (Governance tab) ---- */
+  var redressState = { loaded: false };
+  var REDRESS_STATUSES = ["pending", "under_review", "resolved", "denied"];
+
+  function redressStatusColor(s) {
+    if (s === "pending") return "#f59e0b";
+    if (s === "under_review") return "#3b82f6";
+    if (s === "resolved") return "#10b981";
+    return "#6b7280"; /* denied */
+  }
+
+  function renderRedressCounts(byStatus, total) {
+    var box = document.getElementById("cc-redress-counts");
+    if (!box) return;
+    box.className = "";
+    box.textContent = total + " total · " + byStatus.pending + " pending · " +
+      byStatus.under_review + " under review · " + byStatus.resolved + " resolved · " +
+      byStatus.denied + " denied";
+  }
+
+  function renderRedressList(items) {
+    var box = document.getElementById("cc-redress-list");
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var open = items.filter(function (r) { return r.status === "pending" || r.status === "under_review"; });
+    if (!open.length) { box.className = "cc-muted"; box.textContent = "No open redress requests."; return; }
+    box.className = "";
+    open.forEach(function (r) {
+      var row = el("div", "cc-card");
+      var head = el("div", "cc-mkt-head");
+      head.appendChild(el("span", "cc-mkt-topic", r.request_ref));
+      var badge = el("span", "cc-mkt-badge", r.status);
+      badge.style.background = redressStatusColor(r.status);
+      head.appendChild(badge);
+      row.appendChild(head);
+      var meta = el("div", "cc-muted");
+      meta.textContent = (r.email || "no email given") +
+        (r.ai_decision_ref ? " · re: " + r.ai_decision_ref : "") +
+        " · filed " + fmtAt(r.created_at) + " · SLA due " + fmtAt(r.sla_due_at);
+      row.appendChild(meta);
+      var reason = el("p", null, r.reason);
+      row.appendChild(reason);
+      if (r.desired_outcome) {
+        var outcome = el("p", "cc-muted", "Desired outcome: " + r.desired_outcome);
+        row.appendChild(outcome);
+      }
+      var notes = el("textarea");
+      notes.className = "cc-mail-input";
+      notes.placeholder = "Resolution notes (shown to no one automatically — internal record)";
+      notes.rows = 2;
+      row.appendChild(notes);
+      var actions = el("div", "cc-mkt-actions");
+      REDRESS_STATUSES.filter(function (s) { return s !== r.status; }).forEach(function (s) {
+        var btn = el("button", "cc-btn-sm", s.replace("_", " "));
+        btn.addEventListener("click", function () { resolveRedress(r.request_ref, s, notes.value, btn); });
+        actions.appendChild(btn);
+      });
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  }
+
+  function loadRedressQueue() {
+    redressState.loaded = true;
+    fetch("/tools/creed-command/api/redress-requests", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) { var b = document.getElementById("cc-redress-counts"); if (b) b.textContent = d.error || "Unavailable"; return; }
+        var items = d.requests || [];
+        var counts = { pending: 0, under_review: 0, resolved: 0, denied: 0 };
+        items.forEach(function (r) { if (counts[r.status] != null) counts[r.status] += 1; });
+        renderRedressCounts(counts, items.length);
+        renderRedressList(items);
+      })
+      .catch(function () { var b = document.getElementById("cc-redress-counts"); if (b) b.textContent = "Could not load redress queue."; });
+  }
+
+  function resolveRedress(ref, status, notes, btn) {
+    if (btn) btn.disabled = true;
+    fetch("/tools/creed-command/api/redress-requests/" + ref + "/resolve", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: status, resolution_notes: notes }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) window.alert("Update failed: " + (d.error || "unknown"));
+        redressState.loaded = false; loadRedressQueue();
+      })
+      .catch(function () { if (btn) btn.disabled = false; });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var tabs = document.querySelectorAll(".cc-tab");
     var panes = document.querySelectorAll(".cc-pane");
@@ -906,6 +997,7 @@
         if (name === "marketing" && !mktState.loaded) loadMarketing();
         if (name === "files" && !fileState.loaded) loadFiles();
         if (name === "tenants" && !tenantState.loaded) loadTenants();
+        if (name === "governance" && !redressState.loaded) loadRedressQueue();
       });
     });
     var hash = (location.hash || "").replace("#", "");

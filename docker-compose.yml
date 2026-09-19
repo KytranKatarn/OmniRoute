@@ -873,10 +873,9 @@ services:
   # A CONTRACTOR provider for the Agent Academy A/B comparison lane and the ask-first
   # cloud CODING lane. Deliberately NOT a roster dispatch path: escalation_mode stays
   # local_only, so nothing auto-escalates here — every call is an explicit selection.
-  # NO host port: the platform reaches it as http://omniroute:20128 on archie_internal;
-  # the dashboard is reached only via an SSH tunnel to the container IP (see the
-  # Phase 3 plan, Task 2). Pinned release — 554 open issues on a 7-month-old repo means
-  # never :latest (which follows the newest published SemVer, not git main).
+  # The platform reaches it as http://omniroute:20128 on archie_internal. Pinned
+  # release — 554 open issues on a 7-month-old repo means never :latest (which follows
+  # the newest published SemVer, not git main).
   # Secrets (JWT/API-key/storage encryption/initial password) come from ROOT .env.
   # OMNIROUTE_MEMORY_MB: this deployment uses /v1/chat/completions only (short prompts),
   # not the /v1/responses coding-agent surface that needs 8-12 GB heap — 2 GB suffices.
@@ -884,10 +883,19 @@ services:
     image: diegosouzapw/omniroute:3.8.50
     container_name: omniroute
     ports:
-      # LOOPBACK ONLY — the host codex CLI needs a STABLE endpoint. Lanes keep using
-      # Docker DNS (omniroute:20128) and are unaffected. See the read_only note below
-      # for why this does not reopen the next 16.3.1 CVE.
-      - "127.0.0.1:20128:20128"
+      # Bound to the LAN interface specifically (not 0.0.0.0) — the dashboard gates behind
+      # its own login (requireLogin=true, password set, verified live 2026-09-19), but an
+      # automated security review flagged binding all-interfaces as unnecessarily broad, so
+      # this scopes to the one interface the owner actually reaches (same host+port already
+      # used for archie_platform's own dashboard traffic).
+      # Widened from 127.0.0.1-only (2026-09-19, owner request — the loopback-only bind made
+      # the dashboard reachable only via SSH tunnel, which wasn't workable day-to-day).
+      # Host codex CLI keeps using this same published port (was already its reason for
+      # existing); the internal lanes are unaffected either way — they use Docker DNS
+      # (omniroute:20128). See the read_only note below for why this does not reopen the
+      # next 16.3.1 CVE — that reasoning was already independent of network exposure
+      # (wrong platform + 404 endpoints), not contingent on the loopback-only bind.
+      - "192.168.1.200:20128:20128"
     restart: unless-stopped
     stop_grace_period: 40s
     mem_limit: 4g

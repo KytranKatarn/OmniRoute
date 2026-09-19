@@ -11,15 +11,24 @@ set -e
 # Read tool input from stdin
 input=$(cat 2>/dev/null || true)
 
-# Pull every field that might contain code or paths
+# Pull every field that might contain code or paths.
+# NOTE: `.tool_input.description` is deliberately EXCLUDED (2026-09-19,
+# context/token-usage audit). It's Claude's own 5-10-word English summary
+# of what a command does, not the command itself — in this infra-named
+# repo, ordinary descriptions routinely contain bare terms like "dispatch",
+# "VPS", "standalone", or "ollama" with zero relation to whether the
+# command actually touches infrastructure, which was firing the ~500-token
+# injection block on totally benign commands (`git log`, `ls`, `sleep`,
+# even a scratchpad Write whose CONTENT happened to discuss these words).
+# The remaining fields (file_path/content/new_string/old_string/command)
+# are the command's actual substance and stay in scope.
 fields=$(printf '%s' "$input" | jq -r '
   [
     .tool_input.file_path // "",
     .tool_input.content // "",
     .tool_input.new_string // "",
     .tool_input.old_string // "",
-    .tool_input.command // "",
-    .tool_input.description // ""
+    .tool_input.command // ""
   ] | .[] | tostring
 ' 2>/dev/null | tr '\n' ' ')
 

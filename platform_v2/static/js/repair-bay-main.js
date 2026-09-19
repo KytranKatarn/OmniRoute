@@ -443,7 +443,7 @@ function _rbLcarsConfirm(opts) {
     var title = opts.title || 'Confirm';
     var message = opts.message || 'Are you sure?';
     var confirmText = opts.confirmText || 'Confirm';
-    var cancelText = opts.cancelText || 'Cancel';
+    var cancelText = opts.cancelText === null ? null : (opts.cancelText || 'Cancel');
     var accent = opts.accent || '#22d3ee';
     var accentRgb = opts.accentRgb || '34,211,238';
 
@@ -498,13 +498,15 @@ function _rbLcarsConfirm(opts) {
             cls: 'bm-footer',
             style: 'display:flex; justify-content:flex-end; gap:10px; padding:14px 24px; border-top:1px solid rgba(' + accentRgb + ',0.2);'
         });
-        footer.appendChild(_rbMakeEl('button', {
-            text: cancelText,
-            style: 'padding:8px 18px; background:rgba(100,116,139,0.15); border:1px solid #64748b; color:#cbd5e1; ' +
-                   'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; letter-spacing:0.08em; ' +
-                   'text-transform:uppercase; cursor:pointer; border-radius:2px;',
-            onclick: function() { close(false); }
-        }));
+        if (cancelText !== null) {
+            footer.appendChild(_rbMakeEl('button', {
+                text: cancelText,
+                style: 'padding:8px 18px; background:rgba(100,116,139,0.15); border:1px solid #64748b; color:#cbd5e1; ' +
+                       'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; letter-spacing:0.08em; ' +
+                       'text-transform:uppercase; cursor:pointer; border-radius:2px;',
+                onclick: function() { close(false); }
+            }));
+        }
         footer.appendChild(_rbMakeEl('button', {
             text: confirmText,
             style: 'padding:8px 18px; background:' + accent + '; border:1px solid ' + accent + '; color:#0b1120; ' +
@@ -521,6 +523,22 @@ function _rbLcarsConfirm(opts) {
         overlay.appendChild(shell);
         document.body.appendChild(overlay);
         document.addEventListener('keydown', onKey);
+    });
+}
+
+/* LCARS info modal — single "OK" button, no Cancel. Returns a Promise<void>.
+ * Replaces native window.alert() for Repair Bay notices.
+ * Usage: _rbLcarsAlert({title, message, okText, accent}).then(() => {...})
+ */
+function _rbLcarsAlert(opts) {
+    opts = opts || {};
+    return _rbLcarsConfirm({
+        title: opts.title || 'Notice',
+        message: opts.message || '',
+        confirmText: opts.okText || 'OK',
+        cancelText: null,
+        accent: opts.accent || '#22d3ee',
+        accentRgb: opts.accentRgb || '34,211,238'
     });
 }
 

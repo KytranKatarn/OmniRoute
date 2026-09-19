@@ -4089,7 +4089,18 @@ function confirmMergePR(prNumber, coverageAck, repo) {
     // `repo` is the ROW's repo (pr.repo from /api/forge/pr-reviews). The tab lists
     // cross-repo rows, and a merge that omits it lands on the default repo's PR of the
     // same number — refused as "no stored review" at best, the wrong PR at worst.
-    if (!coverageAck && !confirm('Merge PR #' + prNumber + (repo ? ' (' + repo + ')' : '') + ' into main?')) return;
+    var proceed = coverageAck
+        ? Promise.resolve(true)
+        : _rbLcarsConfirm({
+              title: 'MERGE PR #' + prNumber,
+              message: 'Merge PR #' + prNumber + (repo ? ' (' + repo + ')' : '') + ' into main?',
+              confirmText: 'Merge',
+              cancelText: 'Cancel',
+              accent: '#22c55e',
+              accentRgb: '34,197,94'
+          });
+    proceed.then(function(ok) {
+    if (!ok) return;
     fetch('/tools/repair-bay/api/forge/prs/' + prNumber + '/merge',
           {method:'POST', headers:{'Content-Type':'application/json'},
            body: JSON.stringify({method:'squash', coverage_ack: !!coverageAck, repo: repo || null})})
@@ -4105,7 +4116,12 @@ function confirmMergePR(prNumber, coverageAck, repo) {
                         loadHubDeployState();
                         setTimeout(loadHubDeployState, 8000);
                     }
-                    alert('PR #' + prNumber + ' merged — hub auto-deploy queued (host git pull + container restart).');
+                    _rbLcarsAlert({
+                        title: 'PR #' + prNumber + ' MERGED',
+                        message: 'Hub auto-deploy queued — the host will pull origin/main and restart the affected containers in the background.',
+                        accent: '#22c55e',
+                        accentRgb: '34,197,94'
+                    });
                 }
                 return;
             }
@@ -4116,16 +4132,35 @@ function confirmMergePR(prNumber, coverageAck, repo) {
                 var list = files.length
                     ? '\n\n' + files.map(function(f){ return '  \u2022 ' + f; }).join('\n')
                     : '\n\n  (the review did not name them)';
-                if (confirm('PR #' + prNumber + ' \u2014 COVERAGE ONLY\n\n'
-                    + 'F.O.R.G.E. APPROVED everything it read, but ' + files.length
-                    + ' file(s) were truncated away before it saw them:' + list
-                    + '\n\nMerging now means YOU have read those files. Cancel to re-review instead.')) {
-                    confirmMergePR(prNumber, true, repo);
-                }
+                _rbLcarsConfirm({
+                    title: 'PR #' + prNumber + ' \u2014 COVERAGE ONLY',
+                    message: 'F.O.R.G.E. APPROVED everything it read, but ' + files.length
+                        + ' file(s) were truncated away before it saw them:' + list
+                        + '\n\nMerging now means YOU have read those files. Cancel to re-review instead.',
+                    confirmText: 'Merge anyway',
+                    cancelText: 'Cancel',
+                    accent: '#f59e0b',
+                    accentRgb: '245,158,11'
+                }).then(function(ackOk) {
+                    if (ackOk) confirmMergePR(prNumber, true, repo);
+                });
                 return;
             }
-            alert('Merge failed: ' + (d.error || 'Unknown'));
-        }).catch(function(){ alert('Merge request failed.'); });
+            _rbLcarsAlert({
+                title: 'MERGE FAILED',
+                message: d.error || 'Unknown error.',
+                accent: '#ef4444',
+                accentRgb: '239,68,68'
+            });
+        }).catch(function(){
+            _rbLcarsAlert({
+                title: 'MERGE FAILED',
+                message: 'Merge request failed.',
+                accent: '#ef4444',
+                accentRgb: '239,68,68'
+            });
+        });
+    });
 }
 
 window._startPRReviewPoll = function() {

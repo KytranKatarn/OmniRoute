@@ -111,7 +111,12 @@ check "multi-line ts: second read still returns 0" 0 "$rc"
 check "multi-line ts confirmed as stale (not silently ignored)" "yes" "$(has 'heartbeat is stale')"
 
 reset; write_hb 'tier1=ok tier2=ok detail="ok"'; observe_omniroute
-printf 'ts=0%s tier1=ok tier2=ok detail="ok"\n' "$FAKE_NOW" > "$OMNIROUTE_HEARTBEAT_FILE"
+# A literal with an 8/9 digit, not derived from $FAKE_NOW: any leading-zero
+# value built from $FAKE_NOW's own digits parses as VALID octal here (all
+# 0/1), so it would land on "stale" by coincidental arithmetic rather than
+# because the guard actually fired — this value is guaranteed octal-INVALID
+# ("9"), which is what makes the assertion below load-bearing.
+printf 'ts=019000000 tier1=ok tier2=ok detail="ok"\n' > "$OMNIROUTE_HEARTBEAT_FILE"
 observe_omniroute; rc=$?
 check "leading-zero ts: first read still returns 0" 0 "$rc"
 observe_omniroute; rc=$?

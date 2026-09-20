@@ -66,7 +66,49 @@ def diff_files(diff: str | None) -> list:
     return _FILE_RE.findall(diff)
 
 
-def coverage(full_diff: str | None, shown_diff: str | None) -> dict:
+def split_oversized_block(path: str, block: str, cap: int) -> list:
+    """Split ONE file's diff block into parts that each fit ``cap``.
+
+    WHY (#6779 follow-on). Per-file planning stopped files SHARING a window, but it could
+    not help a file bigger than the window on its own: ``_truncate_diff`` still cut it and
+    ``coverage`` still reported the remainder unread. Measured on PR #3399,
+    ``faith/routes.py`` is a **57,945-char** block against an 18,768 wide cap — 32% at
+    absolute best, and it came back at 17%. No flag, model or cap fixes that; the only way
+    to read all of it is to read it in more than one pass.
+
+    Each part after the first repeats the block's FIRST LINE (``diff --git a/… b/…``) so
+    ``split_blocks`` still attributes it to the same path. ``coverage`` subtracts those
+    repeated header lines when it sums, so a split file measures its true length rather
+    than an inflated one — see the summation there, which this function's contract depends
+    on. Change one and you must change the other.
+
+    Splits on LINE boundaries only: cutting mid-line produces a hunk the model cannot parse
+    and is the defect ``_truncate_diff``'s boundary logic already exists to avoid.
+
+    ``cap <= 0`` or a block that already fits returns ``[block]`` unchanged — so this is
+    inert for every diff that did not need it.
+    """
+    if not block or cap <= 0 or len(block) <= cap:
+        return [block] if block else []
+    lines = block.splitlines(keepends=True)
+    header = lines[0] if lines else ""
+    parts, cur, cur_len = [], [], 0
+    for i, ln in enumerate(lines):
+        # every part after the first pays for the repeated header
+        budget = cap if not parts else cap - len(header)
+        if cur and cur_len + len(ln) > budget:
+            parts.append("".join(cur))
+            cur, cur_len = [header], len(header)
+        cur.append(ln)
+        cur_len += len(ln)
+    if cur:
+        parts.append("".join(cur))
+    # A cap so small the header alone exceeds it would loop forever above; the budget
+    # guard prevents that, but assert the invariant rather than trust it silently.
+    return [x for x in parts if x.strip()] or [block]
+
+
+def coverage(full_diff: str | None, shown_diff: str | None, bound_dropped=None) -> dict:
     """What the reviewer actually saw.
 
     Returns ``{total, reviewed, dropped: [paths], complete: bool}``.
@@ -87,14 +129,37 @@ def coverage(full_diff: str | None, shown_diff: str | None) -> dict:
     """
     full = diff_files(full_diff)
     full_blocks = {p: b for p, b in split_blocks(full_diff) if p}
-    shown_blocks = {p: b for p, b in split_blocks(shown_diff) if p}
-    dropped = [f for f in full if f not in shown_blocks]
+
+    # SUM same-path blocks, do not overwrite them (#6779 follow-on). This was a dict
+    # comprehension, so a path appearing twice kept only the LAST occurrence — which made
+    # split_oversized_block worse than useless: a file split into two parts would measure
+    # only its second part and still report as partial. Splitting and this summation are
+    # one change; neither works alone.
+    #
+    # Parts after the first repeat the block's header line, so subtract it — otherwise a
+    # split file measures LONGER than the original and a genuine truncation could hide.
+    shown_len, shown_seen = {}, set()
+    for p, b in split_blocks(shown_diff):
+        if not p:
+            continue
+        if p not in shown_seen:
+            shown_seen.add(p)
+            shown_len[p] = len(b)
+        else:
+            nl = b.find("\n")
+            shown_len[p] = shown_len.get(p, 0) + len(b) - (nl + 1 if nl >= 0 else 0)
+
+    dropped = [f for f in full if f not in shown_seen]
+    # WHY a file is missing decides the REMEDY, and the two are opposite (#3). A file the
+    # planner never sent is not a window problem: a wider window will not help it, and a
+    # re-review changes nothing until the bound moves.
+    by_bound = [f for f in (bound_dropped or []) if f in dropped]
     partial = []
     for f in full:
         if f in dropped:
             continue
         have = len(full_blocks.get(f, ""))
-        saw = len(shown_blocks.get(f, ""))
+        saw = shown_len.get(f, 0)
         if have and saw < have:
             partial.append({"path": f, "shown_pct": max(1, round(100.0 * saw / have))})
     return {
@@ -103,6 +168,7 @@ def coverage(full_diff: str | None, shown_diff: str | None) -> dict:
         # the overstatement this function exists to prevent.
         "reviewed": len(full) - len(dropped) - len(partial),
         "dropped": dropped,
+        "dropped_by_bound": by_bound,
         "partial": partial,
         "complete": not dropped and not partial,
     }
@@ -120,8 +186,24 @@ def coverage_note(cov: dict, *, max_listed: int = 12) -> str:
         "read IN FULL by this review.",
     ]
     if dropped:
-        lines.append("NOT REVIEWED (truncated away before the model saw them):")
-        lines += [f"  - {p}" for p in shown]
+        # TWO groups, ONE "- " listing. coverage_dropped_paths() collects every "- " line
+        # and stops at the first BLANK line; a non-blank line that does not start with
+        # "- " is skipped by it. So the second heading below separates the groups for a
+        # human while leaving the machine-readable ack list complete. Do not put a blank
+        # line between the groups — that would truncate the ack list to the first group,
+        # which is the silent-undercount failure this whole area keeps producing.
+        by_bound = [p for p in shown if p in set(cov.get("dropped_by_bound") or [])]
+        by_window = [p for p in shown if p not in set(by_bound)]
+        if by_window:
+            lines.append("NOT REVIEWED (truncated away before the model saw them):")
+            lines += [f"  - {p}" for p in by_window]
+        if by_bound:
+            lines.append(
+                "NOT SENT TO THE REVIEWER AT ALL (beyond the per-file bound, "
+                "forge:review_max_files) — a wider window will NOT help these; "
+                "raise the bound or split the PR:"
+            )
+            lines += [f"  - {p}" for p in by_bound]
         if more > 0:
             lines.append(f"  - ...and {more} more")
     # ⚠️ The blank line below TERMINATES the dropped-path listing that
@@ -280,7 +362,31 @@ def prioritize(diff: str | None, cap: int | None = None) -> str | None:
     return "".join(b for _, b in preamble + files)
 
 
-def file_plan(diff: str | None, max_files: int) -> list:
+def file_plan_detail(diff: str | None, max_files: int, cap: int | None = None) -> tuple:
+    """``file_plan`` plus the paths the bound refused. Returns ``(chunks, dropped_by_bound)``.
+
+    The bound-dropped list exists so the coverage note can say WHY a file went unread.
+    "The window cut it" and "we never sent it" have opposite remedies, and the note used to
+    render both as the same sentence — which sent a reader toward a wider re-review that
+    could not possibly help (#3).
+    """
+    if not diff:
+        return [], []
+    if max_files <= 1:
+        return [diff], []
+    blocks = [pb for pb in split_blocks(diff) if pb[0] != ""]
+    if not blocks:
+        return [diff], []
+    blocks.sort(key=lambda pb: file_band(pb[0]))
+    kept, refused = blocks[:max_files], [p for p, _b in blocks[max_files:]]
+    chunks = []
+    for path, block in kept:
+        # cap=None keeps the pre-split behaviour byte-identical — the killswitch.
+        chunks.extend(split_oversized_block(path, block, cap) if cap else [block])
+    return chunks, refused
+
+
+def file_plan(diff: str | None, max_files: int, cap: int | None = None) -> list:
     """One review pass per FILE, each with the whole window to itself (#6779).
 
     ``chunk_plan`` PACKS files into bins of <= cap. That is the right question when the
@@ -325,7 +431,7 @@ def file_plan(diff: str | None, max_files: int) -> list:
     # planning the order decides which files get a pass AT ALL when `max_files` truncates,
     # so it has to hold unconditionally. Stable, so ties keep GitHub's ordering.
     blocks.sort(key=lambda pb: file_band(pb[0]))
-    return [block for _path, block in blocks[:max_files]]
+    return file_plan_detail(diff, max_files, cap)[0]
 
 
 def chunk_plan(diff: str | None, cap: int, max_chunks: int) -> list:

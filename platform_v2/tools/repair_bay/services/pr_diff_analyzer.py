@@ -12,7 +12,14 @@ import re
 
 import requests
 
-from services.review_coverage import annotate, chunk_plan, coverage, file_plan, prioritize, summarize
+from services.review_coverage import (
+    annotate,
+    chunk_plan,
+    coverage,
+    file_plan_detail,
+    prioritize,
+    summarize,
+)
 from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
     get_review,
@@ -493,9 +500,7 @@ _HARDCODE_IS_REAL_RE = re.compile(
 # false demotion hides a defect. Measured cost on 1,741 real issue lines: 4 findings stop being
 # demoted, and one of them is a genuine "[WARNING] SQL Injection Risk: ... queries use string
 # formatting directly" that the gate had been silently demoting.
-_CONTRASTIVE_RE = re.compile(
-    r"\b(however|but|although|though|that\s+said|nevertheless|nonetheless|whereas)\b", re.I
-)
+_CONTRASTIVE_RE = re.compile(r"\b(however|but|although|though|that\s+said|nevertheless|nonetheless|whereas)\b", re.I)
 
 
 # SPECULATIVE COVERAGE (#5846) — the FOURTH non-finding shape, and the one that blocked
@@ -831,9 +836,7 @@ def _build_json_prompt(review: dict, diff: str, strong: bool = False) -> str:
     ST-3: ``strong`` (the Tier-3 gemma3:12b path) keeps the full window-aware diff cap; the 7B
     (strong=False) gets the tighter _DIFF_MAX_7B cap so the review finishes inside the 240s window."""
     diff_content, truncated = _truncate_diff(diff, _diff_cap_for_model(strong))
-    note = (
-        "\n[diff truncated at a hunk boundary — judge only the complete hunks shown]\n" if truncated else ""
-    )
+    note = "\n[diff truncated at a hunk boundary — judge only the complete hunks shown]\n" if truncated else ""
     return (
         "You are F.O.R.G.E., A.R.C.H.I.E.'s code-review engine.\n\n"
         + _FALSE_POSITIVE_RUBRIC
@@ -990,9 +993,7 @@ def _normalize_match(s: str) -> str:
 def _side_text(diff: str, sign: str) -> str:
     """Normalized text of every diff line on ONE side ('+' added / '-' removed)."""
     skip = "+++" if sign == "+" else "---"
-    return _normalize_match(
-        " ".join(ln[1:] for ln in (diff or "").splitlines() if ln[:1] == sign and ln[:3] != skip)
-    )
+    return _normalize_match(" ".join(ln[1:] for ln in (diff or "").splitlines() if ln[:1] == sign and ln[:3] != skip))
 
 
 def _token_present(tok: str, haystack_n: str) -> bool:
@@ -1377,9 +1378,7 @@ def _verify_evidence(issues: list, diff: str):
 
 def _count_ungrounded(dropped: list) -> int:
     """How many issues were dropped specifically because their evidence was NOT in the diff."""
-    return sum(
-        1 for d in dropped or [] if isinstance(d, dict) and d.get("_drop_reason") == "evidence_not_in_diff"
-    )
+    return sum(1 for d in dropped or [] if isinstance(d, dict) and d.get("_drop_reason") == "evidence_not_in_diff")
 
 
 def _should_floor_ungrounded(verdict: str, n_ungrounded: int, surviving_issues: list) -> bool:
@@ -1549,9 +1548,7 @@ def review_quality_flags(
     return flags
 
 
-def _quality_suffix(
-    structured: str, n_ungrounded: int, surviving_issues: list, unsupported_claims: list = None
-) -> str:
+def _quality_suffix(structured: str, n_ungrounded: int, surviving_issues: list, unsupported_claims: list = None) -> str:
     """Render flags for the [review-meta] line. Empty string when the review is clean."""
     flags = review_quality_flags(structured, n_ungrounded, surviving_issues, unsupported_claims)
     return (" quality=" + ",".join(flags)) if flags else ""
@@ -1595,11 +1592,7 @@ def _demote_unevidenced_blocking(verdict: str, issues: list) -> bool:
     """
     if verdict != "REQUEST CHANGES" or not issues:
         return False
-    blocking = [
-        i
-        for i in issues
-        if isinstance(i, dict) and str(i.get("severity", "")).upper() in _BLOCKING_SEVERITIES
-    ]
+    blocking = [i for i in issues if isinstance(i, dict) and str(i.get("severity", "")).upper() in _BLOCKING_SEVERITIES]
     if not blocking:
         return False
     return all(not str((i or {}).get("evidence", "")).strip() for i in blocking)
@@ -1872,8 +1865,7 @@ def _self_refute_criticals(review: dict, diff: str, criticals: list) -> tuple:
 
     diff_content, _ = _truncate_diff(diff)  # gemma3:12b audit — full window cap is correct
     listing = "\n".join(
-        f"{i + 1}. {(c or {}).get('title', '')}: {(c or {}).get('evidence', '')}"
-        for i, c in enumerate(criticals)
+        f"{i + 1}. {(c or {}).get('title', '')}: {(c or {}).get('evidence', '')}" for i, c in enumerate(criticals)
     )
     prompt = (
         _FALSE_POSITIVE_RUBRIC
@@ -2021,9 +2013,7 @@ def _check_dockerfile_provenance(diff: str) -> list:
             path = m.group(1) if m else "Dockerfile"
             if not path.rsplit("/", 1)[-1].startswith("Dockerfile"):
                 continue
-            added = "\n".join(
-                ln[1:] for ln in sec.splitlines() if ln.startswith("+") and not ln.startswith("+++")
-            )
+            added = "\n".join(ln[1:] for ln in sec.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
             # Only when the change ADDS a whole-context copy (COPY .  /  COPY ./  /  COPY . .).
             if not re.search(r"^\s*COPY\s+\.\.?/?(\s|$)", added, re.MULTILINE):
                 continue
@@ -2128,9 +2118,7 @@ def _structured_review(
                 if len(confirmed) != len(criticals):
                     cset = {id(c) for c in confirmed}
                     issues = [
-                        i
-                        for i in issues
-                        if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
+                        i for i in issues if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
                     ]
                     note = (
                         note + "; " if note else ""
@@ -2160,9 +2148,7 @@ def _structured_review(
         dockerfile_findings = _check_dockerfile_provenance(ground_diff)
     if dockerfile_findings:
         issues.extend(dockerfile_findings)
-        note = (
-            note + "; " if note else ""
-        ) + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
+        note = (note + "; " if note else "") + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
     parsed["issues"] = issues
     # ST-2: an unverified CRITICAL must not ASSERT a block — exclude it from the verdict computation,
     # then floor to NEEDS REVIEW so it reaches a human (unless a real blocker already requests changes).
@@ -2194,9 +2180,7 @@ def _structured_review(
     # content — demote to NEEDS REVIEW (never APPROVE) so a human decides and auto-merge can't.
     if _unevidenced_demotion_enabled() and _demote_unevidenced_blocking(verdict, verdict_issues):
         verdict = "NEEDS REVIEW"
-        note = (
-            note + "; " if note else ""
-        ) + "blocking issue(s) cite no evidence — demoted to NEEDS REVIEW (#5287)"
+        note = (note + "; " if note else "") + "blocking issue(s) cite no evidence — demoted to NEEDS REVIEW (#5287)"
         logger.warning(
             "[PR Review] PR #%s — blocking verdict demoted to NEEDS REVIEW: every blocking issue cites no evidence",
             pr_number,
@@ -2409,9 +2393,7 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
         # unactionable review this work exists to stop producing, so keep its prose.
         if chunk_blocks and len(findings) == before:
             raw = " ".join(
-                x.strip()
-                for x in s.splitlines()
-                if x.strip() and not x.strip().startswith(("VERDICT:", "[review-"))
+                x.strip() for x in s.splitlines() if x.strip() and not x.strip().startswith(("VERDICT:", "[review-"))
             )
             if raw:
                 findings.append(f"- [WARNING] pass {idx} blocked without a parseable finding — {raw[:300]}")
@@ -2486,8 +2468,21 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # oversized file being cut down to its header (see _truncate_diff). Everything below —
     # the coverage union, full-diff grounding, the verdict lattice — is planner-agnostic and
     # needs no change; only the CONTENTS of _chunks differ.
+    # ``file_plan_detail`` also reports WHICH files the bound refused, and splits an
+    # oversized single file across extra passes instead of letting the window cut it
+    # mid-file. Measured on #3399: faith/routes.py went from a 32% ceiling to COMPLETE in
+    # 4 parts. "Dropped" and "read only in part" have opposite remedies, and the coverage
+    # note could not tell them apart while the planner discarded that information.
+    _bound_dropped = []
     if _review_plan() == "per_file":
-        _chunks = file_plan(diff, _review_max_files()) or [diff]
+        _chunks, _bound_dropped = file_plan_detail(diff, _review_max_files(), _cap)
+        _chunks = _chunks or [diff]
+        if _bound_dropped:
+            logger.info(
+                "[FORGE] per-file plan: %d file(s) refused by the max_files bound: %s",
+                len(_bound_dropped),
+                ", ".join(_bound_dropped[:6]),
+            )
     else:
         _chunks = chunk_plan(diff, _cap, _review_max_chunks()) or [diff]
     # Coverage is measured over the UNION of what the passes actually show, never over a
@@ -2499,7 +2494,7 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # file per chunk boundary. For a single chunk "\n".join is byte-identical, so the
     # max_chunks=1 killswitch is unaffected.
     _shown = "\n".join(_truncate_diff(_c, _cap)[0] for _c in _chunks)
-    _cov = coverage(diff, _shown)
+    _cov = coverage(diff, _shown, bound_dropped=_bound_dropped)
     if not _cov["complete"]:
         logger.warning("[PR Review] PR #%s — %s", pr_number, summarize(_cov))
 
@@ -2538,9 +2533,7 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
                 len(_chunk or ""),
                 _diff_cap_for_model(False),
             )
-        summary = _structured_review(
-            review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
-        )
+        summary = _structured_review(review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov)
         if summary:
             _caps_used.append(_diff_cap_for_model(_strong))
         else:
@@ -2570,8 +2563,7 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
                 review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
             )
             summary = (
-                retry
-                + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
+                retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
                 if retry
                 else summary
                 + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
@@ -2585,7 +2577,7 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     _eff_cap = _effective_coverage_cap(_caps_used, _cap)
     if _eff_cap > _cap:
         _shown = "\n".join(_truncate_diff(_c, _eff_cap)[0] for _c in _chunks)
-        _cov = coverage(diff, _shown)
+        _cov = coverage(diff, _shown, bound_dropped=_bound_dropped)
         logger.info(
             "[PR Review] PR #%s — coverage re-measured at the cap actually used (%d, was %d): %s",
             pr_number,
@@ -2721,10 +2713,7 @@ def _notify_pr_reviewed(pr_number: int, repo: str, title: str, ai_summary: str) 
     platform_url = "http://192.168.1.200:3000/tools/repair-bay#pr-review"
 
     message = (
-        f"VERDICT: {verdict}\n\n"
-        f"{snippet}\n\n"
-        f"View in Repair Bay: {platform_url}\n"
-        f"GitHub PR: {github_url}"
+        f"VERDICT: {verdict}\n\n" f"{snippet}\n\n" f"View in Repair Bay: {platform_url}\n" f"GitHub PR: {github_url}"
     )
 
     try:

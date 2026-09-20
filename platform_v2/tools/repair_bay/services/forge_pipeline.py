@@ -184,6 +184,148 @@ def _proposal_fix_fields(proposal: Dict) -> Dict:
     }
 
 
+def _original_source(file_path: str) -> Optional[str]:
+    """Read the CURRENT text of the target file, across both container roots.
+
+    Same candidate resolution as ``_patched_content`` — platform_v2/ is mounted at /app
+    while REPO_PATH holds ai_bridge/, scripts/ etc. Kept beside it deliberately: if one
+    resolver learns a new root and the other does not, the gate would compare a patch
+    against the wrong original and pass anything.
+    """
+    from .github_service import REPO_PATH
+
+    candidates = [os.path.join(REPO_PATH, file_path)]
+    if file_path.startswith("platform_v2/"):
+        candidates.append(os.path.join("/app", file_path[len("platform_v2/") :]))
+    src = next((c for c in candidates if os.path.isfile(c)), None)
+    if src is None:
+        return None
+    try:
+        with open(src, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def _patch_sanity_mode() -> str:
+    """'enforce' (default) | 'warn' | 'off' — tunable without a deploy.
+
+    Default is enforce: the gate exists because unattended generation shipped 33 broken
+    patches. 'warn' logs and allows (for measuring a policy change against live traffic);
+    'off' restores the pre-gate behaviour exactly.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", ("forge:patch_sanity",))
+            row = cur.fetchone()
+        if not row:
+            return "enforce"
+        raw = row.get("value") if isinstance(row, dict) else row[0]
+        value = str(raw or "enforce").strip().lower()
+    except Exception:  # noqa: BLE001 — a settings outage must not disable a safety gate
+        return "enforce"
+    return value if value in ("enforce", "warn", "off") else "enforce"
+
+
+_SANITY_OFF_NOTIFY_EVERY_S = 6 * 3600
+_SANITY_OFF_KEY = "forge:patch_sanity:off_notified_at"
+
+
+def _warn_sanity_disabled(file_path: str) -> None:
+    """Make a DISABLED gate impossible to forget. Never raises, never blocks a ship.
+
+    Raised by F.O.R.G.E. on #3405 as [CRITICAL] "can return 'off'". The finding is
+    right that `off` disables the gate, and `off` is a legitimate operator lever — but
+    the real risk was never that it exists. It is that it gets set during an incident
+    and SILENTLY STAYS SET, re-opening the hole that let 33 broken patches ship.
+    `warn` already logs; `off` was the only silent state. Now it is the loudest.
+
+    ⚠️ The throttle is DB-backed ON PURPOSE. archie_platform runs `--workers 4`, so an
+    in-memory timer would let through up to 4x the intended notifications — the same
+    trap as the warm-residency TTL (KB #282671).
+    """
+    logger.warning(
+        "[FORGE] patch sanity is DISABLED (forge:patch_sanity=off) — %s ships UNCHECKED. "
+        "This gate exists because unattended generation shipped 33 broken patches.",
+        file_path,
+    )
+    try:
+        from database import get_db_cursor  # noqa: PLC0415
+
+        now = time.time()
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (_SANITY_OFF_KEY,))
+            row = cur.fetchone()
+            raw = (row.get("value") if isinstance(row, dict) else row[0]) if row else None
+            try:
+                last = float(raw or 0)
+            except (TypeError, ValueError):
+                last = 0.0
+            if now - last < _SANITY_OFF_NOTIFY_EVERY_S:
+                return
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, value_type, description)
+                   VALUES (%s, %s, 'string', 'Last time the patch-sanity-OFF alert was sent')
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (_SANITY_OFF_KEY, str(now)),
+            )
+
+        from services.telegram_service import send_system  # noqa: PLC0415
+
+        send_system(
+            "F.O.R.G.E. patch-sanity gate is OFF",
+            "platform_settings forge:patch_sanity = 'off' — generated patches are shipping "
+            "UNCHECKED. Set it back to 'enforce' once the incident is over.",
+        )
+    except Exception:  # noqa: BLE001 — a notification must NEVER block the ship path
+        logger.debug("[FORGE] could not send the patch-sanity-off notification", exc_info=True)
+
+
+def _patch_sanity_ok(file_path: str, patched: str) -> tuple:
+    """(ok, reasons). Only .py files are checked — the validator is Python-specific.
+
+    A missing original, an unreadable file, or an import failure in the validator all
+    return NOT-ok under 'enforce': this gate is the last thing standing between a
+    hallucinated patch and a PR, so "could not check" is not "fine".
+    """
+    # TOTAL BY CONSTRUCTION (F.O.R.G.E. review of #3390, [CRITICAL]). Everything is inside
+    # the try — including the mode lookup and the `.endswith` — because this function sits
+    # on the ship path and an escaping exception would surface upstream as some unrelated
+    # failure. That has bitten here before: _patched_content's ImportError was reported as
+    # "proposal has no code_diff". A gate that crashes is worse than one that refuses,
+    # because the refusal at least names itself.
+    mode = "enforce"
+    try:
+        mode = _patch_sanity_mode()
+        if mode == "off":
+            # Split from the .endswith check below DELIBERATELY: a non-Python file is a
+            # normal skip, a disabled gate is not, and folding them would make the alert
+            # fire on every .md in the diff.
+            _warn_sanity_disabled(file_path)
+            return True, []
+        if not str(file_path or "").endswith(".py"):
+            return True, []
+
+        from services.patch_sanity import validate_patch
+
+        original = _original_source(file_path)
+        if original is None:
+            reasons = [f"could not read the original {file_path} to compare against"]
+        else:
+            result = validate_patch(original, patched, file_path)
+            reasons = [] if result.get("ok") else list(result.get("failures") or [])
+    except Exception as exc:  # noqa: BLE001
+        reasons = [f"sanity check errored: {type(exc).__name__}: {exc}"]
+    if not reasons:
+        return True, []
+    if mode == "warn":
+        logger.warning("[FORGE] patch sanity (warn-only) %s: %s", file_path, "; ".join(reasons))
+        return True, []
+    return False, reasons
+
+
 def _patched_content(file_path: str, diff_text: str) -> Optional[str]:
     """Apply a unified diff to a THROWAWAY copy of the file — never the shared tree.
 
@@ -301,6 +443,31 @@ def deploy_via_forge(
     if code_diff:
         patched = _patched_content(file_path, code_diff)
         if patched is not None:
+            # PATCH SANITY GATE (#6770/#6771) — the choke point where both versions of the
+            # file exist, so it is the one place that can ask "does this actually run?"
+            # before a patch becomes a PR.
+            #
+            # Measured 2026-09-15: 33 of 33 auto-fix PRs were broken or no-ops and FOUR
+            # carried a stored F.O.R.G.E. APPROVE, because every review gate checks whether
+            # a FINDING is grounded — none check whether the PATCH executes. Re-measured
+            # against those same 33 patches, this gate refuses 24 (73%).
+            #
+            # Fails CLOSED: a patch that cannot be validated does not ship. The whole
+            # incident was things that could not run being approved.
+            _ok, _reasons = _patch_sanity_ok(file_path, patched)
+            if not _ok:
+                logger.warning(
+                    "[FORGE] patch sanity REFUSED %s (proposal %s): %s",
+                    file_path,
+                    proposal.get("id"),
+                    "; ".join(_reasons),
+                )
+                return {
+                    "success": False,
+                    "error": "patch failed sanity checks: " + "; ".join(_reasons),
+                    "patch_sanity_failed": True,
+                    "reasons": _reasons,
+                }
             content_overrides[file_path] = patched
             files_changed = [file_path]
 

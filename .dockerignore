@@ -11,6 +11,13 @@
 !scripts/lane_gh_guard.sh
 !config/agents/codex.yaml
 !config/agents/opencode.yaml
+# mediahub_app also builds with `context: ../..` (repo root) from
+# standalone/media_hub/docker-compose.yml, and its Dockerfile COPYs from
+# standalone/media_hub/ plus a handful of shared platform_v2 static assets
+# (public CSS/JS/icons, no secrets) — re-included here for the same reason.
+!standalone/media_hub/
+!platform_v2/static/
+!platform_v2/templates/includes/lcars-header.html
 **/.env
 **/.env.*
 **/__pycache__/

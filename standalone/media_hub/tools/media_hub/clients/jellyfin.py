@@ -533,6 +533,37 @@ class JellyfinClient(MediaServerInterface):
                 )
         return episodes
 
+    def get_next_episode(self, episode_id: str) -> Optional[Dict]:
+        """Given a currently-playing episode's item id, resolve the next episode
+        in its series: same season episode_number+1, or episode 1 of the next
+        season if the given episode was the season finale."""
+        user_id = self._get_user_id()
+        if not user_id:
+            return None
+
+        item = self._request(
+            f"/Users/{user_id}/Items/{episode_id}",
+            {"Fields": "SeriesId,ParentIndexNumber,IndexNumber"},
+        )
+        if not item:
+            return None
+
+        series_id = item.get("SeriesId")
+        season_number = item.get("ParentIndexNumber")
+        episode_number = item.get("IndexNumber")
+        if not series_id or season_number is None or episode_number is None:
+            return None
+
+        for ep in self.get_episodes(series_id, season_number):
+            if ep.get("episode_number") == episode_number + 1:
+                return ep
+
+        next_season = self.get_episodes(series_id, season_number + 1)
+        if next_season:
+            return min(next_season, key=lambda e: e.get("episode_number", 0))
+
+        return None
+
     def mark_watched(self, media_id: str, watched: bool = True) -> bool:
         """Mark a media item as watched or unwatched"""
         user_id = self._get_user_id()

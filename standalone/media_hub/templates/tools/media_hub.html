@@ -35,20 +35,20 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="application-name" content="Media Hub">
 <meta name="msapplication-TileColor" content="#0a0a0f">
-<meta name="msapplication-TileImage" content="/static/icons/media-hub-144.png">
+<meta name="msapplication-TileImage" content="/static/icons/kytran-ram-144.png">
 
 <!-- PWA Manifest -->
 <link rel="manifest" href="/static/manifest.json">
 
 <!-- Apple Touch Icons -->
-<link rel="apple-touch-icon" href="/static/icons/media-hub-192.png">
-<link rel="apple-touch-icon" sizes="152x152" href="/static/icons/media-hub-152.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/static/icons/media-hub-192.png">
-<link rel="apple-touch-icon" sizes="167x167" href="/static/icons/media-hub-192.png">
+<link rel="apple-touch-icon" href="/static/icons/kytran-ram-192.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/static/icons/kytran-ram-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/icons/kytran-ram-192.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/static/icons/kytran-ram-192.png">
 
 <!-- Favicon -->
-<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/media-hub-96.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/media-hub-72.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/kytran-ram-96.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/kytran-ram-72.png">
 {% endblock %}
 
 {% block content %}
@@ -790,10 +790,26 @@
                 <div class="video-spinner"></div>
                 <span><span data-i18n="media_hub.loading_stream">Loading stream...</span></span>
             </div>
+            <div id="videoUpNextBanner" style="display:none; position:absolute; right:16px; bottom:16px; width:280px; background:rgba(15,23,42,0.92); border:1px solid rgba(45,212,191,0.4); border-radius:8px; padding:12px; z-index:20;">
+                <div style="font-size:0.7rem; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px;">UP NEXT</div>
+                <div id="videoUpNextTitle" style="font-size:0.85rem; color:#e2e8f0; margin-bottom:8px; font-weight:600;"></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button onclick="_mhPlayUpNextNow()" style="flex:1; background:#2dd4bf; color:#0f172a; border:none; border-radius:4px; padding:6px 10px; font-size:0.8rem; font-weight:600; cursor:pointer;">
+                        Play Now (<span id="videoUpNextCountdown">5</span>)
+                    </button>
+                    <button onclick="_mhCancelUpNext()" style="background:transparent; color:#94a3b8; border:1px solid #475569; border-radius:4px; padding:6px 10px; font-size:0.8rem; cursor:pointer;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
         </div>
         <div class="video-player-controls">
             <div class="video-quality-info" id="videoQualityInfo"></div>
             <div class="video-subtitle-selector" id="videoSubtitleSelector"></div>
+            <label class="video-autoplay-toggle" id="videoAutoplayToggle" style="display:none; align-items:center; gap:6px; font-size:0.75rem; color:var(--archie-palette-teal-400, #2dd4bf); letter-spacing:0.05em; cursor:pointer; user-select:none;">
+                <input type="checkbox" id="videoAutoplayNextCheckbox" onchange="_mhSetAutoplayNext(this.checked)" style="accent-color:#2dd4bf; cursor:pointer;">
+                <span data-i18n="media_hub.autoplay_next">Autoplay Next Episode</span>
+            </label>
             <div class="video-cast-controls" id="videoCastControls" style="display:none; align-items:center; gap:8px; margin-left:auto;">
                 <span style="font-size:0.75rem; color:var(--archie-palette-teal-400, #2dd4bf); letter-spacing:0.05em;">CAST</span>
                 <google-cast-launcher id="castLauncher" style="width:32px; height:32px; cursor:pointer; --connected-color:#2dd4bf; --disconnected-color:#94a3b8;"></google-cast-launcher>

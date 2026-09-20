@@ -857,6 +857,23 @@ def api_show_episodes(series_id):
         return jsonify({"success": False, "error": str(e), "episodes": []})
 
 
+@media_hub_bp.route("/api/episodes/<episode_id>/next")
+def api_next_episode(episode_id):
+    """Resolve the next episode after the given one, for autoplay-next-episode."""
+    media_server, server_type = get_primary_media_server()
+    if not media_server:
+        return jsonify({"success": False, "error": "No media server configured", "episode": None})
+
+    try:
+        if hasattr(media_server, "get_next_episode"):
+            next_ep = media_server.get_next_episode(episode_id)
+            return jsonify({"success": True, "episode": next_ep, "source": server_type})
+        return jsonify({"success": False, "error": "Not supported", "episode": None})
+    except Exception as e:
+        logger.error(f"Error getting next episode: {e}")
+        return jsonify({"success": False, "error": str(e), "episode": None})
+
+
 @media_hub_bp.route("/api/episodes/<episode_id>/watched", methods=["POST"])
 def api_toggle_episode_watched(episode_id):
     """Toggle watched status for an episode - syncs to all configured servers"""

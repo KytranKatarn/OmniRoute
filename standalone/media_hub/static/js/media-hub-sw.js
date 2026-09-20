@@ -6,22 +6,26 @@
 // Bump these version tags on any precache list change so browsers with an
 // older SW pick up the fresh files (old caches are purged in the activate
 // handler below).
-const CACHE_NAME = 'media-hub-v2';
-const STATIC_CACHE = 'media-hub-static-v2';
-const DYNAMIC_CACHE = 'media-hub-dynamic-v2';
-const IMAGE_CACHE = 'media-hub-images-v2';
+const CACHE_NAME = 'media-hub-v3';
+const STATIC_CACHE = 'media-hub-static-v3';
+const DYNAMIC_CACHE = 'media-hub-dynamic-v3';
+const IMAGE_CACHE = 'media-hub-images-v3';
 
 // Static assets to cache immediately. cache.addAll() fails the ENTIRE install
 // if any single entry 404s — so every path here must exist in both platform
 // and standalone builds. archie-design-system.css was removed on 2026-04-19
 // after it silently broke SW install on the Media Hub standalone.
+// v3: the two icon paths below (media-hub-192/512.png) never existed on disk
+// (actual files are kytran-ram-*.png) — this was silently failing SW install
+// on every platform since the icons were added. Cache version bumped so
+// already-installed clients pick up a SW that can actually install.
 const STATIC_ASSETS = [
     '/tools/media-hub/',
     '/static/js/media-hub.js',
     '/static/css/media-hub.css',
     '/static/manifest.json',
-    '/static/icons/media-hub-192.png',
-    '/static/icons/media-hub-512.png'
+    '/static/icons/kytran-ram-192.png',
+    '/static/icons/kytran-ram-512.png'
 ];
 
 // API routes to cache with network-first strategy
@@ -229,8 +233,8 @@ self.addEventListener('push', (event) => {
     const data = event.data.json();
     const options = {
         body: data.body || 'New content available',
-        icon: '/static/icons/media-hub-192.png',
-        badge: '/static/icons/media-hub-72.png',
+        icon: '/static/icons/kytran-ram-192.png',
+        badge: '/static/icons/kytran-ram-72.png',
         vibrate: [100, 50, 100],
         data: {
             url: data.url || '/tools/media-hub'

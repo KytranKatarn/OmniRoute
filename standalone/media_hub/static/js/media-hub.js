@@ -4104,6 +4104,89 @@ async function toggleEpisodeWatched(episode, seasonNumber, toggleBtn, statusBadg
 // ─────────────────────────────────────────────────────────────────────────────
 
 let currentStreamInfo = null;
+let currentPlayerItem = null;
+let _mhUpNextTimer = null;
+let _mhUpNextCountdown = null;
+
+function _mhGetAutoplayNext() {
+    try {
+        const v = localStorage.getItem('mh_autoplay_next');
+        return v === null ? true : v === '1';
+    } catch (e) {
+        return true;
+    }
+}
+
+function _mhSetAutoplayNext(checked) {
+    try {
+        localStorage.setItem('mh_autoplay_next', checked ? '1' : '0');
+    } catch (e) {
+        // localStorage unavailable (private mode etc.) - setting just won't persist
+    }
+}
+
+function _mhCancelUpNext() {
+    if (_mhUpNextTimer) { clearInterval(_mhUpNextTimer); _mhUpNextTimer = null; }
+    const banner = document.getElementById('videoUpNextBanner');
+    if (banner) banner.style.display = 'none';
+}
+
+function _mhPlayUpNextNow() {
+    const episode = _mhUpNextEpisode;
+    _mhCancelUpNext();
+    if (episode) {
+        openVideoPlayer({
+            id: episode.id,
+            title: episode.title || `Episode ${episode.episode_number}`,
+            media_type: 'episode',
+            season_number: episode.season_number,
+            episode_number: episode.episode_number,
+        });
+    }
+}
+
+let _mhUpNextEpisode = null;
+
+function _mhShowUpNextBanner(episode) {
+    _mhUpNextEpisode = episode;
+    const banner = document.getElementById('videoUpNextBanner');
+    const titleEl = document.getElementById('videoUpNextTitle');
+    const countdownEl = document.getElementById('videoUpNextCountdown');
+    if (!banner || !titleEl || !countdownEl) return;
+
+    const label = (episode.season_number !== undefined && episode.episode_number !== undefined)
+        ? `S${episode.season_number}E${episode.episode_number} - ${episode.title || ''}`
+        : (episode.title || 'Next Episode');
+    titleEl.textContent = label;
+    banner.style.display = 'block';
+
+    _mhUpNextCountdown = 5;
+    countdownEl.textContent = String(_mhUpNextCountdown);
+    if (_mhUpNextTimer) clearInterval(_mhUpNextTimer);
+    _mhUpNextTimer = setInterval(() => {
+        _mhUpNextCountdown -= 1;
+        if (_mhUpNextCountdown <= 0) {
+            _mhPlayUpNextNow();
+            return;
+        }
+        countdownEl.textContent = String(_mhUpNextCountdown);
+    }, 1000);
+}
+
+async function _mhHandleVideoEnded() {
+    if (!_mhGetAutoplayNext()) return;
+    if (!currentPlayerItem || currentPlayerItem.media_type !== 'episode') return;
+
+    try {
+        const response = await fetch(`${API_BASE}/episodes/${currentPlayerItem.id}/next`);
+        const data = await response.json();
+        if (data.success && data.episode && data.episode.has_file) {
+            _mhShowUpNextBanner(data.episode);
+        }
+    } catch (error) {
+        console.error('[Autoplay Next] Failed to resolve next episode:', error);
+    }
+}
 
 // HTML-escape untrusted strings before innerHTML interpolation (audit XSS fix #385).
 function _mhEsc(s) {
@@ -4173,6 +4256,23 @@ async function openVideoPlayer(item) {
     const title = document.getElementById('videoPlayerTitle');
     const qualityInfo = document.getElementById('videoQualityInfo');
     const subtitleSelector = document.getElementById('videoSubtitleSelector');
+
+    // Chaining into a new episode (autoplay-next) - cancel any pending banner/timer
+    // from the episode that just ended before we start the new one.
+    _mhCancelUpNext();
+    currentPlayerItem = item;
+
+    const autoplayToggle = document.getElementById('videoAutoplayToggle');
+    const autoplayCheckbox = document.getElementById('videoAutoplayNextCheckbox');
+    if (autoplayToggle && autoplayCheckbox) {
+        if (item.media_type === 'episode') {
+            autoplayToggle.style.display = 'flex';
+            autoplayCheckbox.checked = _mhGetAutoplayNext();
+        } else {
+            autoplayToggle.style.display = 'none';
+        }
+    }
+    video.onended = _mhHandleVideoEnded;
 
     // Show modal with loading state
     modal.classList.add('active');
@@ -4330,6 +4430,11 @@ async function openVideoPlayer(item) {
 function closeVideoPlayer() {
     const modal = document.getElementById('videoPlayerModal');
     const video = document.getElementById('videoPlayer');
+
+    // Cancel any pending autoplay-next banner/countdown and detach its handler.
+    _mhCancelUpNext();
+    video.onended = null;
+    currentPlayerItem = null;
 
     // Leave fullscreen, release the landscape lock, and stop the idle-fade timer (#4739).
     _mhExitFullscreen();

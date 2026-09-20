@@ -64,7 +64,7 @@ DB_CONFIG = {
 }
 
 # A.R.C.H.I.E. Platform base URL
-PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://localhost:3000")
+PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://archie_platform:3000")
 
 
 @dataclass

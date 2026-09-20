@@ -1229,24 +1229,66 @@ async def get_service_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
     """
     service = arguments.get("service")
 
+    # Probe targets are the compose/Docker network names — the SAME containers
+    # that tailnet clients reach over the mesh (headscale MagicDNS base is
+    # *.mesh.archie; the hub is 100.64.0.4). localhost:PORT is wrong here: this
+    # server runs in archie_mcp_gateway on a bridge network, where the platform
+    # services are NOT on localhost — which produced false "stopped" for
+    # everything. NOTE: mesh.kytranempowerment.com is the Headscale CONTROL
+    # PLANE (TLS-only) and is NOT a service address — never probe it here.
+    # Override any target with MCP_SERVICE_HOST_<NAME> (e.g. to a mesh IP).
     services = {
-        "platform": {"port": 3000, "name": "A.R.C.H.I.E. Platform"},
-        "database": {"port": 5432, "name": "PostgreSQL"},
-        "ollama": {"port": 11434, "name": "Ollama LLM"},
-        "n8n": {"port": 5678, "name": "n8n Workflows"},
+        "platform": {
+            "host": os.getenv("MCP_SERVICE_HOST_PLATFORM", "archie_platform"),
+            "port": 3000,
+            "name": "A.R.C.H.I.E. Platform",
+        },
+        "database": {
+            "host": os.getenv("MCP_SERVICE_HOST_DATABASE", "archie_database"),
+            "port": 5432,
+            "name": "PostgreSQL",
+        },
+        "ollama": {
+            "host": os.getenv("MCP_SERVICE_HOST_OLLAMA", "archie_ollama"),
+            "port": 11434,
+            "name": "Ollama LLM",
+        },
+        # n8n currently has no container in the compose stack — DNS gaierror
+        # classifies it NOT_DEPLOYED (expected-absent) instead of a false
+        # "stopped" that would redline the whole check.
+        "n8n": {
+            "host": os.getenv("MCP_SERVICE_HOST_N8N", "n8n"),
+            "port": 5678,
+            "name": "n8n Workflows",
+        },
     }
 
-    def check_port(port):
-        """Check if a port is listening"""
+    def check_port(host, port):
+        """Check if a port is listening. Returns (status, reason)."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
         try:
-            result = sock.connect_ex(("localhost", port))
-            return result == 0
+            if sock.connect_ex((host, port)) == 0:
+                return "running", "port open"
+            return "stopped", "connection refused"
+        except socket.gaierror:
+            return "not_deployed", f"{host} does not resolve in this stack's DNS"
         except Exception:
-            return False
+            return "stopped", "unreachable"
         finally:
             sock.close()
+
+    def describe(svc_name, svc):
+        status, reason = check_port(svc["host"], svc["port"])
+        return {
+            "service": svc_name,
+            "name": svc["name"],
+            "host": svc["host"],
+            "port": svc["port"],
+            "status": status,
+            "healthy": status == "running",
+            "reason": reason,
+        }
 
     if service:
         # Check specific service
@@ -1256,38 +1298,23 @@ async def get_service_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
                 "error": f"Unknown service: {service}. Available: {list(services.keys())}",
             }
 
-        svc = services[service]
-        is_up = check_port(svc["port"])
-
-        return {
-            "success": True,
-            "service": service,
-            "name": svc["name"],
-            "port": svc["port"],
-            "status": "running" if is_up else "stopped",
-            "healthy": is_up,
-        }
+        return {"success": True, **describe(service, services[service])}
     else:
         # Check all services
-        results = []
-        for svc_name, svc in services.items():
-            is_up = check_port(svc["port"])
-            results.append(
-                {
-                    "service": svc_name,
-                    "name": svc["name"],
-                    "port": svc["port"],
-                    "status": "running" if is_up else "stopped",
-                    "healthy": is_up,
-                }
-            )
-
-        all_healthy = all(r["healthy"] for r in results)
-        some_healthy = any(r["healthy"] for r in results)
+        results = [describe(svc_name, svc) for svc_name, svc in services.items()]
+        running = sum(1 for r in results if r["status"] == "running")
+        stopped = sum(1 for r in results if r["status"] == "stopped")
+        # not_deployed (e.g. n8n) is expected-absent, not a failure.
+        if stopped == 0:
+            overall_status = "healthy"
+        elif running > 0:
+            overall_status = "degraded"
+        else:
+            overall_status = "unhealthy"
 
         return {
             "success": True,
-            "overall_status": ("healthy" if all_healthy else ("degraded" if some_healthy else "unhealthy")),
+            "overall_status": overall_status,
             "services": results,
         }
 

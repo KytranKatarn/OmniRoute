@@ -32,7 +32,7 @@ DB_CONFIG = {
     "password": _get_db_password(),
 }
 
-PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://localhost:3000")
+PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://archie_platform:3000")
 GIT_REPO_PATH = "/mnt/archie_brain"
 
 

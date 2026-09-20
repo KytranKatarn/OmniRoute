@@ -28,7 +28,7 @@ DB_CONFIG = {
 }
 
 # Platform URL for HTTP calls
-PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://localhost:3000")
+PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://archie_platform:3000")
 
 
 def get_db_connection():

@@ -139,20 +139,24 @@ def register_model_routes(bp, admin_required):
                 except Exception:
                     pass  # Proceed with load attempt
 
-                # Use Bridge dispatcher for load
+                # Use the shared model service for load (ADR-013 — never a raw
+                # Ollama call). This previously imported a module
+                # (tools.department_hq.services.bridge_dispatcher) that does not
+                # exist anywhere in the codebase, so every load silently fell
+                # through to the raw-Ollama fallback below on every call.
                 try:
-                    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                    from services.model_service import get_model_service
 
-                    dispatcher = get_dispatcher()
-                    opts = {}
-                    if num_gpu is not None:
-                        opts["num_gpu"] = num_gpu
+                    target_host = None
                     if node_id:
-                        opts["node_id"] = node_id
-                    dispatcher.ensure_model_ready(model, **opts)
-                    return jsonify({"success": True, "message": f"{model} loaded successfully"})
+                        target_host = {"hostname": node_host, "port": node_port}
+                    svc = get_model_service()
+                    result = svc.ensure_model_ready("admin_manual_load", model, target_host)
+                    if result.get("ready"):
+                        return jsonify({"success": True, "message": f"{model} loaded successfully", **result})
+                    return jsonify({"success": False, "error": f"Load did not complete: {result}"}), 500
                 except Exception as e:
-                    logger.error("Model load via dispatcher failed: %s", e)
+                    logger.error("Model load via model_service failed: %s", e)
                     # Fallback: direct Ollama generate with keep_alive
                     try:
                         payload = {"model": model, "keep_alive": "5m"}

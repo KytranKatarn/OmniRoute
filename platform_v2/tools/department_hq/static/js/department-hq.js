@@ -5472,14 +5472,49 @@ function loadQueueStatus() {
                     warn.appendChild(wh);
                     data.loadability.forEach(function(f) {
                         var line = document.createElement('div');
-                        line.style.cssText = 'color:var(--dhq-text-dim);font-family:\'IBM Plex Mono\',monospace;';
-                        line.textContent = (f.model || '?') + ' on ' + (f.node_name || '?')
+                        line.style.cssText = 'display:flex;align-items:center;gap:6px;color:var(--dhq-text-dim);font-family:\'IBM Plex Mono\',monospace;';
+                        var text = document.createElement('span');
+                        text.textContent = (f.model || '?') + ' on ' + (f.node_name || '?')
                             + (f.kind === 'too_slow'
                                 ? ' · runs at ' + Math.round(f.success_seconds || 0) + 's vs a '
                                   + Math.round(f.avg_fail_seconds || 0) + 's wall'
                                 : ' · ' + (f.attempts || 0) + ' attempts, 0 ok')
                             + ' · last success ' + Math.round(f.hours_since_success || 0) + 'h ago';
                         line.title = f.detail || '';
+                        line.appendChild(text);
+                        // Retry only makes sense for "cannot load" (a scheduler/VRAM
+                        // fault a fresh attempt can clear) — NOT "too slow", where the
+                        // model already loads fine and just misses its deadline; a
+                        // restart changes nothing there (see the kind comment above).
+                        if (f.kind !== 'too_slow') {
+                            var btn = document.createElement('button');
+                            btn.textContent = 'Retry Load';
+                            btn.style.cssText = 'margin-left:auto;flex-shrink:0;background:rgba(239,68,68,0.15);'
+                                + 'color:#ef4444;border:1px solid #ef4444;border-radius:3px;padding:1px 8px;'
+                                + 'font-size:0.62rem;cursor:pointer;font-family:inherit;';
+                            btn.addEventListener('click', function() {
+                                btn.disabled = true;
+                                btn.textContent = 'Loading…';
+                                fetch('/tools/department-hq/api/models/control', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ model: f.model, action: 'load' })
+                                })
+                                .then(function(r) { return r.json(); })
+                                .then(function(res) {
+                                    btn.textContent = res.success ? 'Done ✓' : 'Failed ✗';
+                                    btn.title = res.success ? (res.message || '') : (res.error || '');
+                                    setTimeout(loadQueueStatus, 1500);
+                                })
+                                .catch(function() {
+                                    btn.textContent = 'Failed ✗';
+                                })
+                                .finally(function() {
+                                    setTimeout(function() { btn.disabled = false; btn.textContent = 'Retry Load'; }, 4000);
+                                });
+                            });
+                            line.appendChild(btn);
+                        }
                         warn.appendChild(line);
                     });
                     lp.appendChild(warn);
@@ -5491,23 +5526,47 @@ function loadQueueStatus() {
                     none.textContent = 'No models currently loaded in VRAM';
                     lp.appendChild(none);
                 } else {
+                    // Grouped by node (#6xxx) — was one flat list across the whole
+                    // cluster, making it hard to see at a glance what any one node
+                    // is carrying. Group key preserves first-seen node order from
+                    // the API (Hub first, since it's queried before fleet_loaded).
+                    var byNode = {};
+                    var nodeOrder = [];
                     data.loaded.forEach(function(m) {
-                        var isFleet = m.node && m.node !== 'Hub';
-                        var row = document.createElement('div');
-                        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
-                        var dot = document.createElement('span');
-                        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (isFleet ? '#00bcd4' : '#10b981') + ';';
-                        var name = document.createElement('span');
-                        name.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
-                        name.textContent = m.name;
-                        var nodeBadge = document.createElement('span');
-                        nodeBadge.style.cssText = 'font-size:0.67rem;font-family:"IBM Plex Mono",monospace;color:' + (isFleet ? '#00bcd4' : 'var(--dhq-text-dim)') + ';';
-                        nodeBadge.textContent = m.node || 'Hub';
-                        var vram = document.createElement('span');
-                        vram.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.72rem;';
-                        vram.textContent = m.vram_gb > 0 ? m.vram_gb + ' GB' : 'CPU';
-                        row.appendChild(dot); row.appendChild(name); row.appendChild(nodeBadge); row.appendChild(vram);
-                        lp.appendChild(row);
+                        var node = m.node || 'Hub';
+                        if (!byNode[node]) { byNode[node] = []; nodeOrder.push(node); }
+                        byNode[node].push(m);
+                    });
+                    nodeOrder.forEach(function(node) {
+                        var isFleet = node !== 'Hub';
+                        var header = document.createElement('div');
+                        header.style.cssText = 'display:flex;align-items:center;gap:6px;margin:8px 0 2px;padding-top:4px;'
+                            + 'border-top:1px solid rgba(255,255,255,0.06);';
+                        var hdot = document.createElement('span');
+                        hdot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (isFleet ? '#00bcd4' : '#10b981') + ';';
+                        var hname = document.createElement('span');
+                        hname.style.cssText = 'font-size:0.68rem;font-weight:600;letter-spacing:0.04em;color:' + (isFleet ? '#00bcd4' : 'var(--dhq-text-main)') + ';';
+                        hname.textContent = node.toUpperCase();
+                        var hcount = document.createElement('span');
+                        hcount.style.cssText = 'margin-left:auto;font-size:0.62rem;color:var(--dhq-text-dim);';
+                        hcount.textContent = byNode[node].length + (byNode[node].length === 1 ? ' model' : ' models');
+                        header.appendChild(hdot); header.appendChild(hname); header.appendChild(hcount);
+                        lp.appendChild(header);
+
+                        byNode[node].forEach(function(m) {
+                            var row = document.createElement('div');
+                            row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0 4px 14px;border-bottom:1px solid rgba(255,255,255,0.05);';
+                            var dot = document.createElement('span');
+                            dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:rgba(255,255,255,0.25);';
+                            var name = document.createElement('span');
+                            name.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
+                            name.textContent = m.name;
+                            var vram = document.createElement('span');
+                            vram.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.72rem;';
+                            vram.textContent = m.vram_gb > 0 ? m.vram_gb + ' GB' : 'CPU';
+                            row.appendChild(dot); row.appendChild(name); row.appendChild(vram);
+                            lp.appendChild(row);
+                        });
                     });
                 }
             }

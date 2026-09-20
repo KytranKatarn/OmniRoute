@@ -1063,6 +1063,7 @@ MERGE_STATE_AWAITING = "awaiting_review"
 MERGE_STATE_APPROVED = "approved"
 MERGE_STATE_COVERAGE_ONLY = "coverage_only"
 MERGE_STATE_CHANGES = "changes_requested"
+MERGE_STATE_CLOSED = "closed"
 
 
 def merge_state(
@@ -1070,6 +1071,7 @@ def merge_state(
     ai_summary: str | None,
     base_branch: str | None = None,
     default_branch: str = "main",
+    pr_state: str | None = None,
 ) -> dict:
     """Derive what the UI should render for one PR row. Pure — no DB, no Flask.
 
@@ -1083,9 +1085,42 @@ def merge_state(
     exactly like the Approvals category filter, which is presentation and can never
     relax a gate. Merging a stacked PR into its parent is legitimate; it just is not
     shipping, and the row must say so.
+
+    ⚠️ `pr_state` DOES change both, and is checked FIRST — before the review status,
+    before the verdict. A closed or merged PR cannot be merged whatever its verdict
+    says, so no later branch may override it. Measured 2026-09-20 (#6792): five rows
+    carried a correct `state='closed'` while rendering `mergeable=True` behind a green
+    Merge button, because this function was never handed the field that sat on the very
+    row its result was being stamped onto.
+
+    FAIL-SAFE on absence: an unknown/empty `pr_state` is treated as OPEN, so every
+    pre-#6792 caller is byte-identical. Blocking a genuinely open PR on missing data
+    would stop real work; a stale Merge button costs one refused GitHub call, and the
+    server-side merge gate binds either way.
     """
     status = (review_status or "").strip().lower()
     summary = ai_summary or ""
+
+    # FIRST — ahead of in_progress, ahead of the verdict. A closed PR with a review
+    # still running reads CLOSED; "REVIEWING…" on a dead PR is noise, not information.
+    life = (pr_state or "").strip().lower()
+    if life in ("closed", "merged"):
+        _merged = life == "merged"
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_CLOSED,
+                "mergeable": False,
+                "label": "MERGED" if _merged else "CLOSED",
+                "hint": (
+                    "This PR is already merged — nothing left to land."
+                    if _merged
+                    else "This PR is closed. Reopen it on GitHub if it should still ship."
+                ),
+                "dropped_files": [],
+            },
+            base_branch,
+            default_branch,
+        )
 
     if status == "in_progress":
         return _with_merge_target(
@@ -1327,7 +1362,12 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     # make. Kept out of the SQL deliberately: the verdict rule is Python, and a second
     # copy of it in SQL would be the same duplication the JS copy would have been.
     for row in rows:
-        row["merge_state"] = merge_state(row.get("review_status"), row.get("ai_summary"), row.get("base_branch"))
+        row["merge_state"] = merge_state(
+            row.get("review_status"),
+            row.get("ai_summary"),
+            row.get("base_branch"),
+            pr_state=row.get("state"),
+        )
         # Same rule as merge_state: the elapsed time AND the overdue threshold are decided
         # server-side, so the template cannot drift from the reaper's actual window.
         row["review_progress"] = review_progress(row.get("review_status"), row.get("updated_at"))
@@ -1389,7 +1429,7 @@ def stamp_merge_states(prs: list, repo: str = None) -> list:
 
     for pr in prs:
         status, summary = stored.get(pr.get("number"), (None, None))
-        pr["merge_state"] = merge_state(status, summary)
+        pr["merge_state"] = merge_state(status, summary, pr_state=pr.get("state"))
     return prs
 
 

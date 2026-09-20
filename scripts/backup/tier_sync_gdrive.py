@@ -31,6 +31,27 @@ COMPONENTS_BY_MODE = {
 GDRIVE_FOLDER_NAME = "ARCHIE Backups"
 
 
+def _short_err(msg: str, limit: int) -> str:
+    """Truncate an error keeping BOTH ends — the cause lives in the TAIL.
+
+    These messages are boilerplate first, traceback second, and a traceback
+    names its exception on its LAST line. Truncating from the front therefore
+    preserved only the boilerplate: measured 2026-09-20, every gdrive failure
+    recorded 500 chars of "Work Suite Drive creds unavailable, falling
+    through: ..." followed by a 6-character "Traceb" stub, and the real
+    exception was recorded nowhere at all — the off-site backup tier could not
+    say why it was failing. See task #6804.
+    """
+    msg = (msg or "").strip()
+    if len(msg) <= limit:
+        return msg
+    if limit <= 40:
+        return msg[-limit:]
+    head = limit // 3
+    tail = limit - head - 5
+    return f"{msg[:head]}\n...\n{msg[-tail:]}"
+
+
 def log_db(component: str, status: str, path: str, size: int, dur_ms: int, err: str = "") -> None:
     err_sql = err.replace("'", "''")
     sql = f"""
@@ -213,8 +234,8 @@ def main() -> None:
                     print(f"gdrive ok: {remote_name} ({size}B)")
                 else:
                     failures += 1
-                    log_db(component, "failed", remote_name, size, dur_ms, msg[:500])
-                    print(f"gdrive FAIL: {remote_name}: {msg[:200]}", file=sys.stderr)
+                    log_db(component, "failed", remote_name, size, dur_ms, _short_err(msg, 2000))
+                    print(f"gdrive FAIL: {remote_name}: {_short_err(msg, 400)}", file=sys.stderr)
             finally:
                 if up_src == enc_path and os.path.exists(enc_path):
                     os.unlink(enc_path)

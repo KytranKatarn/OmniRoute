@@ -3608,8 +3608,12 @@
                 if (data.storage) {
                     const quotaSection = document.getElementById('cloudQuotaSection');
                     quotaSection.style.display = 'block';
-                    document.getElementById('cloudQuotaText').textContent = data.storage.usage_formatted + ' / ' + data.storage.limit_formatted;
-                    document.getElementById('cloudQuotaFill').style.width = data.storage.percent_used + '%';
+                    var _st = data.storage;
+                    document.getElementById('cloudQuotaText').textContent = (_st.limit_known === false)
+                        ? _st.usage_formatted + ' / limit unknown \u2014 destination unconfirmed'
+                        : _st.usage_formatted + ' / ' + _st.limit_formatted;
+                    document.getElementById('cloudQuotaFill').style.width =
+                        ((_st.limit_known === false) ? 0 : _st.percent_used) + '%';
                 }
 
                 // NEVER hide the list silently. Previously the whole section was

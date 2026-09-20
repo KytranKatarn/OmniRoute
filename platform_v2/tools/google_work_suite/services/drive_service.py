@@ -462,12 +462,23 @@ def backup_test_connection(service) -> dict:
 
 
 def backup_get_storage_quota(service) -> dict:
-    """Get Drive storage usage information for backups."""
+    """Get Drive storage usage information for backups.
+
+    ``limit`` is ABSENT for a pooled/unlimited Workspace drive AND reads as 0
+    for a bare service account that owns no Drive storage. Those two states are
+    indistinguishable from this response, so neither is reported as
+    "Unlimited" — an unknown limit is reported as unknown. Measured 2026-09-20:
+    the storage-less service-account fallback rendered as
+    "0.0 MB / Unlimited, 0% used", displaying a dead backup destination as a
+    healthy one. See task #6804.
+    """
     about = service.about().get(fields="storageQuota").execute()
     quota = about.get("storageQuota", {})
 
     usage = int(quota.get("usage", 0))
-    limit = int(quota.get("limit", 0))
+    raw_limit = quota.get("limit")
+    limit = int(raw_limit) if raw_limit not in (None, "") else 0
+    limit_known = limit > 0
 
     def fmt(b):
         if b >= 1073741824:
@@ -478,8 +489,11 @@ def backup_get_storage_quota(service) -> dict:
         "usage_bytes": usage,
         "limit_bytes": limit,
         "usage_formatted": fmt(usage),
-        "limit_formatted": fmt(limit) if limit else "Unlimited",
-        "percent_used": round((usage / limit * 100), 1) if limit else 0,
+        "limit_formatted": fmt(limit) if limit_known else "unknown",
+        "limit_known": limit_known,
+        # Stays numeric when the limit is unknown: the Backup Manager template
+        # feeds this straight into a CSS width.
+        "percent_used": round((usage / limit * 100), 1) if limit_known else 0,
     }
 
 

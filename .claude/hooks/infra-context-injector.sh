@@ -69,7 +69,36 @@ fi
 # Tightened: require either port 11434 OR an Ollama endpoint path AND
 # an HTTP verb keyword. Prose mentioning "ollama" or "curl" alone won't
 # trigger — only code-shaped content does.
-if echo "$fields" | grep -qiE '(:11434(/api)?|ollama.*/api/(generate|chat|tags|ps)|/api/(generate|chat|tags|ps).*ollama)' && \
+#
+# READ-ONLY STATUS CARVE-OUT (2026-09-20). `/api/ps` and `/api/tags` are STATUS
+# reads, NOT inference. ai-bridge.md has always said so: "Direct Ollama GET for
+# /api/tags//api/ps is acceptable (not inference)" — and three production call
+# sites already depend on it:
+#   tools/department_hq/fleet_helpers.py          — hub residency, 30s cache
+#   tools/department_hq/fleet_dashboard_routes.py — NODE HEALTH live VRAM
+#   tools/department_hq/crew_routes.py            — per-node VRAM/RAM
+#
+# Until now the guard listed ps|tags alongside generate|chat, so it blocked BOTH
+# reading a node's residency AND EDITING the three files that already do it —
+# it forbade maintaining code it had already allowed into the tree. Measured
+# 2026-09-20: three consecutive blocks on a status-only change.
+#
+# ADR-013 is about routing INFERENCE through DHQ. A status read bypasses no
+# queue, no welfare gate, no agent selection and no token accounting — there is
+# nothing for it to circumvent.
+#
+# FAILS CLOSED, deliberately: the exemption applies ONLY when the text mentions
+# a status endpoint AND mentions no inference endpoint at all. Text touching
+# both is still blocked, and a bare `:11434` with no named endpoint is still
+# blocked, so the ambiguous cases keep the old behaviour.
+ollama_status_only=0
+if echo "$fields" | grep -qiE '/api/(ps|tags)' && \
+   ! echo "$fields" | grep -qiE '/api/(generate|chat|embed)'; then
+    ollama_status_only=1
+fi
+
+if [ "$ollama_status_only" -eq 0 ] && \
+   echo "$fields" | grep -qiE '(:11434(/api)?|ollama.*/api/(generate|chat|tags|ps)|/api/(generate|chat|tags|ps).*ollama)' && \
    echo "$fields" | grep -qiE '(curl |requests\.(post|get)|httpx\.(post|get)|http\.client|urllib)' && \
    ! echo "$fields" | grep -qiE 'department_dispatcher|dispatch\(|/api/procure/dispatch|model_dispatch_worker|ensure_model_ready'; then
     cat >&2 <<'BLOCK_MSG'

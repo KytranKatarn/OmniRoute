@@ -1689,7 +1689,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         -- node, and saved_at catches a LIVE node whose state saver
                         -- (job #46, every 5m) has stopped — which status alone
                         -- would render as fresh forever.
-                        SELECT mls.model_name, mls.size_gb, rn.node_name, rn.gpu_available
+                        SELECT mls.model_name, mls.size_gb, mls.tier, rn.node_name, rn.gpu_available
                         FROM model_load_state mls
                         JOIN remote_nodes rn ON rn.id = mls.node_db_id
                         WHERE mls.host_type = 'node'
@@ -1701,28 +1701,35 @@ def register_dashboard_routes(bp, auth_decorator):
                     for row in cur2.fetchall():
                         n = row["node_name"] or ""
                         short = normalize_node_label(n).replace("Starship-", ".").strip() or n
-                        # `model_load_state.size_gb` is the model's TOTAL size --
-                        # this table carries NO VRAM figure. Assigning it to
-                        # "vram_gb" made every remote model render as GPU-resident,
-                        # including on Citadel and Outpost-US, which have no GPU.
+                        # `model_load_state.tier` IS the GPU/CPU answer, and always
+                        # was: _save_model_state (department_dispatcher ~L11657) reads
+                        # `size_vram` off /api/ps and stores 'gpu' or 'cpu' in it on
+                        # every job-#46 cycle. The column is NOT NULL.
                         #
-                        # But "unknown" is only honest where it is actually unknown.
-                        # A node with gpu_available=false has NO GPU, so every model
-                        # on it is knowably on CPU -- reporting that as unknown
-                        # discards a fact the node's own hardware record already
-                        # carries. Reported as CPU there, and unknown only on a
-                        # GPU-CAPABLE node, where the split genuinely is unreported
-                        # until size_vram reaches the heartbeat. (ADR-017 says report
-                        # an unknown as unknown; it does not say to forget what is
-                        # known. Caught in review of PR #3409.)
-                        _node_has_gpu = bool(row["gpu_available"])
+                        # This panel simply never SELECTed it, so it showed a GB figure
+                        # and let the reader infer residency -- which rendered every
+                        # remote model as GPU-resident, including on Citadel and
+                        # Outpost-US, which have no GPU at all. An earlier fix in this
+                        # same session reported "unknown" instead, on the false premise
+                        # that the table could not answer. It could; nobody asked it.
+                        #
+                        # `tier` is a SIDE, not a split: it says gpu-or-cpu, not what
+                        # fraction of layers were offloaded. So gpu_pct stays None for
+                        # remote rows -- the hub rows, which read /api/ps directly, are
+                        # the only ones that can honestly report a percentage.
+                        _tier = (row["tier"] or "").strip().lower()
+                        if _tier in ("gpu", "cpu"):
+                            _proc = _tier
+                        else:
+                            # Unexpected value -- do not invent one (ADR-017).
+                            _proc = "cpu" if not row["gpu_available"] else "unknown"
                         fleet_loaded.append(
                             {
                                 "name": row["model_name"],
                                 "size_gb": float(row["size_gb"] or 0),
-                                "vram_gb": None if _node_has_gpu else 0.0,
-                                "processor": "unknown" if _node_has_gpu else "cpu",
-                                "gpu_pct": None if _node_has_gpu else 0,
+                                "vram_gb": None,
+                                "processor": _proc,
+                                "gpu_pct": None,
                                 "node": short,
                             }
                         )

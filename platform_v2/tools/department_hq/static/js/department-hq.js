@@ -5546,14 +5546,58 @@ function loadQueueStatus() {
                         hdot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (isFleet ? '#00bcd4' : '#10b981') + ';';
                         var hname = document.createElement('span');
                         hname.style.cssText = 'font-size:0.68rem;font-weight:600;letter-spacing:0.04em;color:' + (isFleet ? '#00bcd4' : 'var(--dhq-text-main)') + ';';
-                        hname.textContent = node.toUpperCase();
+                        // 'Hub' is the GROUPING KEY and isFleet compares against it, so the
+                        // key is left alone and only the label changes.
+                        hname.textContent = (isFleet ? node : 'Starbase A.R.C.H.I.E.').toUpperCase();
                         var hcount = document.createElement('span');
                         hcount.style.cssText = 'margin-left:auto;font-size:0.62rem;color:var(--dhq-text-dim);';
                         hcount.textContent = byNode[node].length + (byNode[node].length === 1 ? ' model' : ' models');
                         header.appendChild(hdot); header.appendChild(hname); header.appendChild(hcount);
                         lp.appendChild(header);
 
-                        byNode[node].forEach(function(m) {
+                        // VRAM utilisation PER CARD -- the instrument that makes
+                        // "are we maximising the layout?" answerable at a glance.
+                        // Deliberately not summed: a model must fit on ONE card, so
+                        // 2GB free spread across two cards is not 2GB of capacity.
+                        // Reports "capacity unknown" rather than inventing a total
+                        // when nvidia-smi is unavailable (ADR-017).
+                        if (!isFleet && data.gpu_hw && data.gpu_hw.gpus && data.gpu_hw.gpus.length) {
+                            data.gpu_hw.gpus.forEach(function(g) {
+                                var known = g.vram_total_gb > 0;
+                                var pct = known ? Math.min(100, Math.round(g.vram_used_gb / g.vram_total_gb * 100)) : 0;
+                                var wrap = document.createElement('div');
+                                wrap.style.cssText = 'padding:2px 0 6px 14px;';
+                                var lbl = document.createElement('div');
+                                lbl.style.cssText = 'display:flex;gap:6px;font-size:0.62rem;color:var(--dhq-text-dim);margin-bottom:2px;';
+                                var ln = document.createElement('span');
+                                ln.textContent = g.name;
+                                var lv = document.createElement('span');
+                                lv.style.cssText = 'margin-left:auto;';
+                                lv.textContent = known
+                                    ? (g.vram_used_gb + ' / ' + g.vram_total_gb + ' GB \u00b7 ' + pct + '%')
+                                    : 'capacity unknown';
+                                lbl.appendChild(ln); lbl.appendChild(lv);
+                                var track = document.createElement('div');
+                                track.style.cssText = 'height:5px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;';
+                                var fill = document.createElement('div');
+                                fill.style.cssText = 'height:100%;width:' + (known ? pct : 0) + '%;background:'
+                                    + (pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#10b981') + ';';
+                                track.appendChild(fill);
+                                wrap.appendChild(lbl); wrap.appendChild(track);
+                                lp.appendChild(wrap);
+                            });
+                        }
+
+                        // GPU-first, then partial, then CPU/unknown; biggest first
+                        // within a group, so how much of a node is actually on its
+                        // GPU is visible at a glance.
+                        var _rank = { gpu: 0, split: 1, cpu: 2, unknown: 3 };
+                        byNode[node].slice().sort(function(a, b) {
+                            var ra = _rank[a.processor] === undefined ? 3 : _rank[a.processor];
+                            var rb = _rank[b.processor] === undefined ? 3 : _rank[b.processor];
+                            if (ra !== rb) return ra - rb;
+                            return (b.vram_gb || b.size_gb || 0) - (a.vram_gb || a.size_gb || 0);
+                        }).forEach(function(m) {
                             var row = document.createElement('div');
                             row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0 4px 14px;border-bottom:1px solid rgba(255,255,255,0.05);';
                             var dot = document.createElement('span');
@@ -5561,10 +5605,30 @@ function loadQueueStatus() {
                             var name = document.createElement('span');
                             name.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
                             name.textContent = m.name;
-                            var vram = document.createElement('span');
-                            vram.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.72rem;';
-                            vram.textContent = m.vram_gb > 0 ? m.vram_gb + ' GB' : 'CPU';
-                            row.appendChild(dot); row.appendChild(name); row.appendChild(vram);
+                            // Processor is STATED now, not implied by whether a GB
+                            // figure happened to be present. 'unknown' is honest: a
+                            // remote node reports no VRAM figure at all, and this used
+                            // to render the model's TOTAL size as VRAM, making
+                            // GPU-less nodes (Citadel, Outpost-US) look GPU-resident.
+                            var proc = m.processor || (m.vram_gb > 0 ? 'gpu' : 'unknown');
+                            var procColor = proc === 'gpu' ? '#10b981'
+                                : proc === 'split' ? '#f59e0b'
+                                : proc === 'cpu' ? 'var(--dhq-text-dim)' : '#6b7280';
+                            var procText = proc === 'gpu' ? 'GPU'
+                                : proc === 'split' ? (m.gpu_pct + '% GPU')
+                                : proc === 'cpu' ? 'CPU' : 'unknown';
+                            dot.style.background = procColor;
+                            var size = document.createElement('span');
+                            size.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.7rem;';
+                            var gb = (proc === 'cpu' || proc === 'unknown') ? m.size_gb : m.vram_gb;
+                            size.textContent = (gb || gb === 0) ? gb + ' GB' : '';
+                            var badge = document.createElement('span');
+                            badge.style.cssText = 'flex-shrink:0;font-size:0.6rem;font-weight:600;letter-spacing:0.05em;'
+                                + 'padding:1px 5px;border-radius:3px;color:' + procColor
+                                + ';border:1px solid ' + procColor + ';opacity:0.9;';
+                            badge.textContent = procText;
+                            row.appendChild(dot); row.appendChild(name);
+                            row.appendChild(size); row.appendChild(badge);
                             lp.appendChild(row);
                         });
                     });

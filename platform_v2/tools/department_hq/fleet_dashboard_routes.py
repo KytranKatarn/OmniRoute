@@ -1689,7 +1689,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         -- node, and saved_at catches a LIVE node whose state saver
                         -- (job #46, every 5m) has stopped — which status alone
                         -- would render as fresh forever.
-                        SELECT mls.model_name, mls.size_gb, rn.node_name
+                        SELECT mls.model_name, mls.size_gb, rn.node_name, rn.gpu_available
                         FROM model_load_state mls
                         JOIN remote_nodes rn ON rn.id = mls.node_db_id
                         WHERE mls.host_type = 'node'
@@ -1701,10 +1701,28 @@ def register_dashboard_routes(bp, auth_decorator):
                     for row in cur2.fetchall():
                         n = row["node_name"] or ""
                         short = normalize_node_label(n).replace("Starship-", ".").strip() or n
+                        # `model_load_state.size_gb` is the model's TOTAL size --
+                        # this table carries NO VRAM figure. Assigning it to
+                        # "vram_gb" made every remote model render as GPU-resident,
+                        # including on Citadel and Outpost-US, which have no GPU.
+                        #
+                        # But "unknown" is only honest where it is actually unknown.
+                        # A node with gpu_available=false has NO GPU, so every model
+                        # on it is knowably on CPU -- reporting that as unknown
+                        # discards a fact the node's own hardware record already
+                        # carries. Reported as CPU there, and unknown only on a
+                        # GPU-CAPABLE node, where the split genuinely is unreported
+                        # until size_vram reaches the heartbeat. (ADR-017 says report
+                        # an unknown as unknown; it does not say to forget what is
+                        # known. Caught in review of PR #3409.)
+                        _node_has_gpu = bool(row["gpu_available"])
                         fleet_loaded.append(
                             {
                                 "name": row["model_name"],
-                                "vram_gb": float(row["size_gb"] or 0),
+                                "size_gb": float(row["size_gb"] or 0),
+                                "vram_gb": None if _node_has_gpu else 0.0,
+                                "processor": "unknown" if _node_has_gpu else "cpu",
+                                "gpu_pct": None if _node_has_gpu else 0,
                                 "node": short,
                             }
                         )
@@ -1715,10 +1733,22 @@ def register_dashboard_routes(bp, auth_decorator):
             try:
                 resp = _ureq.urlopen("http://192.168.1.200:11434/api/ps", timeout=3)
                 for m in _json.loads(resp.read()).get("models", []):
+                    _tot = m.get("size", 0) or 0
+                    _vr = m.get("size_vram", 0) or 0
+                    # Same arithmetic `ollama ps` uses for its PROCESSOR column.
+                    if _vr <= 0:
+                        _proc, _pct = "cpu", 0
+                    elif _vr >= _tot:
+                        _proc, _pct = "gpu", 100
+                    else:
+                        _proc, _pct = "split", int(round(_vr / _tot * 100)) if _tot else 0
                     loaded.append(
                         {
                             "name": m["name"],
-                            "vram_gb": round(m.get("size_vram", 0) / 1e9, 1),
+                            "size_gb": round(_tot / 1e9, 1),
+                            "vram_gb": round(_vr / 1e9, 1),
+                            "processor": _proc,
+                            "gpu_pct": _pct,
                             "node": "Hub",
                         }
                     )
@@ -1726,6 +1756,17 @@ def register_dashboard_routes(bp, auth_decorator):
                 pass
 
             loaded.extend(fleet_loaded)
+
+            # Per-GPU capacity for the utilisation bar. _get_hw_capacity is
+            # TTL-cached, so this is cheap, and it now enumerates EVERY card
+            # (it previously read only GPU 0 -- see fleet_helpers).
+            gpu_hw = None
+            try:
+                from .fleet_helpers import _get_cached_hw_capacity
+
+                gpu_hw = (_get_cached_hw_capacity() or {}).get("gpu")
+            except Exception as _ge:
+                logger.debug("queue-status: gpu capacity unavailable: %s", _ge)
 
             # #5321: hardware-rest schedule visibility on the cluster view —
             # advisory strip data; a snapshot error must never break the panel.
@@ -1748,6 +1789,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 running_real=totals_real.get("running", 0),
                 items=items,
                 loaded=loaded,
+                gpu_hw=gpu_hw,
                 # #6688 — the counterweight to `loaded`.
                 #
                 # On 2026-09-11 this panel showed 4 healthy resident models on the

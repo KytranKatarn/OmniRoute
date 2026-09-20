@@ -4,7 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
-<link rel="stylesheet" href="{{ url_for('department_hq.static', filename='css/department-hq.css') }}">
+<link rel="stylesheet" href="{{ url_for('department_hq.static', filename='css/department-hq.css') }}?v={{ asset_v('css/department-hq.css') }}">
 <link rel="stylesheet" href="/static/css/fleet.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/agent_profile_modal.css') }}">
 {% endblock %}
@@ -503,7 +503,7 @@
         <div class="dhq-section-title">
           DISPATCH TRAFFIC
           <span id="trafficSummary" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
-          <span style="float:right;display:flex;gap:4px;">
+          <span class="dhq-title-action" style="display:flex;gap:4px;">
             <select id="trafficHours" onchange="loadDispatchTraffic()" style="background:var(--dhq-surface-2);color:var(--dhq-text);border:1px solid var(--dhq-border);border-radius:4px;padding:2px 6px;font-size:0.65rem;">
               <option value="1">1h</option>
               <option value="6">6h</option>
@@ -659,7 +659,7 @@
         <div class="dhq-section-title">
           SYSTEM ALERTS HISTORY
           <span id="ahTotalBadge" style="color:var(--dhq-text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;margin-left:8px;"></span>
-          <span style="float:right;display:inline-flex;gap:6px;">
+          <span class="dhq-title-action" style="display:inline-flex;gap:6px;">
             <button onclick="ahMarkAllRead()" title="Mark all visible alerts as read" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">✓ MARK ALL READ</button>
             <button onclick="ahClearArchived()" title="Archive all read alerts older than 7 days" style="background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">🗑 CLEAR OLD</button>
             <button onclick="ahFetch(true)" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
@@ -745,7 +745,7 @@
       <div class="dhq-dispatch-section" id="fleetCommandSection" style="margin-bottom:12px;">
         <div class="dhq-section-title">
           FLEET COMMAND
-          <button onclick="loadClusterRest()" title="Refresh now" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
+          <button class="dhq-title-action" onclick="loadClusterRest()" title="Refresh now" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
         </div>
         <!-- #5816: AGENT MOBILITY / PROFILE / FLEET DOCK relocated here from the
              CLUSTER ACTIVITY title bar. They were three separate control clusters
@@ -802,7 +802,7 @@
             <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
             <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
           </span>
-          <span style="float:right;display:flex;gap:4px;align-items:center;">
+          <span class="dhq-title-action" style="display:flex;gap:4px;align-items:center;">
             <button onclick="openRepairNodeModal()" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">⚙ REPAIR NODE</button>
             <button onclick="openAddNodeModal()" style="background:rgba(0,255,255,0.12);border:1px solid rgba(0,255,255,0.4);color:#00ffff;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">+ ADD NODE</button>
           </span>
@@ -841,11 +841,13 @@
         <div class="dhq-section-title">
           CLUSTER ACTIVITY
           <span id="clusterActivityBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
-          <span id="fleetLiveIndicator" style="float:right;display:inline-flex;align-items:center;gap:5px;font-size:0.65rem;color:#10b981;">
+          <span class="dhq-title-action" style="display:inline-flex;align-items:center;gap:8px;">
+          <span id="fleetLiveIndicator" style="display:inline-flex;align-items:center;gap:5px;font-size:0.65rem;color:#10b981;">
             <span class="sc-live" style="font-size:0.5rem;">●</span> LIVE
             <span id="fleetLastRefresh" style="color:var(--dhq-text-dim);margin-left:4px;"></span>
           </span>
-          <button onclick="loadClusterActivity()" title="Refresh now" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 6px;border-radius:4px;font-size:0.65rem;cursor:pointer;margin-right:8px;">↻</button>
+          <button onclick="loadClusterActivity()" title="Refresh now" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 6px;border-radius:4px;font-size:0.65rem;cursor:pointer;margin-right:8px;">↻</button>
+          </span>
         </div>
         <div id="clusterNodesGrid" style="display:grid;gap:10px;margin-bottom:12px;"></div>
         <div class="dhq-section-title" style="margin-top:4px;font-size:0.65rem;">DISPATCH LOG <span style="font-size:0.6rem;color:var(--dhq-text-dim);">— last 1 hour</span></div>
@@ -857,7 +859,7 @@
         <div class="dhq-section-title">
           DISPATCH QUEUE
           <span id="queueTotalBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
-          <button onclick="loadQueueStatus()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+          <button class="dhq-title-action" onclick="loadQueueStatus()" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
         </div>
         <div id="queueItemsPanel" style="font-size:0.78rem;min-height:24px;"></div>
         <div class="dhq-section-title" style="margin-top:14px;">
@@ -870,7 +872,7 @@
       <!-- NODE HEALTH TABLE -->
       <div class="dhq-dispatch-section" id="clusterNodeHealthSection">
         <div class="dhq-section-title">NODE HEALTH
-          <button onclick="loadClusterStats()" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+          <button class="dhq-title-action" onclick="loadClusterStats()" style="background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
         </div>
         <div id="nodeHealthTable" style="font-size:0.75rem;min-height:24px;overflow-x:auto;"></div>
       </div>
@@ -898,7 +900,7 @@
         <div class="dhq-section-title" style="color:#00ffff;">
           AGENT STATUS
           <span id="wtfBacklogBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);"></span>
-          <button onclick="loadWtfAgentStatus()" style="float:right;background:none;border:1px solid rgba(0,255,255,0.3);color:#00ffff;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
+          <button class="dhq-title-action" onclick="loadWtfAgentStatus()" style="background:none;border:1px solid rgba(0,255,255,0.3);color:#00ffff;padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">↻ REFRESH</button>
         </div>
         <div id="wtfAgentPanel" style="font-size:0.78rem;min-height:32px;"></div>
       </div>
@@ -3277,7 +3279,7 @@ async function _dhqRejectHire(approvalId, btn) {
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/roster_sort.js') }}"></script>
-<script src="{{ url_for('department_hq.static', filename='js/department-hq.js') }}"></script>
+<script src="{{ url_for('department_hq.static', filename='js/department-hq.js') }}?v={{ asset_v('js/department-hq.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/agent_create.js') }}"></script>
 <script src="{{ url_for('static', filename='js/agent_profile_modal.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/browser_presence.js') }}"></script>

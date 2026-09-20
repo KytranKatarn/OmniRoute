@@ -16,6 +16,8 @@ Routes split per ADR-045:
 - fleet_*_routes.py — Fleet/node/mesh/OTA/provider/mission (from A.R.M.A.D.A.)
 """
 
+import os as _os
+
 from flask import Blueprint
 from flask_login import login_required
 
@@ -26,6 +28,28 @@ department_hq_bp = Blueprint(
     static_folder="static",
     url_prefix="/tools/department-hq",
 )
+
+
+# Cache-busting for this blueprint's static assets. The <script>/<link> tags were
+# unversioned, so a browser kept serving the OLD department-hq.js after a deploy:
+# measured 2026-09-20, a fresh renderer was on the server while the page still ran
+# the previous one, and only a fresh browser context picked it up. Keyed on mtime,
+# so it changes exactly when the file does and needs no build step.
+_STATIC_ROOT = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "static")
+
+
+@department_hq_bp.context_processor
+def _inject_asset_version():
+    def asset_v(rel_path: str) -> int:
+        try:
+            return int(_os.path.getmtime(_os.path.join(_STATIC_ROOT, rel_path)))
+        except OSError:
+            # A missing file must not break page render -- the tag simply goes
+            # unversioned, which is the pre-existing behaviour.
+            return 0
+
+    return {"asset_v": asset_v}
+
 
 from .routes import register_routes, admin_required  # noqa: F401, E402
 from .roster_routes import register_roster_routes  # noqa: E402

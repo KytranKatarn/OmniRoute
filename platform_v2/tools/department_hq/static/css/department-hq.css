@@ -1256,6 +1256,33 @@
     margin-bottom: 0.75rem;
     border-bottom: 1px solid var(--dhq-border);
     padding-bottom: 0.5rem;
+    /* These headers carry actions — REFRESH, ADD NODE, the LIVE indicator. Those
+       were `float:right`, which is taken OUT of flow, so the header's height was
+       computed from its 0.75rem text ALONE and the taller button overhung the
+       border-bottom into the panel below. Orbitron at letter-spacing:2px makes the
+       titles wide, so on a narrow column the title and the actions collided rather
+       than merely overhanging. Worst between 768px and 1024px, where this file has
+       NO breakpoint: a Fold 5 unfolded is ~884px CSS and therefore gets the full
+       desktop grid (.dhq-dispatch-pods stays 4-across) at non-desktop widths.
+       Flex puts the actions back in flow so they contribute height; flex-wrap lets
+       them drop to their own line instead of overlapping the title. */
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.6rem;
+}
+
+/* The FIRST action absorbs the free space and carries the cluster right; any
+   later action sits beside it on the flex gap.
+   The sibling reset is load-bearing: Cluster Activity has a <span> (LIVE) followed
+   by a <button> (REFRESH), and `:first-of-type` matches per ELEMENT TYPE — it would
+   give BOTH an auto margin and spread them to opposite ends. */
+.dhq-section-title > .dhq-title-action {
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.dhq-section-title > .dhq-title-action ~ .dhq-title-action {
+    margin-left: 0;
 }
 .dhq-dispatch-pods {
     display: grid;

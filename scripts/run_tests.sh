@@ -108,6 +108,7 @@ exec docker run --rm \
   -v "$REPO/platform_v2:/app" \
   -v "$REPO/ai_bridge:/mnt/archie_brain/ai_bridge:ro" \
   -v "$REPO/scripts:/mnt/archie_brain/scripts:ro" \
+  -v "$REPO/config:/mnt/archie_brain/config:ro" \
   -v "$REPO/.claude/skills:/mnt/archie_brain/.claude/skills:ro" \
   -v "$REPO/.claude/commands:/mnt/archie_brain/.claude/commands:ro" \
   -v "$REPO/.claude/rules:/mnt/archie_brain/.claude/rules:ro" \

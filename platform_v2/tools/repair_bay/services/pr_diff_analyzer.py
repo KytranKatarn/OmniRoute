@@ -660,8 +660,20 @@ _PROSE_EVIDENCE_RE = re.compile(
 # is a removed code line and has no code shape), so widening that would demote real findings.
 # These characters are never diff markers, so there is no such ambiguity. Per this file's own
 # rule: a gate that demotes real findings is worse than the bug it fixes.
+# ⚠️ THE ANCHOR MUST SKIP THE DIFF MARKER (#6817, measured on PR #3406). This is matched on the
+# RAW evidence (above) so the `^[+-]\\s?` strip cannot eat a markdown bullet — but evidence is
+# quoted FROM A DIFF, so it arrives as `+⚠️ **prose**`, and a bare `^\\s*` anchor hits the `+`
+# and never reaches the bullet. The regex therefore handled `⚠️ prose` and missed `+⚠️ prose`,
+# which is the only shape that actually occurs. Measured: #3406 (a 4-line .md-only regeneration)
+# blocked on evidence `+⚠️ **The note distinguishes two causes with OPPOSITE remedies**`, a
+# markdown sentence, with this predicate returning False.
+#
+# Allowing `-` as well as `+` is safe HERE although the file's comment above rightly refuses it
+# for ASCII bullets: the ambiguity there is that `- text` could be a markdown bullet OR a removed
+# code line. After a unicode bullet there is no ambiguity — these characters are never diff
+# markers — and a REMOVED prose line is still prose.
 _UNICODE_BULLET_RE = re.compile(
-    "^\\s*(?:"
+    "^[+-]?\\s*(?:"
     "[·•‣⁃▪●◦]\\s*\\S"  # · • ‣ ⁃ ▪ ● ◦
     "|[⚠❗✅❌ℹ⭐]️?\\s*\\S"  # ⚠ ❗ ✅ ❌ ℹ ⭐ (+ optional VS16)
     "|[\U0001f300-\U0001faff]\\s*\\S"  # emoji planes (🔴 📌 …)

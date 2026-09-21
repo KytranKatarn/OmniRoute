@@ -207,7 +207,12 @@ def _get_cached_hw_capacity():
         result = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,memory.total,memory.used,memory.free",
+                # uuid is the JOIN KEY to --query-compute-apps, which is the only
+                # way to say which card carries which model (/api/ps does not say).
+                # Index is NOT usable for that join and is misleading besides: the
+                # TITAN is index 1, not 0, and ai-bridge.md warns to identify these
+                # cards by UUID precisely because an index assumption was wrong once.
+                "--query-gpu=name,memory.total,memory.used,memory.free,uuid",
                 "--format=csv,noheader,nounits",
             ],
             capture_output=True,
@@ -237,6 +242,9 @@ def _get_cached_hw_capacity():
                     {
                         "index": len(cards),
                         "name": parts[0],
+                        # Absent on older nvidia-smi builds; consumers must treat a
+                        # missing uuid as "cannot join", not as a blank that matches.
+                        "uuid": parts[4] if len(parts) > 4 else None,
                         "vram_total_gb": c_total,
                         "vram_used_gb": c_used,
                         "vram_free_gb": c_free,

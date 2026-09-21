@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import os
 import re
+import threading as _threading
+from typing import Optional
 
 import requests
 
@@ -1885,13 +1887,70 @@ def _review_max_chunks() -> int:
     return max(1, min(n, 3))
 
 
+# ---------------------------------------------------------------------------
+# PER-SEND review scope override (#6810 follow-up)
+#
+# `forge:review_plan` / `forge:review_max_files` are the GLOBAL defaults. An
+# operator re-reviewing one PR from the Repair Bay PR Review tab often wants a
+# different scope for THAT send only — a 12-file PR against a bound of 10 drops
+# two files and demotes the verdict, and raising the global bound to clear one
+# PR then leaves every later review slower.
+#
+# THREAD-LOCAL, deliberately. Each review runs in its own daemon thread
+# (`forge_pr_review_analyze`), so a module-level global would leak one PR's
+# scope into a concurrent review of another. contextvars would not work either:
+# `threading.Thread` does not copy the caller's context.
+#
+# SAFETY: this changes only HOW MUCH THE MODEL IS SHOWN. It cannot relax a gate.
+# Coverage is computed from what was actually shown, so raising the bound
+# reduces dropped files while a bound that still drops files still demotes the
+# verdict — pinned by test_review_scope_override.py.
+_scope_local = _threading.local()
+
+
+class review_scope_override:  # noqa: N801 — used as a context manager, not a type
+    """Apply a per-send review scope for the duration of a `with` block.
+
+    ``with review_scope_override(plan="per_file", max_files=12): ...``
+
+    None for either field means "leave the global default alone", so a partial
+    override is exactly that rather than a silent reset of the other knob.
+    """
+
+    def __init__(self, plan: Optional[str] = None, max_files: Optional[int] = None):
+        self._plan = plan
+        self._max_files = max_files
+        self._prev: tuple = ()
+
+    def __enter__(self):
+        self._prev = (
+            getattr(_scope_local, "plan", None),
+            getattr(_scope_local, "max_files", None),
+        )
+        if self._plan is not None:
+            _scope_local.plan = self._plan
+        if self._max_files is not None:
+            _scope_local.max_files = self._max_files
+        return self
+
+    def __exit__(self, *exc):
+        # Restore rather than clear: nested use must not wipe an outer override.
+        _scope_local.plan, _scope_local.max_files = self._prev
+        return False
+
+
 def _review_plan() -> str:
     """Which planner decides what each pass SEES: ``"packed"`` (default) or ``"per_file"``.
 
     ``packed`` is ``chunk_plan`` — today's behaviour, byte-for-byte. ``per_file`` is
     ``file_plan``: one file per pass, each with the whole window. Anything unrecognised
     falls back to ``packed``, so a typo degrades to the known path rather than to a
-    surprising one. Rollback is this value, not a deploy."""
+    surprising one. Rollback is this value, not a deploy.
+
+    A per-send `review_scope_override` wins over the stored setting, for this thread only."""
+    override = getattr(_scope_local, "plan", None)
+    if override in ("packed", "per_file"):
+        return override
     try:
         value = str(_get_setting("forge:review_plan", "packed") or "packed").strip().lower()
     except Exception:  # noqa: BLE001 — a settings read must never break a review
@@ -1908,7 +1967,16 @@ def _review_max_files() -> int:
 
     1 collapses to a single whole-diff pass (the killswitch ``file_plan`` shares with
     ``chunk_plan``), so setting this to 1 disables per-file review without changing
-    ``forge:review_plan``."""
+    ``forge:review_plan``.
+
+    A per-send `review_scope_override` wins over the stored setting, for this thread only,
+    and is clamped by the SAME [1, 25] rule — an operator cannot widen past the ceiling."""
+    override = getattr(_scope_local, "max_files", None)
+    if override is not None:
+        try:
+            return max(1, min(int(override), 25))
+        except (TypeError, ValueError):
+            pass
     try:
         n = int(_get_setting("forge:review_max_files", 10) or 10)
     except (TypeError, ValueError):

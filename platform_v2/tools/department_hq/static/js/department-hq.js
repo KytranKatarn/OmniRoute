@@ -5523,119 +5523,289 @@ function loadQueueStatus() {
                 if (!data.loaded || data.loaded.length === 0) {
                     var none = document.createElement('span');
                     none.style.cssText = 'color:var(--dhq-text-dim);font-style:italic;';
-                    none.textContent = 'No models currently loaded in VRAM';
+                    none.textContent = 'No models currently loaded';
                     lp.appendChild(none);
+                } else if (data.nodes && data.nodes.length) {
+                    _dhqRenderLoadedByNode(lp, data.nodes);
                 } else {
-                    // Grouped by node (#6xxx) — was one flat list across the whole
-                    // cluster, making it hard to see at a glance what any one node
-                    // is carrying. Group key preserves first-seen node order from
-                    // the API (Hub first, since it's queried before fleet_loaded).
-                    var byNode = {};
-                    var nodeOrder = [];
-                    data.loaded.forEach(function(m) {
-                        var node = m.node || 'Hub';
-                        if (!byNode[node]) { byNode[node] = []; nodeOrder.push(node); }
-                        byNode[node].push(m);
-                    });
-                    nodeOrder.forEach(function(node) {
-                        var isFleet = node !== 'Hub';
-                        var header = document.createElement('div');
-                        header.style.cssText = 'display:flex;align-items:center;gap:6px;margin:8px 0 2px;padding-top:4px;'
-                            + 'border-top:1px solid rgba(255,255,255,0.06);';
-                        var hdot = document.createElement('span');
-                        hdot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (isFleet ? '#00bcd4' : '#10b981') + ';';
-                        var hname = document.createElement('span');
-                        hname.style.cssText = 'font-size:0.68rem;font-weight:600;letter-spacing:0.04em;color:' + (isFleet ? '#00bcd4' : 'var(--dhq-text-main)') + ';';
-                        // 'Hub' is the GROUPING KEY and isFleet compares against it, so the
-                        // key is left alone and only the label changes.
-                        hname.textContent = (isFleet ? node : 'Starbase A.R.C.H.I.E.').toUpperCase();
-                        var hcount = document.createElement('span');
-                        hcount.style.cssText = 'margin-left:auto;font-size:0.62rem;color:var(--dhq-text-dim);';
-                        hcount.textContent = byNode[node].length + (byNode[node].length === 1 ? ' model' : ' models');
-                        header.appendChild(hdot); header.appendChild(hname); header.appendChild(hcount);
-                        lp.appendChild(header);
-
-                        // VRAM utilisation PER CARD -- the instrument that makes
-                        // "are we maximising the layout?" answerable at a glance.
-                        // Deliberately not summed: a model must fit on ONE card, so
-                        // 2GB free spread across two cards is not 2GB of capacity.
-                        // Reports "capacity unknown" rather than inventing a total
-                        // when nvidia-smi is unavailable (ADR-017).
-                        if (!isFleet && data.gpu_hw && data.gpu_hw.gpus && data.gpu_hw.gpus.length) {
-                            data.gpu_hw.gpus.forEach(function(g) {
-                                var known = g.vram_total_gb > 0;
-                                var pct = known ? Math.min(100, Math.round(g.vram_used_gb / g.vram_total_gb * 100)) : 0;
-                                var wrap = document.createElement('div');
-                                wrap.style.cssText = 'padding:2px 0 6px 14px;';
-                                var lbl = document.createElement('div');
-                                lbl.style.cssText = 'display:flex;gap:6px;font-size:0.62rem;color:var(--dhq-text-dim);margin-bottom:2px;';
-                                var ln = document.createElement('span');
-                                ln.textContent = g.name;
-                                var lv = document.createElement('span');
-                                lv.style.cssText = 'margin-left:auto;';
-                                lv.textContent = known
-                                    ? (g.vram_used_gb + ' / ' + g.vram_total_gb + ' GB \u00b7 ' + pct + '%')
-                                    : 'capacity unknown';
-                                lbl.appendChild(ln); lbl.appendChild(lv);
-                                var track = document.createElement('div');
-                                track.style.cssText = 'height:5px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;';
-                                var fill = document.createElement('div');
-                                fill.style.cssText = 'height:100%;width:' + (known ? pct : 0) + '%;background:'
-                                    + (pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#10b981') + ';';
-                                track.appendChild(fill);
-                                wrap.appendChild(lbl); wrap.appendChild(track);
-                                lp.appendChild(wrap);
-                            });
-                        }
-
-                        // GPU-first, then partial, then CPU/unknown; biggest first
-                        // within a group, so how much of a node is actually on its
-                        // GPU is visible at a glance.
-                        var _rank = { gpu: 0, split: 1, cpu: 2, unknown: 3 };
-                        byNode[node].slice().sort(function(a, b) {
-                            var ra = _rank[a.processor] === undefined ? 3 : _rank[a.processor];
-                            var rb = _rank[b.processor] === undefined ? 3 : _rank[b.processor];
-                            if (ra !== rb) return ra - rb;
-                            return (b.vram_gb || b.size_gb || 0) - (a.vram_gb || a.size_gb || 0);
-                        }).forEach(function(m) {
-                            var row = document.createElement('div');
-                            row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0 4px 14px;border-bottom:1px solid rgba(255,255,255,0.05);';
-                            var dot = document.createElement('span');
-                            dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:rgba(255,255,255,0.25);';
-                            var name = document.createElement('span');
-                            name.style.cssText = 'color:var(--dhq-text-main);font-family:"IBM Plex Mono",monospace;font-size:0.75rem;';
-                            name.textContent = m.name;
-                            // Processor is STATED now, not implied by whether a GB
-                            // figure happened to be present. 'unknown' is honest: a
-                            // remote node reports no VRAM figure at all, and this used
-                            // to render the model's TOTAL size as VRAM, making
-                            // GPU-less nodes (Citadel, Outpost-US) look GPU-resident.
-                            var proc = m.processor || (m.vram_gb > 0 ? 'gpu' : 'unknown');
-                            var procColor = proc === 'gpu' ? '#10b981'
-                                : proc === 'split' ? '#f59e0b'
-                                : proc === 'cpu' ? 'var(--dhq-text-dim)' : '#6b7280';
-                            var procText = proc === 'gpu' ? 'GPU'
-                                : proc === 'split' ? (m.gpu_pct + '% GPU')
-                                : proc === 'cpu' ? 'CPU' : 'unknown';
-                            dot.style.background = procColor;
-                            var size = document.createElement('span');
-                            size.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.7rem;';
-                            var gb = (proc === 'cpu' || proc === 'unknown') ? m.size_gb : m.vram_gb;
-                            size.textContent = (gb || gb === 0) ? gb + ' GB' : '';
-                            var badge = document.createElement('span');
-                            badge.style.cssText = 'flex-shrink:0;font-size:0.6rem;font-weight:600;letter-spacing:0.05em;'
-                                + 'padding:1px 5px;border-radius:3px;color:' + procColor
-                                + ';border:1px solid ' + procColor + ';opacity:0.9;';
-                            badge.textContent = procText;
-                            row.appendChild(dot); row.appendChild(name);
-                            row.appendChild(size); row.appendChild(badge);
-                            lp.appendChild(row);
-                        });
-                    });
+                    // Fallback for a payload without `nodes` (older worker mid-deploy,
+                    // or the per-node build failing). A flat list is worse but true.
+                    _dhqRenderLoadedFlat(lp, data);
                 }
             }
         })
         .catch(function() {});
+}
+
+/* ============================================================
+   LOADED MODELS — per-node, per-CARD rendering
+   ------------------------------------------------------------
+   GPU and CPU are now SEPARATE sections, and inside GPU each model sits
+   under the card actually carrying it. That question is not answerable from
+   Ollama alone: /api/ps reports size/size_vram and no device at all, so the
+   card comes from nvidia-smi's per-process VRAM, matched to a model's
+   size_vram server-side (services/gpu_residency.py).
+
+   Two confidence levels arrive in the payload and are deliberately rendered
+   DIFFERENTLY -- conflating them is how a panel starts lying:
+     card.measured === true   nvidia-smi on that host: real used VRAM.
+     card.measured === false  a remote node publishes capacity only, so the
+                              figure is the resident models' FOOTPRINT. Marked
+                              with a '~' and an explanatory title.
+
+   A card may also carry MEASURED bytes whose model could not be named (two
+   7B models at the same quant allocate identical VRAM, so naming either
+   would be a coin flip presented as fact). Those render as "unidentified
+   allocation" with their real size. A card is called idle ONLY when it holds
+   neither -- an earlier build printed "idle" over a Quadro sitting at
+   6.8/8 GB, which is simply false.
+   ============================================================ */
+
+function _dhqUsageColor(pct) {
+    return pct >= 90 ? '#ef4444' : pct >= 70 ? '#f59e0b' : '#10b981';
+}
+
+function _dhqCapacityBar(opts) {
+    var known = opts.total > 0;
+    var pct = known ? Math.min(100, Math.round(opts.used / opts.total * 100)) : 0;
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:3px 0 7px ' + (opts.indent || 16) + 'px;';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'display:flex;gap:5px;align-items:baseline;flex-wrap:wrap;'
+        + 'font-size:0.62rem;color:var(--dhq-text-dim);margin-bottom:3px;';
+    var ln = document.createElement('span');
+    ln.textContent = opts.label;
+    ln.style.cssText = 'color:var(--dhq-text-main);font-weight:600;';
+    lbl.appendChild(ln);
+    if (opts.measured === false) {
+        var der = document.createElement('span');
+        der.textContent = '~derived';
+        der.title = 'This node reports capacity only, not measured use. '
+            + 'Shown value is the footprint of its resident models.';
+        der.style.cssText = 'color:#f59e0b;font-size:0.58rem;';
+        lbl.appendChild(der);
+    }
+    var lv = document.createElement('span');
+    lv.style.cssText = 'margin-left:auto;white-space:nowrap;';
+    lv.textContent = known
+        ? (opts.used + ' / ' + opts.total + ' GB · ' + pct + '%')
+        : 'capacity unknown';
+    lbl.appendChild(lv);
+    var track = document.createElement('div');
+    track.style.cssText = 'height:5px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;';
+    var fill = document.createElement('div');
+    fill.style.cssText = 'height:100%;width:' + (known ? pct : 0) + '%;'
+        + 'background:' + _dhqUsageColor(pct) + ';transition:width 0.3s;';
+    track.appendChild(fill);
+    wrap.appendChild(lbl);
+    wrap.appendChild(track);
+    if (opts.footnote) {
+        var fn = document.createElement('div');
+        fn.style.cssText = 'font-size:0.58rem;color:var(--dhq-text-dim);margin-top:2px;';
+        fn.textContent = opts.footnote;
+        wrap.appendChild(fn);
+    }
+    return wrap;
+}
+
+function _dhqModelRow(name, gb, kind, badgeText) {
+    var color = kind === 'gpu' ? '#10b981'
+        : kind === 'cpu' ? 'var(--dhq-text-dim)' : '#6b7280';
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:3px 0 3px 30px;'
+        + 'border-bottom:1px solid rgba(255,255,255,0.04);';
+    var dot = document.createElement('span');
+    dot.style.cssText = 'width:5px;height:5px;border-radius:50%;flex-shrink:0;background:' + color + ';';
+    var nm = document.createElement('span');
+    nm.style.cssText = 'font-family:"IBM Plex Mono",monospace;font-size:0.72rem;color:'
+        + (kind === 'unknown' ? 'var(--dhq-text-dim)' : 'var(--dhq-text-main)')
+        + (kind === 'unknown' ? ';font-style:italic' : '');
+    nm.textContent = name;
+    var sz = document.createElement('span');
+    sz.style.cssText = 'margin-left:auto;color:var(--dhq-text-dim);font-size:0.68rem;white-space:nowrap;';
+    sz.textContent = (gb || gb === 0) ? gb + ' GB' : '';
+    row.appendChild(dot);
+    row.appendChild(nm);
+    row.appendChild(sz);
+    if (badgeText) {
+        var b = document.createElement('span');
+        b.style.cssText = 'flex-shrink:0;font-size:0.56rem;font-weight:600;letter-spacing:0.05em;'
+            + 'padding:1px 4px;border-radius:3px;color:' + color + ';border:1px solid ' + color + ';opacity:0.85;';
+        b.textContent = badgeText;
+        row.appendChild(b);
+    }
+    return row;
+}
+
+function _dhqSubhead(text, color) {
+    var h = document.createElement('div');
+    h.style.cssText = 'margin:7px 0 1px 12px;font-size:0.58rem;font-weight:700;'
+        + 'letter-spacing:0.1em;color:' + color + ';';
+    h.textContent = text;
+    return h;
+}
+
+function _dhqNote(text, color) {
+    var n = document.createElement('div');
+    n.style.cssText = 'padding:2px 0 3px 30px;font-size:0.6rem;font-style:italic;color:'
+        + (color || 'var(--dhq-text-dim)') + ';';
+    n.textContent = text;
+    return n;
+}
+
+function _dhqRenderLoadedByNode(lp, nodes) {
+    nodes.forEach(function(n) {
+        var cards = n.cards || [];
+        var cpu = n.cpu_models || [];
+        var unplaced = n.gpu_unplaced || [];
+        var gpuNamed = 0;
+        cards.forEach(function(c) { gpuNamed += (c.models || []).length; });
+        var total = gpuNamed + unplaced.length + cpu.length;
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;gap:6px;margin:10px 0 2px;'
+            + 'padding-top:5px;border-top:1px solid rgba(255,255,255,0.08);';
+        var hdot = document.createElement('span');
+        hdot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:'
+            + (n.is_hub ? '#10b981' : '#00bcd4') + ';';
+        var hname = document.createElement('span');
+        hname.style.cssText = 'font-size:0.68rem;font-weight:700;letter-spacing:0.04em;color:'
+            + (n.is_hub ? 'var(--dhq-text-main)' : '#00bcd4') + ';';
+        hname.textContent = (n.label || n.key || '').toUpperCase();
+        var hcount = document.createElement('span');
+        hcount.style.cssText = 'margin-left:auto;font-size:0.62rem;color:var(--dhq-text-dim);white-space:nowrap;';
+        hcount.textContent = total + (total === 1 ? ' model' : ' models');
+        header.appendChild(hdot);
+        header.appendChild(hname);
+        header.appendChild(hcount);
+        lp.appendChild(header);
+
+        // ---- GPU ----
+        if (cards.length || unplaced.length) {
+            // Name the attribution SOURCE and, on the exact path, how old the
+            // snapshot is — the exporter runs on a 60s cron, so "2s ago" and
+            // "4 min ago" must not look identical.
+            var gpuHead = 'GPU';
+            if (n.gpu_attribution === 'exact') {
+                // Figures are always live; only the NAME lookup can lag, so say
+                // how much of the picture it actually covered.
+                gpuHead = 'GPU \u00b7 ' + (n.gpu_named_procs || 0) + ' named';
+            } else if (n.gpu_attribution === 'inferred') {
+                gpuHead = 'GPU \u00b7 card inferred';
+            } else if (n.gpu_attribution === 'declared') {
+                gpuHead = 'GPU \u00b7 declared';
+            }
+            lp.appendChild(_dhqSubhead(gpuHead, '#10b981'));
+            cards.forEach(function(c) {
+                lp.appendChild(_dhqCapacityBar({
+                    label: c.name || 'GPU',
+                    used: c.vram_used_gb,
+                    total: c.vram_total_gb,
+                    measured: c.measured,
+                    // A resident footprint bigger than the card means the model did
+                    // not fully fit and part of it lives in CPU RAM. Saying so beats
+                    // printing "4.5 / 4 GB", which is impossible on its face.
+                    footnote: (c.overflow_gb > 0)
+                        ? ('footprint ' + c.footprint_gb + ' GB exceeds this card by '
+                           + c.overflow_gb + ' GB — partially offloaded to CPU')
+                        : null
+                }));
+                (c.models || []).forEach(function(m) {
+                    lp.appendChild(_dhqModelRow(m.name, m.gb, 'gpu', 'GPU'));
+                });
+                (c.unnamed || []).forEach(function(u) {
+                    // The exporter can narrow a SHARED weights blob to a few tags
+                    // without reaching one. Naming them all is honest; picking one
+                    // would be a coin flip printed as fact.
+                    var label = (u.candidates && u.candidates.length)
+                        ? 'one of: ' + u.candidates.join(' / ')
+                        : 'unidentified allocation';
+                    lp.appendChild(_dhqModelRow(label, u.gb, 'unknown'));
+                });
+                if (!(c.models || []).length && !(c.unnamed || []).length) {
+                    lp.appendChild(_dhqNote('no model resident on this card'));
+                }
+            });
+            if (unplaced.length) {
+                // The REASON depends on which attribution path answered. On the
+                // exact path "identical VRAM footprints" is simply false — the
+                // exporter names by manifest, not by size — so an unplaced model
+                // there means no GPU process accounted for it.
+                var why = (n.gpu_attribution === 'exact')
+                    ? ' GPU-resident per Ollama, but no GPU process accounted for it '
+                      + '(a load or unload in flight):'
+                    : ' GPU-resident but cannot be pinned to a card '
+                      + '(identical VRAM footprints — naming one would be a guess):';
+                lp.appendChild(_dhqNote(
+                    unplaced.length + (unplaced.length === 1 ? ' model is' : ' models are')
+                    + why, '#f59e0b'));
+                unplaced.forEach(function(m) {
+                    lp.appendChild(_dhqModelRow(m.name, m.gb, 'gpu', 'GPU'));
+                });
+            }
+        }
+
+        // ---- CPU ----
+        lp.appendChild(_dhqSubhead('CPU', '#94a3b8'));
+        if (n.ram_total_gb) {
+            lp.appendChild(_dhqCapacityBar({
+                label: n.ram_measured ? 'System RAM' : 'RAM — resident models',
+                used: n.ram_measured ? n.ram_used_gb : n.ram_models_gb,
+                total: n.ram_total_gb,
+                measured: n.ram_measured,
+                footnote: n.ram_measured
+                    ? ('of which ' + n.ram_models_gb + ' GB is loaded models')
+                    : null
+            }));
+        }
+        if (cpu.length) {
+            cpu.forEach(function(m) {
+                lp.appendChild(_dhqModelRow(m.name, m.gb, 'cpu', 'CPU'));
+            });
+        } else {
+            lp.appendChild(_dhqNote('no CPU-resident models'));
+        }
+    });
+}
+
+function _dhqRenderLoadedFlat(lp, data) {
+    var byNode = {};
+    var nodeOrder = [];
+    data.loaded.forEach(function(m) {
+        var node = m.node || 'Hub';
+        if (!byNode[node]) { byNode[node] = []; nodeOrder.push(node); }
+        byNode[node].push(m);
+    });
+    nodeOrder.forEach(function(node) {
+        var isFleet = node !== 'Hub';
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;gap:6px;margin:8px 0 2px;'
+            + 'padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);';
+        var hdot = document.createElement('span');
+        hdot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;background:'
+            + (isFleet ? '#00bcd4' : '#10b981') + ';';
+        var hname = document.createElement('span');
+        hname.style.cssText = 'font-size:0.68rem;font-weight:600;letter-spacing:0.04em;color:'
+            + (isFleet ? '#00bcd4' : 'var(--dhq-text-main)') + ';';
+        hname.textContent = (isFleet ? node : 'Starbase - A.R.C.H.I.E.').toUpperCase();
+        header.appendChild(hdot);
+        header.appendChild(hname);
+        lp.appendChild(header);
+        var _rank = { gpu: 0, split: 1, cpu: 2, unknown: 3 };
+        byNode[node].slice().sort(function(a, b) {
+            var ra = _rank[a.processor] === undefined ? 3 : _rank[a.processor];
+            var rb = _rank[b.processor] === undefined ? 3 : _rank[b.processor];
+            if (ra !== rb) { return ra - rb; }
+            return (b.vram_gb || b.size_gb || 0) - (a.vram_gb || a.size_gb || 0);
+        }).forEach(function(m) {
+            var proc = m.processor || (m.vram_gb > 0 ? 'gpu' : 'unknown');
+            var gb = (proc === 'cpu' || proc === 'unknown') ? m.size_gb : m.vram_gb;
+            var txt = proc === 'gpu' ? 'GPU'
+                : proc === 'split' ? (m.gpu_pct + '% GPU')
+                : proc === 'cpu' ? 'CPU' : 'unknown';
+            lp.appendChild(_dhqModelRow(m.name, gb, proc === 'split' ? 'gpu' : proc, txt));
+        });
+    });
 }
 
 function stopFleetRefresh() {

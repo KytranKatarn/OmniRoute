@@ -790,6 +790,18 @@ def gpu_state_monitor_job():
         elif len(cards) < expected_cards:
             condition = "cards"
             detail = f"only {len(cards)}/{expected_cards} GPUs visible to nvidia-smi"
+        elif any(str(e).startswith("procs:") for e in (state.get("errors") or [])):
+            # Per-process attribution is an ENRICHMENT: losing it does not harm
+            # placement (which needs only per-card free VRAM), but it silently
+            # downgrades the A.R.M.A.D.A. panel from naming models per card to
+            # guessing from VRAM sizes. Report it rather than let the panel
+            # quietly get vaguer — advisory, distinct from the failure states above.
+            _perr = next((str(e) for e in state["errors"] if str(e).startswith("procs:")), "procs")
+            condition = "attribution"
+            detail = (
+                "per-card model attribution is DOWN — the panel is back to inferring "
+                f"which card holds which model from VRAM sizes ({_perr[:120]})"
+            )
     except (OSError, ValueError, TypeError):
         condition = "missing"
         detail = f"{path} unreadable — exporter not installed or dead; placement is on the worst-case fallback"

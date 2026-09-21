@@ -344,6 +344,29 @@
                   <button class="dp-filter" id="prFilter-all" onclick="window.setPRFilter('all')">All</button>
                   <span id="prReviewCount" style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(255,255,255,0.4);"></span>
                 </div>
+                <!-- REVIEW SCOPE (per send, not persisted). Changes only how much of
+                     the diff F.O.R.G.E. is SHOWN; the coverage gate still measures
+                     what was actually read, so a scope that still drops files still
+                     demotes the verdict. Opens on the live server defaults from
+                     /api/forge/review-scope so it can never show a stale value. -->
+                <div class="dp-filter-row" id="prScopeRow"
+                     style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+                            font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+                            color:rgba(255,255,255,0.55);">
+                  <span style="letter-spacing:0.08em;">REVIEW SCOPE</span>
+                  <select id="prScopePlan" style="background:rgba(255,255,255,0.06);color:#e6edf3;
+                          border:1px solid rgba(255,255,255,0.15);border-radius:3px;padding:2px 5px;font-size:0.62rem;">
+                    <option value="">server default</option>
+                    <option value="per_file">per file</option>
+                    <option value="packed">packed</option>
+                  </select>
+                  <label style="display:flex;gap:4px;align-items:center;">max files
+                    <input id="prScopeMaxFiles" type="number" min="1" max="25" step="1" placeholder="—"
+                           style="width:52px;background:rgba(255,255,255,0.06);color:#e6edf3;
+                                  border:1px solid rgba(255,255,255,0.15);border-radius:3px;padding:2px 5px;font-size:0.62rem;">
+                  </label>
+                  <span id="prScopeNote" style="color:rgba(255,255,255,0.35);"></span>
+                </div>
                 <div class="dp-pr-split" style="width:100%;max-width:none;">
                   <div class="dp-pr-list" id="prReviewList">
                     <div class="dp-pr-empty-state">No PRs tracked yet. Click Poll GitHub to sync.</div>
@@ -3618,6 +3641,10 @@ window.setPRFilter = function(state) {
 };
 
 window.loadPRReviews = function(state) {
+    // Populate the scope control's "default:" note once, on first load of this
+    // tab. Without this the control renders with no stated default, and an
+    // operator cannot tell what "server default" actually means.
+    if (_prScopeDefaults === null) { _prScopeDefaults = undefined; _prScopeInit(); }
     if (state === undefined) state = _prStateFilter;
     var list = document.getElementById('prReviewList');
     if (!list) return;
@@ -4055,14 +4082,55 @@ function showPRDetail(pr) {
     detail.appendChild(wrap);
 }
 
+// REVIEW SCOPE — per-send override for the analyze/re-review POSTs.
+// Deliberately NOT persisted: it travels with the click, so it cannot quietly
+// change every later review the way editing the global platform_settings would.
+var _prScopeDefaults = null;
+
+function _prScopeInit() {
+    var note = document.getElementById('prScopeNote');
+    fetch(API + '/forge/review-scope').then(function(r){ return r.json(); }).then(function(d){
+        if (!d || !d.success) { return; }
+        _prScopeDefaults = d;
+        var mf = document.getElementById('prScopeMaxFiles');
+        if (mf && d.max_files_ceiling) { mf.max = d.max_files_ceiling; }
+        if (note) {
+            note.textContent = 'default: ' + d.plan + ', ' + d.max_files
+                + ' files (ceiling ' + d.max_files_ceiling + ')';
+        }
+    }).catch(function(){
+        // A failed read must not imply a default that is not in effect.
+        if (note) { note.textContent = 'defaults unavailable'; }
+    });
+}
+
+function _prScopeBody(extra) {
+    var body = extra || {};
+    var planEl = document.getElementById('prScopePlan');
+    var mfEl = document.getElementById('prScopeMaxFiles');
+    var plan = planEl ? planEl.value : '';
+    var mf = mfEl ? parseInt(mfEl.value, 10) : NaN;
+    if (plan) { body.plan = plan; }
+    // Only send a real number. An empty box means "server default", which is a
+    // different instruction from 0.
+    if (!isNaN(mf) && mf > 0) { body.max_files = mf; }
+    return body;
+}
+
+function _prScopeLabel() {
+    var b = _prScopeBody({});
+    if (!b.plan && !b.max_files) { return 'server default scope'; }
+    return (b.plan || 'default plan') + (b.max_files ? ', max ' + b.max_files + ' files' : '');
+}
+
 function triggerPRReReview(prNumber) {
     // #6769 — re-review with the WHOLE diff routed through the coverage-aware
     // full-window reviewer, so the files the last pass never saw get read this time.
     fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
-          {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({wide: true})})
+          {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(_prScopeBody({wide: true}))})
         .then(function(r){ return r.json(); }).then(function(d) {
             if (d.error) { alert('Re-review failed: ' + d.error); return; }
-            alert('F.O.R.G.E. re-review dispatched (full diff) — the list refreshes when it lands.');
+            alert('F.O.R.G.E. re-review dispatched (full diff, ' + _prScopeLabel() + ') — the list refreshes when it lands.');
             setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);
         }).catch(function(e){ alert('Re-review request failed.'); });
 }
@@ -4078,7 +4146,7 @@ function prFileUrl(pr, path) {
 }
 
 function triggerPRAnalysis(prNumber) {
-    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(_prScopeBody({}))})
         .then(function(r){ return r.json(); }).then(function(d) {
             if (d.error) { alert('Analyze failed: ' + d.error); return; }
             setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);

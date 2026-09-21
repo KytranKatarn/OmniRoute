@@ -447,6 +447,72 @@ class ModelService:
             # (a 7B, the class the reserve exists FOR) pays nothing and uses the full
             # card. Default reserve 0 => identical to before. (#6662 follow-up)
             reserve = _VRAM_GPU_RESERVE_GB if self.cpu_placement_is_viable(model) else 0.0
+
+            # PER-CARD placement (#6810 follow-up). `budget` above is ONE number
+            # -- max(free per card) -- so the reserve and the candidate model
+            # compete for the SAME card even on a two-card box. Measured 24h on
+            # the hub: qwen25-classify (needs 5.6, CPU-viable so it pays the
+            # reserve) was demoted to CPU 127x on lines like
+            #   "budget 7.9 - reserve 6.0 < needed 5.6 GB; reserve_hold"
+            # without ever asking whether the OTHER card could take it.
+            #
+            # The reserve exists so an on-demand 7B finds room SOMEWHERE, so the
+            # right question is "does a card fit this model while some card still
+            # holds the reserve". Proven a strict generalisation in
+            # tests/test_gpu_placement.py: identical on one card and at reserve=0,
+            # and it never refuses a placement the scalar rule made. Fail-safe --
+            # no per-card telemetry, or a single card, keeps the scalar path.
+            try:
+                from .gpu_placement import cards_free_gb_from_state, plan_gpu_placement
+
+                _cards = cards_free_gb_from_state(read_gpu_state())
+            except Exception as _pe:  # pragma: no cover - import/telemetry guard
+                logger.debug("model_service: per-card placement unavailable: %s", _pe)
+                _cards = None
+            if _cards and len(_cards) > 1:
+                _plan = plan_gpu_placement(_cards, needed, reserve)
+                if _plan.on_gpu:
+                    logger.info(
+                        "model_service: placement %s -> gpu (card %s of %s, free %.1f GB, "
+                        "needed %.1f, reserve %.1f kept; %s)",
+                        model,
+                        _plan.card_index,
+                        len(_cards),
+                        _cards[_plan.card_index],
+                        needed,
+                        reserve,
+                        _plan.reason,
+                    )
+                    self._record_placement(
+                        model=model,
+                        decision="gpu",
+                        reason="percard_" + _plan.reason,
+                        card_index=_plan.card_index,
+                        cards_free_gb=[round(c, 2) for c in _cards],
+                        needed_gb=round(needed, 2),
+                    )
+                    return {}
+                # A per-card refusal is at least as permissive as the scalar rule
+                # (proven), so there is nothing to fall through to -- but report
+                # WHICH constraint bit, so the log distinguishes "too big for any
+                # card" from "the reserve could not be kept anywhere".
+                logger.info(
+                    "model_service: placement %s -> cpu (no card fits: free %s, " "needed %.1f, reserve %.1f; %s)",
+                    model,
+                    [round(c, 1) for c in _cards],
+                    needed,
+                    reserve,
+                    _plan.reason,
+                )
+                self._record_placement(
+                    model=model,
+                    decision="cpu",
+                    reason="percard_" + _plan.reason,
+                    cards_free_gb=[round(c, 2) for c in _cards],
+                    needed_gb=round(needed, 2),
+                )
+                return {"num_gpu": 0}
+
             if budget - reserve >= needed:
                 logger.info(
                     "model_service: placement %s -> gpu (budget %.1f - reserve %.1f >= needed %.1f GB)",

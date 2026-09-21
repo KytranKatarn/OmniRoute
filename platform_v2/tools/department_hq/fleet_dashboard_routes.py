@@ -1669,6 +1669,7 @@ def register_dashboard_routes(bp, auth_decorator):
 
             # --- fleet node model state from DB (job #46 saves every 5m) ---
             fleet_loaded = []
+            remote_rows = []
             try:
                 with get_db_cursor(commit=False) as (_, cur2):
                     cur2.execute(
@@ -1689,7 +1690,8 @@ def register_dashboard_routes(bp, auth_decorator):
                         -- node, and saved_at catches a LIVE node whose state saver
                         -- (job #46, every 5m) has stopped — which status alone
                         -- would render as fresh forever.
-                        SELECT mls.model_name, mls.size_gb, mls.tier, rn.node_name, rn.gpu_available
+                        SELECT mls.model_name, mls.size_gb, mls.tier, rn.node_name,
+                               rn.gpu_available, rn.gpu_model, rn.gpu_vram_gb, rn.ram_gb
                         FROM model_load_state mls
                         JOIN remote_nodes rn ON rn.id = mls.node_db_id
                         WHERE mls.host_type = 'node'
@@ -1718,6 +1720,22 @@ def register_dashboard_routes(bp, auth_decorator):
                         # remote rows -- the hub rows, which read /api/ps directly, are
                         # the only ones that can honestly report a percentage.
                         _tier = (row["tier"] or "").strip().lower()
+                        # Keep the raw row for the per-node view built below. The
+                        # flat `loaded` list stays byte-identical in shape for any
+                        # existing consumer; `nodes` is purely additive.
+                        remote_rows.append(
+                            {
+                                "node": n,
+                                "label": short,
+                                "name": row["model_name"],
+                                "gb": float(row["size_gb"] or 0),
+                                "tier": _tier,
+                                "gpu_available": bool(row["gpu_available"]),
+                                "gpu_model": row["gpu_model"],
+                                "gpu_vram_gb": (float(row["gpu_vram_gb"]) if row["gpu_vram_gb"] else None),
+                                "ram_gb": float(row["ram_gb"]) if row["ram_gb"] else None,
+                            }
+                        )
                         if _tier in ("gpu", "cpu"):
                             _proc = _tier
                         else:
@@ -1737,11 +1755,17 @@ def register_dashboard_routes(bp, auth_decorator):
                 pass
 
             loaded = []
+            hub_raw = []
             try:
                 resp = _ureq.urlopen("http://192.168.1.200:11434/api/ps", timeout=3)
                 for m in _json.loads(resp.read()).get("models", []):
                     _tot = m.get("size", 0) or 0
                     _vr = m.get("size_vram", 0) or 0
+                    # Bytes, not rounded GB: the card attribution below matches a
+                    # model against a process's VRAM allocation, and rounding to
+                    # 0.1GB throws away the precision that makes two similarly
+                    # sized models distinguishable at all.
+                    hub_raw.append({"name": m["name"], "size": _tot, "size_vram": _vr})
                     # Same arithmetic `ollama ps` uses for its PROCESSOR column.
                     if _vr <= 0:
                         _proc, _pct = "cpu", 0
@@ -1775,6 +1799,228 @@ def register_dashboard_routes(bp, auth_decorator):
             except Exception as _ge:
                 logger.debug("queue-status: gpu capacity unavailable: %s", _ge)
 
+            # UNITS: everything in this view is BINARY GB (GiB). nvidia-smi
+            # reports MiB and /proc/meminfo KiB, so cards and RAM were already
+            # binary, while Ollama's byte figures were being divided by 1e9 --
+            # decimal. That made a model look BIGGER than its card's own usage
+            # (observed: Quadro "6.7 GB used" carrying a model labelled 7.2 GB,
+            # both describing the same 6852 MiB). One unit, or the arithmetic on
+            # screen does not add up.
+            # ---- PER-NODE VIEW -------------------------------------------------
+            # Additive. `loaded` above keeps its exact shape for existing readers;
+            # this groups the same facts by node, then by CARD within a node, so
+            # "which card is carrying which model" and "how much RAM is actually
+            # committed" are answerable without arithmetic in the reader's head.
+            #
+            # Two different CONFIDENCE levels are reported and must never be
+            # rendered identically:
+            #   measured  -- nvidia-smi on this host: real used VRAM per card, and
+            #                model->card attribution where it is provably unique.
+            #   declared  -- a remote node publishes capacity only (gpu_vram_gb,
+            #                ram_gb) via heartbeat, so per-card USE is the resident
+            #                models' FOOTPRINT, not an observation.
+            nodes = []
+            try:
+                from .services.gpu_residency import (
+                    attribute,
+                    attribute_named,
+                    gpu_process_snapshot,
+                    pid_name_map,
+                )
+
+                # --- hub ---
+                hub_cards = []
+                gpus = (gpu_hw or {}).get("gpus") or []
+                # PREFER the host exporter: it reads /proc and Ollama's manifests,
+                # so it NAMES each process exactly instead of inferring from VRAM
+                # sizes (which cannot separate two 7Bs reporting identical
+                # size_vram). Byte-matching stays as the fallback for a host with
+                # no exporter, and `gpu_attribution` reports which one answered so
+                # a silent downgrade is visible rather than invisible.
+                # LIVE numbers, exporter-supplied NAMES. nvidia-smi is read now
+                # (so every byte figure is current); the exporter contributes only
+                # pid -> model, which the container cannot compute at all because
+                # it has its own PID namespace.
+                #
+                # An earlier attempt took the CARD figures from the exporter too,
+                # for "one consistent snapshot". That was wrong: its 60s cron
+                # meant a 46s-old snapshot reported both cards EMPTY while
+                # nvidia-smi showed 4906 MiB live, because models cycle on
+                # KEEP_ALIVE expiry. A pid, by contrast, is a stable identity for
+                # the life of its process -- a 60s-old NAME for a still-running
+                # pid is correct, and an exited pid is simply absent from the live
+                # list. So names may age; numbers may not.
+                _live_procs = gpu_process_snapshot()
+                _names = None
+                try:
+                    from services.model_service import read_gpu_state
+
+                    _names = pid_name_map(read_gpu_state())
+                except Exception as _ae:
+                    logger.debug("queue-status: exporter name map unavailable: %s", _ae)
+                attribution = attribute_named(_live_procs, _names, hub_raw)
+                if attribution is None:
+                    attribution = attribute(hub_raw, _live_procs)
+
+                claimed = set()
+                for g in gpus:
+                    mine = attribution["by_uuid"].get(g.get("uuid")) or []
+                    for mm in mine:
+                        claimed.add(mm["name"])
+                    anon = attribution.get("anon_by_uuid", {}).get(g.get("uuid")) or []
+                    hub_cards.append(
+                        {
+                            "index": g.get("index"),
+                            "name": g.get("name"),
+                            "vram_total_gb": g.get("vram_total_gb"),
+                            "vram_used_gb": g.get("vram_used_gb"),
+                            "usage_pct": g.get("usage_pct"),
+                            "measured": True,
+                            "models": [{"name": mm["name"], "gb": round(mm["bytes"] / 1024**3, 1)} for mm in mine],
+                            # Measured bytes whose MODEL could not be named. A card
+                            # carrying one of these is emphatically not idle, and
+                            # saying so is the difference between "unknown which"
+                            # and the false "nothing here".
+                            # `candidates` is populated where the exporter
+                            # narrowed a SHARED weights blob to a few tags but
+                            # not one: "one of these two" beats both a blank and
+                            # a coin-flip pick.
+                            "unnamed": [
+                                {
+                                    "gb": round(a["bytes"] / 1024**3, 1),
+                                    "candidates": list(a.get("candidates") or []),
+                                }
+                                for a in anon
+                            ],
+                        }
+                    )
+                hub_gpu_unplaced = [
+                    {"name": m["name"], "gb": round(m["size_vram"] / 1024**3, 1)}
+                    for m in hub_raw
+                    if (m["size_vram"] or 0) > 0 and m["name"] not in claimed
+                ]
+                hub_cpu = [
+                    {
+                        "name": m["name"],
+                        # The CPU-resident PORTION, not the whole model: a split
+                        # model holds only its un-offloaded remainder in RAM.
+                        "gb": round(max(m["size"] - m["size_vram"], 0) / 1024**3, 1),
+                    }
+                    for m in hub_raw
+                    if (m["size"] - m["size_vram"]) > 0
+                ]
+                ram_total = ram_used = None
+                try:
+                    _mi = {}
+                    with open("/proc/meminfo", "r") as fh:
+                        for _ln in fh:
+                            _k, _v = _ln.split(":", 1)
+                            _mi[_k] = int(_v.split()[0])
+                    # The container's /proc/meminfo is the HOST's (verified on the
+                    # hub: 131825476 kB == 125.7 GiB), so this is real system RAM,
+                    # not a cgroup figure.
+                    ram_total = round(_mi["MemTotal"] / 1048576, 1)
+                    ram_used = round((_mi["MemTotal"] - _mi["MemAvailable"]) / 1048576, 1)
+                except Exception:
+                    pass
+                nodes.append(
+                    {
+                        "key": "Hub",
+                        "label": "Starbase - A.R.C.H.I.E.",
+                        "is_hub": True,
+                        "cards": hub_cards,
+                        "gpu_unplaced": hub_gpu_unplaced,
+                        # 'exact'       — named from Ollama's own manifests via the
+                        #                 host exporter; no inference involved.
+                        # 'inferred'    — byte-matched, refusing where ambiguous.
+                        # 'unavailable' — nvidia-smi said nothing.
+                        # Reported so a downgrade to guessing is VISIBLE.
+                        "gpu_attribution": (
+                            "exact"
+                            if attribution.get("source") == "exporter"
+                            else "inferred" if attribution["available"] else "unavailable"
+                        ),
+                        # Age of the snapshot the exact figures came from. The
+                        # exporter runs on a 60s cron, so a reader must be able to
+                        # tell "2s ago" from "4 minutes ago" rather than assume
+                        # live. None on the inferred path, which IS live.
+                        # How many live GPU processes carry an exact name. The
+                        # figures are always live; only the NAME lookup can lag,
+                        # and this says how much of the picture it covered.
+                        "gpu_named_procs": sum(len(v) for v in attribution["by_uuid"].values()),
+                        "cpu_models": hub_cpu,
+                        "ram_total_gb": ram_total,
+                        "ram_used_gb": ram_used,
+                        "ram_models_gb": round(sum(c["gb"] for c in hub_cpu), 1),
+                        "ram_measured": ram_used is not None,
+                    }
+                )
+
+                # --- fleet nodes ---
+                seen = []
+                for r in remote_rows:
+                    if r["node"] not in seen:
+                        seen.append(r["node"])
+                for nm in seen:
+                    rows = [r for r in remote_rows if r["node"] == nm]
+                    first = rows[0]
+                    gpu_models = [{"name": r["name"], "gb": r["gb"]} for r in rows if r["tier"] == "gpu"]
+                    cpu_models = [{"name": r["name"], "gb": r["gb"]} for r in rows if r["tier"] != "gpu"]
+                    cards = []
+                    if first["gpu_available"] and first["gpu_vram_gb"]:
+                        footprint = round(sum(m["gb"] for m in gpu_models), 1)
+                        total = first["gpu_vram_gb"]
+                        # A footprint LARGER than the card is not a 112%-full card;
+                        # it means the model did not fully fit and Ollama offloaded
+                        # part of it to CPU. Measured live on USS-245: mistral:7b
+                        # (4.5 GB) against a 4 GB RTX 3050 rendered "4.5 / 4 GB",
+                        # which is nonsense on its face. `tier` says gpu-or-cpu, not
+                        # what FRACTION was offloaded, so the honest ceiling is the
+                        # card itself, with the overflow reported separately.
+                        overflow = round(max(footprint - total, 0), 1) if total else 0
+                        used = min(footprint, total) if total else footprint
+                        cards.append(
+                            {
+                                "index": 0,
+                                "name": first["gpu_model"] or "GPU",
+                                "vram_total_gb": total,
+                                "vram_used_gb": used,
+                                "footprint_gb": footprint,
+                                "overflow_gb": overflow,
+                                "usage_pct": (round(used / total * 100, 1) if total else 0),
+                                # Footprint, not an observation -- and a single-GPU
+                                # node needs no matcher: there is only one card a
+                                # GPU-resident model can be on.
+                                "measured": False,
+                                "models": gpu_models,
+                                # A remote node publishes no per-process data, so
+                                # there is nothing unnamed to report -- the key is
+                                # present so the renderer needs no special case.
+                                "unnamed": [],
+                            }
+                        )
+                    nodes.append(
+                        {
+                            "key": nm,
+                            "label": first["label"],
+                            "is_hub": False,
+                            "cards": cards,
+                            # With one card, nothing is ever unplaced; if a node
+                            # somehow reports GPU models with no card, they surface
+                            # here rather than vanishing.
+                            "gpu_unplaced": [] if cards else gpu_models,
+                            "gpu_attribution": "declared" if cards else "none",
+                            "cpu_models": cpu_models,
+                            "ram_total_gb": first["ram_gb"],
+                            "ram_used_gb": None,
+                            "ram_models_gb": round(sum(m["gb"] for m in cpu_models), 1),
+                            "ram_measured": False,
+                        }
+                    )
+            except Exception as _ne:
+                logger.debug("queue-status: per-node view unavailable: %s", _ne)
+                nodes = []
+
             # #5321: hardware-rest schedule visibility on the cluster view —
             # advisory strip data; a snapshot error must never break the panel.
             rest = None
@@ -1797,6 +2043,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 items=items,
                 loaded=loaded,
                 gpu_hw=gpu_hw,
+                nodes=nodes,
                 # #6688 — the counterweight to `loaded`.
                 #
                 # On 2026-09-11 this panel showed 4 healthy resident models on the

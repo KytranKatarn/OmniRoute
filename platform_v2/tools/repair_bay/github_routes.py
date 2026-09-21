@@ -888,6 +888,7 @@ def register_github_routes(bp, admin_required):
             _run_forge_review,
             _obtain_review_summary,
             _notify_pr_reviewed,
+            review_scope_override,
         )
 
         review = get_review(pr_number)
@@ -922,9 +923,34 @@ def register_github_routes(bp, admin_required):
         # #6769 — `wide` re-runs the review with the WHOLE diff shown to the reviewer.
         # Parsed here (in the request context), not inside the thread, so a missing body
         # degrades to the default freeform path exactly as before.
-        wide = bool((request.get_json(silent=True) or {}).get("wide"))
+        _body = request.get_json(silent=True) or {}
+        wide = bool(_body.get("wide"))
+
+        # Per-send review SCOPE. Parsed here in the request context (like `wide`),
+        # so a missing/garbage body degrades to the stored global defaults rather
+        # than erroring. `plan`/`max_files` only change how much of the diff the
+        # model is SHOWN — the coverage gate still measures what was actually
+        # read, so a scope that still drops files still demotes the verdict.
+        _plan = str(_body.get("plan") or "").strip().lower() or None
+        if _plan not in ("packed", "per_file", None):
+            _plan = None
+        try:
+            _max_files = int(_body["max_files"]) if _body.get("max_files") else None
+        except (TypeError, ValueError):
+            _max_files = None
 
         def _run_in_background():
+            # The override is THREAD-LOCAL, so it has to be entered inside the
+            # thread. Wrapping the Thread(...) construction instead would set it
+            # on the request thread and this review would never see it.
+            try:
+                with review_scope_override(plan=_plan, max_files=_max_files):
+                    _do_review()
+            except Exception as exc:
+                logger.error("[PRAnalyze] PR #%s failed: %s", pr_number, exc)
+                mark_review_pending(pr_number, repo)
+
+        def _do_review():
             try:
                 mark_review_started(pr_number, repo)
                 diff = _fetch_diff(diff_url)
@@ -964,6 +990,39 @@ def register_github_routes(bp, admin_required):
             ),
             202,
         )
+
+    @bp.route("/api/forge/review-scope", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_review_scope():
+        """The EFFECTIVE review-scope defaults, read through the pipeline's own accessors.
+
+        Feeds the PR Review tab's scope control so it opens on the real current
+        values instead of hardcoded ones — a control showing a stale default is
+        how an operator "changes" a setting that was never in effect.
+
+        Read-only: the per-send override travels with the analyze POST, so
+        nothing here mutates state.
+        """
+        try:
+            from .services.pr_diff_analyzer import forge_settings_snapshot
+
+            snap = forge_settings_snapshot()
+            return jsonify(
+                {
+                    "success": True,
+                    "plan": snap.get("forge:review_plan"),
+                    "max_files": snap.get("forge:review_max_files"),
+                    "max_chunks": snap.get("forge:review_max_chunks"),
+                    # The clamp the server applies regardless of what is sent, so
+                    # the control cannot offer a value the backend would silently
+                    # reduce.
+                    "max_files_ceiling": 25,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("forge_review_scope: %s", exc)
+            return jsonify({"success": False, "error": str(exc)[:200]}), 500
 
     @bp.route("/api/forge/pr-reviews/analyze-all", methods=["POST"])
     @login_required

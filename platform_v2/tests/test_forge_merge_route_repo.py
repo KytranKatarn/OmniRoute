@@ -118,10 +118,25 @@ class TestHubDeployEnqueueIsRepoScoped(unittest.TestCase):
         self.assertIn('result["deploy"]', body)
         self.assertIn('"enqueued"', body)
 
-    def test_hub_deploy_uses_heredoc_style_branching(self):
-        body = _merge_route_source()
-        # Enqueue failure must never fail the merge.
-        self.assertIn("enqueue failure never fails the merge", body)
+    def test_an_enqueue_failure_never_fails_the_merge(self):
+        """⚠️ Pins the BEHAVIOUR, not the prose.
+
+        This asserted that the literal string "enqueue failure never fails the merge"
+        appeared in the source. The comment was later reworded to "bookkeeping never
+        fails a real merge" and the test went red while the behaviour was perfectly
+        intact. A test pinning a COMMENT fails on an edit that changes nothing, and
+        passes when the comment is right and the code is wrong — useless in both
+        directions. (Its old name, "uses_heredoc_style_branching", described neither.)
+
+        What actually matters: the merge has already happened by the time the deploy is
+        enqueued, so an enqueue failure must be caught, reported as enqueued:false, and
+        never propagate — a merged PR reported as failed is worse than an un-deployed one.
+        """
+        tail = _merge_route_source()
+        tail = tail[tail.index("submit_host_command(") :]
+        self.assertRegex(tail, r"except\s+Exception\s+as\s+deploy_exc")
+        self.assertIn('"enqueued": False', tail)
+        self.assertRegex(tail, r"logger\.warning\(")
 
 
 class TestRepoValidator(unittest.TestCase):
@@ -133,6 +148,55 @@ class TestRepoValidator(unittest.TestCase):
         self.assertFalse(_is_valid_repo("no-slash"))
         self.assertFalse(_is_valid_repo(""))
         self.assertFalse(_is_valid_repo(None))
+
+
+def _get_route_source() -> str:
+    src = _ROUTES.read_text()
+    start = src.index("def forge_pr_review_get(")
+    end = src.index("@bp.route(", start)
+    return src[start:end]
+
+
+class TestTheSingleReviewGetIsRepoAware(unittest.TestCase):
+    """THE THIRD INSTANCE of the defect this file already documents.
+
+    The merge route was fixed (above). `forge_pr_review_send_back`, two routes down, was
+    written repo-aware from the start (`repo=data.get("repo")`). `forge_pr_review_get`
+    sat between them still calling `get_review(pr_number)` bare.
+
+    `get_review` pins a bare call to `_DEFAULT_REPO` through an equality predicate, so it
+    could never "resolve to an unintended repository" — the failure is the other
+    direction: for a PR in ANY other repo the route answered 404 "not found" while a
+    review existed, and for a colliding number (archie-code #71 vs archie-platform #71,
+    measured 2026-09-16, #6776) it returned the WRONG PR's review under a 200.
+
+    Source-level pins, in this file's established style: the route is a closure inside
+    register_github_routes, and what matters is which arguments it forwards.
+    """
+
+    def test_the_lookup_is_repo_scoped(self):
+        self.assertRegex(_get_route_source(), r"get_review\(\s*pr_number\s*,\s*repo\s*=")
+
+    def test_it_accepts_an_explicit_repo(self):
+        self.assertIn('request.args.get("repo")', _get_route_source())
+
+    def test_it_resolves_through_the_ambiguity_gate(self):
+        # Never guess: the same gate the rest of the pipeline uses.
+        self.assertIn("repos_for_pr_number", _get_route_source())
+
+    def test_it_refuses_rather_than_guessing_on_a_collision(self):
+        body = _get_route_source()
+        self.assertIn("409", body)
+        self.assertIn("ambiguous", body)
+
+    def test_an_unreadable_lookup_fails_CLOSED(self):
+        """#6787 is exactly this: `repos_for_pr_number` returns None for a FAILED lookup
+        and [] for "genuinely no rows", and collapsing them let a DB blip sail through a
+        `len(...) > 1` test. A 503 is honest; defaulting to archie-platform on an
+        unreadable lookup is how #6776 became re-enterable by a transient error."""
+        body = _get_route_source()
+        self.assertRegex(body, r"candidates\s+is\s+None")
+        self.assertIn("503", body)
 
 
 if __name__ == "__main__":

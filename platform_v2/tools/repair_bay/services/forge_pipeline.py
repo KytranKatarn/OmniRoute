@@ -14,6 +14,11 @@ import re
 import time
 from typing import Dict, Optional
 
+try:
+    from services.patch_sanity import validate_patch
+except Exception:  # noqa: BLE001 — a validator import failure must refuse, not crash
+    validate_patch = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -308,14 +313,16 @@ def _patch_sanity_ok(file_path: str, patched: str) -> tuple:
         if not str(file_path or "").endswith(".py"):
             return True, []
 
-        from services.patch_sanity import validate_patch
-
-        original = _original_source(file_path)
-        if original is None:
-            reasons = [f"could not read the original {file_path} to compare against"]
+        if validate_patch is None:
+            # Fail CLOSED: a gate whose validator cannot load must not silently pass.
+            reasons = ["patch-sanity validator unavailable (services.patch_sanity import failed)"]
         else:
-            result = validate_patch(original, patched, file_path)
-            reasons = [] if result.get("ok") else list(result.get("failures") or [])
+            original = _original_source(file_path)
+            if original is None:
+                reasons = [f"could not read the original {file_path} to compare against"]
+            else:
+                result = validate_patch(original, patched, file_path)
+                reasons = [] if result.get("ok") else list(result.get("failures") or [])
     except Exception as exc:  # noqa: BLE001
         reasons = [f"sanity check errored: {type(exc).__name__}: {exc}"]
     if not reasons:

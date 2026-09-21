@@ -1831,6 +1831,17 @@ def _review_is_strong(review: dict, diff: str | None = None) -> bool:
     """
     from tools.repair_bay.services.pr_review_service import classify_pr_tier  # noqa: PLC0415
 
+    # #6779 — STRONG MEANS REACHABLE. This helper is the single definition shared by the
+    # model choice AND the coverage note's cap, precisely so they cannot drift. But it
+    # answered "does this DESERVE the patient model?" when every consumer needs "will this
+    # GET it?". When the answer differed, the prompt was built at the 18,768 strong cap and
+    # then served by a 7B, which is slow enough to fail — and the freeform retry re-truncated
+    # to 9,000. That is the whole 89%/49% coverage story, in one word's worth of meaning.
+    #
+    # Checked FIRST and unconditionally: if the model cannot be reached, no reason to
+    # escalate matters, and the honest answer is the weak cap for all three consumers.
+    if not _tier3_is_reachable():
+        return False
     try:
         if classify_pr_tier(review) >= 3:
             return True
@@ -1984,6 +1995,26 @@ def _review_max_files() -> int:
     return max(1, min(n, 25))
 
 
+def _review_max_files_wide() -> int:
+    """The per-file bound for the WIDE re-review — the button that means "read all of it".
+
+    #3 of the coverage work. The routine poll is bounded for wall-clock: every file is a
+    serial dispatch, so 10 files is ~10x one review, and that trade is right for a poll
+    nobody is waiting on. The wide button is the opposite situation: a human clicked it
+    BECAUSE the last verdict did not cover the diff, and is waiting for one that does.
+    Bounding it at the poll's value guarantees the click cannot deliver what it promises —
+    measured on #3398, 11 files against max_files=10 dropped one before the model saw it.
+
+    Defaults to the 25 ceiling ``_review_max_files`` already clamps to, so this widens the
+    wide path without inventing a new limit. Tunable via platform_settings, no deploy.
+    """
+    try:
+        n = int(_get_setting("forge:review_max_files_wide", 25) or 25)
+    except (TypeError, ValueError):
+        return 25
+    return max(1, min(n, 50))
+
+
 def forge_settings_snapshot() -> dict:
     """ST-4: the EFFECTIVE value of every forge:* review knob, read through the same accessors the
     pipeline uses (so the defaults match exactly — no drift, no seeded platform_settings rows
@@ -2002,6 +2033,7 @@ def forge_settings_snapshot() -> dict:
         "forge:review_max_chunks": _review_max_chunks(),
         "forge:review_plan": _review_plan(),
         "forge:review_max_files": _review_max_files(),
+        "forge:review_max_files_wide": _review_max_files_wide(),
         "diff_cap_7b": _diff_cap_for_model(False),
         "diff_cap_strong": _diff_cap_for_model(True),
     }
@@ -2117,6 +2149,71 @@ def _json_reprompt_enabled() -> bool:
     )
 
 
+_TIER3_PLACEABLE_CACHE = {"at": 0.0, "nodes": None}
+
+
+def _nodes_for_model(model: str) -> list:
+    """Online node_ids that can ACTUALLY hold ``model``. 60s TTL. Fail-closed to [].
+
+    #6779 — the bug this exists to end. ``_dispatch_json_review`` passed
+    ``preferred_node=_review_preferred_nodes()`` (the 7B cluster: Runabout, Defiant)
+    together with ``prefer_model=gemma3:12b``. Measured live 2026-09-16:
+
+        can_node_run_model('gemma3:12b') -> ['Archie Starbase']
+        _review_preferred_nodes()        -> [Runabout, Defiant]
+        OVERLAP                          -> set()
+
+    The pin won, so the escalation was served by a 7B on Runabout and returned
+    status='parsed' — a SUCCESS carrying the wrong model. Nothing anywhere said so.
+
+    ``_review_preferred_nodes``'s own docstring already carved this out for the
+    gemma3:12b self-refute auditor ("the 4GB Runabout cannot hold a 12B ... so it keeps
+    Defiant+hub"). The knowledge was there; it just was not wired at this call site —
+    the same shape as #5194 / #5862 / #2738.
+
+    Fail-closed (``[]``) because the caller reads an empty list as "do not ask for this
+    model", which yields an honest weak-cap review. Fail-OPEN would restore the doomed
+    dispatch this function exists to prevent.
+    """
+    import time as _t  # noqa: PLC0415
+
+    if not model:
+        return []
+    now = _t.time()
+    cache = _TIER3_PLACEABLE_CACHE
+    if cache["nodes"] is not None and (now - cache["at"]) < 60 and cache.get("model") == model:
+        return list(cache["nodes"])
+    out: list = []
+    try:
+        from database import get_db_cursor  # noqa: PLC0415
+        from services.fleet_resource_router import can_node_run_model, node_has_model  # noqa: PLC0415
+
+        with get_db_cursor() as (_c, cur):
+            cur.execute(
+                "SELECT node_id, node_name, gpu_available, gpu_vram_gb, ram_gb, "
+                "ollama_available, extra_capabilities, bridge_priority "
+                "FROM remote_nodes WHERE status = 'online'"
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+        for n in rows:
+            # BOTH predicates: capacity says it FITS, presence says it is PULLED. They
+            # disagree on real nodes (#5862), and a pin to a node missing the model is
+            # the same wasted dispatch in a different costume.
+            if can_node_run_model(n, model) and node_has_model(n, model):
+                out.append(n.get("node_id"))
+        out = [n for n in out if n]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[PR Review] _nodes_for_model(%s) failed, treating as unplaceable: %s", model, exc)
+        out = []
+    cache.update({"at": now, "nodes": list(out), "model": model})
+    return list(out)
+
+
+def _tier3_is_reachable() -> bool:
+    """Can the patient full-window model actually be reached right now?"""
+    return bool(_nodes_for_model(_TIER3_REVIEW_MODEL))
+
+
 def _review_preferred_nodes() -> list:
     """Node preference for the 7B review dispatches — the dispatcher's ``_REVIEW_CLUSTER``
     (#5861: Runabout FIRST, then Defiant — Runabout measured 98-100% on both review models
@@ -2143,16 +2240,36 @@ def _dispatch_json_review(prompt: str, kw: dict):
     attempt and the ST-1 JSON re-prompt so both honor the same node pinning, num_ctx, and tier model.
     Only 'parse_fail' (a real non-JSON response) warrants a re-prompt — queued/error/empty go straight
     to the freeform fallback, exactly as before."""
-    from tools.department_hq.services.department_dispatcher import dispatch
+    from tools.department_hq.services.department_dispatcher import dispatch, dispatch_awaiting_queue
 
     _pa = _review_prefer_agent()  # #6040: P.R.O.B.E. reviews machine-authored PRs
+    # #6779 — THE PIN MUST FOLLOW THE MODEL. _review_preferred_nodes() is the 7B cluster
+    # (Runabout, Defiant). Passing it alongside prefer_model=gemma3:12b pinned the request
+    # to nodes that cannot hold a 12B, and the pin won: measured live, the escalation was
+    # served by a 7B on Runabout and returned status='parsed' — a SUCCESS carrying the
+    # WRONG model, with nothing anywhere reporting the substitution.
+    _want_model = kw.get("model_override") or kw.get("prefer_model")
+    _pin = _review_preferred_nodes()  # #5861/#6099: Runabout-first, correct for the 7B
+    if _want_model:
+        _capable = _nodes_for_model(_want_model)
+        if _capable:
+            _pin = _capable
+        else:
+            # Nothing can serve it. Asking anyway buys a doomed slow dispatch and then a
+            # fallback; drop the request so the caller gets an honest 7B review instead.
+            logger.warning(
+                "[PR Review] %s is not placeable on any online node — dispatching the "
+                "default review model instead (#6779)",
+                _want_model,
+            )
+            kw = {k: v for k, v in kw.items() if k not in ("model_override", "prefer_model")}
     try:
         result = dispatch(
             capability="code_review",
             prompt=prompt,
             module_id="repair_bay",
             json_mode=True,
-            preferred_node=_review_preferred_nodes(),  # #5861/#6099: Runabout-first
+            preferred_node=_pin,
             num_ctx=_review_num_ctx(),
             **({"prefer_agent": _pa} if _pa else {}),
             **kw,
@@ -2161,7 +2278,44 @@ def _dispatch_json_review(prompt: str, kw: dict):
         logger.warning("[PR Review] structured dispatch error, falling back: %s", exc)
         return None, "error"
     if getattr(result, "queued", False):
-        return None, "queued"
+        # #6779 — a queued ESCALATION must be AWAITED, not abandoned. Returning "queued"
+        # here drops to the freeform fallback, which runs at the WEAK cap — the very cap
+        # that cannot cover the diff that triggered the escalation. So bailing does not
+        # degrade gracefully; it GUARANTEES the coverage demotion we escalated to avoid.
+        #
+        # dispatch_awaiting_queue exists for precisely this and says so in its own
+        # docstring: "The F.O.R.G.E. review path is the caller that never got the
+        # workaround — so an escalated review silently degraded to the weak model on a
+        # truncated diff (#6023)." It was wired into the freeform path (#6247) and not
+        # this one.
+        #
+        # ONLY for a model-pinned call. The default 7B path keeps its fast return and
+        # async callback, byte-identical — waiting there would block a review that the
+        # callback already lands correctly.
+        if not _want_model:
+            return None, "queued"
+        try:
+            text = dispatch_awaiting_queue(
+                capability="code_review",
+                prompt=prompt,
+                module_id="repair_bay",
+                json_mode=True,
+                preferred_node=_pin,
+                num_ctx=_review_num_ctx(),
+                **({"prefer_agent": _pa} if _pa else {}),
+                **kw,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[PR Review] awaiting the queued escalation failed: %s", exc)
+            return None, "queued"
+        if not text:
+            logger.warning(
+                "[PR Review] escalated review still produced no text after awaiting the "
+                "queue — falling back to the weak cap (coverage will report it)"
+            )
+            return None, "queued"
+        parsed = _parse_review_json(text)
+        return (parsed, "parsed") if parsed else (None, "parse_fail")
     if not (getattr(result, "success", False) and getattr(result, "response", "")):
         return None, "empty"
     parsed = _parse_review_json(result.response)
@@ -2255,7 +2409,17 @@ def _structured_review(
     # note must be measured at the cap this decision produced (#5836 follow-up).
     strong = _review_is_strong(review, diff)
     if strong:
-        kw["prefer_model"] = _TIER3_REVIEW_MODEL
+        # #6779 — model_override, NOT prefer_model. The dispatcher's own docstring:
+        # prefer_model is "resolved to the first matching agent in the roster; IF NO AGENT
+        # USES THE MODEL, routing falls back to capability-based selection" — silently.
+        # Measured 2026-09-16: the ONLY agents carrying gemma3:12b are K.I.N. (HR) and
+        # V.I.G.I.L. (Security); neither serves the `code_review` capability. So every
+        # escalation resolved to no agent, fell back to F.O.R.G.E., and ran qwen2.5:7b.
+        # The patient-model path has never once run the patient model.
+        # model_override forces the model on the agent actually selected
+        # (`model = model_override or agent.get("model")`), which is what was wanted:
+        # keep F.O.R.G.E. reviewing, run it on the wide-window model for this call.
+        kw["model_override"] = _TIER3_REVIEW_MODEL
         model_label = _TIER3_REVIEW_MODEL
     parsed, status = _dispatch_json_review(_build_json_prompt(review, diff, strong=strong), kw)
     if status == "queued":
@@ -2598,7 +2762,9 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
     return f"SUMMARY\nChunked review ({n} {plural}{read}).\n\nISSUES\n{body}\n\nVERDICT: {verdict}{meta}"
 
 
-def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo: str = None) -> str | None:
+def _obtain_review_summary(
+    review: dict, diff: str, pr_number: int = None, repo: str = None, wide: bool = False
+) -> str | None:
     """Structured first, freeform fallback — with ONE bounded structured retry when the fallback
     produced a blocking verdict (#5287). Shared by review_pr and analyze_pending_prs.
 
@@ -2655,12 +2821,21 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # note could not tell them apart while the planner discarded that information.
     _bound_dropped = []
     if _review_plan() == "per_file":
-        _chunks, _bound_dropped = file_plan_detail(diff, _review_max_files(), _cap)
+        # (1) the wide re-review gets the wider bound — it exists to read everything.
+        _max_files = _review_max_files_wide() if wide else _review_max_files()
+        # (2) split a file that is bigger than one window across several passes. Split at
+        # the cap a pass will ACTUALLY get: if the patient model is reachable the window is
+        # the wide cap, otherwise it is the weak one — more parts, each of them readable.
+        # Splitting at a cap we will not get would re-create the truncation it prevents.
+        _split_cap = _diff_cap_for_model(_tier3_is_reachable())
+        _chunks, _bound_dropped = file_plan_detail(diff, _max_files, _split_cap)
         _chunks = _chunks or [diff]
         if _bound_dropped:
-            logger.info(
-                "[FORGE] per-file plan: %d file(s) refused by the max_files bound: %s",
+            logger.warning(
+                "[PR Review] PR #%s — %d file(s) beyond the per-file bound (%d) were NOT " "sent to the reviewer: %s",
+                pr_number,
                 len(_bound_dropped),
+                _max_files,
                 ", ".join(_bound_dropped[:6]),
             )
     else:

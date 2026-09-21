@@ -15,6 +15,10 @@ still emitting `confidence=1.0`.
 accurately and floored the verdict. Do not "fix" it.
 """
 
+import contextlib
+from unittest import mock
+
+from tools.repair_bay.services import pr_diff_analyzer
 from tools.repair_bay.services.pr_diff_analyzer import _diff_cap_for_model, _review_is_strong
 
 WEAK = _diff_cap_for_model(False)
@@ -38,9 +42,30 @@ def test_the_two_caps_actually_differ():
 # ------------------------------------------------------------- the escalation
 
 
+@contextlib.contextmanager
+def _reachable(value: bool = True):
+    """#6779 gave `_review_is_strong` a second input: is the patient model REACHABLE.
+
+    The size-rule tests must pin ONE variable, so they pin reachability. Without this
+    they fail wherever no node carries the tier-3 model — which is every test host —
+    and, worse, the "must NOT escalate" assertions would pass vacuously.
+    """
+    with mock.patch.object(pr_diff_analyzer, "_tier3_is_reachable", return_value=value):
+        yield
+
+
+def test_an_unreachable_patient_model_is_never_requested():
+    """The #6779 gate itself: deserving is not the same as reachable. Asking for a model
+    no node can run is what produced the 1-second refusals and the weak-cap review."""
+    with _reachable(False):
+        assert _review_is_strong(_low_tier(), "x" * (WEAK + 1)) is False
+    with _reachable(True):
+        assert _review_is_strong(_low_tier(), "x" * (WEAK + 1)) is True
+
 def test_a_diff_over_the_weak_cap_requests_the_strong_model():
     """The fix. #2828's 11,570 chars against a 9,000 cap."""
-    assert _review_is_strong(_low_tier(), "x" * (WEAK + 1)) is True
+    with _reachable():
+        assert _review_is_strong(_low_tier(), "x" * (WEAK + 1)) is True
 
 
 def test_a_diff_that_fits_does_NOT_escalate():
@@ -66,7 +91,8 @@ def test_escalation_survives_a_broken_tier_classifier():
     """The size rule must not sit BEHIND a raising classifier. Before the fix the tier
     check was the only rule and its except returned immediately; a classifier failure
     would now silently strand every oversized diff on the 9,000 cap."""
-    assert _review_is_strong({"garbage": object()}, "x" * (WEAK + 1)) is True
+    with _reachable():
+        assert _review_is_strong({"garbage": object()}, "x" * (WEAK + 1)) is True
 
 
 def test_an_unclassifiable_pr_with_a_small_diff_still_fails_CLOSED():

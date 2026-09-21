@@ -59,6 +59,45 @@ Two capabilities that are easy to conflate — they have different tokens:
   Kytran (decision #953: safety properties are universal, authority limits are
   per-actor), not a config tweak.
 
+## The patient-model escalation — three traps, all fixed 2026-09-16 (#6779)
+
+`_review_is_strong` escalates an over-window chunk to `gemma3:12b` (the "patient" full-window
+model). **It had never once actually run that model.** Three stacked defects, each hiding the
+next; all three are the same shape as #5194 / #5862 / #2738 — a correct guard, not wired here.
+
+1. **The node pin overrode the model.** `_dispatch_json_review` passed `prefer_model=gemma3:12b`
+   *and* `preferred_node=_review_preferred_nodes()` — the 7B cluster (Runabout, Defiant).
+   `can_node_run_model('gemma3:12b')` returns **`['Archie Starbase']`** only, so the OVERLAP was
+   **empty** and the pin won. The dispatch returned `status='parsed'` having been served by a 7B:
+   a SUCCESS carrying the wrong model, reported nowhere.
+
+2. 🔴 **`prefer_model` DOES NOT BIND A MODEL.** Per the dispatcher's own docstring it is
+   *"resolved to the first matching agent in the roster; if no agent uses the model, routing falls
+   back to capability-based selection"* — silently. The only agents carrying `gemma3:12b` are
+   **K.I.N.** (HR) and **V.I.G.I.L.** (Security); neither serves the `code_review` capability
+   (V.I.G.I.L.'s `gh:code-review` is an ingested skill NAME, not the capability). So every
+   escalation fell back to F.O.R.G.E./`qwen2.5:7b`.
+   **Use `model_override` when you mean "run THIS model"** — it binds to the agent actually
+   selected (`model = model_override or agent.get("model")`), and the coordinator model-floor
+   explicitly yields to a caller-pinned model.
+
+3. **"Strong" meant DESERVING, not REACHABLE — and that is what cost coverage.**
+   `_review_is_strong` is the ONE definition shared by the model choice AND the coverage note's
+   cap. It answered the wrong question, so the prompt was built at the 18,768 strong cap, served
+   by a 7B, slow enough to fail, and the freeform retry re-truncated to 9,000. **That is the whole
+   89% / 49% partial-coverage story** — and why coverage-demoted PRs could not be re-reviewed out
+   of the demotion. It now returns False when the model is unreachable, so cap, note and model
+   cannot disagree.
+
+**New helper `_nodes_for_model(model)`** — online nodes passing BOTH `can_node_run_model`
+(capacity) and `node_has_model` (presence; they disagree on real nodes, #5862). 60s TTL,
+**fail-CLOSED**: an empty list means "do not ask for this model", which yields an honest weak-cap
+review. Fail-open would restore the doomed dispatch.
+
+⚠️ **Verify by the SERVED model, never by the request.** The proof is the dispatcher line:
+`Fleet dispatch → Archie Starbase … agent=F.O.R.G.E. model=gemma3:12b`. Before the fix the same
+probe read `… USS-245 … model=qwen2.5:7b` while returning `status='parsed'`.
+
 ## Gotchas
 - `audit_log` from `logging_config` not `rbac`
 - `register_*_routes(bp, admin_required)` pattern

@@ -153,7 +153,9 @@ class TestCoverageFilesVisibleBeforeTheClick(unittest.TestCase):
         """The re-review button must post `wide`, not re-trigger the same capped pass."""
         src = _TEMPLATE.read_text()
         self.assertIn("triggerPRReReview", src)
-        self.assertIn("{wide: true}", src)
+        # The payload gained `repo` in #6776 (a PR number alone resolved the wrong repo's
+        # row), so assert the FIELD, not the exact literal this once was.
+        self.assertRegex(src, r"wide:\s*true")
 
     def test_the_client_never_rebuilds_the_unread_list_from_the_summary(self):
         """Re-deriving the dropped list from the review text would be the verdict rule
@@ -162,9 +164,7 @@ class TestCoverageFilesVisibleBeforeTheClick(unittest.TestCase):
         src = _TEMPLATE.read_text()
         for pat in (r"coverage_dropped_paths", r"review_coverage", r"NOT\s*REVIEWED"):
             hits = [
-                ln
-                for ln in src.splitlines()
-                if re.search(pat, ln) and not ln.strip().startswith(("//", "*", "<!--"))
+                ln for ln in src.splitlines() if re.search(pat, ln) and not ln.strip().startswith(("//", "*", "<!--"))
             ]
             self.assertEqual(hits, [], f"client rebuilds the coverage list via {pat!r}: {hits[:2]}")
 
@@ -179,11 +179,27 @@ class TestWideReReviewUsesTheCoverageAwarePath(unittest.TestCase):
 
     def test_route_reads_wide_from_the_body(self):
         routes = self._ROUTES.read_text()
-        self.assertIn('wide = bool((request.get_json(silent=True) or {}).get("wide"))', routes)
+        # Assert the PROPERTY — `wide` is read from the REQUEST BODY, parsed in the request
+        # context — not one exact spelling. The per-send review-scope work hoisted the body
+        # into `_body` so `plan`/`max_files` could share a single parse; pinning the inline
+        # expression made that correct refactor fail. Same lesson as the sibling test below.
+        import re as _re
+
+        self.assertIn("request.get_json(silent=True)", routes)
+        self.assertRegex(
+            routes,
+            _re.compile(r'wide = bool\(\s*(?:_body|\(request\.get_json\(silent=True\) or \{\}\))\.get\("wide"\)'),
+        )
 
     def test_wide_branch_calls_the_coverage_aware_summary(self):
         routes = self._ROUTES.read_text()
-        self.assertIn("_obtain_review_summary(review, diff, pr_number, repo)", routes)
+        # Assert the PROPERTY — the wide branch routes through the coverage-aware summary
+        # — not the exact argument list. The call gained `wide=True` when that path got its
+        # own (higher) per-file bound, and pinning the spelling made a correct change fail.
+        import re as _re
+
+        self.assertRegex(routes, _re.compile(r"_obtain_review_summary\(\s*review,\s*diff,\s*pr_number,\s*repo"))
+        self.assertIn("wide=True", routes)
         self.assertIn(
             "_build_prompt",
             routes,

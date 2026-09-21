@@ -310,14 +310,16 @@ def register_github_routes(bp, admin_required):
     @admin_required
     def forge_stats():
         """F.O.R.G.E. comprehensive pipeline statistics."""
-        from .services.github_service import list_pipeline_prs, health_check
+        from .services.github_service import list_prs_all, health_check
 
         conn = None
         cur = None
         try:
-            # GitHub PR stats
-            open_prs = list_pipeline_prs("open")
-            merged_prs = list_pipeline_prs("merged")
+            # GitHub PR stats — count ALL open/merged PRs, not just the
+            # archie-forge-labelled subset (a pending unlabelled PR previously
+            # read as 0 open PRs even with real PRs on the repo).
+            open_prs = list_prs_all("open")
+            merged_prs = list_prs_all("merged")
             gh_health = health_check()
 
             conn = _get_db()
@@ -768,10 +770,42 @@ def register_github_routes(bp, admin_required):
     @login_required
     @admin_required
     def forge_pr_review_get(pr_number):
-        """Fetch a single PR review record."""
-        from .services.pr_review_service import get_review
+        """Fetch a single PR review record.
 
-        review = get_review(pr_number)
+        A PR NUMBER IS NOT AN IDENTITY (#6776). `get_review` pins a bare call to
+        `_DEFAULT_REPO` via an equality predicate, so this route could not "resolve to
+        an unintended repository" — but for a PR in ANY other repo it returned
+        404 "not found" while a review existed, and for a colliding number
+        (archie-code #71 vs archie-platform #71) it returned the WRONG PR's review.
+        Absence reported after looking in the wrong place.
+
+        Its sibling `forge_pr_review_send_back` two routes down already takes an
+        explicit `repo`; this one did not. Now it accepts `?repo=` and, when none is
+        given, resolves through the same `repos_for_pr_number` ambiguity gate the rest
+        of the pipeline uses rather than guessing.
+
+        ⚠️ Fails CLOSED on an unreadable lookup: `repos_for_pr_number` returns None for
+        a failed LOOKUP and [] for "genuinely no rows", and #6787 exists precisely
+        because collapsing those two let a DB blip sail through a `len(...) > 1` test.
+        A 503 here is honest; silently falling back to the default repo is how #6776
+        became re-enterable.
+        """
+        from .services.pr_review_service import get_review, repos_for_pr_number
+
+        repo = (request.args.get("repo") or "").strip() or None
+        if repo is None:
+            candidates = repos_for_pr_number(pr_number)
+            if candidates is None:
+                return jsonify({"error": "repo lookup failed"}), 503
+            if len(candidates) > 1:
+                return (
+                    jsonify({"error": "ambiguous pr_number", "repos": candidates}),
+                    409,
+                )
+            if candidates:
+                repo = candidates[0]
+
+        review = get_review(pr_number, repo=repo)
         if not review:
             return jsonify({"error": "not found"}), 404
         return jsonify({"review": review})
@@ -877,10 +911,12 @@ def register_github_routes(bp, admin_required):
         import threading
 
         from .services.pr_review_service import (
+            _is_valid_repo,
             get_review,
             mark_review_started,
             mark_review_done,
             mark_review_pending,
+            repos_for_pr_number,
         )
         from .services.pr_diff_analyzer import (
             _fetch_diff,
@@ -891,7 +927,49 @@ def register_github_routes(bp, admin_required):
             review_scope_override,
         )
 
-        review = get_review(pr_number)
+        # #6776 — a PR NUMBER is not an identity. archie-code #71 ("feat(engine): fleet |
+        # omniroute provider switch") and archie-platform #71 ("chore(deps): bump pytest")
+        # are different PRs, and a bare get_review(71) silently resolves the archie-platform
+        # one. Measured live 2026-09-16: the detail pane showed the archie-code PR, the
+        # operator clicked "F.O.R.G.E. re-review — full diff", and the pytest bump was
+        # reviewed — a verdict stored against a PR nobody was looking at, and a re-review
+        # that appeared to "come back unchanged" because it never ran on the right PR.
+        #
+        # FAIL CLOSED on ambiguity. Choosing a repo for the caller is precisely how this
+        # stayed invisible; a 409 naming the candidates makes an un-updated caller say so.
+        _repo_in = (request.get_json(silent=True) or {}).get("repo")
+        if _repo_in is not None and not _is_valid_repo(_repo_in):
+            return jsonify({"error": "Invalid repo"}), 400
+        if not _repo_in:
+            _candidates = repos_for_pr_number(pr_number)
+            # `None` means the lookup itself failed — NOT "no collision". Treating it as []
+            # would pass the `len(...) > 1` test below and review whichever repo get_review()
+            # picks, i.e. #6776 re-entered through a database blip. Could-not-check != fine.
+            if _candidates is None:
+                return (
+                    jsonify(
+                        {
+                            "error": (
+                                f"could not determine which repo PR #{pr_number} belongs to "
+                                "(the repo lookup failed) — name one explicitly"
+                            ),
+                            "repos": [],
+                        }
+                    ),
+                    409,
+                )
+            if len(_candidates) > 1:
+                return (
+                    jsonify(
+                        {
+                            "error": f"PR #{pr_number} exists in {len(_candidates)} repos — name one",
+                            "repos": _candidates,
+                        }
+                    ),
+                    409,
+                )
+
+        review = get_review(pr_number, repo=_repo_in or None)
         if not review:
             return jsonify({"error": f"PR #{pr_number} not found in pr_reviews"}), 404
 
@@ -912,13 +990,15 @@ def register_github_routes(bp, admin_required):
             # Fall through to re-trigger — reset to pending first
             from .services.pr_review_service import _DEFAULT_REPO, mark_review_pending as _reset
 
-            _reset(pr_number, review.get("repo", _DEFAULT_REPO))
+            _reset(pr_number, review.get("repo") or _repo_in or _DEFAULT_REPO)
 
         diff_url = review.get("diff_url")
         if not diff_url:
             return jsonify({"error": "No diff URL for this PR — re-poll GitHub to refresh"}), 422
 
-        repo = review.get("repo", "KytranKatarn/archie-platform")
+        # From the ROW we actually resolved — never a hardcoded default, which is what
+        # pointed the background thread at the wrong repo.
+        repo = review.get("repo") or _repo_in or "KytranKatarn/archie-platform"
 
         # #6769 — `wide` re-runs the review with the WHOLE diff shown to the reviewer.
         # Parsed here (in the request context), not inside the thread, so a missing body
@@ -962,7 +1042,7 @@ def register_github_routes(bp, admin_required):
                     # patient full-window reviewer, and it re-stamps an honest coverage
                     # note if anything still falls out — a clean re-review can never read
                     # like the #5836 approval that only saw part of the diff.
-                    summary = _obtain_review_summary(review, diff, pr_number, repo)
+                    summary = _obtain_review_summary(review, diff, pr_number, repo, wide=True)
                 else:
                     prompt = _build_prompt(review, diff)
                     # DHQ dispatch — goes through queue+orchestration pipeline

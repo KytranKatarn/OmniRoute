@@ -1208,6 +1208,14 @@
     try {
       var res = await fetch('/tools/repair-bay/api/forge/pr-reviews/' + prNum + '/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       var data = await res.json();
+      // This box takes a bare NUMBER, which is ambiguous across repos (#6776). The server
+      // now refuses rather than guessing; name the candidates so the operator can pick.
+      if (res.status === 409 && data.repos) {
+        status.textContent = 'PR #' + prNum + ' exists in: ' + data.repos.join(', ')
+          + ' — open it from the PR Review list instead, so the repo comes with it.';
+        status.style.color = '#fbbf24';
+        return;
+      }
       if (data.success) {
         status.textContent = '✅ F.O.R.G.E. review queued — check PR Review tab.'; status.style.color = '#00ff41';
       } else {
@@ -3752,7 +3760,7 @@ window.loadPRReviews = function(state) {
             } else {
                 analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
                 analyzeBtn.textContent = 'Analyze';
-                analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number); };
+                analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number, pr.repo); };
             }
 
             actions.appendChild(analyzeBtn);
@@ -3922,20 +3930,47 @@ function showPRDetail(pr) {
     // when a genuine coverage demotion exists (files were truncated away before the model
     // read them), never on a REQUEST CHANGES.
     var msCov = pr.merge_state || null;
-    if (msCov && msCov.state === 'coverage_only' && (msCov.dropped_files || []).length) {
+    // The gate is the STATE, never the length of one list. It used to require
+    // dropped_files.length, which is empty for a #5910 partial read — so a PR demoted
+    // because a file was cut mid-way rendered no panel and, with it, no re-review
+    // button: the one case that most needs a wider window had no way to ask for one.
+    if (msCov && msCov.state === 'coverage_only') {
+        var covDropped = msCov.dropped_files || [];
+        var covPartial = msCov.partial_files || [];
         var covBox = document.createElement('div');
         covBox.style.cssText = 'margin:0 0 12px 0;padding:10px 12px;border:1px solid rgba(251,191,36,0.45);border-radius:4px;background:rgba(251,191,36,0.08);';
         var covTitle = document.createElement('div');
         covTitle.style.cssText = 'font-size:0.68rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:1px;color:#fbbf24;margin-bottom:6px;';
-        covTitle.textContent = 'COVERAGE · ' + msCov.dropped_files.length + ' UNREAD FILE(S) — TRUNCATED BEFORE REVIEW';
+        covTitle.textContent = (msCov.label || 'COVERAGE').toUpperCase()
+            + ' — THE REVIEWER DID NOT SEE ALL OF THIS DIFF';
         covBox.appendChild(covTitle);
         var covText = document.createElement('div');
         covText.style.cssText = 'font-size:0.75rem;line-height:1.55;color:#e2e8f0;margin-bottom:6px;';
-        covText.textContent = 'F.O.R.G.E. APPROVED everything it read, but the file(s) below were truncated away before it saw them — the row stays mergeable ONLY by a human who reads and accepts them. A README is cheap to discharge; the deploy path is not. Re-review with a wider window if you want the gate cleared instead of discharging.';
+        covText.textContent = covDropped.length
+            ? 'F.O.R.G.E. APPROVED everything it read, but the file(s) below were truncated away before it saw them — the row stays mergeable ONLY by a human who reads and accepts them. A README is cheap to discharge; the deploy path is not. Re-review with a wider window if you want the gate cleared instead of discharging.'
+            : 'F.O.R.G.E. APPROVED everything it read, but the window cut mid-file — it saw only part of the file(s) below, so the verdict cannot cover the rest. Re-review with a wider window to clear the gate, or read the remainder yourself and accept it.';
         covBox.appendChild(covText);
         var covList = document.createElement('div');
         covList.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;line-height:1.7;color:#fbbf24;max-height:180px;overflow-y:auto;border-top:1px solid rgba(251,191,36,0.2);padding-top:6px;';
-        (msCov.dropped_files || []).forEach(function(f) {
+        // A partial read shows how much the model actually saw — "89%" is the difference
+        // between glancing at the tail and re-reading the file yourself.
+        covPartial.forEach(function(e) {
+            var pRow = document.createElement('div');
+            pRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 0;';
+            var pl = document.createElement('a');
+            pl.href = prFileUrl(pr, e && e.path) || '#';
+            pl.target = '_blank';
+            pl.style.cssText = 'color:#fbbf24;text-decoration:none;border-bottom:1px dotted rgba(251,191,36,0.4);';
+            if (!pl.href || pl.href === '#') pl.style.pointerEvents = 'none';
+            pl.textContent = (e && e.path) || '(unnamed file)';
+            pRow.appendChild(pl);
+            var pct = document.createElement('span');
+            pct.style.cssText = 'font-size:0.62rem;color:#94a3b8;white-space:nowrap;';
+            pct.textContent = (e && typeof e.shown_pct === 'number') ? ('~' + e.shown_pct + '% read') : 'partly read';
+            pRow.appendChild(pct);
+            covList.appendChild(pRow);
+        });
+        covDropped.forEach(function(f) {
             var rowEl = document.createElement('div');
             rowEl.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 0;';
             var fl = document.createElement('a');
@@ -3969,7 +4004,7 @@ function showPRDetail(pr) {
         reBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.45);color:#fbbf24;border-radius:4px;cursor:pointer;';
         reBtn.textContent = 'F.O.R.G.E. re-review — full diff';
         reBtn.title = 'Re-run the review with the whole diff shown to the full-window reviewer. Slower, but it reads the files above.';
-        reBtn.onclick = function(){ triggerPRReReview(pr.pr_number); };
+        reBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo); };
         covActions.appendChild(reBtn);
         if (pr.diff_url) {
             var fullDiff = document.createElement('a');
@@ -4123,11 +4158,15 @@ function _prScopeLabel() {
     return (b.plan || 'default plan') + (b.max_files ? ', max ' + b.max_files + ' files' : '');
 }
 
-function triggerPRReReview(prNumber) {
+function triggerPRReReview(prNumber, repo) {
     // #6769 — re-review with the WHOLE diff routed through the coverage-aware
     // full-window reviewer, so the files the last pass never saw get read this time.
     fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
-          {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(_prScopeBody({wide: true}))})
+          {method:'POST', headers:{'Content-Type':'application/json'},
+           // #6776 — the ROW's repo, never the number alone. archie-code #71 and
+           // archie-platform #71 are different PRs; sending only the number had the
+           // server re-review a Dependabot bump while this pane showed an engine PR.
+           body: JSON.stringify(_prScopeBody({wide: true, repo: repo || null}))})
         .then(function(r){ return r.json(); }).then(function(d) {
             if (d.error) { alert('Re-review failed: ' + d.error); return; }
             alert('F.O.R.G.E. re-review dispatched (full diff, ' + _prScopeLabel() + ') — the list refreshes when it lands.');
@@ -4145,8 +4184,10 @@ function prFileUrl(pr, path) {
     return 'https://github.com/' + pr.repo + '/blob/' + encodeURIComponent(ref) + '/' + seg;
 }
 
-function triggerPRAnalysis(prNumber) {
-    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(_prScopeBody({}))})
+function triggerPRAnalysis(prNumber, repo) {
+    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
+          {method:'POST', headers:{'Content-Type':'application/json'},
+           body: JSON.stringify(_prScopeBody({repo: repo || null}))})
         .then(function(r){ return r.json(); }).then(function(d) {
             if (d.error) { alert('Analyze failed: ' + d.error); return; }
             setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);

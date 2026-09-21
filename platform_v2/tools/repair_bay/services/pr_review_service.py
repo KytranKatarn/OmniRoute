@@ -144,6 +144,89 @@ def coverage_dropped_paths(summary_or_text: str | None) -> list:
     return out
 
 
+def repos_for_pr_number(pr_number: int) -> "list | None":
+    """Every repo that has a row for this PR NUMBER, so a caller can refuse to guess.
+
+    A PR number is not an identity. archie-code #71 ("feat(engine): fleet | omniroute
+    provider switch") and archie-platform #71 ("chore(deps): bump pytest 8.1.1 -> 9.0.3")
+    are unrelated PRs; ``get_review(71)`` with no repo returns the archie-platform one.
+    Measured live 2026-09-16: the Repair Bay detail pane showed the archie-code PR, the
+    operator clicked "F.O.R.G.E. re-review — full diff", and the pytest bump was reviewed
+    instead — a verdict stored against a PR nobody was looking at (#6776).
+
+    Returns ``None`` when the LOOKUP ITSELF failed and ``[]`` when there genuinely are no
+    rows. Callers must distinguish them.
+
+    This used to fail OPEN to ``[]``, reasoning that "a database blip can never block a
+    review outright". That reasoning was wrong for the only consumer there is: an ambiguity
+    gate that exists to refuse to guess. ``[]`` sails through its ``len(...) > 1`` test, so
+    a transient DB error silently restored the pre-#6776 behaviour of reviewing whichever
+    repo ``get_review(pr_number)`` happened to pick — the exact defect the gate was added to
+    prevent, re-enterable by a blip. Found by F.O.R.G.E. reviewing #3401 (#6787).
+    """
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT DISTINCT repo FROM pr_reviews WHERE pr_number = %s AND repo IS NOT NULL",
+                (pr_number,),
+            )
+            return sorted(r["repo"] for r in cur.fetchall() if r.get("repo"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("repos_for_pr_number(%s) failed: %s", pr_number, exc)
+        return None
+
+
+def coverage_partial_paths(summary_or_text: str | None) -> list:
+    """The files the reviewer read only PART of, with how much it saw.
+
+    THE GAP THIS CLOSES. #5836 demoted a review when a whole file was DROPPED;
+    #5910 widened the demotion to a file the window cut MID-FILE. Only the first
+    half ever got a reader: ``coverage_dropped_paths`` matches the "  - " listing
+    and returns ``[]`` for a partial read, so a PR demoted purely for a truncated
+    file reported ``dropped_files: []``.
+
+    That is not cosmetic. The detail pane gated its whole coverage panel — the
+    "F.O.R.G.E. re-review — full diff" button included — on ``dropped_files.length``,
+    so the one case that most needs a wider re-review rendered no button at all.
+    Measured 2026-09-16 on archie-code #71 (``inference.py`` at 89%) and
+    archie-platform #3390 (``patch_sanity.py`` at 49%): both demoted, both
+    ``dropped_files: []``, neither offering a way out.
+
+    Returns ``[{"path": str, "shown_pct": int | None}]`` in the note's own order.
+    ``shown_pct`` is None when the percentage is unparseable — the PATH is the part
+    a human acts on, so a malformed percentage must not discard the row.
+    """
+    if not summary_or_text:
+        return []
+    from services.review_coverage import MARKER  # noqa: PLC0415 - pure module, no cycle
+
+    if MARKER not in summary_or_text:
+        return []
+    block = summary_or_text.split(MARKER, 1)[1]
+    out: list = []
+    in_section = False
+    for line in block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("READ ONLY IN PART"):
+            in_section = True
+            continue
+        if not in_section:
+            continue
+        if not stripped:
+            break  # the listing ends at the first blank line after it starts
+        if not stripped.startswith("* "):
+            break  # a non-item line ends the section (the closing prose)
+        entry = stripped[2:].strip()
+        pct = None
+        m = re.search(r"about\s+(\d+)%\s+shown\s*$", entry)
+        if m:
+            pct = int(m.group(1))
+            entry = entry[: m.start()].rstrip().rstrip("-\u2014\u2013").rstrip()
+        if entry:
+            out.append({"path": entry, "shown_pct": pct})
+    return out
+
+
 def get_tracked_repos(cur=None) -> list:
     """Return repos to poll.
 
@@ -1213,6 +1296,7 @@ def merge_state(
                 "label": "REVIEWING…",
                 "hint": "A review is running — wait for it to finish.",
                 "dropped_files": [],
+                "partial_files": [],
             },
             base_branch,
             default_branch,
@@ -1225,6 +1309,7 @@ def merge_state(
                 "label": "WAITING FOR REVIEW",
                 "hint": "No stored verdict yet — nothing has reviewed this PR.",
                 "dropped_files": [],
+                "partial_files": [],
             },
             base_branch,
             default_branch,
@@ -1238,6 +1323,7 @@ def merge_state(
                 "label": "APPROVED",
                 "hint": "",
                 "dropped_files": [],
+                "partial_files": [],
             },
             base_branch,
             default_branch,
@@ -1245,14 +1331,28 @@ def merge_state(
 
     if coverage_only_demotion(summary):
         dropped = coverage_dropped_paths(summary) or []
+        partial = coverage_partial_paths(summary) or []
+        # A demotion with NO fully-dropped file is the #5910 partial-read case. Labelling
+        # that "0 unread" reads as "nothing is unread" — the opposite of why the row was
+        # demoted — and it is what hid the re-review button (see coverage_partial_paths).
+        if dropped and partial:
+            label = f"COVERAGE · {len(dropped)} unread, {len(partial)} partial"
+        elif dropped:
+            label = f"COVERAGE · {len(dropped)} unread"
+        elif partial:
+            label = f"COVERAGE · {len(partial)} partly read"
+        else:
+            # Demoted, but the note named no file. Say so rather than claim a count.
+            label = "COVERAGE · incomplete"
         return _with_merge_target(
             {
                 "state": MERGE_STATE_COVERAGE_ONLY,
                 "mergeable": True,  # only WITH an ack — the route still enforces it
-                "label": f"COVERAGE · {len(dropped)} unread",
+                "label": label,
                 # Reuse the refusal's own words so the row and the refusal agree.
                 "hint": _merge_hint(summary, False),
                 "dropped_files": dropped,
+                "partial_files": partial,
             },
             base_branch,
             default_branch,
@@ -1265,6 +1365,7 @@ def merge_state(
             "label": "CHANGES REQUESTED",
             "hint": _merge_hint(summary, False),
             "dropped_files": [],
+            "partial_files": [],
         },
         base_branch,
         default_branch,

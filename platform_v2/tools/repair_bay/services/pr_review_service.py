@@ -254,7 +254,25 @@ def poll_open_prs(repo: str = None) -> dict:
                         -- while every other key survives.
                         metadata       = COALESCE(pr_reviews.metadata, '{}'::jsonb)
                                          || EXCLUDED.metadata,
-                        updated_at     = NOW(),
+                        -- ⚠️ DO NOT add `updated_at = NOW()` here. A poll is not a
+                        -- change to the REVIEW; `last_polled_at` below is the column
+                        -- for poll bookkeeping, and three separate consumers read
+                        -- `updated_at` as "when did this review last meaningfully
+                        -- move":
+                        --   get_pending_reviews  (~L436) retry an in_progress row after 20m
+                        --   reap_stale_reviews   (~L994) recover a dead review after 20m
+                        --   review_progress      (~L1310) elapsed time shown in the UI
+                        -- Refreshing it every cycle made `updated_at < NOW() - 20 min`
+                        -- unreachable for any OPEN pr — and BOTH recovery paths also
+                        -- filter `state = 'open'`, i.e. exactly the population this
+                        -- upsert re-stamps. So neither could ever fire, and the UI's
+                        -- elapsed timer reset on every poll.
+                        -- Measured 2026-09-20: PR #3411 sat 'in_progress' for 6+ hours
+                        -- with reap_count = 0 (never reaped once), while four rows
+                        -- spanning BOTH 'in_progress' and 'reviewed' shared one
+                        -- updated_at to the millisecond — the tell that a bulk poll,
+                        -- not any review, was writing it. A finished review being
+                        -- re-stamped is the part that cannot be explained innocently.
                         last_polled_at = NOW()
                     RETURNING (xmax = 0) AS is_new
                     """,

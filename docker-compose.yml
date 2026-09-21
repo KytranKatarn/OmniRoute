@@ -1490,6 +1490,25 @@ services:
     environment:
       TZ: America/Toronto
       OPENCODE_HOME: /opencode-home
+      # ⚠️ OPENCODE_HOME does NOT control config DISCOVERY -- opencode reads
+      # $XDG_CONFIG_HOME/opencode/opencode.json, falling back to
+      # $HOME/.config/opencode/opencode.json. HOME here is /home/node, so with
+      # XDG unset it looked for /home/node/.config/opencode/opencode.json, which
+      # does not exist: the config sitting in the named volume at
+      # /opencode-home/config/opencode/opencode.json had NEVER been loaded.
+      #
+      # Measured 2026-09-20: `opencode models ollama` -> "Provider not found:
+      # ollama", and `opencode models` knew exactly ONE provider -- its built-in
+      # `opencode` (zen). That is why the lane 401/403s ("OpenCode's free tier can
+      # only be used from within OpenCode") and why provider_connections holds a
+      # single opencode-zen row: the declared ollama + omniroute lanes were never
+      # reachable, so the only path out was the built-in one. A declared provider
+      # that is never loaded is the same shape as the phantom `backups` table.
+      #
+      # ⚠️ Do NOT "fix" this by editing the config -- the file was already correct.
+      # Verify by asking the BINARY, never by reading the JSON:
+      #   docker exec -u 1000:1000 archie_opencode_terminal opencode models ollama
+      XDG_CONFIG_HOME: /opencode-home/config
       ARCHIE_KB_GATEWAY: http://archie_mcp_gateway:7800/mcp
     secrets:
       # uid/mode are load-bearing: this service runs as user "1000:1000" while the host

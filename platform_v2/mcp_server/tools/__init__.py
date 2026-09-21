@@ -27,6 +27,23 @@ from typing import Dict, List, Callable, Any
 _tools: Dict[str, Dict] = {}
 
 
+def cap_limit(arguments: Dict[str, Any], default: int, cap: int) -> int:
+    """Return a sane `limit` from tool arguments.
+
+    The MCP SDK passes `None` for optional arguments the caller omitted, so the
+    naive `min(arguments.get("limit", n), cap)` raises
+    `TypeError: '<' not supported between instances of 'int' and 'NoneType'`
+    on EVERY omission. Coerce None / garbage to the default, then cap.
+    """
+    raw = arguments.get("limit", default)
+    try:
+        if raw is None:
+            return default
+        return max(1, min(int(raw), cap))
+    except (TypeError, ValueError):
+        return default
+
+
 def register_tool(
     name: str,
     category: str,

@@ -20,7 +20,7 @@ from psycopg2.extras import RealDictCursor
 from typing import Dict, List, Any
 import requests
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.claude")
 
@@ -72,7 +72,7 @@ async def get_git_context_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     - Staged changes summary
     - Uncommitted files
     """
-    limit = min(arguments.get("limit", 10), 50)
+    limit = cap_limit(arguments, 10, 50)
     include_diff = arguments.get("include_diff", False)
 
     try:
@@ -169,7 +169,7 @@ async def search_mistakes_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     query = arguments.get("query", "")
     category = arguments.get("category")
-    limit = min(arguments.get("limit", 5), 20)
+    limit = cap_limit(arguments, 5, 20)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -863,7 +863,7 @@ async def search_knowledge_brief_handler(arguments: Dict[str, Any]) -> Dict[str,
     Search knowledge base returning only titles and types - not full content.
     """
     query = arguments.get("query", "")
-    limit = min(arguments.get("limit", 10), 20)
+    limit = cap_limit(arguments, 10, 20)
 
     if not query:
         return {"success": False, "error": "Query required"}

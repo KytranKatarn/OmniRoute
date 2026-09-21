@@ -20,7 +20,7 @@ from datetime import datetime
 from typing import Dict, Any
 import re
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.project")
 
@@ -62,7 +62,7 @@ async def get_projects_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     status_filter = arguments.get("status")
     project_type = arguments.get("project_type")
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
     include_progress = arguments.get("include_progress", True)
 
     conn, cur = get_db_connection()
@@ -528,7 +528,7 @@ async def get_my_tasks_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     project_id = arguments.get("project_id")
     status = arguments.get("status", "pending")
-    limit = min(arguments.get("limit", 20), 50)
+    limit = cap_limit(arguments, 20, 50)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -1055,7 +1055,7 @@ async def get_activity_feed_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
     Get recent activity for a project or across all projects.
     """
     project_id = arguments.get("project_id")
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -1255,7 +1255,7 @@ async def get_config_history_handler(arguments: Dict[str, Any]) -> Dict[str, Any
     Get configuration change history for ARCHIE's self-awareness.
     """
     config_type = arguments.get("config_type")
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -1476,7 +1476,7 @@ async def get_knowledge_processing_status_handler(
         row = cur.fetchone()
         if not row:
             return {"success": False, "error": "Record not found"}
-        total, embedded, analyzed = row[0], row[1], row[2]
+        total, embedded, analyzed = row["total"], row["embedded"], row["analyzed"]
 
         # Backlog by source type (exclude archived)
         cur.execute(
@@ -1497,8 +1497,8 @@ async def get_knowledge_processing_status_handler(
         for r in cur.fetchall():
             backlog.append(
                 {
-                    "source_type": r[0] or "(none)",
-                    "unanalyzed": r[1],
+                    "source_type": r["source_type"] or "(none)",
+                    "unanalyzed": r["total"],
                 }
             )
 
@@ -1555,11 +1555,11 @@ async def get_audit_summary_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         for r in cur.fetchall():
             changes.append(
                 {
-                    "type": r[0],
-                    "change": r[1],
-                    "key": r[2],
-                    "reason": r[3],
-                    "when": str(r[4]),
+                    "type": r["config_type"],
+                    "change": r["change_type"],
+                    "key": r["config_key"],
+                    "reason": r["change_reason"],
+                    "when": str(r["ts"]),
                 }
             )
         return {"success": True, "recent_changes": changes}
@@ -2191,7 +2191,7 @@ async def get_work_history_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     Get recent work session history.
     """
-    limit = min(arguments.get("limit", 10), 50)
+    limit = cap_limit(arguments, 10, 50)
     project_id = arguments.get("project_id")
 
     conn, cur = get_db_connection()

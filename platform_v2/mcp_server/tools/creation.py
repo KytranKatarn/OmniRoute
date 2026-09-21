@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 from typing import Dict, Any
 import requests
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.creation")
 
@@ -361,7 +361,7 @@ async def list_projects_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     user_id = arguments.get("user_id", 2)
     status = arguments.get("status")  # Optional filter: draft, active, archived
     project_type = arguments.get("project_type")  # Optional filter
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
 
     conn, cur = get_db_connection()
     if not conn:

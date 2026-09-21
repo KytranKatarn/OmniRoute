@@ -34,7 +34,7 @@ _PII_PATTERNS = [
     ),
 ]
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.knowledge")
 
@@ -77,7 +77,7 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     query = arguments.get("query", "")
     types = arguments.get("types")  # Optional: filter by knowledge types
     category = arguments.get("category")  # Optional: filter by category
-    limit = min(arguments.get("limit", 10), 50)  # Cap at 50
+    limit = cap_limit(arguments, 10, 50)  # Cap at 50
 
     if not query:
         return {"success": False, "error": "Query is required"}
@@ -539,7 +539,7 @@ async def recall_context_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     topic = arguments.get("topic", "")
     context_type = arguments.get("context_type")  # Optional: conversation, fact, procedure
-    limit = min(arguments.get("limit", 5), 20)
+    limit = cap_limit(arguments, 5, 20)
     include_recent = arguments.get("include_recent", True)
 
     if not topic:
@@ -898,7 +898,7 @@ async def github_index_repo_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
 async def github_search_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Semantic search across indexed GitHub files."""
     query = arguments.get("query", "").strip()
-    limit = min(arguments.get("limit", 10), 50)
+    limit = cap_limit(arguments, 10, 50)
     if not query:
         return {"success": False, "error": "query is required"}
 

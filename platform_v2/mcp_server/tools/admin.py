@@ -16,7 +16,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.admin")
 
@@ -370,7 +370,7 @@ async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     status_filter = arguments.get("status", "active")
     department = arguments.get("department")
     station_code = arguments.get("station_code")
-    limit = min(arguments.get("limit", 50), 100)
+    limit = cap_limit(arguments, 50, 100)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -487,7 +487,7 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     try:
         if action == "list":
             status_filter = arguments.get("status", "all")
-            limit = min(arguments.get("limit", 20), 50)
+            limit = cap_limit(arguments, 20, 50)
 
             query = """
                 SELECT id, title, description, category, priority, status,
@@ -735,7 +735,7 @@ async def manage_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         if action == "list":
-            limit = min(arguments.get("limit", 20), 50)
+            limit = cap_limit(arguments, 20, 50)
             status_filter = arguments.get("status")
 
             query = """

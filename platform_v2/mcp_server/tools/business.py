@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.business")
 
@@ -247,7 +247,7 @@ async def list_invoices_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     user_id = arguments.get("user_id", 2)
     status = arguments.get("status")  # draft, sent, paid, overdue, cancelled
     customer_id = arguments.get("customer_id")
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -562,7 +562,7 @@ async def manage_contacts_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     company = arguments.get("company")
     tags = arguments.get("tags", [])
     search_query = arguments.get("search_query")
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
 
     valid_actions = ["list", "create", "update", "search", "get"]
     if action not in valid_actions:
@@ -930,7 +930,7 @@ async def list_products_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     category_id = arguments.get("category_id")
     status = arguments.get("status")  # active, draft, archived
     search = arguments.get("search")
-    limit = min(arguments.get("limit", 20), 100)
+    limit = cap_limit(arguments, 20, 100)
     user_id = arguments.get("user_id", 2)
 
     conn, cur = get_db_connection()

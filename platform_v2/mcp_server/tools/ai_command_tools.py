@@ -15,7 +15,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Dict, Any
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.ai_command")
 
@@ -60,7 +60,7 @@ async def get_agent_performance_handler(arguments: Dict[str, Any]) -> Dict[str, 
     """Query agent task completion stats and leaderboard"""
     agent_id = arguments.get("agent_id")
     mode = arguments.get("mode", "single")
-    limit = min(arguments.get("limit", 10), 50)
+    limit = cap_limit(arguments, 10, 50)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -1614,9 +1614,9 @@ async def get_system_alerts_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
     import sys
 
     sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-    limit = int(arguments.get("limit", 20))
+    limit = cap_limit(arguments, 20, 200)
     severity = arguments.get("severity") or None
-    since_hours = int(arguments.get("since_hours", 24))
+    since_hours = max(1, int(arguments.get("since_hours", 24) or 24))
 
     alerts = []
 

@@ -17,7 +17,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from typing import Dict, Any
 
-from . import register_tool
+from . import register_tool, cap_limit
 
 logger = logging.getLogger("archie_mcp.tools.advanced")
 
@@ -51,7 +51,7 @@ async def list_workflows_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     status_filter = arguments.get("status", "active")
     trigger_type = arguments.get("trigger_type")
-    limit = min(arguments.get("limit", 20), 50)
+    limit = cap_limit(arguments, 20, 50)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -260,7 +260,7 @@ async def get_workflow_execution_handler(arguments: Dict[str, Any]) -> Dict[str,
     execution_id = arguments.get("execution_id")
     workflow_id = arguments.get("workflow_id")
     include_log = arguments.get("include_log", False)
-    limit = min(arguments.get("limit", 10), 50)
+    limit = cap_limit(arguments, 10, 50)
 
     conn, cur = get_db_connection()
     if not conn:
@@ -825,7 +825,7 @@ async def search_audit_log_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     outcome = arguments.get("outcome")
     since = arguments.get("since")  # ISO datetime
     until = arguments.get("until")  # ISO datetime
-    limit = min(arguments.get("limit", 50), 200)
+    limit = cap_limit(arguments, 50, 200)
 
     conn, cur = get_db_connection()
     if not conn:

@@ -1108,6 +1108,71 @@ def dispatch_queue_reaper():
         logger.exception("dispatch_queue_reaper failed")
 
 
+def omniroute_gateway_health_job():
+    """Alarm when the OmniRoute gateway stops producing inference (#6763 follow-up).
+
+    Measured 2026-09-21: every gateway call since 2026-09-18 returned zero tokens
+    -- 1,667 of them, every one an error -- and NOTHING alarmed. `omniroute_telemetry`
+    was working correctly and skipping them, because a zero-token row is not
+    inference; so the token ledger simply went quiet, and quiet read as "nobody
+    used the coder lanes". The gateway carries ~83% of platform tokens when healthy.
+
+    Deterministic, no LLM in the alert path (same shape as backup_posture_monitor and
+    gpu_state_monitor). Observes only: it writes no task_execution_log rows and takes
+    no lock, so it can never interfere with the collector.
+
+    Deliberately does NOT alarm on an idle gateway -- a lane nobody called is not a
+    broken lane, and paging on silence is how a channel gets muted (#6803).
+    Toggle: work-control key 'omniroute_gateway_health' (default ON).
+    """
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("omniroute_gateway_health", default=True):
+        return
+
+    try:
+        from services.omniroute_health import check_gateway_health
+
+        res = check_gateway_health()
+    except Exception:
+        logger.exception("omniroute_gateway_health failed")
+        return
+
+    condition = res.get("condition")
+    if not condition:
+        return
+    detail = res.get("detail") or ""
+
+    # Dedup on the CONDITION plus the top upstream error, not on the counts: the
+    # call count moves every cycle, so fingerprinting it would re-page endlessly
+    # for one unchanged outage.
+    top = (res.get("top_error") or {}).get("message") or ""
+    fingerprint = f"{condition}:{top[:80]}"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'omniroute:health:last'")
+            row = cur.fetchone()
+            if row and row["value"] == fingerprint:
+                return
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, description)
+                   VALUES ('omniroute:health:last', %s, 'omniroute_gateway_health dedup fingerprint')
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (fingerprint,),
+            )
+    except Exception as e:
+        logger.warning("omniroute_gateway_health dedup failed (alerting anyway): %s", e)
+
+    try:
+        from services.telegram_service import send_system
+
+        send_system(f"OmniRoute gateway: {condition}", detail)
+    except Exception as e:
+        logger.warning("omniroute_gateway_health alert failed: %s", e)
+
+
 def omniroute_telemetry_collect():
     """Mirror OmniRoute's call log into task_execution_log (#6763).
 
@@ -2023,6 +2088,20 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
         id="omniroute_telemetry",
         name="Agent Loop: OmniRoute Token Telemetry",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # OmniRoute GATEWAY HEALTH — every 15 min. The collector above records what the
+    # gateway produced; this says whether it is producing ANYTHING. Measured
+    # 2026-09-21: 1,667 calls over three days, every one zero-token, and the ledger's
+    # correct silence read as "nobody used the coder lanes" (#6763 follow-up).
+    scheduler.add_job(
+        with_ctx(omniroute_gateway_health_job),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="omniroute_gateway_health",
+        name="Agent Loop: OmniRoute Gateway Health",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

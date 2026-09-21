@@ -42,6 +42,27 @@ _ENV_KEYS = {
 # Missing paths are skipped, never fatal: the DB hash is the source of truth.
 _DEFAULT_ENV_PATHS = ("/mnt/archie_brain/.env", "/app/.env")
 
+# Which of the above the RUNTIME actually loads. docker-compose gives
+# archie_platform `env_file: .env` — the ROOT one — so a rotation that misses it
+# leaves every in-container `os.getenv(ARCHIE_*_PASSWORD)` holding a credential
+# that no longer authenticates.
+#
+# ⚠️ That path is NOT visible from inside the scheduler: only
+# /mnt/archie_brain/credentials and /mnt/archie_brain/platform_v2 are mounted, so
+# `/mnt/archie_brain/.env` does not exist there and `_rewrite_env_line(create=False)`
+# returns False for it. Measured 2026-09-20 rotating `claude` from the container:
+# env_written came back ['/app/credentials/agent_passwords.env', '/app/.env'] and
+# root .env silently kept its Sep-13 value — CLAUDE.md's "root .env and
+# platform_v2/.env must match" invariant broken with nothing reporting it.
+#
+# The skip is legitimate (a single-FILE rw bind mount would break the atomic
+# tmp+rename writer — see _CREDENTIALS_FILE_CANDIDATES below). What was NOT
+# legitimate is that it was SILENT: `env_written` lists successes, so a path that
+# could not be written looked exactly like a path that was never configured. Run
+# the rotation ON THE HOST to reach root .env; from a container, expect the
+# warning below and sync it out of band.
+_RUNTIME_ENV_FILES = frozenset({"/mnt/archie_brain/.env"})
+
 # #5311: the CANONICAL store. A single-FILE rw bind mount of the root .env
 # would break the atomic tmp+rename writer (a file mount pins the inode), so
 # rotation writes agent_passwords.env inside the scheduler's EXISTING rw
@@ -181,12 +202,30 @@ def reset_agent_password(username: str, env_paths: tuple = _DEFAULT_ENV_PATHS) -
     credentials_file = _write_credentials_file(key, new_password)
     if credentials_file:
         env_written.append(credentials_file)
+    env_skipped = []
     for path in env_paths:
         try:
             if _rewrite_env_line(path, key, new_password):
                 env_written.append(path)
+            else:
+                # Not an error — but it MUST be reported. See _RUNTIME_ENV_FILES.
+                env_skipped.append({"path": path, "reason": "not present in this filesystem"})
         except Exception as exc:  # noqa: BLE001 — a missing env store must not undo the DB rotation
             logger.warning("agent password rotation: could not write %s: %s", path, exc)
+            env_skipped.append({"path": path, "reason": f"{type(exc).__name__}: {exc}"})
+
+    # A skipped store the RUNTIME loads is the one case a caller must act on: the
+    # DB and the canonical file are correct, but the deployed env var is now stale.
+    stale_runtime = sorted(e["path"] for e in env_skipped if e["path"] in _RUNTIME_ENV_FILES)
+    warning = None
+    if stale_runtime:
+        warning = (
+            "rotation did not reach " + ", ".join(stale_runtime) + " (not visible from here) — "
+            "the DB hash and the canonical credentials file are correct, but that env file still "
+            "holds the OLD password and is what the container loads. Sync it, then apply with "
+            "`docker compose up -d --no-deps <service>` (a restart does NOT re-read env_file)."
+        )
+        logger.warning("agent password rotation: %s", warning)
 
     logger.info(
         "agent password rotated for '%s' (user id %s) — env stores updated: %s",
@@ -199,6 +238,8 @@ def reset_agent_password(username: str, env_paths: tuple = _DEFAULT_ENV_PATHS) -
         "username": username,
         "user_id": row["id"] if isinstance(row, dict) else row[0],
         "env_written": env_written,
+        "env_skipped": env_skipped,
+        "warning": warning,
         "credentials_file": credentials_file,
         "note": "password stored only in the credential/env files; never logged or returned",
     }

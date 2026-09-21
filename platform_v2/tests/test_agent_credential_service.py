@@ -225,3 +225,66 @@ class TestCredentialsFileStore:
         assert content.startswith("ARCHIE_CLAUDE_PASSWORD=")
         secret = content.split("=", 1)[1].strip()
         assert secret and secret not in str(res)  # result stays secret-free
+
+
+class TestSkippedEnvStoresAreReported:
+    """A store that could NOT be written must never look like one that was not configured.
+
+    Measured 2026-09-20: rotating `claude` from inside archie_scheduler returned
+    env_written=['/app/credentials/agent_passwords.env', '/app/.env'] and root
+    .env — the file docker-compose actually gives the platform via `env_file:` —
+    silently kept its Sep-13 value, because it is not mounted there and
+    _rewrite_env_line(create=False) returns False for a missing file. The DB and
+    the canonical store were correct; the DEPLOYED env var was stale and nothing
+    said so. These keys did not exist before the fix, so each assertion below
+    fails against the old module.
+    """
+
+    def test_a_missing_env_path_is_REPORTED_not_silently_dropped(self, monkeypatch, tmp_path):
+        db = _RecordingDB()
+        monkeypatch.setattr(acs, "get_db_cursor", db)
+        missing = str(tmp_path / "nope" / ".env")
+        res = acs.reset_agent_password("claude", env_paths=(missing,))
+        assert res["success"] is True
+        assert "env_skipped" in res, "a skip must be reported, not dropped"
+        assert [e["path"] for e in res["env_skipped"]] == [missing]
+        assert missing not in res["env_written"]
+
+    def test_a_skipped_RUNTIME_env_file_raises_a_warning(self, monkeypatch, tmp_path):
+        db = _RecordingDB()
+        monkeypatch.setattr(acs, "get_db_cursor", db)
+        missing = str(tmp_path / "gone" / ".env")
+        monkeypatch.setattr(acs, "_RUNTIME_ENV_FILES", frozenset({missing}))
+        res = acs.reset_agent_password("claude", env_paths=(missing,))
+        assert res["warning"], "a stale RUNTIME env store is the one case a caller must act on"
+        assert missing in res["warning"]
+        # The warning must say how to APPLY it: a restart does not re-read env_file.
+        assert "up -d" in res["warning"]
+        assert res["warning"].count("password") >= 1
+
+    def test_a_written_path_is_not_reported_skipped(self, monkeypatch, tmp_path):
+        db = _RecordingDB()
+        monkeypatch.setattr(acs, "get_db_cursor", db)
+        env = tmp_path / ".env"
+        env.write_text("UNRELATED=keep\n")
+        monkeypatch.setattr(acs, "_RUNTIME_ENV_FILES", frozenset({str(env)}))
+        res = acs.reset_agent_password("claude", env_paths=(str(env),))
+        assert str(env) in res["env_written"]
+        assert res["env_skipped"] == []
+        assert res["warning"] is None, "a store that WAS written must not warn"
+        assert "UNRELATED=keep" in env.read_text(), "rotation must not clobber other secrets"
+
+    def test_a_skipped_NON_runtime_path_does_not_warn(self, monkeypatch, tmp_path):
+        db = _RecordingDB()
+        monkeypatch.setattr(acs, "get_db_cursor", db)
+        missing = str(tmp_path / "absent" / ".env")
+        monkeypatch.setattr(acs, "_RUNTIME_ENV_FILES", frozenset({"/some/other/.env"}))
+        res = acs.reset_agent_password("claude", env_paths=(missing,))
+        assert res["env_skipped"], "still reported"
+        assert res["warning"] is None, "only a RUNTIME-loaded store is worth a warning"
+
+    def test_the_default_paths_include_the_file_the_runtime_loads(self):
+        # Pins the pairing. If someone drops root .env from _DEFAULT_ENV_PATHS the
+        # warning can never fire, and the silent-skip bug returns wearing a hat.
+        assert "/mnt/archie_brain/.env" in acs._DEFAULT_ENV_PATHS
+        assert acs._RUNTIME_ENV_FILES <= set(acs._DEFAULT_ENV_PATHS)

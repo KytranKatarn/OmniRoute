@@ -841,6 +841,13 @@ def _normalize_severity(issues: list) -> list:
     return issues
 
 
+# A pass that BLOCKED but produced no parseable finding gets a synthetic one so the block
+# carries a stated reason (see _merge_chunk_summaries). It is a FAIL-CLOSED marker, not a
+# model finding: its prose is the pass's own text and can trip the hedge detector, which
+# would silently turn the fail-closed block into an APPROVE. The demoter must never touch it.
+_UNPARSEABLE_BLOCK_MARK = "blocked without a parseable finding"
+
+
 def _demote_nonblocking_lines(review_text: str) -> str:
     """Freeform-text counterpart of _normalize_severity: rewrite the [CRITICAL]/[WARNING] tag of any
     issue LINE whose content matches a non-blocking category to [INFO] BEFORE the block check. Issue
@@ -851,6 +858,10 @@ def _demote_nonblocking_lines(review_text: str) -> str:
     out = []
     for line in review_text.splitlines():
         m = re.match(r"(\s*[-*]?\s*)\[\s*(?:CRITICAL|WARNING)\s*\](.*)", line, re.IGNORECASE)
+        if m and _UNPARSEABLE_BLOCK_MARK in m.group(2):
+            # Fail-closed marker, not a finding — demoting it would discard the block.
+            out.append(line)
+            continue
         # #6029: the freeform line carries its citation as a trailing "Evidence: <line>" rather
         # than a field, so reconstruct the same shape the structured gate sees.
         # ⚠️ Split on the FIRST occurrence, not the last: "Evidence:" is a FIELD MARKER in the
@@ -2714,6 +2725,7 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
     the marker too, because that review genuinely was degraded."""
     findings, seen, paths = [], set(), []
     worst, lost = 0, False
+    unexplained_block = False
     for idx, s in enumerate(summaries, 1):
         if not s:
             lost = True
@@ -2736,11 +2748,15 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
         # "REQUEST CHANGES / No issues found." — a block with no stated reason. That is the
         # unactionable review this work exists to stop producing, so keep its prose.
         if chunk_blocks and len(findings) == before:
+            # This pass blocked and produced nothing the gates can inspect. Whether or not
+            # we can quote its prose below, its block is UNEXPLAINED — the severity gate
+            # must not later read "no blocking findings" as "nothing was wrong".
+            unexplained_block = True
             raw = " ".join(
                 x.strip() for x in s.splitlines() if x.strip() and not x.strip().startswith(("VERDICT:", "[review-"))
             )
             if raw:
-                findings.append(f"- [WARNING] pass {idx} blocked without a parseable finding — {raw[:300]}")
+                findings.append(f"- [WARNING] {_UNPARSEABLE_BLOCK_MARK} (pass {idx}) — {raw[:300]}")
 
     n = len(summaries)
     read = ""
@@ -2759,7 +2775,34 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
     if lost:
         meta += "\n[review-meta] a chunk produced no parseable review — failing closed"
     plural = "pass" if n == 1 else "passes"
-    return f"SUMMARY\nChunked review ({n} {plural}{read}).\n\nISSUES\n{body}\n\nVERDICT: {verdict}{meta}"
+    text = f"SUMMARY\nChunked review ({n} {plural}{read}).\n\nISSUES\n{body}\n\nVERDICT: {verdict}{meta}"
+
+    # THE GATES MUST BIND THE MERGED REVIEW TOO (#6822 follow-up). Every severity gate —
+    # the non-blocking categories, _asserts_no_defect, #6029, and GATE 6's hedge detector —
+    # ran per PASS and was then thrown away here: this function copies "- [" lines VERBATIM
+    # and folds the verdict from each chunk's own VERDICT line. With `review_plan=per_file`
+    # live, EVERY review is multi-pass, so in production the gates never bound anything.
+    # Measured on #3401: five attempts held REQUEST CHANGES on findings the gates classify
+    # as non-blocking (one of them provably false against its own cited evidence).
+    #
+    # `_apply_severity_gate` is the existing single-pass post-guard and is the right one to
+    # reuse: it demotes, then relaxes ONLY `REQUEST CHANGES` and ONLY when no CRITICAL or
+    # WARNING survives, leaving an audit note. It relaxes, never tightens.
+    #
+    # Guarded on `lost`: a pass that returned nothing is a fail-closed block with no findings
+    # to inspect, so relaxing it would convert "we could not read this" into "this is fine" —
+    # the #2458 shape. The synthetic unparseable-block finding is protected separately, by
+    # _UNPARSEABLE_BLOCK_MARK, because its severity IS the block.
+    # `unexplained_block`: a pass blocked while contributing no finding the gates can read.
+    # Its prose is sometimes quotable (a synthetic marker, protected by
+    # _UNPARSEABLE_BLOCK_MARK) and sometimes not — a bare "VERDICT: REQUEST CHANGES" leaves
+    # nothing at all. In that second case the merged text has no blocking severity for the
+    # gate to see, so relaxing would turn an unexplained block into an APPROVE. Pinned by
+    # test_chunk_once_per_pr::test_a_real_rejection_still_outranks_needs_review, which caught
+    # exactly that regression.
+    if not lost and not unexplained_block:
+        text = _apply_severity_gate(text)
+    return text
 
 
 def _obtain_review_summary(

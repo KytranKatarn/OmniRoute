@@ -66,6 +66,46 @@ _ENTITLEMENT_STATUSES = (401, 402, 403)
 
 _REQUIRED_COLUMNS = {"timestamp", "status", "tokens_in", "tokens_out"}
 
+# Management calls are NOT failed inference. `/api/providers/test` answers 200
+# with ZERO tokens BY DESIGN -- it is a connectivity probe, not a completion --
+# so counting it made a window of nothing-but-health-pings read as "every
+# request is failing". Measured 2026-09-20, hours after this module shipped: a
+# 6h window held 12 calls, 8 of them the author's own probes, and the job
+# reported `no_inference` on a gateway nobody had asked to infer. An alarm that
+# cries wolf gets muted, which is how a real disk alert ended up muted on this
+# platform -- so over-alarming is a defect of the same family as silence, not
+# the safe side of it.
+#
+# Measured path population over 30 days (the rule matches the data, it is not
+# guessed): `/v1/chat/completions` 4,279 calls / 1,988 with tokens ·
+# `/v1/responses` 66 / 6 · `/api/providers/test` 35 / **0**.
+_NON_INFERENCE_V1_PATHS = frozenset({"/v1/models", "/v1/api-keys"})
+
+
+def is_inference_path(path: Optional[str]) -> bool:
+    """True when this row represents an INFERENCE request.
+
+    ⚠️ Deliberately fail-OPEN on an unknown path (None/blank): a row we cannot
+    classify is COUNTED. Excluding it would mean a schema change silently drops
+    every row, the window reads empty, and an outage renders as a quiet idle
+    gateway -- unmonitored while appearing monitored, the exact failure this
+    module exists to catch. We only ever drop a row we can positively identify
+    as management traffic.
+    """
+    if not path:
+        return True
+    p = str(path).strip()
+    if not p:
+        return True
+    if p in _NON_INFERENCE_V1_PATHS:
+        return False
+    if p.startswith("/v1/"):
+        # Prefix-matched so a NEW /v1 inference endpoint counts by default.
+        return True
+    if p.startswith("/api/"):
+        return False
+    return True
+
 
 def _classify(status: Optional[int]) -> str:
     # `int(status or 0)` would turn a MISSING status into 0 and classify it as
@@ -106,10 +146,16 @@ def summarize(
       ``entitlement``     -- refusals dominate: credentials/plan/policy
       ``degraded``        -- producing tokens, but a high error share
     """
+    # Filter BEFORE counting, and in pure code rather than in SQL, so the rule
+    # is unit-testable and the exclusion is visible in the payload.
+    considered = [r for r in rows if is_inference_path(r.get("path"))]
+    excluded = len(rows) - len(considered)
+    rows = considered
     total = len(rows)
     out: Dict[str, Any] = {
         "window_hours": hours,
         "window_calls": total,
+        "non_inference_excluded": excluded,
         "with_tokens": 0,
         "entitlement": 0,
         "transient": 0,
@@ -120,7 +166,11 @@ def summarize(
     if not total:
         # A gateway nobody called is not a broken gateway. Deliberately not a
         # condition -- paging on silence trains people to ignore the channel.
-        out["detail"] = "no calls in window"
+        out["detail"] = (
+            f"no inference calls in window ({excluded} management call(s) ignored)"
+            if excluded
+            else "no calls in window"
+        )
         return out
 
     errors: Dict[str, int] = {}
@@ -201,7 +251,7 @@ def read_window(hours: float = WINDOW_HOURS, db_path: str = OMNIROUTE_DB) -> Opt
             logger.error("omniroute_health: call_logs schema changed — missing %s", sorted(missing))
             return None
         sel = ["timestamp", "status", "tokens_in", "tokens_out"]
-        for opt in ("error_summary", "requested_model"):
+        for opt in ("error_summary", "requested_model", "path"):
             if opt in cols:
                 sel.append(opt)
         cur.execute(

@@ -183,3 +183,56 @@ class TestTheMessageStatesItsOwnWindow(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+from services import omniroute_health as oh  # noqa: E402  (sys.path set above)
+
+
+class TestInferencePathFilter(unittest.TestCase):
+    """Management traffic must never read as failed inference (#3412 follow-up).
+
+    The shipped version of this module selected no `path` column and counted
+    every row, so a window of nothing but `/api/providers/test` pings -- which
+    answer 200 with ZERO tokens by design -- reported `no_inference`, i.e. "every
+    request is failing", on a gateway nobody had asked to infer.
+    """
+
+    def test_management_paths_are_not_inference(self):
+        for p in ("/api/providers/test", "/api/provider-nodes", "/v1/models", "/v1/api-keys"):
+            self.assertFalse(oh.is_inference_path(p), p)
+
+    def test_v1_paths_are_inference(self):
+        for p in ("/v1/chat/completions", "/v1/responses", "/v1/messages", "/v1/embeddings"):
+            self.assertTrue(oh.is_inference_path(p), p)
+
+    def test_unknown_path_fails_OPEN_and_is_counted(self):
+        # A row we cannot classify must be COUNTED. Dropping it would let a
+        # schema change render an outage as a quiet idle gateway.
+        for p in (None, "", "   ", "weird"):
+            self.assertTrue(oh.is_inference_path(p), repr(p))
+
+    def test_health_pings_alone_do_NOT_alarm(self):
+        rows = [{"status": 200, "tokens_in": 0, "tokens_out": 0, "path": "/api/providers/test"} for _ in range(30)]
+        r = oh.summarize(rows, min_calls=10, hours=6)
+        self.assertIsNone(r["condition"], r["detail"])
+        self.assertEqual(r["window_calls"], 0)
+        self.assertEqual(r["non_inference_excluded"], 30)
+        self.assertIn("management", r["detail"])
+
+    def test_a_real_outage_still_alarms_through_the_filter(self):
+        # The filter must not blunt the detection it was added beside.
+        rows = [{"status": 403, "tokens_in": 0, "tokens_out": 0, "path": "/v1/chat/completions"} for _ in range(20)]
+        rows += [{"status": 200, "tokens_in": 0, "tokens_out": 0, "path": "/api/providers/test"} for _ in range(5)]
+        r = oh.summarize(rows, min_calls=10, hours=6)
+        self.assertEqual(r["condition"], "no_inference")
+        self.assertEqual(r["window_calls"], 20)
+        self.assertEqual(r["non_inference_excluded"], 5)
+
+    def test_mixed_window_counts_only_inference_for_the_ratio(self):
+        # 6 inference calls (below min_calls) buried in 40 health pings must
+        # read as "not enough to judge", never as a 46-call catastrophe.
+        rows = [{"status": 500, "tokens_in": 0, "tokens_out": 0, "path": "/v1/chat/completions"} for _ in range(6)]
+        rows += [{"status": 200, "tokens_in": 0, "tokens_out": 0, "path": "/api/providers/test"} for _ in range(40)]
+        r = oh.summarize(rows, min_calls=10, hours=6)
+        self.assertIsNone(r["condition"])
+        self.assertIn("not enough", r["detail"])

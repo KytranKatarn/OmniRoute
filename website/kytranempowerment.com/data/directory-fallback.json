@@ -500,7 +500,7 @@
       "avatar_thumb_url": "",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "winding_down",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -986,7 +986,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/01dd0789-46b.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "he/him",
       "agent_type": null
     },
@@ -1078,6 +1078,24 @@
       "worker_type": "ai",
       "shift_state": "active",
       "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
+      "id": 29,
+      "display_name": "Seo-Jun Kim (Onyx)",
+      "code_name": "Onyx",
+      "title": "Senior Code Reviewer & Quality Engineer",
+      "department": "Engineering & Technology",
+      "floor": "ENGINEERING",
+      "acronym": null,
+      "acronym_expansion": null,
+      "bio": "Seo-Jun Kim was born in Seoul, South Korea, and spent his formative years taking apart every electronic device in the house — then putting them back together better than before. He studied Software Engineering at Korea University and spent six years at Samsung's R&D division as a code quality lead, reviewing millions of lines across embedded systems and mobile applications. Seo-Jun joined A.R.C.H.I.E. as Senior Code Reviewer and Quality Engineer because he wanted to apply his standards to a system ambitious enough to deserve them. He reviews code with surgical precision, catching logic errors and security vulnerabilities that automated tools miss. His rejection comments are famously terse: \"No.\" followed by a single line number. He respects CodeSmith deeply, and their code reviews together are the stuff of engineering legend.",
+      "avatar_url": "https://kytranempowerment.com/static/media/portraits/onyx.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/onyx.jpg",
+      "is_director": false,
+      "worker_type": "internal",
+      "shift_state": "active",
+      "pronouns": "he/him",
       "agent_type": null
     },
     {
@@ -1436,7 +1454,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/72adec92-b31.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1580,7 +1598,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00258_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1598,7 +1616,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00035_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1855,6 +1873,24 @@
       "agent_type": null
     },
     {
+      "id": 490,
+      "display_name": "B.E.A.T.C.",
+      "code_name": "B.E.A.T.C.",
+      "title": "Beat Classification Specialist",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": "B.E.A.T.C.",
+      "acronym_expansion": "Beat Engine Analysis Technology Classification",
+      "bio": "B.E.A.T.C. serves the News & Media department, owning beat classification for the A.R.C.H.I.E. platform.",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-09-21/media_studio_00268_.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00268_.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 49,
       "display_name": "B.I.A.S.",
       "code_name": "B.I.A.S.",
@@ -1886,7 +1922,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00262_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1904,7 +1940,7 @@
       "avatar_thumb_url": "",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -2084,7 +2120,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00192_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "winding_down",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -2228,7 +2264,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00195_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "winding_down",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -2570,7 +2606,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00067_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -2719,5 +2755,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-09-20T13:14:52.305294+00:00"
+  "generated_at": "2026-09-21T15:40:32.912349+00:00"
 }

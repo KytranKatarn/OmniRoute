@@ -140,7 +140,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/72adec92-b31.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -158,7 +158,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00035_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -284,7 +284,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00067_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "barracked",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -307,5 +307,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-09-20T13:14:52.305294+00:00"
+  "generated_at": "2026-09-21T15:40:32.912349+00:00"
 }

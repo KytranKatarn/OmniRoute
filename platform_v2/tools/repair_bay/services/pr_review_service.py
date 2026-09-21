@@ -322,6 +322,13 @@ def poll_open_prs(repo: str = None) -> dict:
     return {"polled": len(prs), "inserted": inserted, "updated": updated, "errors": errors}
 
 
+# #6820: how many just-departed PRs to probe for merged-vs-closed in one sync.
+# One API call each, and the departed set is normally 0-5 — but #5707 records the
+# open-PR list failing in a way that made EVERY tracked row look departed, twice.
+# A cap means that failure mode costs a bounded number of calls, never a storm.
+_MAX_MERGE_PROBES = 25
+
+
 def sync_closed_prs(repo: str = None) -> int:
     """Mark pr_reviews rows as closed/merged when the PR is no longer open on GitHub."""
     from tools.repair_bay.services.github_service import list_all_prs_enriched
@@ -356,6 +363,20 @@ def sync_closed_prs(repo: str = None) -> int:
             # stuck at 'pending'/'in_progress' must be terminated to 'skipped' —
             # otherwise they accumulate forever and pollute the PR Review queue
             # (get_pending_reviews only retries OPEN in_progress rows). #3449.
+            # #6820: capture WHICH rows are about to be closed, so each can be
+            # classified merged-vs-closed below. This MUST run before the UPDATE —
+            # afterwards they are indistinguishable from the 2,573 historical
+            # closed rows.
+            cur.execute(
+                """
+                SELECT pr_number FROM pr_reviews
+                 WHERE repo = %s AND state = 'open' AND pr_number NOT IN %s
+                 ORDER BY pr_number
+                """,
+                (_repo, tuple(open_numbers) if open_numbers else (0,)),
+            )
+            departed = [r["pr_number"] for r in cur.fetchall()]
+
             cur.execute(
                 """
                 UPDATE pr_reviews
@@ -372,6 +393,50 @@ def sync_closed_prs(repo: str = None) -> int:
                 (_repo, tuple(open_numbers) if open_numbers else (0,)),
             )
             updated = cur.rowcount
+
+            # #6820: 'closed' above is the FAIL-SAFE label for everything that
+            # left the open set. Now upgrade the ones GitHub confirms were merged.
+            #
+            # Why this is a second pass and not a CASE in the UPDATE: GitHub's
+            # open-PR list cannot say WHY a PR left it, so the distinction costs
+            # one API call per departed PR. Keeping 'closed' as the default means
+            # an unreadable GitHub degrades to exactly the old behaviour instead
+            # of inventing a merge — `pr_was_merged` returns None on failure and
+            # only an explicit True promotes a row.
+            merged_nums = []
+            if departed:
+                from .github_service import pr_was_merged
+
+                probe = departed[:_MAX_MERGE_PROBES]
+                if len(departed) > _MAX_MERGE_PROBES:
+                    logger.warning(
+                        "pr_review_service: %d PRs departed the open set; probing only the "
+                        "first %d for merged-vs-closed (the rest stay 'closed')",
+                        len(departed),
+                        _MAX_MERGE_PROBES,
+                    )
+                for _n in probe:
+                    try:
+                        if pr_was_merged(_n, repo=_repo) is True:
+                            merged_nums.append(_n)
+                    except Exception as _probe_err:  # noqa: BLE001 — never break the sync
+                        logger.debug("pr_review_service: merged-probe failed for #%s: %s", _n, _probe_err)
+            if merged_nums:
+                # updated_at IS stamped here, unlike the poll upsert (#3416): this is a
+                # real state transition, not a poll.
+                cur.execute(
+                    """
+                    UPDATE pr_reviews SET state = 'merged', updated_at = NOW()
+                     WHERE repo = %s AND state = 'closed' AND pr_number = ANY(%s)
+                    """,
+                    (_repo, merged_nums),
+                )
+                logger.info(
+                    "pr_review_service: labelled %d of %d departed PR(s) as merged (%s)",
+                    cur.rowcount,
+                    len(departed),
+                    _repo,
+                )
 
             # #5780: the CASE above can only reach rows STILL marked state='open'. A row that
             # reached state='closed' while its review_status was still 'pending'/'in_progress'

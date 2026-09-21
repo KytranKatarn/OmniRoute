@@ -675,6 +675,41 @@ def pr_is_open(pr_number: int, repo: str = None) -> Optional[bool]:
     return state == "open"
 
 
+def pr_was_merged(pr_number: int, repo: str = None) -> Optional[bool]:
+    """Was this PR MERGED (as opposed to closed unmerged)? ``None`` when unreadable.
+
+    Sibling of ``pr_is_open`` above, which already reads ``merged_at``/``merged``
+    but collapses both into "not open". ``sync_closed_prs`` needs the distinction
+    because it is the only writer of ``pr_reviews.state`` and, until now, wrote
+    ``'closed'`` for everything that left GitHub's open set — merges included.
+
+    Measured 2026-09-21: ``pr_reviews.state`` held 2,573 ``closed`` / 575
+    ``merged`` / 4 ``open``, and the newest ``merged`` row was 2026-08-18 — a
+    writer that no longer exists anywhere in the codebase. So the Repair Bay
+    "MERGED" filter had become a frozen archive: populated enough to look
+    healthy, blind to every merge for a month. An owner merged four PRs, clicked
+    MERGED, saw none of them, and reasonably concluded the GitHub sync was broken.
+
+    ⚠️ The caller must treat ``None`` as NOT merged. ``'closed'`` is the safe
+    label: it is what the row would have said anyway, so an unreadable GitHub
+    costs nothing, while guessing ``'merged'`` would invent a merge that may
+    never have happened. Those are not symmetric.
+    """
+    target = repo or REPO_FULL
+    ok, data = _api_get(f"/repos/{target}/pulls/{pr_number}")
+    if not ok or not isinstance(data, dict):
+        return None
+    # `merged` is the boolean; `merged_at` is the timestamp. GitHub sets both on a
+    # merge, but only `merged_at` appears on some cached/list payloads, so accept
+    # either rather than trusting one field to always be present.
+    if data.get("merged") is True or data.get("merged_at"):
+        return True
+    state = (data.get("state") or "").lower()
+    if not state:
+        return None  # unreadable state — do not claim "not merged" either
+    return False
+
+
 def pr_body(pr_number: int, repo: str = None) -> Optional[str]:
     """The PR description — "" when GitHub has none, None when it could not be read.
 
@@ -1363,7 +1398,7 @@ def merge_pr(
 
 
 def list_pipeline_prs(state: str = "open") -> Dict:
-    """List all F.O.R.G.E. pipeline PRs."""
+    """List all F.O.R.G.E. pipeline PRs (label-filtered to PIPELINE_LABEL)."""
     ok, data = _api_get(
         f"/repos/{REPO_FULL}/pulls",
         {"state": state, "per_page": 50},
@@ -1385,6 +1420,39 @@ def list_pipeline_prs(state: str = "open") -> Dict:
         if any(l.get("name") == PIPELINE_LABEL for l in pr.get("labels", []))
     ]
 
+    return {"success": True, "prs": prs, "count": len(prs)}
+
+
+def list_prs_all(state: str = "open") -> Dict:
+    """List ALL PRs in the platform repo, no label filter.
+
+    Lightweight sibling of ``list_all_prs_enriched``: same unfiltered pull list,
+    but flat shape (number/title/state) used for aggregate counters. The F.O.R.G.E.
+    stats tiles must reflect every open/merged PR on the repo — previously they
+    used ``list_pipeline_prs`` which drops any PR lacking the ``archie-forge``
+    label, so a live out-of-band PR showed ``open_prs: 0`` even though GitHub had
+    real open PRs.
+    """
+    ok, data = _api_get(
+        f"/repos/{REPO_FULL}/pulls",
+        {"state": state, "per_page": 50, "sort": "updated", "direction": "desc"},
+    )
+    if not ok:
+        return {"success": False, "error": data.get("error")}
+    if not isinstance(data, list):
+        return {"success": True, "prs": [], "count": 0}
+
+    prs = [
+        {
+            "number": pr.get("number"),
+            "title": pr.get("title"),
+            "state": pr.get("state"),
+            "created_at": pr.get("created_at"),
+            "url": pr.get("html_url"),
+            "labels": [l.get("name") for l in pr.get("labels", [])],
+        }
+        for pr in data
+    ]
     return {"success": True, "prs": prs, "count": len(prs)}
 
 

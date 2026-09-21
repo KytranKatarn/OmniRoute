@@ -108,6 +108,12 @@ _FALSE_POSITIVE_RUBRIC = (
     "'+' line (see POLARITY). NEVER invent a line number or a line that is not present in the diff. "
     "A fabricated citation is worse than no issue — if you cannot find the exact line below, DO NOT "
     "raise the issue.\n"
+    "SEVERITY RULE — match the label to your CONFIDENCE. [CRITICAL] and [WARNING] are for a "
+    "DEFINITE fault you can point at: say what breaks and when. If you are hedging — 'should be "
+    "confirmed', 'potential X if Y', 'might not be', 'could introduce', 'consider …' — then you are "
+    "asking the author to go and look, which is [INFO], NOT a blocking issue. A conditional whose "
+    "premise you have not verified cannot be disproved by the author, so it blocks forever. Asking "
+    "is useful; label it honestly.\n"
     "VERDICT RULE: only [CRITICAL] or [WARNING] issues justify REQUEST CHANGES. If the only issues "
     "are [INFO] (or there are none), the VERDICT MUST be APPROVE — INFO notes never block a merge.\n"
 )
@@ -704,6 +710,109 @@ def _evidence_is_prose_not_code(issue: dict) -> bool:
     return not _CODE_SHAPE_RE.search(ev)
 
 
+# ---------------------------------------------------------------------------------------------
+# GATE 6 — CONFIDENCE: a HEDGE is not a defect (#6822)
+#
+# Measured 2026-09-21 across every open PR: CRITICAL=0, HIGH=0 — not one review claimed a
+# defect anywhere — yet 5 of 6 were non-APPROVE, and the ONLY approval was the PR whose
+# findings list was EMPTY. It approved because the review said nothing, not because it was
+# judged sounder. Both demotion paths treat any surviving WARNING as blocking and
+# `_apply_severity_gate` downgrades only when findings are ALL INFO, so a single hedged
+# WARNING forces a blocking verdict and the author has nothing to fix.
+#
+# The five gates above ask: is the citation real (grounding), is it an ADDED line (polarity),
+# is the claim checkable from a diff (claim), does the label match the CONTENT (severity), and
+# does the evidence COMMIT a defect or merely describe one (#6029). A hedged WARNING passes all
+# five. The missing question is:
+#
+#     DOES THIS FINDING ASSERT A FAULT, OR ASK SOMEONE TO GO AND LOOK?
+#
+# The eight that actually blocked, verbatim:
+#   "…but should be confirmed all usages are gone"                        (#3419)
+#   "Potential security risk IF rec.recommended_ollama contains user input" (#3419)
+#   "Debug logging should be avoided in production code"                  (#3418)
+#   "…can introduce potential bugs or make the code harder to understand" (#3411)
+#   "…which might not be necessary and could hide potential issues"       (#3411)
+#   "…might not provide enough visibility"                                (#3401)
+#   "…might not be covered by other tests or documentation"               (#3401)
+#   "…does not distinguish … which could lead to unexpected behavior"     (#3401, CRITICAL)
+# Not one names a concrete failure. A conditional whose premise is unverified is
+# unfalsifiable from a diff, and an unfalsifiable finding blocks forever — the author cannot
+# disprove "if".
+#
+# ⚠️ WHY `_asserts_no_defect` DOES NOT CATCH THESE: `_DEFECT_ASSERTION_RE` includes
+# `\bshould\s+(be|use|have|not)\b`, so "should be confirmed" reads to it as a predicative
+# fault claim. That clause is right for "the lock should be released" and wrong for "should be
+# confirmed" — the same two words doing opposite work. Hence a SEPARATE, narrower veto below.
+#
+# ⚠️ FAIL-CLOSED, and the asymmetry IS the safety property (same shape as _asserts_no_defect):
+# a hedge demotes ONLY when no definite fault is named anywhere in the finding. "This may be
+# slow, and the function fails to close the connection" stays blocking — the hedge is
+# decoration on a real claim.
+#
+# ⚠️ The veto is deliberately about PREDICATIVE FAULTS, not scary consequence NOUNS, following
+# `_DEFECT_ASSERTION_RE`'s own comment ("not the mere presence of a scary noun"). "potential
+# information leakage" is hedged security FUD, which is the single most common form of the
+# unfalsifiable finding; "the old path is still vulnerable" is an assertion and blocks.
+#
+# Demote-only: the text is never dropped, so a human still reads a genuine "worth checking".
+_HEDGED_CLAIM_RE = re.compile(
+    # a request to go and verify, or normative style advice — neither is a fault claim
+    r"\bshould\s+be\s+(confirm|verif|check|review|validat|test|avoid|preferr|consider)\w*"
+    r"|\b(worth|recommend\w*)\s+(confirm|verif|check|review|validat)\w*"
+    r"|\bmake\s+sure\b|\bconsider\s+\w+ing\b|\bit\s+could\s+be\s+beneficial\b"
+    # an explicitly speculative premise
+    r"|\bpotential\w*\b"
+    r"|\b(may|might|could|can|would|possibly|perhaps|likely)\s+(not\s+)?\w+"
+    r"|\bit\s+is\s+unclear\b|\bnot\s+clear\s+whether\b|\bcannot\s+be\s+determined\b",
+    re.I,
+)
+# `_DEFECT_ASSERTION_RE` MINUS its `should (be|use|have|not)` clause — that clause is the very
+# ambiguity this gate exists to resolve, so reusing it whole would make the gate a no-op on its
+# own motivating case.
+_DEFINITE_FAULT_RE = re.compile(
+    r"\b(is|are|was|were)\s+(missing|incorrect|wrong|unsafe|invalid|broken|vulnerable)\b"
+    r"|\blacks?\b|\bfail(s|ing|ed)?\s+to\b|\bdoes\s*n[o']t\s+handle\b|\bdo\s+not\s+handle\b"
+    r"|\bvulnerab\w+|\bunhandled\b|\bno\s+error\s+handling\b"
+    r"|\bwill\s+(crash|fail|break)\b|\bcan\s+(crash|fail|break)\b|\bbreaks\b|\btypos?\b"
+    r"|\brace\s+condition\b|\bmemory\s+leak\b|\bnot\s+thread[\s-]?safe\b"
+    # ⚠️ MECHANISMS, added because a hedge can sit on top of a real one. Every entry below is
+    # taken from `MUST_KEEP` in test_forge_severity_normalizer.py — the repo's own worked
+    # definition of a finding that must never be demoted. "obj MAY BE None AND IS DEREFERENCED"
+    # hedges the VALUE while asserting what the code DOES, and my first cut demoted it; that
+    # test caught it, which is what it is for.
+    r"|\bdereferenc\w+|\bconcatenat\w+|\bunbounded\b|\binjection\b|\boverflow\b"
+    r"|\buse[-\s]after[-\s]free\b|\bdouble[-\s]free\b|\boff[-\s]by[-\s]one\b"
+    r"|\bnever\s+(closed|released|freed|unlocked)\b|\bwithout\s+a\s+(lock|backup)\b"
+    r"|\bskips?\s+the\s+\w+\s+check\b",
+    re.I,
+)
+
+
+def _is_hedged_without_failure_path(blob: str) -> bool:
+    """True when a finding HEDGES and names no failure path — it asks rather than asserts.
+
+    Shaped like its neighbour `_is_speculative_coverage_claim`: every veto is checked BEFORE
+    the positive match, so adding a veto can only ever make the gate more conservative.
+
+    ⚠️ `_CONCRETE_EXEMPLAR_RE` is a veto for the same reason it is one there: "may not cover
+    all edge cases, SUCH AS multiple retries" names something specific the author can go and
+    check, so it is a failure path even though it hedges. Reusing that predicate keeps the two
+    gates from disagreeing about what "concrete" means — my first cut did not, and
+    test_speculative_coverage_gate caught the divergence.
+
+    Fail-closed on every uncertain input: an empty blob, a hedge beside a real fault, or a
+    hedge with an exemplar all keep the original severity. Demote-only.
+    """
+    if not blob:
+        return False
+    if _DEFINITE_FAULT_RE.search(blob):
+        return False
+    if _CONCRETE_EXEMPLAR_RE.search(blob):
+        return False
+    return bool(_HEDGED_CLAIM_RE.search(blob))
+
+
 def _normalize_severity(issues: list) -> list:
     """Demote non-blocking nit CATEGORIES (see _NONBLOCKING_CATEGORY_RE) to INFO regardless of the
     model's self-assigned severity — structured (dict) path. Mutates + returns the same list; stamps
@@ -722,6 +831,8 @@ def _normalize_severity(issues: list) -> list:
             # #6029 — the evidence DESCRIBES a defect rather than committing one. Keyed on the
             # evidence, not `blob`, because that is where the signal is.
             or _evidence_is_prose_not_code(i)
+            # #6822 — the finding hedges and names no definite fault: it asks rather than asserts.
+            or _is_hedged_without_failure_path(blob)
         ):
             i["_demoted_from"] = str(i.get("severity", "")).upper()
             i["severity"] = "INFO"
@@ -750,6 +861,7 @@ def _demote_nonblocking_lines(review_text: str) -> str:
             or _is_design_observation(m.group(2))
             or _is_speculative_coverage_claim(m.group(2))
             or _evidence_is_prose_not_code({"evidence": _ev})
+            or _is_hedged_without_failure_path(m.group(2))
         ):
             line = f"{m.group(1)}[INFO]{m.group(2)}"
         out.append(line)

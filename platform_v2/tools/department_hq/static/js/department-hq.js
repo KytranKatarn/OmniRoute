@@ -6144,8 +6144,20 @@ function initFleetMap() {
     if (!el) return;
 
     fleetMap = L.map('fleetMap', {
-        center: [42, -95],
-        zoom: 4,
+        // Centre on Kytran Empowerment's Starbase, not a generic mid-continent point.
+        // [42, -95] is central Kansas — roughly 2,400 km from anything we own, so the
+        // fleet opened off to one side of an empty map. Every live node sits in the
+        // Montreal/Boston corridor (`remote_nodes.extra_capabilities.geo_lat/geo_lon`):
+        //   Starbase - A.R.C.H.I.E.        45.5019 / -73.5674   Montreal
+        //   Starship - Defiant  USS-246    45.5447 / -73.5779   Rosemont
+        //   Starship - Runabout USS-245    45.5048 / -73.6726   Saint-Laurent
+        //   Citadel / Outpost - US         42.36   / -71.06     Boston
+        // Deliberately a CONSTANT and not read from the node payload: the map is built
+        // before the fleet data arrives, and re-centring on every refresh would yank
+        // the view out from under someone mid-pan. Clicking a node in the list still
+        // flies to it (see the list click handler further down).
+        center: [45.5019, -73.5674],
+        zoom: 5,
         minZoom: 2,
         maxZoom: 12,
         zoomControl: true,
@@ -6298,6 +6310,7 @@ function loadFleetData() {
         if (data.error) { console.error('Fleet map error:', data.error); return; }
         renderFleetPins(data);
         updateFleetStats(data);
+        _dhqRefreshOpenNodePanel(data);
     })
     .catch(function(e) {
         console.error('Fleet map load failed:', e);
@@ -6537,10 +6550,19 @@ function renderFleetPins(data) {
                 iconAnchor: [20, 20],
             }),
         }).addTo(fleetMap);
-        marker.bindPopup(buildFleetPopup('A.R.M.A.D.A. HUB', [
-            ['Location', hub.city || 'Home Base'],
-            ['Status', '<span style="color:#10b981;">ONLINE</span>'],
-        ]), { className: 'fleet-popup' });
+        // The Starbase now opens the SAME LCARS panel as every other node. Two
+        // reasons this is not just consistency:
+        //  1. the popup it replaces hardcoded `Status: ONLINE` — the hub pin claimed
+        //     green regardless of what its own remote_nodes row said. The index row
+        //     above was fixed for exactly this; the pin was missed.
+        //  2. the popup showed two fields (city, status) for the machine that has the
+        //     most hardware to show — 20 cores, 128 GB, two cards, the full warm set.
+        // Prefer the is_hub row from data.nodes: data.hub is a thin pin record, while
+        // that row is the Starbase's full remote_nodes payload. The panel degrades
+        // honestly on the fallback ('--' rows), and _dhqRenderNodeModels already
+        // guards a missing node_id.
+        var hubFull = (data.nodes || []).filter(function(n) { return n.is_hub; })[0];
+        marker.on('click', function() { showNodeDetail(hubFull || hub); });
         fleetMarkers.push(marker);
     }
 
@@ -6551,8 +6573,10 @@ function renderFleetPins(data) {
         .forEach(function(node) {
         if (!node.lat || !node.lon) return;
         var isOnline = node.status === 'online';
-        var isOutpost = node.inference_type === 'cpu' ||
-            (node.deployment_mode && node.deployment_mode.indexOf('outpost') !== -1);
+        // (An `isOutpost` flag used to be computed here and was never read — every
+        // marker renders the same aries icon and only `isOnline` changes its colour.
+        // Removed rather than left looking load-bearing. Node TIER is conveyed by the
+        // index headings and the panel's Mode/Inference rows.)
         // Store node in registry so popup buttons can reference it by id
         if (node.node_id) window._fleetNodeRegistry[node.node_id] = node;
 
@@ -6565,49 +6589,20 @@ function renderFleetPins(data) {
             }),
         }).addTo(fleetMap);
 
-        var popupRows, nodeLabel;
-        if (isOutpost) {
-            nodeLabel = (node.name || node.hostname || 'Outpost') + ' — OUTPOST';
-            var modelList = (node.ollama_models && node.ollama_models.length)
-                ? node.ollama_models.join(' · ')
-                : 'None loaded';
-            var inferLabel = 'CPU-only' + (node.max_model_gb ? ' · max ' + node.max_model_gb + ' GB' : '');
-            var locationStr = [node.location_city, node.location_country].filter(Boolean).join(', ') || '--';
-            popupRows = [
-                ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
-                ['Location', locationStr],
-                ['Region', node.region || '--'],
-                ['Provider', node.provider || '--'],
-                ['Inference', inferLabel],
-                ['RAM', node.ram ? node.ram + ' GB' : '--'],
-                ['Mesh IP', node.mesh_ip || '--'],
-                ['Models', modelList],
-                ['Agents', (node.agents || []).length + ' assigned'],
-            ];
-        } else {
-            nodeLabel = node.name || node.hostname || 'Node';
-            var gpuLabel = (node.gpu || 'Not reported') + (node.gpu_vram_gb ? ' · ' + node.gpu_vram_gb + ' GB' : '');
-            popupRows = [
-                ['Type', node.deployment_mode || 'starship'],
-                ['Status', isOnline ? '<span style="color:#10b981;">ONLINE</span>' : '<span style="color:#ef4444;">OFFLINE</span>'],
-                ['GPU', gpuLabel],
-                ['RAM', node.ram ? node.ram + ' GB' : '--'],
-                ['Mesh IP', node.mesh_ip || '--'],
-                ['Agents', (node.agents || []).length + ' assigned'],
-            ];
-        }
 
-        var nodeIdStr = node.node_id ? String(node.node_id).replace(/['"\\]/g, '') : '';
-        var popupFooter = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">'
-            + '<button onclick="var n=window._fleetNodeRegistry[\'' + nodeIdStr + '\'];if(n)showNodeDetail(n);" '
-            + 'style="width:100%;background:rgba(163,230,53,0.12);border:1px solid rgba(163,230,53,0.35);'
-            + 'color:#a3e635;font-family:\'IBM Plex Mono\',monospace;font-size:0.62rem;padding:5px 8px;'
-            + 'border-radius:4px;cursor:pointer;letter-spacing:1px;transition:background 0.15s;"'
-            + ' onmouseover="this.style.background=\'rgba(163,230,53,0.22)\'"'
-            + ' onmouseout="this.style.background=\'rgba(163,230,53,0.12)\'">'
-            + 'VIEW DETAIL / DISPATCH →</button></div>';
-
-        marker.bindPopup(buildFleetPopup(nodeLabel, popupRows, popupFooter), { className: 'fleet-popup' });
+        // ONE detail surface per click. This marker used to bind a Leaflet popup AND
+        // open the LCARS panel, so a single click produced both, overlapping — the
+        // popup covering the panel it had just opened. The LCARS panel wins: it is the
+        // richer surface, it carries the agent cross-links, and it is the one the rest
+        // of Department HQ uses. Everything the popup showed now lives in it (Location,
+        // Provider, Max model and Models were the four fields only the popup had).
+        //
+        // The popup CONTENT builders (`nodeLabel`, `popupRows`, `popupFooter`,
+        // `nodeIdStr`, `inferLabel`) went with it — once nothing reads them they are
+        // dead weight, and dead code with a comment claiming it is live is worse than
+        // either. `buildFleetPopup` itself STAYS: the hub pin and the cloud-provider
+        // pins still use popups, and only the node markers changed.
+        // `isOnline` also stays — the marker icon above colours itself from it.
         marker.on('click', function() { showNodeDetail(node); });
         fleetMarkers.push(marker);
     });
@@ -6803,6 +6798,39 @@ async function toggleCloudProvider(providerId) {
     }
 }
 
+// The parts of a node row that MOVE. Hardware is excluded deliberately: it changes
+// only on real re-provisioning, and including it would repaint the panel on a
+// heartbeat that merely re-reported the same card.
+function _dhqNodeSig(node) {
+    return JSON.stringify([
+        node.status, node.last_heartbeat, node.ollama_models,
+        (node.agents || []).length, node.gpu_vram_gb, node.max_model_gb,
+    ]);
+}
+
+// A fleet poll has just produced a newer row for whatever node is open. Without this
+// the panel is frozen at the instant it was clicked: a node that goes offline, or whose
+// heartbeat goes stale, keeps reading healthy for as long as the modal stays open —
+// which is exactly the window in which someone is looking at it to decide something.
+//
+// ⚠️ Signature-gated, per the Approvals-tab precedent: an UNCHANGED payload must not
+// touch the DOM. Repainting every poll would fight the reader for scroll position and
+// re-run the models render on every cycle.
+// ⚠️ A node missing from the fresh payload (retired mid-view) leaves the last known
+// state on screen. Blanking the panel would look like a UI fault rather than a node
+// that no longer exists.
+function _dhqRefreshOpenNodePanel(data) {
+    var modal = document.getElementById('fleetNodeModal');
+    if (!modal || modal.style.display === 'none') return;
+    if (!window._dhqOpenNodeId) return;
+    var fresh = (data.nodes || []).filter(function(n) {
+        return String(n.node_id) === String(window._dhqOpenNodeId);
+    })[0];
+    if (!fresh) return;
+    if (_dhqNodeSig(fresh) === window._dhqOpenNodeSig) return;
+    showNodeDetail(fresh);
+}
+
 function showNodeDetail(node) {
     var panel = document.getElementById('fleetDetailPanel');
     var titleEl = document.getElementById('fleetDetailTitle');
@@ -6811,24 +6839,96 @@ function showNodeDetail(node) {
 
     titleEl.textContent = node.node_name || node.name || node.hostname;
 
+    // Which node this panel is showing, and a signature of the parts that move, so a
+    // fleet poll can refresh it in place — see _dhqRefreshOpenNodePanel.
+    window._dhqOpenNodeId = node.node_id || null;
+    window._dhqOpenNodeSig = _dhqNodeSig(node);
+
     // Build detail content using DOM methods (trusted server data)
     body.textContent = '';
+
+    // Offline leads, rather than sitting in the last section. check_fleet_health returns
+    // an offline node's agents to barracks (fleet.md -> Node Health + Lifecycle), so the
+    // Deployed Agents list further down is describing assignments that are NOT running.
+    // A reader who skimmed the top of this panel had no way to know that.
+    if ((node.status || '').toLowerCase() !== 'online') {
+        var offBanner = document.createElement('div');
+        offBanner.style.cssText = 'margin:0 0 10px;padding:7px 10px;border-left:3px solid #ef4444;'
+            + 'background:rgba(239,68,68,0.12);font-size:0.72rem;color:#fca5a5;line-height:1.45;';
+        offBanner.textContent = 'Node is ' + String(node.status || 'unknown').toUpperCase()
+            + '. Its agents return to barracks while it is down, so any assignment listed'
+            + ' below is not currently running.';
+        body.appendChild(offBanner);
+    }
+    // Consolidated from the retired map popup — these four were the only fields it
+    // showed that this panel did not, so removing the popup would otherwise have LOST
+    // them. Same derivations the popup used.
+    var locationStr = [node.location_city, node.location_country].filter(Boolean).join(', ') || '--';
+
+    // VRAM. fleet.md is emphatic that `gpu_vram_gb` is the LARGEST SINGLE card and
+    // never the sum — it is the safety input `_fits()` and `get_agents_for_hardware()`
+    // size ONE model against. This row rendered a flat "12 GB" for the Starbase, which
+    // reads as the whole machine when it actually holds 20 GB across two cards. The
+    // total is shown ONLY when the node declared one
+    // (extra_capabilities.gpu_vram_total_gb); an undeclared total is not inferred to
+    // equal the largest card, because absence of a declaration is not proof of one card.
+    var vramStr = '--';
+    if (node.gpu_vram_gb) {
+        vramStr = node.gpu_vram_gb + ' GB (largest card)';
+        var vramTotal = parseFloat(node.gpu_vram_total_gb);
+        if (vramTotal && vramTotal > parseFloat(node.gpu_vram_gb)) {
+            vramStr += ' \u00b7 ' + vramTotal + ' GB total';
+        }
+    }
+
+    // Heartbeat staleness, on the SAME 2-minute threshold `check_fleet_health` uses to
+    // move a node's agents to barracks (fleet.md -> Node Health). A bare timestamp
+    // carried no information: "2026-09-21, 11:04:02" looks identical whether it is 8
+    // seconds or 8 days old, so a dead node read the same as a healthy one.
+    // Math.max(0, ...) keeps a clock-skewed future heartbeat from rendering "-3s ago".
+    var hbStr = '--';
+    var hbColour = null;
+    if (node.last_heartbeat) {
+        var hbIso = (node.last_heartbeat.endsWith('Z') || node.last_heartbeat.indexOf('+') !== -1)
+            ? node.last_heartbeat : node.last_heartbeat + 'Z';
+        var hbAgeS = Math.max(0, (Date.now() - new Date(hbIso).getTime()) / 1000);
+        var hbRel = hbAgeS < 60 ? Math.round(hbAgeS) + 's ago'
+            : hbAgeS < 3600 ? Math.round(hbAgeS / 60) + 'm ago'
+            : hbAgeS < 86400 ? Math.round(hbAgeS / 3600) + 'h ago'
+            : Math.round(hbAgeS / 86400) + 'd ago';
+        hbStr = new Date(hbIso).toLocaleString() + ' \u00b7 ' + hbRel;
+        hbColour = hbAgeS < 120 ? '#10b981' : (hbAgeS < 600 ? '#f59e0b' : '#ef4444');
+    }
+
     var sections = [
         { title: 'Hardware', rows: [
             ['GPU', node.gpu_model || node.gpu || 'None'],
-            ['VRAM', node.gpu_vram_gb ? node.gpu_vram_gb + ' GB' : '--'],
+            ['VRAM', vramStr],
             ['CPU', (node.cpu_cores ? node.cpu_cores + ' cores' : '--') + (node.cpu_model ? ' · ' + node.cpu_model : '')],
             ['RAM', (node.ram_gb || node.ram) ? (node.ram_gb || node.ram) + ' GB' : '--'],
-            ['Region', node.region || '--']
+            // Max model is the CPU ceiling from `remote_nodes.max_model_gb`, not a disk
+            // size — see fleet.md. '--' means uncapped (GPU nodes are deliberately so).
+            ['Max model', node.max_model_gb ? node.max_model_gb + ' GB' : '-- (uncapped)'],
+            // Derived server-side from gpu_available + gpu_vram_gb when the node
+            // declares no extra_capabilities.inference_type — see
+            // fleet_service.derive_inference_type. Before that, the payload defaulted
+            // to the bare literal 'gpu', so Citadel (no GPU, 31.3 GB RAM, capped at
+            // 6 GB) reported GPU. DISPLAY ONLY: placement reads the hardware columns.
+            ['Inference', node.inference_type ? String(node.inference_type).toUpperCase() : '--']
         ]},
         { title: 'Network', rows: [
             ['Hostname', node.hostname || '--'],
             ['Mesh IP', node.mesh_ip || '--'],
-            ['Mode', node.deployment_mode || '--']
+            ['Mode', node.deployment_mode || '--'],
+            ['Location', locationStr],
+            // Region belongs with the other placement/topology fields, not under
+            // Hardware where it sat between VRAM and RAM.
+            ['Region', node.region || '--'],
+            ['Provider', node.provider || '--']
         ]},
         { title: 'Status', rows: [
             ['Status', node.status || '--'],
-            ['Last Heartbeat', node.last_heartbeat ? new Date((node.last_heartbeat.endsWith('Z') || node.last_heartbeat.includes('+')) ? node.last_heartbeat : node.last_heartbeat + 'Z').toLocaleString() : '--']
+            ['Last Heartbeat', hbStr, hbColour]
         ]}
     ];
     sections.forEach(function(sec) {
@@ -6845,6 +6945,9 @@ function showNodeDetail(node) {
             var val = document.createElement('span');
             val.style.cssText = 'font-size:0.78rem;color:#e0e0e0;text-align:right;';
             val.textContent = r[1];
+            // Optional third element = value colour. Rows stay 2-element by default,
+            // so nothing existing changes.
+            if (r[2]) val.style.color = r[2];
             row.appendChild(lbl);
             row.appendChild(val);
             body.appendChild(row);
@@ -6921,11 +7024,33 @@ function _dhqRenderNodeModels(node, container) {
     loading.textContent = 'Analyzing hardware…';
     container.appendChild(loading);
 
-    var nid = node.node_id;
-    if (!nid) { loading.textContent = 'No node_id — cannot compute recommendation.'; return; }
+    // node_key, NOT node_id: this endpoint keys on the VARCHAR remote_nodes.node_id
+    // while the payload's `node_id` is the int PK every other node route wants. Passing
+    // the int here returns a clean 404 that renders as "Recommendation unavailable" —
+    // indistinguishable from a node the planner has nothing to say about.
+    var nid = node.node_key;
+    if (!nid) { loading.textContent = 'No node key — cannot compute recommendation.'; return; }
 
-    fetch('/tools/department-hq/api/nodes/' + encodeURIComponent(nid) + '/model-recommendation')
-      .then(function(r){ return r.json(); })
+    // Cached on the HARDWARE FINGERPRINT, not on a timer. The endpoint is a pure
+    // derivation from cpu_cores/ram_gb/gpu_available/gpu_vram_gb/gpu_model
+    // (fleet_node_routes.get_node_model_recommendation -> recommend_from_node_row) and
+    // reads no live model state, so its answer cannot go stale while those inputs hold.
+    // A fingerprint invalidates exactly when they change; a TTL would do strictly worse
+    // in both directions — re-fetching an unchanged answer, and serving a stale one for
+    // the rest of the window after a card was added.
+    // ⚠️ The "Loaded now" chips are NOT cached: they come from node.ollama_models on the
+    // map payload, which refreshes every poll. Only the hardware half is reused, and
+    // only a SUCCESSFUL response is stored — caching a failure would make one blip
+    // permanent for the session.
+    window._dhqRecCache = window._dhqRecCache || {};
+    var recFp = [nid, node.cpu_cores, node.ram_gb || node.ram,
+                 node.gpu_vram_gb, node.gpu_model || node.gpu].join('|');
+    var recPromise = window._dhqRecCache[recFp]
+        ? Promise.resolve(window._dhqRecCache[recFp])
+        : fetch('/tools/department-hq/api/nodes/' + encodeURIComponent(nid) + '/model-recommendation')
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (d && d.success) window._dhqRecCache[recFp] = d; return d; });
+    recPromise
       .then(function(data){
         if (!data || !data.success) { loading.textContent = 'Recommendation unavailable.'; return; }
         loading.remove();
@@ -6936,6 +7061,82 @@ function _dhqRenderNodeModels(node, container) {
         var tl = document.createElement('span'); tl.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:rgba(163,230,53,0.6);letter-spacing:1px;'; tl.textContent = 'Tier';
         var tv = document.createElement('span'); tv.style.cssText = 'font-size:0.78rem;color:#e0e0e0;text-align:right;'; tv.textContent = rec.tier || '--';
         tierRow.appendChild(tl); tierRow.appendChild(tv); container.appendChild(tierRow);
+
+        // WHAT IT ACTUALLY HAS, before what it should have. This panel showed only the
+        // recommendation, so it answered "what belongs here" and never "what is here" —
+        // and the gap between those two is the only actionable thing on the screen.
+        //
+        // ⚠️ THREE states, not two. `ollama_models` ABSENT means the heartbeat never
+        // reported an inventory; that is UNKNOWN and must not render as "None loaded",
+        // which would read as a node sitting empty. An empty ARRAY is a real "none".
+        var loadedKnown = Array.isArray(node.ollama_models);
+        var loaded = loadedKnown ? node.ollama_models : [];
+        // ⚠️ Ollama treats `name` and `name:latest` as the SAME model, and the two
+        // sides of this diff use different spellings: the node's heartbeat reports
+        // `nomic-embed-text:latest` while the recommended warm set names
+        // `nomic-embed-text`. Measured live on USS-246, comparing raw strings produced
+        // BOTH halves of the error at once — the loaded chip rendered grey (read: "extra,
+        // not recommended") AND the model was listed under "Missing from warm set (1)"
+        // with a button offering to pull what was already there. A diff that invents work
+        // is worse than no diff, so normalise both sides before comparing.
+        var _tagNorm = function(m){
+            m = String(m == null ? '' : m).trim();
+            return m && m.indexOf(':') === -1 ? m + ':latest' : m;
+        };
+        var recSet = {};
+        (rec.recommended_ollama || []).forEach(function(m){ recSet[_tagNorm(m)] = true; });
+        var loadedSet = {};
+        loaded.forEach(function(m){ loadedSet[_tagNorm(m)] = true; });
+
+        var loadedLbl = document.createElement('div');
+        loadedLbl.style.cssText = 'font-size:0.68rem;color:rgba(163,230,53,0.6);letter-spacing:1px;margin:8px 0 4px;';
+        loadedLbl.textContent = 'Loaded now:';
+        container.appendChild(loadedLbl);
+
+        var loadedChips = document.createElement('div');
+        loadedChips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;';
+        if (!loadedKnown) {
+            var unk = document.createElement('span');
+            unk.style.cssText = 'font-size:0.7rem;color:#888;';
+            unk.textContent = 'Not reported by this node.';
+            loadedChips.appendChild(unk);
+        } else if (!loaded.length) {
+            var non = document.createElement('span');
+            non.style.cssText = 'font-size:0.7rem;color:#888;';
+            non.textContent = 'None loaded.';
+            loadedChips.appendChild(non);
+        } else {
+            loaded.forEach(function(m){
+                // green = in the warm set · grey = present but not recommended (extra,
+                // not wrong — an operator may have pulled it deliberately).
+                var inSet = !!recSet[_tagNorm(m)];
+                var c = document.createElement('span');
+                c.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;border-radius:10px;padding:2px 8px;'
+                    + (inSet
+                        ? 'color:#10b981;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.35);'
+                        : 'color:#9ca3af;background:rgba(156,163,175,0.08);border:1px solid rgba(156,163,175,0.25);');
+                c.textContent = m + (inSet ? ' \u2713' : '');
+                loadedChips.appendChild(c);
+            });
+        }
+        container.appendChild(loadedChips);
+
+        // The gap, stated plainly — this is what the download button below acts on.
+        var missing = (rec.recommended_ollama || []).filter(function(m){ return !loadedSet[_tagNorm(m)]; });
+        if (loadedKnown && missing.length) {
+            var missLbl = document.createElement('div');
+            missLbl.style.cssText = 'font-size:0.68rem;color:rgba(251,191,36,0.75);letter-spacing:1px;margin:8px 0 4px;';
+            missLbl.textContent = 'Missing from warm set (' + missing.length + '):';
+            container.appendChild(missLbl);
+            var missChips = document.createElement('div');
+            missChips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;';
+            missing.forEach(function(m){
+                var c = document.createElement('span');
+                c.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.65rem;color:#fbbf24;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.35);border-radius:10px;padding:2px 8px;';
+                c.textContent = m; missChips.appendChild(c);
+            });
+            container.appendChild(missChips);
+        }
 
         var warmLbl = document.createElement('div');
         warmLbl.style.cssText = 'font-size:0.68rem;color:rgba(163,230,53,0.6);letter-spacing:1px;margin:8px 0 4px;';
@@ -6969,7 +7170,14 @@ function _dhqRenderNodeModels(node, container) {
         if ((rec.recommended_ollama || []).length || rec.recommended_comfyui) {
             var btn = document.createElement('button');
             btn.style.cssText = 'margin-top:10px;width:100%;background:rgba(0,255,255,0.15);border:1px solid rgba(0,255,255,0.5);color:#00ffff;padding:8px;border-radius:4px;cursor:pointer;font-size:0.72rem;letter-spacing:1px;font-family:\'IBM Plex Mono\',monospace;';
-            btn.textContent = '⬇ DOWNLOAD RECOMMENDED MODELS';
+            // Name the gap: "download 2 missing" is actionable, "download recommended"
+            // is not — and when nothing is missing the button says so instead of
+            // implying there is work to do.
+            btn.textContent = (loadedKnown && missing.length)
+                ? '\u2b07 DOWNLOAD ' + missing.length + ' MISSING MODEL' + (missing.length === 1 ? '' : 'S')
+                : (loadedKnown && !missing.length
+                    ? '\u2713 WARM SET COMPLETE \u2014 RE-PULL ANYWAY'
+                    : '\u2b07 DOWNLOAD RECOMMENDED MODELS');
             btn.addEventListener('click', function(){ _dhqProvisionWarmSet(node, btn); });
             container.appendChild(btn);
         }
@@ -6997,6 +7205,9 @@ function _dhqProvisionWarmSet(node, btn) {
 function closeFleetDetail() {
     var modal = document.getElementById('fleetNodeModal');
     if (modal) modal.style.display = 'none';
+    // Stop the poll refreshing a panel nobody is looking at.
+    window._dhqOpenNodeId = null;
+    window._dhqOpenNodeSig = null;
 }
 
 // Auto-init fleet map when tab becomes active

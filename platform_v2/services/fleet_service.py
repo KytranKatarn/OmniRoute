@@ -161,14 +161,22 @@ def list_nodes():
     """Return all nodes with status, hardware, location.
 
     Returns list of dicts with: id, node_name, hostname, status,
-    gpu_model, gpu_vram_gb, ram_gb, latitude, longitude,
-    last_heartbeat, deployment_mode, mesh_ip, region.
+    gpu_model, gpu_vram_gb, gpu_available, ram_gb, cpu_model, cpu_cores,
+    latitude, longitude, last_heartbeat, deployment_mode, mesh_ip, region.
+
+    ⚠️ ``cpu_cores`` and ``gpu_available`` are real, populated ``remote_nodes``
+    columns that this SELECT simply never fetched, so every consumer read them
+    as absent. The A.R.M.A.D.A. node panel rendered ``CPU: --`` on all five live
+    nodes while the table held 2/8/12/16/20 cores, and ``inference_type`` could
+    not be derived from hardware because the hardware flag was not in the row.
+    Adding a column here is purely additive — callers read by name.
     """
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
             SELECT id, node_name, hostname, status,
-                   gpu_model, gpu_vram_gb, ram_gb, cpu_model,
+                   gpu_model, gpu_vram_gb, gpu_available, ram_gb,
+                   cpu_model, cpu_cores,
                    latitude, longitude, last_heartbeat,
                    deployment_mode, mesh_ip, region,
                    extra_capabilities
@@ -539,6 +547,40 @@ def get_usage_summary(provider_key=None, days=30):
 # ---------------------------------------------------------------------------
 
 
+def derive_inference_type(node, caps=None):
+    """What a node can actually run inference ON — 'gpu' or 'cpu'.
+
+    ⚠️ An EXPLICIT ``extra_capabilities.inference_type`` always wins. An operator
+    who wrote 'cpu' onto GPU hardware meant it (a card reserved for ComfyUI, say),
+    so only an ABSENT declaration is derived. Declaring is still the way to
+    override; this only removes the need to declare the obvious case.
+
+    The old behaviour was ``caps.get("inference_type", "gpu")`` — a bare literal
+    default, so every node that never declared one reported GPU. Measured
+    2026-09-21: 4 of the 5 live nodes had no declaration, and **Citadel**
+    (``gpu_available=false``, ``gpu_vram_gb=NULL``, 31.3 GB RAM, capped at
+    ``max_model_gb=6``) reported ``'gpu'``. The three Starships/Starbase were
+    right only by luck of the default matching their hardware.
+
+    ⚠️ DISPLAY ONLY, and that is why deriving here is safe. Placement reads
+    ``gpu_available``/``gpu_vram_gb`` straight off the row
+    (``fleet_resource_router.can_node_run_model``), so a wrong answer in this
+    field misinforms a human and can never misroute work. There is no
+    fail-closed path to break — the asymmetry that governs the capacity and
+    presence gates does not apply.
+
+    Both signals are required for 'gpu': a row flagged ``gpu_available`` with no
+    VRAM figure cannot size a single model, so it is reported as CPU rather than
+    as a GPU node of unknown capacity.
+    """
+    caps = caps or {}
+    declared = (caps.get("inference_type") or "").strip().lower()
+    if declared:
+        return declared
+    vram = node.get("gpu_vram_gb") or caps.get("gpu_vram_gb")
+    return "gpu" if (node.get("gpu_available") and vram) else "cpu"
+
+
 def get_fleet_map_data():
     """Return all map pins for the fleet visualization.
 
@@ -566,6 +608,19 @@ def get_fleet_map_data():
         nodes.append(
             {
                 "node_id": node_id,
+                # ⚠️ `node_id` ABOVE IS THE INT PK (`remote_nodes.id`), NOT
+                # `remote_nodes.node_id`. That is not a typo to fix here: 20+ node routes
+                # are declared `<int:node_id>` and key off the int, so every existing
+                # consumer is correct. But the varchar identity is what
+                # `remote_nodes.node_id` holds ('outpost_us_001'), it is what survives a
+                # rename, and ONE route — GET /api/nodes/<node_id>/model-recommendation —
+                # looks up `WHERE node_id = %s`. Given the int it returns a clean
+                # 404 "Node not found": the URL segment arrives as a STRING, so
+                # `WHERE node_id = '93'` is a valid comparison that matches nothing. No
+                # exception, no log line, nothing to notice — which is why the node
+                # panel's AI Models section had never once loaded. Carry both, named
+                # apart, per fleet.md's id-vs-node_id invariant.
+                "node_key": n.get("node_id"),
                 "name": n.get("node_name", "Unknown"),
                 "hostname": n.get("hostname", ""),
                 "lat": (
@@ -583,6 +638,14 @@ def get_fleet_map_data():
                 "gpu_vram_gb": n.get("gpu_vram_gb"),
                 "ram": n.get("ram_gb"),
                 "cpu_model": n.get("cpu_model", "") or caps.get("cpu_model", ""),
+                "cpu_cores": n.get("cpu_cores") or caps.get("cpu_cores"),
+                # Largest SINGLE card is gpu_vram_gb (the safety input every
+                # placement check sizes one model against); the aggregate lives
+                # only in extra_capabilities and is reporting-only. Passing both
+                # lets the panel label which is which instead of showing the
+                # Starbase as a 12 GB box when it holds 20 GB across two cards.
+                # Absent when undeclared — a single-card total is not invented.
+                "gpu_vram_total_gb": caps.get("gpu_vram_total_gb"),
                 "mesh_ip": n.get("mesh_ip", ""),
                 "last_heartbeat": (n["last_heartbeat"].isoformat() if n.get("last_heartbeat") else None),
                 "deployment_mode": n.get("deployment_mode", ""),
@@ -591,7 +654,7 @@ def get_fleet_map_data():
                 "provider": caps.get("provider", ""),
                 "location_city": caps.get("location_city", ""),
                 "location_country": caps.get("location_country", ""),
-                "inference_type": caps.get("inference_type", "gpu"),
+                "inference_type": derive_inference_type(n, caps),
                 "max_model_gb": caps.get("max_model_gb"),
                 "ollama_models": caps.get("ollama_models", []),
                 "agents": [

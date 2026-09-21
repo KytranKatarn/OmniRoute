@@ -1334,6 +1334,98 @@ def _is_unverifiable_test_execution_claim(issue: dict, diff: str) -> bool:
     return not _SKIP_MARKER_RE.search(diff or "")
 
 
+# --- GATE 5 (#6817) — the cited evidence IS the remedy the finding demands -----------------
+# An absence claim ("no tests", "not reported") whose evidence is the ADDED line that SUPPLIES
+# the missing thing refutes itself. All four ADR-001 gates pass on it: the citation is real
+# (grounding), it is an added line (polarity), the claim is diff-checkable (claim), and it reads
+# as a definite fault (severity). Only a gate that compares the claim to what the diff ADDS can
+# see it.
+#
+# Measured on PR #3414 (#6817): two findings, each citing the `+` line that adds the very thing
+# it calls missing — "+ excluded = len(rows) - len(considered)" for an UNDERREPORTING claim, and
+# "+def is_inference_path" for "no tests provided". Both flipped to APPROVE on rebuttal with
+# zero code change.
+
+# Absence of a VALUE / a report — the family this gate acts on.
+_ABSENCE_OF_A_VALUE_RE = re.compile(
+    r"\bunder[-\s]?report\w*"
+    r"|\b(?:not|never|is\s+n[o']t|are\s+n[o']t)\s+(?:being\s+)?"
+    r"(?:report\w*|track\w*|comput\w*|count\w*|record\w*|expos\w*|surfac\w*|populat\w*|set\b|assign\w*)"
+    r"|\bdoes\s+not\s+(?:report|track|compute|count|record|expose|surface|populate|set|assign)\w*"
+    r"|\bmissing\s+from\s+the\s+(?:output|payload|report|response|summary)",
+    re.I,
+)
+# Absence of a GUARD — deliberately NOT this gate's business. "X is missing a null check" cited
+# on "+def X" is a LEGITIMATE finding: the evidence is the subject, not the remedy.
+_ABSENCE_OF_A_GUARD_RE = re.compile(
+    r"\b(?:null|bounds|range|type|input|error)\s+(?:check|validation|handling)"
+    r"|\bunguarded\b|\bno\s+(?:validation|error\s+handling|guard)\b"
+    r"|\bmissing\s+(?:a\s+)?(?:check|guard|validation|error\s+handling)",
+    re.I,
+)
+_MISSING_TESTS_RE = re.compile(
+    r"\b(?:no|not|without|lacks?|lacking|missing)\b[^.]{0,40}\btests?\b"
+    r"|\btests?\b[^.]{0,30}\b(?:are\s+not|is\s+not|were\s+not|not)\s+(?:provided|added|included|written)",
+    re.I,
+)
+# An ADDED line that DEFINES or ASSIGNS a name: "+def x", "+class X", "+ x = ...", "+ self.x = ..."
+_ADDED_BINDING_RE = re.compile(
+    r"^\+\s*(?:async\s+)?def\s+(\w+)"
+    r"|^\+\s*class\s+(\w+)"
+    r"|^\+\s*(?:self\.)?(\w+)\s*(?::[^=]+)?=(?!=)",
+)
+
+
+def _evidence_supplies_the_remedy(issue: dict, diff: str) -> bool:
+    """True when a finding says something is MISSING and cites the added line that SUPPLIES it.
+
+    NARROW ON PURPOSE — the neighbouring findings are valuable, and a DROP is stronger than a
+    demotion, so each branch requires the diff to positively show the remedy:
+
+      (a) MISSING TESTS: the claim is about absent tests AND this diff adds a pytest-discoverable
+          construct with no skip/xfail marker. Adding the test IS providing it. Reuses the #5098
+          predicates so the two gates cannot disagree about what a test is.
+
+      (b) AN UNREPORTED VALUE: the claim says a named thing is not reported/tracked/computed AND
+          the evidence is an ADDED binding of that same name. "+ excluded = ..." cannot be proof
+          that `excluded` goes unreported.
+
+    DELIBERATELY NOT CAUGHT, because the evidence there is the SUBJECT and not the remedy:
+      * absence of a GUARD — "X is missing a null check" cited on "+def X" is legitimate, so the
+        guard family is excluded outright even when (b) would otherwise match;
+      * a test that is added but VISIBLY disabled — (a) defers to _SKIP_MARKER_RE, so
+        "it does not run" survives;
+      * any claim whose evidence is not an ADDED line — polarity/grounding own those.
+    """
+    text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).strip()
+    evidence = str((issue or {}).get("evidence", "") or "")
+    if not text or not evidence:
+        return False
+    # The citation must be a real ADDED line — otherwise grounding/polarity own this issue.
+    if _evidence_polarity(evidence, diff) != "added":
+        return False
+    # A guard claim is never this gate's business, whatever else matches.
+    if _ABSENCE_OF_A_GUARD_RE.search(text):
+        return False
+
+    # (a) missing tests, and this diff adds a live test
+    if _MISSING_TESTS_RE.search(text):
+        if _PYTEST_CONSTRUCT_RE.search(diff or "") and not _SKIP_MARKER_RE.search(diff or ""):
+            return True
+
+    # (b) an unreported value whose added binding is the citation
+    if _ABSENCE_OF_A_VALUE_RE.search(text):
+        for line in evidence.splitlines():
+            m = _ADDED_BINDING_RE.match(line.strip())
+            if not m:
+                continue
+            name = next((g for g in m.groups() if g), "")
+            # 4+ chars: a one- or two-letter binding is noise, not a named subject.
+            if len(name) >= 4 and re.search(r"\b" + re.escape(name) + r"\b", text, re.I):
+                return True
+    return False
+
+
 def _critiques_the_removal(issue: dict) -> bool:
     """True when a finding is ABOUT the deletion itself rather than an inverted reading of it.
 
@@ -1468,6 +1560,10 @@ def _verify_evidence(issues: list, diff: str):
                                 contains ZERO removed lines — the claim is provably false
                                 (#5286). Like spurious_injection: deterministic, trusted, and
                                 says nothing bad about grounding (the citation is real).
+      ``evidence_is_the_remedy``
+                                the finding says something is MISSING and cites the ADDED line
+                                that supplies it (#6817). Like the two below, the citation is
+                                real — so it must NOT count toward the ungrounded floor.
       ``inverted_guard_assertion``
                                 the evidence is a guard test's FAILURE MESSAGE, restated as if
                                 the guarded-against condition holds (#5921). All four ADR-001
@@ -1490,6 +1586,8 @@ def _verify_evidence(issues: list, diff: str):
             reason = "removal_claim_without_removal"
         elif _is_inverted_guard_assertion(it, diff):
             reason = "inverted_guard_assertion"
+        elif _evidence_supplies_the_remedy(it, diff):
+            reason = "evidence_is_the_remedy"
         else:
             reason = None
         if reason:

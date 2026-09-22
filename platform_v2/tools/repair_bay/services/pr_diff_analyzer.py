@@ -2821,6 +2821,36 @@ _VERDICT_RANK = {"APPROVE": 0, "REVIEWED": 1, "NEEDS REVIEW": 1, "REQUEST CHANGE
 _VERDICT_BY_RANK = {0: "APPROVE", 1: "NEEDS REVIEW", 2: "REQUEST CHANGES"}
 
 
+_VERDICT_LINE_RE = re.compile(r"^\s*VERDICT\s*:", re.I | re.M)
+
+
+def _is_unparseable_pass(summary: str) -> bool:
+    """True when a pass produced OUTPUT but nothing the merge can read (#6800).
+
+    The shape: the model answered in PROSE instead of the rubric's structure — no ``VERDICT:``
+    line and no ``- [SEV]`` findings. `parse_verdict` then returns "REVIEWED" (rank 1, blocking),
+    `_merge_chunk_summaries` finds no finding to carry, and the pass becomes a synthetic
+    "blocked without a parseable finding" WARNING. The PR is blocked by a pass that may well
+    have been an approval, and NOTHING retries it.
+
+    Measured on archie-code PR #71, pass 2: "SUMMARY This PR introduces provider selection
+    functionality … The implementation is well-documented and includes tests." A review, in
+    prose. It held the PR at NEEDS REVIEW.
+
+    ⚠️ NARROW, and deliberately NOT a verdict inference. This says only "unreadable, ask again".
+      * a summary WITH a VERDICT line is never unparseable here, whatever it says;
+      * a summary whose findings DO parse is not unparseable either — those findings are real
+        content and the existing synthetic-marker path states the block's reason;
+      * an EMPTY summary is a LOST pass, which `_merge_chunk_summaries` already fails closed on
+        (`lost`), and must not be confused with this.
+    """
+    if not summary or not summary.strip():
+        return False  # empty = lost pass; `lost` owns that, and it must stay fail-closed
+    if _VERDICT_LINE_RE.search(summary):
+        return False
+    return not (_parse_freeform_issues(summary) or [])
+
+
 def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
     """Fold per-chunk summaries into ONE canonical review (#5848). Worst verdict wins.
 
@@ -3014,6 +3044,7 @@ def _obtain_review_summary(
 
     _summaries = []
     _retry_used = False
+    _salvage_used = False  # #6800 — separate budget from the #5287 path upgrade
     # #5836 follow-up — the cap each pass ACTUALLY ran at, so the coverage note can be
     # measured against what the review saw rather than a fixed assumption.
     #
@@ -3058,6 +3089,38 @@ def _obtain_review_summary(
             )
             # The freeform fallback is ALWAYS the 7B at the tighter cap, whatever the tier.
             _caps_used.append(_diff_cap_for_model(False))
+        # #6800 — SALVAGE AN UNREADABLE PASS. A pass that answered in PROSE (no VERDICT line,
+        # no parseable findings) becomes a synthetic "blocked without a parseable finding"
+        # WARNING and holds the PR — while nothing retries it, because the #5287 retry below is
+        # gated on `_is_degraded_blocking`, which is FALSE for prose (measured on archie-code
+        # PR #71, pass 2). Ask ONCE more, structured.
+        #
+        # ⚠️ THIS NEVER INFERS A VERDICT. Reading approval out of friendly prose is the #2458
+        # shape — "a lost pass must never read as an approval". If the salvage is ALSO unreadable
+        # the original stands and the existing fail-closed behaviour is byte-identical. Its
+        # budget is separate from `_retry_used`: that one is a path upgrade for a degraded
+        # BLOCKING verdict, a different problem with a different remedy.
+        if summary and not _salvage_used and _is_unparseable_pass(summary):
+            _salvage_used = True
+            logger.warning(
+                "[PR Review] PR #%s — pass %d answered in prose (no VERDICT, no findings); "
+                "requesting one structured salvage (#6800)",
+                pr_number,
+                _idx + 1,
+            )
+            _salvaged = _structured_review(
+                review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
+            )
+            if _salvaged and not _is_unparseable_pass(_salvaged):
+                summary = _salvaged
+                logger.info("[PR Review] PR #%s — pass %d salvaged", pr_number, _idx + 1)
+            else:
+                logger.warning(
+                    "[PR Review] PR #%s — salvage of pass %d also unreadable; failing closed as before",
+                    pr_number,
+                    _idx + 1,
+                )
+
         # #5287 — ONE structured retry per REVIEW, not per chunk. The retry is a path upgrade
         # for a degraded blocking verdict and its dispatch budget belongs to the review; a
         # persistent REQUEST CHANGES still stands whatever the retry says.

@@ -195,6 +195,48 @@ def _audit_send(
         logger.warning("telegram audit log failed (non-blocking): %s", _e)
 
 
+def _recently_delivered(category: str, title: str, cooldown_hours: float = 2.0) -> bool:
+    """True when this exact (category, title) was DELIVERED inside the window.
+
+    Exists because there were TWO send paths and ONE guard: `send_system` passes
+    cooldown_hours into `submit_via_inbox`, which dedups, while every watchdog calls
+    `alert_actions_service.send_alert`, which had only a MANUAL `is_snoozed()` mute. So a
+    standing condition was re-announced every job cycle — measured 486 `system` deliveries
+    in 24h, of which 76 were one title and 28 each were three more.
+
+    ⚠️ DB-BACKED ON PURPOSE. `director_report_service._dedup_cache` is a module-level dict
+    and `archie_platform` runs `--workers 4`, so an in-memory cooldown lets up to 4x through
+    (KB #282671) and resets on every restart. This table already records every delivery, so
+    it is the durable cross-process source of truth and needs no new table.
+
+    ⚠️ status='sent' ONLY. The log also records 'throttled' rows — messages that never left
+    the building (1,412 of them in the same 24h). Treating one as a delivery would suppress
+    an alert the owner never saw.
+
+    ⚠️ FAIL-OPEN. A DB error lets the alert through: suppressing on error would silence a
+    watchdog precisely when the platform is unhealthy.
+    """
+    if not cooldown_hours or cooldown_hours <= 0:
+        return False
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT 1 FROM telegram_message_log
+                 WHERE category = %s AND title = %s AND status = 'sent'
+                   AND created_at > now() - (%s || ' hours')::interval
+                 LIMIT 1
+                """,
+                (category, title, str(cooldown_hours)),
+            )
+            return cur.fetchone() is not None
+    except Exception as exc:  # noqa: BLE001 - never suppress an alert because of a DB blip
+        logger.debug("telegram_service._recently_delivered failed (fail-open): %s", exc)
+        return False
+
+
 def send(
     category: str,
     title: str,

@@ -333,6 +333,7 @@ def send_alert(
     category: str = "system",
     source_agent: str = "A.R.C.H.I.E.",
     source_department: str = "Executive Office",
+    cooldown_hours: float = 2.0,
 ) -> dict:
     """Send an operational alert with interactive buttons — UNLESS it's snoozed.
 
@@ -343,6 +344,20 @@ def send_alert(
         if is_snoozed(alert_key):
             logger.info("alert_actions.send_alert: %s is snoozed — skipping send", alert_key)
             return {"sent": False, "reason": "snoozed"}
+
+        # A standing condition must not be re-announced every job cycle. `send_system` has
+        # had this dedup for ages via submit_via_inbox; send_alert never did, which is why
+        # 486 of 842 daily deliveries were watchdogs repeating themselves. Pass
+        # cooldown_hours=0 for a genuine one-shot event.
+        from services.telegram_service import _recently_delivered
+
+        if _recently_delivered(category, title, cooldown_hours):
+            logger.info(
+                "alert_actions.send_alert: %s within %.1fh cooldown — skipping send",
+                alert_key,
+                cooldown_hours,
+            )
+            return {"sent": False, "reason": "cooldown"}
 
         buttons = _build_buttons(alert_key, actions)
         from services.telegram_service import send_with_buttons

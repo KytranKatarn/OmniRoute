@@ -45,6 +45,49 @@ def declared_dependencies(body: str | None) -> set[int]:
     return {int(m) for m in _DEP_RE.findall(body)}
 
 
+# --- INFERRED dependency: a stacked PR (2026-09-22) -------------------------
+# The declared half above binds only when the author writes the vocabulary. PR #3434 was
+# opened with base `fix/send-alert-cooldown` — the head of open PR #3433 — and said
+# "Stacked on #3433", which is not in the vocabulary, so nothing bound. GitHub knew.
+#
+# The hazard closed here is NOT "main gets corrupted": merging a stacked CHILD into its
+# parent branch silently EXPANDS the parent's diff beyond what was reviewed, so the parent's
+# approval would cover code no reviewer saw.
+_DEFAULT_BRANCHES = ("main", "master")
+
+
+def is_stacked_base(base_branch: str | None, default_branch: str = "main") -> bool:
+    """True when a PR targets another branch than the default — i.e. it is stacked.
+
+    ⚠️ LOAD-BEARING GUARD. Almost every PR is based on the default branch. Without this,
+    a single open PR whose head happened to be `main` would make every other PR look
+    stacked on it and freeze all merges.
+    """
+    base = (base_branch or "").strip()
+    if not base:
+        return False
+    known_defaults = {default_branch.strip().lower()} | set(_DEFAULT_BRANCHES)
+    return base.lower() not in known_defaults
+
+
+def pick_parent_pr(candidates, self_number: int | None = None):
+    """The open PR this one is stacked on, from PRs whose head IS our base.
+
+    Deterministic (lowest number) because two open PRs sharing a head branch is degenerate
+    and the answer must not depend on dict ordering.
+    """
+    nums = []
+    for c in candidates or []:
+        try:
+            n = int((c or {}).get("number"))
+        except (TypeError, ValueError):
+            continue
+        if self_number is not None and n == int(self_number):
+            continue
+        nums.append(n)
+    return min(nums) if nums else None
+
+
 def _num(pr: dict) -> int:
     return int(pr.get("pr_number") or pr.get("number") or 0)
 

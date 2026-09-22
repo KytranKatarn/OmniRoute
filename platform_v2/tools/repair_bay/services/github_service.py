@@ -738,6 +738,39 @@ def pr_files(pr_number: int, repo: str = None, max_pages: int = 3) -> Optional[L
     return paths
 
 
+def pr_base_branch(pr_number: int, repo: str = None) -> Optional[str]:
+    """The branch this PR merges INTO. ``None`` when it cannot be read.
+
+    One API call, repo-aware — same shape as ``pr_is_open``.
+    """
+    target = repo or REPO_FULL
+    ok, data = _api_get(f"/repos/{target}/pulls/{pr_number}")
+    if not ok or not isinstance(data, dict):
+        return None
+    base = (data.get("base") or {}).get("ref")
+    return base if isinstance(base, str) and base else None
+
+
+def _open_pr_with_head(branch: str, self_number: int = None, repo: str = None):
+    """``(parent_pr_number | None, readable)`` for the open PR whose HEAD is ``branch``.
+
+    Scoped by ``?head=owner:branch`` so this is ONE precise call, not a listing of every
+    open PR. ``readable`` is False only when GitHub could not be asked — the caller uses
+    that to fail closed, because a PR with a non-default base IS stacked by definition.
+    """
+    target = repo or REPO_FULL
+    owner = target.split("/")[0]
+    ok, data = _api_get(f"/repos/{target}/pulls?state=open&head={owner}:{branch}")
+    if not ok or not isinstance(data, list):
+        return None, False
+    from .merge_order import pick_parent_pr
+
+    cands = [
+        {"number": p.get("number"), "head": ((p.get("head") or {}).get("ref"))} for p in data if isinstance(p, dict)
+    ]
+    return pick_parent_pr(cands, self_number=self_number), True
+
+
 def _dependency_refusal(pr_number: int, repo: str = None) -> Optional[str]:
     """MERGE ORDER (2026-09-11): the HARD half. A PR whose body declares
     ``Depends on #N`` / ``Blocked by #N`` / ``Merge after #N`` / ``Requires #N``
@@ -762,6 +795,27 @@ def _dependency_refusal(pr_number: int, repo: str = None) -> Optional[str]:
             )
         if state:
             return f"declares it depends on #{dep}, which is still open — merge #{dep} first"
+
+    # INFERRED (2026-09-22): a stacked PR whose base is another OPEN PR's head branch.
+    # GitHub already knows this; before now nothing consulted it, so a stacked PR merged
+    # into its parent and silently widened the parent's reviewed diff.
+    from .merge_order import is_stacked_base
+
+    base = pr_base_branch(pr_number, repo)
+    if base is None:
+        return "could not read the PR's base branch to check for a stacked parent — refusing rather than guessing"
+    if not is_stacked_base(base):
+        # Based on the default branch: not stacked, and NO extra API call is made — a
+        # GitHub blip must never block an ordinary PR.
+        return None
+    parent, readable = _open_pr_with_head(base, self_number=pr_number, repo=repo)
+    if not readable:
+        return (
+            f"is based on '{base}' rather than the default branch, and the PR that owns "
+            "that branch could not be read — refusing rather than guessing"
+        )
+    if parent:
+        return f"is stacked on #{parent} (base branch '{base}'), which is still open — " f"merge #{parent} first"
     return None
 
 

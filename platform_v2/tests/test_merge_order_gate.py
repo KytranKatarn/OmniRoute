@@ -75,11 +75,30 @@ class TestGateIsWiredForEveryActor(unittest.TestCase):
         i_pre = body.index("pre_ok, pre = _api_get(")
         self.assertLess(i_override, i_dep, "dependency check must come after the override/staleness branch")
         self.assertLess(i_dep, i_pre, "dependency check must run before any GitHub merge pre-check")
-        # It must sit OUTSIDE the `if not human_override:` / `else:` split, i.e. at the
-        # same indentation as the pre-check — otherwise one actor escapes it.
-        line = body[:i_dep].splitlines()[-1]
-        pre_line = body[:i_pre].splitlines()[-1]
-        self.assertEqual(len(line) - len(line.lstrip()), len(pre_line) - len(pre_line.lstrip()))
+        # It must sit OUTSIDE the `if not human_override:` / `else:` split — otherwise one
+        # actor escapes it.
+        #
+        # ⚠️ This used to compare raw INDENTATION against the pre-check line. That was a
+        # proxy, and it broke the moment merge_pr's tail was legitimately wrapped in a
+        # `try:` for the merge lock (2026-09-22) — the property still held, the proxy did
+        # not. Parsed with `ast` now, which asserts the real thing: the call is not nested
+        # inside any branch conditioned on the actor.
+        import ast as _ast
+
+        tree = _ast.parse(src)
+        fn = next(n for n in _ast.walk(tree) if isinstance(n, _ast.FunctionDef) and n.name == "merge_pr")
+        dep_calls = [
+            c for c in _ast.walk(fn) if isinstance(c, _ast.Call) and getattr(c.func, "id", "") == "_dependency_refusal"
+        ]
+        self.assertTrue(dep_calls, "merge_pr no longer calls _dependency_refusal")
+        actor_ifs = [n for n in _ast.walk(fn) if isinstance(n, _ast.If) and "human_override" in _ast.unparse(n.test)]
+        for call in dep_calls:
+            for branch in actor_ifs:
+                self.assertFalse(
+                    branch.lineno <= call.lineno <= branch.end_lineno,
+                    "the dependency gate sits inside an actor-conditioned branch — "
+                    "one actor would escape merge order",
+                )
 
 
 class TestStamping(unittest.TestCase):

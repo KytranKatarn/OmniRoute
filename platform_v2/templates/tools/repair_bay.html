@@ -37,6 +37,19 @@
 {% include 'includes/lcars-header.html' %}
 
 <div class="dp-container">
+    <!-- MERGE IN PROGRESS advisory (owner, 2026-09-22). PAGE-WIDE ON PURPOSE: a merge
+         affects the whole platform, so it must be visible from every tab. Reads the SAME
+         state merge_pr gates on, so the banner cannot disagree with the gate.
+         ⚠️ Toggled with style.display, NOT the `hidden` attribute — an inline
+         `display:flex` beats the UA [hidden] rule and the banner would never hide. -->
+    <div id="rbMergeLock" style="display:none;margin:0 0 12px;padding:10px 14px;
+         border-left:4px solid #f59e0b;background:rgba(245,158,11,0.10);color:#f59e0b;
+         font-family:'IBM Plex Mono',monospace;font-size:0.8rem;align-items:center;
+         gap:10px;border-radius:2px;">
+      <span style="font-size:1rem;">&#9203;</span>
+      <span id="rbMergeLockText">Merge in progress &mdash; please stand by.</span>
+    </div>
+
     <!-- Dashboard Tab -->
     <div id="tab-reviews" class="tab-content active">
       <!-- REPAIR BAY OVERVIEW — moved INSIDE the dashboard panel 2026-08-20.
@@ -4701,5 +4714,32 @@ document.addEventListener('DOMContentLoaded', function() {
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
   window.onLcarsTabSwitch = function(tabId) { switchTab(tabId); };
+</script>
+<script>
+// MERGE IN PROGRESS advisory — polls the same lock merge_pr gates on (owner, 2026-09-22).
+(function () {
+    function render(d) {
+        var el = document.getElementById('rbMergeLock');
+        var tx = document.getElementById('rbMergeLockText');
+        if (!el || !tx) return;
+        if (d && d.active) {
+            tx.textContent = 'Merge in progress \u2014 PR #' + d.pr +
+                ' (' + d.age_seconds + 's) \u2014 please stand by. Other merges are blocked.';
+            el.style.display = 'flex';
+        } else {
+            el.style.display = 'none';
+        }
+    }
+    function poll() {
+        fetch('/tools/repair-bay/api/forge/merge-lock')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(render)
+            // A polling failure must never hide a merge that IS running, nor throw into
+            // the page: leave whatever is on screen and try again next tick.
+            .catch(function () {});
+    }
+    poll();
+    setInterval(poll, 5000);
+})();
 </script>
 {% endblock %}

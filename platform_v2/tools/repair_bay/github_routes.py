@@ -63,7 +63,9 @@ def register_github_routes(bp, admin_required):
             return jsonify({"success": False, "error": "finding is required"}), 400
         if not rationale:
             return (
-                jsonify({"success": False, "error": "a written rationale is required — silent dismissal is not allowed"}),
+                jsonify(
+                    {"success": False, "error": "a written rationale is required — silent dismissal is not allowed"}
+                ),
                 400,
             )
 
@@ -162,6 +164,34 @@ def register_github_routes(bp, admin_required):
         from .services.github_service import get_pr_status
 
         return jsonify(get_pr_status(pr_number))
+
+    @bp.route("/api/forge/merge-lock", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_merge_lock():
+        """Is a merge in flight? Drives the "please stand by" advisory.
+
+        Reads the SAME state merge_pr gates on, so the banner can never disagree with the
+        gate — a badge computed from a second source is how a UI starts lying (#5853).
+        """
+        from services.merge_lock_service import LOCK_TTL_SECONDS, current
+
+        held = current()
+        if not held:
+            return jsonify({"success": True, "active": False, "ttl_seconds": LOCK_TTL_SECONDS})
+        import time as _t
+
+        return jsonify(
+            {
+                "success": True,
+                "active": True,
+                "pr": held.get("pr"),
+                "repo": held.get("repo"),
+                "by": held.get("by"),
+                "age_seconds": int(_t.time() - float(held.get("started_at") or 0)),
+                "ttl_seconds": LOCK_TTL_SECONDS,
+            }
+        )
 
     @bp.route("/api/forge/prs/<int:pr_number>/merge", methods=["POST"])
     @login_required

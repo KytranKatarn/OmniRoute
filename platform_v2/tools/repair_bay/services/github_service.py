@@ -1357,98 +1357,119 @@ def merge_pr(
             "error": f"Refusing to merge PR #{pr_number}: {_dep_why}",
         }
 
-    pre_ok, pre = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
-    if pre_ok:
-        state = (pre.get("mergeable_state") or "").lower()
-        mergeable = pre.get("mergeable")
-        if state == "unknown" or mergeable is None:
-            import time as _time
+    # ── ONE MERGE AT A TIME (owner, 2026-09-22) ──────────────────────────────
+    # Taken AFTER the refusal gates so a blocked merge never holds the lock, and
+    # released in a finally so a raise cannot wedge the queue. DB-backed because
+    # archie_platform runs --workers 4 (KB #282671); TTL-expiring because a lock
+    # that can wedge is worse than no lock at all.
+    from services import merge_lock_service as _merge_lock
 
-            _time.sleep(2)
-            pre_ok2, pre2 = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
-            if pre_ok2:
-                state = (pre2.get("mergeable_state") or "").lower()
-                mergeable = pre2.get("mergeable")
-        if mergeable is False or state == "dirty":
-            return {
-                "success": False,
-                "merged": False,
-                "conflict": True,
-                "mergeable_state": state,
-                "error": (
-                    f"Refusing to merge PR #{pr_number}: conflicts with base "
-                    f"(mergeable={mergeable}, mergeable_state={state!r}). "
-                    f"Rebase the branch on main and resolve conflicts first."
-                ),
-            }
-    allowed, rl = check_before_write(token=_get_token())
-    if not allowed:
-        logger.warning("merge PR #%s blocked by rate guard: %s", pr_number, rl.get("reason"))
+    _lock_ok, _lock_why = _merge_lock.acquire(
+        pr_number, _repo, by="human" if human_override else str(authority or "forge")
+    )
+    if not _lock_ok:
+        logger.warning("[MergeGate] refusing PR #%s (merge in flight): %s", pr_number, _lock_why)
         return {
             "success": False,
             "merged": False,
-            "error": f"github rate limit guard: {rl.get('reason')}",
-            "rate_limited": True,
-            "rate_limit": rl,
+            "merge_in_progress": True,
+            "error": f"Refusing to merge PR #{pr_number}: {_lock_why}",
         }
     try:
-        resp = requests.put(
-            f"{API_BASE}/repos/{_repo}/pulls/{pr_number}/merge",
-            headers=_api_headers(),
-            json={"merge_method": method},
-            timeout=30,
-        )
-        observe(resp, is_write=True)
-        if resp.status_code >= 300:
+        pre_ok, pre = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
+        if pre_ok:
+            state = (pre.get("mergeable_state") or "").lower()
+            mergeable = pre.get("mergeable")
+            if state == "unknown" or mergeable is None:
+                import time as _time
+
+                _time.sleep(2)
+                pre_ok2, pre2 = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
+                if pre_ok2:
+                    state = (pre2.get("mergeable_state") or "").lower()
+                    mergeable = pre2.get("mergeable")
+            if mergeable is False or state == "dirty":
+                return {
+                    "success": False,
+                    "merged": False,
+                    "conflict": True,
+                    "mergeable_state": state,
+                    "error": (
+                        f"Refusing to merge PR #{pr_number}: conflicts with base "
+                        f"(mergeable={mergeable}, mergeable_state={state!r}). "
+                        f"Rebase the branch on main and resolve conflicts first."
+                    ),
+                }
+        allowed, rl = check_before_write(token=_get_token())
+        if not allowed:
+            logger.warning("merge PR #%s blocked by rate guard: %s", pr_number, rl.get("reason"))
             return {
                 "success": False,
                 "merged": False,
-                "error": f"Merge failed: HTTP {resp.status_code} - {resp.text[:200]}",
+                "error": f"github rate limit guard: {rl.get('reason')}",
+                "rate_limited": True,
+                "rate_limit": rl,
             }
-        ok = True
-        data = resp.json()
-    except Exception as e:
-        return {"success": False, "merged": False, "error": str(e)}
+        try:
+            resp = requests.put(
+                f"{API_BASE}/repos/{_repo}/pulls/{pr_number}/merge",
+                headers=_api_headers(),
+                json={"merge_method": method},
+                timeout=30,
+            )
+            observe(resp, is_write=True)
+            if resp.status_code >= 300:
+                return {
+                    "success": False,
+                    "merged": False,
+                    "error": f"Merge failed: HTTP {resp.status_code} - {resp.text[:200]}",
+                }
+            ok = True
+            data = resp.json()
+        except Exception as e:
+            return {"success": False, "merged": False, "error": str(e)}
 
-    # Delete the branch after merge
-    if ok:
-        pr_ok, pr_data = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
-        if pr_ok:
-            branch = pr_data.get("head", {}).get("ref")
-            if branch and branch != "main":
-                try:
-                    requests.delete(
-                        f"{API_BASE}/repos/{_repo}/git/refs/heads/{branch}",
-                        headers=_api_headers(),
-                        timeout=10,
-                    )
-                except Exception:
-                    pass
+        # Delete the branch after merge
+        if ok:
+            pr_ok, pr_data = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
+            if pr_ok:
+                branch = pr_data.get("head", {}).get("ref")
+                if branch and branch != "main":
+                    try:
+                        requests.delete(
+                            f"{API_BASE}/repos/{_repo}/git/refs/heads/{branch}",
+                            headers=_api_headers(),
+                            timeout=10,
+                        )
+                    except Exception:
+                        pass
 
-    # The PR is merged, so any pending merge APPROVAL for it is now moot (#5862).
-    # Closed at the choke point rather than per-caller: merge_pr has several call sites
-    # and human_override merges bypass every one of the automated ones, which is exactly
-    # how 4 of 4 pending approvals ended up pointing at already-merged PRs. Bookkeeping
-    # only — it must never turn a SUCCESSFUL merge into a failure, hence the broad catch.
-    try:
-        from tools.department_hq.services.approvals_reconcile import (
-            close_pr_merge_approvals_for,
-        )
+        # The PR is merged, so any pending merge APPROVAL for it is now moot (#5862).
+        # Closed at the choke point rather than per-caller: merge_pr has several call sites
+        # and human_override merges bypass every one of the automated ones, which is exactly
+        # how 4 of 4 pending approvals ended up pointing at already-merged PRs. Bookkeeping
+        # only — it must never turn a SUCCESSFUL merge into a failure, hence the broad catch.
+        try:
+            from tools.department_hq.services.approvals_reconcile import (
+                close_pr_merge_approvals_for,
+            )
 
-        close_pr_merge_approvals_for(pr_number, _repo)
-    except Exception as _appr_exc:  # noqa: BLE001
-        logger.warning("post-merge approval cleanup skipped for #%s: %s", pr_number, _appr_exc)
+            close_pr_merge_approvals_for(pr_number, _repo)
+        except Exception as _appr_exc:  # noqa: BLE001
+            logger.warning("post-merge approval cleanup skipped for #%s: %s", pr_number, _appr_exc)
 
-    return {
-        "success": True,
-        # GitHub's merge response carries "merged": true; default True since a
-        # <300 status already confirmed the merge. Callers check .get("merged").
-        "merged": bool(data.get("merged", False)),
-        "pr_number": pr_number,
-        "method": method,
-        "sha": data.get("sha", ""),
-        "message": data.get("message", ""),
-    }
+        return {
+            "success": True,
+            # GitHub's merge response carries "merged": true; default True since a
+            # <300 status already confirmed the merge. Callers check .get("merged").
+            "merged": bool(data.get("merged", False)),
+            "pr_number": pr_number,
+            "method": method,
+            "sha": data.get("sha", ""),
+            "message": data.get("message", ""),
+        }
+    finally:
+        _merge_lock.release(pr_number)
 
 
 def list_pipeline_prs(state: str = "open") -> Dict:

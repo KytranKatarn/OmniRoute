@@ -32,6 +32,78 @@ def _get_db():
 def register_github_routes(bp, admin_required):
     """Register all F.O.R.G.E. GitHub routes on the repair_bay blueprint."""
 
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/dismiss-finding", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_dismiss_finding(pr_number):
+        """#6819 — mark ONE review finding as a false positive, with a written rationale.
+
+        CORRECTS THE INPUT, NEVER OVERRIDES THE OUTPUT. This does not merge anything and does
+        not touch ``verdict_refusal`` or the tier ceiling. It removes one false observation from
+        the set the verdict is computed over and recomputes; if a real blocking finding remains,
+        the PR stays blocked. "Nothing merges on a non-approval" (decision #953) still binds —
+        the verdict legitimately changed.
+
+        ADMIN-ONLY and ATTRIBUTED on purpose: the reviewer clearing its own finding would be
+        self-certification. A human asserting "I read the code and this claim is false" is
+        evidence, and the stored rationale makes that assertion auditable rather than a silent
+        click. It is also the labelled corpus #6799/#6800 need and do not have.
+        """
+        from flask_login import current_user
+
+        from .services.finding_dismissal import dismiss_finding
+        from .services.pr_review_service import get_review, pr_head_sha
+
+        body = request.get_json(silent=True) or {}
+        finding = (body.get("finding") or "").strip()
+        rationale = (body.get("rationale") or "").strip()
+        repo = (body.get("repo") or "").strip() or None
+
+        if not finding:
+            return jsonify({"success": False, "error": "finding is required"}), 400
+        if not rationale:
+            return (
+                jsonify({"success": False, "error": "a written rationale is required — silent dismissal is not allowed"}),
+                400,
+            )
+
+        review = get_review(pr_number, repo)
+        if not review:
+            return jsonify({"success": False, "error": f"no tracked review for PR #{pr_number}"}), 404
+        repo = review.get("repo") or repo
+
+        # Scope to the reviewed head sha so the dismissal cannot silently cover changed code.
+        # Prefer the sha the REVIEW actually ran against; fall back to GitHub, then to NULL.
+        _meta = review.get("metadata") or {}
+        head_sha = _meta.get("reviewed_head_sha") if isinstance(_meta, dict) else None
+        if not head_sha:
+            try:
+                head_sha = pr_head_sha(pr_number, repo)
+            except Exception:  # noqa: BLE001 — a GitHub blip must not block a human correction
+                head_sha = None
+
+        who = getattr(current_user, "username", None) or "admin"
+        result = dismiss_finding(pr_number, repo, finding, rationale, who, head_sha=head_sha)
+        if not result.get("ok"):
+            return jsonify({"success": False, "error": result.get("error")}), 400
+
+        # Report the verdict AFTER the correction so the caller can re-render without a refetch.
+        after = get_review(pr_number, repo) or {}
+        from .services.pr_review_service import merge_state
+
+        ms = merge_state(after.get("review_status"), after.get("ai_summary") or "", pr_state=after.get("state"))
+        return jsonify(
+            {
+                "success": True,
+                "pr_number": pr_number,
+                "repo": repo,
+                "fingerprint": result.get("fingerprint"),
+                "dismissed_by": who,
+                "head_sha": head_sha,
+                "merge_state": ms,
+            }
+        )
+
     @bp.route("/api/forge/health", methods=["GET"])
     @login_required
     @admin_required

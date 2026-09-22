@@ -1527,6 +1527,30 @@ def review_progress(
     }
 
 
+def _summary_after_dismissals(pr_number, repo, summary, head_sha=None, cache=None):
+    """#6819 — apply human false-positive dismissals before any verdict is read.
+
+    Wired at EVERY surface that renders or consumes a verdict (list_reviews, stamp_merge_states,
+    get_review) rather than at one of them: a corrected verdict visible in the list but not to
+    the merge route would be the worst of both worlds. Fail-safe — on any error the ORIGINAL
+    summary is returned, so a PR stays exactly as blocked as the reviewer left it.
+    """
+    if not summary:
+        return summary
+    try:
+        from .finding_dismissal import all_active_dismissals, apply_dismissals, dismissals_for
+
+        cache = all_active_dismissals() if cache is None else cache
+        dis = dismissals_for(cache, pr_number, repo, head_sha)
+        if not dis:
+            return summary
+        adjusted, n = apply_dismissals(summary, dis)
+        return adjusted if n else summary
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[Repair Bay] dismissal adjustment skipped for PR #%s: %s", pr_number, exc)
+        return summary
+
+
 def list_reviews(state: str = None, review_status: str = None, limit: int = 50) -> list:
     """List PR reviews with optional filters."""
     query = "SELECT * FROM pr_reviews WHERE 1=1"
@@ -1545,7 +1569,19 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     # Stamp the merge state server-side (#5853) so the UI renders a decision it did not
     # make. Kept out of the SQL deliberately: the verdict rule is Python, and a second
     # copy of it in SQL would be the same duplication the JS copy would have been.
+    _dis_cache = None
+    try:
+        from .finding_dismissal import all_active_dismissals
+
+        _dis_cache = all_active_dismissals()
+    except Exception:  # noqa: BLE001 — a listing must render even if dismissals cannot be read
+        _dis_cache = {}
     for row in rows:
+        _meta = row.get("metadata") or {}
+        _sha = _meta.get("reviewed_head_sha") if isinstance(_meta, dict) else None
+        row["ai_summary"] = _summary_after_dismissals(
+            row.get("pr_number"), row.get("repo"), row.get("ai_summary"), _sha, cache=_dis_cache
+        )
         row["merge_state"] = merge_state(
             row.get("review_status"),
             row.get("ai_summary"),
@@ -1597,12 +1633,17 @@ def stamp_merge_states(prs: list, repo: str = None) -> list:
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    "SELECT pr_number, review_status, ai_summary FROM pr_reviews "
+                    "SELECT pr_number, review_status, ai_summary, metadata FROM pr_reviews "
                     "WHERE repo = %s AND pr_number = ANY(%s)",
                     (_repo, numbers),
                 )
                 for row in cur.fetchall():
-                    stored[row["pr_number"]] = (row["review_status"], row["ai_summary"])
+                    _m = row.get("metadata") or {}
+                    stored[row["pr_number"]] = (
+                        row["review_status"],
+                        row["ai_summary"],
+                        _m.get("reviewed_head_sha") if isinstance(_m, dict) else None,
+                    )
         except Exception as e:  # fail-CLOSED: unknown verdict => not mergeable
             logger.warning(
                 "stamp_merge_states: verdict lookup failed for %s, rendering all rows " "as awaiting_review: %s",
@@ -1611,8 +1652,20 @@ def stamp_merge_states(prs: list, repo: str = None) -> list:
             )
             stored = {}
 
+    # #6819 — the THIRD verdict surface. A human dismissal that corrected the verdict must be
+    # visible here too: reflected in list_reviews/get_review but NOT on this tab would be a
+    # split brain, with one pane blocking what another calls mergeable.
+    _dis_cache = None
+    try:
+        from .finding_dismissal import all_active_dismissals
+
+        _dis_cache = all_active_dismissals()
+    except Exception:  # noqa: BLE001 — the tab must render even if dismissals cannot be read
+        _dis_cache = {}
+
     for pr in prs:
-        status, summary = stored.get(pr.get("number"), (None, None))
+        status, summary, _sha = stored.get(pr.get("number"), (None, None, None))
+        summary = _summary_after_dismissals(pr.get("number"), _repo, summary, _sha, cache=_dis_cache)
         pr["merge_state"] = merge_state(status, summary, pr_state=pr.get("state"))
     return prs
 
@@ -1625,7 +1678,15 @@ def get_review(pr_number: int, repo: str = None) -> dict | None:
             (pr_number, repo or _DEFAULT_REPO),
         )
         row = cur.fetchone()
-        return dict(row) if row else None
+        if not row:
+            return None
+        out = dict(row)
+        _meta = out.get("metadata") or {}
+        _sha = _meta.get("reviewed_head_sha") if isinstance(_meta, dict) else None
+        out["ai_summary"] = _summary_after_dismissals(
+            out.get("pr_number"), out.get("repo"), out.get("ai_summary"), _sha
+        )
+        return out
 
 
 def create_fix_requests_from_review(pr_number: int, repo: str = None) -> dict:

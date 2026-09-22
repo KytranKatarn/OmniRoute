@@ -29,6 +29,8 @@ from typing import List, Dict, Optional, Any
 from enum import Enum
 from db import get_db
 
+from services.escalation_log_service import record_floor_fallback
+
 logger = logging.getLogger(__name__)
 
 # Ensure ai_bridge is on path
@@ -1237,6 +1239,20 @@ class OrchestrationEngine:
                     if row:
                         agent = dict(row)
                         source = "floor_fallback"
+                        # #6834 — PERSIST it. Until now `source` was a local variable that
+                        # died at the end of this method, so dispatch_escalation_log had a
+                        # single writer (the cloud path) and the misroute audit reported the
+                        # CLOUD number as "floor_fallback_hits" — 1,345 against a threshold
+                        # of 20, permanently, while real floor fallbacks were invisible.
+                        # Best-effort by contract: record_floor_fallback never raises, so
+                        # telemetry can never interrupt agent selection.
+                        record_floor_fallback(
+                            capability=(intent or {}).get("capability"),
+                            from_department=preferred_departments[0],
+                            to_department=agent.get("department"),
+                            agent_id=agent.get("agent_id"),
+                            module_id=(intent or {}).get("module_id"),
+                        )
                     cur.close()
                     conn.close()
             except Exception as e:

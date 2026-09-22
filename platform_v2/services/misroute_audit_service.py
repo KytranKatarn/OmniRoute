@@ -127,6 +127,15 @@ def _get_conn():
 
 
 def _floor_fallback(cur, window_hours: int) -> List[Dict[str, Any]]:
+    """Same-floor department substitutions ONLY (migration 485).
+
+    ⚠️ This selected EVERY row of dispatch_escalation_log until 2026-09-22 and reported the
+    total as "floor_fallback_hits". The table's only writer was the cloud/throughput path, so
+    the metric reported the CLOUD number under a floor-fallback name — measured over 24h:
+    1,291 throughput escalations, ZERO floor fallbacks, alarm firing at 1,345 against a
+    threshold of 20, every run. Genuine floor fallbacks were unmonitored while APPEARING
+    monitored. Keep the escalation_type filter.
+    """
     cur.execute(
         """
         SELECT capability,
@@ -135,6 +144,35 @@ def _floor_fallback(cur, window_hours: int) -> List[Dict[str, Any]]:
                count(DISTINCT original_agent_id)::int AS distinct_agents
         FROM dispatch_escalation_log
         WHERE created_at > now() - (%s || ' hours')::interval
+          AND escalation_type = 'floor_fallback'
+        GROUP BY capability, reason
+        ORDER BY count DESC
+        LIMIT 50
+        """,
+        (str(window_hours),),
+    )
+    return [dict(row) for row in cur.fetchall()]
+
+
+def _throughput_escalation(cur, window_hours: int) -> List[Dict[str, Any]]:
+    """Cloud/throughput escalations — the volume the floor-fallback metric used to report.
+
+    Split out so renaming the metric does not SILENCE it: this is a real number (1,291 in the
+    24h before the split) and it stays visible in summary_metrics and the alert body.
+
+    ⚠️ Deliberately carries NO alarm threshold. One day of observation is not a basis for one,
+    and a fabricated threshold is exactly how the original floor-fallback alarm became noise.
+    Set one when there is evidence for a number.
+    """
+    cur.execute(
+        """
+        SELECT capability,
+               reason,
+               count(*)::int AS count,
+               count(DISTINCT original_agent_id)::int AS distinct_agents
+        FROM dispatch_escalation_log
+        WHERE created_at > now() - (%s || ' hours')::interval
+          AND escalation_type = 'throughput'
         GROUP BY capability, reason
         ORDER BY count DESC
         LIMIT 50
@@ -246,6 +284,8 @@ def _compute_severity(findings: Dict[str, List[Dict[str, Any]]]) -> Dict[str, An
     cloud_cost = sum(row.get("total_cost_usd", 0) or 0 for row in findings["cloud_escalation"])
     cloud_hits = sum(row.get("cloud_hits", 0) or 0 for row in findings["cloud_escalation"])
     floor_hits = sum(row.get("count", 0) or 0 for row in findings["floor_fallback"])
+    # .get(): callers built before migration 485 pass a findings dict without this key.
+    throughput_hits = sum(row.get("count", 0) or 0 for row in findings.get("throughput_escalation", []))
     missing_cap = sum(row.get("missing_cap_calls", 0) or 0 for row in findings["missing_capability"])
     high_fail = len(findings["high_failure_agents"])
 
@@ -275,9 +315,12 @@ def _compute_severity(findings: Dict[str, List[Dict[str, Any]]]) -> Dict[str, An
 
     return {
         "severity": severity,
-        "anomaly_count": high_fail + missing_cap + cloud_hits + floor_hits,
+        # throughput escalations are COUNTED (they are real events) but never alarm on their
+        # own — see _throughput_escalation on why no threshold is invented here.
+        "anomaly_count": high_fail + missing_cap + cloud_hits + floor_hits + throughput_hits,
         "summary_metrics": {
             "floor_fallback_hits": floor_hits,
+            "throughput_escalation_hits": throughput_hits,
             "cloud_escalation_hits": cloud_hits,
             "cloud_cost_usd": round(cloud_cost, 4),
             "missing_capability_calls": missing_cap,
@@ -301,6 +344,7 @@ def run_misroute_audit(window_hours: int = 24) -> Dict[str, Any]:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             findings = {
                 "floor_fallback": _floor_fallback(cur, window_hours),
+                "throughput_escalation": _throughput_escalation(cur, window_hours),
                 "cloud_escalation": _cloud_escalation(cur, window_hours),
                 "missing_capability": _missing_capability(cur, window_hours),
                 "high_failure_agents": _high_failure_agents(cur, window_hours),
@@ -326,6 +370,7 @@ def format_alert_message(result: Dict[str, Any]) -> str:
         f"Severity: *{result['severity'].upper()}* · {result['anomaly_count']} anomalies",
         "",
         f"• floor fallback: {metrics['floor_fallback_hits']}",
+        f"• throughput escalation: {metrics.get('throughput_escalation_hits', 0)}",
         f"• cloud escalation: {metrics['cloud_escalation_hits']} (${metrics['cloud_cost_usd']})",
         f"• missing capability: {metrics['missing_capability_calls']}",
         f"• high-failure pairs: {metrics['high_failure_pairs']}",

@@ -257,8 +257,6 @@ services:
       - /etc/systemd/journald.conf:/host/etc/journald.conf:ro
       - /proc/1/mounts:/host/proc/mounts:ro
       - /etc/ufw:/etc/ufw:ro
-      # Media stack configs for Media Hub service discovery (API keys, etc.)
-      - /mnt/Plex/config:/mnt/Plex/config:ro
       # Ollama model storage on LLM SSD
       - /mnt/llm_drive/ollama/models:/mnt/llm_drive/ollama/models:ro
       # Google Drive credentials for cloud backup (rw: OAuth token written at runtime)
@@ -442,8 +440,6 @@ services:
       - /etc/systemd/journald.conf:/host/etc/journald.conf:ro
       - /proc/1/mounts:/host/proc/mounts:ro
       - /etc/ufw:/etc/ufw:ro
-      # Media stack configs for Media Hub service discovery (mirrors platform)
-      - /mnt/Plex/config:/mnt/Plex/config:ro
       # Ollama model storage on LLM SSD (read-only — sidecar jobs may inspect
       # model registry but never mutate files)
       - /mnt/llm_drive/ollama/models:/mnt/llm_drive/ollama/models:ro

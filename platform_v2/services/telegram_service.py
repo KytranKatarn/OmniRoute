@@ -235,6 +235,118 @@ def _recently_delivered(category: str, title: str, cooldown_hours: float = 2.0) 
     except Exception as exc:  # noqa: BLE001 - never suppress an alert because of a DB blip
         logger.debug("telegram_service._recently_delivered failed (fail-open): %s", exc)
         return False
+# ---------------------------------------------------------------------------
+# DELIVERY POLICY — Telegram is for CRITICAL and OUTAGES (owner, 2026-09-22)
+# ---------------------------------------------------------------------------
+# "in Department HQ module we have coms tab and there is archie.kytranempowerment.com
+#  telegram should be critical or outages. Department HQ module has Approvals tab for
+#  approvals."
+#
+# Measured 24h of ACTUAL deliveries before this gate: 842 — of which system 486 (watchdogs
+# repeating standing conditions) and approval_request 318 (prompts whose buttons mostly
+# answered "not found or already processed"). Everything else: 38.
+#
+# ⚠️ ONE policy, consulted by EVERY delivery path. This service had THREE paths with three
+# different rules — send() throttles per priority, submit_via_inbox() has a 2h in-process
+# cooldown, and send_with_buttons() had NO gate at all, which is why approvals arrived 318
+# times a day despite falling back to info/low. Adding a fourth rule in a fourth place is
+# how this happened; do not add one.
+_POLICY_SETTING = "telegram:policy:critical_only"
+_ALLOWLIST_SETTING = "telegram:policy:outage_allowlist"
+
+_ALWAYS_DELIVER_CATEGORIES = ("security",)
+
+# Categories that must NEVER page, whatever their text says. A PR whose TITLE contains
+# "[CRITICAL]" or the word "failover" is not an outage — caught in review when a
+# `pr_reviewed` row matched an outage marker and would have paged the owner.
+_NEVER_PAGE_CATEGORIES = (
+    "approval_request",
+    "pr_reviewed",
+    "forge",
+    "agent",
+    "sync",
+    "info",
+)
+
+# ⚠️ THESE ARE TAKEN FROM PRODUCTION TITLES, NOT INVENTED. A first draft guessed the
+# wording and would have SILENCED real outages — replaying 60 days of deliveries showed
+# `SMART CRITICAL: /dev/sdb` (1,418 sends, a failing disk), `Fleet: 3 nodes OFFLINE`
+# (guessed "mass-offline"), and `Backup posture: backup attempts are failing` (guessed
+# "backup failed") all falling through. Verify any new marker against the log the same way.
+_DEFAULT_OUTAGE_MARKERS = (
+    "smart critical",  # failing physical disk
+    "nodes offline",  # "Fleet: 3 nodes OFFLINE"
+    "mass-offline",
+    "mass offline",
+    "dr posture",  # replica not streaming / stale / replay lag / wal bloat
+    "failover",
+    "platform down",
+    "hub down",
+    "hub unreachable",
+    "backup attempts are failing",
+    "backup failed",
+    "restore failed",
+    "disk full",
+    "dispatch failure rate spike",
+)
+
+
+def _setting(key: str):
+    from database import get_db_cursor
+
+    with get_db_cursor() as (_conn, cur):
+        cur.execute("SELECT value FROM platform_settings WHERE key = %s", (key,))
+        row = cur.fetchone()
+    return (row["value"] if isinstance(row, dict) else row[0]) if row else None
+
+
+def _policy_enabled() -> bool:
+    """Default ON per the owner directive; one settings key turns it off with no deploy."""
+    val = _setting(_POLICY_SETTING)
+    return True if val is None else str(val).strip().lower() not in ("false", "0", "off", "no")
+
+
+def _outage_markers() -> tuple:
+    """Allowlist from platform_settings (newline/comma separated), else the defaults."""
+    raw = _setting(_ALLOWLIST_SETTING)
+    if not raw:
+        return _DEFAULT_OUTAGE_MARKERS
+    parts = [p.strip().lower() for p in str(raw).replace("\n", ",").split(",")]
+    return tuple(p for p in parts if p) or _DEFAULT_OUTAGE_MARKERS
+
+
+def _should_deliver(category: str, title: str, severity: str = None) -> tuple:
+    """(deliver, reason). Suppressed messages are still LOGGED, so COMs keeps everything.
+
+    ⚠️ FAIL-OPEN, and the asymmetry is the point: if the settings read fails we DELIVER.
+    Missing a real outage is worse than a temporary return to noise, and failing closed
+    would let a DB blip mute the very alerts this policy exists to protect.
+    """
+    try:
+        if not _policy_enabled():
+            return True, "policy disabled"
+        if str(severity or "").strip().lower() == "critical":
+            return True, "critical severity"
+        cat = str(category or "").strip().lower()
+        if cat in _ALWAYS_DELIVER_CATEGORIES:
+            return True, "security category"
+        if cat == "approval_request":
+            return False, "approvals belong in the Department HQ Approvals tab"
+        if cat in _NEVER_PAGE_CATEGORIES:
+            return False, f"{cat} never pages — see the COMs tab"
+        haystack = str(title or "").lower()
+        # The platform already stamps its own severity into the title; trusting that is far
+        # more robust than guessing wording, and it is why "[CRITICAL] Dispatch failure rate
+        # spike" pages without needing a marker of its own.
+        if "[critical]" in haystack:
+            return True, "title marked CRITICAL"
+        for marker in _outage_markers():
+            if marker in haystack:
+                return True, f"outage condition ({marker})"
+        return False, "below critical/outage threshold — see the COMs tab"
+    except Exception as exc:  # noqa: BLE001 - never mute an outage because of a DB blip
+        logger.warning("telegram_service._should_deliver failed (fail-open): %s", exc)
+        return True, "policy check failed — fail-open"
 
 
 def send(
@@ -298,6 +410,14 @@ def send(
 
     cat = CATEGORIES.get(category, CATEGORIES["info"])
     priority = cat["priority"]
+
+    _deliver, _why = _should_deliver(category, title, cat.get("priority"))
+    if not _deliver:
+        _log_message(
+            category, title, message, source_agent, source_department, source_module, "suppressed_policy", _why
+        )
+        logger.debug("telegram_service: policy-suppressed [%s] '%s' (%s)", category, title, _why)
+        return {"sent": False, "reason": _why}
 
     # Throttle check (skip for force=True or critical)
     if not force and priority != "critical":
@@ -669,6 +789,23 @@ def send_with_buttons(
     token = _get_token()
     if not token:
         return {"sent": False, "reason": "no bot token configured"}
+
+    # Buttons do not exempt a message from the policy — approval prompts were the single
+    # largest delivered category (318/day) and their buttons mostly answered
+    # "not found or already processed".
+    _deliver, _why = _should_deliver(category, title)
+    if not _deliver:
+        _log_message(
+            category=category,
+            title=title,
+            message=message,
+            source_agent=source_agent,
+            source_department=source_department,
+            status="suppressed_policy",
+            error_message=_why,
+        )
+        logger.debug("send_with_buttons: policy-suppressed '%s' (%s)", title, _why)
+        return {"sent": False, "reason": _why}
 
     import re as _re
 

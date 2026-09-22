@@ -362,6 +362,36 @@ def resolve_served_model(data: dict, requested: str) -> tuple[str, bool]:
     return req, not is_auto_router(req)
 
 
+def _omniroute_quota_gate(model: str, base_url: str) -> Dict:
+    """DS9 Phase 3 — consume the OmniRoute quota hint at the gateway call site,
+    BEFORE the POST leaves the hub. Only gates providers fronted by the
+    self-hosted OmniRoute gateway (its base_url); everything else returns allow.
+    Fail-open: a quota error/short-circuit NEVER blocks a call that would
+    otherwise work — unknown upstream / bad DB / exception all allow. An
+    exhausted upstream refuses with the same short-circuit shape callers already
+    fall back on from the weekly-budget gate (#3659). Work-control
+    'omniroute_quota_consume' (default ON) drains the gate without a deploy.
+    Called by _call_openai_compatible; kept a module-level function so callers
+    and tests can stub the whole decision cleanly."""
+    if not base_url or "omniroute" not in str(base_url).lower():
+        return {"allow": True, "reason": "not an omniroute-fronted provider"}
+    try:
+        from services.work_control_service import is_enabled
+
+        if not is_enabled("omniroute_quota_consume", default=True):
+            return {"allow": True, "reason": "work-control gate disabled"}
+    except Exception:  # noqa: BLE001 — fail-open
+        pass
+    try:
+        from services.omniroute_quota_service import gate_upstream, upstream_for_model
+
+        upstream = upstream_for_model(model)
+        return gate_upstream(upstream) if upstream else {"allow": True, "reason": "no upstream mapping"}
+    except Exception as exc:  # noqa: BLE001 — fail-open
+        logger.warning("[OmniRoute quota] gate check failed open: %s", exc)
+        return {"allow": True, "reason": "quota unavailable, fail-open"}
+
+
 def _call_openai_compatible(
     provider: str,
     prompt: str,
@@ -399,6 +429,20 @@ def _call_openai_compatible(
             "error": f"Weekly free-tier limit reached for {provider}",
             "provider": provider,
             "weekly_budget": weekly_budget_status(provider),
+        }
+
+    # DS9 Phase 3 — consume the OmniRoute quota hint at the gateway call site.
+    # Fail-open; only omniroute-fronted providers are gated (see helper).
+    gate = _omniroute_quota_gate(model, base_url)
+    if gate.get("status") == "degraded":
+        logger.warning("[OmniRoute quota] %s — calling anyway (degraded, not blocked)", gate.get("reason"))
+    if not gate.get("allow", True):
+        logger.warning("[OmniRoute quota] %s — refusing call, fall back to local", gate.get("reason"))
+        return {
+            "success": False,
+            "error": f"OmniRoute quota: {gate.get('reason')}",
+            "provider": provider,
+            "quota_status": gate,
         }
 
     messages = []

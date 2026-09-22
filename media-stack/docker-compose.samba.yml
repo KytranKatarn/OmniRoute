@@ -147,4 +147,26 @@ services:
           cpus: "2.0"
           memory: 2G
 
+    # The IMAGE ships HEALTHCHECK `smbclient -L \\localhost -U % -m SMB3` with a
+    # 15s timeout — and that probe takes a DETERMINISTIC ~20.2s here, so it has
+    # never once passed. The container has sat `unhealthy` for days while serving
+    # perfectly (shares enumerate, smbd listening on 139/445), and
+    # vigil_infra_heartbeat reports that healthy container as "DOWN" every cycle.
+    #
+    # The 20s is INTERNAL to smbclient, not our config. Measured before changing
+    # anything: direct share connect, `disable netbios=yes`, and -L against
+    # 127.0.0.1:445 all cost 20.16-20.21s — and the cost is paid even when the
+    # probe FAILS, so it is not the workgroup lookup. Not DNS either:
+    # `getent hosts localhost` returns in 0.14s. No faster probe exists, so the
+    # TIMEOUT is widened rather than the command swapped.
+    #
+    # interval is 120s, not the image's 60s, deliberately: a 20s probe on a 60s
+    # interval leaves the healthcheck running a THIRD of the time on a file server.
+    healthcheck:
+      test: ["CMD-SHELL", "smbclient -L 127.0.0.1 -U % -m SMB3 -p 445 >/dev/null 2>&1"]
+      interval: 120s
+      timeout: 45s
+      start_period: 60s
+      retries: 3
+
     restart: always

@@ -828,7 +828,7 @@ def _is_hedged_without_failure_path(blob: str) -> bool:
     return bool(_HEDGED_CLAIM_RE.search(blob))
 
 
-def _normalize_severity(issues: list) -> list:
+def _normalize_severity(issues: list, diff: str = "") -> list:
     """Demote non-blocking nit CATEGORIES (see _NONBLOCKING_CATEGORY_RE) to INFO regardless of the
     model's self-assigned severity — structured (dict) path. Mutates + returns the same list; stamps
     ``_demoted_from`` for the audit note. Only touches issues currently labelled CRITICAL/WARNING."""
@@ -848,6 +848,9 @@ def _normalize_severity(issues: list) -> list:
             or _evidence_is_prose_not_code(i)
             # #6822 — the finding hedges and names no definite fault: it asks rather than asserts.
             or _is_hedged_without_failure_path(blob)
+            # GATE 7 (#3418) — an injection flag on a value that is BOUND, never interpolated.
+            # Needs the diff; absent one it cannot fire, so diff-less callers are unchanged.
+            or _binds_the_interpolated_value(i, diff)
         ):
             i["_demoted_from"] = str(i.get("severity", "")).upper()
             i["severity"] = "INFO"
@@ -1295,6 +1298,74 @@ def _is_spurious_injection(issue: dict) -> bool:
     return not has_stringbuild
 
 
+# --- GATE 7 (#3418) — the cited f-string builds a VALUE that is then BOUND ----------
+# `_is_spurious_injection` drops an injection flag whose cited line has NO string-building
+# marker. That covers a constant or a bare `%s` query. It CANNOT cover this one: `f"` IS a
+# marker, so it correctly declines to drop — and in ONE line an f-string building a LIKE
+# pattern is indistinguishable from one building query text. Only the diff separates them.
+#
+# ⚠️ THIS GATE DEMOTES, IT DOES NOT DROP, unlike its spurious_injection sibling. A misfiring
+# predicate that drops silently erases a CRITICAL security finding; one that demotes leaves
+# it on the page for a human while unblocking the merge. Noise is the acceptable failure.
+_ASSIGN_RE = re.compile(r"^\s*[+-]?\s*([A-Za-z_]\w*)\s*=\s*(.+?)\s*$")
+_STRINGBUILD_RE = re.compile(r"""f["']|\.format\(|["']\s*\+|\+\s*["']|["']\s*%\s*[(\w]""")
+
+
+def _reaches_sql_text(name: str, diff: str) -> bool:
+    """True if `name` is ever spliced INTO string text — the thing that makes SQL injectable."""
+    n = re.escape(name)
+    return any(
+        re.search(pat, diff)
+        for pat in (
+            rf"\{{\s*{n}\s*[}}!:]",  # f-string / .format brace: f"... {name} ..."
+            rf"[\"']\s*\+\s*{n}\b",  # "..." + name
+            rf"\b{n}\s*\+\s*[\"']",  # name + "..."
+            rf"[\"']\s*%\s*\(?\s*{n}\b",  # "..." % name
+            rf"\.format\([^)]*\b{n}\b",  # "...".format(name)
+        )
+    )
+
+
+def _is_bound_as_parameter(name: str, diff: str) -> bool:
+    """True only on POSITIVE evidence that `name` is handed over as a bound parameter."""
+    n = re.escape(name)
+    return any(
+        re.search(pat, diff)
+        for pat in (
+            rf"\bparams?\w*\s*\.\s*(?:append|extend)\s*\(\s*\[?\s*{n}\b",
+            rf"execute\w*\s*\([^)]*,\s*[(\[][^)\]]*\b{n}\b",
+        )
+    )
+
+
+def _binds_the_interpolated_value(issue: dict, diff: str) -> bool:
+    """True when an injection finding cites a variable that is BOUND, never spliced into SQL.
+
+    All four must hold, and every uncertain input answers False (keep the finding):
+      1. the finding actually claims injection,
+      2. the evidence ASSIGNS a variable from string-building (so a name can be extracted),
+      3. that name NEVER reaches SQL text anywhere in the diff  <- the safety condition, and
+      4. that name IS shown being bound as a parameter  <- positive evidence, not absence.
+
+    Condition 3 is why `table = f"{x}"` followed by `f"SELECT ... {table}"` still blocks, and
+    why being bound in one place does not excuse interpolation in another.
+    """
+    text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).lower()
+    if "injection" not in text and "sqli" not in text:
+        return False
+    m = _ASSIGN_RE.match(str((issue or {}).get("evidence", "") or ""))
+    if not m:
+        return False
+    name, rhs = m.group(1), m.group(2)
+    if not _STRINGBUILD_RE.search(rhs):
+        return False
+    if not diff:
+        return False
+    if _reaches_sql_text(name, diff):
+        return False
+    return _is_bound_as_parameter(name, diff)
+
+
 # A claim that something "is not executed" is an assertion about RUNTIME. The reviewer cannot run
 # anything, so for an auto-collected pytest construct it is unfalsifiable from the diff alone.
 _NON_EXECUTION_RE = re.compile(
@@ -1383,9 +1454,7 @@ _MISSING_TESTS_RE = re.compile(
 )
 # An ADDED line that DEFINES or ASSIGNS a name: "+def x", "+class X", "+ x = ...", "+ self.x = ..."
 _ADDED_BINDING_RE = re.compile(
-    r"^\+\s*(?:async\s+)?def\s+(\w+)"
-    r"|^\+\s*class\s+(\w+)"
-    r"|^\+\s*(?:self\.)?(\w+)\s*(?::[^=]+)?=(?!=)",
+    r"^\+\s*(?:async\s+)?def\s+(\w+)" r"|^\+\s*class\s+(\w+)" r"|^\+\s*(?:self\.)?(\w+)\s*(?::[^=]+)?=(?!=)",
 )
 
 
@@ -2601,7 +2670,9 @@ def _structured_review(
                 )
     # QW-2: demote non-blocking nit categories to INFO BEFORE the verdict + render, so a
     # true-but-trivial WARNING/CRITICAL can't block (the dominant residual false-block class, RC-2).
-    _normalize_severity(issues)
+    # GATE 7 needs the FULL diff (ground_diff), not the chunk the model saw: the binding
+    # that proves a value is a parameter often sits outside the shown window.
+    _normalize_severity(issues, ground_diff)
     n_demoted = sum(1 for i in issues if isinstance(i, dict) and i.get("_demoted_from"))
     if n_demoted:
         note = (note + "; " if note else "") + f"normalized {n_demoted} nit(s) to INFO"
@@ -2768,7 +2839,7 @@ def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str
                 if _writeback_enabled():
                     _writeback_false_positives(dropped, pr_number, repo)
             issues = kept
-        _normalize_severity(issues)
+        _normalize_severity(issues, diff)
         n_demoted = sum(1 for i in issues if isinstance(i, dict) and i.get("_demoted_from"))
         if n_demoted:
             notes.append(f"normalized {n_demoted} nit(s) to INFO")

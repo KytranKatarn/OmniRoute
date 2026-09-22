@@ -59,6 +59,6 @@ tests:
   - name: "consciousness-code-health"
     type: api
     method: GET
-    path: /tools/consciousness/api/code-health/summary
+    path: /tools/consciousness/api/code-health/module-status
     expect:
       status: [200, 302]

@@ -33,8 +33,16 @@ def _has_open_proposal(file_path: str, category: str) -> bool:
                 (file_path, category),
             )
             return cur.fetchone() is not None
-    except Exception:
-        return False  # fail open — let proposal through if DB unavailable
+    except Exception as _exc:
+        # Fail CLOSED (deliberate, not a default): if we cannot READ the dedup set we
+        # cannot know a proposal is not already open, so the conservative move is to
+        # skip this scan cycle rather than create a duplicate. A scan is repeatable —
+        # the proposal is not lost, it is simply deferred until the DB is reachable.
+        # The alternative (fail open) is what produced duplicates whenever this query
+        # errored before #6045. Log at WARNING so a DB outage that is silently
+        # suppressing scans is visible, not folded into a bare except.
+        logger.warning("[Repair Bay] dedup check failed (fail-closed, scan skipped): %s", _exc)
+        return True
 
 
 def register_scan_routes(bp, admin_required):
@@ -294,25 +302,27 @@ def register_scan_routes(bp, admin_required):
             )
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Fetch open issues, optionally filtered by scan_id
-            sql = """SELECT id, file_path, category, severity, message, line_number, suggestion
+            # Fetch open issues, optionally filtered by scan_id.
+            # #7792: use issue_type (code_issues has no `category` column); issue_type
+            # doubles as the proposal category.
+            sql = """SELECT id, file_path, issue_type, severity, message, line_number, suggestion
                      FROM code_issues
                      WHERE status = 'open' AND proposal_id IS NULL"""
             params = []
             if scan_id:
                 sql += " AND scan_id = %s"
                 params.append(scan_id)
-            sql += " ORDER BY file_path, category, severity DESC"
+            sql += " ORDER BY file_path, issue_type, severity DESC"
             cur.execute(sql, params)
             issues = cur.fetchall()
 
             # Filter by min severity
             filtered = [i for i in issues if severity_rank.get(i.get("severity", "info"), 0) >= min_rank]
 
-            # Group by (file_path, category)
+            # Group by (file_path, issue_type)
             groups = {}
             for issue in filtered:
-                key = (issue["file_path"] or "unknown", issue.get("category") or "general")
+                key = (issue["file_path"] or "unknown", issue.get("issue_type") or "general")
                 if key not in groups:
                     groups[key] = []
                 groups[key].append(issue)
@@ -456,15 +466,47 @@ def register_scan_routes(bp, admin_required):
     @login_required
     @admin_required
     def scan_start_review():
-        """Start multi-agent review."""
+        """Start multi-agent review.
+
+        Accepts a file PATH (as the Diagnose tab sends) or raw code. If only a
+        path is given, the file content is read server-side (mirrors scan_file),
+        so the client never needs to fetch it separately.
+        """
+        import os
+
         data = request.get_json() or {}
         code = data.get("code", "")
-        file_path = data.get("file_path", "unknown")
+        file_path = data.get("file_path") or "unknown"
         agents = data.get("agents")
         context = data.get("context", "")
 
+        # UI sends file_paths as a list (P3-3 form uses a single path field)
+        paths = data.get("file_paths")
+        if not file_path or file_path == "unknown":
+            if isinstance(paths, list) and paths:
+                file_path = paths[0]
+            elif paths:
+                file_path = paths
+
+        if not code and file_path and file_path != "unknown":
+            resolved = scan_service._resolve_path(file_path)
+            if resolved and os.path.exists(resolved):
+                with open(resolved, "r") as f:
+                    code = f.read()
+
         if not code:
-            return jsonify({"success": False, "error": "No code provided"}), 400
+            return jsonify({"success": False, "error": "No code provided and file could not be read"}), 400
+
+        # Map UI specialty selector to a team of review agent keys when the
+        # caller did not choose agents explicitly.
+        if agents is None:
+            specialty = data.get("specialty")
+            try:
+                team = scan_service.get_review_agents(specialty=specialty or None, limit=10)
+                if team.get("success") and team.get("agents"):
+                    agents = [a["id"] for a in team["agents"]]
+            except Exception as _e:
+                logger.warning("Review agent resolution failed: %s", _e)
 
         return jsonify(
             scan_service.start_multi_agent_review(

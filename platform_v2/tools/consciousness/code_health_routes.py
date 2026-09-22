@@ -17,6 +17,36 @@ from services.token_provenance import ESTIMATED_SQL, cloud_classifier_sql
 logger = logging.getLogger(__name__)
 
 
+def _module_from_proposal_fp(fp):
+    """Attribute a proposal file_path to the Code Health module that owns it.
+
+    The scanner files tools/* findings under BOTH spellings: the placeholder
+    alias (``[APP_CORE]/tools/faith/...``) and the on-disk path
+    (``platform_v2/tools/faith/...``). A naive first-segment split mis-attributes
+    the aliased spelling to ``[APP_CORE]``, so Faith looked like it had 1 issue
+    and 2 repairs while Repair Bay counted 3 — the Repairs tab and the
+    Consciousness code-health page disagreed.
+
+    Resolution order (mirrors audit_pipeline's placeholder map):
+    - ``platform_v2/tools/<mod>/...`` -> ``<mod>``
+    - ``[APP_CORE]/tools/<mod>/...`` -> ``<mod>`` (bracket alias -> real module)
+    - non-tools platform_v2 / ai_bridge / migrations -> the bracket token
+    - standalone_*/website_* and everything else -> first path segment
+    """
+    if not fp:
+        return None
+    if "platform_v2/tools/" in fp or "[APP_CORE]/tools/" in fp:
+        marker = "platform_v2/tools/" if "platform_v2/tools/" in fp else "[APP_CORE]/tools/"
+        return fp.split(marker)[1].split("/")[0]
+    if fp.startswith("platform_v2/") or fp.startswith("[APP_CORE]/"):
+        return "[APP_CORE]"
+    if fp.startswith("ai_bridge/") or fp.startswith("[AI_BRIDGE]/"):
+        return "[AI_BRIDGE]"
+    if fp.startswith("database/migrations/") or fp.startswith("[MIGRATIONS]/"):
+        return "[MIGRATIONS]"
+    return fp.split("/")[0]
+
+
 def _ch_async_job(job_type, description, total_steps, work_fn):
     """Run a heavy Code-Health op in a background thread, tracked in bridge_jobs.
 
@@ -525,7 +555,7 @@ def register_code_health_routes(bp, admin_required):
                 """SELECT total_files, total_lines, total_folders,
                           python_files, python_lines, js_files, js_lines,
                           css_files, css_lines, html_files, html_lines,
-                          sql_files, sql_lines, per_module, scanned_at
+                          sql_files, sql_lines, per_module, modules_changed, scanned_at
                    FROM code_metrics_snapshots
                    ORDER BY scanned_at DESC LIMIT 1"""
             )
@@ -535,6 +565,13 @@ def register_code_health_routes(bp, admin_required):
             import json as _json
 
             per_module = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+
+            modules_changed = row.get("modules_changed") or []
+            if isinstance(modules_changed, str):
+                try:
+                    modules_changed = _json.loads(modules_changed)
+                except Exception:
+                    modules_changed = []
 
             # Reconstruct per-language totals from per_module by_type data
             lang_totals = {}
@@ -566,6 +603,7 @@ def register_code_health_routes(bp, admin_required):
                 "config": lang_totals.get("config", {"files": 0, "lines": 0}),
                 "text": lang_totals.get("text", {"files": 0, "lines": 0}),
                 "orphans": {},
+                "modules_changed": modules_changed,
                 "snapshot_age": row["scanned_at"].isoformat() if row["scanned_at"] else None,
             }
 
@@ -1138,15 +1176,9 @@ def register_code_health_routes(bp, admin_required):
                 )
                 for pr in cur.fetchall():
                     fp = pr["fp"] or ""
-                    # Extract module name from path
-                    if "platform_v2/tools/" in fp:
-                        mod = fp.split("platform_v2/tools/")[1].split("/")[0]
-                    else:
-                        mod = fp.split("/")[0]
-                    proposal_counts[mod] = proposal_counts.get(mod, 0) + pr["cnt"]
-                    # Also map the raw file_path as module name (for standalone/special modules)
-                    if fp and fp not in proposal_counts:
-                        proposal_counts[fp] = pr["cnt"]
+                    mod = _module_from_proposal_fp(fp)
+                    if mod:
+                        proposal_counts[mod] = proposal_counts.get(mod, 0) + pr["cnt"]
             except Exception:
                 pass
 

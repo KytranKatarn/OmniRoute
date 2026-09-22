@@ -3166,12 +3166,9 @@ function loadCodeHealth() {
 
     _renderModuleChart(allModules, moduleDisplayNames);
     _renderModuleTable(platformModules, auditedModules, moduleStatusMap, moduleDisplayNames);
-    // Build tier progress lookup from standalone-status endpoint
-    var standaloneTierMap = {};
-    (standaloneStatusData.standalones || []).forEach(function(s) {
-        if (s.tier_progress) standaloneTierMap[s.module_key] = s.tier_progress;
-    });
-    _renderStandaloneTable(standaloneModules, moduleStatusMap, standaloneTierMap);
+    // tier_progress lookup removed 2026-09-15 — standalone-status never returned
+    // the field and the tier map was never read by the renderer below.
+    _renderStandaloneTable(standaloneModules, moduleStatusMap);
     _renderWebsiteTable(websiteModules, moduleStatusMap);
     _renderOrphanTable(d.orphans || {});
     _renderAttentionItems(statusData.summary || {}, d.orphans || {}, d);

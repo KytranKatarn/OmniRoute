@@ -5,11 +5,18 @@ Migrated from proxy pattern in Project #103, Phase 2.
 """
 
 import logging
+import time
 
 from flask import jsonify, request
 from flask_login import login_required, current_user
 
 logger = logging.getLogger(__name__)
+
+# Page cache for the Repairs tab list (mirrors the pr-reviews cache: a short
+# TTL so repeat tab visits load instantly without re-serialising rows; a
+# `bust` param skips it so mutations (approve/reject/execute) show instantly).
+_proposals_cache: dict = {}
+_PROPOSALS_CACHE_TTL = 30
 
 
 def _legacy_proposal_execute(proposal_id):
@@ -46,9 +53,27 @@ def register_proposal_routes(bp, admin_required):
     @admin_required
     def proposals_list():
         status = request.args.get("status", None)
-        result = proposal_service.list_proposals(status=status)
+        q = request.args.get("q", "").strip()
+        limit = request.args.get("limit", 50, type=int)
+        page = request.args.get("page", 1, type=int)
+        bust = request.args.get("bust")
+
+        if not q:
+            # Cached path only for unfiltered pagination — a live q must always
+            # hit the DB so search never reads stale rows (mirrors pr-reviews).
+            cache_key = f"{status}:{q}:{page}:{limit}"
+            now = time.time()
+            if not bust and cache_key in _proposals_cache:
+                ts, data = _proposals_cache[cache_key]
+                if now - ts < _PROPOSALS_CACHE_TTL:
+                    return jsonify({"success": True, **data, "cached": True})
+
+        offset = max(0, (page - 1) * limit)
+        result = proposal_service.list_proposals_page(status=status, q=q or None, limit=limit, offset=offset)
         if not result.get("success"):
             return jsonify(result), 500
+        if not q and not bust:
+            _proposals_cache[cache_key] = (time.time(), result)
         return jsonify(result)
 
     @bp.route("/api/proposals/<int:proposal_id>")

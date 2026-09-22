@@ -618,6 +618,39 @@ def mark_review_started(pr_number: int, repo: str = None) -> None:
         )
 
 
+def mark_review_progress(pr_number: int, repo: str = None) -> bool:
+    """Heartbeat: this review is still working. Returns whether a row was touched.
+
+    `updated_at` is the staleness clock for three consumers (get_pending_reviews,
+    reap_stale_reviews, review_progress), and before this it was written ONLY at
+    mark_review_started and mark_review_done. A review therefore looked frozen for
+    its entire duration.
+
+    That was survivable only by accident: the poll upsert used to re-stamp
+    `updated_at` on every OPEN pr each cycle, which kept the clock warm for running
+    reviews as a side effect. #3416 removed that re-stamping — correctly, it was
+    defeating the reaper entirely — and in doing so removed the accidental
+    protection. Measured immediately after that deploy: #3411 was reaped mid-flight
+    (reap_count 1) and #3406, a ONE-FILE pr, reached 16 minutes against a 20-minute
+    window. With `forge:review_plan=per_file` and `max_files=10` live, a real review
+    is ten serial passes and would be reaped ~3 times, then marked 'skipped'.
+
+    So a long review must say so. Called at each pass boundary; `updated_at` now
+    means "when did this review last make PROGRESS", which is what all three
+    consumers actually wanted and what makes liveness decidable at all.
+
+    ⚠️ Scoped to `review_status='in_progress'` so a heartbeat arriving after the
+    review was reaped, skipped or finished can never resurrect a terminal row —
+    the write is a no-op and the return value says so.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE pr_reviews SET updated_at=NOW() " "WHERE pr_number=%s AND repo=%s AND review_status='in_progress'",
+            (pr_number, repo or _DEFAULT_REPO),
+        )
+        return cur.rowcount > 0
+
+
 # ---------------------------------------------------------------------------
 # MACHINE-AUTHORED PRs — never auto-merged, by ANY actor. ONE definition.
 # ---------------------------------------------------------------------------

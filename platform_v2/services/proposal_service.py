@@ -106,6 +106,130 @@ def list_proposals(status=None):
                 pass
 
 
+def list_proposals_page(status=None, q=None, limit=50, offset=0):
+    """Paged, card-only proposal list for the Repair Bay Repairs tab.
+
+    Slim SELECT: only columns the card renderer needs; search is server-side
+    (title/category/status/priority/agent/description ILIKE).  The full
+    13,986-row dump (~21 MB) that loaded on every tab visit is replaced by
+    this endpoint's ~50-row pages (sub-50 KB).
+    """
+    try:
+        limit = max(1, min(int(limit), 500))
+        offset = max(0, int(offset))
+    except (TypeError, ValueError):
+        limit = 50
+        offset = 0
+
+    conn = None
+    cur = None
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        where = []
+        params = []
+        if status:
+            where.append("ip.status = %s")
+            params.append(status)
+        if q:
+            like = f"%{q}%"
+            where.append(
+                "(ip.title ILIKE %s OR ip.category ILIKE %s OR ip.status ILIKE %s "
+                "OR ip.priority ILIKE %s OR COALESCE(a.display_name,'') ILIKE %s "
+                "OR COALESCE(ip.description,'') ILIKE %s)"
+            )
+            params.extend([like] * 6)
+        where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+        cur.execute(
+            f"SELECT COUNT(*) AS total FROM improvement_proposals ip "
+            f"LEFT JOIN agents a ON a.id = ip.assigned_agent_id {where_sql}",
+            params,
+        )
+        total = cur.fetchone()["total"]
+
+        cur.execute(
+            f"""
+            SELECT ip.id, ip.title, ip.status, ip.category, ip.priority,
+                   ip.backup_clearance_approved, ip.backup_clearance_reason,
+                   ip.backup_clearance_at, ip.deployed_at,
+                   a.display_name AS agent_display_name,
+                   a.name AS agent_code_name,
+                   a.model AS agent_model,
+                   (ip.metadata->>'assigned_agent_name') AS md_agent_name,
+                   (ip.metadata->>'agent_model')          AS md_agent_model,
+                   (ip.metadata->>'contractor_proposal')  AS md_contractor_proposal,
+                   (ip.metadata->>'code_applied')::text   AS md_code_applied,
+                   (ip.metadata->>'pr_url')               AS md_pr_url,
+                   (ip.code_diff IS NOT NULL AND length(ip.code_diff) > 0) AS has_diff
+            FROM improvement_proposals ip
+            LEFT JOIN agents a ON a.id = ip.assigned_agent_id
+            {where_sql}
+            ORDER BY ip.proposed_at DESC
+            LIMIT %s OFFSET %s
+            """,
+            params + [limit, offset],
+        )
+        rows = cur.fetchall()
+        out = []
+        for p in rows:
+            d = dict(p)
+            # ISO timestamps — the client card reads backup_clearance_at and deployed_at
+            for _k in ("backup_clearance_at", "deployed_at"):
+                if d.get(_k) is not None and hasattr(d[_k], "isoformat"):
+                    d[_k] = d[_k].isoformat()
+            # Assemble slim metadata dict matching the keys renderProposals reads
+            md = {}
+            if d.get("md_agent_name"):
+                md["assigned_agent_name"] = d["md_agent_name"]
+            if d.get("md_agent_model"):
+                md["agent_model"] = d["md_agent_model"]
+            # contractor_proposal presence — card only truthiness-checks it
+            if d.get("md_contractor_proposal"):
+                md["contractor_proposal"] = True
+            d["metadata"] = md
+            # Top-level keys the card renderer reads directly
+            d["code_applied"] = d.get("md_code_applied") == "true"
+            d["pr_url"] = d.get("md_pr_url")
+            # hasReview = p.code_diff || metadata.contractor_proposal — both truthy/falsy
+            d["code_diff"] = "1" if d.get("has_diff") else None
+            # Strip internal md_* keys
+            for _k in (
+                "md_agent_name",
+                "md_agent_model",
+                "md_contractor_proposal",
+                "md_code_applied",
+                "md_pr_url",
+                "has_diff",
+            ):
+                d.pop(_k, None)
+            out.append(d)
+
+        return {
+            "success": True,
+            "proposals": out,
+            "count": len(out),
+            "total": int(total),
+            "limit": limit,
+            "offset": offset,
+        }
+    except Exception as e:
+        logger.error(f"list_proposals_page: {e}")
+        return {"success": False, "error": str(e)}
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def get_proposal(proposal_id):
     conn = None
     cur = None

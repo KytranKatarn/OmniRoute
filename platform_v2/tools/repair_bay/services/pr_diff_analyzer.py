@@ -27,6 +27,7 @@ from tools.repair_bay.services.pr_review_service import (
     get_review,
     mark_review_done,
     mark_review_pending,
+    mark_review_progress,
     mark_review_started,
     _classify_review_path,
     parse_verdict,
@@ -3055,6 +3056,32 @@ def _obtain_review_summary(
     # (max_chunks=1) the chunk IS the diff, so this is byte-identical today.
     _caps_used = []
     for _idx, _chunk in enumerate(_chunks):
+        # Heartbeat the staleness clock at every pass boundary. `updated_at` is what
+        # reap_stale_reviews (20 min), get_pending_reviews (20 min) and the UI's
+        # review_progress all measure, and before #3417 it was written only at
+        # mark_review_started/_done — so a multi-pass review looked frozen for its
+        # whole duration. #3416 removed the poll re-stamping that had been keeping
+        # it warm by accident, which made that visible immediately: #3411 was reaped
+        # mid-flight and a ONE-FILE pr reached 16 minutes against the 20-minute
+        # window. With per_file/max_files=10 live, a review is ten serial passes.
+        #
+        # Deliberately at the TOP of the iteration: it records "the previous pass
+        # finished", which is the progress claim we can actually defend. On _idx 0 it
+        # is a redundant no-op (mark_review_started just ran) and costs one UPDATE.
+        if _idx:
+            try:
+                mark_review_progress(pr_number, repo)
+            except Exception as _hb_err:  # noqa: BLE001 — a heartbeat must never fail a review
+                # Deliberately loud: the heartbeat is the ONLY thing keeping a long review
+                # from being reaped as stale (see mark_review_progress docstring). A DB blip
+                # that silences it would suffocate a mid-flight review silently — #3411 was
+                # reaped exactly that way. Log at WARNING so the outage is visible while the
+                # review still proceeds; the next pass boundary retries the write.
+                logger.warning(
+                    "[PR Review] PR #%s heartbeat UPDATE failed (liveness window not refreshed): %s",
+                    pr_number,
+                    _hb_err,
+                )
         _chunk_prov = _prov if _idx == 0 else []
         # ground_diff is ALWAYS the FULL diff (spec Decision 2). A finding whose evidence
         # lives in a different chunk is a genuine cross-chunk defect — the exact class that

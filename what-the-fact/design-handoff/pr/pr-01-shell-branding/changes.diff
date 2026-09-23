@@ -1,0 +1,44 @@
+diff --git a/what-the-fact/consumer/templates/base.html b/what-the-fact/consumer/templates/base.html
+--- a/what-the-fact/consumer/templates/base.html
++++ b/what-the-fact/consumer/templates/base.html
+@@ -91,6 +91,11 @@
+   <nav class="wtf-nav">
+     <a href="/" class="wtf-nav-brand">
+-      <span class="wtf-wordmark">WHAT&middot;THE&middot;FACT</span>
+-      <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
++      <img src="{{ url_for('static', filename='wtf-logo.png') }}" alt="" class="wtf-nav-logo" width="36" height="36">
++      <span class="wtf-nav-brand-txt">
++        <span class="wtf-wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
++        <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
++      </span>
+     </a>
+     <div class="wtf-nav-links">
+diff --git a/what-the-fact/consumer/static/style.css b/what-the-fact/consumer/static/style.css
+--- a/what-the-fact/consumer/static/style.css
++++ b/what-the-fact/consumer/static/style.css
+@@ -97,5 +97,5 @@
+   .wtf-nav-brand {
+     display: flex;
+-    flex-direction: column;
+-    gap: 0;
++    align-items: center;
++    gap: 11px;
+@@ -112,5 +112,5 @@
+   .wtf-subbrand {
+     font-size: 0.6rem;
+     letter-spacing: 0.2em;
+-    color: #6b7280;
++    color: var(--wtf-brand);
+     text-transform: uppercase;
+@@ -181,5 +181,5 @@
+     gap: 0.4rem;
+     font-size: 0.65rem;
+     letter-spacing: 0.15em;
+-    color: var(--wtf-accent);
++    color: var(--wtf-brand);
+@@ -193,5 +193,5 @@
+     height: 8px;
+     border-radius: 50%;
+-    background: var(--wtf-accent);
++    background: var(--wtf-brand);
+     display: inline-block;

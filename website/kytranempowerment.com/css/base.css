@@ -225,22 +225,32 @@ ul, ol {
     opacity: 0.55;
 }
 
-.scroll-ambient__logo {
-    position: absolute;
+.scroll-logo {
+    position: fixed;
     top: 50%;
     left: 50%;
+    z-index: 1;
     width: 900px;
     max-width: 140vw;
     height: auto;
     opacity: 0.06;
+    pointer-events: none;
     transform: translate3d(-50%, calc(-50% + var(--scroll-shift, 0px)), 0) scale(var(--scroll-scale, 1)) rotate(var(--scroll-rotate, 0deg));
     transform-origin: center;
     will-change: transform, opacity;
 }
 
+@media (max-width: 768px) {
+    .scroll-logo {
+        width: 160vw;
+        max-width: none;
+        opacity: 0.1;
+    }
+}
+
 .site-main {
     position: relative;
-    z-index: 1;
+    z-index: 2;
 }
 
 /* --------------------------------------------------------------------------

@@ -15,6 +15,8 @@ var HeroAnimations = (function () {
     var _scrollLogo = null;
     var _scrollRaf = null;
     var _scrollHandler = null;
+    var _connectionDistance = 140;
+    var _particleSpeed = 0.35;
 
     /* ====================================================================
        Public: init
@@ -29,7 +31,7 @@ var HeroAnimations = (function () {
         var hero = document.querySelector('.hero');
         if (!hero) return;
 
-        initParticles(hero);
+        initParticles();
         initScrollAmbient();
         initEntrance(hero);
         initScrollReveals();
@@ -164,12 +166,12 @@ var HeroAnimations = (function () {
        design's startCanvas() algorithm 1:1 (Home.dc.html).
        ==================================================================== */
     function initParticles() {
-        // Skip on mobile for performance
-        if (window.matchMedia('(max-width: 768px)').matches) return;
-
         _particleCanvas = document.getElementById('scrollParticles');
         if (!_particleCanvas) return;
 
+        var compact = window.matchMedia('(max-width: 768px)').matches;
+        _connectionDistance = compact ? 100 : 140;
+        _particleSpeed = compact ? 0.2 : 0.35;
         _particleCtx = _particleCanvas.getContext('2d');
         _heroRect = { width: window.innerWidth, height: window.innerHeight };
 
@@ -189,13 +191,13 @@ var HeroAnimations = (function () {
             }
         });
 
-        var count = 70;
+        var count = compact ? 32 : 70;
         for (var i = 0; i < count; i++) {
             _particles.push({
                 x: Math.random() * _heroRect.width,
                 y: Math.random() * _heroRect.height,
-                vx: (Math.random() - 0.5) * 0.35,
-                vy: (Math.random() - 0.5) * 0.35
+                vx: (Math.random() - 0.5) * _particleSpeed,
+                vy: (Math.random() - 0.5) * _particleSpeed
             });
         }
 
@@ -210,13 +212,17 @@ var HeroAnimations = (function () {
             if (_scrollRaf) return;
             _scrollRaf = requestAnimationFrame(function () {
                 _scrollRaf = null;
+                var compact = window.matchMedia('(max-width: 768px)').matches;
                 var maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
                 var scrollY = window.scrollY || window.pageYOffset || 0;
                 var progress = Math.min(Math.max(scrollY / maxScroll, 0), 1);
-                _scrollLogo.style.setProperty('--scroll-shift', (progress * 120) + 'px');
-                _scrollLogo.style.setProperty('--scroll-scale', (1 + progress * 0.08).toFixed(3));
-                _scrollLogo.style.setProperty('--scroll-rotate', ((progress * 2 - 1) * 0.8).toFixed(2) + 'deg');
-                _scrollLogo.style.opacity = (0.07 - progress * 0.025).toFixed(3);
+                var shift = compact ? 72 : 120;
+                var startOpacity = compact ? 0.12 : 0.07;
+                var endOpacity = compact ? 0.06 : 0.045;
+                _scrollLogo.style.setProperty('--scroll-shift', (progress * shift) + 'px');
+                _scrollLogo.style.setProperty('--scroll-scale', (1 + progress * (compact ? 0.05 : 0.08)).toFixed(3));
+                _scrollLogo.style.setProperty('--scroll-rotate', ((progress * 2 - 1) * (compact ? 0.5 : 0.8)).toFixed(2) + 'deg');
+                _scrollLogo.style.opacity = (startOpacity - progress * (startOpacity - endOpacity)).toFixed(3);
             });
         };
 
@@ -226,6 +232,9 @@ var HeroAnimations = (function () {
 
     function _resizeCanvas() {
         if (!_particleCanvas) return;
+        var compact = window.matchMedia('(max-width: 768px)').matches;
+        _connectionDistance = compact ? 100 : 140;
+        _particleSpeed = compact ? 0.2 : 0.35;
         var dpr = Math.min(window.devicePixelRatio, 2);
         var width = window.innerWidth;
         var height = window.innerHeight;
@@ -260,8 +269,8 @@ var HeroAnimations = (function () {
             for (var b = a + 1; b < n; b++) {
                 var na = nodes[a], nb = nodes[b];
                 var d = Math.hypot(na.x - nb.x, na.y - nb.y);
-                if (d < 140) {
-                    _particleCtx.strokeStyle = 'rgba(0,229,255,' + ((1 - d / 140) * 0.25) + ')';
+                if (d < _connectionDistance) {
+                    _particleCtx.strokeStyle = 'rgba(0,229,255,' + ((1 - d / _connectionDistance) * 0.25) + ')';
                     _particleCtx.lineWidth = 1;
                     _particleCtx.beginPath();
                     _particleCtx.moveTo(na.x, na.y);

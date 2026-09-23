@@ -221,7 +221,7 @@ async def add_task_note(task_id: int, note: str) -> dict:
     """Append a work note to a task — what you did, what you found, what is left.
     A closed task with no note is not a record anyone can use later."""
     err = _needs_write()
-    return err or await _hub("POST", "/api/internal/tasks/%d/note" % int(task_id), {"note": note})
+    return err or await _hub("POST", "/api/internal/tasks/%d/note" % int(task_id), {"text": note})
 
 
 @mcp.tool()

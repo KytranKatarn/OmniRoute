@@ -32,11 +32,24 @@ services:
       - /mnt/data2/tdarr/server:/app/server
       - /mnt/data2/tdarr/configs:/app/configs
       - /mnt/data2/tdarr/logs:/app/logs
-      - /mnt/Plex/media:/media                       # rw — TV + the /media/movies symlink
-      # Media is SPLIT across two drives: /media/movies is a symlink → /mnt/data2/plex/movies,
-      # which lives OUTSIDE the /mnt/Plex/media mount. Bind the real movies dir over the symlink
-      # so Tdarr's scanner doesn't abort on a broken link (KB: split-library mount).
-      - /mnt/data2/plex/movies:/media/movies:rw
+      # Repointed off the failing /dev/sdb 2026-09-22. No single healthy parent holds
+      # the whole tree, so each child is bound explicitly.
+      - /mnt/data2/plex/tv:/media/tv:rw
+      - /mnt/data2/plex/music:/media/music:rw
+      - /mnt/data2/plex/photos:/media/photos:rw
+      # ⚠️ BEHAVIOUR DELIBERATELY UNCHANGED — /mnt/data2/plex/movies is EMPTY, so tdarr
+      #    sees ZERO movies, exactly as it did before this change (verified in-container).
+      #    The previous comment claimed the symlink pointed at /mnt/data2/plex/movies; it
+      #    actually points at /mnt/fast/movies (47 titles, 205 GB), and binding the empty
+      #    data2 dir over it SHADOWED the real library rather than exposing it. So tdarr
+      #    has never transcoded a movie, despite the stated intent.
+      #    The movie library MOVED to /mnt/data2/plex/movies on 2026-09-22, so binding
+      #    that path would now expose all 47 titles and start a mass transcode. To keep
+      #    tdarr's behaviour BYTE-IDENTICAL to what it has always actually done (0 movies),
+      #    /media/movies points at a dedicated empty directory instead.
+      #    ENABLING MOVIE TRANSCODING IS AN OWNER DECISION: change this one line to
+      #    `- /mnt/data2/plex/movies:/media/movies:rw` and recreate the container.
+      - /mnt/data2/tdarr/movies_disabled:/media/movies:rw
       - /mnt/data2/tdarr/transcode_cache:/temp       # roomy scratch, OFF the media volume
     mem_limit: 6g
     cpus: 4.0                     # cap so a CPU transcode never starves the platform

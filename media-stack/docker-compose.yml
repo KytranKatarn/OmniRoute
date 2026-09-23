@@ -14,11 +14,11 @@ services:
       - TZ=America/New_York
       - VERSION=docker
     volumes:
-      - /mnt/Plex/config/plex:/config
-      - /mnt/Plex/media/movies:/movies:ro
-      - /mnt/Plex/media/tv:/tv:ro
-      - /mnt/Plex/media/music:/music:ro
-      - /mnt/Plex/media/photos:/photos:ro
+      - /mnt/fast/config/plex:/config
+      - /mnt/data2/plex/movies:/movies:ro
+      - /mnt/data2/plex/tv:/tv:ro
+      - /mnt/data2/plex/music:/music:ro
+      - /mnt/data2/plex/photos:/photos:ro
     devices:
       - /dev/dri:/dev/dri
     deploy:
@@ -39,11 +39,11 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/Plex/config/jellyfin:/config
-      - /mnt/Plex/config/jellyfin/cache:/cache
-      - /mnt/Plex/media/movies:/data/movies:ro
-      - /mnt/Plex/media/tv:/data/tv:ro
-      - /mnt/Plex/media/music:/data/music:ro
+      - /mnt/fast/config/jellyfin:/config
+      - /mnt/fast/config/jellyfin/cache:/cache
+      - /mnt/data2/plex/movies:/data/movies:ro
+      - /mnt/data2/plex/tv:/data/tv:ro
+      - /mnt/data2/plex/music:/data/music:ro
     ports:
       - "8096:8096"
     devices:
@@ -75,8 +75,8 @@ services:
       # (LVM names mislead: VG `sda-vg` is on /dev/sdb, VG `sdb-vg` on /dev/sdf.
       #  Use `pvs`, never `df`. KB #285461.)
       - /mnt/data2/plex-config/sonarr:/config
-      - /mnt/Plex/media/tv:/tv
-      - /mnt/Plex/downloads:/downloads
+      - /mnt/data2/plex/tv:/tv
+      - /mnt/data2/downloads:/downloads
     ports:
       - "8989:8989"
     deploy:
@@ -99,8 +99,8 @@ services:
     volumes:
       # config on /dev/sdf, media on /dev/sdb — deliberate, see the sonarr note above (#5384)
       - /mnt/data2/plex-config/radarr:/config
-      - /mnt/Plex/media/movies:/movies
-      - /mnt/Plex/downloads:/downloads
+      - /mnt/data2/plex/movies:/movies
+      - /mnt/data2/downloads:/downloads
     ports:
       - "7878:7878"
     deploy:
@@ -143,7 +143,7 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/Plex/config/overseerr:/config
+      - /mnt/fast/config/overseerr:/config
     ports:
       - "5055:5055"
     deploy:
@@ -164,8 +164,8 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/Plex/config/sabnzbd:/config
-      - /mnt/Plex/downloads:/downloads
+      - /mnt/fast/config/sabnzbd:/config
+      - /mnt/data2/downloads:/downloads
     ports:
       - "8083:8080"
     deploy:

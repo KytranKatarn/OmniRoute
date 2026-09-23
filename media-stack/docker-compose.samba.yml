@@ -109,13 +109,22 @@ services:
       - "192.168.1.200:445:445"
 
     volumes:
-      # /mnt/Plex/media contains exactly one symlink: movies -> /mnt/data2/plex/movies
-      - /mnt/Plex/media:/media
-      # ...and the real target is ALSO bind-mounted over that same path, so the
-      # healthy-disk movie library is reachable by two independent mechanisms.
-      # Both are present in the verified-working config and removing either was
-      # never tested — do not "simplify" this to one line.
+      # Repointed off the failing /dev/sdb 2026-09-22. There is no single healthy
+      # parent holding the whole tree — tv is on /mnt/data2 (sdf), movies on
+      # /mnt/fast (sdg) — so each child is bound explicitly.
+      #
+      # 🔴 THIS ALSO FIXES A LIVE BUG. The previous pair bound the parent
+      #    /mnt/Plex/media (whose `movies` entry is a symlink -> /mnt/fast/movies)
+      #    and then mounted /mnt/data2/plex/movies OVER /media/movies. That
+      #    directory is EMPTY, so the nested bind SHADOWED the symlink and samba
+      #    served ZERO movies (verified in-container: `ls /media/movies` = 0 while
+      #    /mnt/fast/movies holds 47). The old comment claimed the library was
+      #    "reachable by two independent mechanisms"; in fact the second mechanism
+      #    hid the first, and the path it named was never where the movies were.
+      - /mnt/data2/plex/tv:/media/tv
       - /mnt/data2/plex/movies:/media/movies
+      - /mnt/data2/plex/music:/media/music
+      - /mnt/data2/plex/photos:/media/photos
 
     # LOAD-BEARING FLAGS — do not drop as cleanup:
     #   follow symlinks / wide links : Samba otherwise REFUSES to traverse a

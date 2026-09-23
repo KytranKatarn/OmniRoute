@@ -122,10 +122,11 @@ def coverage_only_demotion(summary_or_text: str | None) -> bool:
 
 
 def coverage_dropped_paths(summary_or_text: str | None) -> list:
-    """The files the reviewer never read, for showing a human what they are discharging.
+    """The files the reviewer did not fully read — wholly dropped AND partially read.
 
-    A count alone does not tell anyone whether the dropped file was a README or the deploy
-    path — the same reasoning as coverage_note's own listing.
+    Both categories surface so a human sees what they are discharging.  Partial files
+    (READ ONLY IN PART, ``* `` bullets) are listed with the `` — about N% shown`` suffix
+    stripped.  The ``- ...and N more`` / ``* ...and N more`` overflow lines are skipped.
     """
     if not summary_or_text:
         return []
@@ -135,12 +136,26 @@ def coverage_dropped_paths(summary_or_text: str | None) -> list:
         return []
     block = summary_or_text.split(MARKER, 1)[1]
     out = []
+    in_dropped = False
+    in_partial = False
     for line in block.splitlines():
         stripped = line.strip()
-        if stripped.startswith("- ") and not stripped.startswith("- ...and "):
+        if stripped.startswith("NOT REVIEWED"):
+            in_dropped, in_partial = True, False
+            continue
+        if stripped.startswith("READ ONLY IN PART"):
+            in_dropped, in_partial = False, True
+            continue
+        if in_dropped and stripped.startswith("- ") and not stripped.startswith("- ...and "):
             out.append(stripped[2:].strip())
-        elif out and not stripped:
-            break  # the listing ends at the first blank line after it starts
+        elif in_partial and stripped.startswith("* ") and not stripped.startswith("* ...and "):
+            path_part = stripped[2:].strip()
+            if " — " in path_part:
+                path_part = path_part.split(" — ", 1)[0].strip()
+            if path_part:
+                out.append(path_part)
+        elif stripped == "":
+            in_dropped = in_partial = False
     return out
 
 

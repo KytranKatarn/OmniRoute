@@ -82,15 +82,15 @@ def test_untruncated_diff_still_reports_complete():
     assert cov["reviewed"] == cov["total"] == 1
 
 
-def test_dropped_path_parser_must_not_read_a_partial_as_dropped():
-    """`coverage_dropped_paths` keys on a leading '- '; partials render with '*'.
+def test_partial_only_PR_gets_unread_list():
+    """#6769 — a partial-only PR (no wholly-dropped files) must still surface unread files.
 
-    It also stops at the first blank line only ONCE it has started collecting, so a
-    partial listed with '- ' while `dropped` was empty would be silently misread as a
-    wholly-dropped file. The '*' bullet is what prevents that.
+    The coverage box and merge-confirm dialog both key on ``dropped_files.length``; if
+    partials are invisible the panel never renders and there is no wide-review path.
     """
     note = coverage_note(coverage(_FULL, _SHOWN))
-    assert coverage_dropped_paths("SUMMARY\n\n" + note) == []
+    paths = coverage_dropped_paths("SUMMARY\n\n" + note)
+    assert paths == ["app/only.py"], "partial file must appear in the unread list"
     assert "app/only.py" in note, "the human still has to be told which file was cut"
     assert "VERDICT: NEEDS REVIEW" in note
 
@@ -111,5 +111,7 @@ def test_dropped_and_partial_can_coexist():
     assert cov["dropped"] == ["app/other.py"]
     assert [e["path"] for e in cov["partial"]] == ["app/only.py"]
     assert cov["complete"] is False
-    # the wholly-dropped file IS still discharged through the '- ' listing
-    assert coverage_dropped_paths("S\n\n" + coverage_note(cov)) == ["app/other.py"]
+    # both the wholly-dropped file AND the partial file appear in the unread list
+    paths = coverage_dropped_paths("S\n\n" + coverage_note(cov))
+    assert "app/other.py" in paths
+    assert "app/only.py" in paths

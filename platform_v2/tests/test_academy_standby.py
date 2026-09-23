@@ -153,3 +153,145 @@ def test_describe_distinguishes_dry_run_from_applied():
     assert "WOULD hold" in describe(p, 45, True)
     assert "HOLDING" in describe(p, 45, False)
     assert "1 protected" in describe(p, 45, True)
+
+
+# --------------------------------------------------------------------------
+# The state write — one transaction, never an orphan
+# --------------------------------------------------------------------------
+
+
+def _mem_state(monkeypatch, initial=None):
+    """Route arm()/release() DB writes through an in-memory dict so the guards
+    can be tested without a live table, and assert 'written in one commit' as
+    'called once'."""
+    store = dict(initial or {})
+    calls = []
+
+    def _fake_set_many(values):
+        calls.append(dict(values))
+        store.update(values)
+
+    def _fake_get(key, default=None):
+        return store.get(key, default)
+
+    monkeypatch.setattr("services.academy_standby._set_many", _fake_set_many)
+    monkeypatch.setattr("services.academy_standby._get", _fake_get)
+    return store, calls
+
+
+def _fake_controls(monkeypatch):
+    held_live = {}
+    monkeypatch.setattr(
+        "services.work_control_service.list_controls",
+        lambda: [
+            {"key": "agent_browser_tasks", "enabled": True},
+            {"key": "chronicle_story_worker", "enabled": True},
+            {"key": "agent_approvals", "enabled": True},
+        ],
+    )
+    monkeypatch.setattr(
+        "services.work_control_service.set_enabled",
+        lambda key, enabled: held_live.__setitem__(key, enabled),
+    )
+    return held_live
+
+
+def test_arm_writes_the_whole_state_in_one_call(monkeypatch):
+    """arm() must land armed+snapshot+expires+note TOGETHER. Four separate
+    commits is how a crash produced an unarmed snapshot orphan — a snapshot
+    with no flag reads as 'not armed' yet shadows the keys forever."""
+    from services.academy_standby import _KEY_ARMED, _KEY_EXPIRES, _KEY_NOTE, _KEY_SNAPSHOT, arm
+
+    store, calls = _mem_state(monkeypatch)
+    _fake_controls(monkeypatch)
+    monkeypatch.setattr("services.academy_standby.status", lambda: {"armed": False, "held_count": 0})
+
+    out = arm(30, dry_run=False, note="bench win A")
+
+    assert out["ok"] is True
+    assert len(calls) == 1, "state must be written in a single transaction"
+    assert calls[0][_KEY_ARMED] == "true"
+    assert calls[0][_KEY_NOTE] == "bench win A"
+    assert {_KEY_SNAPSHOT, _KEY_EXPIRES, _KEY_ARMED, _KEY_NOTE} <= set(calls[0])
+
+
+def test_arm_refuses_when_an_unarmed_orphan_snapshot_is_present(monkeypatch):
+    """A snapshot with no armed flag is a crash-orphan. Overwriting it would
+    discard the only record of what the previous arm() was about to hold."""
+    from services.academy_standby import _KEY_SNAPSHOT, arm
+
+    store, calls = _mem_state(monkeypatch)
+    store[_KEY_SNAPSHOT] = '{"agent_browser_tasks": true, "something_else": true}'
+    _fake_controls(monkeypatch)
+    monkeypatch.setattr("services.academy_standby.status", lambda: {"armed": False, "held_count": 2})
+
+    out = arm(30, dry_run=False)
+
+    assert out["ok"] is False
+    assert "release()" in out["error"]
+    assert calls == [], "must not write state over an un-released orphan"
+
+
+def test_release_clears_an_unarmed_orphan_snapshot(monkeypatch):
+    """release() is the operator's tool for the orphan: even 'not armed', it must
+    sweep the stale keys so status() stops reporting phantom held controls."""
+    from services.academy_standby import _KEY_EXPIRES, _KEY_NOTE, _KEY_SNAPSHOT, release
+
+    store, calls = _mem_state(
+        monkeypatch,
+        initial={
+            _KEY_SNAPSHOT: '{"agent_browser_tasks": true, "something_else": true}',
+            _KEY_EXPIRES: "9999999999",
+            _KEY_NOTE: "bench win A",
+        },
+    )
+    monkeypatch.setattr(
+        "services.academy_standby.status",
+        lambda: {"armed": False, "held_count": 2},
+    )
+
+    out = release()
+
+    assert out["ok"] is True and out["note"] == "not armed"
+    assert calls and calls[-1][_KEY_SNAPSHOT] == "{}"
+    assert calls[-1][_KEY_EXPIRES] == "0"
+    assert calls[-1][_KEY_NOTE] == ""
+    assert store[_KEY_SNAPSHOT] == "{}"
+
+
+def test_release_restores_the_snapshot_when_armed(monkeypatch):
+    """The happy path, pinned: release must replay the exact prior values, set
+    the flag back to false and clear the snapshot — all before saying done."""
+    from services.academy_standby import (
+        _KEY_ARMED,
+        _KEY_EXPIRES,
+        _KEY_SNAPSHOT,
+        _KEY_NOTE,
+        release,
+    )
+
+    store, calls = _mem_state(
+        monkeypatch,
+        initial={
+            _KEY_ARMED: "true",
+            _KEY_SNAPSHOT: '{"agent_browser_tasks": true, "fleet_backlog_runner": false}',
+            _KEY_EXPIRES: "9999999999",
+            _KEY_NOTE: "bench win A",
+        },
+    )
+    toggled = {}
+    monkeypatch.setattr(
+        "services.work_control_service.set_enabled",
+        lambda key, enabled: toggled.__setitem__(key, enabled),
+    )
+    monkeypatch.setattr("services.academy_standby.status", lambda: {"armed": True, "held_count": 2})
+
+    out = release()
+
+    assert out["ok"] is True
+    assert toggled == {"agent_browser_tasks": True, "fleet_backlog_runner": False}
+    assert calls[-1][_KEY_ARMED] == "false"
+    assert calls[-1][_KEY_SNAPSHOT] == "{}"
+    assert calls[-1][_KEY_EXPIRES] == "0"
+    assert calls[-1][_KEY_NOTE] == ""
+    assert out["restored"] == ["agent_browser_tasks", "fleet_backlog_runner"]

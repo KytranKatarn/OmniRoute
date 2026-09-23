@@ -140,18 +140,26 @@ def describe(plan: dict, ttl_min: int, dry_run: bool) -> str:
 # ---------------------------------------------------------------------------
 # I/O — every function below is fail-soft; a standby that half-applies must be
 # releasable, so the snapshot is written BEFORE any control is changed.
+#
+# STATE IS WRITTEN IN ONE TRANSACTION. Because the 4 keys must land together —
+# arm() that commits a snapshot but dies before the armed flag leaves an orphan
+# that reads as "not armed" yet blocks nothing and lingers forever — arm() uses
+# _set_many(), never four separate _set() commits.
 # ---------------------------------------------------------------------------
 
 
-def _set(key: str, value: str) -> None:
+def _set_many(values: dict) -> None:
+    """Write several settings in ONE committed transaction."""
     from database import get_db_cursor
 
+    if not values:
+        return
     with get_db_cursor(commit=True) as (_, cur):
-        cur.execute(
+        cur.executemany(
             """INSERT INTO platform_settings (key, value)
                VALUES (%s, %s)
                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
-            (key, value),
+            list(values.items()),
         )
 
 
@@ -179,16 +187,35 @@ def arm(ttl_minutes: int = DEFAULT_TTL_MIN, *, dry_run: bool = True, note: str =
     if dry_run:
         return {"ok": True, "dry_run": True, "ttl_min": ttl, **plan, "summary": summary}
 
-    if status().get("armed"):
-        return {"ok": False, "error": "already armed — release() first", **status()}
+    st = status()
+    if st.get("armed"):
+        return {"ok": False, "error": "already armed — release() first", **st}
+
+    # ORPHAN GUARD. A snapshot with no armed flag is a crash-orphan: a previous
+    # arm() wrote its state and died before the toggle loop (the old code wrote
+    # each key in its own transaction, so this was reachable). Overwriting it
+    # would strand the restore record for controls that may be held without a
+    # flag to prove it. Refuse and make the operator clear it deliberately.
+    if st.get("held_count"):
+        return {
+            "ok": False,
+            "error": "stale standby snapshot present — call release() to clear it",
+            **st,
+        }
 
     expires = int(time.time()) + ttl * 60
-    # Snapshot FIRST. If the toggling loop dies halfway, release() can still put
-    # everything back; the reverse order would strand held controls with no record.
-    _set(_KEY_SNAPSHOT, json.dumps({k: True for k in plan["hold"]}))
-    _set(_KEY_EXPIRES, str(expires))
-    _set(_KEY_NOTE, note or "")
-    _set(_KEY_ARMED, "true")
+    # Snapshot + flag in ONE transaction. If the toggle loop dies halfway,
+    # release() can still put everything back; if the write dies instead, not a
+    # single key lands, so no orphan. The reverse order would strand held
+    # controls with no record.
+    _set_many(
+        {
+            _KEY_SNAPSHOT: json.dumps({k: True for k in plan["hold"]}),
+            _KEY_EXPIRES: str(expires),
+            _KEY_NOTE: note or "",
+            _KEY_ARMED: "true",
+        }
+    )
 
     held, failed = [], []
     for key in plan["hold"]:
@@ -216,7 +243,18 @@ def release() -> dict:
     """Restore EXACTLY what was held. Never a blanket re-enable."""
     from services.work_control_service import set_enabled
 
-    if not status().get("armed"):
+    st = status()
+    if not st.get("armed"):
+        # Not armed — but a stale orphan (snapshot written, flag never set) can
+        # still be squatting on the keys and silently shadowing a future status()
+        # read. Clearing it here makes release() the idempotent "make standby
+        # absent" that arm()'s orphan guard expects the operator to call.
+        if st.get("held_count"):
+            _set_many({_KEY_SNAPSHOT: "{}", _KEY_EXPIRES: "0", _KEY_NOTE: ""})
+            log.info(
+                "Academy Standby release: cleared stale orphaned snapshot (%d keys)",
+                st.get("held_count"),
+            )
         return {"ok": True, "restored": [], "note": "not armed"}
 
     try:
@@ -234,9 +272,7 @@ def release() -> dict:
             log.warning("academy_standby: could not restore %s: %s", key, exc)
             failed.append(key)
 
-    _set(_KEY_ARMED, "false")
-    _set(_KEY_SNAPSHOT, "{}")
-    _set(_KEY_EXPIRES, "0")
+    _set_many({_KEY_ARMED: "false", _KEY_SNAPSHOT: "{}", _KEY_EXPIRES: "0", _KEY_NOTE: ""})
     log.info("Academy Standby released: restored=%d failed=%d", len(restored), len(failed))
     return {"ok": True, "restored": restored, "failed": failed}
 

@@ -5,38 +5,33 @@
 
 ---
 
-## 🆕 IMPORTANT: MASTER STATUS DOCUMENT (2026-01-07)
+## ⚠️ STATUS (September 2026)
 
-**👉 START HERE:** [**MASTER_STATUS_AND_ROADMAP_2026.md**](MASTER_STATUS_AND_ROADMAP_2026.md)
+**👉 START HERE:** [**FINDINGS_INDEX.md**](FINDINGS_INDEX.md)
 
-This comprehensive document provides:
-- ✅ **Complete Codebase Audit** - Reality vs Documentation comparison
-- ✅ **Actual Implementation Status** - 240KB+ AI bridge files, 200KB+ platform files verified
-- ✅ **Phase 7 Roadmap** - Figma Integration (5-week plan with database schemas)
-- ✅ **Phase 8 Roadmap** - Long-Term Memory Enhancement (5-week plan with embeddings)
-- ✅ **Single Source of Truth** - Replaces outdated status documents
+The index above is the live, per-lane-maintained record of platform features,
+modules, and cross-cutting learning. It is ingested by the knowledge base nightly
+as a `github_file` entry and should be updated every time a feature ships.
 
-**Key Discovery:** Many features previously documented as "not created" actually exist with substantial implementations. The master status document provides accurate, verified information as of January 7, 2026.
+**Note — January 2026 files:** The master status document and most core docs
+listed below (`MASTER_STATUS_AND_ROADMAP_2026.md`, `PLATFORM_DOCUMENTATION.md`,
+`QUICK_REFERENCE.md`, `CHANGELOG.md`, etc.) are **no longer present** in the
+repo. Treat this README as a historical map. Use `FINDINGS_INDEX.md` for current
+status.
 
 ---
 
 ## 🎯 QUICK START
 
 **New to A.R.C.H.I.E.?** Start here:
-1. Read **MASTER_STATUS_AND_ROADMAP_2026.md** - Current status & roadmap (UPDATED!)
-2. Read **PLATFORM_DOCUMENTATION.md** - Complete overview
-3. Check **QUICK_REFERENCE.md** - One-page cheat sheet
-4. See **CHANGELOG.md** - Recent changes and version history
+1. Read **FINDINGS_INDEX.md** - Current, maintained feature/module findings
+2. Read **README.md** - This index (historical map)
 
 **System Administrator?** Go to:
-- **ADMIN_REFERENCE.md** - All admin commands
-- **BACKUP_RECOVERY_GUIDE.md** - Backup procedures
-- **DEPLOYMENT_CHECKLIST.md** - Deployment status
+- **FINDINGS_INDEX.md** - Cross-cutting gotchas
 
 **Developer?** Start here:
-- **DOCUMENTATION_STRATEGY.md** - Documentation best practices
-- **CHANGELOG.md** - Version history and changes
-- **ARCHIE_CONSCIOUSNESS.md** - Memory and awareness system
+- **FINDINGS_INDEX.md** - Module findings & how things ship
 
 ---
 

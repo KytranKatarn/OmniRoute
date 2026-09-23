@@ -10,7 +10,6 @@ var HeroAnimations = (function () {
     var _particleCtx = null;
     var _particles = [];
     var _particleRaf = null;
-    var _scrollY = 0;
     var _heroRect = null;
     var _isVisible = true;
 
@@ -156,7 +155,9 @@ var HeroAnimations = (function () {
     }
 
     /* ====================================================================
-       Animation 2: Particle Starfield (2D Canvas)
+       Animation 2: Constellation Network (2D Canvas)
+       70 nodes drifting with cyan connecting edges within 140px — ports the
+       design's startCanvas() algorithm 1:1 (Home.dc.html).
        ==================================================================== */
     function initParticles(hero) {
         // Skip on mobile for performance
@@ -172,11 +173,6 @@ var HeroAnimations = (function () {
         _resizeCanvas();
         window.addEventListener('resize', _resizeCanvas);
 
-        // Track scroll for parallax
-        window.addEventListener('scroll', function () {
-            _scrollY = window.pageYOffset || document.documentElement.scrollTop;
-        }, { passive: true });
-
         // Visibility API: pause when tab is hidden
         document.addEventListener('visibilitychange', function () {
             if (document.hidden) {
@@ -191,20 +187,14 @@ var HeroAnimations = (function () {
             }
         });
 
-        // Create particles
-        var count = 100;
+        // Create nodes (CSS-pixel space — matches the DPR-scaled draw context)
+        var count = 70;
         for (var i = 0; i < count; i++) {
             _particles.push({
-                x: Math.random() * _particleCanvas.width,
-                y: Math.random() * _particleCanvas.height,
-                size: 1 + Math.random() * 2,
-                speedX: (Math.random() - 0.5) * 0.4,
-                speedY: (Math.random() - 0.5) * 0.4,
-                opacity: 0.1 + Math.random() * 0.5,
-                baseOpacity: 0.1 + Math.random() * 0.5,
-                twinkleSpeed: 0.005 + Math.random() * 0.015,
-                twinklePhase: Math.random() * Math.PI * 2,
-                isCyan: Math.random() > 0.7
+                x: Math.random() * _heroRect.width,
+                y: Math.random() * _heroRect.height,
+                vx: (Math.random() - 0.5) * 0.35,
+                vy: (Math.random() - 0.5) * 0.35
             });
         }
 
@@ -231,42 +221,39 @@ var HeroAnimations = (function () {
 
         var w = _heroRect.width;
         var h = _heroRect.height;
+        var nodes = _particles;
+        var n = nodes.length;
 
         _particleCtx.clearRect(0, 0, w, h);
 
-        // Parallax offset based on scroll
-        var parallaxY = _scrollY * 0.15;
+        for (var i = 0; i < n; i++) {
+            var node = nodes[i];
+            node.x += node.vx;
+            node.y += node.vy;
+            if (node.x < 0 || node.x > w) node.vx *= -1;
+            if (node.y < 0 || node.y > h) node.vy *= -1;
+        }
 
-        for (var i = 0; i < _particles.length; i++) {
-            var p = _particles[i];
-
-            // Move
-            p.x += p.speedX;
-            p.y += p.speedY;
-
-            // Wrap around edges
-            if (p.x < -5) p.x = w + 5;
-            if (p.x > w + 5) p.x = -5;
-            if (p.y < -5) p.y = h + 5;
-            if (p.y > h + 5) p.y = -5;
-
-            // Twinkle
-            p.twinklePhase += p.twinkleSpeed;
-            p.opacity = p.baseOpacity + Math.sin(p.twinklePhase) * 0.2;
-            if (p.opacity < 0.05) p.opacity = 0.05;
-            if (p.opacity > 0.7) p.opacity = 0.7;
-
-            // Draw with parallax offset
-            var drawY = p.y - parallaxY % h;
-            if (drawY < 0) drawY += h;
-
-            _particleCtx.beginPath();
-            _particleCtx.arc(p.x, drawY, p.size, 0, Math.PI * 2);
-            if (p.isCyan) {
-                _particleCtx.fillStyle = 'rgba(0, 229, 255, ' + p.opacity + ')';
-            } else {
-                _particleCtx.fillStyle = 'rgba(255, 255, 255, ' + p.opacity + ')';
+        for (var a = 0; a < n; a++) {
+            for (var b = a + 1; b < n; b++) {
+                var na = nodes[a], nb = nodes[b];
+                var d = Math.hypot(na.x - nb.x, na.y - nb.y);
+                if (d < 140) {
+                    _particleCtx.strokeStyle = 'rgba(0,229,255,' + ((1 - d / 140) * 0.25) + ')';
+                    _particleCtx.lineWidth = 1;
+                    _particleCtx.beginPath();
+                    _particleCtx.moveTo(na.x, na.y);
+                    _particleCtx.lineTo(nb.x, nb.y);
+                    _particleCtx.stroke();
+                }
             }
+        }
+
+        for (var j = 0; j < n; j++) {
+            var p = nodes[j];
+            _particleCtx.fillStyle = 'rgba(0,229,255,0.7)';
+            _particleCtx.beginPath();
+            _particleCtx.arc(p.x, p.y, 1.6, 0, Math.PI * 2);
             _particleCtx.fill();
         }
 

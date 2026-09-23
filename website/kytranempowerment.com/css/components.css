@@ -197,6 +197,36 @@
     flex-shrink: 0;
 }
 
+/* Cart badge link (site-wide nav; count from the store backend cart) */
+.nav__cart-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-nav);
+    font-size: 0.8rem;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-primary);
+    white-space: nowrap;
+}
+.nav__cart-link[hidden] {
+    display: none;
+}
+.nav__cart-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #0a0a1a;
+    background: var(--color-primary);
+    border-radius: 999px;
+}
+
 /* Globe icon button */
 .nav__lang-btn {
     display: flex;

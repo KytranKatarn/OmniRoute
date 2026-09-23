@@ -201,6 +201,56 @@ var Nav = (function () {
         });
     }
 
+    /* ---- Cart badge (design Nav: hidden when empty; reads the backend cart) ---- */
+    function bindCartBadge() {
+        var actions = document.querySelector('.nav__actions');
+        if (!actions) return;
+
+        var link = document.createElement('a');
+        link.href = 'cart.html';
+        link.className = 'nav__cart-link';
+        link.title = 'Cart';
+        link.setAttribute('hidden', '');
+        link.innerHTML = 'Cart <span class="nav__cart-badge">0</span>';
+        var cta = actions.querySelector('.nav__link--cta');
+        actions.insertBefore(link, cta || actions.querySelector('.nav__menu-btn'));
+        var badge = link.querySelector('.nav__cart-badge');
+        var timer = null;
+
+        function refresh() {
+            var sid = null;
+            try { sid = localStorage.getItem('userSessionId'); } catch (e) {}
+            if (!sid) { link.setAttribute('hidden', ''); return; }
+            fetch('https://business.kytranempowerment.com/plugins/store/api/cart/' + sid)
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    var items = (data && data.cart_items) || [];
+                    var count = items.reduce(function (t, i) { return t + (i.quantity || 0); }, 0);
+                    if (count > 0) {
+                        badge.textContent = String(count);
+                        link.removeAttribute('hidden');
+                    } else {
+                        link.setAttribute('hidden', '');
+                    }
+                })
+                .catch(function () {});
+        }
+
+        function start() {
+            if (timer === null) { timer = setInterval(refresh, 1500); }
+            refresh();
+        }
+        function stop() {
+            if (timer !== null) { clearInterval(timer); timer = null; }
+        }
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) stop(); else start();
+        });
+        window.addEventListener('pageshow', refresh);
+        start();
+    }
+
     /* ---- Init ---- */
     function init() {
         menuBtn = document.querySelector('.nav__menu-btn');
@@ -216,6 +266,7 @@ var Nav = (function () {
         highlightActiveLang();
         bindEscape();
         bindScroll();
+        bindCartBadge();
         fadeInPage();
     }
 

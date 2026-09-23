@@ -371,16 +371,34 @@
     <main data-barba="container" data-barba-namespace="books">
         <section class="hero">
             <div class="hero__content container">
-                <h1 class="hero__title gradient-text">Books</h1>
+                <h1 class="hero__title gradient-text" data-i18n="books.hero_title">Our Books</h1>
             </div>
         </section>
 
         <section class="section">
-            <div class="container" style="text-align:center;max-width:600px;margin:0 auto;padding:4rem 1.5rem;">
-                <div class="glass-panel" style="padding:3rem 2rem;">
-                    <h2 class="section__title gradient-text" style="margin-bottom:1rem;">Coming Soon</h2>
-                    <p style="color:var(--text-secondary,#8892a4);line-height:1.8;margin-bottom:2rem;">Our book collection is coming soon. Stay tuned for curated reads on AI, business, and technology.</p>
-                    <a href="index.html" class="btn btn--primary">Back to Home</a>
+            <div class="container" style="max-width:900px;">
+                <div class="books-intro">
+                    <h2 class="section__title gradient-text" style="margin-bottom:1.25rem;" data-i18n="books.intro_title">Expand Your Mind</h2>
+                    <p data-i18n="books.intro_text">Dive deeper into the principles of strategy, finance, and personal growth with our upcoming collection of books. These resources are designed to equip you with actionable insights for real-world impact.</p>
+                </div>
+
+                <div class="book-grid" data-stagger>
+                    <div class="glass-panel book-card">
+                        <div class="book-cover-placeholder" data-i18n="books.cover_label">Book Cover</div>
+                        <h3 data-i18n="books.book_1_title">I Tried... Didn't Win...</h3>
+                        <p data-i18n="books.book_1_desc">A raw and honest guide to overcoming setbacks and redefining success on your terms.</p>
+                        <span class="book-cta" data-i18n="books.coming_soon">Coming Soon</span>
+                    </div>
+                    <div class="glass-panel book-card">
+                        <div class="book-cover-placeholder" data-i18n="books.cover_label">Book Cover</div>
+                        <h3 data-i18n="books.book_2_title">The Modern Man's Financial Playbook</h3>
+                        <p data-i18n="books.book_2_desc">Master financial literacy, wealth building, and asset protection strategies.</p>
+                        <span class="book-cta" data-i18n="books.coming_soon">Coming Soon</span>
+                    </div>
+                </div>
+
+                <div class="books-footer-note">
+                    <p data-i18n="books.footer_note">Both titles are currently in progress. Want to be notified at launch? <a href="contact.html" data-i18n="books.footer_note_link">Get in touch</a>.</p>
                 </div>
             </div>
         </section>

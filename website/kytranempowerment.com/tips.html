@@ -373,94 +373,223 @@
     <main data-barba="container" data-barba-namespace="tips">
         <section class="hero">
             <div class="hero__content container">
-                <h1 class="hero__title gradient-text">Community Tips &amp; Resources</h1>
-                <p class="tips-intro">Free resources for Explorer members and the Kytran community.</p>
+                <h1 class="hero__title gradient-text" data-i18n="tips.hero_title">Tips &amp; Tricks</h1>
+                <p class="tips-intro" data-i18n="tips.hero_subtitle">Hard-won lessons from building A.R.C.H.I.E. — a 50+ agent, 17-department AI platform.</p>
             </div>
         </section>
 
-        <!-- Getting Started -->
+        <!-- Claude Code Tips -->
         <section class="section">
             <div class="container">
-                <div class="tip-category" data-stagger>
-                    <div class="tip-category-header">
-                        <div class="tip-category-icon">&#x1F680;</div>
-                        <div>
-                            <h3>Getting Started</h3>
-                            <p>Everything you need to hit the ground running with the Kytran platform.</p>
-                        </div>
-                    </div>
-                    <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>Create Your Free Account</h4>
-                            <p>Sign up as an Explorer — no credit card required. Access the platform dashboard, AI Directors directory, and Trust Center from day one.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Explore the Products</h4>
-                            <p>Start with one Watch product that fits your business. Market, Civic, Legal, and Gov Watch are all available to Explorer members to preview.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Meet the AI Directors</h4>
-                            <p>17 departments, each led by a specialized AI Director. Browse the full roster to understand which agents will be working for your business.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Platform Tips -->
-        <section class="section">
-            <div class="container">
-                <div class="tip-category" data-stagger>
-                    <div class="tip-category-header">
-                        <div class="tip-category-icon">&#x1F4A1;</div>
-                        <div>
-                            <h3>Platform Tips</h3>
-                            <p>Get more out of your A.R.C.H.I.E. subscription with these practical tips.</p>
-                        </div>
-                    </div>
-                    <div class="tip-grid">
-                        <div class="glass-panel tip-card">
-                            <h4>Use Department HQ for Agent Tasks</h4>
-                            <p>All agent assignments flow through Department HQ. Dispatch tasks to the right department and let the agents handle execution autonomously.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Check the Knowledge Base</h4>
-                            <p>The platform maintains 25,700+ knowledge entries. Search before asking an agent to build something — the answer may already exist.</p>
-                        </div>
-                        <div class="glass-panel tip-card">
-                            <h4>Monitor with C.R.E.E.D.</h4>
-                            <p>Every agent action is governed by the C.R.E.E.D. ethics layer. Review the governance audit log to see every decision and its rationale.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- AI Best Practices -->
-        <section class="section">
-            <div class="container">
-                <div class="tip-category" data-stagger>
+                <div class="tip-category cat-claude" data-stagger>
                     <div class="tip-category-header">
                         <div class="tip-category-icon">&#x1F9E0;</div>
                         <div>
-                            <h3>AI Best Practices</h3>
-                            <p>Lessons from running a 50+ agent, 17-department AI platform in production.</p>
+                            <h3 data-i18n="tips.cat_claude_title">Claude Code Tips</h3>
+                            <p data-i18n="tips.cat_claude_subtitle">Maximize your productivity with Claude Code's project memory and context system.</p>
                         </div>
                     </div>
                     <div class="tip-grid">
                         <div class="glass-panel tip-card">
-                            <h4>Search Before Building</h4>
-                            <p>Always query your knowledge base before asking an AI to create something from scratch. Past decisions, patterns, and mistakes are all searchable.</p>
+                            <h4 data-i18n="tips.claude_1_title">CLAUDE.md Is Your Project Memory</h4>
+                            <p data-i18n="tips.claude_1_text">Put architecture decisions, patterns, and conventions in <code>CLAUDE.md</code>. Claude reads it every session. Think of it as your project's brain — the more precise it is, the better Claude performs.</p>
                         </div>
                         <div class="glass-panel tip-card">
-                            <h4>Two Strikes and Escalate</h4>
-                            <p>If an agent fails twice on the same task, escalate to a human. Don't let AI spiral through endless retries — know when to take over.</p>
+                            <h4 data-i18n="tips.claude_2_title">Split Rules by Domain</h4>
+                            <p data-i18n="tips.claude_2_text">Use <code>.claude/rules/</code> for domain-specific knowledge — database, frontend, dispatch, fleet, and more. Each file loads focused context for its area.</p>
                         </div>
                         <div class="glass-panel tip-card">
-                            <h4>Verify, Don't Trust</h4>
-                            <p>Never accept "done" without live proof. Every completed task should have a verifiable output — a screenshot, a log entry, a measurable result.</p>
+                            <h4 data-i18n="tips.claude_3_title">Search Before Building</h4>
+                            <p data-i18n="tips.claude_3_text">With tens of thousands of knowledge base entries, we never reinvent the wheel. Always search what exists first. Past decisions, mistakes, and patterns are all indexed and searchable.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.claude_4_title">Plan Mode for 3+ Steps</h4>
+                            <p data-i18n="tips.claude_4_text">Break complex work into phases. Get alignment before coding. Our rule: if a task touches 3+ files or involves architectural decisions, enter plan mode first.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.claude_5_title">Two Strikes and Ask</h4>
+                            <p data-i18n="tips.claude_5_text">If two attempts fail, stop and ask. Don't spiral through 20 tries. This single rule has saved us more time than any other. Know when to escalate.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.claude_6_title">Verify Everything</h4>
+                            <p data-i18n="tips.claude_6_text">Never claim done without live proof. Our workflow: edit, commit, deploy, test, then claim. Screenshots or it didn't happen. Anti-rationalization is a real pattern.</p>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- .md File Conventions -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-md" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F4DD;</div>
+                        <div>
+                            <h3 data-i18n="tips.cat_md_title">.md File Conventions</h3>
+                            <p data-i18n="tips.cat_md_subtitle">Structure your project knowledge for maximum AI comprehension and cross-session persistence.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.md_1_title">CLAUDE.md — Project Level</h4>
+                            <p data-i18n="tips.md_1_text">Architecture overview, key patterns, file locations, common errors, and deployment commands. This is the single source of truth for how your project works.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.md_2_title"><code>.claude/rules/*.md</code> — Domain Rules</h4>
+                            <p data-i18n="tips.md_2_text">Loaded per-session based on context. Database gotchas, frontend patterns, API conventions, deployment rules. Each file is a specialist's handbook.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.md_3_title">Memory Files — Cross-Session</h4>
+                            <p data-i18n="tips.md_3_text">User preferences, project state, behavioral feedback, reference data. These persist across conversations and keep Claude aligned with your working style.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.md_4_title">Spec Docs — Before Building</h4>
+                            <p data-i18n="tips.md_4_text">Design specs before implementation. Reviewed and approved before any code is written. Saves rework and ensures alignment on requirements.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.md_5_title">Decision Logs — ADRs</h4>
+                            <p data-i18n="tips.md_5_text">Log every architectural decision with context. Six months later, you'll know why you chose PostgreSQL over SQLite, or why agents are one-per-department.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.md_6_title">Mistake Logs — Learn Once</h4>
+                            <p data-i18n="tips.md_6_text">Store mistakes with a dedicated knowledge type that gets boosted search weight. The system actively prevents repeating costly errors.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Agent Coordination Patterns -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-agent" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F916;</div>
+                        <div>
+                            <h3 data-i18n="tips.cat_agent_title">Agent Coordination Patterns</h3>
+                            <p data-i18n="tips.cat_agent_subtitle">Patterns for orchestrating multi-agent AI systems at scale.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.agent_1_title">Central Dispatch, Always</h4>
+                            <p data-i18n="tips.agent_1_text">All LLM calls route through a central dispatcher. Never call models directly from modules. This gives you logging, routing, fallback, and governance in one place.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.agent_2_title">Department-Based Routing</h4>
+                            <p data-i18n="tips.agent_2_text">Organize agents by business function, not abstract categories. Analytics, Creative, Engineering, Security — each department has specialists with relevant skills.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.agent_3_title">Warm Boot Priority</h4>
+                            <p data-i18n="tips.agent_3_text">Keep critical models loaded in GPU/RAM. Share LLMs across agents in the same department. A cold-loaded large model can take minutes — warm boot is instant.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.agent_4_title">Escalation Chains</h4>
+                            <p data-i18n="tips.agent_4_text">Local department → same floor → cross-department → fleet node → cloud fallback. Each level adds latency but widens capability. Most tasks resolve at tier 1.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.agent_5_title">Agent Welfare Matters</h4>
+                            <p data-i18n="tips.agent_5_text">Track agent workload, rest cycles, and stress. It sounds whimsical, but it enforces real constraints: concurrent-job caps, mandatory cooldowns, shift rotations.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.agent_6_title">Approval Tiers</h4>
+                            <p data-i18n="tips.agent_6_text">Tier 1 (auto): notifications, knowledge-base updates, internal logs. Tier 2 (human): cloud escalation, agent creation, cost-sensitive ops. Autonomous doesn't mean uncontrolled.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Operations & Infrastructure -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-ops" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x2699;&#xFE0F;</div>
+                        <div>
+                            <h3 data-i18n="tips.cat_ops_title">Operations &amp; Infrastructure</h3>
+                            <p data-i18n="tips.cat_ops_subtitle">Production lessons from running a self-hosted AI platform 24/7.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.ops_1_title">Self-Host Everything</h4>
+                            <p data-i18n="tips.ops_1_text">Full data sovereignty. No vendor lock-in. Our platform runs local-first on Canadian-owned hardware. Cloud is a fallback, not a dependency.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.ops_2_title">Docker for Isolation</h4>
+                            <p data-i18n="tips.ops_2_text">Platform, database, and generation services each run in separate containers. One restart doesn't take down everything. Compose files make the whole stack reproducible.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.ops_3_title">Model Tiers: GPU &gt; CPU &gt; Cold</h4>
+                            <p data-i18n="tips.ops_3_text">Three-tier model management. GPU for fast inference, CPU for capacity, cold storage on disk. Auto-promote on demand, auto-demote on idle. VRAM is precious.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.ops_4_title">Background Jobs, Not Blocking</h4>
+                            <p data-i18n="tips.ops_4_text">Dozens of scheduled background jobs handle monitoring, scanning, training, and maintenance. Users never wait. Return a job ID immediately, process asynchronously.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.ops_5_title">Idempotent Migrations</h4>
+                            <p data-i18n="tips.ops_5_text">Every database migration uses <code>IF NOT EXISTS</code> and <code>ON CONFLICT DO UPDATE</code>. Run them twice, ten times — same result. No fear of re-running.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.ops_6_title">Monitor Model VRAM, Not Just Disk</h4>
+                            <p data-i18n="tips.ops_6_text">A model's on-disk size understates its runtime footprint with context loaded. Always account for context-window inflation before sizing hardware.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Open Source Skills & Tools -->
+        <section class="section">
+            <div class="container">
+                <div class="tip-category cat-github" data-stagger>
+                    <div class="tip-category-header">
+                        <div class="tip-category-icon">&#x1F310;</div>
+                        <div>
+                            <h3 data-i18n="tips.cat_github_title">Open Source Skills &amp; Tools</h3>
+                            <p data-i18n="tips.cat_github_subtitle">Skills we've built and shared on GitHub — use them in your own projects.</p>
+                        </div>
+                    </div>
+                    <div class="tip-grid">
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.gh_1_title">A.R.C.H.I.E. Code CLI</h4>
+                            <p data-i18n="tips.gh_1_text">Open-source CLI for AI-powered development — session memory, knowledge base search, a multi-agent workflow. GitHub: <a href="https://github.com/KytranKatarn/archie-code" target="_blank" rel="noopener">KytranKatarn/archie-code</a></p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.gh_2_title">Claude Code Skills</h4>
+                            <p data-i18n="tips.gh_2_text">Custom skills for Claude Code: brainstorming, TDD, code review, plan execution. Install them in any project.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.gh_3_title">MCP Server Integration</h4>
+                            <p data-i18n="tips.gh_3_text">Model Context Protocol servers for platform integration. Connect any AI tool to A.R.C.H.I.E.'s knowledge base.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.gh_4_title">Session Persistence Hooks</h4>
+                            <p data-i18n="tips.gh_4_text">Hook system for cross-session memory. Never lose context between conversations. Auto-saves decisions, mistakes, preferences.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.gh_5_title">Self-Healing Pipeline</h4>
+                            <p data-i18n="tips.gh_5_text">Automated code scanning, proposal generation, and sandboxed fixes. The platform improves itself daily.</p>
+                        </div>
+                        <div class="glass-panel tip-card">
+                            <h4 data-i18n="tips.gh_6_title">Compliance Rule Packs</h4>
+                            <p data-i18n="tips.gh_6_text">JSON-driven compliance scanning: STIG, HIPAA, SOC 2, CIS. Add rules without code changes.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- GitHub CTA -->
+        <section class="section" style="text-align:center;">
+            <div class="container" style="max-width:600px;">
+                <div class="glass-panel" style="padding:3rem 2rem;">
+                    <h2 class="section__title gradient-text" style="margin-bottom:1rem;" data-i18n="tips.gh_cta_title">Want to See the Code?</h2>
+                    <p style="color:var(--text-secondary,#8892a4);line-height:1.8;margin-bottom:2rem;" data-i18n="tips.gh_cta_text">Everything we build is designed to be shared. Check out our open-source tools and contribute to the community.</p>
+                    <a href="https://github.com/KytranKatarn" target="_blank" rel="noopener" class="btn btn--primary btn--lg magnetic" data-i18n="tips.gh_cta_button">View on GitHub &rarr;</a>
                 </div>
             </div>
         </section>
@@ -469,9 +598,9 @@
         <section class="section" style="text-align:center;">
             <div class="container" style="max-width:600px;">
                 <div class="glass-panel" style="padding:3rem 2rem;">
-                    <h2 class="section__title gradient-text" style="margin-bottom:1rem;">Join as Explorer &mdash; it's free</h2>
-                    <p style="color:var(--text-secondary,#8892a4);line-height:1.8;margin-bottom:2rem;">Get access to the platform dashboard, AI Directors, Trust Center, and community resources. No credit card required.</p>
-                    <a href="https://platform.kytranempowerment.com/signup" class="btn btn--primary btn--lg magnetic">Get Started Free &rarr;</a>
+                    <h2 class="section__title gradient-text" style="margin-bottom:1rem;" data-i18n="tips.explorer_cta_title">Join as Explorer &mdash; it's free</h2>
+                    <p style="color:var(--text-secondary,#8892a4);line-height:1.8;margin-bottom:2rem;" data-i18n="tips.explorer_cta_text">Get access to the platform dashboard, AI Directors, Trust Center, and community resources. No credit card required.</p>
+                    <a href="https://platform.kytranempowerment.com/signup" class="btn btn--primary btn--lg magnetic" data-i18n="tips.explorer_cta_button">Get Started Free &rarr;</a>
                 </div>
             </div>
         </section>

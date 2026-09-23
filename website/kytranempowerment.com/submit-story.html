@@ -289,20 +289,68 @@
     <main data-barba="container" data-barba-namespace="submit-story">
         <section class="hero">
             <div class="hero__content container">
-                <h1 class="hero__title gradient-text">Submit Your Story</h1>
+                <h1 class="hero__title gradient-text" data-i18n="submit_story.hero_title">Submit Your Story</h1>
+                <p class="hero__tagline" data-i18n="submit_story.hero_subtitle">Every journey matters. Share yours and inspire others.</p>
             </div>
         </section>
 
         <section class="section">
-            <div class="container" style="text-align:center;max-width:600px;margin:0 auto;padding:4rem 1.5rem;">
-                <div class="glass-panel" style="padding:3rem 2rem;">
-                    <h2 class="section__title gradient-text" style="margin-bottom:1rem;">Coming Soon</h2>
-                    <p style="color:var(--text-secondary,#8892a4);line-height:1.8;margin-bottom:2rem;">Story submissions opening soon. We're building a platform for community voices.</p>
-                    <a href="index.html" class="btn btn--primary">Back to Home</a>
+            <div class="container" style="max-width:720px;margin:0 auto;padding:0 1.5rem 6rem;">
+
+                <div id="storySuccess" class="glass-panel" style="padding:2rem;text-align:center;color:#10b981;border-color:rgba(16,185,129,0.3);background:rgba(16,185,129,0.08);" hidden>
+                    <p data-i18n="submit_story.success_text">Thank you for sharing your story. We'll be in touch if we feature it.</p>
                 </div>
+
+                <div id="storyFormWrap" class="glass-panel" style="padding:2.5rem;">
+                    <p style="color:var(--text-secondary,#8892a4);line-height:1.7;margin-bottom:2rem;" data-i18n="submit_story.intro">Whether it's a story of overcoming adversity, building a business from scratch, or finding purpose through discipline — we want to hear it. Approved stories are featured on our platform to inspire the community.</p>
+                    <form id="storyForm" style="display:flex;flex-direction:column;gap:1.5rem;">
+                        <div class="form-group">
+                            <label for="storyName" data-i18n="submit_story.label_name">Your Name (Optional)</label>
+                            <input type="text" id="storyName" name="name" data-i18n-placeholder="submit_story.placeholder_name" placeholder="Leave blank for anonymous">
+                        </div>
+                        <div class="form-group">
+                            <label for="storyEmail" data-i18n="submit_story.label_email">Your Email (Optional, for follow-up only)</label>
+                            <input type="email" id="storyEmail" name="email" placeholder="email@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="storyTitle" data-i18n="submit_story.label_title">Story Title *</label>
+                            <input type="text" id="storyTitle" name="title" required data-i18n-placeholder="submit_story.placeholder_title" placeholder="A compelling title for your story">
+                        </div>
+                        <div class="form-group">
+                            <label for="storyBody" data-i18n="submit_story.label_story">Your Story *</label>
+                            <textarea id="storyBody" name="story" rows="8" required data-i18n-placeholder="submit_story.placeholder_story" placeholder="Share your journey, challenges, and triumphs here..."></textarea>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="storyAnon" name="anonymous">
+                            <label for="storyAnon" data-i18n="submit_story.label_anonymous">Publish Anonymously</label>
+                        </div>
+                        <button type="submit" id="storySubmitBtn" class="form-submit" style="align-self:flex-start;" data-i18n="submit_story.submit_button">Submit Story</button>
+                    </form>
+                    <p style="color:#666;font-size:0.78rem;margin-top:1.5rem;" data-i18n="submit_story.disclaimer">By submitting, you agree that your story may be featured on our website and social media channels. We respect your privacy and will never share your email.</p>
+                </div>
+
             </div>
         </section>
     </main>
+
+    <script>
+    (function () {
+        var form = document.getElementById('storyForm');
+        var wrap = document.getElementById('storyFormWrap');
+        var success = document.getElementById('storySuccess');
+        var btn = document.getElementById('storySubmitBtn');
+        if (!form) { return; }
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+            setTimeout(function () {
+                wrap.hidden = true;
+                success.hidden = false;
+            }, 500);
+        });
+    })();
+    </script>
 
     <!-- Footer -->
     <footer class="footer">

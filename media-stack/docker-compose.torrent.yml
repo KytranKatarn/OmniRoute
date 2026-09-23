@@ -78,7 +78,7 @@ services:
       - DOT=off
       - UPDATER_PERIOD=24h
     volumes:
-      - /mnt/Plex/config/gluetun:/gluetun
+      - /mnt/data2/plex-config/gluetun:/gluetun
     healthcheck:
       test: ["CMD", "wget", "-qO-", "https://ipinfo.io/ip"]
       interval: 30s
@@ -106,13 +106,13 @@ services:
       - TZ=America/Toronto
       - WEBUI_PORT=8088
     volumes:
-      - /mnt/Plex/config/qbittorrent:/config
-      # Sonarr mounts /mnt/Plex/downloads at /downloads, so it sees completed
+      - /mnt/data2/plex-config/qbittorrent:/config
+      # Sonarr mounts /mnt/data2/downloads at /downloads, so it sees completed
       # torrents at /downloads/torrents with no extra mount and no remote-path
       # mapping. NOTE: this is on /dev/sdb, the FAILING 3TB disk (1,736
       # uncorrectable sectors, task #5385) — move to healthy storage when that
       # drive is replaced.
-      - /mnt/Plex/downloads/torrents:/downloads/torrents
+      - /mnt/data2/downloads/torrents:/downloads/torrents
     deploy:
       resources:
         limits:

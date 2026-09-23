@@ -354,13 +354,14 @@ def register_github_routes(bp, admin_required):
         data = request.get_json() or {}
         branch = data.get("branch", "").strip()
         files = data.get("files", [])
+        removed = data.get("removed", [])
         message = data.get("message", "").strip()
         if not branch or not files or not message:
             return (
                 jsonify({"success": False, "error": "branch, files, and message required"}),
                 400,
             )
-        return jsonify(push_changes(branch, files, message))
+        return jsonify(push_changes(branch, files, message, removed=removed))
 
     @bp.route("/api/forge/issues", methods=["POST"])
     @login_required

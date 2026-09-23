@@ -376,18 +376,44 @@ def delete_branch(branch_name: str, remote: bool = True) -> Dict:
     return {"success": True, "branch": branch_name}
 
 
+def _resolve_source(path: str) -> Optional[str]:
+    """Locate the on-disk source for a repo path, across mount roots.
+
+    The archie_platform container does NOT mount the repo at one root: platform_v2/
+    lives at /app while REPO_PATH (/mnt/archie_brain) holds ai_bridge/, docs/,
+    scripts/, etc. A push that only looks under REPO_PATH therefore saw every
+    platform_v2/* "missing" and — before #6760 — staged those paths as silent
+    deletions (the PR #3439 incident). Resolve across both roots; content is
+    identical either way (mirrors _patched_content in forge_pipeline).
+    """
+    candidates = [os.path.join(REPO_PATH, path)]
+    if path.startswith("platform_v2/"):
+        candidates.append(os.path.join("/app", path[len("platform_v2/") :]))
+    return next((c for c in candidates if os.path.isfile(c)), None)
+
+
 def push_changes(
-    branch_name: str, files: List[str], commit_message: str, content_overrides: Dict[str, str] = None
+    branch_name: str,
+    files: List[str],
+    commit_message: str,
+    content_overrides: Dict[str, str] = None,
+    removed: List[str] = None,
 ) -> Dict:
     """Stage files, commit, and push to a branch — in the local clone (#3926).
 
-    File CONTENT comes from REPO_PATH, where the pipeline wrote it (READING
-    the shared tree is safe — we just never run git there): each listed path
-    is copied into the clone, or staged as a deletion when missing. Sparse
-    checkout of only the touched paths keeps tmpfs usage minimal.
+    File CONTENT comes from the repository root(s) where the pipeline wrote it
+    (READING the shared tree is safe — we just never run git there): RESOLVED
+    across the container's mount roots (_resolve_source). Sparse checkout of
+    only the touched paths keeps tmpfs usage minimal.
+
+    Deletions are EXPLICIT (#6760): the default is fail-closed. A path listed
+    in `files` that cannot be sourced from any root is an ERROR — it is never
+    silently staged as a removal (that silence deleted app.py etc. in PR #3439).
+    To actually delete a file, pass it in `removed`; it must exist in `files`
+    or it is rejected.
 
     content_overrides (spec 2026-08-26 principle 5): {path: content} written
-    into the CLONE directly instead of copied from REPO_PATH — so a fix can
+    into the CLONE directly instead of copied from the repo root — so a fix can
     ship as a PR without the shared (live, volume-mounted) tree ever being
     written. Paths in it pass the same traversal/escape guards as everything
     else in `files`.
@@ -437,9 +463,24 @@ def push_changes(
         return {"success": False, "error": f"Checkout failed: {err2}"}
 
     overrides = content_overrides or {}
+    removed_set = set(removed or [])
+    # Enforce the _removed files must also be listed in `files`_ contract so a
+    # typo'd removal path fails loudly instead of being silently ignored (and so
+    # the sparse-checkout below actually contains the path for `git rm`).
+    for rpath in removed_set:
+        if rpath not in safe_files:
+            return {
+                "success": False,
+                "error": f"cannot delete {rpath!r}: it is in `removed` but not in `files`. "
+                "Every path in `removed` must also be listed in `files` (the sparse checkout "
+                "only materializes `files`).",
+            }
     clone_real = os.path.realpath(CLONE_PATH)
+    # Every file must be either override-sourced, root-sourced, or declared in
+    # `removed`. Anything else is fail-closed (PR #3439 deleted six platform_v2
+    # files because a missing source was silently treated as an intent to delete).
     for f in safe_files:
-        src = os.path.join(REPO_PATH, f)
+        src = _resolve_source(f)
         dst = os.path.join(CLONE_PATH, f)
         # Symlinked dirs inside the clone could redirect dst outside tmpfs.
         if os.path.commonpath([os.path.realpath(dst), clone_real]) != clone_real:
@@ -451,14 +492,28 @@ def push_changes(
             with open(dst, "w") as fh:
                 fh.write(overrides[f])
             _run_git_clone(["add", "--", f])
-        elif os.path.exists(src):
+        elif f in removed_set:
+            _run_git_clone(["rm", "--ignore-unmatch", "-q", "--", f])
+        elif src is not None:
             dst_dir = os.path.dirname(dst)
             if dst_dir:
                 os.makedirs(dst_dir, exist_ok=True)
             shutil.copy2(src, dst)
             _run_git_clone(["add", "--", f])
         else:
-            _run_git_clone(["rm", "--ignore-unmatch", "-q", "--", f])
+            logger.error(
+                "push_changes REFUSED: %s listed but found under no root and not declared in removed "
+                "(refusing to stage an accidental deletion — PR #3439)",
+                f,
+            )
+            return {
+                "success": False,
+                "error": (
+                    f"cannot stage {f}: not found under {REPO_PATH} (or /app) and not listed in `removed`. "
+                    "Refusing to stage an accidental deletion. Use content_overrides to provide content "
+                    "or pass the path in removed to delete it."
+                ),
+            }
 
     ok, _, _ = _run_git_clone(["diff", "--cached", "--quiet"])
     if ok:

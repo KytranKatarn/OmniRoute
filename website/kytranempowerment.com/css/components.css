@@ -581,6 +581,34 @@
     margin-bottom: var(--space-md);
 }
 
+/* Hex icon badge — Claude Design's icon container (Home features/products/trust, About values) */
+.hex-badge {
+    width: 46px;
+    height: 46px;
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    background: rgba(0, 229, 255, 0.06);
+    color: #00e5ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto var(--space-md);
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.hex-badge--lg {
+    width: 50px;
+    height: 50px;
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+}
+
+.hex-badge--product {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: currentColor;
+}
+
 .card__title {
     font-family: var(--font-heading);
     font-size: var(--text-lg);

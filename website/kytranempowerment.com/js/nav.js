@@ -156,6 +156,51 @@ var Nav = (function () {
         });
     }
 
+    /* ---- Scroll shadow + back-to-top ---- */
+    function bindScroll() {
+        var navEl = document.querySelector('.nav');
+        var topBtn = document.getElementById('backToTop');
+        if (!navEl && !topBtn) return;
+
+        function reposition() {
+            if (!topBtn) return;
+            var consented = false;
+            try { consented = !!localStorage.getItem('ke-cookie-consent'); } catch (e) { /* noop */ }
+            var banner = document.getElementById('cookieConsent');
+            var bannerShown = banner && banner.style.display !== 'none' && !consented;
+            topBtn.style.bottom = bannerShown ? '6rem' : '1.5rem';
+        }
+
+        function onScroll() {
+            var y = window.scrollY || document.documentElement.scrollTop;
+            if (navEl) navEl.classList.toggle('nav--scrolled', y > 40);
+            if (topBtn) topBtn.classList.toggle('back-to-top--visible', y > 500);
+            reposition();
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+
+        if (topBtn) {
+            topBtn.addEventListener('click', function () {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+    }
+
+    /* ---- Page fade-in on mount ---- */
+    function fadeInPage() {
+        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduceMotion) return;
+        document.body.style.transition = 'opacity 0.35s ease';
+        document.body.style.opacity = '0';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                document.body.style.opacity = '1';
+            });
+        });
+    }
+
     /* ---- Init ---- */
     function init() {
         menuBtn = document.querySelector('.nav__menu-btn');
@@ -170,6 +215,8 @@ var Nav = (function () {
         bindLangButtons();
         highlightActiveLang();
         bindEscape();
+        bindScroll();
+        fadeInPage();
     }
 
     return {

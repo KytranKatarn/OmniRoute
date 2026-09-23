@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en" data-barba="wrapper">
+<head>
+    <!-- Google Analytics (fires only after consent) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-259QFNHSSN"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('consent', 'default', { analytics_storage: 'denied' });
+      if (localStorage.getItem('ke-cookie-consent') === 'accepted') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-259QFNHSSN', { anonymize_ip: true });
+      }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trust Center — Kytran Empowerment</title>
+    <meta name="description" content="Kytran Empowerment Trust Center — live compliance posture across SOC 2, DISA STIG, HIPAA, and CIS, continuously verified by our S.H.I.E.L.D. automated scanning engine.">
+    <meta property="og:title" content="Trust Center — Kytran Empowerment">
+    <meta property="og:description" content="Live compliance scores, SOC 2 evidence, and AI governance posture — continuously verified, not self-declared.">
+    <meta property="og:url" content="https://www.kytranempowerment.com/compliance.html">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#0a0a1a">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="favicon.ico" sizes="32x32">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/base.css?v=20260407q">
+    <link rel="stylesheet" href="css/components.css?v=20260407q">
+    <link rel="stylesheet" href="css/responsive.css?v=20260407q">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260407q">
+
+    <style>
+        /* Trust Center page-specific styles */
+        .tc-hero { text-align: center; }
+        .tc-hero__sub {
+            max-width: 640px;
+            margin: 1.25rem auto 0;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: var(--text-lg, 1.15rem);
+        }
+
+        .tc-grid-5 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        .tc-soc2-card {
+            padding: 1.5rem;
+            border-radius: 12px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+        .tc-soc2-card__mark {
+            color: #00e5ff;
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+        .tc-soc2-card__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 0.95rem;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .tc-soc2-card__desc {
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.55);
+            line-height: 1.5;
+        }
+
+        .tc-creed-callout {
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .tc-creed-callout__lead {
+            color: rgba(255, 255, 255, 0.55);
+            margin-bottom: 1.5rem;
+        }
+        .tc-creed-callout__score {
+            font-size: 0.9rem;
+            color: #c9a44c;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 1.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .tc-scores-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .tc-score-card {
+            padding: 1.75rem;
+            border-radius: 12px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 3px solid var(--tc-accent, #10b981);
+            text-align: center;
+        }
+        .tc-score-card__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1.05rem;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .tc-score-card__status {
+            font-size: 0.75rem;
+            color: var(--tc-accent, #10b981);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.75rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .tc-ring-wrap {
+            position: relative;
+            width: 110px;
+            height: 110px;
+            margin: 0 auto 0.5rem;
+        }
+        .tc-ring-wrap svg { width: 110px; height: 110px; transform: rotate(-90deg); }
+        .tc-ring-track { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 8; }
+        .tc-ring-value { fill: none; stroke: var(--tc-accent, #10b981); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 326.7; }
+        .tc-ring-num {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: #fff;
+        }
+        .tc-score-card__label {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .tc-score-card__detail {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.55);
+            line-height: 1.6;
+        }
+
+        .tc-mini-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        .tc-mini-card {
+            padding: 1.25rem;
+            border-radius: 10px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+        .tc-mini-card__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 0.85rem;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .tc-mini-card__score {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #00e5ff;
+        }
+        .tc-mini-card__detail {
+            font-size: 0.72rem;
+            color: rgba(255, 255, 255, 0.45);
+        }
+
+        .tc-monitor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        .tc-monitor-item {
+            padding: 1.1rem 1.25rem;
+            border-radius: 10px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+        .tc-monitor-item__check {
+            color: #10b981;
+            flex-shrink: 0;
+            margin-top: 0.15rem;
+        }
+        .tc-monitor-item__text {
+            font-size: 0.88rem;
+            color: #fff;
+            margin-bottom: 0.2rem;
+        }
+        .tc-monitor-item__sub {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .tc-scanstats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .tc-scanstat {
+            padding: 1.25rem;
+            border-radius: 10px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .tc-scanstat__value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #00e5ff;
+        }
+        .tc-scanstat__label {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .tc-framework-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .tc-framework-card {
+            padding: 1.5rem;
+            border-radius: 10px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .tc-framework-card__head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.6rem;
+            flex-wrap: wrap;
+        }
+        .tc-framework-card__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1rem;
+            color: #fff;
+        }
+        .tc-framework-card__badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.7rem;
+            border-radius: 999px;
+            white-space: nowrap;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .tc-framework-card__desc {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.55);
+            line-height: 1.6;
+        }
+
+        .tc-governance-card {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 2rem;
+            border-radius: 12px;
+            background: rgba(10, 10, 30, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+        .tc-governance-card__title {
+            font-family: 'Antonio', sans-serif;
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 0.75rem;
+        }
+        .tc-governance-card__text {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        .tc-contact { text-align: center; }
+        .tc-contact-email {
+            display: block;
+            margin-bottom: 1.5rem;
+            color: #00e5ff;
+            text-decoration: none;
+        }
+        .tc-contact-email:hover { color: #8b5cf6; }
+        .tc-contact-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        .tc-verified {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        @media (max-width: 480px) {
+            .tc-mini-grid { grid-template-columns: 1fr; }
+            .tc-contact-buttons { flex-direction: column; align-items: center; }
+        }
+    </style>
+
+    <link rel="canonical" href="https://kytranempowerment.com/compliance.html">
+    <meta property="og:image" content="https://kytranempowerment.com/assets/og-default.png">
+    <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+    <!-- Global background layers -->
+    <div class="aurora"></div>
+    <div class="dot-grid"></div>
+    <div class="noise-overlay"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+
+    <!-- Navigation -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav__inner">
+        <a href="/" class="nav__brand">
+          <img src="assets/logo-sm.png" alt="Kytran Empowerment logo" class="nav__logo-img">
+          <span class="nav__brand-text">Kytran Empowerment</span>
+        </a>
+
+        <div class="nav__links">
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.products">Products</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="platform.html" class="nav__dropdown-item" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+              <a href="archie-code.html" class="nav__dropdown-item" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="market-watch.html" class="nav__dropdown-item" data-i18n="nav.market_watch">Market Watch</a>
+              <a href="civic-watch.html" class="nav__dropdown-item" data-i18n="nav.civic_watch">Civic Watch</a>
+              <a href="legal-watch.html" class="nav__dropdown-item" data-i18n="nav.legal_watch">Legal Watch</a>
+              <a href="gov-watch.html" class="nav__dropdown-item" data-i18n="nav.gov_watch">Gov Watch</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="business-suite.html" class="nav__dropdown-item" data-i18n="nav.business_suite">Business Suite</a>
+              <a href="system-operations.html" class="nav__dropdown-item" data-i18n="nav.sysops">System Operations</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.services">Services</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="services.html" class="nav__dropdown-item" data-i18n="nav.all_services">All Services</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="website-services.html" class="nav__dropdown-item">Website Design &amp; Hosting</a>
+              <a href="security-services.html" class="nav__dropdown-item">Security Testing</a>
+              <a href="ai-services.html" class="nav__dropdown-item">AI Automation</a>
+              <a href="compliance-services.html" class="nav__dropdown-item" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+              <div class="nav__dropdown-divider"></div>
+              <a href="membership.html" class="nav__dropdown-item" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.trust">Trust</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="compliance.html" class="nav__dropdown-item" data-i18n="nav.trust_center">Trust Center</a>
+              <a href="competitors.html" class="nav__dropdown-item" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+              <a href="creed.html" class="nav__dropdown-item" data-i18n="nav.creed">C.R.E.E.D.</a>
+            </div>
+          </div>
+
+          <div class="nav__dropdown">
+            <button class="nav__link nav__dropdown-trigger" aria-expanded="false" aria-haspopup="true">
+              <span data-i18n="nav.company">Company</span>
+              <svg class="nav__chevron" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            </button>
+            <div class="nav__dropdown-menu">
+              <a href="about.html" class="nav__dropdown-item" data-i18n="nav.about">About</a>
+              <a href="vision.html" class="nav__dropdown-item" data-i18n="nav.vision">Vision</a>
+              <a href="ai-directors.html" class="nav__dropdown-item" data-i18n="nav.ai_directors">AI Directors</a>
+              <a href="directory.html" class="nav__dropdown-item" data-i18n="nav.directory">Directory</a>
+              <a href="tips.html" class="nav__dropdown-item" data-i18n="nav.tips">Tips &amp; Tricks</a>
+              <a href="links.html" class="nav__dropdown-item" data-i18n="nav.links">Programs &amp; Resources</a>
+              <a href="submit-story.html" class="nav__dropdown-item" data-i18n="nav.submit_story">Submit Your Story</a>
+            </div>
+          </div>
+
+          <a href="store.html" class="nav__link" data-i18n="nav.store">Store</a>
+          <a href="contact.html" class="nav__link" data-i18n="nav.contact">Contact</a>
+        </div>
+
+        <div class="nav__actions">
+          <button class="nav__lang-btn" aria-label="Change language" title="Change language">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <a href="membership.html" class="nav__link nav__link--cta" data-i18n="nav.get_started">Get Started</a>
+          <button class="nav__menu-btn" aria-label="Toggle menu" aria-expanded="false">
+            <span class="nav__menu-icon"></span>
+          </button>
+        </div>
+      </div>
+
+
+    </nav>
+
+    <div class="lang-overlay" hidden>
+      <div class="lang-overlay__panel">
+        <button class="lang-overlay__close" aria-label="Close language selector">&times;</button>
+        <h3 class="lang-overlay__title" data-i18n="lang.choose">Choose Language</h3>
+        <div class="lang-overlay__grid">
+          <button class="lang-overlay__btn" data-lang="en">English</button>
+          <button class="lang-overlay__btn" data-lang="fr">Fran&ccedil;ais (QC)</button>
+          <button class="lang-overlay__btn" data-lang="es">Espa&ntilde;ol</button>
+          <button class="lang-overlay__btn" data-lang="pt">Portugu&ecirc;s</button>
+          <button class="lang-overlay__btn" data-lang="de">Deutsch</button>
+          <button class="lang-overlay__btn" data-lang="zh">&#20013;&#25991;</button>
+          <button class="lang-overlay__btn" data-lang="ar" dir="rtl">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</button>
+          <button class="lang-overlay__btn" data-lang="he" dir="rtl">&#1506;&#1489;&#1512;&#1497;&#1514;</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav-mobile" id="navMobile" aria-hidden="true">
+      <div class="nav-mobile__inner">
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.products">Products</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="platform.html" data-i18n="nav.platform">Platform (A.R.C.H.I.E.)</a>
+            <a href="archie-code.html" data-i18n="nav.archie_code">ARCHIE Code CLI</a>
+            <a href="market-watch.html" data-i18n="nav.market_watch">Market Watch</a>
+            <a href="civic-watch.html" data-i18n="nav.civic_watch">Civic Watch</a>
+            <a href="legal-watch.html" data-i18n="nav.legal_watch">Legal Watch</a>
+            <a href="gov-watch.html" data-i18n="nav.gov_watch">Gov Watch</a>
+            <a href="business-suite.html" data-i18n="nav.business_suite">Business Suite</a>
+            <a href="system-operations.html" data-i18n="nav.sysops">System Operations</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.services">Services</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="services.html" data-i18n="nav.all_services">All Services</a>
+            <a href="website-services.html">Website Design &amp; Hosting</a>
+            <a href="security-services.html">Security Testing</a>
+            <a href="ai-services.html">AI Automation</a>
+            <a href="compliance-services.html" data-i18n="nav.compliance_scanning">Compliance Scanning</a>
+            <a href="membership.html" data-i18n="nav.pricing">Membership &amp; Pricing</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.trust">Trust</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+            <a href="competitors.html" data-i18n="nav.competitors">Why A.R.C.H.I.E.</a>
+            <a href="creed.html" data-i18n="nav.creed">C.R.E.E.D.</a>
+          </div>
+        </div>
+        <div class="nav-mobile__group">
+          <button class="nav-mobile__trigger" aria-expanded="false">
+            <span data-i18n="nav.company">Company</span>
+            <svg class="nav-mobile__chevron" width="16" height="16" viewBox="0 0 12 12"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </button>
+          <div class="nav-mobile__items">
+            <a href="about.html" data-i18n="nav.about">About</a>
+            <a href="vision.html" data-i18n="nav.vision">Vision</a>
+            <a href="ai-directors.html" data-i18n="nav.ai_directors">AI Directors</a>
+            <a href="directory.html" data-i18n="nav.directory">Directory</a>
+            <a href="tips.html" data-i18n="nav.tips">Tips &amp; Tricks</a>
+            <a href="links.html" data-i18n="nav.links">Programs &amp; Resources</a>
+            <a href="submit-story.html" data-i18n="nav.submit_story">Submit Your Story</a>
+          </div>
+        </div>
+        <a href="store.html" class="nav-mobile__direct" data-i18n="nav.store">Store</a>
+        <a href="contact.html" class="nav-mobile__direct" data-i18n="nav.contact">Contact</a>
+        <a href="membership.html" class="nav-mobile__cta" data-i18n="nav.get_started">Get Started</a>
+      </div>
+    </div>
+
+
+    <!-- Page content -->
+    <main data-barba="container" data-barba-namespace="compliance">
+
+        <!-- HERO -->
+        <section class="hero tc-hero">
+            <div class="hero__content container">
+                <h1 class="hero__title gradient-text" data-i18n="tc-hero-title">Trust Center</h1>
+                <p class="tc-hero__sub" data-i18n="tc-hero-subtitle">Live compliance posture powered by S.H.I.E.L.D. automated scanning</p>
+            </div>
+        </section>
+
+        <!-- SOC 2 TRUST SERVICE CRITERIA -->
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="tc-soc2-title">SOC 2 Trust Service Criteria</h2>
+                <p style="text-align:center;color:rgba(255,255,255,0.5);margin-bottom:2rem;" data-i18n="tc-soc2-subtitle">Evidence collection mapped to all five criteria</p>
+                <div class="tc-grid-5" data-stagger>
+                    <div class="tc-soc2-card">
+                        <div class="tc-soc2-card__mark">&#9670;</div>
+                        <div class="tc-soc2-card__title" data-i18n="tc-soc2-security">Security</div>
+                        <div class="tc-soc2-card__desc" data-i18n="tc-soc2-security-desc">Protection against unauthorized access through firewall rules, encryption, and intrusion detection.</div>
+                    </div>
+                    <div class="tc-soc2-card">
+                        <div class="tc-soc2-card__mark">&#9670;</div>
+                        <div class="tc-soc2-card__title" data-i18n="tc-soc2-availability">Availability</div>
+                        <div class="tc-soc2-card__desc" data-i18n="tc-soc2-availability-desc">Systems operational and accessible as committed, with redundancy and monitoring in place.</div>
+                    </div>
+                    <div class="tc-soc2-card">
+                        <div class="tc-soc2-card__mark">&#9670;</div>
+                        <div class="tc-soc2-card__title" data-i18n="tc-soc2-integrity">Processing Integrity</div>
+                        <div class="tc-soc2-card__desc" data-i18n="tc-soc2-integrity-desc">Data processing is complete, valid, accurate, timely, and authorized.</div>
+                    </div>
+                    <div class="tc-soc2-card">
+                        <div class="tc-soc2-card__mark">&#9670;</div>
+                        <div class="tc-soc2-card__title" data-i18n="tc-soc2-confidentiality">Confidentiality</div>
+                        <div class="tc-soc2-card__desc" data-i18n="tc-soc2-confidentiality-desc">Information designated as confidential is protected through encryption and access controls.</div>
+                    </div>
+                    <div class="tc-soc2-card">
+                        <div class="tc-soc2-card__mark">&#9670;</div>
+                        <div class="tc-soc2-card__title" data-i18n="tc-soc2-privacy">Privacy</div>
+                        <div class="tc-soc2-card__desc" data-i18n="tc-soc2-privacy-desc">Personal information is collected, used, retained, disclosed, and disposed of in conformity with commitments.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- C.R.E.E.D. CALLOUT -->
+        <section class="section">
+            <div class="container tc-creed-callout">
+                <p class="tc-creed-callout__lead" data-i18n="tc-creed-lead">Our ethical AI governance is led by the C.R.E.E.D. Institute</p>
+                <h3 class="tc-creed-callout__score" data-i18n="tc-creed-score">AI Governance Score: A+</h3>
+                <a href="creed.html" class="btn btn--outline magnetic" data-i18n="tc-creed-cta">Learn About C.R.E.E.D.</a>
+            </div>
+        </section>
+
+        <!-- LIVE COMPLIANCE SCORES -->
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="tc-scores-title">Live Compliance Scores</h2>
+                <p style="text-align:center;color:rgba(255,255,255,0.5);margin-bottom:2rem;" data-i18n="tc-scores-subtitle">Continuously verified by S.H.I.E.L.D. automated scanning engine</p>
+
+                <div class="tc-scores-grid" data-stagger>
+                    <div class="tc-score-card" style="--tc-accent:#10b981;">
+                        <div class="tc-score-card__title">DISA STIG</div>
+                        <div class="tc-score-card__status" data-i18n="tc-status-hardened">Hardened</div>
+                        <div class="tc-ring-wrap">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="tc-ring-track" cx="60" cy="60" r="52"></circle>
+                                <circle class="tc-ring-value" cx="60" cy="60" r="52" stroke-dashoffset="19.6"></circle>
+                            </svg>
+                            <div class="tc-ring-num">94%</div>
+                        </div>
+                        <div class="tc-score-card__label" data-i18n="tc-score-label">Compliance Score</div>
+                        <p class="tc-score-card__detail" data-i18n="tc-detail-stig">108 security rules continuously verified across Ubuntu 22.04, Docker, and network services.</p>
+                    </div>
+                    <div class="tc-score-card" style="--tc-accent:#3b82f6;">
+                        <div class="tc-score-card__title">HIPAA Security Rule</div>
+                        <div class="tc-score-card__status" data-i18n="tc-status-compliant">Compliant</div>
+                        <div class="tc-ring-wrap">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="tc-ring-track" cx="60" cy="60" r="52"></circle>
+                                <circle class="tc-ring-value" cx="60" cy="60" r="52" stroke-dashoffset="29.4"></circle>
+                            </svg>
+                            <div class="tc-ring-num">91%</div>
+                        </div>
+                        <div class="tc-score-card__label" data-i18n="tc-score-label">Compliance Score</div>
+                        <p class="tc-score-card__detail" data-i18n="tc-detail-hipaa">30 rules covering access control, audit logging, integrity verification, and transmission security per &sect;164.312.</p>
+                    </div>
+                    <div class="tc-score-card" style="--tc-accent:#8b5cf6;">
+                        <div class="tc-score-card__title">SOC 2</div>
+                        <div class="tc-score-card__status" data-i18n="tc-status-implemented">Controls Implemented</div>
+                        <div class="tc-ring-wrap">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="tc-ring-track" cx="60" cy="60" r="52"></circle>
+                                <circle class="tc-ring-value" cx="60" cy="60" r="52" stroke-dashoffset="39.2"></circle>
+                            </svg>
+                            <div class="tc-ring-num">88%</div>
+                        </div>
+                        <div class="tc-score-card__label" data-i18n="tc-evidence-label">Evidence Collected</div>
+                        <p class="tc-score-card__detail" data-i18n="tc-detail-soc2">Continuous evidence collection for SOC 2 Type II trust service criteria. Automated audit trail generation.</p>
+                    </div>
+                </div>
+
+                <div class="tc-mini-grid" data-stagger>
+                    <div class="tc-mini-card">
+                        <div class="tc-mini-card__title">Ubuntu 22.04 STIG</div>
+                        <div class="tc-mini-card__score">96%</div>
+                        <div class="tc-mini-card__detail" data-i18n="tc-mini-ubuntu">51 rules &middot; SSH, passwords, audit, kernel</div>
+                    </div>
+                    <div class="tc-mini-card">
+                        <div class="tc-mini-card__title">Docker STIG</div>
+                        <div class="tc-mini-card__score">93%</div>
+                        <div class="tc-mini-card__detail" data-i18n="tc-mini-docker">30 rules &middot; Daemon, isolation, images</div>
+                    </div>
+                    <div class="tc-mini-card">
+                        <div class="tc-mini-card__title">Network STIG</div>
+                        <div class="tc-mini-card__score">89%</div>
+                        <div class="tc-mini-card__detail" data-i18n="tc-mini-network">27 rules &middot; Firewall, TLS, DNS, ports</div>
+                    </div>
+                    <div class="tc-mini-card">
+                        <div class="tc-mini-card__title">CIS Ubuntu</div>
+                        <div class="tc-mini-card__score">92%</div>
+                        <div class="tc-mini-card__detail" data-i18n="tc-mini-cis">40 rules &middot; Benchmarks, hardening</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WHAT WE MONITOR -->
+        <section class="section">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="tc-monitor-title">What We Monitor</h2>
+                <div class="tc-monitor-grid" data-stagger>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-ssh">SSH Hardening</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-ssh-sub">13 security controls including key-based auth, protocol restrictions</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-kernel">Kernel Security</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-kernel-sub">8 sysctl parameters for ASLR, ICMP, source routing</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-password">Password Policies</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-password-sub">Complexity requirements, history enforcement, lockout rules</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-docker">Docker Container Isolation</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-docker-sub">Resource limits, namespace separation, image security</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-ufw">UFW Firewall Management</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-ufw-sub">Active firewall rules, default-deny policy, port allowlisting</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-tls">TLS/SSL Certificate Monitoring</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-tls-sub">Expiration tracking, protocol version enforcement</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-audit">Audit Logging &amp; Event Tracking</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-audit-sub">Comprehensive system and application audit trail</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-rbac">Access Control &amp; RBAC</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-rbac-sub">Role-based permissions, least-privilege enforcement</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-network">Network Security</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-network-sub">Port scanning, intrusion detection, DNS security</div>
+                        </div>
+                    </div>
+                    <div class="tc-monitor-item">
+                        <span class="tc-monitor-item__check">&#10003;</span>
+                        <div>
+                            <div class="tc-monitor-item__text" data-i18n="tc-mon-integrity">File Integrity &amp; Permissions</div>
+                            <div class="tc-monitor-item__sub" data-i18n="tc-mon-integrity-sub">Critical file monitoring, permission validation</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AUTOMATED SCANNING -->
+        <section class="section" style="text-align:center;">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="tc-scanning-title">Automated Scanning</h2>
+                <p style="color:rgba(255,255,255,0.5);max-width:560px;margin:0 auto 2rem;" data-i18n="tc-scanning-desc">Our compliance engine runs continuously, verifying security controls and collecting evidence without manual intervention.</p>
+                <div class="tc-scanstats-grid" data-stagger>
+                    <div class="tc-scanstat">
+                        <div class="tc-scanstat__value">6h</div>
+                        <div class="tc-scanstat__label" data-i18n="tc-stat-interval">Scan Interval</div>
+                    </div>
+                    <div class="tc-scanstat">
+                        <div class="tc-scanstat__value">178</div>
+                        <div class="tc-scanstat__label" data-i18n="tc-stat-rules">Rules Checked</div>
+                    </div>
+                    <div class="tc-scanstat">
+                        <div class="tc-scanstat__value">5</div>
+                        <div class="tc-scanstat__label" data-i18n="tc-stat-frameworks">Frameworks</div>
+                    </div>
+                    <div class="tc-scanstat">
+                        <div class="tc-scanstat__value">24/7</div>
+                        <div class="tc-scanstat__label" data-i18n="tc-stat-monitoring">Monitoring</div>
+                    </div>
+                </div>
+                <p style="font-size:0.8rem;color:rgba(255,255,255,0.4);" data-i18n="tc-scanning-footnote">One-click remediation for security findings &middot; Evidence auto-collected for SOC 2 auditors &middot; STIG Viewer .ckl export</p>
+            </div>
+        </section>
+
+        <!-- FRAMEWORK DETAILS -->
+        <section class="section">
+            <div class="container" style="max-width:900px;">
+                <h2 class="section__title" data-split data-i18n="tc-frameworks-title">Framework Details</h2>
+                <div class="tc-framework-list" data-stagger>
+                    <div class="tc-framework-card">
+                        <div class="tc-framework-card__head">
+                            <div class="tc-framework-card__title">DISA STIG &mdash; Ubuntu 22.04</div>
+                            <span class="tc-framework-card__badge" style="background:rgba(16,185,129,0.12);color:#10b981;">51 Rules</span>
+                        </div>
+                        <p class="tc-framework-card__desc" data-i18n="tc-fw-ubuntu">Covers SSH configuration, password policies, audit logging, kernel hardening, file permissions, and service management. Based on the Defense Information Systems Agency Security Technical Implementation Guide.</p>
+                    </div>
+                    <div class="tc-framework-card">
+                        <div class="tc-framework-card__head">
+                            <div class="tc-framework-card__title">DISA STIG &mdash; Docker</div>
+                            <span class="tc-framework-card__badge" style="background:rgba(139,92,246,0.12);color:#8b5cf6;">30 Rules</span>
+                        </div>
+                        <p class="tc-framework-card__desc" data-i18n="tc-fw-docker">Covers Docker daemon configuration, container isolation policies, image security scanning, resource limits, and centralized logging. Ensures containers run with minimal attack surface.</p>
+                    </div>
+                    <div class="tc-framework-card">
+                        <div class="tc-framework-card__head">
+                            <div class="tc-framework-card__title">DISA STIG &mdash; Network</div>
+                            <span class="tc-framework-card__badge" style="background:rgba(0,153,255,0.12);color:#0099ff;">27 Rules</span>
+                        </div>
+                        <p class="tc-framework-card__desc" data-i18n="tc-fw-network">Covers firewall rules, port exposure, TLS configuration, DNS security, and network protocol hardening. Validates defense-in-depth network architecture.</p>
+                    </div>
+                    <div class="tc-framework-card">
+                        <div class="tc-framework-card__head">
+                            <div class="tc-framework-card__title">HIPAA Security Rule (&sect;164.312)</div>
+                            <span class="tc-framework-card__badge" style="background:rgba(249,115,22,0.12);color:#f97316;">30 Rules</span>
+                        </div>
+                        <p class="tc-framework-card__desc" data-i18n="tc-fw-hipaa">Covers access control mechanisms, audit controls, data integrity verification, person or entity authentication, and transmission security. Aligned with the HIPAA Security Rule technical safeguards.</p>
+                    </div>
+                    <div class="tc-framework-card">
+                        <div class="tc-framework-card__head">
+                            <div class="tc-framework-card__title">CIS Benchmark &mdash; Ubuntu</div>
+                            <span class="tc-framework-card__badge" style="background:rgba(234,179,8,0.12);color:#eab308;">40 Rules</span>
+                        </div>
+                        <p class="tc-framework-card__desc" data-i18n="tc-fw-cis">Center for Internet Security benchmark covering filesystem configuration, software updates, process hardening, network configuration, logging, and access/authentication settings.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI GOVERNANCE -->
+        <section class="section" style="text-align:center;">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="tc-governance-title">AI Governance</h2>
+                <div class="tc-governance-card">
+                    <div class="tc-governance-card__title">V.I.G.I.L. &mdash; Ethics &amp; Governance</div>
+                    <p class="tc-governance-card__text" data-i18n="tc-governance-desc">All AI operations are governed by V.I.G.I.L. (Vigilant Intelligence for Governance, Integrity &amp; Liability), our autonomous ethics officer. Every decision is logged, auditable, and transparent through our C.R.E.E.D. ethics framework.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTACT CTA -->
+        <section class="section tc-contact">
+            <div class="container">
+                <h2 class="section__title" data-split data-i18n="tc-contact-title">Questions About Our Security?</h2>
+                <p style="color:rgba(255,255,255,0.5);max-width:550px;margin:0 auto 1.5rem;" data-i18n="tc-contact-desc">We&rsquo;re happy to discuss our compliance controls, provide additional documentation, or answer any security questionnaires.</p>
+                <a href="mailto:security@kytranempowerment.com" class="tc-contact-email">security@kytranempowerment.com</a>
+                <div class="tc-contact-buttons">
+                    <a href="contact.html" class="btn btn--primary magnetic" data-i18n="tc-contact-cta">Get In Touch</a>
+                    <a href="services.html" class="btn btn--outline magnetic" data-i18n="tc-services-cta">View Services</a>
+                </div>
+                <div class="tc-verified" data-i18n="tc-verified">Last verified: April 7, 2026</div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__inner container">
+            <div class="footer__brand">
+                <span class="footer__logo">KYTRAN EMPOWERMENT</span>
+                <p class="footer__tagline">Montreal, Canada</p>
+            </div>
+            <div class="footer__links">
+                <a href="about.html" data-i18n="nav.about">About</a>
+                <a href="services.html" data-i18n="nav.all_services">Services</a>
+                <a href="compliance.html" data-i18n="nav.trust_center">Trust Center</a>
+                <a href="contact.html" data-i18n="nav.contact">Contact</a>
+                <a href="membership.html" data-i18n="nav.pricing">Pricing</a>
+            </div>
+            <div class="footer__contact">
+                <a href="tel:+18774633352" data-i18n="common.phone">1-877-463-3352</a>
+            </div>
+            <div class="footer__copyright" data-i18n="footer.copyright">&copy; 2026 Kytran Empowerment Inc. All rights reserved.</div>
+        </div>
+    </footer>
+    <!-- Scripts -->
+    <script defer src="js/lib/gsap.min.js?v=20260407q"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260407q"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260407q"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260407q"></script>
+    <script defer src="js/lib/barba.min.js?v=20260407q"></script>
+    <script defer src="js/effects.js?v=20260407q"></script>
+    <script defer src="js/nav.js?v=20260407q"></script>
+    <script defer src="js/transitions.js?v=20260407q"></script>
+    <script defer src="js/i18n.js?v=20260407q"></script>
+    <script defer src="js/app.js?v=20260407q"></script>
+    <!-- Cookie Consent -->
+    <div id="cookieConsent" class="cookie-consent" style="display:none;">
+      <div class="cookie-consent__inner">
+        <p class="cookie-consent__text" data-i18n="cookie.text">We use cookies to improve your experience and analyze site traffic. By continuing, you agree to our use of cookies.</p>
+        <div class="cookie-consent__actions">
+          <button class="cookie-consent__btn cookie-consent__btn--accept" onclick="acceptCookies()" data-i18n="cookie.accept">Accept</button>
+          <button class="cookie-consent__btn cookie-consent__btn--decline" onclick="declineCookies()" data-i18n="cookie.decline">Decline</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function() {
+      var consent = localStorage.getItem('ke-cookie-consent');
+      if (!consent) {
+        document.getElementById('cookieConsent').style.display = 'block';
+      }
+    })();
+    function acceptCookies() {
+      localStorage.setItem('ke-cookie-consent', 'accepted');
+      document.getElementById('cookieConsent').style.display = 'none';
+      if (typeof gtag === 'function') {
+        gtag('consent', 'update', { analytics_storage: 'granted' });
+        gtag('config', 'G-259QFNHSSN', { anonymize_ip: true });
+      }
+    }
+    function declineCookies() {
+      localStorage.setItem('ke-cookie-consent', 'declined');
+      document.getElementById('cookieConsent').style.display = 'none';
+    }
+    </script>
+</body>
+</html>

@@ -215,3 +215,4 @@ ds-bundle/
 
 # Built binaries (archie-tui is built from /mnt/standalone/archie-code/archie-tui)
 bin/
+platform_v2/_lane_ship/

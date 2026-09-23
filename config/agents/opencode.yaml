@@ -27,6 +27,7 @@ opencode:
   # Deny-by-default over PREFIXES, so these are directory roots. What keeps this safe
   # is now blocked_globs below — read that before adding anything here.
   allowed_paths:
+    - "website/"           # kytranempowerment.com design-port lane (owner decision 2026-09-23)
     - "platform_v2/"          # whole module tree, services, templates, static, tests
     - "ai_bridge/"            # agent_service + department_dispatcher stay BLOCKED
     - "archie-comms/"         # cockpit + lane surfaces

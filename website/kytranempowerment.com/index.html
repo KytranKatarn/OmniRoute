@@ -83,6 +83,10 @@
     <div class="dot-grid"></div>
     <div class="noise-overlay"></div>
     <div class="cursor-glow" id="cursorGlow"></div>
+    <div class="scroll-ambient" aria-hidden="true">
+      <canvas class="scroll-ambient__particles" id="scrollParticles"></canvas>
+      <img src="assets/ram-mark.png" alt="" class="scroll-ambient__logo" id="scrollLogo">
+    </div>
 
 
 
@@ -272,10 +276,8 @@
 
 
     <!-- Page content -->
-    <main data-barba="container" data-barba-namespace="home">
+    <main class="site-main" data-barba="container" data-barba-namespace="home">
         <section class="hero">
-            <canvas class="hero-particles" id="heroParticles"></canvas>
-            <img src="assets/ram-mark.png" alt="" class="hero__watermark">
             <div class="hero__content container">
                 <h1 class="hero__title" data-scramble="KYTRAN EMPOWERMENT">
                     <span class="visually-hidden">Kytran Empowerment</span>

@@ -12,6 +12,9 @@ var HeroAnimations = (function () {
     var _particleRaf = null;
     var _heroRect = null;
     var _isVisible = true;
+    var _scrollLogo = null;
+    var _scrollRaf = null;
+    var _scrollHandler = null;
 
     /* ====================================================================
        Public: init
@@ -27,6 +30,7 @@ var HeroAnimations = (function () {
         if (!hero) return;
 
         initParticles(hero);
+        initScrollAmbient();
         initEntrance(hero);
         initScrollReveals();
 
@@ -159,21 +163,19 @@ var HeroAnimations = (function () {
        70 nodes drifting with cyan connecting edges within 140px — ports the
        design's startCanvas() algorithm 1:1 (Home.dc.html).
        ==================================================================== */
-    function initParticles(hero) {
+    function initParticles() {
         // Skip on mobile for performance
         if (window.matchMedia('(max-width: 768px)').matches) return;
 
-        _particleCanvas = document.getElementById('heroParticles');
+        _particleCanvas = document.getElementById('scrollParticles');
         if (!_particleCanvas) return;
 
         _particleCtx = _particleCanvas.getContext('2d');
-        _heroRect = hero.getBoundingClientRect();
+        _heroRect = { width: window.innerWidth, height: window.innerHeight };
 
-        // Size canvas
         _resizeCanvas();
         window.addEventListener('resize', _resizeCanvas);
 
-        // Visibility API: pause when tab is hidden
         document.addEventListener('visibilitychange', function () {
             if (document.hidden) {
                 _isVisible = false;
@@ -187,7 +189,6 @@ var HeroAnimations = (function () {
             }
         });
 
-        // Create nodes (CSS-pixel space — matches the DPR-scaled draw context)
         var count = 70;
         for (var i = 0; i < count; i++) {
             _particles.push({
@@ -198,22 +199,43 @@ var HeroAnimations = (function () {
             });
         }
 
-        // Start animation loop
         _animateParticles();
+    }
+
+    function initScrollAmbient() {
+        _scrollLogo = document.getElementById('scrollLogo');
+        if (!_scrollLogo) return;
+
+        _scrollHandler = function () {
+            if (_scrollRaf) return;
+            _scrollRaf = requestAnimationFrame(function () {
+                _scrollRaf = null;
+                var maxScroll = Math.max(document.documentElement.scrollHeight - window.innerHeight, 1);
+                var scrollY = window.scrollY || window.pageYOffset || 0;
+                var progress = Math.min(Math.max(scrollY / maxScroll, 0), 1);
+                _scrollLogo.style.setProperty('--scroll-shift', (progress * 120) + 'px');
+                _scrollLogo.style.setProperty('--scroll-scale', (1 + progress * 0.08).toFixed(3));
+                _scrollLogo.style.setProperty('--scroll-rotate', ((progress * 2 - 1) * 0.8).toFixed(2) + 'deg');
+                _scrollLogo.style.opacity = (0.07 - progress * 0.025).toFixed(3);
+            });
+        };
+
+        window.addEventListener('scroll', _scrollHandler, { passive: true });
+        _scrollHandler();
     }
 
     function _resizeCanvas() {
         if (!_particleCanvas) return;
-        var hero = _particleCanvas.parentElement;
-        if (!hero) return;
         var dpr = Math.min(window.devicePixelRatio, 2);
-        var rect = hero.getBoundingClientRect();
-        _particleCanvas.width = rect.width * dpr;
-        _particleCanvas.height = rect.height * dpr;
-        _particleCanvas.style.width = rect.width + 'px';
-        _particleCanvas.style.height = rect.height + 'px';
-        _particleCtx.scale(dpr, dpr);
-        _heroRect = rect;
+        var width = window.innerWidth;
+        var height = window.innerHeight;
+        _particleCanvas.width = width * dpr;
+        _particleCanvas.height = height * dpr;
+        _particleCanvas.style.width = width + 'px';
+        _particleCanvas.style.height = height + 'px';
+        _particleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        _heroRect = { width: width, height: height };
+        if (_scrollHandler) _scrollHandler();
     }
 
     function _animateParticles() {
@@ -377,10 +399,20 @@ var HeroAnimations = (function () {
 
     /* ---- Cleanup (for Barba.js transitions) ---- */
     function destroy() {
+        if (_scrollHandler) {
+            window.removeEventListener('scroll', _scrollHandler);
+            _scrollHandler = null;
+        }
+        if (_scrollRaf) {
+            cancelAnimationFrame(_scrollRaf);
+            _scrollRaf = null;
+        }
+        window.removeEventListener('resize', _resizeCanvas);
         if (_particleRaf) {
             cancelAnimationFrame(_particleRaf);
             _particleRaf = null;
         }
+        _scrollLogo = null;
         _particles = [];
         _particleCanvas = null;
         _particleCtx = null;

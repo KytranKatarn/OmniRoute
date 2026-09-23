@@ -9,7 +9,11 @@
 | `KytranKatarn/archie-platform`, path `what-the-fact/` | 🟢 **THE DEPLOYED SOURCE.** what-the-fact.com runs from here. Any change meant to reach production goes here. |
 | `KytranKatarn/kytran-what-the-fact` | 🟡 **History mirror, not yet live.** Same code, full preserved history (602 commits: 600 for the app + the static landing page's history merged in under `static-site/`), created so Design tooling has a real repo with real git history to work against. **Nothing pushed here reaches what-the-fact.com until a separate, explicitly-gated cutover (new DB instance + F.O.R.G.E. token grant + deploy retarget) happens.** |
 
-Live site: `what-the-fact.com` — Flask + Jinja2 + Postgres, ~30 consumer routes.
+Live site: `what-the-fact.com` — Flask + Jinja2 + Postgres. **98 distinct consumer
+routes across 99 decorators**, in a 10,100-line `consumer/routes.py` (measured
+2026-09-22). This line read "~30 consumer routes" until then — a 3x understatement,
+and this file ships as the design-sync bundle's readmeHeader, so it is what external
+design tooling reads first.
 
 | | |
 |---|---|

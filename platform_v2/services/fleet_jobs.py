@@ -1182,71 +1182,6 @@ def _probe_domain_visual_trigger_wrapper():
         logger.error("[ProbeVisualTrigger] failed: %s", e)
 
 
-def portrait_auto_approve():
-    """Auto-approve completed portrait queue entries that haven't been linked yet.
-
-    Runs every 60s. Finds media_generation_queue rows where:
-      - status = 'completed'
-      - owner_type = 'agent'
-      - result_media_id IS NOT NULL
-      - agent_portraits.canonical_image_path IS NULL for that agent
-
-    Calls portrait_service.approve_canonical(agent_id, media_id) for each,
-    which sets canonical_image_path, updates agents.avatar_url via agent_service,
-    syncs website thumb, and pushes to Hostinger — completing the full pipeline
-    without requiring manual approval in the Media Studio UI.
-    """
-    from database import get_db_cursor
-
-    try:
-        with get_db_cursor() as (_conn, cur):
-            cur.execute(
-                """
-                SELECT q.id AS queue_id, q.owner_id AS agent_id, q.result_media_id
-                FROM media_generation_queue q
-                LEFT JOIN agent_portraits ap ON ap.agent_id = q.owner_id
-                WHERE q.status = 'completed'
-                  AND q.owner_type = 'agent'
-                  AND q.result_media_id IS NOT NULL
-                  AND (ap.canonical_image_path IS NULL OR ap.canonical_image_path = '')
-                ORDER BY q.completed_at DESC
-                LIMIT 10
-                """
-            )
-            pending = cur.fetchall()
-    except Exception:
-        logger.exception("[PortraitAutoApprove] DB query failed")
-        return
-
-    if not pending:
-        return
-
-    from tools.media_studio.services.portrait_service import approve_canonical
-
-    for row in pending:
-        agent_id = row["agent_id"]
-        media_id = row["result_media_id"]
-        row["queue_id"]
-        try:
-            result = approve_canonical(agent_id, media_id)
-            if result.get("error"):
-                logger.warning(
-                    "[PortraitAutoApprove] approve_canonical failed agent=%d media=%d: %s",
-                    agent_id,
-                    media_id,
-                    result["error"],
-                )
-            else:
-                logger.info(
-                    "[PortraitAutoApprove] agent=%d media=%d approved → avatar_url=%s",
-                    agent_id,
-                    media_id,
-                    result.get("avatar_url"),
-                )
-        except Exception:
-            logger.exception("[PortraitAutoApprove] exception for agent=%d media=%d", agent_id, media_id)
-
-
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -1405,15 +1340,5 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
         id="hub_deploy_provenance",
         name="Agent Loop: Hub Deploy Provenance (merged == running?)",
-        replace_existing=True,
-    )
-
-    scheduler.add_job(
-        with_ctx(portrait_auto_approve),
-        trigger=IntervalTrigger(seconds=60),
-        id="portrait_auto_approve",
-        name="Agent Loop: Portrait Auto-Approve (Media Studio → agents.avatar_url)",
-        max_instances=1,
-        coalesce=True,
         replace_existing=True,
     )

@@ -25,6 +25,26 @@ VISION_DESCRIBE_PROMPT = (
     "age, hair, eyes, clothing, and any distinctive features."
 )
 
+KYTRAN_PORTRAIT_BRAND = (
+    "professional human corporate portrait with subtle AI technology accents, "
+    "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
+    "low contrast, background-only, never over the subject, no readable text"
+)
+
+
+def _apply_corporate_brand(prompt: str) -> str:
+    prompt = (prompt or "").strip()
+    if not prompt or "Kytran Empowerment RAM mark" in prompt:
+        return prompt
+    return f"{prompt}, {KYTRAN_PORTRAIT_BRAND}"
+
+
+def _portrait_negative_prompt() -> str:
+    return (
+        "blurry, deformed, extra limbs, bad anatomy, text, large logo, " "logo over face, busy background, low quality"
+    )
+
+
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
 MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
@@ -350,18 +370,13 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
         if not row:
             return {"error": "Agent not found"}
 
-    agent_name = row["name"]
-    # Resolve the display label: prefer display_name, then first+last, then code name
-    full_name = (
-        row["display_name"]
-        or (f"{row['first_name']} {row['last_name']}" if row.get("first_name") and row.get("last_name") else None)
-        or agent_name
-    )
     identity_prompt = prompt_override or row.get("identity_prompt")
 
     # Regenerate if stored prompt still contains the legacy "None" placeholder
     if identity_prompt and "of None," in identity_prompt:
         identity_prompt = None
+
+    identity_prompt = _apply_corporate_brand(identity_prompt)
 
     if not identity_prompt:
         # No prompt set — generation is blocked by the API gate before reaching here.
@@ -375,7 +390,7 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
         user_id=None,
         media_type="image",
         prompt=identity_prompt,
-        negative_prompt="blurry, deformed, extra limbs, bad anatomy, text, watermark, low quality",
+        negative_prompt=_portrait_negative_prompt(),
         params={
             "model": "sd_xl_base_1.0.safetensors",
             "width": 1024,
@@ -445,7 +460,7 @@ def generate_variant(
     if not row["approved"]:
         return {"error": "Canonical portrait must be approved before generating variants"}
 
-    base_prompt = row["identity_prompt"] or ""
+    base_prompt = _apply_corporate_brand(row["identity_prompt"] or "")
     if style:
         base_prompt += f", {style} style"
     if pose:
@@ -473,7 +488,7 @@ def generate_variant(
         user_id=None,
         media_type="image",
         prompt=base_prompt,
-        negative_prompt="blurry, deformed, extra limbs, bad anatomy, text, watermark",
+        negative_prompt=_portrait_negative_prompt(),
         params=params,
         owner_type="agent",
         owner_id=agent_id,
@@ -520,7 +535,7 @@ def generate_fanout(
     if not row:
         return {"success": False, "error": "Agent not found"}
 
-    identity_prompt = prompt_override or (row.get("identity_prompt") or "")
+    identity_prompt = _apply_corporate_brand(prompt_override or row.get("identity_prompt") or "")
     if not identity_prompt.strip():
         return {"success": False, "error": "No identity prompt set. Add one in DHQ Roster first."}
 
@@ -551,7 +566,7 @@ def generate_fanout(
             user_id=None,
             media_type="image",
             prompt=prompt,
-            negative_prompt="blurry, deformed, extra limbs, bad anatomy, text, watermark, low quality",
+            negative_prompt=_portrait_negative_prompt(),
             params=params,
             owner_type="agent",
             owner_id=agent_id,

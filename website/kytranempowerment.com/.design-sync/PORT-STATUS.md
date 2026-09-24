@@ -21,12 +21,12 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 
 | # | Design file | Template | Status | PR | Notes |
 |---|---|---|---|---|---|
-| 1 | `Home.dc.html`, `HomeMobile.dc.html` | `index.html` | live | #3446,#3447,#3450-3457,#3461 | Hero, constellation, sections ported; #3461 fixes a CDN cache-staleness bug that hid this behind stale `base.css` |
-| 2 | `NotFound.dc.html` | `404.html` | merged | #3448 | |
-| 3 | `Books.dc.html` | `books.html` | merged | #3458 | |
-| 4 | `Links.dc.html` | `links.html` | merged | #3458 | |
-| 5 | `SubmitStory.dc.html` | `submit-story.html` | merged | #3458 | |
-| 6 | `Tips.dc.html` | `tips.html` | merged | #3458 | Content is Claude-Code/dev-tooling tips verbatim from Design's own file — flagged for owner: is that the right audience for this page? |
+| 1 | `Home.dc.html`, `HomeMobile.dc.html` | `index.html` | live | #3446,#3447,#3450-3457,#3461,#3469 | Hero, constellation, sections ported; #3461 fixed a CDN cache-staleness bug; #3469 fixed 3 hero-stats spacing tokens (verified live 2026-09-24 via `getComputedStyle` at 1440x900: title/tagline/stats margins + stats gap = 16px/48px/48px/48px, exact match, zero console errors) |
+| 2 | `NotFound.dc.html` | `404.html` | live | #3448 | Confirmed live 2026-09-24 (full-site deploy) |
+| 3 | `Books.dc.html` | `books.html` | live | #3458 | Confirmed live 2026-09-24, zero console errors |
+| 4 | `Links.dc.html` | `links.html` | live | #3458 | Confirmed live 2026-09-24 (full-site deploy) |
+| 5 | `SubmitStory.dc.html` | `submit-story.html` | live | #3458 | Confirmed live 2026-09-24 (full-site deploy) |
+| 6 | `Tips.dc.html` | `tips.html` | live | #3458 | Confirmed live 2026-09-24, zero console errors. Content is Claude-Code/dev-tooling tips verbatim from Design's own file — flagged for owner: is that the right audience for this page? |
 | 7 | `Compliance.dc.html` | `compliance.html` | live | #3459 | New page — SOC2 grid, live scores, monitoring, framework details. Verified live 2026-09-23, zero console errors |
 | 8 | `Competitors.dc.html` | `competitors.html` | nav | #3459 | Only the Trust Center nav link was repointed (now points at `compliance.html`); body content not ported |
 | 9 | `ComplianceServices.dc.html` | `compliance-services.html` | nav | #3459 | Same — nav-link only |

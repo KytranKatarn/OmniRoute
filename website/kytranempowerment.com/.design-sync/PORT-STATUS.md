@@ -27,8 +27,8 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 | 4 | `Links.dc.html` | `links.html` | merged | #3458 | |
 | 5 | `SubmitStory.dc.html` | `submit-story.html` | merged | #3458 | |
 | 6 | `Tips.dc.html` | `tips.html` | merged | #3458 | Content is Claude-Code/dev-tooling tips verbatim from Design's own file — flagged for owner: is that the right audience for this page? |
-| 7 | `Compliance.dc.html` | `compliance.html` | pr | #3459 | New page — SOC2 grid, live scores, monitoring, framework details |
-| 8 | `Competitors.dc.html` | `competitors.html` | nav | #3459 | Only the Trust Center nav link was repointed; body content not ported |
+| 7 | `Compliance.dc.html` | `compliance.html` | live | #3459 | New page — SOC2 grid, live scores, monitoring, framework details. Verified live 2026-09-23, zero console errors |
+| 8 | `Competitors.dc.html` | `competitors.html` | nav | #3459 | Only the Trust Center nav link was repointed (now points at `compliance.html`); body content not ported |
 | 9 | `ComplianceServices.dc.html` | `compliance-services.html` | nav | #3459 | Same — nav-link only |
 | 10 | `CreedPage.dc.html` | `creed.html` | nav | #3459 | Same — nav-link only |
 | 11 | `About.dc.html` | `about.html` | nav | #3450,#3451 | Shell/nav propagated site-wide; body not ported |

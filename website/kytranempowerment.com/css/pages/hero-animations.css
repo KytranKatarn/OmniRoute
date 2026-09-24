@@ -80,6 +80,12 @@
 }
 
 /* ---- Title Letter Animation (Splitting.js chars) ---- */
+/* .word must be an atomic inline-block, or the browser breaks lines
+   between individual .char spans instead of at word boundaries. */
+.hero__title .word {
+  display: inline-block;
+}
+
 .hero__title .char {
   display: inline-block;
   opacity: 0;

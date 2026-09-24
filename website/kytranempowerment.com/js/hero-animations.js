@@ -86,6 +86,14 @@ var HeroAnimations = (function () {
                     Splitting({ target: title, by: 'chars' });
                     var chars = title.querySelectorAll('.char');
                     if (chars.length) {
+                        // The CSS entrance state (.hero--animating .hero__title)
+                        // sets the H1's OWN opacity to 0 for the pre-Splitting
+                        // flash-prevention window. Only the .char spans get
+                        // animated below — nothing ever reset the parent's own
+                        // opacity, so the fully-visible chars stayed hidden
+                        // inside an invisible parent. Reveal the parent
+                        // immediately; the chars carry the actual entrance.
+                        gsap.set(title, { opacity: 1, y: 0 });
                         gsap.set(chars, { opacity: 0, y: 40 });
                         tl.to(chars, {
                             opacity: 1,

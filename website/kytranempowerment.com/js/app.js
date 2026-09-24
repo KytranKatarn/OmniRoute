@@ -17,20 +17,24 @@ document.addEventListener('DOMContentLoaded', function () {
             smoothWheel: true
         });
 
-        // RAF loop
-        function raf(time) {
-            lenis.raf(time);
-            requestAnimationFrame(raf);
-        }
-        requestAnimationFrame(raf);
-
-        // Connect Lenis to GSAP ScrollTrigger
+        // Drive Lenis from exactly ONE loop. gsap.ticker already runs on
+        // requestAnimationFrame internally, so when GSAP is present it is
+        // the sole driver (and keeps ScrollTrigger in sync). Running BOTH
+        // a native rAF loop AND gsap.ticker double-updates Lenis's scroll
+        // interpolation every frame — the two timing sources fight each
+        // other, which is what made scrolling feel stuttery/inconsistent.
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
             lenis.on('scroll', ScrollTrigger.update);
             gsap.ticker.add(function (time) {
                 lenis.raf(time * 1000);
             });
             gsap.ticker.lagSmoothing(0);
+        } else {
+            function raf(time) {
+                lenis.raf(time);
+                requestAnimationFrame(raf);
+            }
+            requestAnimationFrame(raf);
         }
     }
 

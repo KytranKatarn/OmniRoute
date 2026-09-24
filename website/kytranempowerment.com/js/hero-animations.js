@@ -29,15 +29,40 @@ var HeroAnimations = (function () {
         _fetchAgentCount().then(function () { initStatsCounter(); });
     }
 
+    /* Text-scramble decode — ports Home.dc.html's Component.startScramble()
+       verbatim: 40 frames @ 45ms, glitch charset, left-to-right resolve. */
+    function _scrambleDecode(el, target) {
+        var chars = '01ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&';
+        var frame = 0;
+        var total = 40;
+        function step() {
+            frame++;
+            var resolved = Math.floor((frame / total) * target.length);
+            var out = '';
+            for (var i = 0; i < target.length; i++) {
+                if (target[i] === ' ') out += ' ';
+                else if (i < resolved) out += target[i];
+                else out += chars[Math.floor(Math.random() * chars.length)];
+            }
+            el.textContent = out;
+            if (frame < total) setTimeout(step, 45);
+            else el.textContent = target;
+        }
+        step();
+    }
+
     function _fetchAgentCount() {
         var el = document.querySelector('.hero__stat-number[data-count]');
-        if (!el) return Promise.resolve();
+        var statusEl = document.querySelector('[data-status-agents]');
+        if (!el && !statusEl) return Promise.resolve();
         var timeout = new Promise(function (res) { setTimeout(res, 1500); });
         var req = fetch('https://platform.kytranempowerment.com/api/public/directory')
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                var count = d && d.summary && d.summary.total;
-                if (count && count > 0) { el.setAttribute('data-count', count); }
+                var total = d && d.summary && d.summary.total;
+                if (total && total > 0 && el) { el.setAttribute('data-count', total); }
+                var active = d && d.summary && d.summary.active;
+                if (active && active > 0 && statusEl) { statusEl.textContent = active; }
             })
             .catch(function () {});
         return Promise.race([req, timeout]);
@@ -69,49 +94,19 @@ var HeroAnimations = (function () {
             }, 0);
         }
 
-        // --- Title: use Splitting.js for char-by-char reveal ---
+        // --- Title: text-scramble decode, matching Claude Design's Home.dc.html
+        // exactly (40 frames @ 45ms, chars '01ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%&',
+        // resolving left-to-right) — NOT a Splitting.js char fade-up. A prior
+        // pass here substituted a different effect; restored to match Design.
         var title = hero.querySelector('.hero__title');
         if (title) {
-            // Remove the scramble behavior — we'll do char animation instead
             var scrambleText = title.getAttribute('data-scramble');
             if (scrambleText) {
-                // Clear existing content, set visible text for Splitting
                 title.removeAttribute('data-scramble');
                 var hiddenSpan = title.querySelector('.visually-hidden');
                 if (hiddenSpan) hiddenSpan.remove();
-                title.textContent = scrambleText;
-
-                // Split into chars with Splitting.js
-                if (typeof Splitting !== 'undefined') {
-                    Splitting({ target: title, by: 'chars' });
-                    var chars = title.querySelectorAll('.char');
-                    if (chars.length) {
-                        // The CSS entrance state (.hero--animating .hero__title)
-                        // sets the H1's OWN opacity to 0 for the pre-Splitting
-                        // flash-prevention window. Only the .char spans get
-                        // animated below — nothing ever reset the parent's own
-                        // opacity, so the fully-visible chars stayed hidden
-                        // inside an invisible parent. Reveal the parent
-                        // immediately; the chars carry the actual entrance.
-                        gsap.set(title, { opacity: 1, y: 0 });
-                        gsap.set(chars, { opacity: 0, y: 40 });
-                        tl.to(chars, {
-                            opacity: 1,
-                            y: 0,
-                            duration: 0.5,
-                            ease: 'power3.out',
-                            stagger: 0.03
-                        }, 0.3);
-                    }
-                } else {
-                    // Fallback: simple fade-up
-                    tl.to(title, {
-                        opacity: 1,
-                        y: 0,
-                        duration: 0.6,
-                        ease: 'power2.out'
-                    }, 0.3);
-                }
+                gsap.set(title, { opacity: 1, y: 0 });
+                tl.call(function () { _scrambleDecode(title, scrambleText); }, null, 0.3);
             }
         }
 

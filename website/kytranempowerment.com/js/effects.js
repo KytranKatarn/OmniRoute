@@ -213,7 +213,13 @@ var Effects = (function () {
         }
         initCursorGlow();
         initMagnetic();
-        initScramble();
+        // initScramble() NOT called here — the only [data-scramble] element
+        // on the site is the homepage hero title, which hero-animations.js
+        // owns and choreographs as part of its GSAP entrance timeline. This
+        // generic IntersectionObserver-based scrambler used to fire first
+        // (Effects.init() runs before HeroAnimations.init()) and raced it,
+        // resolving the title almost instantly instead of the ~2.4s Design
+        // decode effect. Kept as a public method for any future non-hero use.
         initTilt();
         initScrollReveal();
         initCountUp();

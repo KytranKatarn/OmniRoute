@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /* ---- Core Initialization ---- */
     Nav.init();
+    if (typeof AmbientBackground !== 'undefined' && typeof AmbientBackground.init === 'function') AmbientBackground.init();
     I18n.init();
     Effects.init();
     Transitions.init();

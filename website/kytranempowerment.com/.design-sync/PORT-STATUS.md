@@ -102,3 +102,49 @@ merge.** The only way code on `main` reaches kytranempowerment.com:
 A PR merging to `main` means the code is correct. It does **not** mean a
 visitor can see it. Don't tell the owner something "shipped" until you've
 run steps 1–4 and verified it live in a real browser.
+
+---
+
+## Sitewide background layers (aurora / dot-grid / starfield canvas / ram-mark watermark)
+
+At Design's request: audited every page against `index.html`'s background
+treatment. `.aurora` and `.dot-grid` were already sitewide. The starfield
+canvas (`.scroll-ambient__particles`) + drifting ram-mark watermark
+(`.scroll-logo`) existed **only on `index.html`** — the JS that drives them
+(`initParticles`/`initScrollAmbient` in `hero-animations.js`) was gated
+behind a `.hero` element check that only the homepage has, and
+`hero-animations.js` itself was only loaded on `index.html`.
+
+Fix: extracted the particle-canvas + scroll-logo logic into a new,
+dependency-free `js/ambient-background.js` (no gsap/ScrollTrigger/Lenis
+needed — pure canvas + vanilla JS), loaded on every page and initialized
+unconditionally from `app.js`'s Core Initialization block (no `.hero`
+gate). `hero-animations.js` keeps only the genuinely hero-specific pieces
+(cinematic entrance, stats counter, scroll reveals), still gated on
+`.hero` as before, since those don't apply to non-hero pages.
+
+**All 46 pages now have the same background layers as index.html**, same
+markup, same z-index/opacity values, same canvas particle algorithm —
+verified locally (zero console errors on a sample: about.html,
+gov-watch.html) before shipping. `blocked.html` deliberately excluded
+(Design's own note: stay faithful to source, don't touch it).
+
+Touched: `404.html`, `about.html`, `agent-as-a-service.html`,
+`ai-directors.html`, `ai-services.html`, `archie-code.html`, `books.html`,
+`business-suite.html`, `cart.html`, `certification.html`, `checkout.html`,
+`civic-watch.html`, `community.html`, `competitors.html`, `compliance.html`,
+`compliance-services.html`, `contact.html`, `content-studio.html`,
+`creed.html`, `directory.html`, `gov-watch.html`, `index.html`,
+`industry-construction.html`, `industry-electrical.html`,
+`industry-limo.html`, `industry-mechanical.html`,
+`industry-photography.html`, `industry-plumbing.html`,
+`industry-salon.html`, `legal-watch.html`, `links.html`,
+`market-watch.html`, `membership.html`, `order-success.html`,
+`platform.html`, `product-detail.html`, `security-services.html`,
+`services.html`, `signal.html`, `store.html`, `submit-story.html`,
+`system-operations.html`, `tips.html`, `vision.html`,
+`website-services.html`, `what-the-fact.html`.
+
+Also bumped the sitewide `?v=` cache-buster to `20260924a` (touched
+JS content — see the CDN cache-busting note above; skipping this would
+have reproduced the exact bug PR #3461 fixed).

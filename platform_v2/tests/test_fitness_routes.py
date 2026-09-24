@@ -56,7 +56,6 @@ def test_log_workout_accepts_valid_payload(fitness_client):
         resp = fitness_client.post(
             "/tools/fitness/api/workout/log",
             json={
-                "user_id": 7,
                 "workout_type": "cardio",
                 "duration_min": 30,
                 "exercises": [{"name": "Run"}],
@@ -70,7 +69,7 @@ def test_log_workout_accepts_valid_payload(fitness_client):
     assert data["success"] is True
     assert data["id"] == 99
     log_workout.assert_called_once_with(
-        7,
+        1,
         "cardio",
         [{"name": "Run"}],
         30,
@@ -257,12 +256,12 @@ def test_workout_history_returns_history_for_authenticated_user(fitness_client):
         "tools.fitness.routes.get_workout_history",
         return_value=expected_history,
     ) as history:
-        resp = fitness_client.get("/tools/fitness/api/workout/history?user_id=7&limit=5")
+        resp = fitness_client.get("/tools/fitness/api/workout/history?limit=5")
 
     assert resp.status_code == 200
     data = resp.get_json()
     assert data == {"success": True, "history": expected_history}
-    history.assert_called_once_with(7, limit=5)
+    history.assert_called_once_with(1, limit=5)
 
 
 def test_update_workout_uses_authenticated_user_for_authorization(fitness_client):
@@ -358,3 +357,34 @@ def test_available_models_returns_default_dhq_option(fitness_client):
         "success": True,
         "models": [{"name": "default", "size": 0, "modified": ""}],
     }
+
+
+def test_log_workout_rejects_mismatched_user_id(fitness_client):
+    with patch("tools.fitness.routes.svc_log_workout") as log_workout:
+        resp = fitness_client.post(
+            "/tools/fitness/api/workout/log",
+            json={"duration_min": 30, "user_id": 2},
+        )
+
+    assert resp.status_code == 403
+    log_workout.assert_not_called()
+
+
+def test_workout_history_rejects_mismatched_user_id(fitness_client):
+    with patch("tools.fitness.routes.get_workout_history") as history:
+        resp = fitness_client.get("/tools/fitness/api/workout/history?user_id=2")
+
+    assert resp.status_code == 403
+    history.assert_not_called()
+
+
+def test_chat_dispatches_for_authenticated_user_locally(fitness_client):
+    with patch("tools.fitness.routes.get_ai_context", return_value=""), patch(
+        "tools.fitness.routes.dispatch_json",
+        return_value={"response": "Start gradually and warm up.", "model_used": "dhq"},
+    ) as dispatch_json:
+        resp = fitness_client.post("/tools/fitness/api/chat", json={"message": "How should I start?"})
+
+    assert resp.status_code == 200
+    assert dispatch_json.call_args.kwargs["user_id"] == 1
+    assert dispatch_json.call_args.kwargs["local_only"] is True

@@ -137,3 +137,26 @@ def test_get_therapy_stats_aggregates_avg_mood_and_trend(recent_avg, prior_avg, 
     assert stats["mood_entries_7d"] == 4
     assert stats["sessions_this_month"] == 2
     assert stats["mood_trend"] == expected_trend
+
+
+def test_log_mood_rejects_mismatched_user_id(therapy_client):
+    with patch("tools.therapy.routes.svc_log_mood") as svc_log_mood:
+        resp = therapy_client.post(
+            "/tools/therapy/api/mood",
+            json={"mood_score": 5, "user_id": 2},
+        )
+
+    assert resp.status_code == 403
+    svc_log_mood.assert_not_called()
+
+
+def test_chat_dispatches_for_authenticated_user_locally(therapy_client):
+    with patch("tools.therapy.routes.get_ai_context", return_value=""), patch(
+        "tools.therapy.routes.dispatch_json",
+        return_value={"response": "I hear you.", "model_used": "dhq"},
+    ) as dispatch_json:
+        resp = therapy_client.post("/tools/therapy/api/chat", json={"message": "I am stressed"})
+
+    assert resp.status_code == 200
+    assert dispatch_json.call_args.kwargs["user_id"] == 1
+    assert dispatch_json.call_args.kwargs["local_only"] is True

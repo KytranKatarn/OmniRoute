@@ -41,7 +41,7 @@ def chat() -> JsonResponse:
 
     result = None
     try:
-        result = _R.archie_bridge(message, system_prompt)
+        result = _R.archie_bridge(message, system_prompt, user_id=user_id)
         response_text = result.get("response", "") if result else ""
         response_text = response_text.strip()
     except (OSError, RuntimeError, ValueError) as e:

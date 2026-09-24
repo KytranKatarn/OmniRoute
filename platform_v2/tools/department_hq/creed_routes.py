@@ -3205,7 +3205,7 @@ def _execute_erasure(request_id: int) -> dict:
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
-            SELECT id, user_id, user_email, status
+            SELECT id, user_id, status
             FROM creed_erasure_requests
             WHERE id = %s
             """,
@@ -3216,14 +3216,13 @@ def _execute_erasure(request_id: int) -> dict:
     if not req:
         return {"error": f"Erasure request {request_id} not found", "status": 404}
 
-    if req["status"] not in ("approved", "pending"):
+    if req["status"] != "approved":
         return {
-            "error": (f"Cannot process request in status '{req['status']}'" " — must be 'approved' or 'pending'"),
+            "error": (f"Cannot process request in status '{req['status']}'" " — must be 'approved'"),
             "status": 409,
         }
 
     user_id = req["user_id"]
-    user_email = req["user_email"]
 
     if not user_id:
         return {
@@ -3299,6 +3298,9 @@ def _execute_erasure(request_id: int) -> dict:
             logger.warning("Erasure %s: table 'crm_customers' skipped — %s", request_id, crm_err)
             rows_affected["crm_customers"] = -1
 
+        if any(value == -1 for value in rows_affected.values()):
+            raise RuntimeError("one or more registered erasure operations failed")
+
         # ── 4. Anonymise users row ────────────────────────────────────────────
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -3370,7 +3372,6 @@ def _execute_erasure(request_id: int) -> dict:
                         json.dumps(
                             {
                                 "user_id": user_id,
-                                "email": user_email,
                                 "request_id": request_id,
                             }
                         ),
@@ -3390,6 +3391,7 @@ def _execute_erasure(request_id: int) -> dict:
                 request_id,
                 log_err,
             )
+            raise RuntimeError("governance audit log write failed") from log_err
 
         # ── 7. Mark request completed ─────────────────────────────────────────
         with get_db_cursor(commit=True) as (conn, cur):

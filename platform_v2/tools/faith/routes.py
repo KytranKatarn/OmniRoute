@@ -291,13 +291,19 @@ def _get_user_faith_profile(user_id: int) -> JsonDict:
     }
 
 
-def archie_bridge(prompt: str, system_prompt: str = FAITH_SYSTEM_PROMPT) -> JsonDict:
+def archie_bridge(
+    prompt: str,
+    system_prompt: str = FAITH_SYSTEM_PROMPT,
+    user_id: int | None = None,
+) -> JsonDict:
     """Compatibility wrapper around DHQ dispatch for existing Faith tests/callers."""
     result = dispatch(
         capability="support",
         prompt=prompt,
         module_id="faith",
         system_prompt=system_prompt,
+        user_id=user_id,
+        local_only=True,
     )
     return {
         "success": bool(result and result.success),
@@ -338,7 +344,7 @@ def _practice_dispatch(
     system_prompt = _faith_system_prompt_for_profile(profile or _get_user_faith_profile(user_id))
     if BRIDGE_AVAILABLE:
         try:
-            result = archie_bridge(prompt, system_prompt)
+            result = archie_bridge(prompt, system_prompt, user_id=user_id)
         except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"[Faith] practice dispatch failed: {e}")
             result = {

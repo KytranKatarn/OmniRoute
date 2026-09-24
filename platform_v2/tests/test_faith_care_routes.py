@@ -111,6 +111,18 @@ def test_faith_chat_returns_response(faith_client):
     assert resp.get_json()["success"] is True
 
 
+def test_faith_chat_passes_authenticated_user_to_dispatch(faith_client):
+    _login(faith_client)
+    with patch(
+        "tools.faith.routes.archie_bridge",
+        return_value={"success": True, "response": "A thoughtful response.", "model_used": "dhq", "agent": "F.A.I.T.H."},
+    ) as bridge, patch("tools.faith.routes.BRIDGE_AVAILABLE", True), _patched_db():
+        resp = faith_client.post("/tools/faith/api/faith/chat", json={"message": "Help me reflect."})
+
+    assert resp.status_code == 200
+    assert bridge.call_args.kwargs["user_id"] == 1
+
+
 def test_faith_chat_crisis_detection(faith_client):
     mock_result = {"success": True, "response": "...", "model_used": "mistral:7b", "agent": "F.A.I.T.H."}
     _login(faith_client)
@@ -150,9 +162,10 @@ def test_faith_scripture_search(faith_client):
 def test_faith_scripture_search_uses_profile_tradition(faith_client):
     captured = {}
 
-    def fake_bridge(prompt, system_prompt):
+    def fake_bridge(prompt, system_prompt, user_id=None):
         captured["prompt"] = prompt
         captured["system_prompt"] = system_prompt
+        captured["user_id"] = user_id
         return {"success": True, "response": "Qur'an reference", "model_used": "dhq", "agent": "F.A.I.T.H."}
 
     _login(faith_client)
@@ -170,9 +183,10 @@ def test_faith_scripture_search_uses_profile_tradition(faith_client):
 def test_faith_devotional_uses_multi_tradition_reflection_prompt(faith_client):
     captured = {}
 
-    def fake_bridge(prompt, system_prompt):
+    def fake_bridge(prompt, system_prompt, user_id=None):
         captured["prompt"] = prompt
         captured["system_prompt"] = system_prompt
+        captured["user_id"] = user_id
         return {"success": True, "response": "A Dhammapada reflection", "model_used": "dhq", "agent": "F.A.I.T.H."}
 
     _login(faith_client)

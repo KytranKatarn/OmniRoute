@@ -785,9 +785,11 @@ def ai_expand(session_id: int) -> JsonResponse:
             capability="research",
             prompt=prompt,
             context={"source": "brainstorm", "session_id": session_id},
+            user_id=current_user.id,
+            local_only=True,
         )
         if result.success:
-            return jsonify({"success": True, "response": result.response, "agent": result.agent})
+            return jsonify({"success": True, "response": result.response, "agent": result.agent_name})
         logger.warning(
             "Brainstorm dispatch failed",
             extra={

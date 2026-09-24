@@ -3,6 +3,7 @@
 from flask import render_template, jsonify, request
 from flask_login import login_required
 from . import therapy_bp
+from tools._user_scope import authenticated_user_id
 
 
 @therapy_bp.before_request
@@ -150,7 +151,7 @@ def chat():
     """
     data = request.get_json() or {}
     message = data.get("message", "")
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
 
     if not message:
         return jsonify({"success": False, "error": "Message is required"}), 400
@@ -177,6 +178,8 @@ def chat():
             prompt=message,
             module_id="therapy",
             system_prompt=enriched_system_prompt,
+            user_id=user_id,
+            local_only=True,
         )
         ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
         ai_response = ai_response.strip()
@@ -355,7 +358,7 @@ def log_mood():
     energy_score = data.get("energy_score")
     notes = data.get("notes", "")
     tags = data.get("tags", [])
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
 
     if not mood_score or not isinstance(mood_score, int) or mood_score < 1 or mood_score > 10:
         return (
@@ -424,7 +427,7 @@ def mood_history():
     Errors:
         500 JSON for validation or database errors.
     """
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     limit = request.args.get("limit", 30, type=int)
     try:
         history = get_mood_history(user_id, limit=limit)
@@ -453,7 +456,7 @@ def create_session():
         500 JSON for validation or persistence errors.
     """
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     session_type = data.get("session_type", "general")
     notes = data.get("notes", "")
     exercises_done = data.get("exercises_done", [])
@@ -483,7 +486,7 @@ def session_history():
     Errors:
         500 JSON for validation or database errors.
     """
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     limit = request.args.get("limit", 20, type=int)
     try:
         history = get_session_history(user_id, limit=limit)
@@ -513,7 +516,7 @@ def schedule():
         500 JSON for validation, calendar, or fallback errors.
     """
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     title = data.get("title", "Therapy Session")
     datetime_str = data.get("datetime", "")
     duration = data.get("duration", 60)
@@ -544,7 +547,7 @@ def stats():
     Errors:
         500 JSON for validation or database errors.
     """
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     try:
         data = get_therapy_stats(user_id)
         return jsonify({"success": True, **data})

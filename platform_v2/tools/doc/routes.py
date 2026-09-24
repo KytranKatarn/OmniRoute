@@ -11,6 +11,7 @@ from datetime import datetime
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
 from . import doc_bp
+from tools._user_scope import authenticated_user_id
 
 
 @doc_bp.before_request
@@ -139,7 +140,7 @@ def chat():
     """Send message to medical AI via archie_bridge"""
     data = request.get_json() or {}
     message = data.get("message", "")
-    user_id = data.get("user_id", 1)  # Default to admin user
+    user_id = authenticated_user_id(data.get("user_id"))
 
     if not message:
         return jsonify({"success": False, "error": "Message is required"}), 400
@@ -154,6 +155,8 @@ def chat():
             prompt=message,
             module_id="doc",
             system_prompt=enriched_system_prompt,
+            user_id=user_id,
+            local_only=True,
         )
         ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
         ai_response = ai_response.strip()
@@ -192,7 +195,7 @@ def analyze_symptoms():
     duration = data.get("duration", "unknown")
     areas = data.get("areas", [])
     notes = data.get("notes", "")
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
 
     if not symptoms:
         return (
@@ -238,6 +241,8 @@ Remember to emphasize consulting a healthcare professional."""
             prompt=prompt,
             module_id="doc",
             system_prompt=MEDICAL_SYSTEM_PROMPT,
+            user_id=user_id,
+            local_only=True,
         )
         analysis = result.get("response", "") if isinstance(result, dict) else str(result or "")
         analysis = analysis.strip()
@@ -271,7 +276,7 @@ def get_available_models():
 @doc_bp.route("/api/symptoms/history", methods=["GET"])
 def symptom_history():
     """Return symptom timeline for current user."""
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     limit = request.args.get("limit", 20, type=int)
     try:
         history = get_symptom_history(user_id, limit=limit)
@@ -285,7 +290,7 @@ def symptom_history():
 def create_medication():
     """Add a new medication record."""
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     name = data.get("name", "")
     dosage = data.get("dosage", "")
     frequency = data.get("frequency", "")
@@ -305,7 +310,7 @@ def create_medication():
 @doc_bp.route("/api/medications", methods=["GET"])
 def list_medications():
     """List active medications for current user."""
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     active_only = request.args.get("active_only", "true").lower() != "false"
     try:
         meds = get_medications(user_id, active_only=active_only)
@@ -348,7 +353,7 @@ def patch_medication(med_id):
 def schedule():
     """Schedule a medical appointment via Google Calendar (or local fallback)."""
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     title = data.get("title", "Medical Appointment")
     datetime_str = data.get("datetime", "")
     duration = data.get("duration", 30)
@@ -372,7 +377,7 @@ def schedule():
 @doc_bp.route("/api/stats", methods=["GET"])
 def stats():
     """Return aggregated health stats for current user."""
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     try:
         data = get_health_stats(user_id)
         return jsonify({"success": True, **data})

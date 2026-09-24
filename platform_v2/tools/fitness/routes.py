@@ -7,6 +7,7 @@ Updated: 2026-01-21 - Now uses Wellness Coach via archie_bridge
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
 from . import fitness_bp
+from tools._user_scope import authenticated_user_id
 
 
 @fitness_bp.before_request
@@ -91,7 +92,7 @@ def chat():
     """Send message to fitness AI via archie_bridge"""
     data = request.get_json() or {}
     message = data.get("message", "")
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     fitness_level = data.get("fitness_level", "intermediate")
 
     if not message:
@@ -110,6 +111,8 @@ def chat():
             prompt=context_message,
             module_id="fitness",
             system_prompt=enriched_system_prompt,
+            user_id=user_id,
+            local_only=True,
         )
         ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
         ai_response = ai_response.strip()
@@ -173,6 +176,8 @@ Include form tips for complex exercises."""
             prompt=prompt,
             module_id="fitness",
             system_prompt=FITNESS_SYSTEM_PROMPT,
+            user_id=authenticated_user_id(),
+            local_only=True,
         )
         workout_text = result.get("response", "") if isinstance(result, dict) else str(result or "")
         workout_text = workout_text.strip()
@@ -335,7 +340,7 @@ def log_workout():
     exercises = data.get("exercises", [])
     calories = data.get("calories", 0)
     notes = data.get("notes", "")
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
 
     if duration <= 0:
         return (
@@ -481,7 +486,7 @@ def get_available_models():
 @fitness_bp.route("/api/workout/history", methods=["GET"])
 def workout_history():
     """Return recent workout logs for current user."""
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     limit = request.args.get("limit", 20, type=int)
     try:
         history = get_workout_history(user_id, limit=limit)
@@ -522,7 +527,7 @@ def delete_workout(workout_id):
 def create_goal():
     """Create a new fitness goal."""
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     goal_type = data.get("goal_type", "")
     target = data.get("target")
     unit = data.get("unit", "")
@@ -542,7 +547,7 @@ def create_goal():
 @fitness_bp.route("/api/goals", methods=["GET"])
 def list_goals():
     """List all fitness goals for current user."""
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     try:
         goals = get_goals(user_id)
         return jsonify({"success": True, "goals": goals})
@@ -582,7 +587,7 @@ def delete_goal(goal_id):
 def schedule():
     """Schedule a workout via Google Calendar (or local fallback)."""
     data = request.get_json() or {}
-    user_id = data.get("user_id", 1)
+    user_id = authenticated_user_id(data.get("user_id"))
     title = data.get("title", "Workout")
     datetime_str = data.get("datetime", "")
     duration = data.get("duration", 60)
@@ -601,7 +606,7 @@ def schedule():
 @fitness_bp.route("/api/stats", methods=["GET"])
 def stats():
     """Return aggregated fitness stats for current user."""
-    user_id = request.args.get("user_id", 1, type=int)
+    user_id = authenticated_user_id(request.args.get("user_id"))
     try:
         data = get_fitness_stats(user_id)
         return jsonify({"success": True, **data})

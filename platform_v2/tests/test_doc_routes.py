@@ -308,3 +308,37 @@ def test_schedule_accepts_iso8601_datetime(doc_client):
     assert resp.status_code == 200
     assert resp.get_json() == {"success": True, "result": {"success": True}}
     schedule_appointment.assert_called_once_with(1, "Checkup", "2026-06-13T12:00:00-04:00", 30)
+
+
+def test_doc_chat_rejects_mismatched_user_id(doc_client):
+    with patch("tools.doc.routes.get_ai_context") as get_context, patch(
+        "tools.doc.routes.dispatch_json"
+    ) as dispatch_json:
+        resp = doc_client.post(
+            "/tools/doc/api/chat",
+            json={"message": "I have a headache", "user_id": 2},
+        )
+
+    assert resp.status_code == 403
+    get_context.assert_not_called()
+    dispatch_json.assert_not_called()
+
+
+def test_doc_symptom_history_rejects_mismatched_user_id(doc_client):
+    with patch("tools.doc.routes.get_symptom_history") as history:
+        resp = doc_client.get("/tools/doc/api/symptoms/history?user_id=2")
+
+    assert resp.status_code == 403
+    history.assert_not_called()
+
+
+def test_doc_chat_dispatches_for_authenticated_user_locally(doc_client):
+    with patch("tools.doc.routes.get_ai_context", return_value=""), patch(
+        "tools.doc.routes.dispatch_json",
+        return_value={"response": "Consult a healthcare professional for an individualized answer.", "model_used": "dhq"},
+    ) as dispatch_json:
+        resp = doc_client.post("/tools/doc/api/chat", json={"message": "General question"})
+
+    assert resp.status_code == 200
+    assert dispatch_json.call_args.kwargs["user_id"] == 1
+    assert dispatch_json.call_args.kwargs["local_only"] is True

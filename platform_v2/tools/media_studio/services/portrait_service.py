@@ -31,7 +31,47 @@ KYTRAN_PORTRAIT_BRAND = (
     "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
     "low contrast, background-only, never over the subject, no readable text"
 )
+VARIANT_PRESET_PROMPTS = {
+    "ai": "AI-inspired professional portrait, restrained futuristic cyan and violet interface accents, natural human skin and facial features, preserve identity, no costume, no cyberpunk makeup",
+    "ke_corporate": "Kytran Empowerment corporate office portrait, modern executive office background, subtle blue and cyan ambient lighting, professional business attire, clean architectural branding accents, no readable generated text",
+    "action": "natural mid-action professional portrait, candid gesture and movement, expressive face, realistic anatomy, preserve identity",
+    "professional": "professional corporate portrait, natural expression, clean lighting",
+    "casual": "approachable casual portrait, relaxed natural setting and expression",
+    "lcars": "subtle LCARS-inspired holographic interface accents, professional human portrait, preserve identity, no costume",
+}
+VARIANT_FRAMING_PROMPTS = {
+    "portrait": "head-and-shoulders portrait framing",
+    "bust": "chest-up portrait framing",
+    "half_body": "waist-up half-body framing",
+    "full_body": "full-body framing with the entire subject visible",
+}
 DEFAULT_PORTRAIT_MODEL = os.getenv("MEDIA_STUDIO_PORTRAIT_MODEL", "RealVisXL_V4.0.safetensors")
+
+
+def compose_variant_prompt(preset=None, style=None, scene=None, action=None, framing=None, expression=None):
+    parts = []
+    preset_key = str(preset or "").strip().lower()
+    style_text = str(style or "").strip()[:500]
+    style_key = style_text.lower()
+    if preset_key in VARIANT_PRESET_PROMPTS:
+        parts.append(VARIANT_PRESET_PROMPTS[preset_key])
+    if style_key in VARIANT_PRESET_PROMPTS and style_key != preset_key:
+        parts.append(VARIANT_PRESET_PROMPTS[style_key])
+    elif style_text and style_key not in VARIANT_PRESET_PROMPTS:
+        parts.append(style_text)
+    scene_text = str(scene or "").strip()[:500]
+    action_text = str(action or "").strip()[:500]
+    framing_text = str(framing or "").strip().lower()
+    expression_text = str(expression or "").strip()[:200]
+    if scene_text:
+        parts.append(scene_text)
+    if action_text:
+        parts.append("action: " + action_text)
+    if framing_text in VARIANT_FRAMING_PROMPTS:
+        parts.append(VARIANT_FRAMING_PROMPTS[framing_text])
+    if expression_text:
+        parts.append("expression: " + expression_text)
+    return ", ".join(parts)
 
 
 def _apply_corporate_brand(prompt: str) -> str:
@@ -391,7 +431,7 @@ def get_all_agent_portraits() -> List[Dict]:
         cur.execute(
             """
             SELECT a.id, a.name, a.first_name, a.last_name, a.display_name,
-                   a.worker_type, a.avatar_url,
+                   a.title, a.department, a.worker_type, a.avatar_url,
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path,
                    COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
@@ -402,7 +442,7 @@ def get_all_agent_portraits() -> List[Dict]:
                    p.updated_at AS portrait_updated_at,
                    COALESCE(p.updated_at, a.updated_at) AS updated_at,
                    latest.latest_media_at, latest.latest_model, latest.latest_provider,
-                   latest.latest_media_thumbnail, latest.latest_media_path
+                   latest.latest_variant_name, latest.latest_media_thumbnail, latest.latest_media_path
             FROM agents a
             LEFT JOIN LATERAL (
                 SELECT ap.id, ap.canonical_image_path, ap.identity_prompt,
@@ -416,7 +456,9 @@ def get_all_agent_portraits() -> List[Dict]:
             ) p ON TRUE
             LEFT JOIN LATERAL (
                 SELECT ml.created_at AS latest_media_at, ml.model AS latest_model,
-                       ml.provider AS latest_provider, ml.thumbnail_path AS latest_media_thumbnail,
+                       ml.provider AS latest_provider,
+                       ml.metadata->>'variant_name' AS latest_variant_name,
+                       ml.thumbnail_path AS latest_media_thumbnail,
                        ml.file_path AS latest_media_path
                 FROM media_library ml
                 WHERE ml.owner_type = 'agent' AND ml.owner_id = a.id
@@ -515,8 +557,7 @@ def get_identity_audit() -> Dict:
                 "canonical_image_path": row.get("canonical_image_path"),
                 "approved": bool(row.get("approved")),
                 "has_reference": bool(
-                    row.get("approved")
-                    and (row.get("ip_adapter_ref_path") or row.get("canonical_image_path"))
+                    row.get("approved") and (row.get("ip_adapter_ref_path") or row.get("canonical_image_path"))
                 ),
                 "missing_fields": missing,
                 "review_status": "complete" if not missing else "needs_review",
@@ -602,6 +643,10 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
             result["latest_media_at"] = latest.get("created_at")
             result["latest_model"] = latest.get("model_name")
             result["latest_provider"] = latest.get("provider")
+            latest_metadata = latest.get("metadata") or {}
+            result["latest_variant_name"] = (
+                latest_metadata.get("variant_name") if isinstance(latest_metadata, dict) else None
+            )
             result["latest_media_thumbnail"] = latest.get("thumbnail_path") or latest.get("file_path")
         result["pending_review"] = bool(result["variants"] and not result.get("approved"))
         voice_profile = _get_voice_profile(agent_id)
@@ -788,6 +833,12 @@ def generate_variant(
     model_override: Optional[str] = None,
     identity_mode: Optional[str] = "auto",
     identity_weight: Optional[float] = None,
+    preset: Optional[str] = None,
+    scene: Optional[str] = None,
+    action: Optional[str] = None,
+    framing: Optional[str] = None,
+    expression: Optional[str] = None,
+    variant_name: Optional[str] = None,
 ) -> Dict:
     """Generate a face-consistent variant from the approved canonical reference."""
     from .generation_service import submit_generation
@@ -827,10 +878,18 @@ def generate_variant(
         age_range=row.get("age_range") or "",
         appearance_notes=row.get("appearance_notes") or "",
     )
-    if style:
-        base_prompt += f", {style} style"
+    scene_prompt = compose_variant_prompt(
+        preset=preset,
+        style=style,
+        scene=scene,
+        action=action,
+        framing=framing,
+        expression=expression,
+    )
     if pose:
-        base_prompt += f", {pose} pose"
+        scene_prompt = ", ".join(part for part in (scene_prompt, str(pose) + " pose") if part)
+    if scene_prompt:
+        base_prompt += ", " + scene_prompt
 
     params: Dict = {
         "width": 1024,
@@ -856,6 +915,13 @@ def generate_variant(
         params["ip_adapter_ref"] = reference_path
         params["ip_adapter_weight"] = params["identity_weight"]
     params.setdefault("asset_type", "portrait")
+    resolved_variant_name = str(variant_name or action or scene or preset or style or "Custom").strip()[:100]
+    params["variant_name"] = resolved_variant_name or "Custom"
+    if preset:
+        params["variant_preset"] = str(preset).strip().lower()
+    for key, value in (("scene", scene), ("action", action), ("framing", framing), ("expression", expression)):
+        if value:
+            params[key] = str(value).strip()
 
     return submit_generation(
         user_id=None,

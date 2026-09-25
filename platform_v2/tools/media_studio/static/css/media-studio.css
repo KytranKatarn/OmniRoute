@@ -1537,6 +1537,99 @@
     gap: 10px;
     align-items: center;
     margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.ms-variant-label {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    overflow: hidden;
+    padding: 3px 5px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.62);
+    color: #fff;
+    font: 600 9px 'IBM Plex Mono', monospace;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.ms-variant-brief {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    gap: 10px;
+    margin: -4px 0 16px;
+}
+
+.ms-variant-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ms-variant-field span {
+    color: var(--ms-text-tertiary);
+    font: 0.62rem 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ms-variant-field input,
+.ms-variant-field select {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--ms-bg-card);
+    border: 1px solid var(--ms-border);
+    border-radius: 4px;
+    color: var(--ms-text-primary);
+    font-size: 0.75rem;
+    padding: 7px 9px;
+}
+
+.ms-portrait-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0 2px;
+}
+
+.ms-portrait-search,
+.ms-portrait-filter {
+    box-sizing: border-box;
+    background: var(--ms-bg-card);
+    border: 1px solid var(--ms-border);
+    border-radius: 4px;
+    color: var(--ms-text-primary);
+    font-size: 0.75rem;
+    padding: 7px 9px;
+}
+
+.ms-portrait-search {
+    flex: 1 1 220px;
+    min-width: 180px;
+}
+
+.ms-portrait-filter {
+    min-width: 125px;
+}
+
+.ms-portrait-count {
+    color: var(--ms-text-tertiary);
+    font: 0.68rem 'IBM Plex Mono', monospace;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+    .ms-variant-brief {
+        grid-template-columns: repeat(2, minmax(130px, 1fr));
+    }
+    .ms-portrait-count {
+        margin-left: 0;
+    }
 }
 
 /* ============================================================================

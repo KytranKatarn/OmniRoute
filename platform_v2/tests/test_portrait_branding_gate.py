@@ -1,11 +1,13 @@
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 import base64
 import inspect
 from urllib.parse import parse_qs, urlparse
 
 import ai_bridge.external_providers as external_providers
+import tools.media_studio.routes as media_studio_routes
 import tools.media_studio.services.portrait_service as portrait_service
 from tools.media_studio.services.comfyui_manager import (
     IDENTITY_MODE_FACEID_DETAIL,
@@ -29,6 +31,7 @@ from tools.media_studio.services.portrait_service import (
     _portrait_model_params,
     _portrait_negative_prompt,
     _stable_face_seed,
+    compose_variant_prompt,
     generate_canonical,
     generate_fanout,
     generate_variant,
@@ -89,7 +92,10 @@ def test_identity_prompt_locks_gender_age_and_appearance():
 
 def test_identity_modes_fail_closed_without_reference_or_local_provider():
     assert normalize_identity_mode("auto", has_reference=False) == "prompt"
-    assert normalize_identity_mode("auto", has_reference=True, model="RealVisXL_V4.0.safetensors") == IDENTITY_MODE_FACEID_DETAIL
+    assert (
+        normalize_identity_mode("auto", has_reference=True, model="RealVisXL_V4.0.safetensors")
+        == IDENTITY_MODE_FACEID_DETAIL
+    )
     try:
         normalize_identity_mode("faceid", has_reference=False)
     except ValueError as exc:
@@ -248,13 +254,216 @@ def test_canonical_route_forwards_selected_model():
     assert 'identity_weight=data.get("identity_weight")' in route_source
 
 
-def test_generation_service_routes_identity_modes_through_reference_upload():
+def test_structured_variant_prompt_preserves_identity_and_includes_brief():
+    prompt = compose_variant_prompt(
+        preset="ai",
+        scene="modern office",
+        action="waving at the camera",
+        framing="full_body",
+        expression="confident",
+    )
+    assert "preserve identity" in prompt.lower()
+    assert "modern office" in prompt
+    assert "action: waving at the camera" in prompt
+    assert "full-body framing" in prompt
+    assert "expression: confident" in prompt
+
+    corporate = compose_variant_prompt(preset="ke_corporate", scene="a café")
+    assert "Kytran Empowerment" in corporate
+    assert "no readable generated text" in corporate
+
+
+def test_variant_route_forwards_structured_controls():
+    source = (Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py").read_text()
+    start = source.index("def api_generate_variant")
+    end = source.index("@media_studio_bp.route", start + 1)
+    route_source = source[start:end]
+    for field in ("preset", "scene", "action", "framing", "expression", "variant_name"):
+        assert f'{field}=data.get("{field}")' in route_source
+
+
+def test_generate_variant_passes_structured_brief_to_generation():
+    class Cursor:
+        def execute(self, *_args, **_kwargs):
+            return None
+
+        def fetchone(self):
+            return {
+                "identity_prompt": "professional portrait",
+                "ip_adapter_ref_path": "/static/media/agents/42/reference.png",
+                "canonical_image_path": "/static/media/agents/42/canonical.png",
+                "approved": True,
+                "display_name": "Test Agent",
+                "name": "test-agent",
+                "gender": "",
+                "ethnicity": "",
+                "age_range": "",
+                "appearance_notes": "",
+            }
+
+    @contextmanager
+    def cursor(*_args, **_kwargs):
+        yield object(), Cursor()
+
+    with (
+        patch.object(portrait_service, "get_db_cursor", cursor),
+        patch.object(portrait_service, "_portrait_model_params", return_value={"model": "test-model"}),
+        patch.object(
+            portrait_service,
+            "_identity_generation_params",
+            return_value={"identity_mode": "faceid_detail", "identity_weight": 0.85},
+        ),
+        patch(
+            "tools.media_studio.services.generation_service.submit_generation",
+            return_value={"queue_id": 19, "status": "pending"},
+        ) as submit,
+    ):
+        result = generate_variant(
+            42,
+            preset="ai",
+            scene="modern office",
+            action="waving at the camera",
+            framing="full_body",
+            expression="confident",
+            variant_name="Office wave",
+        )
+
+    assert result["queue_id"] == 19
+    params = submit.call_args.kwargs["params"]
+    assert params["variant_preset"] == "ai"
+    assert params["variant_name"] == "Office wave"
+    assert params["scene"] == "modern office"
+    assert params["action"] == "waving at the camera"
+    assert params["framing"] == "full_body"
+    assert params["expression"] == "confident"
+    assert "action: waving at the camera" in submit.call_args.kwargs["prompt"]
+
+
+def test_portrait_grid_exposes_department_and_variant_metadata():
+    source = inspect.getsource(portrait_service.get_all_agent_portraits)
+    assert "a.title, a.department" in source
+    assert "latest_variant_name" in source
+    assert "metadata->>'variant_name'" in source
+
+
+def test_portrait_delete_route_protects_agent_canonical_assets():
+    source = (Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py").read_text()
+    start = source.index("def api_delete_media")
+    end = source.index("@media_studio_bp.route", start + 1)
+    route_source = source[start:end]
+    assert 'owner_type") == "agent"' in route_source
+    assert "canonical_image_path" in route_source
+    assert "Only agent portrait variants" in route_source
+    assert 'getattr(current_user, "is_admin"' in route_source
+    assert 'delete_media(media_id, "agent"' in route_source
+
+
+def test_delete_route_soft_deletes_agent_variant_for_admin():
+    item = {
+        "owner_type": "agent",
+        "owner_id": 42,
+        "media_type": "image",
+        "file_path": "/static/media/agents/42/variant.png",
+        "metadata": {"asset_type": "portrait"},
+    }
+    with (
+        patch.object(media_studio_routes, "current_user", SimpleNamespace(id=7, is_admin=True, is_super_admin=False)),
+        patch.object(media_studio_routes, "jsonify", side_effect=lambda payload: payload),
+        patch("tools.media_studio.services.gallery_service.get_media_detail", return_value=item),
+        patch("tools.media_studio.services.gallery_service.delete_media", return_value=True) as delete,
+        patch(
+            "tools.media_studio.services.portrait_service.get_agent_portrait",
+            return_value={"canonical_image_path": "/static/canonical.png"},
+        ),
+    ):
+        response = media_studio_routes.api_delete_media.__wrapped__(9)
+
+    assert response == {"status": "deleted", "owner_type": "agent"}
+    delete.assert_called_once_with(9, "agent", 42)
+
+
+def test_delete_route_rejects_non_admin_agent_variant():
+    item = {
+        "owner_type": "agent",
+        "owner_id": 42,
+        "media_type": "image",
+        "file_path": "/static/media/agents/42/variant.png",
+        "metadata": {"asset_type": "portrait"},
+    }
+    with (
+        patch.object(media_studio_routes, "current_user", SimpleNamespace(id=7, is_admin=False, is_super_admin=False)),
+        patch.object(media_studio_routes, "jsonify", side_effect=lambda payload: payload),
+        patch("tools.media_studio.services.gallery_service.get_media_detail", return_value=item),
+        patch("tools.media_studio.services.gallery_service.delete_media") as delete,
+    ):
+        response, status = media_studio_routes.api_delete_media.__wrapped__(9)
+
+    assert status == 403
+    assert "administrator" in response["error"]
+    delete.assert_not_called()
+
+
+def test_delete_route_rejects_canonical_portrait():
+    item = {
+        "owner_type": "agent",
+        "owner_id": 42,
+        "media_type": "image",
+        "file_path": "/static/canonical.png",
+        "metadata": {"asset_type": "portrait"},
+    }
+    with (
+        patch.object(media_studio_routes, "current_user", SimpleNamespace(id=7, is_admin=True, is_super_admin=False)),
+        patch.object(media_studio_routes, "jsonify", side_effect=lambda payload: payload),
+        patch("tools.media_studio.services.gallery_service.get_media_detail", return_value=item),
+        patch(
+            "tools.media_studio.services.portrait_service.get_agent_portrait",
+            return_value={"canonical_image_path": "/static/canonical.png"},
+        ),
+        patch("tools.media_studio.services.gallery_service.delete_media") as delete,
+    ):
+        response, status = media_studio_routes.api_delete_media.__wrapped__(9)
+
+    assert status == 409
+    assert "Canonical portraits" in response["error"]
+    delete.assert_not_called()
+
+
+def test_portrait_template_has_structured_brief_and_filters():
     source = (
         Path(__file__).resolve().parents[1]
         / "tools"
         / "media_studio"
-        / "services"
-        / "generation_service.py"
+        / "templates"
+        / "tools"
+        / "media_studio"
+        / "media_studio.html"
+    ).read_text()
+    for marker in (
+        "ms-variant-preset",
+        "ms-variant-scene",
+        "ms-variant-action",
+        "ms-variant-framing",
+        "ms-variant-expression",
+        "ms-variant-name",
+        "ms-portrait-search",
+        "ms-portrait-status-filter",
+        "ms-portrait-sort",
+        "filterPortraits",
+    ):
+        assert marker in source
+
+
+def test_generation_completion_preserves_variant_brief_metadata():
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "services" / "generation_service.py"
+    ).read_text()
+    for field in ("variant_name", "variant_preset", "scene", "action", "framing", "expression"):
+        assert field in source
+
+
+def test_generation_service_routes_identity_modes_through_reference_upload():
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "services" / "generation_service.py"
     ).read_text()
     assert "_upload_reference_image" in source
     assert "build_identity_workflow" in source

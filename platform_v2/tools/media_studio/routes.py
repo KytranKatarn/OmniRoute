@@ -415,13 +415,36 @@ def api_toggle_favorite(media_id):
 @media_studio_bp.route("/api/gallery/<int:media_id>", methods=["DELETE"])
 @login_required
 def api_delete_media(media_id):
-    """Soft delete a media item."""
-    from .services.gallery_service import delete_media
+    """Soft delete a media item, including agent-owned non-canonical variants."""
+    from .services.gallery_service import delete_media, get_media_detail
 
-    ok = delete_media(media_id, "user", current_user.id)
+    item = get_media_detail(media_id, "user", current_user.id)
+    if not item:
+        return jsonify({"error": "Not found"}), 404
+
+    if item.get("owner_type") == "agent":
+        metadata = item.get("metadata") or {}
+        if item.get("media_type") != "image" or metadata.get("asset_type", "portrait") != "portrait":
+            return jsonify({"error": "Only agent portrait variants can be deleted here"}), 403
+        is_admin = bool(getattr(current_user, "is_admin", False) or getattr(current_user, "is_super_admin", False))
+        if not is_admin:
+            return jsonify({"error": "Only an administrator can delete agent portrait variants"}), 403
+        from .services.portrait_service import get_agent_portrait
+
+        portrait = get_agent_portrait(item.get("owner_id")) or {}
+        canonical_path = portrait.get("canonical_image_path")
+        item_path = item.get("file_path")
+        if canonical_path and item_path and str(canonical_path).lstrip("/") == str(item_path).lstrip("/"):
+            return (
+                jsonify({"error": "Canonical portraits cannot be deleted; generate and review a replacement first"}),
+                409,
+            )
+        ok = delete_media(media_id, "agent", item.get("owner_id"))
+    else:
+        ok = delete_media(media_id, "user", current_user.id)
     if not ok:
         return jsonify({"error": "Not found"}), 404
-    return jsonify({"status": "deleted"})
+    return jsonify({"status": "deleted", "owner_type": item.get("owner_type")})
 
 
 # ─── Models + ComfyUI Status ───────────────────────────────────────
@@ -736,6 +759,12 @@ def api_generate_variant(agent_id):
         model_override=data.get("model_override"),  # per-provider model picker (#2942)
         identity_mode=data.get("identity_mode", "auto"),
         identity_weight=data.get("identity_weight"),
+        preset=data.get("preset"),
+        scene=data.get("scene"),
+        action=data.get("action"),
+        framing=data.get("framing"),
+        expression=data.get("expression"),
+        variant_name=data.get("variant_name"),
     )
     if "error" in result or not result.get("queue_id"):
         return jsonify({"success": False, "error": result.get("error", "Variant queue was not created")}), 400

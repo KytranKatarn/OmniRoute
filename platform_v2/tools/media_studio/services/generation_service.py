@@ -285,7 +285,7 @@ def on_generation_complete(
     entry_metadata: Dict = {}
     if params.get("asset_type"):
         entry_metadata["asset_type"] = params["asset_type"]
-    for _k in ("theme_id", "scene_id"):
+    for _k in ("theme_id", "scene_id", "variant_name", "variant_preset", "scene", "action", "framing", "expression"):
         if params.get(_k) is not None:
             entry_metadata[_k] = params[_k]
     if params.get("identity_mode") in {"instantid", "instantid_detail"}:
@@ -1833,11 +1833,7 @@ def get_image_providers() -> dict:
                         if "recommended" in LOCAL_IMAGE_NOTES.get(fname, "")
                         else "secondary" if "secondary" in LOCAL_IMAGE_NOTES.get(fname, "") else "experimental"
                     ),
-                    "identity_modes": (
-                        list(IDENTITY_MODE_VALUES)
-                        if fname in IDENTITY_LOCAL_MODELS
-                        else ["prompt"]
-                    ),
+                    "identity_modes": (list(IDENTITY_MODE_VALUES) if fname in IDENTITY_LOCAL_MODELS else ["prompt"]),
                     "_priority": LOCAL_IMAGE_PRIORITY.get(fname, 100),
                 }
             )

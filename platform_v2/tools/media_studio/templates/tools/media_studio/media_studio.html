@@ -374,6 +374,23 @@
             <div class="ms-section-line"></div>
         </div>
 
+        <div id="ms-portrait-toolbar" class="ms-portrait-toolbar">
+            <input id="ms-portrait-search" class="ms-portrait-search" type="search" placeholder="Search name or department" oninput="filterPortraits()" aria-label="Search portraits" />
+            <select id="ms-portrait-status-filter" class="ms-portrait-filter" onchange="filterPortraits()" aria-label="Filter portrait status">
+                <option value="all">All statuses</option>
+                <option value="approved">Approved</option>
+                <option value="pending">Pending review</option>
+                <option value="none">No portrait</option>
+            </select>
+            <select id="ms-portrait-sort" class="ms-portrait-filter" onchange="filterPortraits()" aria-label="Sort portraits">
+                <option value="recent">Recently updated</option>
+                <option value="name">Name A–Z</option>
+                <option value="name_desc">Name Z–A</option>
+                <option value="portrait_first">Portrait first</option>
+            </select>
+            <span id="ms-portrait-count" class="ms-portrait-count"></span>
+        </div>
+
         <div id="ms-portrait-grid" class="ms-portrait-grid">
             <!-- Populated by loadPortraits() -->
         </div>
@@ -508,18 +525,27 @@
 
             <div class="ms-variant-actions">
                 <button class="ms-btn ms-btn-accent" id="ms-variant-btn" onclick="generateVariant()" style="display:none;" data-i18n="media_studio.generate_variant">Generate New</button>
-                <select id="ms-variant-style" class="ms-model-select">
+                <select id="ms-variant-preset" class="ms-model-select" title="Variant preset">
                     <option value="">Default style</option>
-                    <option value="professional headshot">Professional</option>
-                    <option value="casual portrait">Casual</option>
-                    <option value="action pose">Action</option>
-                    <option value="LCARS holographic">Holographic</option>
+                    <option value="ai">AI — subtle futuristic</option>
+                    <option value="ke_corporate">KE Corporate</option>
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="action">Action</option>
+                    <option value="lcars">LCARS holographic</option>
                 </select>
                 <select id="ms-variant-model" class="ms-model-select" title="Image model" onchange="updateProviderModelPicker('ms-variant-model', 'ms-variant-provider-model'); updateIdentityControls()">
                     <option value="">Auto (fleet-aware)</option>
                 </select>
                 <select id="ms-variant-provider-model" class="ms-model-select" title="Provider model" style="display:none;"></select>
                 <span id="ms-variant-identity-note" style="font-size:.62rem;color:rgba(255,255,255,.35);">Uses the identity mode above.</span>
+            </div>
+            <div class="ms-variant-brief">
+                <label class="ms-variant-field"><span>Scene / setting</span><input id="ms-variant-scene" type="text" placeholder="e.g. modern office, bedroom, café" /></label>
+                <label class="ms-variant-field"><span>Action</span><input id="ms-variant-action" type="text" placeholder="e.g. waving at camera, smiling, working" /></label>
+                <label class="ms-variant-field"><span>Framing</span><select id="ms-variant-framing"><option value="portrait">Portrait</option><option value="bust">Bust</option><option value="half_body">Half body</option><option value="full_body">Full body</option></select></label>
+                <label class="ms-variant-field"><span>Expression</span><input id="ms-variant-expression" type="text" placeholder="e.g. calm, confident, joyful" /></label>
+                <label class="ms-variant-field"><span>Label (optional)</span><input id="ms-variant-name" type="text" maxlength="100" placeholder="e.g. Office wave" /></label>
             </div>
 
 
@@ -2100,9 +2126,14 @@
     window.deleteMedia = function(mediaId) {
         api("DELETE", "/api/gallery/" + encodeURIComponent(mediaId)).then(function() {
             closeMediaModal();
-            loadGallery(1);
+            if (_currentAgentId && typeof loadPortraitDetail === 'function') {
+                loadPortraitDetail(_currentAgentId);
+            } else {
+                loadGallery(1);
+            }
         }).catch(function(err) {
             console.error("Delete failed:", err);
+            alert("Delete failed: " + (err.message || err));
         });
     };
 
@@ -2288,78 +2319,123 @@
         while (el.firstChild) el.removeChild(el.firstChild);
     }
 
+    var _portraitAgents = [];
+
+    function _portraitName(agent) {
+        if (agent.first_name && agent.last_name) return agent.first_name + ' ' + agent.last_name;
+        return agent.display_name || agent.name || '';
+    }
+
+    function _portraitUpdated(agent) {
+        var value = agent.latest_media_at || agent.portrait_updated_at || agent.avatar_updated_at || agent.updated_at;
+        var timestamp = value ? Date.parse(value) : 0;
+        return isNaN(timestamp) ? 0 : timestamp;
+    }
+
+    window.filterPortraits = function() {
+        var query = ((document.getElementById('ms-portrait-search') || {}).value || '').trim().toLowerCase();
+        var status = (document.getElementById('ms-portrait-status-filter') || {}).value || 'all';
+        var sort = (document.getElementById('ms-portrait-sort') || {}).value || 'recent';
+        var list = (_portraitAgents || []).filter(function(agent) {
+            var haystack = [
+                _portraitName(agent),
+                agent.name,
+                agent.display_name,
+                agent.department,
+                agent.title
+            ].join(' ').toLowerCase();
+            if (query && haystack.indexOf(query) === -1) return false;
+            if (status === 'approved' && !agent.approved) return false;
+            if (status === 'pending' && (!agent.has_portrait || agent.approved)) return false;
+            if (status === 'none' && agent.has_portrait) return false;
+            return true;
+        });
+        list.sort(function(a, b) {
+            if (sort === 'name') return _portraitName(a).localeCompare(_portraitName(b));
+            if (sort === 'name_desc') return _portraitName(b).localeCompare(_portraitName(a));
+            if (sort === 'portrait_first') {
+                var portraitDelta = Number(!!b.has_portrait) - Number(!!a.has_portrait);
+                if (portraitDelta) return portraitDelta;
+            }
+            return _portraitUpdated(b) - _portraitUpdated(a) || _portraitName(a).localeCompare(_portraitName(b));
+        });
+
+        var grid = document.getElementById('ms-portrait-grid');
+        _clearChildren(grid);
+        list.forEach(function(agent) {
+            var card = document.createElement('div');
+            card.className = 'ms-portrait-card' + (agent.has_portrait ? ' has-portrait' : '');
+            card.onclick = function() { openPortraitDetail(agent.id); };
+
+            var thumb = document.createElement('div');
+            thumb.className = 'ms-portrait-thumb';
+            if (agent.avatar_url || agent.canonical_image_path || agent.latest_media_thumbnail || agent.latest_media_path) {
+                var imgEl = document.createElement('img');
+                var src = agent.avatar_url || agent.canonical_image_path || agent.latest_media_thumbnail || agent.latest_media_path;
+                if (src && src.charAt(0) !== '/' && !/^https?:\/\//i.test(src)) src = '/static/' + src;
+                var ts = agent.avatar_updated_at || agent.latest_media_at || agent.updated_at;
+                if (src && ts) {
+                    var version = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
+                    src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'v=' + version;
+                }
+                imgEl.src = src;
+                imgEl.alt = _portraitName(agent);
+                imgEl.onerror = function() {
+                    var ph = document.createElement('div');
+                    ph.className = 'ms-portrait-placeholder';
+                    ph.textContent = (agent.display_name || '?').charAt(0);
+                    this.replaceWith(ph);
+                };
+                thumb.appendChild(imgEl);
+            } else {
+                var placeholder = document.createElement('div');
+                placeholder.className = 'ms-portrait-placeholder';
+                placeholder.textContent = (agent.display_name || '?').charAt(0);
+                thumb.appendChild(placeholder);
+            }
+            card.appendChild(thumb);
+
+            var info = document.createElement('div');
+            info.className = 'ms-portrait-info';
+            var name = document.createElement('span');
+            name.className = 'ms-portrait-name';
+            name.textContent = _portraitName(agent) || '—';
+            info.appendChild(name);
+
+            var statusBadge = document.createElement('span');
+            statusBadge.className = 'ms-status-badge ' + (agent.approved ? 'completed' : agent.has_portrait ? 'pending' : 'idle');
+            statusBadge.textContent = agent.approved ? 'Approved' : agent.has_portrait ? 'Pending' : 'No Portrait';
+            info.appendChild(statusBadge);
+
+            var metaParts = [];
+            var created = _formatPortraitDate(agent.latest_media_at || agent.portrait_created_at || agent.portrait_updated_at);
+            if (created) metaParts.push(created);
+            if (agent.latest_variant_name) metaParts.push(agent.latest_variant_name);
+            if (agent.latest_model) metaParts.push(agent.latest_model.replace('.safetensors', '').replace('.ckpt', ''));
+            if (agent.latest_provider) metaParts.push(agent.latest_provider);
+            if (metaParts.length) {
+                var meta = document.createElement('div');
+                meta.className = 'ms-portrait-meta';
+                meta.textContent = metaParts.join(' · ');
+                info.appendChild(meta);
+            }
+            card.appendChild(info);
+            grid.appendChild(card);
+        });
+        var count = document.getElementById('ms-portrait-count');
+        if (count) count.textContent = list.length + ' of ' + (_portraitAgents || []).length;
+    };
+
     window.loadPortraits = function() {
         fetch(API_BASE + '/api/portraits')
             .then(function(r) { return r.json(); })
             .then(function(data) {
+                _portraitAgents = data.agents || [];
+                window.filterPortraits();
+            })
+            .catch(function() {
                 var grid = document.getElementById('ms-portrait-grid');
-                _clearChildren(grid);
-                (data.agents || []).forEach(function(agent) {
-                    var card = document.createElement('div');
-                    card.className = 'ms-portrait-card' + (agent.has_portrait ? ' has-portrait' : '');
-                    card.onclick = function() { openPortraitDetail(agent.id); };
-
-                    var thumb = document.createElement('div');
-                    thumb.className = 'ms-portrait-thumb';
-                    if (agent.avatar_url || agent.canonical_image_path || agent.latest_media_thumbnail || agent.latest_media_path) {
-                        var imgEl = document.createElement('img');
-                        var src = agent.avatar_url || agent.canonical_image_path || agent.latest_media_thumbnail || agent.latest_media_path;
-                        if (src && src.charAt(0) !== '/' && !/^https?:\/\//i.test(src)) {
-                            src = '/static/' + src;
-                        }
-                        var ts = agent.avatar_updated_at || agent.latest_media_at || agent.updated_at;
-                        if (src && ts) {
-                            var v = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
-                            src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'v=' + v;
-                        }
-                        imgEl.src = src;
-                        imgEl.alt = agent.display_name;
-                        imgEl.onerror = function() {
-                            // On 404, swap to initials placeholder.
-                            var ph = document.createElement('div');
-                            ph.className = 'ms-portrait-placeholder';
-                            ph.textContent = (agent.display_name || '?').charAt(0);
-                            this.replaceWith(ph);
-                        };
-                        thumb.appendChild(imgEl);
-                    } else {
-                        var placeholder = document.createElement('div');
-                        placeholder.className = 'ms-portrait-placeholder';
-                        placeholder.textContent = (agent.display_name || '?').charAt(0);
-                        thumb.appendChild(placeholder);
-                    }
-                    card.appendChild(thumb);
-
-                    var info = document.createElement('div');
-                    info.className = 'ms-portrait-info';
-                    var name = document.createElement('span');
-                    name.className = 'ms-portrait-name';
-                    var fullName = (agent.first_name && agent.last_name)
-                        ? agent.first_name + ' ' + agent.last_name
-                        : agent.display_name || agent.name || '—';
-                    name.textContent = fullName;
-                    info.appendChild(name);
-
-                    var status = document.createElement('span');
-                    status.className = 'ms-status-badge ' + (agent.approved ? 'completed' : agent.has_portrait ? 'pending' : 'idle');
-                    status.textContent = agent.approved ? 'Approved' : agent.has_portrait ? 'Pending' : 'No Portrait';
-                    info.appendChild(status);
-
-                    var metaParts = [];
-                    var created = _formatPortraitDate(agent.latest_media_at || agent.portrait_created_at || agent.portrait_updated_at);
-                    if (created) metaParts.push(created);
-                    if (agent.latest_model) metaParts.push(agent.latest_model.replace('.safetensors', '').replace('.ckpt', ''));
-                    if (agent.latest_provider) metaParts.push(agent.latest_provider);
-                    if (metaParts.length) {
-                        var meta = document.createElement('div');
-                        meta.className = 'ms-portrait-meta';
-                        meta.textContent = metaParts.join(' · ');
-                        info.appendChild(meta);
-                    }
-
-                    card.appendChild(info);
-                    grid.appendChild(card);
-                });
+                if (grid) grid.textContent = 'Failed to load portraits.';
             });
     };
 
@@ -2536,7 +2612,12 @@
         // Populate model dropdowns from /api/image-providers (cached after first call)
         populateImageProviderSelect(document.getElementById('ms-canonical-model'));
         populateImageProviderSelect(document.getElementById('ms-variant-model'));
+        ['ms-variant-preset', 'ms-variant-scene', 'ms-variant-action', 'ms-variant-framing', 'ms-variant-expression', 'ms-variant-name'].forEach(function(id) {
+            var control = document.getElementById(id);
+            if (control) control.value = id === 'ms-variant-framing' ? 'portrait' : '';
+        });
         document.getElementById('ms-portrait-grid').style.display = 'none';
+        document.getElementById('ms-portrait-toolbar').style.display = 'none';
         document.getElementById('ms-portrait-detail').style.display = 'block';
 
         // Reset M.U.S.E. panel so previous agent's state doesn't bleed through
@@ -2611,6 +2692,7 @@
         _currentAgentId = null;
         _currentPortraitData = null;
         document.getElementById('ms-portrait-detail').style.display = 'none';
+        document.getElementById('ms-portrait-toolbar').style.display = '';
         document.getElementById('ms-portrait-grid').style.display = '';
     };
 
@@ -2677,6 +2759,7 @@
                     var metaParts = [];
                     var created = _formatPortraitDate(data.latest_media_at || data.portrait_created_at || data.portrait_updated_at);
                     if (created) metaParts.push('Generated ' + created);
+                    if (data.latest_variant_name) metaParts.push(data.latest_variant_name);
                     if (data.latest_model) metaParts.push(data.latest_model.replace('.safetensors', '').replace('.ckpt', ''));
                     if (data.latest_provider) metaParts.push(data.latest_provider);
                     metadata.textContent = metaParts.join(' · ');
@@ -2725,6 +2808,12 @@
                     vImg.alt = 'Variant';
                     vImg.loading = 'lazy';
                     item.appendChild(vImg);
+                    if (v.metadata && v.metadata.variant_name) {
+                        var variantLabel = document.createElement('div');
+                        variantLabel.className = 'ms-variant-label';
+                        variantLabel.textContent = v.metadata.variant_name;
+                        item.appendChild(variantLabel);
+                    }
 
                     // Hover overlay — "Select"
                     var overlay = document.createElement('div');
@@ -3208,15 +3297,24 @@
 
     window.generateVariant = function() {
         if (!_currentAgentId) return;
-        var style = document.getElementById('ms-variant-style').value;
+        var preset = document.getElementById('ms-variant-preset').value;
+        var scene = document.getElementById('ms-variant-scene').value.trim();
+        var action = document.getElementById('ms-variant-action').value.trim();
+        var framing = document.getElementById('ms-variant-framing').value;
+        var expression = document.getElementById('ms-variant-expression').value.trim();
+        var variantName = document.getElementById('ms-variant-name').value.trim();
         var model = document.getElementById('ms-variant-model').value;
-        var payload = {};
-        if (style) payload.style = style;
+        var payload = {
+            preset: preset,
+            scene: scene,
+            action: action,
+            framing: framing,
+            expression: expression,
+            variant_name: variantName
+        };
         if (model) payload.model = model;
         var vpmSel = document.getElementById('ms-variant-provider-model');
-        if (vpmSel && vpmSel.style.display !== 'none' && vpmSel.value) {
-            payload.model_override = vpmSel.value;
-        }
+        if (vpmSel && vpmSel.style.display !== 'none' && vpmSel.value) payload.model_override = vpmSel.value;
         Object.assign(payload, _identityPayload());
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-variant', {
             method: 'POST',

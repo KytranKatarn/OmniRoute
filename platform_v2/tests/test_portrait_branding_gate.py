@@ -21,6 +21,7 @@ from tools.media_studio.services.generation_service import (
     SUPPORTED_IMAGE_PROVIDERS,
     _dashboard_media_item,
     _dashboard_media_url,
+    apply_ke_branding,
     get_dashboard_stats,
     get_image_providers,
 )
@@ -40,9 +41,44 @@ from tools.media_studio.services.portrait_service import (
 
 def test_corporate_brand_is_added_once():
     prompt = _apply_corporate_brand("professional portrait")
-    assert "Kytran Empowerment RAM mark" in prompt
-    assert "background-only" in prompt
+    assert "professional human corporate portrait" in prompt
     assert _apply_corporate_brand(prompt) == prompt
+
+
+def test_prompt_never_asks_the_model_for_the_brand_mark():
+    """Regression guard: asking for a mark makes SD invent gibberish.
+
+    The prior brand string requested "subtle embossed Kytran Empowerment RAM
+    mark" and the model painted a fake logo on the blazer lapel
+    (media_library #498) while the negative prompt banned "fake logo". The real
+    mark is composited post-generation by apply_ke_branding instead.
+    """
+    banned = ("RAM mark", "embossed", "architectural branding", "branding accents")
+    prompts = [
+        _apply_corporate_brand("professional portrait"),
+        _compose_identity_prompt("portrait"),
+        compose_variant_prompt(preset="ke_corporate"),
+        compose_variant_prompt(preset="ai", ke_background=True),
+    ]
+    for prompt in prompts:
+        lowered = prompt.lower()
+        for phrase in banned:
+            assert phrase.lower() not in lowered, f"{phrase!r} must not be prompt text: {prompt}"
+
+
+def test_ke_background_prompt_is_photographic():
+    """SD responds to concrete visual nouns, not brand abstractions."""
+    prompt = compose_variant_prompt(preset="ke_corporate").lower()
+    for token in ("office", "bokeh", "depth of field", "bokeh"):
+        assert token in prompt
+    assert "no readable generated text" not in prompt
+
+
+def test_ke_corporate_preset_and_toggle_share_one_string():
+    """The preset and the stacking toggle must not drift apart."""
+    assert compose_variant_prompt(preset="ke_corporate") == compose_variant_prompt(
+        preset="ke_corporate", ke_background=True
+    )
 
 
 def test_portrait_negative_prompt_allows_subtle_background_brand():
@@ -55,7 +91,7 @@ def test_portrait_negative_prompt_allows_subtle_background_brand():
 def test_generation_paths_apply_corporate_brand():
     for function in (generate_canonical, generate_variant, generate_fanout):
         assert "_compose_identity_prompt" in inspect.getsource(function)
-    assert "Kytran Empowerment RAM mark" in _compose_identity_prompt("portrait")
+    assert "corporate portrait" in _compose_identity_prompt("portrait")
 
 
 def test_portrait_auto_approval_job_is_removed():
@@ -269,8 +305,8 @@ def test_structured_variant_prompt_preserves_identity_and_includes_brief():
     assert "expression: confident" in prompt
 
     corporate = compose_variant_prompt(preset="ke_corporate", scene="a café")
-    assert "Kytran Empowerment" in corporate
-    assert "no readable generated text" in corporate
+    assert "office" in corporate
+    assert "a café" in corporate
 
 
 def test_variant_route_forwards_structured_controls():
@@ -582,15 +618,14 @@ def test_armada_and_kin_expose_media_queue_tracking():
 
 def test_ke_corporate_background_stacks_on_any_style_preset():
     prompt = compose_variant_prompt(preset="ai", ke_background=True)
-    assert "Kytran Empowerment corporate background" in prompt
     assert "restrained futuristic cyan and violet interface accents" in prompt
-    assert "modern executive office setting" in prompt
-    assert "no readable generated text" in prompt
+    assert "skyline bokeh" in prompt
+    assert "shallow depth of field" in prompt
 
     stacked = compose_variant_prompt(preset="professional", scene="a café", ke_background=True)
     assert "professional corporate portrait" in stacked
     assert "a café" in stacked
-    assert "modern executive office setting" in stacked
+    assert "skyline bokeh" in stacked
 
     plain = compose_variant_prompt(preset="ke_corporate")
     assert compose_variant_prompt(preset="ke_corporate", ke_background=True) == plain
@@ -770,3 +805,74 @@ def test_portrait_template_has_ke_toggle_identity_fields_editor_and_default_pres
     assert "isAI ? 'ai' : 'professional'" in source
     assert "identity-suggest" in source
     assert "identity-fields" in source
+
+
+# --- KE mark compositing -------------------------------------------------
+# The mark cannot be rendered by the model (see the prompt regression guard
+# above), so it is stamped on deterministically after generation.
+
+
+def _gradient_png(path, size=(512, 512)):
+    from PIL import Image
+
+    img = Image.new("RGB", size, (120, 140, 170))
+    for x in range(size[0]):
+        v = int(120 + (x / size[0]) * 80)
+        for y in range(size[1]):
+            img.putpixel((x, y), (v, v + 20, 200 - v // 2))
+    img.save(path, "PNG")
+    return path
+
+
+def test_apply_ke_branding_stamps_the_real_mark_in_the_corner(tmp_path):
+    from PIL import Image, ImageChops
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (64, 76), (200, 30, 30, 255)).save(logo)
+    target = _gradient_png(tmp_path / "portrait.png")
+
+    before = Image.open(target).convert("RGB")
+    assert apply_ke_branding(str(target), logo_path=str(logo)) is True
+    after = Image.open(target).convert("RGB")
+
+    # The mark must land in the bottom-right corner...
+    w, h = after.size
+    corner = after.crop((int(w * 0.6), int(h * 0.6), w, h))
+    corner_before = before.crop((int(w * 0.6), int(h * 0.6), w, h))
+    assert ImageChops.difference(corner, corner_before).getbbox() is not None
+    # ...and the top of the frame must stay untouched (scrim is bottom-only).
+    top = after.crop((0, 0, w, int(h * 0.4)))
+    top_before = before.crop((0, 0, w, int(h * 0.4)))
+    assert ImageChops.difference(top, top_before).getbbox() is None
+
+
+def test_apply_ke_branding_is_silent_on_missing_assets(tmp_path):
+    """A branding failure must never fail the generation it decorates."""
+    assert apply_ke_branding(str(tmp_path / "nope.png"), logo_path=str(tmp_path / "no.png")) is False
+    target = _gradient_png(tmp_path / "ok.png")
+    assert apply_ke_branding(str(target), logo_path=str(tmp_path / "absent.png")) is False
+
+
+def test_apply_ke_branding_preserves_jpeg_sources(tmp_path):
+    from PIL import Image
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (64, 76), (10, 200, 90, 255)).save(logo)
+    target = tmp_path / "photo.jpg"
+    Image.new("RGB", (400, 400), (30, 60, 90)).save(target, "JPEG")
+
+    assert apply_ke_branding(str(target), logo_path=str(logo)) is True
+    with Image.open(target) as img:
+        assert img.format == "JPEG"
+
+
+def test_generation_completion_brands_only_ke_corporate():
+    source = inspect.getsource(
+        __import__(
+            "tools.media_studio.services.generation_service",
+            fromlist=["on_generation_complete"],
+        ).on_generation_complete
+    )
+    assert "apply_ke_branding(dest_path)" in source
+    assert 'params.get("variant_branding") == "ke_corporate"' in source
+    assert "ke_logo_applied" in source

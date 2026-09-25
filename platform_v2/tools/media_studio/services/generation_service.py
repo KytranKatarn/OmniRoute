@@ -203,6 +203,114 @@ def submit_generation(
         return {"queue_id": queue_id, "status": "failed", "error": str(e)}
 
 
+KE_LOGO_PATH = os.path.join(_PLATFORM_DIR, "static", "img", "kytran-logo.png")
+
+
+def apply_ke_branding(
+    image_path: str,
+    logo_path: str = KE_LOGO_PATH,
+    opacity: float = 0.95,
+    height_ratio: float = 0.17,
+    margin_ratio: float = 0.035,
+    scrim: bool = True,
+    scrim_ratio: float = 0.26,
+    scrim_strength: float = 0.72,
+) -> bool:
+    """Composite the real Kytran Empowerment mark onto a finished image.
+
+    The mark is applied here rather than requested in the prompt: diffusion
+    models cannot render a legible brand mark, and asking produced invented
+    gibberish on the subject's clothing.
+
+    Sits bottom-right over a soft gradient scrim. The scrim is not decoration:
+    portraits are centre-framed, so a bare corner mark lands on the subject's
+    shoulder and reads as a lapel pin rather than branding. Darkening the lower
+    band gives the mark a consistent backing and separates it from the subject.
+
+    Returns True if the image was modified. Never raises — a branding failure
+    must not fail the generation.
+    """
+    try:
+        from PIL import Image, ImageFilter
+    except ImportError:  # pragma: no cover - Pillow ships with the platform
+        logger.warning("KE branding skipped: Pillow unavailable")
+        return False
+
+    if not os.path.isfile(logo_path):
+        logger.warning(f"KE branding skipped: logo asset missing at {logo_path}")
+        return False
+    if not os.path.isfile(image_path):
+        logger.warning(f"KE branding skipped: image missing at {image_path}")
+        return False
+
+    try:
+        with Image.open(image_path) as src:
+            src.load()
+            base = src.convert("RGBA")
+            source_format = src.format
+
+        with Image.open(logo_path) as lg:
+            lg.load()
+            logo = lg.convert("RGBA")
+
+        # Scale the mark to a fraction of image height, preserving aspect.
+        target_h = max(1, int(round(base.height * height_ratio)))
+        target_w = max(1, int(round(logo.width * (target_h / logo.height))))
+        logo = logo.resize((target_w, target_h), Image.LANCZOS)
+
+        # Apply opacity to the alpha channel only, so the artwork keeps its
+        # own colours instead of being washed toward the tint colour.
+        if opacity < 1.0:
+            alpha = logo.getchannel("A").point(lambda v: int(v * opacity))
+            logo.putalpha(alpha)
+
+        margin = max(1, int(round(base.width * margin_ratio)))
+        pos = (base.width - logo.width - margin, base.height - logo.height - margin)
+
+        out = base
+
+        # Gradient scrim across the lower band, transparent above it.
+        if scrim:
+            band_h = max(1, int(round(base.height * scrim_ratio)))
+            band_top = base.height - band_h
+            ramp = Image.new("L", (1, base.height), 0)
+            ramp_px = ramp.load()
+            for y in range(band_top, base.height):
+                t = (y - band_top) / max(1, band_h - 1)
+                ramp_px[0, y] = int(255 * (t**1.5) * scrim_strength)
+            ramp = ramp.resize((base.width, base.height))
+            scrim_layer = Image.new("RGBA", base.size, (6, 10, 18, 255))
+            scrim_layer.putalpha(ramp)
+            out = Image.alpha_composite(out, scrim_layer)
+
+        # Soft drop shadow: a blurred black silhouette of the mark, offset a
+        # few pixels, keeps the logo legible over a light backdrop.
+        shadow = Image.new("RGBA", base.size, (0, 0, 0, 0))
+        offset = max(2, int(round(base.width * 0.004)))
+        shadow.paste((0, 0, 0, int(150 * opacity)), (pos[0] + offset, pos[1] + offset), logo)
+        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=max(2, offset)))
+        out = Image.alpha_composite(out, shadow)
+
+        # Composite the logo at its position (alpha_composite needs full-size).
+        logo_layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
+        logo_layer.paste(logo, pos, logo)
+        out = Image.alpha_composite(out, logo_layer)
+
+        if out.mode != "RGBA":
+            out = out.convert("RGBA")
+
+        # Preserve the source format so JPEG sources stay JPEGs.
+        save_kwargs = {}
+        if source_format == "JPEG":
+            out = out.convert("RGB")
+            save_kwargs = {"quality": 95, "subsampling": 0}
+        out.save(image_path, **save_kwargs)
+        return True
+    except Exception as exc:
+        logger.warning(f"KE branding composite failed for {image_path}: {exc}")
+        return False
+
+
 def on_generation_complete(
     queue_id: int,
     file_path: str,
@@ -245,6 +353,13 @@ def on_generation_complete(
     except Exception as e:
         logger.error(f"Failed to copy media file: {e}")
         dest_path = file_path
+
+    # KE branding: composite the real mark before the thumbnail is derived, so
+    # gallery thumbs match the full image. The prompt deliberately does NOT ask
+    # for a mark (models invent one) — this is the only reliable way to brand.
+    ke_logo_applied = False
+    if params.get("variant_branding") == "ke_corporate":
+        ke_logo_applied = apply_ke_branding(dest_path)
 
     # URL-friendly path for DB storage. Normalize to /static/<rel-to-static>
     # so avatar_url works directly as an <img src>. The old implementation
@@ -298,6 +413,8 @@ def on_generation_complete(
     ):
         if params.get(_k) is not None:
             entry_metadata[_k] = params[_k]
+    if params.get("variant_branding") == "ke_corporate":
+        entry_metadata["ke_logo_applied"] = ke_logo_applied
     if params.get("identity_mode") in {"instantid", "instantid_detail"}:
         entry_metadata["identity_quality_warning"] = (
             "InstantID is experimental; inspect for text or watermark artifacts before approval."

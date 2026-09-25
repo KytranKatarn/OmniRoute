@@ -26,19 +26,32 @@ VISION_DESCRIBE_PROMPT = (
     "age, hair, eyes, clothing, and any distinctive features."
 )
 
+# NOTE ON BRANDING: the mark itself is NEVER asked for in a prompt. Diffusion
+# models cannot render a legible brand mark, so requesting one yields invented
+# gibberish — a prior revision said "subtle embossed Kytran Empowerment RAM mark
+# integrated into the background" here, and the model painted a fake logo on the
+# blazer lapel (media_library #498) while the negative prompt simultaneously
+# banned "fake logo". The real mark is composited deterministically after
+# generation instead — see generation_service.apply_ke_branding.
 KYTRAN_PORTRAIT_BRAND = (
-    "professional human corporate portrait with subtle AI technology accents, "
-    "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
-    "low contrast, background-only, never over the subject, no readable text"
+    "professional human corporate portrait, clean studio lighting, "
+    "subtle AI technology accents, uncluttered neutral background"
 )
+# Stable substring of KYTRAN_PORTRAIT_BRAND used to detect "already applied".
+_CORPORATE_BRAND_MARKER = "professional human corporate portrait"
+# Photographic, not abstract. "clean architectural branding accents" and
+# "no readable generated text" are not visual tokens — SD ignored them and
+# returned a plain gradient. Concrete nouns (glass wall, skyline bokeh, depth
+# of field) are what the checkpoint actually responds to.
 KE_CORPORATE_BACKGROUND = (
-    "Kytran Empowerment corporate background, modern executive office setting, "
-    "subtle blue and cyan ambient lighting, professional business attire, "
-    "clean architectural branding accents, no readable generated text"
+    "modern corporate office interior, blurred glass partition wall and city "
+    "skyline bokeh behind the subject, soft diffused key light, navy and cyan "
+    "color grading, tailored business professional attire, shallow depth of field, "
+    "clean uncluttered background"
 )
 VARIANT_PRESET_PROMPTS = {
     "ai": "AI-inspired professional portrait, restrained futuristic cyan and violet interface accents, natural human skin and facial features, preserve identity, no costume, no cyberpunk makeup",
-    "ke_corporate": "Kytran Empowerment corporate office portrait, modern executive office background, subtle blue and cyan ambient lighting, professional business attire, clean architectural branding accents, no readable generated text",
+    "ke_corporate": KE_CORPORATE_BACKGROUND,
     "action": "natural mid-action professional portrait, candid gesture and movement, expressive face, realistic anatomy, preserve identity",
     "professional": "professional corporate portrait, natural expression, clean lighting",
     "casual": "approachable casual portrait, relaxed natural setting and expression",
@@ -85,7 +98,11 @@ def compose_variant_prompt(
 
 def _apply_corporate_brand(prompt: str) -> str:
     prompt = (prompt or "").strip()
-    if not prompt or "Kytran Empowerment RAM mark" in prompt:
+    # Idempotence guard. This keyed on the literal "Kytran Empowerment RAM
+    # mark" until the mark moved to post-generation compositing — removing that
+    # phrase silently broke the guard and the brand text was appended twice.
+    # Key on a marker that is part of the brand string itself.
+    if not prompt or _CORPORATE_BRAND_MARKER in prompt:
         return prompt
     return f"{prompt}, {KYTRAN_PORTRAIT_BRAND}"
 

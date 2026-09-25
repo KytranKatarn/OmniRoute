@@ -878,6 +878,113 @@ def test_generation_completion_brands_only_ke_corporate():
     assert "ke_logo_applied" in source
 
 
+# --- fleet path resolution ------------------------------------------------
+# The fleet ComfyUI path hands on_generation_complete a '/static/...' URL, not
+# a filesystem path. Unresolved, the copy failed and everything after it
+# no-opped: KE branding returned False and thumbnail_path was NULL on every
+# fleet image (#500/#501/#502).
+
+
+def test_static_url_resolves_to_a_real_filesystem_path():
+    """A '/static/...' argument must resolve under MEDIA_ROOT, not be used raw."""
+    from tools.media_studio.services import generation_service as gs
+
+    static_root = Path(gs.MEDIA_ROOT).resolve().parent
+    resolved = (static_root / "media/images/2026-09-25/x.png").resolve()
+    assert str(resolved).startswith(str(static_root))
+    # The bug shape: the raw URL is NOT a path that exists.
+    assert not Path("/static/media/images/2026-09-25/x.png").exists()
+
+
+def test_on_generation_complete_normalises_before_copy():
+    source = inspect.getsource(
+        __import__(
+            "tools.media_studio.services.generation_service",
+            fromlist=["on_generation_complete"],
+        ).on_generation_complete
+    )
+    # The resolution must happen before the copy, and the copy must use it.
+    assert "source_path = file_path" in source
+    assert 'source_path.startswith("/static/")' in source
+    assert "shutil.copy2(source_path, dest_path)" in source
+    assert source.index('source_path.startswith("/static/")') < source.index("shutil.copy2(")
+    # And the fallback must not reintroduce the raw URL.
+    assert "dest_path = file_path" not in source
+
+
+# --- legacy stored-prompt cleanup ----------------------------------------
+# agents.*_prompt and agent_portraits.identity_prompt persisted the retired
+# "ask the model for a mark" clause. Those stored strings are still the
+# effective prompt for existing agents, so the clause has to be stripped on the
+# way through rather than left in the database.
+
+
+def test_legacy_brand_mark_clause_is_stripped_from_stored_prompts():
+    from tools.media_studio.services.portrait_service import _strip_legacy_brand_mark
+
+    stored = (
+        "Professional human corporate portrait of A.Q.U.I.L.A., Business Intelligence "
+        "Analyst, professional human corporate portrait with subtle AI technology "
+        "accents, subtle embossed Kytran Empowerment RAM mark integrated into the "
+        "background, low contrast, background-only, never over the subject, no "
+        "readable text, photorealistic"
+    )
+    cleaned = _strip_legacy_brand_mark(stored)
+    assert "RAM mark" not in cleaned
+    assert "background-only" not in cleaned
+    assert "no readable text" not in cleaned
+    # Surrounding content must survive intact.
+    assert "A.Q.U.I.L.A." in cleaned
+    assert "photorealistic" in cleaned
+    assert ", ," not in cleaned and " , " not in cleaned
+
+
+def test_strip_tolerates_partial_and_repeated_legacy_clauses():
+    from tools.media_studio.services.portrait_service import _strip_legacy_brand_mark
+
+    # (stored, must_survive) — content around the retired clause is preserved.
+    for stored, survivor in (
+        ("portrait, Kytran Empowerment RAM mark, photorealistic", "photorealistic"),
+        ("portrait, subtle embossed Kytran Empowerment RAM mark integrated into the background", "portrait"),
+        ("portrait, Kytran Empowerment RAM mark, Kytran Empowerment RAM mark, end", "end"),
+    ):
+        cleaned = _strip_legacy_brand_mark(stored)
+        assert "RAM mark" not in cleaned, stored
+        assert survivor in cleaned, stored
+        assert ", ," not in cleaned and " ," not in cleaned, stored
+
+
+def test_apply_corporate_brand_cleans_before_it_appends():
+    """A stored legacy prompt must not keep the mark once re-processed."""
+    stored = (
+        "professional human corporate portrait with subtle AI technology accents, "
+        "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
+        "low contrast, background-only, never over the subject, no readable text"
+    )
+    out = _apply_corporate_brand(stored)
+    assert "RAM mark" not in out
+    assert _apply_corporate_brand(out) == out
+
+
+def test_missing_generation_output_is_handled_explicitly():
+    """Review finding on #3484: a source that is not on disk must fail loudly.
+
+    Left implicit, a vanished file surfaces only as downstream branding and
+    thumbnail warnings with no indication of the real cause — which is how the
+    '/static/...' defect stayed hidden.
+    """
+    source = inspect.getsource(
+        __import__(
+            "tools.media_studio.services.generation_service",
+            fromlist=["on_generation_complete"],
+        ).on_generation_complete
+    )
+    # Explicit existence gate ahead of the copy, with a diagnostic log.
+    assert "if os.path.isfile(source_path):" in source
+    assert "Generation output missing for queue" in source
+    assert source.index("if os.path.isfile(source_path):") < source.index("shutil.copy2(")
+
+
 # --- modal layering -------------------------------------------------------
 # #msConfirmModal is appended to document.body, so it is a SIBLING of
 # .ms-media-modal — not a child. At z-index 9999 it painted behind the media

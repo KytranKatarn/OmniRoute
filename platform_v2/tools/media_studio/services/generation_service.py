@@ -335,6 +335,23 @@ def on_generation_complete(
 
     params = queue_row["params"] or {}
 
+    # Callers hand us the finished file in three different shapes: an absolute
+    # filesystem path (local ComfyUI), a path relative to MEDIA_ROOT
+    # (contractor providers), or a '/static/...' URL (the fleet path at
+    # _generate_via_fleet). Normalise all three to a real filesystem path
+    # BEFORE touching the disk.
+    #
+    # This was silently breaking the fleet path: '/static/media/...' does not
+    # exist on disk, so the copy below failed, dest_path fell back to the
+    # nonexistent URL, and everything downstream of the copy quietly no-opped
+    # — KE branding returned False and thumbnail_path was written as NULL on
+    # every fleet image (media_library #500/#501/#502).
+    source_path = file_path
+    if source_path.startswith("/static/"):
+        source_path = os.path.join(MEDIA_ROOT, "..", source_path[len("/static/") :])
+    elif not os.path.isabs(source_path):
+        source_path = os.path.join(MEDIA_ROOT, source_path)
+
     # Move file to user's media directory
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     owner_dir = os.path.join(
@@ -348,11 +365,28 @@ def on_generation_complete(
     filename = f"media_{queue_id}_{int(time.time())}.png"
     dest_path = os.path.join(owner_dir, filename)
 
-    try:
-        shutil.copy2(file_path, dest_path)
-    except Exception as e:
-        logger.error(f"Failed to copy media file: {e}")
-        dest_path = file_path
+    # A source that is not on disk fails here. Checked EXPLICITLY rather than
+    # left to surface as a copy error: a file that vanished between generation
+    # and completion (or a path that never resolved) would otherwise cascade
+    # into branding and thumbnail warnings with no indication of the real
+    # cause, which is exactly how the '/static/...' defect hid for so long.
+    if os.path.isfile(source_path):
+        try:
+            shutil.copy2(source_path, dest_path)
+        except Exception as e:
+            # Fall back to the resolved source, not the raw argument — the raw
+            # one may be a '/static/...' URL that does not exist on disk.
+            logger.error(f"Failed to copy media file: {e}")
+            dest_path = source_path
+    else:
+        logger.error(
+            "Generation output missing for queue %s: resolved=%r raw=%r — "
+            "branding and thumbnail will be skipped",
+            queue_id,
+            source_path,
+            file_path,
+        )
+        dest_path = source_path
 
     # KE branding: composite the real mark before the thumbnail is derived, so
     # gallery thumbs match the full image. The prompt deliberately does NOT ask

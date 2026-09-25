@@ -96,8 +96,37 @@ def compose_variant_prompt(
     return ", ".join(parts)
 
 
+# The brand clause as it shipped for months, persisted into agents.*_prompt and
+# agent_portraits.identity_prompt before the mark moved to compositing. Those
+# stored strings are still the effective prompt for existing agents, and asking
+# for a mark is what made the model invent one on the blazer lapel. Stripped on
+# the way through rather than mass-UPdating production agent rows.
+_LEGACY_BRAND_MARK_CLAUSE = (
+    "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
+    "low contrast, background-only, never over the subject, no readable text"
+)
+
+
+def _strip_legacy_brand_mark(prompt: str) -> str:
+    """Remove the retired 'ask the model for a mark' clause from a stored prompt."""
+    if not prompt or "RAM mark" not in prompt:
+        return prompt
+    cleaned = prompt.replace(_LEGACY_BRAND_MARK_CLAUSE, "")
+    # Tolerate spacing/punctuation drift in rows written by older revisions.
+    for variant in (
+        "subtle embossed Kytran Empowerment RAM mark integrated into the background",
+        "Kytran Empowerment RAM mark",
+    ):
+        cleaned = cleaned.replace(variant, "")
+    # Tidy the separators the removal leaves behind.
+    while ", ," in cleaned:
+        cleaned = cleaned.replace(", ,", ",")
+    cleaned = cleaned.replace(" ,", ",")
+    return cleaned.strip(" ,")
+
+
 def _apply_corporate_brand(prompt: str) -> str:
-    prompt = (prompt or "").strip()
+    prompt = _strip_legacy_brand_mark((prompt or "").strip())
     # Idempotence guard. This keyed on the literal "Kytran Empowerment RAM
     # mark" until the mark moved to post-generation compositing — removing that
     # phrase silently broke the guard and the brand text was appended twice.

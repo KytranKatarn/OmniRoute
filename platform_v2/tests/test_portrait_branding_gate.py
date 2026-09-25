@@ -578,3 +578,195 @@ def test_armada_and_kin_expose_media_queue_tracking():
     assert "platform_queued" in fleet_source
     assert "media_jobs" in fleet_source
     assert "media_queue_by_status" in kin_source
+
+
+def test_ke_corporate_background_stacks_on_any_style_preset():
+    prompt = compose_variant_prompt(preset="ai", ke_background=True)
+    assert "Kytran Empowerment corporate background" in prompt
+    assert "restrained futuristic cyan and violet interface accents" in prompt
+    assert "modern executive office setting" in prompt
+    assert "no readable generated text" in prompt
+
+    stacked = compose_variant_prompt(preset="professional", scene="a café", ke_background=True)
+    assert "professional corporate portrait" in stacked
+    assert "a café" in stacked
+    assert "modern executive office setting" in stacked
+
+    plain = compose_variant_prompt(preset="ke_corporate")
+    assert compose_variant_prompt(preset="ke_corporate", ke_background=True) == plain
+
+
+def test_generate_variant_sets_ke_branding_metadata():
+    class Cursor:
+        def execute(self, *_args, **_kwargs):
+            return None
+
+        def fetchone(self):
+            return {
+                "identity_prompt": "professional portrait",
+                "ip_adapter_ref_path": "/static/media/agents/42/reference.png",
+                "canonical_image_path": "/static/media/agents/42/canonical.png",
+                "approved": True,
+                "display_name": "Test Agent",
+                "name": "test-agent",
+                "gender": "",
+                "ethnicity": "",
+                "age_range": "",
+                "appearance_notes": "",
+            }
+
+    @contextmanager
+    def cursor(*_args, **_kwargs):
+        yield object(), Cursor()
+
+    def run(**kwargs):
+        with (
+            patch.object(portrait_service, "get_db_cursor", cursor),
+            patch.object(portrait_service, "_portrait_model_params", return_value={"model": "test-model"}),
+            patch.object(
+                portrait_service,
+                "_identity_generation_params",
+                return_value={"identity_mode": "faceid_detail", "identity_weight": 0.85},
+            ),
+            patch(
+                "tools.media_studio.services.generation_service.submit_generation",
+                return_value={"queue_id": 19, "status": "pending"},
+            ) as submit,
+        ):
+            generate_variant(42, **kwargs)
+        return submit.call_args.kwargs["params"]
+
+    params = run(preset="ai", ke_background=True)
+    assert params["variant_branding"] == "ke_corporate"
+
+    params = run(preset="ke_corporate")
+    assert params["variant_branding"] == "ke_corporate"
+
+    params = run(preset="professional")
+    assert "variant_branding" not in params
+
+
+def test_variant_route_forwards_ke_background():
+    source = (Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py").read_text()
+    start = source.index("def api_generate_variant")
+    end = source.index("@media_studio_bp.route", start + 1)
+    route_source = source[start:end]
+    assert 'ke_background=bool(data.get("ke_background"))' in route_source
+
+
+def test_generation_completion_preserves_ke_branding_metadata():
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "services" / "generation_service.py"
+    ).read_text()
+    assert "variant_branding" in source
+
+
+def test_portrait_detail_exposes_agent_type_and_identity_fields():
+    source = inspect.getsource(portrait_service.get_agent_portrait)
+    for field in ("a.worker_type, a.is_department_ai", "a.gender", "a.ethnicity", "a.age_range", "a.appearance_notes"):
+        assert field in source
+
+
+def test_identity_suggest_and_save_routes_exist_with_admin_gate_on_save():
+    route_source = (Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py").read_text()
+    suggest_start = route_source.index("identity-suggest")
+    assert "@media_studio_bp.route" in route_source[suggest_start - 200 : suggest_start]
+    assert "suggest_identity_fields" in route_source
+
+    save_start = route_source.index("identity-fields")
+    assert "api_save_identity_fields" in route_source
+    assert "save_identity_fields" in route_source
+
+
+def test_identity_fields_save_uses_agent_service_single_writer():
+    with patch.object(portrait_service.agent_service, "update_identity", return_value=True) as update:
+        result = portrait_service.save_identity_fields(
+            42,
+            appearance_notes="  dark brown shoulder-length hair  ",
+            gender="woman",
+            ethnicity="South Asian",
+            age_range="30s",
+        )
+    assert result["success"] is True
+    update.assert_called_once_with(
+        42,
+        appearance_notes="dark brown shoulder-length hair",
+        gender="woman",
+        ethnicity="South Asian",
+        age_range="30s",
+    )
+
+
+def test_suggest_identity_fields_requires_approved_reference():
+    class Cursor:
+        def execute(self, *_args, **_kwargs):
+            return None
+
+        def fetchone(self):
+            return {"name": "Test Agent", "approved": False, "ip_adapter_ref_path": None, "canonical_image_path": None}
+
+    @contextmanager
+    def cursor(*_args, **_kwargs):
+        yield object(), Cursor()
+
+    with patch.object(portrait_service, "get_db_cursor", cursor):
+        result = portrait_service.suggest_identity_fields(42)
+
+    assert result["success"] is False
+    assert "approved reference image is required" in result["error"]
+
+
+def test_parse_identity_fields_draft_extracts_json_and_falls_back():
+    parsed = portrait_service._parse_identity_fields_draft(
+        'Here you go: {"appearance_notes": "dark hair, brown eyes", "gender": "woman", "ethnicity": "South Asian", "age_range": "30s"}'
+    )
+    assert parsed == {
+        "appearance_notes": "dark hair, brown eyes",
+        "gender": "woman",
+        "ethnicity": "South Asian",
+        "age_range": "30s",
+    }
+
+    spaced = portrait_service._parse_identity_fields_draft('{"appearance": "short black hair", "age range": "40s"}')
+    assert spaced["appearance_notes"] == "short black hair"
+    assert spaced["age_range"] == "40s"
+    assert spaced["gender"] == ""
+
+    fallback = portrait_service._parse_identity_fields_draft("just a plain description")
+    assert fallback["appearance_notes"] == "just a plain description"
+    assert fallback["gender"] == ""
+    assert fallback["ethnicity"] == ""
+    assert fallback["age_range"] == ""
+
+    assert portrait_service._parse_identity_fields_draft("") == {
+        "appearance_notes": "",
+        "gender": "",
+        "ethnicity": "",
+        "age_range": "",
+    }
+
+
+def test_portrait_template_has_ke_toggle_identity_fields_editor_and_default_preset():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "media_studio"
+        / "templates"
+        / "tools"
+        / "media_studio"
+        / "media_studio.html"
+    ).read_text()
+    for marker in (
+        "ms-variant-ke",
+        "ms-id-appearance",
+        "ms-id-gender",
+        "ms-id-ethnicity",
+        "ms-id-age",
+        "suggestIdentityFields",
+        "saveIdentityFields",
+        "_fillIdentityFields",
+    ):
+        assert marker in source
+    assert "isAI ? 'ai' : 'professional'" in source
+    assert "identity-suggest" in source
+    assert "identity-fields" in source

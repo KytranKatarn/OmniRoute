@@ -31,6 +31,11 @@ KYTRAN_PORTRAIT_BRAND = (
     "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
     "low contrast, background-only, never over the subject, no readable text"
 )
+KE_CORPORATE_BACKGROUND = (
+    "Kytran Empowerment corporate background, modern executive office setting, "
+    "subtle blue and cyan ambient lighting, professional business attire, "
+    "clean architectural branding accents, no readable generated text"
+)
 VARIANT_PRESET_PROMPTS = {
     "ai": "AI-inspired professional portrait, restrained futuristic cyan and violet interface accents, natural human skin and facial features, preserve identity, no costume, no cyberpunk makeup",
     "ke_corporate": "Kytran Empowerment corporate office portrait, modern executive office background, subtle blue and cyan ambient lighting, professional business attire, clean architectural branding accents, no readable generated text",
@@ -48,7 +53,9 @@ VARIANT_FRAMING_PROMPTS = {
 DEFAULT_PORTRAIT_MODEL = os.getenv("MEDIA_STUDIO_PORTRAIT_MODEL", "RealVisXL_V4.0.safetensors")
 
 
-def compose_variant_prompt(preset=None, style=None, scene=None, action=None, framing=None, expression=None):
+def compose_variant_prompt(
+    preset=None, style=None, scene=None, action=None, framing=None, expression=None, ke_background=False
+):
     parts = []
     preset_key = str(preset or "").strip().lower()
     style_text = str(style or "").strip()[:500]
@@ -71,6 +78,8 @@ def compose_variant_prompt(preset=None, style=None, scene=None, action=None, fra
         parts.append(VARIANT_FRAMING_PROMPTS[framing_text])
     if expression_text:
         parts.append("expression: " + expression_text)
+    if ke_background and str(preset or "").strip().lower() != "ke_corporate":
+        parts.append(KE_CORPORATE_BACKGROUND)
     return ", ".join(parts)
 
 
@@ -586,13 +595,14 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.avatar_url,
-                   a.title, a.department,
+                   a.title, a.department, a.worker_type, a.is_department_ai,
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path,
                    COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
                        AS identity_prompt,
                    a.pronouns, a.current_grade, a.bio, a.writing_tone,
                    a.communication_style, a.personality_prompt,
+                   a.gender, a.ethnicity, a.age_range, a.appearance_notes,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
                    p.style_tags, p.refinement_draft,
                    p.created_at AS portrait_created_at,
@@ -838,6 +848,7 @@ def generate_variant(
     action: Optional[str] = None,
     framing: Optional[str] = None,
     expression: Optional[str] = None,
+    ke_background: Optional[bool] = False,
     variant_name: Optional[str] = None,
 ) -> Dict:
     """Generate a face-consistent variant from the approved canonical reference."""
@@ -885,6 +896,7 @@ def generate_variant(
         action=action,
         framing=framing,
         expression=expression,
+        ke_background=bool(ke_background),
     )
     if pose:
         scene_prompt = ", ".join(part for part in (scene_prompt, str(pose) + " pose") if part)
@@ -919,6 +931,10 @@ def generate_variant(
     params["variant_name"] = resolved_variant_name or "Custom"
     if preset:
         params["variant_preset"] = str(preset).strip().lower()
+    if ke_background:
+        params["variant_branding"] = "ke_corporate"
+    elif preset and str(preset).strip().lower() == "ke_corporate":
+        params["variant_branding"] = "ke_corporate"
     for key, value in (("scene", scene), ("action", action), ("framing", framing), ("expression", expression)):
         if value:
             params[key] = str(value).strip()
@@ -1601,6 +1617,174 @@ def describe_portrait(image_source: str) -> Dict:
         "model": result.model_used or vision_model,
         "provider": "ollama_vision",
     }
+
+
+IDENTITY_FIELDS_PROMPT = (
+    "Look at this portrait. Return ONLY strict JSON with exactly these keys: "
+    "appearance_notes (a concise factual description of hair, eye color, face shape, "
+    "skin tone, build, and any distinctive features; never invent identity markers), "
+    "gender (gender presentation, e.g. woman or man; empty string if unsure), "
+    "ethnicity (ethnic or heritage background, e.g. Black or South Asian; empty string "
+    "if unsure), age_range (coarse range such as 20s or 40s; empty string if unsure). "
+    "Prefer empty strings over guessing."
+)
+
+
+def _parse_identity_fields_draft(text: str) -> Dict:
+    """Best-effort parse of the vision model's JSON draft into identity fields."""
+    import json as _json
+    import re as _re
+
+    draft = {"appearance_notes": "", "gender": "", "ethnicity": "", "age_range": ""}
+    text = (text or "").strip()
+    if not text:
+        return draft
+    match = _re.search(r"\{.*\}", text, _re.S)
+    payload = None
+    if match:
+        try:
+            parsed = _json.loads(match.group(0))
+        except Exception:
+            parsed = None
+        if isinstance(parsed, dict):
+            payload = parsed
+    if payload is None:
+        draft["appearance_notes"] = text[:500]
+        return draft
+    aliases = {
+        "appearance_notes": ("appearance_notes", "appearance", "appearance description", "description"),
+        "gender": ("gender", "gender_presentation", "gender presentation"),
+        "ethnicity": ("ethnicity", "ethnic", "ethnicity background"),
+        "age_range": ("age_range", "age", "age range"),
+    }
+    lookup = {
+        str(key).lower().strip().replace(" ", "_"): str(value).strip()
+        for key, value in payload.items()
+        if isinstance(value, (str, int, float))
+    }
+    for target, keys in aliases.items():
+        for key in keys:
+            if lookup.get(key):
+                draft[target] = lookup[key]
+                break
+    if not draft["appearance_notes"]:
+        draft["appearance_notes"] = text[:500]
+    return {key: value[:500] for key, value in draft.items()}
+
+
+def _resolve_reference_fs_path(reference_path: str) -> Optional[str]:
+    """Convert a /static/… portrait URL to a readable filesystem path when present."""
+    reference_path = (reference_path or "").strip()
+    if not reference_path:
+        return None
+    rel = reference_path.lstrip("/")
+    if rel.startswith("static/"):
+        return os.path.join(_PLATFORM_DIR, rel)
+    return reference_path if os.path.isfile(reference_path) else None
+
+
+def suggest_identity_fields(agent_id: int) -> Dict:
+    """Draft appearance/demographics fields from the approved reference via vision.
+
+    Read-only — returns a draft for human review; nothing is written to agents.
+    Save accepted values through save_identity_fields (agent_service single-writer).
+    """
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            """
+            SELECT a.name, ap.approved, ap.ip_adapter_ref_path, ap.canonical_image_path
+            FROM agents a
+            LEFT JOIN LATERAL (
+                SELECT aproj.approved, aproj.ip_adapter_ref_path, aproj.canonical_image_path
+                FROM agent_portraits aproj
+                WHERE aproj.agent_id = a.id
+                ORDER BY aproj.approved DESC NULLS LAST, aproj.is_primary DESC NULLS LAST,
+                         aproj.updated_at DESC NULLS LAST, aproj.id DESC
+                LIMIT 1
+            ) ap ON TRUE
+            WHERE a.id = %s
+            """,
+            (agent_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return {"success": False, "fields": {}, "model": "", "error": "Agent not found"}
+    reference = _resolve_reference_fs_path(row.get("ip_adapter_ref_path") or row.get("canonical_image_path") or "")
+    if not row.get("approved") or not reference or not os.path.isfile(reference):
+        return {
+            "success": False,
+            "fields": {},
+            "model": "",
+            "error": "An approved reference image is required before suggesting identity fields.",
+        }
+    with open(reference, "rb") as file_handle:
+        b64 = base64.b64encode(file_handle.read()).decode("ascii")
+
+    vision_model = os.getenv("PORTRAIT_DESCRIBE_MODEL", "moondream:latest")
+    try:
+        from tools.department_hq.services.department_dispatcher import dispatch as _dhq_dispatch
+    except ImportError as exc:
+        return {"success": False, "fields": {}, "model": vision_model, "error": f"DHQ dispatcher import failed: {exc}"}
+    try:
+        result = _dhq_dispatch(
+            capability="vision",
+            prompt=IDENTITY_FIELDS_PROMPT,
+            module_id="portrait_service",
+            images=[b64],
+            local_only=True,
+        )
+    except Exception as exc:
+        logger.exception("DHQ vision dispatch for suggest_identity_fields failed")
+        return {"success": False, "fields": {}, "model": vision_model, "error": str(exc)}
+
+    _polled = None
+    if not result.success and getattr(result, "queued", False):
+        import re as _re
+
+        _match = _re.search(r"id=(\d+)", result.error or "")
+        if _match:
+            _polled = _poll_dispatch_queue(int(_match.group(1)), timeout_s=120)
+    if not result.success and not _polled:
+        return {
+            "success": False,
+            "fields": {},
+            "model": vision_model,
+            "error": result.error or "DHQ vision dispatch returned failure",
+        }
+
+    desc = (_polled if _polled else (result.response or "")).strip()
+    if len(desc) > 2 and desc[0] in ('"', "'") and desc[-1] == desc[0]:
+        desc = desc[1:-1].strip()
+    if not desc:
+        return {"success": False, "fields": {}, "model": vision_model, "error": "vision model returned empty draft"}
+    return {
+        "success": True,
+        "fields": _parse_identity_fields_draft(desc),
+        "model": getattr(result, "model_used", None) or vision_model,
+        "provider": "ollama_vision",
+    }
+
+
+def save_identity_fields(
+    agent_id: int,
+    appearance_notes: str = "",
+    gender: str = "",
+    ethnicity: str = "",
+    age_range: str = "",
+) -> Dict:
+    """Persist human-reviewed identity fields through the single-writer agent_service."""
+    cleaned = {
+        field: (value or "").strip()[:500]
+        for field, value in (
+            ("appearance_notes", appearance_notes),
+            ("gender", gender),
+            ("ethnicity", ethnicity),
+            ("age_range", age_range),
+        )
+    }
+    if not agent_service.update_identity(agent_id, **cleaned):
+        return {"success": False, "error": "Agent not found"}
+    return {"success": True, "agent_id": agent_id, "fields": cleaned}
 
 
 ALLOWED_UPLOAD_TYPES = {"image/jpeg", "image/png", "image/webp"}

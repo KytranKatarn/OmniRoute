@@ -764,6 +764,7 @@ def api_generate_variant(agent_id):
         action=data.get("action"),
         framing=data.get("framing"),
         expression=data.get("expression"),
+        ke_background=bool(data.get("ke_background")),
         variant_name=data.get("variant_name"),
     )
     if "error" in result or not result.get("queue_id"):
@@ -1191,6 +1192,42 @@ def api_update_identity_prompt(agent_id):
         return jsonify({"error": "prompt is required"}), 400
     result = update_identity_prompt(agent_id, data["prompt"])
     if result.get("error"):
+        return jsonify(result), 404
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/identity-suggest", methods=["POST"])
+@login_required
+def api_suggest_identity_fields(agent_id):
+    """Draft appearance/demographics fields from the approved reference (read-only).
+
+    Returns {success, fields:{appearance_notes,gender,ethnicity,age_range}, model}
+    for human review. Nothing is written until the human saves via
+    PUT /api/portraits/<id>/identity-fields (admin-only, single-writer).
+    """
+    from .services.portrait_service import suggest_identity_fields
+
+    result = suggest_identity_fields(agent_id)
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/identity-fields", methods=["PUT"])
+@admin_required
+def api_save_identity_fields(agent_id):
+    """Persist human-approved identity fields via agent_service (single-writer)."""
+    from .services.portrait_service import save_identity_fields
+
+    data = request.get_json(silent=True) or {}
+    result = save_identity_fields(
+        agent_id,
+        appearance_notes=data.get("appearance_notes", ""),
+        gender=data.get("gender", ""),
+        ethnicity=data.get("ethnicity", ""),
+        age_range=data.get("age_range", ""),
+    )
+    if not result.get("success"):
         return jsonify(result), 404
     return jsonify(result)
 

@@ -285,7 +285,17 @@ def on_generation_complete(
     entry_metadata: Dict = {}
     if params.get("asset_type"):
         entry_metadata["asset_type"] = params["asset_type"]
-    for _k in ("theme_id", "scene_id", "variant_name", "variant_preset", "scene", "action", "framing", "expression"):
+    for _k in (
+        "theme_id",
+        "scene_id",
+        "variant_name",
+        "variant_preset",
+        "variant_branding",
+        "scene",
+        "action",
+        "framing",
+        "expression",
+    ):
         if params.get(_k) is not None:
             entry_metadata[_k] = params[_k]
     if params.get("identity_mode") in {"instantid", "instantid_detail"}:

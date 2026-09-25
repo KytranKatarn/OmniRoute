@@ -451,6 +451,23 @@
                          <div style="font-size:.65rem;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,229,255,.75);margin-bottom:7px;">Identity Context</div>
                          <div id="ms-identity-context-body" style="font-size:.7rem;color:rgba(255,255,255,.68);line-height:1.45;"></div>
                      </div>
+                     <div style="margin-top:12px;padding:10px;border:1px solid rgba(255,170,0,.22);border-radius:6px;background:rgba(255,170,0,.04);">
+                         <div style="font-size:.65rem;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,170,0,.85);margin-bottom:7px;">Character Consistency Fields</div>
+                         <div style="font-size:.62rem;color:rgba(255,255,255,.45);margin-bottom:8px;">These pin the identity lock for image generation. “Suggest from reference” drafts them from the approved portrait — review, edit if needed, then Save.</div>
+                         <label class="ms-variant-field"><span>Appearance notes</span>
+                             <textarea id="ms-id-appearance" rows="3" placeholder="e.g. dark brown shoulder-length hair, brown eyes, warm skin tone, oval face"></textarea>
+                         </label>
+                         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+                             <label class="ms-variant-field" style="flex:1;min-width:130px;"><span>Gender</span><input id="ms-id-gender" type="text" placeholder="e.g. woman" /></label>
+                             <label class="ms-variant-field" style="flex:1;min-width:150px;"><span>Ethnicity</span><input id="ms-id-ethnicity" type="text" placeholder="e.g. South Asian" /></label>
+                             <label class="ms-variant-field" style="flex:1;min-width:110px;"><span>Age range</span><input id="ms-id-age" type="text" placeholder="e.g. 30s" /></label>
+                         </div>
+                         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
+                             <button id="ms-id-suggest-btn" onclick="suggestIdentityFields()" style="background:rgba(255,170,0,.15);color:#ffaa00;border:1px solid rgba(255,170,0,.4);border-radius:4px;padding:6px 14px;font-size:.75rem;cursor:pointer;">Suggest from reference</button>
+                             <button onclick="saveIdentityFields()" style="background:rgba(0,229,255,.12);color:#00e5ff;border:1px solid rgba(0,229,255,.35);border-radius:4px;padding:6px 14px;font-size:.75rem;cursor:pointer;">Save identity fields</button>
+                             <span id="ms-id-fields-status" style="font-size:.66rem;color:rgba(255,255,255,.4);"></span>
+                         </div>
+                     </div>
                  </div>
 
 
@@ -534,6 +551,9 @@
                     <option value="action">Action</option>
                     <option value="lcars">LCARS holographic</option>
                 </select>
+                <label class="ms-variant-ke-toggle" title="Stacks KE Corporate office background and business attire on top of the chosen style">
+                    <input type="checkbox" id="ms-variant-ke" /> KE background
+                </label>
                 <select id="ms-variant-model" class="ms-model-select" title="Image model" onchange="updateProviderModelPicker('ms-variant-model', 'ms-variant-provider-model'); updateIdentityControls()">
                     <option value="">Auto (fleet-aware)</option>
                 </select>
@@ -2601,6 +2621,77 @@
         updateIdentityControls();
     }
 
+    function _fillIdentityFields(data) {
+        var context = (data && data.identity_context) || {};
+        var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+        set('ms-id-appearance', context.appearance_notes);
+        set('ms-id-gender', context.gender);
+        set('ms-id-ethnicity', context.ethnicity);
+        set('ms-id-age', context.age_range);
+        var suggestBtn = document.getElementById('ms-id-suggest-btn');
+        if (suggestBtn) suggestBtn.disabled = !(data && data.has_reference);
+        suggestBtn.title = (data && data.has_reference) ? '' : 'Approved reference image required';
+        var fieldsStatus = document.getElementById('ms-id-fields-status');
+        if (fieldsStatus) fieldsStatus.textContent = '';
+    }
+
+    window.suggestIdentityFields = function() {
+        if (!_currentAgentId) return;
+        var status = document.getElementById('ms-id-fields-status');
+        var btn = document.getElementById('ms-id-suggest-btn');
+        if (status) status.textContent = 'Drafting from reference…';
+        if (btn) btn.disabled = true;
+        var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/identity-suggest', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: '{}'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                if (status) status.textContent = data.error;
+                if (btn) btn.disabled = false;
+                return;
+            }
+            var fields = data.fields || {};
+            set('ms-id-appearance', fields.appearance_notes);
+            set('ms-id-gender', fields.gender);
+            set('ms-id-ethnicity', fields.ethnicity);
+            set('ms-id-age', fields.age_range);
+            if (status) status.textContent = 'Draft ready — review, edit, then Save (' + (data.model || 'vision') + ').';
+            if (btn) btn.disabled = false;
+        })
+        .catch(function(err) {
+            if (status) status.textContent = 'Suggest failed: ' + err;
+            if (btn) btn.disabled = false;
+        });
+    };
+
+    window.saveIdentityFields = function() {
+        if (!_currentAgentId) return;
+        var get = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+        var status = document.getElementById('ms-id-fields-status');
+        if (status) status.textContent = 'Saving…';
+        fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/identity-fields', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                appearance_notes: get('ms-id-appearance'),
+                gender: get('ms-id-gender'),
+                ethnicity: get('ms-id-ethnicity'),
+                age_range: get('ms-id-age')
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { if (status) status.textContent = data.error; return; }
+            if (status) status.textContent = 'Saved — identity lock updated.';
+            loadPortraitDetail(_currentAgentId);
+        })
+        .catch(function(err) { if (status) status.textContent = 'Save failed: ' + err; });
+    };
+
     var _currentPortraitData = null;
 
     window.openPortraitDetail = function(agentId) {
@@ -2616,6 +2707,16 @@
             var control = document.getElementById(id);
             if (control) control.value = id === 'ms-variant-framing' ? 'portrait' : '';
         });
+        var keToggle = document.getElementById('ms-variant-ke');
+        if (keToggle) keToggle.checked = false;
+        var fieldsStatus = document.getElementById('ms-id-fields-status');
+        if (fieldsStatus) fieldsStatus.textContent = '';
+        ['ms-id-appearance', 'ms-id-gender', 'ms-id-ethnicity', 'ms-id-age'].forEach(function(id) {
+            var control = document.getElementById(id);
+            if (control) control.value = '';
+        });
+        var suggestBtn = document.getElementById('ms-id-suggest-btn');
+        if (suggestBtn) suggestBtn.disabled = false;
         document.getElementById('ms-portrait-grid').style.display = 'none';
         document.getElementById('ms-portrait-toolbar').style.display = 'none';
         document.getElementById('ms-portrait-detail').style.display = 'block';
@@ -2775,6 +2876,14 @@
                 ipField.value = data.identity_prompt || '';
                 ipField.placeholder = data.identity_prompt ? '' : 'No portrait prompt set. Go to DHQ Roster → Portraits tab to add a visual description.';
                 _renderIdentityContext(data);
+                _fillIdentityFields(data);
+                // Default preset by agent type so AI agents get futuristic accents
+                // and humans get a professional look — user can still override.
+                var presetSel = document.getElementById('ms-variant-preset');
+                if (presetSel && !presetSel.value) {
+                    var isAI = !!data.is_department_ai || String(data.worker_type || '').toLowerCase() === 'ai';
+                    presetSel.value = isAI ? 'ai' : 'professional';
+                }
 
 
                 // Restore saved feedback draft from agent profile (DB — works across all browsers)
@@ -2813,6 +2922,13 @@
                         variantLabel.className = 'ms-variant-label';
                         variantLabel.textContent = v.metadata.variant_name;
                         item.appendChild(variantLabel);
+                    }
+                    if (v.metadata && v.metadata.variant_branding === 'ke_corporate') {
+                        var keTag = document.createElement('div');
+                        keTag.className = 'ms-variant-ke-tag';
+                        keTag.textContent = 'KE';
+                        keTag.title = 'KE Corporate branding';
+                        item.appendChild(keTag);
                     }
 
                     // Hover overlay — "Select"
@@ -3306,6 +3422,7 @@
         var model = document.getElementById('ms-variant-model').value;
         var payload = {
             preset: preset,
+            ke_background: !!(document.getElementById('ms-variant-ke') || {}).checked,
             scene: scene,
             action: action,
             framing: framing,

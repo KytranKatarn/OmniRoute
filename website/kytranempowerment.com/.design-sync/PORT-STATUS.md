@@ -44,11 +44,11 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 | 21 | `Services.dc.html` | `services.html` | live | #3450,#3451,#3471 | Body content was already ported by an earlier untracked pass (Standalone Products, Platform Modules, Professional/One-Time Services — the latter grown to 9 real cards beyond Design's 2). #3471 fixed inconsistent team-size copy (5 occurrences). Verified live 2026-09-24 |
 | 22 | `SystemOperations.dc.html` | `system-operations.html` | live | #3450,#3451 | Row was stale — body content (badge, 6 features, AI director, pricing, coming soon, CTA, reusing the shared `.watch-*` layout) was already ported by an earlier untracked pass, same pattern as rows 18/20/23. Hero title color matches Design's `#10b981` exactly. No fixes needed. Verified live 2026-09-25, zero console errors. |
 | 23 | `WebsiteServices.dc.html` | `website-services.html` | live | #3450,#3451,#3485 | Body content (watch-hero + 6 features + demo panel + CTA) was already ported by an earlier untracked pass — this row was stale, same pattern as row 18. No fixes needed: compared line-by-line against `WebsiteServices.dc.html`, content matches exactly. Verified render on a local static server: zero console errors. Verified live 2026-09-25, zero console errors. |
-| 24 | `WatchPage.dc.html` (shared) | `business-suite.html` | nav | #3450,#3451 | One design file covers all 5 Watch pages |
-| 25 | `WatchPage.dc.html` (shared) | `civic-watch.html` | nav | #3450,#3451 | |
-| 26 | `WatchPage.dc.html` (shared) | `legal-watch.html` | nav | #3450,#3451 | |
-| 27 | `WatchPage.dc.html` (shared) | `market-watch.html` | nav | #3450,#3451 | |
-| 28 | `WatchPage.dc.html` (shared) | `gov-watch.html` | nav | #3450,#3451 | |
+| 24 | `WatchPage.dc.html` (shared) | `business-suite.html` | live | #3450,#3451 | One design file covers all 5 Watch pages. All 5 rows were stale — body content (badge, hero, features, "Your AI Director", pricing tie-in, dual CTA) was already ported using the same shared `.watch-hero`/`.watch-features` layout as the already-verified AiServices/SecurityServices/WebsiteServices/SystemOperations pages, matching Design's generic parametrized template (`{{accent}}`/`{{title}}`/`{{features}}`) 1:1. No fixes needed. Verified live 2026-09-25, zero console errors. |
+| 25 | `WatchPage.dc.html` (shared) | `civic-watch.html` | live | #3450,#3451 | Same as row 24. Verified live 2026-09-25, zero console errors. |
+| 26 | `WatchPage.dc.html` (shared) | `legal-watch.html` | live | #3450,#3451 | Same as row 24. Verified live 2026-09-25, zero console errors. |
+| 27 | `WatchPage.dc.html` (shared) | `market-watch.html` | live | #3450,#3451 | Same as row 24. Verified live 2026-09-25, zero console errors. |
+| 28 | `WatchPage.dc.html` (shared) | `gov-watch.html` | live | #3450,#3451 | Same as row 24. Verified live 2026-09-25, zero console errors. |
 | 29 | `Store.dc.html` | `store.html` | nav | #3450,#3451 | Cart/checkout content is where the real-backend-vs-localStorage-cart question gets decided |
 | 30 | `Cart.dc.html` | `cart.html` | nav | #3450,#3451 | |
 | 31 | `Checkout.dc.html` | `checkout.html` | nav | #3450,#3451 | |

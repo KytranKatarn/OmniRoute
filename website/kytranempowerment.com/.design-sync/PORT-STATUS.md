@@ -21,7 +21,7 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 
 | # | Design file | Template | Status | PR | Notes |
 |---|---|---|---|---|---|
-| 1 | `Home.dc.html`, `HomeMobile.dc.html` | `index.html` | live | #3446,#3447,#3450-3457,#3461,#3469 | Hero, constellation, sections ported; #3461 fixed a CDN cache-staleness bug; #3469 fixed 3 hero-stats spacing tokens (verified live 2026-09-24 via `getComputedStyle` at 1440x900: title/tagline/stats margins + stats gap = 16px/48px/48px/48px, exact match, zero console errors) |
+| 1 | `Home.dc.html`, `HomeMobile.dc.html` | `index.html` | live | #3446,#3447,#3450-3457,#3461,#3469,#3471,#3472 | Hero, constellation, sections ported; #3461 fixed a CDN cache-staleness bug; #3469 fixed 3 hero-stats spacing tokens; #3471 fixed 3-way inconsistent agent-count copy (FAQ/testimonial/meta); #3472 restored the missing live-status ticker strip (agents-online wired to the live directory API), Design's text-scramble title decode (a prior session had swapped it for a different effect), and a Lenis+GSAP double-raf scroll-jank bug. **#3471's own last commit was silently excluded by a stale-review-SHA race during merge — re-landed as #3472; verify the reviewed SHA matches the true PR head before merging in future, don't trust an APPROVE from a review triggered immediately after a push.** Verified live 2026-09-24 via `getComputedStyle`/DOM checks (title/tagline/stats spacing exact match, status strip renders with live agent count, zero console errors) |
 | 2 | `NotFound.dc.html` | `404.html` | live | #3448 | Confirmed live 2026-09-24 (full-site deploy) |
 | 3 | `Books.dc.html` | `books.html` | live | #3458 | Confirmed live 2026-09-24, zero console errors |
 | 4 | `Links.dc.html` | `links.html` | live | #3458 | Confirmed live 2026-09-24 (full-site deploy) |
@@ -31,7 +31,7 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 | 8 | `Competitors.dc.html` | `competitors.html` | nav | #3459 | Only the Trust Center nav link was repointed (now points at `compliance.html`); body content not ported |
 | 9 | `ComplianceServices.dc.html` | `compliance-services.html` | nav | #3459 | Same — nav-link only |
 | 10 | `CreedPage.dc.html` | `creed.html` | nav | #3459 | Same — nav-link only |
-| 11 | `About.dc.html` | `about.html` | nav | #3450,#3451 | Shell/nav propagated site-wide; body not ported |
+| 11 | `About.dc.html` | `about.html` | live | #3450,#3451,#3471 | Body content (Vision/Values/Team) was already ported by an earlier untracked pass — this row was stale. #3471 fixed 2 wrong icon glyphs (Transparency, Self-Improvement) + inconsistent team-size copy. Verified live 2026-09-24 |
 | 12 | `Contact.dc.html` | `contact.html` | nav | #3450,#3451 | |
 | 13 | `Directory.dc.html` | `directory.html` | nav | #3450,#3451 | |
 | 14 | `Vision.dc.html` | `vision.html` | nav | #3450,#3451 | |
@@ -41,7 +41,7 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 | 18 | `AiServices.dc.html` | `ai-services.html` | nav | #3450,#3451 | |
 | 19 | `Membership.dc.html` | `membership.html` | nav | #3450,#3451 | |
 | 20 | `SecurityServices.dc.html` | `security-services.html` | nav | #3450,#3451 | |
-| 21 | `Services.dc.html` | `services.html` | nav | #3450,#3451 | |
+| 21 | `Services.dc.html` | `services.html` | live | #3450,#3451,#3471 | Body content was already ported by an earlier untracked pass (Standalone Products, Platform Modules, Professional/One-Time Services — the latter grown to 9 real cards beyond Design's 2). #3471 fixed inconsistent team-size copy (5 occurrences). Verified live 2026-09-24 |
 | 22 | `SystemOperations.dc.html` | `system-operations.html` | nav | #3450,#3451 | |
 | 23 | `WebsiteServices.dc.html` | `website-services.html` | nav | #3450,#3451 | |
 | 24 | `WatchPage.dc.html` (shared) | `business-suite.html` | nav | #3450,#3451 | One design file covers all 5 Watch pages |

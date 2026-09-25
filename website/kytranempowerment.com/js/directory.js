@@ -21,9 +21,8 @@ var Directory = {
                 self.agents = data.agents || data;
                 self._fixAvatarPaths(self.agents);
                 self.renderFilters();
-                self.renderAgents(self.agents);
+                self.applyFilters();
                 self.startLivePolling();
-                self.bindEvents();
             })
             .catch(function (err) {
                 console.warn('[directory] Live API unreachable, using static fallback:', err.message);
@@ -36,8 +35,7 @@ var Directory = {
                         self.agents = data.agents || data;
                         self._fixAvatarPaths(self.agents);
                         self.renderFilters();
-                        self.renderAgents(self.agents);
-                        self.bindEvents();
+                        self.applyFilters();
                     })
                     .catch(function () { self.showOfflineNotice(); });
             });
@@ -67,16 +65,23 @@ var Directory = {
         this._clearChildren(grid);
 
         agents.forEach(function (agent) {
+            var isDirector = agent.agent_type === 'director' || agent.agent_type === 'ai_director';
+            var accent = isDirector ? '#00e5ff' : '#8b5cf6';
+
+            // Horizontal card — avatar left, name/type/department stacked
+            // right, per Directory.dc.html. Full detail (bio, email, status)
+            // lives in the click-through profile modal below.
             var card = document.createElement('div');
             card.className = 'agent-card';
+            card.style.setProperty('--agent-accent', accent);
             card.setAttribute('data-department', agent.department || '');
             card.setAttribute('data-type', agent.agent_type || '');
 
-            // Avatar wrapper
             var avatarWrap = document.createElement('div');
             avatarWrap.className = 'agent-card__avatar';
 
-            var initial = (agent.full_name || agent.acronym || '?').charAt(0).toUpperCase();
+            var displayName = agent.acronym || agent.full_name || agent.display_name || '?';
+            var initial = displayName.replace(/\./g, '').slice(0, 2).toUpperCase();
             if (agent.avatar_thumb_url || agent.avatar_url) {
                 var img = document.createElement('img');
                 // Same-origin thumb (~20KB) preferred over cross-origin full-res.
@@ -99,7 +104,6 @@ var Directory = {
                 avatarWrap.appendChild(placeholder);
             }
 
-            // Status dot
             var statusDot = document.createElement('span');
             var state = agent.shift_state || 'off_duty';
             statusDot.className = 'agent-card__status agent-card__status--' + state;
@@ -109,68 +113,32 @@ var Directory = {
 
             card.appendChild(avatarWrap);
 
-            // Name section
-            if (agent.acronym) {
-                var acronymEl = document.createElement('div');
-                acronymEl.className = 'agent-card__acronym';
-                acronymEl.textContent = agent.acronym;
-                card.appendChild(acronymEl);
+            var body = document.createElement('div');
+            body.className = 'agent-card__body';
 
-                if (agent.acronym_expansion) {
-                    var expEl = document.createElement('div');
-                    expEl.className = 'agent-card__expansion';
-                    expEl.textContent = agent.acronym_expansion;
-                    card.appendChild(expEl);
-                }
-            } else {
-                var nameEl = document.createElement('div');
-                nameEl.className = 'agent-card__name';
-                nameEl.textContent = agent.full_name || agent.display_name || 'Unknown';
-                card.appendChild(nameEl);
-            }
+            var nameEl = document.createElement('div');
+            nameEl.className = 'agent-card__name';
+            nameEl.textContent = agent.acronym || agent.full_name || agent.display_name || 'Unknown';
+            body.appendChild(nameEl);
 
-            // Title
-            if (agent.title) {
-                var titleEl = document.createElement('div');
-                titleEl.className = 'agent-card__title';
-                titleEl.textContent = agent.title;
-                card.appendChild(titleEl);
-            }
+            var typeEl = document.createElement('div');
+            typeEl.className = 'agent-card__type';
+            typeEl.textContent = isDirector ? 'Director' : (agent.agent_type === 'human' ? 'Human' : 'Staff Agent');
+            body.appendChild(typeEl);
 
-            // Type badge
-            if (agent.agent_type) {
-                var typeEl = document.createElement('span');
-                var typeClass = 'agent-card__type';
-                var t = agent.agent_type.toLowerCase();
-                if (t === 'director' || t === 'ai_director') typeClass += ' agent-card__type--director';
-                else if (t === 'human') typeClass += ' agent-card__type--human';
-                else typeClass += ' agent-card__type--staff';
-                typeEl.className = typeClass;
-                typeEl.textContent = agent.agent_type;
-                card.appendChild(typeEl);
-            }
-
-            // Department
             if (agent.department) {
                 var deptEl = document.createElement('div');
                 deptEl.className = 'agent-card__department';
                 deptEl.textContent = agent.department;
-                card.appendChild(deptEl);
+                body.appendChild(deptEl);
             }
 
-            // Email
-            if (agent.email) {
-                var emailEl = document.createElement('a');
-                emailEl.className = 'agent-card__email';
-                emailEl.href = 'mailto:' + agent.email;
-                emailEl.textContent = agent.email;
-                card.appendChild(emailEl);
-            }
+            card.appendChild(body);
 
-            // Click to open profile modal
+            // Click to open the full-detail profile modal (title, bio,
+            // email, live status — an enhancement over the static mock).
             card.style.cursor = 'pointer';
-            card.addEventListener('click', function (e) {
-                if (e.target.tagName === 'A') return; // don't intercept email links
+            card.addEventListener('click', function () {
                 Directory.openProfile(agent);
             });
 
@@ -310,92 +278,121 @@ var Directory = {
         document.addEventListener('keydown', escHandler);
     },
 
+    /* Filter UI matches Directory.dc.html: a search box, a pill row for
+       type (All/Directors/Staff), a chip row for department, and a result
+       count. State lives on Directory itself (query/type/dept) so pill and
+       chip active-states can be re-rendered on every change. */
+    filterState: { query: '', type: 'all', dept: 'All' },
+
     renderFilters: function () {
+        var self = this;
+
+        // Never hardcode a roster count in HTML — update from the real
+        // fetched list (see today's "13 agents" / "50+ agents" copy bugs).
+        var heroSub = document.getElementById('directoryHeroSubtitle');
+        if (heroSub) {
+            var deptSet = {};
+            this.agents.forEach(function (a) { if (a.department) deptSet[a.department] = true; });
+            var deptCount = Object.keys(deptSet).length;
+            heroSub.textContent = this.agents.length + ' agents across ' + deptCount + ' departments — powering intelligent automation';
+        }
+
         var container = document.getElementById('directoryFilters');
         if (!container) return;
         this._clearChildren(container);
 
-        // Search input
+        var topRow = document.createElement('div');
+        topRow.className = 'directory-filters__top';
+
         var search = document.createElement('input');
         search.type = 'text';
         search.className = 'directory-search';
-        search.placeholder = 'Search agents...';
+        search.placeholder = 'Search agents or departments…';
         search.id = 'directorySearch';
-        container.appendChild(search);
+        search.value = this.filterState.query;
+        topRow.appendChild(search);
 
-        // Department select
-        var depts = [];
+        var typeRow = document.createElement('div');
+        typeRow.className = 'directory-type-pills';
+        [
+            { v: 'all', l: 'All' },
+            { v: 'director', l: 'Directors' },
+            { v: 'staff', l: 'Staff' }
+        ].forEach(function (t) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'directory-pill' + (self.filterState.type === t.v ? ' directory-pill--active' : '');
+            btn.textContent = t.l;
+            btn.addEventListener('click', function () {
+                self.filterState.type = t.v;
+                self.renderFilters();
+                self.applyFilters();
+            });
+            typeRow.appendChild(btn);
+        });
+        topRow.appendChild(typeRow);
+        container.appendChild(topRow);
+
+        var depts = ['All'];
         this.agents.forEach(function (a) {
             if (a.department && depts.indexOf(a.department) === -1) depts.push(a.department);
         });
-        depts.sort();
+        depts.sort(function (a, b) { return a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b); });
 
-        var deptSelect = document.createElement('select');
-        deptSelect.className = 'directory-filter';
-        deptSelect.id = 'directoryDeptFilter';
-        var allDeptOpt = document.createElement('option');
-        allDeptOpt.value = '';
-        allDeptOpt.textContent = 'All Departments';
-        deptSelect.appendChild(allDeptOpt);
+        var deptRow = document.createElement('div');
+        deptRow.className = 'directory-dept-chips';
         depts.forEach(function (d) {
-            var opt = document.createElement('option');
-            opt.value = d;
-            opt.textContent = d;
-            deptSelect.appendChild(opt);
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'directory-chip' + (self.filterState.dept === d ? ' directory-chip--active' : '');
+            chip.textContent = d;
+            chip.addEventListener('click', function () {
+                self.filterState.dept = d;
+                self.renderFilters();
+                self.applyFilters();
+            });
+            deptRow.appendChild(chip);
         });
-        container.appendChild(deptSelect);
+        container.appendChild(deptRow);
 
-        // Type select
-        var types = [];
-        this.agents.forEach(function (a) {
-            if (a.agent_type && types.indexOf(a.agent_type) === -1) types.push(a.agent_type);
-        });
-        types.sort();
+        var count = document.createElement('div');
+        count.className = 'directory-result-count';
+        count.id = 'directoryResultCount';
+        container.appendChild(count);
 
-        var typeSelect = document.createElement('select');
-        typeSelect.className = 'directory-filter';
-        typeSelect.id = 'directoryTypeFilter';
-        var allTypeOpt = document.createElement('option');
-        allTypeOpt.value = '';
-        allTypeOpt.textContent = 'All Types';
-        typeSelect.appendChild(allTypeOpt);
-        types.forEach(function (t) {
-            var opt = document.createElement('option');
-            opt.value = t;
-            opt.textContent = t;
-            typeSelect.appendChild(opt);
-        });
-        container.appendChild(typeSelect);
+        this.bindEvents();
     },
 
     applyFilters: function () {
-        var searchVal = (document.getElementById('directorySearch').value || '').toLowerCase();
-        var deptVal = document.getElementById('directoryDeptFilter').value;
-        var typeVal = document.getElementById('directoryTypeFilter').value;
+        var self = this;
+        var searchInput = document.getElementById('directorySearch');
+        this.filterState.query = searchInput ? searchInput.value.toLowerCase() : '';
+        var q = this.filterState.query.trim();
 
         var filtered = this.agents.filter(function (a) {
-            if (deptVal && a.department !== deptVal) return false;
-            if (typeVal && a.agent_type !== typeVal) return false;
-            if (searchVal) {
+            if (self.filterState.type !== 'all' && a.agent_type !== self.filterState.type) return false;
+            if (self.filterState.dept !== 'All' && a.department !== self.filterState.dept) return false;
+            if (q) {
                 var haystack = [
                     a.full_name || '', a.display_name || '', a.acronym || '',
                     a.acronym_expansion || '', a.title || '', a.department || ''
                 ].join(' ').toLowerCase();
-                if (haystack.indexOf(searchVal) === -1) return false;
+                if (haystack.indexOf(q) === -1) return false;
             }
             return true;
         });
+
+        var countEl = document.getElementById('directoryResultCount');
+        if (countEl) countEl.textContent = filtered.length + ' shown';
 
         this.renderAgents(filtered);
     },
 
     bindEvents: function () {
         var self = this;
-        var filtersContainer = document.getElementById('directoryFilters');
-        if (!filtersContainer) return;
-
-        filtersContainer.addEventListener('input', function () { self.applyFilters(); });
-        filtersContainer.addEventListener('change', function () { self.applyFilters(); });
+        var search = document.getElementById('directorySearch');
+        if (!search) return;
+        search.addEventListener('input', function () { self.applyFilters(); });
     },
 
     startLivePolling: function () {

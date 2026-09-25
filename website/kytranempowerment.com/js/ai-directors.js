@@ -11,14 +11,6 @@
     SERVICES:    { name: 'Services',    color: '#10b981' }
   };
 
-  var FLOOR_CSS_CLASS = {
-    BRIDGE:      'dir-floor--bridge',
-    OPERATIONS:  'dir-floor--ops',
-    ENGINEERING: 'dir-floor--eng',
-    CREATIVE:    'dir-floor--creative',
-    SERVICES:    'dir-floor--services'
-  };
-
   var STATE_LABELS = {
     active:      'On Duty',
     barracked:   'Reserve',
@@ -59,24 +51,35 @@
     return wrap;
   }
 
-  function buildCard(director, floorColor) {
+  function buildCard(director, floorColor, floorName) {
     var card = document.createElement('div');
     card.className = 'glass-panel dir-card';
+    card.style.setProperty('--floor-accent', floorColor);
 
     // Avatar
     card.appendChild(buildAvatar(director, floorColor));
 
-    // Acronym
+    // Top row: acronym + floor badge (matches Design's AiDirectors.dc.html)
+    var topRow = document.createElement('div');
+    topRow.className = 'dir-card__top-row';
+
     var acronym = document.createElement('span');
     acronym.className = 'dir-card__acronym';
     acronym.style.color = floorColor;
     acronym.textContent = director.acronym || director.display_name || director.name;
-    card.appendChild(acronym);
+    topRow.appendChild(acronym);
+
+    var floorBadge = document.createElement('span');
+    floorBadge.className = 'dir-card__floor-badge';
+    floorBadge.style.color = floorColor;
+    floorBadge.textContent = floorName;
+    topRow.appendChild(floorBadge);
+
+    card.appendChild(topRow);
 
     // Acronym expansion
     var expansion = document.createElement('span');
     expansion.className = 'dir-card__name';
-    expansion.style.color = '#fff';
     expansion.textContent = director.acronym_expansion || '';
     card.appendChild(expansion);
 
@@ -86,19 +89,20 @@
     dept.textContent = director.department || '';
     card.appendChild(dept);
 
+    // Title (role) — colored by floor, per Design
+    if (director.title) {
+      var titleEl = document.createElement('span');
+      titleEl.className = 'dir-card__title';
+      titleEl.style.color = floorColor;
+      titleEl.textContent = director.title;
+      card.appendChild(titleEl);
+    }
+
     // Bio / description
     var desc = document.createElement('p');
     desc.className = 'dir-card__desc';
     desc.textContent = director.description || director.bio || '';
     card.appendChild(desc);
-
-    // Shift state badge
-    var state = director.shift_state || 'active';
-    var badge = document.createElement('span');
-    badge.className = 'dir-card__status';
-    badge.setAttribute('data-state', state);
-    badge.textContent = STATE_LABELS[state] || state;
-    card.appendChild(badge);
 
     // Click-to-showcase — open a full detail modal for the director
     card.style.cursor = 'pointer';
@@ -233,72 +237,48 @@
     document.addEventListener('keydown', escHandler);
   }
 
-  function buildFloorSection(floorKey, directors) {
-    var cfg = FLOOR_CONFIG[floorKey] || { name: floorKey, color: '#8892a4' };
-    var cssClass = FLOOR_CSS_CLASS[floorKey] || '';
-
-    var section = document.createElement('div');
-    section.className = 'dir-floor ' + cssClass;
-
-    // Header
-    var header = document.createElement('div');
-    header.className = 'dir-floor__header';
-
-    var bar = document.createElement('div');
-    bar.className = 'dir-floor__bar';
-    bar.style.background = cfg.color;
-    header.appendChild(bar);
-
-    var name = document.createElement('span');
-    name.className = 'dir-floor__name';
-    name.style.color = cfg.color;
-    name.textContent = cfg.name;
-    header.appendChild(name);
-
-    var badge = document.createElement('span');
-    badge.className = 'dir-floor__badge';
-    badge.style.color = cfg.color;
-    badge.style.borderColor = cfg.color.replace(')', ',0.25)').replace('rgb', 'rgba');
-    badge.textContent = directors.length + (directors.length === 1 ? ' Director' : ' Directors');
-    header.appendChild(badge);
-
-    section.appendChild(header);
-
-    // Grid
-    var grid = document.createElement('div');
-    grid.className = 'dir-grid' + (directors.length === 1 ? ' dir-grid--single' : '');
-    grid.setAttribute('data-stagger', '');
-
-    directors.forEach(function (d) {
-      grid.appendChild(buildCard(d, cfg.color));
-    });
-
-    section.appendChild(grid);
-    return section;
-  }
-
+  /* Single flat grid, per AiDirectors.dc.html — Design shows one grid of
+     cards (each carrying its own floor badge + colored left border), not
+     grouped floor sections with headers. Directors are still sorted in
+     floor order so the visual grouping reads top-to-bottom even without
+     section breaks. */
   function render(directors) {
     var container = document.getElementById('directorsContainer');
     if (!container) return;
 
-    // Group by floor
-    var grouped = {};
-    directors.forEach(function (d) {
-      var floor = (d.floor || 'SERVICES').toUpperCase();
-      if (!grouped[floor]) grouped[floor] = [];
-      grouped[floor].push(d);
+    var sorted = directors.slice().sort(function (a, b) {
+      var fa = FLOOR_ORDER.indexOf((a.floor || 'SERVICES').toUpperCase());
+      var fb = FLOOR_ORDER.indexOf((b.floor || 'SERVICES').toUpperCase());
+      if (fa === -1) fa = FLOOR_ORDER.length;
+      if (fb === -1) fb = FLOOR_ORDER.length;
+      return fa - fb;
     });
 
-    // Clear loading text
     clearChildren(container);
 
-    // Render in floor order
-    FLOOR_ORDER.forEach(function (floorKey) {
-      var list = grouped[floorKey];
-      if (list && list.length) {
-        container.appendChild(buildFloorSection(floorKey, list));
-      }
+    var grid = document.createElement('div');
+    grid.className = 'dir-grid';
+    grid.setAttribute('data-stagger', '');
+
+    sorted.forEach(function (d) {
+      var floorKey = (d.floor || 'SERVICES').toUpperCase();
+      var cfg = FLOOR_CONFIG[floorKey] || { name: d.floor || 'Services', color: '#8892a4' };
+      grid.appendChild(buildCard(d, cfg.color, cfg.name));
     });
+
+    container.appendChild(grid);
+
+    // Update the hero + CTA counts from the real fetched roster — never
+    // hardcode a director/staff count in HTML (see today's "13 agents"
+    // and "50+ agents" copy bugs).
+    var heroSub = document.getElementById('dirHeroSubtitle');
+    if (heroSub) {
+      heroSub.textContent = sorted.length + ' autonomous leaders managing every aspect of your business under C.R.E.E.D. ethical governance.';
+    }
+    var ctaCount = document.getElementById('dirCtaCount');
+    if (ctaCount) {
+      ctaCount.textContent = 'See what ' + sorted.length + ' AI Directors and 130+ staff agents can do for your business.';
+    }
   }
 
   var API_URL = 'data/directors.json';

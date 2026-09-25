@@ -40,77 +40,136 @@
     display: block;
 }
 
-/* Filters */
+/* Filters — search + type pills + department chips + result count,
+   per Directory.dc.html (replaces the old <select>-based filter bar). */
 .directory-filters {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    margin: 0 auto 2.5rem;
+    max-width: 1200px;
+    margin: 0 auto 1.5rem;
     padding: 0 1rem;
-    width: fit-content;
-    max-width: 100%;
 }
 
-.directory-search,
-.directory-filter {
+.directory-filters__top {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.directory-search {
+    flex: 1;
+    min-width: 240px;
+    max-width: 420px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
     color: #e2e8f0;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.9rem;
-    padding: 0.6rem 1rem;
-    border-radius: 6px;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
-    min-width: 180px;
 }
 
-.directory-search:focus,
-.directory-filter:focus {
+.directory-search:focus {
     border-color: var(--accent, #00e5ff);
     box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.15);
 }
 
-.directory-filter option {
-    background: #0a0a1a;
-    color: #e2e8f0;
+.directory-type-pills {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.directory-pill {
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    background: transparent;
+    color: var(--accent, #00e5ff);
+    border: 1px solid var(--accent, #00e5ff);
+    transition: background 0.2s, color 0.2s;
+}
+
+.directory-pill--active {
+    background: var(--accent, #00e5ff);
+    color: #0a0a1a;
+}
+
+.directory-dept-chips {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.directory-chip {
+    padding: 0.35rem 0.8rem;
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    cursor: pointer;
+    background: transparent;
+    color: #888;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: background 0.2s, color 0.2s;
+}
+
+.directory-chip--active {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.directory-result-count {
+    font-size: 0.8rem;
+    color: #666;
+    font-family: 'IBM Plex Mono', monospace;
 }
 
 /* Agent Card Grid */
 .directory-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
     padding: 0 1rem;
     margin: 0 auto;
     width: 100%;
+    max-width: 1200px;
 }
 
-/* Agent Card */
+/* Agent Card — horizontal layout: avatar left, name/type/department
+   stacked right, per Directory.dc.html. */
 .agent-card {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(10, 10, 30, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 2rem 1.5rem;
-    text-align: center;
+    border-radius: 10px;
+    padding: 1.25rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
     transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
     overflow: hidden;
 }
 
 .agent-card:hover {
-    border-color: rgba(0, 229, 255, 0.25);
+    border-color: rgba(0, 229, 255, 0.35);
     transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 30px rgba(0, 229, 255, 0.08);
 }
 
 /* Avatar */
 .agent-card__avatar {
-    width: 80px;
-    height: 80px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
-    margin: 0 auto 1rem;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--agent-accent, #00e5ff) 8%, transparent);
+    border: 2px solid var(--agent-accent, #00e5ff);
     position: relative;
     display: flex;
     align-items: center;
@@ -126,17 +185,20 @@
 }
 
 .agent-card__avatar-placeholder {
-    width: 80px;
-    height: 80px;
+    width: 100%;
+    height: 100%;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(0, 229, 255, 0.15), rgba(139, 92, 246, 0.15));
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.8rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    color: var(--accent, #00e5ff);
+    color: var(--agent-accent, #00e5ff);
+}
+
+.agent-card__body {
+    min-width: 0;
 }
 
 /* Live Status Dot */
@@ -176,136 +238,50 @@
     background: #a855f7;
 }
 
-/* Name / Acronym */
-.agent-card__acronym {
-    font-family: 'Orbitron', sans-serif;
-    color: #00e5ff;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    margin-bottom: 0.15rem;
-}
-
-.agent-card__expansion {
-    font-style: italic;
-    color: #64748b;
-    font-size: 0.75rem;
-    margin-bottom: 0.5rem;
-    line-height: 1.3;
-}
-
+/* Name / type / department — matches Directory.dc.html's text stack
+   exactly (name / accent-colored type label / muted department). */
 .agent-card__name {
     font-family: 'Antonio', sans-serif;
-    font-size: 1.1rem;
-    color: #e2e8f0;
-    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.agent-card__title {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    color: #94a3b8;
-    margin-bottom: 0.75rem;
-}
-
-/* Type Badge */
 .agent-card__type {
-    display: inline-block;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 0.2rem 0.6rem;
-    border-radius: 4px;
-    margin-bottom: 0.5rem;
-}
-
-.agent-card__type--director {
-    background: rgba(0, 229, 255, 0.12);
-    color: #00e5ff;
-    border: 1px solid rgba(0, 229, 255, 0.25);
-}
-
-.agent-card__type--staff {
-    background: rgba(139, 92, 246, 0.12);
-    color: #a78bfa;
-    border: 1px solid rgba(139, 92, 246, 0.25);
-}
-
-.agent-card__type--human {
-    background: rgba(244, 114, 182, 0.12);
-    color: #f472b6;
-    border: 1px solid rgba(244, 114, 182, 0.25);
+    font-size: 0.72rem;
+    color: var(--agent-accent, #00e5ff);
+    margin: 0.15rem 0;
 }
 
 .agent-card__department {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    color: #64748b;
-}
-
-.agent-card__email {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    color: var(--accent, #00e5ff);
-    text-decoration: none;
-    display: block;
-    margin-top: 0.25rem;
-    opacity: 0.7;
-    transition: opacity 0.2s;
+    font-size: 0.72rem;
+    color: #888;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-    word-break: break-all;
-}
-
-.agent-card__email:hover {
-    opacity: 1;
 }
 
 /* Agent Profile Modal rules moved to css/components/agent-modal.css
    — shared by directory + ai-directors pages. */
 
-/* Responsive */
+/* Responsive — auto-fill already collapses to 1-2 columns naturally;
+   only the filter bar needs an explicit stacked layout. */
 @media (max-width: 768px) {
-    .directory-grid {
-        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-        gap: 1rem;
-    }
-
-    .directory-filters {
+    .directory-filters__top {
         flex-direction: column;
         align-items: stretch;
-        width: 100%;
-        max-width: 100%;
     }
 
-    .directory-search,
-    .directory-filter {
-        min-width: unset;
-        width: 100%;
+    .directory-search {
+        max-width: 100%;
     }
 }
 
 @media (max-width: 480px) {
-    .directory-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-
     .agent-card {
-        padding: 1.25rem 1rem;
-    }
-
-    .agent-card__avatar-placeholder {
-        width: 60px;
-        height: 60px;
-        font-size: 1.4rem;
-    }
-
-    .agent-card__avatar {
-        width: 60px;
-        height: 60px;
+        padding: 1rem;
     }
 }

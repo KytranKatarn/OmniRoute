@@ -42,97 +42,75 @@
     line-height: 1.7;
 }
 
-/* Floor sections */
-.dir-floor {
-    margin-bottom: 3.5rem;
-}
-.dir-floor__header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-.dir-floor__bar {
-    width: 6px;
-    height: 40px;
-    border-radius: 3px;
-    flex-shrink: 0;
-}
-.dir-floor__name {
-    font-family: 'Antonio', sans-serif;
-    font-size: 1.5rem;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-.dir-floor__badge {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    padding: 0.25rem 0.75rem;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    margin-left: auto;
-}
-
-/* Director card grid */
+/* Director card grid — single flat grid per Design's AiDirectors.dc.html
+   (not grouped floor sections; each card carries its own floor badge +
+   colored left border, sorted in floor order). */
 .dir-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1.25rem;
-}
-.dir-grid--single {
-    grid-template-columns: 1fr;
-    max-width: 520px;
 }
 
 /* Director card */
 .dir-card {
-    padding: 1.75rem;
+    padding: 1.5rem;
     border-left: 4px solid var(--floor-accent, #8892a4);
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    gap: 0.3rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .dir-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,229,255,0.1);
+}
+.dir-card__top-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 .dir-card__acronym {
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--floor-accent, #00e5ff);
 }
+.dir-card__floor-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    white-space: nowrap;
+}
 .dir-card__name {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     color: var(--text-secondary, #8892a4);
     letter-spacing: 0.03em;
     line-height: 1.4;
+    margin: 0.3rem 0;
 }
 .dir-card__dept {
     font-family: 'Antonio', sans-serif;
-    font-size: 1.05rem;
+    font-size: 1rem;
     letter-spacing: 0.02em;
-    margin-top: 0.25rem;
+    color: #fff;
+}
+.dir-card__title {
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
 }
 .dir-card__desc {
     color: var(--text-secondary, #8892a4);
-    font-size: 0.88rem;
-    line-height: 1.65;
-    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
 }
-
-/* Floor accent custom properties */
-.dir-floor--bridge    { --floor-accent: #00e5ff; }
-.dir-floor--ops       { --floor-accent: #a3e635; }
-.dir-floor--eng       { --floor-accent: #fbbf24; }
-.dir-floor--creative  { --floor-accent: #f472b6; }
-.dir-floor--services  { --floor-accent: #8b5cf6; }
 
 /* How They Work Together */
 .dir-collab {
@@ -194,35 +172,21 @@
     color: #00e5ff;
 }
 
-/* Avatar & Status */
-.dir-card__avatar { width:80px; height:80px; border-radius:50%; overflow:hidden; margin:0 auto 1rem; border:2px solid rgba(255,255,255,0.1); }
-.dir-card__avatar img { width:100%; height:100%; object-fit:cover; }
-.dir-card__avatar-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; font-size:1.8rem; font-weight:700; }
-.dir-card__status { display:inline-block; margin-top:0.75rem; padding:0.2rem 0.6rem; border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:0.7rem; letter-spacing:0.08em; background:rgba(0,229,255,0.1); color:#00e5ff; }
-.dir-card__status[data-state="active"] { background:rgba(16,185,129,0.15); color:#10b981; }
-.dir-card__status[data-state="barracked"] { background:rgba(139,92,246,0.15); color:#8b5cf6; }
-.dir-card__status[data-state="deployed"] { background:rgba(34,211,238,0.15); color:#22d3ee; }
+/* Avatar — 72px, left-aligned (not centered), colored border per floor,
+   matches AiDirectors.dc.html's inline <img> spec exactly. */
+.dir-card__avatar { width:72px; height:72px; border-radius:50%; overflow:hidden; margin-bottom:1rem; border:2px solid var(--floor-accent, rgba(255,255,255,0.1)); }
+.dir-card__avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+.dir-card__avatar-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-family:'Orbitron',sans-serif; font-size:1.6rem; font-weight:700; }
 
 /* Responsive */
 @media (max-width: 768px) {
-    .dir-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
     .dir-hero {
         padding: 5rem 0 2rem;
     }
 }
 @media (max-width: 480px) {
-    .dir-grid,
-    .dir-grid--single {
+    .dir-grid {
         grid-template-columns: 1fr;
-        max-width: none;
-    }
-    .dir-floor__header {
-        flex-wrap: wrap;
-    }
-    .dir-floor__badge {
-        margin-left: 0;
     }
     .dir-creed,
     .dir-collab {

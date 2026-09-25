@@ -33,11 +33,11 @@ Rules: `.design-sync/conventions.md`, `.design-sync/NOTES.md`.
 | 10 | `CreedPage.dc.html` | `creed.html` | nav | #3459 | Same — nav-link only |
 | 11 | `About.dc.html` | `about.html` | live | #3450,#3451,#3471 | Body content (Vision/Values/Team) was already ported by an earlier untracked pass — this row was stale. #3471 fixed 2 wrong icon glyphs (Transparency, Self-Improvement) + inconsistent team-size copy. Verified live 2026-09-24 |
 | 12 | `Contact.dc.html` | `contact.html` | nav | #3450,#3451 | |
-| 13 | `Directory.dc.html` | `directory.html` | nav | #3450,#3451 | |
+| 13 | `Directory.dc.html` | `directory.html` | live | #3450,#3451,#3473 | Rebuilt agent cards to Design's horizontal layout (52px avatar left, name/type/department right, flex row, 10px radius) replacing the old vertical cards; filters rebuilt as search + type pills + department chips + live result count replacing `<select>` dropdowns. Portraits were already wired live (`avatar_thumb_url`/`avatar_url`), not a missing-asset problem. #3473's review came back coverage-demoted (one file 47% read, not a real defect — verified by reading the full file directly) and its own commit reused the prior day's `?v=` cache-buster, so the CDN kept serving pre-port CSS/JS at the same URL; both fixed and confirmed live 2026-09-24 via `getComputedStyle` (`display:flex`, `border-radius:10px`, 52px avatar) + zero console errors |
 | 14 | `Vision.dc.html` | `vision.html` | nav | #3450,#3451 | |
 | 15 | `Platform.dc.html` | `platform.html` | nav | #3450,#3451 | |
 | 16 | `ArchieCode.dc.html` | `archie-code.html` | nav | #3450,#3451 | |
-| 17 | `AiDirectors.dc.html` | `ai-directors.html` | nav | #3450,#3451 | |
+| 17 | `AiDirectors.dc.html` | `ai-directors.html` | live | #3450,#3451,#3473 | Flattened the old 5 grouped floor sections (with headers) into Design's single flat grid, each card carrying its own floor badge + 4px colored left border — this was the layout mismatch flagged against the Claude Design source. Avatar changed 80px-centered → 72px-left-aligned. Real per-agent portraits (media_studio pipeline) were already wired via `avatar_thumb_url`/`avatar_url` — no image asset was missing or needed copying from Design's placeholder set. Confirmed live 2026-09-24: 17 `.dir-card` elements, 0 floor-section wrappers, `border-left:4px`, 72px circular avatar, zero console errors |
 | 18 | `AiServices.dc.html` | `ai-services.html` | nav | #3450,#3451 | |
 | 19 | `Membership.dc.html` | `membership.html` | nav | #3450,#3451 | |
 | 20 | `SecurityServices.dc.html` | `security-services.html` | nav | #3450,#3451 | |

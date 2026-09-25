@@ -1,107 +1,14 @@
-# A.R.C.H.I.E. Platform
+# (Superseded — see the repo-root CLAUDE.md)
 
-**Version**: 5.32.0 | **Host**: 192.168.1.200 | **Status**: Operational
+This file dated to 2026-03-26 and described a pre-consolidation state (v5.32.0, "50
+modules", "78 tools", "7 Systems") that is no longer accurate — the platform is now on
+v5.33.0+ with 36 modules, 87 MCP tools, and a 3-core-system + 6-subsystem architecture.
+Because Claude Code loads nested `CLAUDE.md` files when working inside a subdirectory
+tree, this stale copy was silently contradicting `/mnt/archie_brain/CLAUDE.md` for any
+session touching `platform_v2/`.
 
----
+**Read `/mnt/archie_brain/CLAUDE.md` instead — it is the only maintained copy.**
 
-## Critical Rules
-
-1. **Read before modify** - Check existing code patterns first
-2. **Test in Docker** - `docker exec archie_platform python3 script.py`
-3. **Two .env files** - Root `.env` and `platform_v2/.env` must match
-4. **Module perms** - Add to BOTH `rbac.py` AND `module_registry.py`
-5. **Dev HQ is the source of truth** - After every commit+push, update Dev HQ:
-   - `mcp create_project` / `create_task` for new work
-   - `mcp complete_task` with notes when done
-   - `mcp log_decision` for architectural choices
-   - `mcp store_memory` (vault_note) for roadmap updates
-   - `mcp update_project_understanding` after working on a project
-
-## Quick Reference
-
-| Resource | Location |
-|----------|----------|
-| Platform | http://192.168.1.200:3000 |
-| Dev HQ | http://192.168.1.200:3000/dev-hq |
-| Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
-| Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
-| MCP Tools | 78 tools via `.mcp.json` |
-| Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
-
-## Architecture (7 Systems)
-
-1. **Knowledge Base** - `knowledge_base` table (~5,000 active entries, 100% embedded; ~1,100 archived as `archie_v1`)
-2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
-3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
-4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
-5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage, emotional intelligence
-6. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
-7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute pipeline, GPU-aware, C.R.E.E.D.-governed)
-8. **C.R.E.E.D. Transparency** - `/creed` public page (no auth), live governance stats, agent welfare, ethics constraints
-
-## Source of Truth
-
-| Data | Location | Access |
-|------|----------|--------|
-| **Documentation & Knowledge** | `knowledge_base` table | Dev HQ Knowledge tab, MCP `search_knowledge`, MCP `store_memory` (use `knowledge_type='vault_note'` for docs) |
-| **Projects & Tasks** | `unified_projects` + `unified_tasks` tables | MCP `get_projects`, `create_project`, `create_task`, `complete_task` |
-| **Decisions** | `project_decisions` table | MCP `log_decision` |
-| **Module Code** | `/platform_v2/tools/` filesystem | Direct file access |
-
-| **Roadmaps** | `knowledge_base` vault_notes with "roadmap" tag | MCP `search_knowledge`, `store_memory` |
-
-**NO filesystem docs** — `/docs/` is archived (git history only). **NO TODO_LIST.md** — use `unified_tasks` table. **NO ad-hoc memory tracking** — use Dev HQ projects + tasks + decisions.
-
-## Key Files
-
-```
-platform_v2/app.py                - Flask app
-platform_v2/module_registry.py    - Module definitions
-platform_v2/rbac.py               - Permissions
-platform_v2/database.py           - DB connection
-ai_bridge/archie_bridge.py        - AI routing
-ai_bridge/orchestration_engine.py - Orchestration pipeline (intent→route→execute)
-ai_bridge/smart_router.py         - GPU-aware model routing
-ai_bridge/knowledge_analyzer.py   - Knowledge extraction (Ollama qwen2.5:7b)
-ai_bridge/embedding_service.py    - Vector embeddings (nomic-embed-text)
-```
-
-## Common Errors
-
-| Error | Fix |
-|-------|-----|
-| `archie_database` not found | Run inside Docker container |
-| `localhost:5432 refused` | Use `192.168.1.200` for DB_HOST |
-| `TemplateNotFound` | Use `tools/` prefix in path |
-| Module not showing | Check both `rbac.py` + `module_registry.py` |
-
-## Commands
-
-```bash
-docker compose up -d                          # Start
-docker compose restart archie_platform        # Restart
-docker logs -f archie_platform                # Logs
-docker exec -it archie_database psql -U archie -d archie  # DB
-```
-
-## Skills (Use These!)
-
-- `/archie-status` - Platform health check
-- `/archie-module` - Create/modify modules
-- `/archie-deploy` - Safe deployment
-- `/archie-patterns` - Code patterns & conventions
-- `/archie-search` - Search knowledge base
-- `/archie-project` - Project & task management
-- `/archie-work` - Start/track work sessions (NEW)
-
-## Token Saving Tips
-
-1. Use `/clear` between unrelated tasks
-2. Be specific: "Fix line 45 in auth.py" not "improve auth"
-3. Use subagents for file searches (Task tool)
-4. Check MCP tools before reading files
-5. Use skills instead of re-explaining workflows
-
----
-
-*Use `/archie-patterns` for code examples, `/archie-status` for health checks*
+The sibling `platform_v2/.claude/settings.json` + `platform_v2/.claude/commands/*.md` +
+`platform_v2/scripts/hooks/*` are from the same 2026-03 era and were not verified as part
+of this cleanup (2026-09-25) — they may be equally dead. Confirm before relying on them.

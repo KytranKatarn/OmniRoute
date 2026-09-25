@@ -111,6 +111,38 @@ def render() -> str:
     )
     L.append("")
 
+    # Instruction-budget visibility (2026-09-25). This index is auto-loaded into every
+    # Claude Code session's context alongside CLAUDE.md + every .claude/rules/*.md file;
+    # together they were measured at 443,893 chars against Claude Code's ~150k budget,
+    # and curated notes on just 3 modules (department_hq, repair_bay, backup_manager)
+    # accounted for ~60% of every char this file has ever cost. Deliberately NOT
+    # auto-truncated here: these notes are the only place a lot of hard-won incident
+    # detail lives (no KB duplicate to fall back on the way learned-skills.md had), so a
+    # blind character cut risks silently dropping the newest, most load-bearing
+    # correction in a note that reads chronologically. This table exists so the
+    # concentration is visible and actionable (move closed incidents into KB
+    # `mistake_learned`/`vault_note` entries, keep only current-state facts here)
+    # instead of invisible and merely large.
+    _NOTE_FLAG_CHARS = 4000
+    oversized = sorted(
+        ((m["module_id"], len(m["notes"])) for m in mods if m.get("notes") and len(m["notes"]) > _NOTE_FLAG_CHARS),
+        key=lambda x: -x[1],
+    )
+    if oversized:
+        L.append(f"### ⚠️ Oversized curated notes (>{_NOTE_FLAG_CHARS} chars — compress, don't just read)")
+        L.append("")
+        L.append(
+            "Candidates for moving closed/historical incident narrative into KB "
+            "`mistake_learned`/`vault_note` entries, keeping only current-state facts here. "
+            "Edit via `platform_registry_service.set_notes(module_id, text)`, never this file."
+        )
+        L.append("")
+        L.append("| Module | Notes size |")
+        L.append("|--------|-----------|")
+        for mid, size in oversized:
+            L.append(f"| `{mid}` | {size:,} chars |")
+        L.append("")
+
     absent = [m for m in mods if m["status"] == "absent"]
     if absent:
         L.append("## 🚨 Absent — collected before, not present in the latest run")

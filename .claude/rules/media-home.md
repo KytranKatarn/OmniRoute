@@ -2,40 +2,13 @@
 globs: ["platform_v2/tools/media_hub/**"]
 ---
 
-# Media Home Rules
+# Media Home — RETIRED, see media-hub.md
 
-## Module
-- **Media Hub** — `/tools/media-hub`, `media_hub_bp` (25+ routes)
+This file described an in-platform `/tools/media-hub` blueprint (`media_hub_bp`,
+`tools/media_hub/routes.py`, `media_hub_requests`/`media_hub_settings` tables) that no
+longer exists — confirmed 2026-09-25: `platform_v2/tools/media_hub/` is absent from the
+filesystem and `media_hub_bp` is not registered in `module_registry.py`. The module was
+consolidated into a standalone (Project #384, PRs #2100/#2101, 2026-07-08); `/tools/media-hub`
+is now a pure `external_url` launch tile pointing at `media.kytranempowerment.com`.
 
-## Structure
-- Routes: `tools/media_hub/routes.py`
-- Template: `templates/tools/media_hub.html`
-
-## Service Clients
-- **Plex** / **Jellyfin** — media server (abstracted for migration support)
-- **Sonarr** — TV series management
-- **Radarr** — movie management
-- **Prowlarr** — indexer management
-- **Overseerr** — media requests
-- **SABnzbd** — download client
-- **TMDB** — metadata/search
-
-## Key DB Tables
-- `media_hub_requests` — user media requests
-- `media_hub_settings` — service credentials (encrypted)
-- `media_library_cache` — cached library data with TTL
-
-## Key Routes
-- `/api/search` — smart search (local library first, then TMDB)
-- `/api/library/*` — library browser
-- `/api/requests` — media request management
-- `/api/calendar/upcoming` — upcoming releases
-- `/api/downloads` — active downloads
-- `/api/settings` — service configuration with auto-discovery
-
-## Patterns
-- NO Bridge dispatch — external service integrations via client wrappers
-- Encryption layer for stored credentials
-- Service abstraction: Plex/Jellyfin migration support
-- Cache management with TTL for library data
-- Auto-discovery: scans network for Plex/Jellyfin/Sonarr/Radarr instances
+**Current state, tables, routes, and gotchas live in `media-hub.md`** — read that file.

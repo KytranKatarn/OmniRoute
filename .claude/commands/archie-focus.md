@@ -1,6 +1,6 @@
 ---
 description: Load focused context for a specific module or system — lightweight alternative to /archie-boot when you already know what you're working on. Saves ~15k context tokens vs full boot.
-argument-hint: <target> (consciousness|fleet|dispatch|department_hq|media_studio|repair_bay|email_manager|security_network|backup_manager|account_center|billing|wtf|gov_watch|media_hub|kso|kbs|creed)
+argument-hint: <target> (consciousness|fleet|dispatch|department_hq|media_studio|repair_bay|email_manager|security_network|backup_manager|account_center|billing|wtf|gov_watch|media_hub|kso|kbs|creed|website)
 ---
 
 # A.R.C.H.I.E. Focus — Segmented Module/System Boot
@@ -30,6 +30,7 @@ If no target was given, ask the user which target to focus on (list below) and s
 /archie-focus media_hub           — Media Hub standalone (:8105) + platform module, M.A.V.E.N.
 /archie-focus kso                 — Kytran System Operations, compliance, B.A.S.E.
 /archie-focus kbs                 — Kytran Business Suite, plugins, billing
+/archie-focus website             — kytranempowerment.com Claude-Design port + static deploy
 ```
 
 ## What This Loads (per target)
@@ -53,6 +54,22 @@ Load the relevant `.claude/rules/` file for the target:
 - kbs → `billing.md` + `standalone-extraction.md`
 - creed → `standalone-extraction.md`
 - google_work_suite / saas_manager / civic_watch / legal_watch / market_watch → `saas-services.md` + `operational-state.md`
+- website → **not** a `.claude/rules/` file — read `website/kytranempowerment.com/.design-sync/PORT-STATUS.md`
+  (the live page-by-page `todo`/`nav`/`pr`/`merged`/`live` tracker), plus `conventions.md`
+  + `NOTES.md` in the same directory. Report the live/nav/todo/no-design-file counts from
+  PORT-STATUS.md directly in the Step 5 summary — don't just say "see the tracker."
+  **Two facts from that tracker that cost real incidents when forgotten**: (1) this is a
+  static Hostinger host with **no CI/webhook** — a merge to `main` does NOT reach production;
+  deploy is `scripts/publish_website.sh` + `mcp__hostinger-api__hosting_deployStaticWebsite`
+  (full-site zip replace), and nothing may be marked `live` without a real post-deploy browser
+  check. (2) Hostinger's CDN caches CSS/JS at `max-age=604800` per exact URL+query — **bump the
+  sitewide `?v=` cache-buster on any deploy that touches shared CSS/JS**, or different visitors
+  see different versions of the site for up to 7 days (PR #3461's root cause).
+  **Claude Design page mockups (`.dc.html` handoffs) are NOT stored in this repo** — they come
+  from a separate Claude Design project reached via the `/design-sync`-gated `DesignSync` tool
+  or a link the owner provides; don't fabricate page content "to match Design" without actually
+  having the source in front of you — every prior port in the tracker was verified against
+  Design's literal computed-style values, never approximated.
 
 ### Step 2: KB search for this module
 Call `mcp__archie__search_knowledge(query="<target> module capability", category="module_capability", limit=3)`

@@ -3142,7 +3142,13 @@
         var body = el('div', {style: 'padding:14px 16px;max-height:200px;overflow-y:auto;'}, [el('p', {id: 'msConfirmBody', style: 'margin:0;line-height:1.6;white-space:pre-wrap;font-size:.85rem;color:rgba(255,255,255,0.75);'}, [])]);
         footer.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);';
         var content = el('div', {style: 'background:#1a1a2e;border:1px solid rgba(0,229,255,0.2);border-radius:6px;max-width:440px;width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.6);overflow:visible;'}, [header, body, footer]);
-        var overlay = el('div', {id: 'msConfirmModal', className: 'ms-modal-overlay', style: 'display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(0,0,0,.7);'}, [content]);
+        // Layering: this overlay is appended to document.body, so it is a SIBLING
+        // of .ms-media-modal (z-index 10000), not a child. At 9999 it painted
+        // behind the media details modal — Delete / Use as Portrait / Generate
+        // Variant all opened from inside that modal and were invisible until the
+        // details were closed. It must stay above 10000. See the z-index scale
+        // in media-studio.css.
+        var overlay = el('div', {id: 'msConfirmModal', className: 'ms-modal-overlay', style: 'display:none;position:fixed;inset:0;z-index:10002;align-items:center;justify-content:center;background:rgba(0,0,0,.7);'}, [content]);
         overlay.addEventListener('click', function(e) { if (e.target === overlay) window.msConfirmCancel(); });
         document.body.appendChild(overlay);
     }
@@ -3171,7 +3177,7 @@
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'msToast';
-            toast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:10001;max-width:380px;'
+            toast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:10003;max-width:380px;'
                 + 'padding:11px 16px;border-radius:6px;font-size:.8rem;line-height:1.5;'
                 + 'box-shadow:0 8px 28px rgba(0,0,0,0.55);background:#1a1a2e;'
                 + 'border:1px solid rgba(0,229,255,0.4);color:rgba(255,255,255,0.88);'

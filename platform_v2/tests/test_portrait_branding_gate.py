@@ -876,3 +876,71 @@ def test_generation_completion_brands_only_ke_corporate():
     assert "apply_ke_branding(dest_path)" in source
     assert 'params.get("variant_branding") == "ke_corporate"' in source
     assert "ke_logo_applied" in source
+
+
+# --- modal layering -------------------------------------------------------
+# #msConfirmModal is appended to document.body, so it is a SIBLING of
+# .ms-media-modal — not a child. At z-index 9999 it painted behind the media
+# details modal, so Delete / Use as Portrait / Generate Variant (all opened
+# from that modal's action bar) were invisible until the details were closed.
+
+
+def _ms_z_layers():
+    """Read z-index for the media details modal, the confirm modal and the toast."""
+    import re
+
+    css = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "media_studio"
+        / "static"
+        / "css"
+        / "media-studio.css"
+    ).read_text()
+    tpl = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "media_studio"
+        / "templates"
+        / "tools"
+        / "media_studio"
+        / "media_studio.html"
+    ).read_text()
+
+    media_modal = int(re.search(r"\.ms-media-modal\s*\{[^}]*?z-index:\s*(\d+)", css, re.S).group(1))
+    confirm = int(re.search(r"id: 'msConfirmModal'.*?z-index:(\d+)", tpl, re.S).group(1))
+    # The toast is created imperatively (toast.id = 'msToast'; toast.style.cssText = ...)
+    # rather than via the el() attrs object, so match that shape.
+    toast = int(re.search(r"toast\.id = 'msToast';.*?z-index:(\d+)", tpl, re.S).group(1))
+    return media_modal, confirm, toast
+
+
+def test_confirm_dialog_stacks_above_the_media_details_modal():
+    media_modal, confirm, _ = _ms_z_layers()
+    assert confirm > media_modal, (
+        f"#msConfirmModal z-index {confirm} must exceed .ms-media-modal {media_modal} — "
+        "it is a body-level sibling, so a lower value hides it behind the details modal"
+    )
+
+
+def test_toast_stays_above_dialogs():
+    """A toast raised while a confirm is open must not be dimmed by its overlay."""
+    media_modal, confirm, toast = _ms_z_layers()
+    assert toast > confirm
+    assert toast > media_modal
+
+
+def test_confirm_modal_is_a_body_sibling_not_a_media_modal_child():
+    """The layering only works because of where the node is appended."""
+    tpl = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "media_studio"
+        / "templates"
+        / "tools"
+        / "media_studio"
+        / "media_studio.html"
+    ).read_text()
+    body = tpl[tpl.index("function _ensureMsConfirmModal()") : tpl.index("window.showMsConfirm = function")]
+    assert "document.body.appendChild(overlay)" in body
+    assert "msMediaModal" not in body

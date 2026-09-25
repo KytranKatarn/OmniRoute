@@ -1028,6 +1028,21 @@
 
 /* ============================================================================
    S11. MEDIA MODAL (LCARS Tablet Frame)
+
+   ── z-index scale (keep new layers inside it) ──────────────────────────
+     9998  .ms-version-sidebar
+     9999  .ms-edit-modal / .ms-template-modal / .ms-share-modal
+            NOTE: these are DOM CHILDREN of .ms-media-modal, so they stack
+            inside its context. That is why they work even though their
+            z-index is lower than their parent's.
+    10000  .ms-media-modal  — the portrait/media DETAILS modal
+    10002  #msConfirmModal  — appended to document.body, so it is a SIBLING of
+            .ms-media-modal, not a child. Must be > 10000 or it paints behind
+            the details modal. Delete / Use as Portrait / Generate Variant all
+            open from inside the details modal and were invisible until it was
+            closed.
+    10003  #msToast — transient, pointer-events:none; stays above dialogs so a
+            toast raised while a confirm is open is not dimmed by its overlay.
    ============================================================================ */
 .ms-media-modal {
     position: fixed;

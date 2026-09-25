@@ -36,9 +36,12 @@ def api_dashboard():
     from .services.comfyui_manager import get_fleet_comfyui_status
 
     stats = get_dashboard_stats(current_user.id)
-    fleet = get_fleet_comfyui_status()
+    try:
+        fleet = get_fleet_comfyui_status()
+    except Exception as exc:
+        logger.warning("dashboard ComfyUI status unavailable: %s", exc)
+        fleet = []
 
-    # Flatten stats to top level so JS can read data.total_generated etc. directly
     return jsonify({**stats, "fleet": fleet})
 
 
@@ -115,7 +118,8 @@ def api_portrait_identity(agent_id):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT ap.identity_prompt, a.display_name, a.name "
+            "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, '')) "
+            "AS identity_prompt, a.display_name, a.name "
             "FROM agents a LEFT JOIN agent_portraits ap ON ap.agent_id = a.id "
             "WHERE a.id = %s",
             (agent_id,),
@@ -611,6 +615,14 @@ def api_portraits():
     return jsonify({"agents": get_all_agent_portraits()})
 
 
+@media_studio_bp.route("/api/portraits/identity-audit")
+@admin_required
+def api_portrait_identity_audit():
+    from .services.portrait_service import get_identity_audit
+
+    return jsonify(get_identity_audit())
+
+
 @media_studio_bp.route("/api/image-providers")
 @login_required
 def api_image_providers():
@@ -622,8 +634,11 @@ def api_image_providers():
     'image_gen'. See spec ~/.claude/plans/2026-05-16-image-provider-selector.md.
     """
     from .services.generation_service import get_image_providers
+    from .services.portrait_service import DEFAULT_PORTRAIT_MODEL
 
-    return jsonify(get_image_providers())
+    providers = get_image_providers()
+    providers["portrait_default_model"] = DEFAULT_PORTRAIT_MODEL
+    return jsonify(providers)
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>")
@@ -647,7 +662,13 @@ def api_generate_canonical(agent_id):
 
     # Gate: block generation if agent has no identity_prompt
     with get_db_cursor() as (conn, cur):
-        cur.execute("SELECT identity_prompt FROM agent_portraits WHERE agent_id = %s", (agent_id,))
+        cur.execute(
+            "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, '')) "
+            "AS identity_prompt "
+            "FROM agents a LEFT JOIN agent_portraits ap ON ap.agent_id = a.id "
+            "WHERE a.id = %s",
+            (agent_id,),
+        )
         _portrait_row = cur.fetchone()
         _has_prompt = bool(
             _portrait_row and _portrait_row.get("identity_prompt") and _portrait_row["identity_prompt"].strip()
@@ -687,10 +708,17 @@ def api_generate_canonical(agent_id):
         )
 
     data = request.get_json() or {}
-    result = generate_canonical(agent_id, prompt_override=data.get("prompt"))
-    if "error" in result:
-        return jsonify(result), 400
-    return jsonify(result), 201
+    result = generate_canonical(
+        agent_id,
+        prompt_override=data.get("prompt"),
+        model=data.get("model"),
+        model_override=data.get("model_override"),
+        identity_mode=data.get("identity_mode", "auto"),
+        identity_weight=data.get("identity_weight"),
+    )
+    if "error" in result or not result.get("queue_id"):
+        return jsonify({"success": False, "error": result.get("error", "Portrait queue was not created")}), 400
+    return jsonify(result), 202
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/generate-variant", methods=["POST"])
@@ -706,10 +734,12 @@ def api_generate_variant(agent_id):
         pose=data.get("pose"),
         model=data.get("model"),  # may be bare filename, "provider:<key>", or None (Auto)
         model_override=data.get("model_override"),  # per-provider model picker (#2942)
+        identity_mode=data.get("identity_mode", "auto"),
+        identity_weight=data.get("identity_weight"),
     )
-    if "error" in result:
-        return jsonify(result), 400
-    return jsonify(result), 201
+    if "error" in result or not result.get("queue_id"):
+        return jsonify({"success": False, "error": result.get("error", "Variant queue was not created")}), 400
+    return jsonify(result), 202
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/generate-fanout", methods=["POST"])
@@ -724,10 +754,12 @@ def api_generate_fanout(agent_id):
         prompt_override=data.get("prompt"),
         model=data.get("model"),  # may be bare filename, "provider:<key>", or None (Auto)
         model_override=data.get("model_override"),  # per-provider model picker (#2942)
+        identity_mode=data.get("identity_mode", "auto"),
+        identity_weight=data.get("identity_weight"),
     )
-    if not result.get("success"):
-        return jsonify(result), 400
-    return jsonify(result), 201
+    if not result.get("success") or not result.get("queue_ids"):
+        return jsonify({"success": False, "error": result.get("error", "Portrait queue was not created")}), 400
+    return jsonify(result), 202
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/refine-prompt", methods=["POST"])
@@ -1129,6 +1161,8 @@ def api_update_identity_prompt(agent_id):
     if not data or "prompt" not in data:
         return jsonify({"error": "prompt is required"}), 400
     result = update_identity_prompt(agent_id, data["prompt"])
+    if result.get("error"):
+        return jsonify(result), 404
     return jsonify(result)
 
 

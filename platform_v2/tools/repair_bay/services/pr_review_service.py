@@ -628,7 +628,17 @@ def get_pending_reviews(limit: int = 10) -> list:
 def mark_review_started(pr_number: int, repo: str = None) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE pr_reviews SET review_status='in_progress', updated_at=NOW() WHERE pr_number=%s AND repo=%s",
+            """
+            UPDATE pr_reviews
+            SET review_status='in_progress',
+                updated_at=NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb)
+                           || jsonb_build_object(
+                               'review_started_at', NOW(),
+                               'review_file_progress', '{}'::jsonb
+                           )
+            WHERE pr_number=%s AND repo=%s
+            """,
             (pr_number, repo or _DEFAULT_REPO),
         )
 
@@ -662,6 +672,30 @@ def mark_review_progress(pr_number: int, repo: str = None) -> bool:
         cur.execute(
             "UPDATE pr_reviews SET updated_at=NOW() " "WHERE pr_number=%s AND repo=%s AND review_status='in_progress'",
             (pr_number, repo or _DEFAULT_REPO),
+        )
+        return cur.rowcount > 0
+
+
+def mark_review_file_progress(pr_number: int, repo: str = None, progress: dict = None) -> bool:
+    """Persist per-document coverage without changing the review state."""
+    if not isinstance(progress, dict):
+        return False
+    from psycopg2.extras import Json as _Json  # noqa: PLC0415
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            UPDATE pr_reviews
+            SET updated_at=NOW(),
+                metadata=jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    '{review_file_progress}',
+                    %s::jsonb,
+                    true
+                )
+            WHERE pr_number=%s AND repo=%s AND review_status='in_progress'
+            """,
+            (_Json(progress), pr_number, repo or _DEFAULT_REPO),
         )
         return cur.rowcount > 0
 
@@ -1406,14 +1440,16 @@ def merge_state(
             default_branch,
         )
 
+    dropped = coverage_dropped_paths(summary) or []
+    partial = coverage_partial_paths(summary) or []
     return _with_merge_target(
         {
             "state": MERGE_STATE_CHANGES,
             "mergeable": False,
             "label": "CHANGES REQUESTED",
             "hint": _merge_hint(summary, False),
-            "dropped_files": [],
-            "partial_files": [],
+            "dropped_files": dropped,
+            "partial_files": partial,
         },
         base_branch,
         default_branch,
@@ -1479,6 +1515,10 @@ def _elapsed_minutes(ts, now=None) -> int | None:
         from datetime import datetime, timezone
 
         ref = now or datetime.now(timezone.utc)
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        elif isinstance(ts, (int, float)):
+            ts = datetime.fromtimestamp(ts, timezone.utc)
         if getattr(ts, "tzinfo", None) is None:
             ts = ts.replace(tzinfo=timezone.utc)
         if getattr(ref, "tzinfo", None) is None:
@@ -1511,22 +1551,13 @@ def review_progress(
     updated_at=None,
     now=None,
     stale_minutes: int = _REAP_STALE_MINUTES,
+    started_at=None,
+    file_progress=None,
 ) -> dict:
-    """What an in-flight "Reviewing…" row should SAY. Pure — no DB, no Flask.
+    """Return full-review elapsed time and liveness for one review row.
 
-    THE DEFECT THIS ADDRESSES: an in-flight review rendered as a bare, disabled
-    "Analyzing…" with no elapsed time and no way out, so a review that would finish in
-    40 seconds and one whose dispatch died 45 minutes ago were pixel-identical. The only
-    way to tell them apart was the CLI — which is exactly what happened on archie-platform
-    #3385 and archie-code #71: both read "Reviewing…", one had a live dispatch, the other
-    had already had one reaped.
-
-    ⚠️ The threshold is NOT cosmetic — it is ``reap_stale_reviews``' own window, measured
-    off the same column (``pr_reviews.updated_at``). Keeping them in step is the whole
-    point: this function only ever *predicts* what the reaper will do.
-
-    Returns {active, elapsed_minutes, label, stale, hint, reap_minutes}. ``active`` is
-    False for every non-``in_progress`` status, so callers can render unconditionally.
+    ``updated_at`` is the heartbeat/reaper clock. ``started_at`` is the run clock used
+    for the operator-facing timer, so a heartbeat cannot make a long review look new.
     """
     idle = {
         "active": False,
@@ -1535,43 +1566,48 @@ def review_progress(
         "stale": False,
         "hint": None,
         "reap_minutes": stale_minutes,
+        "started_at": started_at,
+        "file_progress": file_progress,
     }
     if (review_status or "") != "in_progress":
         return idle
 
-    elapsed = _elapsed_minutes(updated_at, now)
+    elapsed = _elapsed_minutes(started_at or updated_at, now)
+    heartbeat_age = _elapsed_minutes(updated_at, now)
     if elapsed is None:
-        # We do NOT know how long it has run. Say that. Rendering "0m" here would read
-        # as "just started" — a claim the data does not support, and the precise kind of
-        # confident-but-unfounded status this change exists to remove.
         return {
             "active": True,
             "elapsed_minutes": None,
-            "label": "Analyzing…",
+            "label": "Full review · elapsed unknown",
             "stale": False,
-            "hint": "Elapsed time unknown — this row carries no updated_at.",
+            "hint": "Full-review elapsed time is unknown; per-document coverage is shown separately.",
             "reap_minutes": stale_minutes,
+            "started_at": started_at,
+            "file_progress": file_progress,
         }
 
-    stale = elapsed >= stale_minutes
+    stale = heartbeat_age is not None and heartbeat_age >= stale_minutes
     if stale:
         hint = (
-            f"Running {_humanize_minutes(elapsed)} — past the {stale_minutes}m stuck-review "
+            f"Full review elapsed: {_humanize_minutes(elapsed)}. No heartbeat for "
+            f"{_humanize_minutes(heartbeat_age)}; past the {stale_minutes}m stuck-review "
             f"window. The reaper resets it within ~{_REAP_INTERVAL_MINUTES}m, or use Retry "
             f"to reset it now."
         )
     else:
         hint = (
-            f"Running {_humanize_minutes(elapsed)}. A per-file review is several SERIAL "
-            f"dispatches, so minutes are expected; it is only overdue past {stale_minutes}m."
+            f"Full review elapsed: {_humanize_minutes(elapsed)}. Document percentages "
+            f"show how much of each file was shown to F.O.R.G.E.; they are not separate timers."
         )
     return {
         "active": True,
         "elapsed_minutes": elapsed,
-        "label": f"Analyzing… {_humanize_minutes(elapsed)}",
+        "label": f"Full review · {_humanize_minutes(elapsed)}",
         "stale": stale,
         "hint": hint,
         "reap_minutes": stale_minutes,
+        "started_at": started_at,
+        "file_progress": file_progress,
     }
 
 
@@ -1626,7 +1662,11 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
         _dis_cache = {}
     for row in rows:
         _meta = row.get("metadata") or {}
-        _sha = _meta.get("reviewed_head_sha") if isinstance(_meta, dict) else None
+        if not isinstance(_meta, dict):
+            _meta = {}
+        _sha = _meta.get("reviewed_head_sha")
+        _file_progress = _meta.get("review_file_progress") or {}
+        row["review_file_progress"] = _file_progress
         row["ai_summary"] = _summary_after_dismissals(
             row.get("pr_number"), row.get("repo"), row.get("ai_summary"), _sha, cache=_dis_cache
         )
@@ -1636,9 +1676,12 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
             row.get("base_branch"),
             pr_state=row.get("state"),
         )
-        # Same rule as merge_state: the elapsed time AND the overdue threshold are decided
-        # server-side, so the template cannot drift from the reaper's actual window.
-        row["review_progress"] = review_progress(row.get("review_status"), row.get("updated_at"))
+        row["review_progress"] = review_progress(
+            row.get("review_status"),
+            row.get("updated_at"),
+            started_at=_meta.get("review_started_at"),
+            file_progress=_file_progress,
+        )
     return rows
 
 

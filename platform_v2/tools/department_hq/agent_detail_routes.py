@@ -89,12 +89,47 @@ def _get_identity_prompt(agent_id: int):
 
         with get_db_cursor() as (_conn, cur):
             cur.execute(
-                "SELECT identity_prompt FROM agent_portraits WHERE agent_id = %s",
+                "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), "
+                "NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, '')) AS identity_prompt "
+                "FROM agents a LEFT JOIN agent_portraits ap ON ap.agent_id = a.id "
+                "WHERE a.id = %s",
                 (agent_id,),
             )
             row = cur.fetchone()
             return row["identity_prompt"] if row else None
-    except Exception:
+    except Exception as exc:
+        logger.warning("Could not load identity prompt for agent %s: %s", agent_id, exc)
+        return None
+
+
+def _get_voice_profile(agent_id: int):
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT profile_name, speaker, speed, pitch_shift, warmth,
+                       default_emotion, emotion_overrides, is_active, updated_at
+                FROM agent_voice_profiles
+                WHERE agent_id = %s AND is_active = TRUE
+                ORDER BY updated_at DESC NULLS LAST, id DESC
+                LIMIT 1
+                """,
+                (agent_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            profile = dict(row)
+            for key in ("speed", "pitch_shift", "warmth"):
+                if profile.get(key) is not None:
+                    profile[key] = float(profile[key])
+            if profile.get("updated_at"):
+                profile["updated_at"] = profile["updated_at"].isoformat()
+            return profile
+    except Exception as exc:
+        logger.warning("Could not load voice profile for agent %s: %s", agent_id, exc)
         return None
 
 
@@ -113,6 +148,7 @@ def register_agent_detail_routes(bp, admin_required):
             skills = get_skills(agent_id)
             welfare = get_welfare(agent_id)
             perf = get_performance(agent_id)
+            voice_profile = _get_voice_profile(agent_id)
 
             # Sanitize agent dict for JSON. Includes the full editable field
             # set used by the agent profile modal (Project #262 Task #1916).
@@ -147,6 +183,7 @@ def register_agent_detail_routes(bp, admin_required):
                 # Voice & social
                 "social_topics": agent.get("social_topics") or [],
                 "auto_approve_threshold": float(agent.get("auto_approve_threshold") or 0.0),
+                "voice_profile": voice_profile,
                 # Portrait identity (from agent_portraits — single source of truth)
                 "identity_prompt": _get_identity_prompt(agent_id),
                 # Read-only
@@ -414,7 +451,9 @@ def register_agent_detail_routes(bp, admin_required):
                     update_identity_prompt as _update_ip,
                 )
 
-                _update_ip(agent_id, identity_prompt_value or "")
+                prompt_result = _update_ip(agent_id, identity_prompt_value or "")
+                if prompt_result.get("error"):
+                    raise RuntimeError(prompt_result["error"])
             if payload:
                 update_agent(agent_id, **payload)
         except Exception as exc:
@@ -424,116 +463,98 @@ def register_agent_detail_routes(bp, admin_required):
                 500,
             )
 
+        updated_fields = set(payload)
+        audit_after = dict(payload)
+        if identity_prompt_in_payload:
+            updated_fields.add("identity_prompt")
+            audit_after["identity_prompt"] = identity_prompt_value
+
         actor_id = getattr(current_user, "id", None)
         _audit_profile_update(
             agent_id=agent_id,
             user_id=actor_id,
             before=before,
-            after=payload,
+            after=audit_after,
         )
 
         return (
-            jsonify({"ok": True, "updated_fields": sorted(payload.keys())}),
+            jsonify({"ok": True, "updated_fields": sorted(updated_fields)}),
             200,
         )
 
     @bp.route("/api/agents/<int:agent_id>/generate-portrait", methods=["POST"])
     @admin_required
     def api_agent_generate_portrait(agent_id):
-        """Profile-modal Generate Portrait button — convenience wrapper.
-
-        Dispatches through the canonical Media Studio pipeline (Bridge →
-        P.I.X.E.L. image_generation skill → ComfyUI) and auto-approves the
-        result as the agent's canonical portrait. For preview-before-approve
-        flow, use the Media Studio Portraits tab directly.
-
-        Body (optional):
-            {"prompt": "override identity prompt"}
-
-        Returns shape expected by agent-profile.js:
-            {"success": bool, "active": avatar_url, "message": str,
-             "queue_id": int, "media_id": int}
-        """
-        from tools.media_studio.services.portrait_service import (
-            generate_canonical,
-            approve_canonical,
-        )
-        from database import get_db_cursor
+        """Queue a portrait for explicit review in Media Studio."""
+        from tools.media_studio.services.portrait_service import generate_canonical
 
         body = request.get_json(silent=True) or {}
-        prompt_override = body.get("prompt")
-
         agent = get_agent(agent_id)
         if not agent:
             return jsonify({"success": False, "error": "Agent not found"}), 404
 
-        # 1. Generate via the canonical pipeline
-        gen_result = generate_canonical(agent_id, prompt_override=prompt_override)
-        if gen_result.get("error"):
-            return jsonify({"success": False, "error": gen_result["error"]}), 500
+        from database import get_db_cursor
 
-        queue_id = gen_result.get("queue_id")
-        status = gen_result.get("status")
-        if status != "completed" or not queue_id:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": f"Generation not completed (status={status})",
-                        "queue_id": queue_id,
-                    }
-                ),
-                502,
-            )
-
-        # 2. Pull the media_id from the queue row
         with get_db_cursor() as (_conn, cur):
             cur.execute(
-                "SELECT result_media_id FROM media_generation_queue WHERE id = %s",
-                (queue_id,),
+                """
+                SELECT id, status
+                FROM media_generation_queue
+                WHERE owner_type = 'agent' AND owner_id = %s
+                  AND status IN ('pending', 'dispatched')
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (agent_id,),
             )
-            row = cur.fetchone()
-        media_id = row["result_media_id"] if row else None
-        if not media_id:
+            existing = cur.fetchone()
+        if existing:
             return (
                 jsonify(
                     {
                         "success": False,
-                        "error": "No media_id on completed queue row",
-                        "queue_id": queue_id,
+                        "error": "A portrait generation is already queued for this agent",
+                        "queue_id": existing["id"],
+                        "status": existing["status"],
                     }
                 ),
-                502,
+                409,
             )
 
-        # 3. Auto-approve so the avatar_url flips immediately.
-        approval = approve_canonical(agent_id, media_id)
-        if approval.get("error"):
+        result = generate_canonical(
+            agent_id,
+            prompt_override=body.get("prompt"),
+            model=body.get("model"),
+            model_override=body.get("model_override"),
+            identity_mode=body.get("identity_mode", "auto"),
+            identity_weight=body.get("identity_weight"),
+        )
+        if result.get("error") or not result.get("queue_id"):
             return (
                 jsonify(
                     {
                         "success": False,
-                        "error": approval["error"],
-                        "queue_id": queue_id,
-                        "media_id": media_id,
+                        "error": result.get("error", "Portrait queue was not created"),
                     }
                 ),
                 500,
             )
 
-        # 4. Fetch the now-updated avatar_url for the frontend
-        updated = get_agent(agent_id) or {}
         return (
             jsonify(
                 {
                     "success": True,
-                    "message": "Portrait generated and set as canonical",
-                    "queue_id": queue_id,
-                    "media_id": media_id,
-                    "active": updated.get("avatar_url"),
+                    "status": result.get("status", "pending"),
+                    "message": "Portrait queued for review in Media Studio.",
+                    "review_required": True,
+                    "auto_approved": False,
+                    "queue_id": result["queue_id"],
+                    "media_id": None,
+                    "active": agent.get("avatar_url"),
+                    "current_avatar": agent.get("avatar_url"),
                 }
             ),
-            200,
+            202,
         )
 
     @bp.route("/api/agent/<int:agent_id>/decommission-precheck")

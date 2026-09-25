@@ -350,7 +350,7 @@
     return sk;
   }
 
-  function buildReadOnlySections(welfare, perf) {
+  function buildReadOnlySections(welfare, perf, voice) {
     const frag = document.createDocumentFragment();
 
     const pct = function (v) { return v !== undefined && v !== null ?
@@ -391,6 +391,20 @@
     pfGrid.appendChild(wfField('Grade', (perf && perf.current_grade) || '—'));
     pf.appendChild(pfGrid);
     frag.appendChild(pf);
+
+    const vf = el('div', 'apm-section');
+    const vfTitle = el('div', 'apm-section-title');
+    vfTitle.appendChild(document.createTextNode('TTS Voice '));
+    const vfLink = el('a', 'apm-deeplink', '→ Consciousness');
+    vfLink.href = '#voice';
+    vfTitle.appendChild(vfLink);
+    vf.appendChild(vfTitle);
+    const vfGrid = el('div', 'apm-grid');
+    vfGrid.appendChild(wfField('Profile', (voice && voice.profile_name) || 'Needs review'));
+    vfGrid.appendChild(wfField('Speaker', (voice && voice.speaker) || 'Needs review'));
+    vfGrid.appendChild(wfField('Emotion', (voice && voice.default_emotion) || 'Needs review'));
+    vf.appendChild(vfGrid);
+    frag.appendChild(vf);
 
     return frag;
   }
@@ -755,18 +769,12 @@
     infoWrap.appendChild(statusBadge);
     infoWrap.appendChild(msLink);
 
-    // Regenerate Portrait — convenience wrapper around the Media Studio
-    // pipeline (Bridge → P.I.X.E.L. → ComfyUI). Auto-approves the result as
-    // the canonical portrait with NO preview — the button label says so, and
-    // the Media Studio link above is the preview-before-approve path.
     const regenRow = document.createElement('div');
     regenRow.style.cssText = 'display:flex;flex-direction:column;gap:.35rem;margin-top:.35rem';
     const regenBtn = document.createElement('button');
     regenBtn.className = 'apm-btn';
-    regenBtn.textContent = 'Regenerate Portrait (auto-approves)';
-    regenBtn.title = 'Generates a new portrait and immediately sets it as ' +
-      'canonical — no preview. For preview-before-approve, use "Generate in ' +
-      'Media Studio" above.';
+    regenBtn.textContent = 'Regenerate Portrait (queue for review)';
+    regenBtn.title = 'Queues a new portrait. Review it in Media Studio before setting it as canonical.';
     const regenStatus = document.createElement('span');
     regenStatus.style.cssText = 'font-size:.72rem;color:#94a3b8';
     regenBtn.onclick = async function () {
@@ -787,7 +795,7 @@
         const data = await res.json().catch(function () { return {}; });
         if (res.ok && data && data.success) {
           regenStatus.textContent = 'queued (queue_id ' + data.queue_id +
-            ') — ComfyUI may cold-start; check back in a few minutes.';
+            ') — review the result in Media Studio when it completes.';
           regenStatus.style.color = '#00e5ff';
         } else {
           regenStatus.textContent = 'Failed: ' + (data.error || res.status);
@@ -897,7 +905,7 @@
     SECTIONS.forEach(function (sec) { root.appendChild(buildSection(sec, agent)); });
     root.appendChild(buildSkillsSection(agent.id, state.snapshot.skills));
     root.appendChild(buildReadOnlySections(
-      state.snapshot.welfare, state.snapshot.performance
+      state.snapshot.welfare, state.snapshot.performance, agent.voice_profile
     ));
     root.appendChild(buildFactsSection(agent.id));
     root.appendChild(buildDecommissionSection(agent));

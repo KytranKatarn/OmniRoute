@@ -5,6 +5,7 @@ and environment art for hub/node backgrounds.
 """
 
 import base64
+import hashlib
 import logging
 import os
 import shutil
@@ -30,6 +31,7 @@ KYTRAN_PORTRAIT_BRAND = (
     "subtle embossed Kytran Empowerment RAM mark integrated into the background, "
     "low contrast, background-only, never over the subject, no readable text"
 )
+DEFAULT_PORTRAIT_MODEL = os.getenv("MEDIA_STUDIO_PORTRAIT_MODEL", "RealVisXL_V4.0.safetensors")
 
 
 def _apply_corporate_brand(prompt: str) -> str:
@@ -39,10 +41,137 @@ def _apply_corporate_brand(prompt: str) -> str:
     return f"{prompt}, {KYTRAN_PORTRAIT_BRAND}"
 
 
+def _compose_identity_prompt(
+    prompt: str,
+    display_name: str = "",
+    gender: str = "",
+    ethnicity: str = "",
+    age_range: str = "",
+    appearance_notes: str = "",
+) -> str:
+    prompt = _apply_corporate_brand(prompt or "")
+    details = []
+    if display_name:
+        details.append(f"subject: {display_name}")
+    if gender:
+        details.append(f"gender presentation: {gender}")
+    if age_range:
+        details.append(f"age: {age_range}")
+    if ethnicity:
+        skin_hint = agent_service._get_skin_tone_hint(ethnicity)
+        details.append(f"ethnicity and skin tone: {skin_hint or ethnicity}")
+    if appearance_notes:
+        details.append(f"fixed appearance details: {appearance_notes}")
+    identity_lock = (
+        "identity lock: preserve the same person across every generation; "
+        "same face shape, facial proportions, hairline, hair color, eye color, "
+        "skin tone, age, gender presentation, ethnicity, and distinctive features"
+    )
+    if details:
+        identity_lock += "; " + "; ".join(details)
+    identity_lock += (
+        "; photorealistic natural skin texture, realistic eyes and anatomy, "
+        "accurate age lines, no beautification, no identity drift"
+    )
+    if "identity lock:" in prompt.lower():
+        return prompt
+    return f"{prompt}, {identity_lock}" if prompt else ""
+
+
+def _stable_face_seed(agent_id: int, existing_seed: Optional[int]) -> int:
+    if existing_seed not in (None, -1, 0):
+        return int(existing_seed)
+    digest = hashlib.sha256(f"archie-portrait:{agent_id}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") % 2147483647
+
+
 def _portrait_negative_prompt() -> str:
     return (
-        "blurry, deformed, extra limbs, bad anatomy, text, large logo, " "logo over face, busy background, low quality"
+        "blurry, deformed, extra limbs, bad anatomy, text, large logo, logo over face, "
+        "busy background, low quality, different person, identity drift, changed gender, "
+        "changed age, changed ethnicity, altered facial structure, plastic skin, waxy skin, "
+        "over-smoothed skin, uncanny eyes, signature, caption, gibberish lettering, "
+        "fake logo, stock-photo overlay"
     )
+
+
+def _portrait_reference_path(row: Dict) -> str:
+    if not row.get("approved"):
+        return ""
+    return row.get("ip_adapter_ref_path") or row.get("canonical_image_path") or ""
+
+
+def _get_voice_profile(agent_id: int) -> Optional[Dict]:
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT profile_name, speaker, speed, pitch_shift, warmth,
+                       default_emotion, emotion_overrides, is_active, updated_at
+                FROM agent_voice_profiles avp
+                WHERE avp.agent_id = %s AND avp.is_active = TRUE
+                ORDER BY avp.updated_at DESC NULLS LAST, avp.id DESC
+                LIMIT 1
+                """,
+                (agent_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        profile = dict(row)
+        for key in ("speed", "pitch_shift", "warmth"):
+            if profile.get(key) is not None:
+                profile[key] = float(profile[key])
+        if profile.get("updated_at"):
+            profile["updated_at"] = profile["updated_at"].isoformat()
+        return profile
+    except Exception as exc:
+        logger.warning("Could not load voice profile for agent %s: %s", agent_id, exc)
+        return None
+
+
+def _portrait_identity_context(row: Dict, voice_profile: Optional[Dict]) -> Dict:
+    appearance = (row.get("appearance_notes") or "").strip()
+    bio = (row.get("bio") or "").strip()
+    pronouns = (row.get("pronouns") or "").strip()
+    personality_prompt = row.get("personality_prompt") or ""
+    writing_voice = {
+        "tone": row.get("writing_tone") or "",
+        "communication_style": row.get("communication_style") or "",
+        "has_personality_prompt": bool(personality_prompt),
+    }
+    missing = []
+    for field, value in (
+        ("pronouns", pronouns),
+        ("bio", bio),
+        ("appearance_notes", appearance),
+        ("writing_tone", writing_voice["tone"]),
+        ("communication_style", writing_voice["communication_style"]),
+        ("personality_prompt", personality_prompt),
+        ("gender", row.get("gender")),
+        ("ethnicity", row.get("ethnicity")),
+        ("age_range", row.get("age_range")),
+    ):
+        if not value:
+            missing.append(field)
+    if not row.get("identity_prompt"):
+        missing.append("identity_prompt")
+    if not row.get("current_grade"):
+        missing.append("current_grade")
+    if not voice_profile:
+        missing.append("tts_voice_profile")
+    return {
+        "bio": bio,
+        "pronouns": pronouns,
+        "gender": row.get("gender") or "",
+        "ethnicity": row.get("ethnicity") or "",
+        "age_range": row.get("age_range") or "",
+        "appearance_notes": appearance,
+        "writing_voice": writing_voice,
+        "voice_profile": voice_profile,
+        "grade_status": row.get("current_grade") or "Unrated",
+        "missing_fields": missing,
+    }
 
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -264,13 +393,41 @@ def get_all_agent_portraits() -> List[Dict]:
             SELECT a.id, a.name, a.first_name, a.last_name, a.display_name,
                    a.worker_type, a.avatar_url,
                    a.updated_at AS avatar_updated_at,
-                   p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
+                   p.id AS portrait_id, p.canonical_image_path,
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                       AS identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
-                   p.style_tags, p.updated_at
+                   p.style_tags,
+                   p.created_at AS portrait_created_at,
+                   p.updated_at AS portrait_updated_at,
+                   COALESCE(p.updated_at, a.updated_at) AS updated_at,
+                   latest.latest_media_at, latest.latest_model, latest.latest_provider,
+                   latest.latest_media_thumbnail, latest.latest_media_path
             FROM agents a
-            LEFT JOIN agent_portraits p ON p.agent_id = a.id
+            LEFT JOIN LATERAL (
+                SELECT ap.id, ap.canonical_image_path, ap.identity_prompt,
+                       ap.face_seed, ap.ip_adapter_ref_path, ap.approved,
+                       ap.style_tags, ap.created_at, ap.updated_at
+                FROM agent_portraits ap
+                WHERE ap.agent_id = a.id
+                ORDER BY ap.approved DESC NULLS LAST, ap.is_primary DESC NULLS LAST,
+                         ap.updated_at DESC NULLS LAST, ap.id DESC
+                LIMIT 1
+            ) p ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT ml.created_at AS latest_media_at, ml.model AS latest_model,
+                       ml.provider AS latest_provider, ml.thumbnail_path AS latest_media_thumbnail,
+                       ml.file_path AS latest_media_path
+                FROM media_library ml
+                WHERE ml.owner_type = 'agent' AND ml.owner_id = a.id
+                  AND ml.media_type = 'image' AND ml.is_deleted = false
+                  AND COALESCE(ml.metadata->>'asset_type', 'portrait') = 'portrait'
+                ORDER BY ml.created_at DESC NULLS LAST, ml.id DESC
+                LIMIT 1
+            ) latest ON TRUE
             WHERE a.shift_state != 'decommissioned'
-            ORDER BY COALESCE(a.display_name, a.first_name || ' ' || a.last_name, a.name)
+            ORDER BY COALESCE(latest.latest_media_at, p.updated_at, a.updated_at) DESC NULLS LAST,
+                     a.id
             """
         )
         rows = [dict(r) for r in cur.fetchall()]
@@ -280,10 +437,106 @@ def get_all_agent_portraits() -> List[Dict]:
             desc, age = AGENT_DIVERSITY[row["name"]]
             row["diversity_desc"] = desc
             row["diversity_age"] = age
-        row["has_portrait"] = bool(row.get("canonical_image_path"))
-        row["has_ipadapter"] = bool(row.get("ip_adapter_ref_path"))
+        row["has_canonical"] = bool(row.get("canonical_image_path"))
+        row["has_portrait"] = bool(row.get("canonical_image_path") or row.get("latest_media_path"))
+        row["has_ipadapter"] = bool(_portrait_reference_path(row))
+        row["pending_review"] = bool(row.get("latest_media_path") and not row.get("approved"))
 
     return rows
+
+
+def get_identity_audit() -> Dict:
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.display_name, a.department, a.worker_type,
+                   a.is_department_ai, a.pronouns, a.current_grade, a.bio,
+                   a.writing_tone, a.communication_style, a.personality_prompt,
+                   a.appearance_notes, a.gender, a.ethnicity, a.age_range,
+                   a.avatar_url, a.updated_at,
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, ''))
+                       AS identity_prompt,
+                   ap.canonical_image_path, ap.ip_adapter_ref_path, ap.approved
+            FROM agents a
+            LEFT JOIN LATERAL (
+                SELECT portrait.canonical_image_path, portrait.identity_prompt,
+                       portrait.ip_adapter_ref_path, portrait.approved
+                FROM agent_portraits portrait
+                WHERE portrait.agent_id = a.id
+                ORDER BY portrait.approved DESC NULLS LAST,
+                         portrait.is_primary DESC NULLS LAST,
+                         portrait.updated_at DESC NULLS LAST,
+                         portrait.id DESC
+                LIMIT 1
+            ) ap ON TRUE
+            WHERE COALESCE(a.shift_state, '') != 'decommissioned'
+            ORDER BY a.department NULLS LAST, a.display_name NULLS LAST, a.id
+            """
+        )
+        rows = [dict(row) for row in cur.fetchall()]
+        voice_profiles = {}
+        try:
+            cur.execute(
+                """
+                SELECT agent_id, profile_name, speaker, speed, pitch_shift, warmth,
+                       default_emotion, emotion_overrides, is_active, updated_at
+                FROM agent_voice_profiles avp
+                WHERE avp.is_active = TRUE
+                ORDER BY avp.agent_id, avp.updated_at DESC NULLS LAST, avp.id DESC
+                """
+            )
+            for row in cur.fetchall():
+                profile = dict(row)
+                profile.pop("agent_id", None)
+                for key in ("speed", "pitch_shift", "warmth"):
+                    if profile.get(key) is not None:
+                        profile[key] = float(profile[key])
+                if profile.get("updated_at"):
+                    profile["updated_at"] = profile["updated_at"].isoformat()
+                voice_profiles.setdefault(row["agent_id"], profile)
+        except Exception as exc:
+            logger.warning("Identity audit could not load voice profiles: %s", exc)
+
+    agents = []
+    for row in rows:
+        context = _portrait_identity_context(row, voice_profiles.get(row["id"]))
+        missing = list(context["missing_fields"])
+        agents.append(
+            {
+                "id": row["id"],
+                "name": row.get("name"),
+                "display_name": row.get("display_name") or row.get("name"),
+                "department": row.get("department"),
+                "worker_type": row.get("worker_type"),
+                "is_department_ai": bool(row.get("is_department_ai")),
+                "identity_prompt": row.get("identity_prompt") or "",
+                "identity_context": context,
+                "avatar_url": row.get("avatar_url"),
+                "canonical_image_path": row.get("canonical_image_path"),
+                "approved": bool(row.get("approved")),
+                "has_reference": bool(
+                    row.get("approved")
+                    and (row.get("ip_adapter_ref_path") or row.get("canonical_image_path"))
+                ),
+                "missing_fields": missing,
+                "review_status": "complete" if not missing else "needs_review",
+                "updated_at": row.get("updated_at"),
+            }
+        )
+
+    missing_counts = {}
+    for agent in agents:
+        for field in agent["missing_fields"]:
+            missing_counts[field] = missing_counts.get(field, 0) + 1
+    return {
+        "agents": agents,
+        "summary": {
+            "total": len(agents),
+            "complete": sum(1 for agent in agents if agent["review_status"] == "complete"),
+            "needs_review": sum(1 for agent in agents if agent["review_status"] == "needs_review"),
+            "missing_field_counts": missing_counts,
+        },
+    }
 
 
 def get_agent_portrait(agent_id: int) -> Optional[Dict]:
@@ -292,13 +545,29 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
         cur.execute(
             """
             SELECT a.id, a.name, a.display_name, a.avatar_url,
-                   a.bio, a.title, a.department,
+                   a.title, a.department,
                    a.updated_at AS avatar_updated_at,
-                   p.id AS portrait_id, p.canonical_image_path, p.identity_prompt,
+                   p.id AS portrait_id, p.canonical_image_path,
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                       AS identity_prompt,
+                   a.pronouns, a.current_grade, a.bio, a.writing_tone,
+                   a.communication_style, a.personality_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
-                   p.style_tags, p.refinement_draft, p.created_at, p.updated_at
+                   p.style_tags, p.refinement_draft,
+                   p.created_at AS portrait_created_at,
+                   p.updated_at AS portrait_updated_at,
+                   COALESCE(p.updated_at, a.updated_at) AS updated_at
             FROM agents a
-            LEFT JOIN agent_portraits p ON p.agent_id = a.id
+            LEFT JOIN LATERAL (
+                SELECT ap.id, ap.canonical_image_path, ap.identity_prompt,
+                       ap.face_seed, ap.ip_adapter_ref_path, ap.approved,
+                       ap.style_tags, ap.refinement_draft, ap.created_at, ap.updated_at
+                FROM agent_portraits ap
+                WHERE ap.agent_id = a.id
+                ORDER BY ap.approved DESC NULLS LAST, ap.is_primary DESC NULLS LAST,
+                         ap.updated_at DESC NULLS LAST, ap.id DESC
+                LIMIT 1
+            ) p ON TRUE
             WHERE a.id = %s
             """,
             (agent_id,),
@@ -313,18 +582,32 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
             """
             SELECT ml.id, ml.file_path, ml.thumbnail_path, ml.prompt, ml.seed,
                    ml.width, ml.height, ml.metadata, ml.created_at,
-                   q.params->>'model' AS model_name,
+                   COALESCE(ml.model, q.params->>'model') AS model_name,
                    q.params->>'fleet_node' AS fleet_node,
-                   q.params->>'provider' AS provider
+                   COALESCE(ml.provider, q.params->>'provider') AS provider
             FROM media_library ml
             LEFT JOIN media_generation_queue q ON q.result_media_id = ml.id
             WHERE ml.owner_type = 'agent' AND ml.owner_id = %s
                   AND ml.media_type = 'image' AND ml.is_deleted = false
-            ORDER BY created_at DESC
+                  AND COALESCE(ml.metadata->>'asset_type', 'portrait') = 'portrait'
+            ORDER BY ml.created_at DESC NULLS LAST, ml.id DESC
             """,
             (agent_id,),
         )
         result["variants"] = [dict(v) for v in cur.fetchall()]
+        result["has_canonical"] = bool(result.get("canonical_image_path"))
+        result["has_portrait"] = bool(result.get("canonical_image_path") or result["variants"])
+        if result["variants"]:
+            latest = result["variants"][0]
+            result["latest_media_at"] = latest.get("created_at")
+            result["latest_model"] = latest.get("model_name")
+            result["latest_provider"] = latest.get("provider")
+            result["latest_media_thumbnail"] = latest.get("thumbnail_path") or latest.get("file_path")
+        result["pending_review"] = bool(result["variants"] and not result.get("approved"))
+        voice_profile = _get_voice_profile(agent_id)
+        result["identity_context"] = _portrait_identity_context(result, voice_profile)
+        result["reference_path"] = _portrait_reference_path(result)
+        result["has_reference"] = bool(result["reference_path"])
 
         if not result.get("identity_prompt"):
             if result["name"] in AGENT_DIVERSITY:
@@ -347,21 +630,35 @@ def _build_identity_prompt(display_name: str, desc: str, age: str) -> str:
     )
 
 
-def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> Dict:
-    """Generate initial canonical portrait without IP-Adapter.
-
-    Uses identity prompt from agent_portraits or diversity map fallback.
-    Submits through generation_service for Bridge dispatch.
-    """
+def generate_canonical(
+    agent_id: int,
+    prompt_override: Optional[str] = None,
+    model: Optional[str] = None,
+    model_override: Optional[str] = None,
+    identity_mode: Optional[str] = "auto",
+    identity_weight: Optional[float] = None,
+) -> Dict:
+    """Generate a canonical portrait from the structured agent identity."""
     from .generation_service import submit_generation
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
             SELECT a.name, a.display_name, a.first_name, a.last_name,
-                   p.identity_prompt, p.face_seed
+                   a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes,
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                       AS identity_prompt,
+                   p.face_seed, p.approved, p.ip_adapter_ref_path, p.canonical_image_path
             FROM agents a
-            LEFT JOIN agent_portraits p ON p.agent_id = a.id
+            LEFT JOIN LATERAL (
+                SELECT ap.identity_prompt, ap.face_seed, ap.approved,
+                       ap.ip_adapter_ref_path, ap.canonical_image_path
+                FROM agent_portraits ap
+                WHERE ap.agent_id = a.id
+                ORDER BY ap.approved DESC NULLS LAST, ap.is_primary DESC NULLS LAST,
+                         ap.updated_at DESC NULLS LAST, ap.id DESC
+                LIMIT 1
+            ) p ON TRUE
             WHERE a.id = %s
             """,
             (agent_id,),
@@ -371,36 +668,53 @@ def generate_canonical(agent_id: int, prompt_override: Optional[str] = None) -> 
             return {"error": "Agent not found"}
 
     identity_prompt = prompt_override or row.get("identity_prompt")
-
-    # Regenerate if stored prompt still contains the legacy "None" placeholder
     if identity_prompt and "of None," in identity_prompt:
         identity_prompt = None
 
-    identity_prompt = _apply_corporate_brand(identity_prompt)
-
+    identity_prompt = _compose_identity_prompt(
+        identity_prompt or "",
+        display_name=row.get("display_name") or row.get("name") or "",
+        gender=row.get("gender") or "",
+        ethnicity=row.get("ethnicity") or "",
+        age_range=row.get("age_range") or "",
+        appearance_notes=row.get("appearance_notes") or "",
+    )
     if not identity_prompt:
-        # No prompt set — generation is blocked by the API gate before reaching here.
-        # Return an error rather than generating with a generic fallback.
         return {"success": False, "error": f"No identity_prompt set for agent {agent_id}. Set one in DHQ Roster first."}
 
     _ensure_portrait_record(agent_id, identity_prompt)
-    seed = row.get("face_seed") or -1
+    seed = _stable_face_seed(agent_id, row.get("face_seed"))
+    params = {
+        "width": 1024,
+        "height": 1024,
+        "steps": 30,
+        "cfg": 7.0,
+        "sampler": "euler_ancestral",
+        "seed": seed,
+        "asset_type": "portrait",
+    }
+    model_params = _portrait_model_params(model, model_override)
+    reference_path = _portrait_reference_path(row)
+    identity_params = _identity_generation_params(
+        identity_mode,
+        identity_weight,
+        has_reference=bool(reference_path),
+        model_params=model_params,
+    )
+    if identity_params.get("error"):
+        return {"error": identity_params["error"]}
+    params.update(model_params)
+    params.update(identity_params)
+    if reference_path and not params.get("provider"):
+        params["ip_adapter_ref"] = reference_path
+        params["ip_adapter_weight"] = params["identity_weight"]
 
     return submit_generation(
         user_id=None,
         media_type="image",
         prompt=identity_prompt,
         negative_prompt=_portrait_negative_prompt(),
-        params={
-            "model": "sd_xl_base_1.0.safetensors",
-            "width": 1024,
-            "height": 1024,
-            "steps": 30,
-            "cfg": 7.0,
-            "sampler": "euler_ancestral",
-            "seed": seed,
-            "asset_type": "portrait",
-        },
+        params=params,
         owner_type="agent",
         owner_id=agent_id,
     )
@@ -426,7 +740,44 @@ def _parse_provider_or_model(value: Optional[str], model_override: Optional[str]
         key = value[len("provider:") :]
         model = model_override or PROVIDER_DEFAULT_MODEL.get(key)
         return {"provider": key, "model": model}
+    if value.startswith("local:"):
+        return {"provider": None, "model": value[len("local:") :]}
     return {"provider": None, "model": value}
+
+
+def _portrait_model_params(model: Optional[str] = None, model_override: Optional[str] = None) -> Dict:
+    parsed = _parse_provider_or_model(model, model_override=model_override)
+    params = {"model": parsed["model"] or DEFAULT_PORTRAIT_MODEL}
+    if parsed["provider"]:
+        params["provider"] = parsed["provider"]
+    return params
+
+
+def _identity_generation_params(
+    identity_mode: Optional[str],
+    identity_weight: Optional[float],
+    has_reference: bool,
+    model_params: Dict,
+) -> Dict:
+    from .comfyui_manager import normalize_identity_mode
+
+    try:
+        mode = normalize_identity_mode(
+            value=identity_mode,
+            has_reference=has_reference,
+            provider=model_params.get("provider"),
+            model=model_params.get("model"),
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}
+    try:
+        weight = float(identity_weight) if identity_weight is not None else 0.85
+    except (TypeError, ValueError):
+        weight = 0.85
+    return {
+        "identity_mode": mode,
+        "identity_weight": max(0.1, min(1.2, weight)),
+    }
 
 
 def generate_variant(
@@ -435,21 +786,29 @@ def generate_variant(
     pose: Optional[str] = None,
     model: Optional[str] = None,
     model_override: Optional[str] = None,
+    identity_mode: Optional[str] = "auto",
+    identity_weight: Optional[float] = None,
 ) -> Dict:
-    """Generate face-consistent variant using IP-Adapter + canonical ref.
-
-    Requires approved canonical with ip_adapter_ref_path.
-    """
+    """Generate a face-consistent variant from the approved canonical reference."""
     from .generation_service import submit_generation
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
             SELECT p.identity_prompt, p.ip_adapter_ref_path, p.canonical_image_path,
-                   p.face_seed, p.approved, a.name, a.display_name
-            FROM agent_portraits p
-            JOIN agents a ON a.id = p.agent_id
-            WHERE p.agent_id = %s
+                   p.face_seed, p.approved, a.name, a.display_name,
+                   a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes
+            FROM agents a
+            LEFT JOIN LATERAL (
+                SELECT ap.identity_prompt, ap.ip_adapter_ref_path,
+                       ap.canonical_image_path, ap.face_seed, ap.approved
+                FROM agent_portraits ap
+                WHERE ap.agent_id = a.id
+                ORDER BY ap.approved DESC NULLS LAST, ap.is_primary DESC NULLS LAST,
+                         ap.updated_at DESC NULLS LAST, ap.id DESC
+                LIMIT 1
+            ) p ON TRUE
+            WHERE a.id = %s
             """,
             (agent_id,),
         )
@@ -460,15 +819,20 @@ def generate_variant(
     if not row["approved"]:
         return {"error": "Canonical portrait must be approved before generating variants"}
 
-    base_prompt = _apply_corporate_brand(row["identity_prompt"] or "")
+    base_prompt = _compose_identity_prompt(
+        row["identity_prompt"] or "",
+        display_name=row.get("display_name") or row.get("name") or "",
+        gender=row.get("gender") or "",
+        ethnicity=row.get("ethnicity") or "",
+        age_range=row.get("age_range") or "",
+        appearance_notes=row.get("appearance_notes") or "",
+    )
     if style:
         base_prompt += f", {style} style"
     if pose:
         base_prompt += f", {pose} pose"
 
-    parsed = _parse_provider_or_model(model, model_override=model_override)
     params: Dict = {
-        "model": parsed["model"] or "sd_xl_base_1.0.safetensors",
         "width": 1024,
         "height": 1024,
         "steps": 30,
@@ -476,12 +840,21 @@ def generate_variant(
         "sampler": "euler_ancestral",
         "seed": -1,
     }
-    if parsed["provider"]:
-        params["provider"] = parsed["provider"]
-    if row["ip_adapter_ref_path"] and not parsed["provider"]:
-        # IP-Adapter face anchoring only works on local ComfyUI today
-        params["ip_adapter_ref"] = row["ip_adapter_ref_path"]
-        params["ip_adapter_weight"] = 0.85
+    model_params = _portrait_model_params(model, model_override=model_override)
+    reference_path = _portrait_reference_path(row)
+    identity_params = _identity_generation_params(
+        identity_mode,
+        identity_weight,
+        has_reference=bool(reference_path),
+        model_params=model_params,
+    )
+    if identity_params.get("error"):
+        return {"error": identity_params["error"]}
+    params.update(model_params)
+    params.update(identity_params)
+    if reference_path and not params.get("provider"):
+        params["ip_adapter_ref"] = reference_path
+        params["ip_adapter_weight"] = params["identity_weight"]
     params.setdefault("asset_type", "portrait")
 
     return submit_generation(
@@ -507,12 +880,14 @@ def generate_fanout(
     prompt_override: Optional[str] = None,
     model: Optional[str] = None,
     model_override: Optional[str] = None,
+    identity_mode: Optional[str] = "auto",
+    identity_weight: Optional[float] = None,
 ) -> Dict:
     """Submit N portrait generation jobs in one click.
 
-    If agent has an approved canonical with ip_adapter_ref_path, generates
-    IP-Adapter style variants.  Otherwise generates N canonical attempts with
-    different style suffixes and random seeds.
+    If an approved canonical reference exists, generates identity-consistent
+    style variants. Otherwise generates canonical attempts with different
+    style suffixes and random seeds.
 
     Returns {"success": True, "queue_ids": [...], "count": N}
     """
@@ -522,10 +897,20 @@ def generate_fanout(
         cur.execute(
             """
             SELECT a.name, a.display_name, a.first_name, a.last_name,
-                   p.identity_prompt, p.face_seed,
-                   p.approved, p.ip_adapter_ref_path
+                   a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes,
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                       AS identity_prompt,
+                   p.face_seed, p.approved, p.ip_adapter_ref_path, p.canonical_image_path
             FROM agents a
-            LEFT JOIN agent_portraits p ON p.agent_id = a.id
+            LEFT JOIN LATERAL (
+                SELECT ap.identity_prompt, ap.face_seed, ap.approved,
+                       ap.ip_adapter_ref_path, ap.canonical_image_path
+                FROM agent_portraits ap
+                WHERE ap.agent_id = a.id
+                ORDER BY ap.approved DESC NULLS LAST, ap.is_primary DESC NULLS LAST,
+                         ap.updated_at DESC NULLS LAST, ap.id DESC
+                LIMIT 1
+            ) p ON TRUE
             WHERE a.id = %s
             """,
             (agent_id,),
@@ -535,19 +920,32 @@ def generate_fanout(
     if not row:
         return {"success": False, "error": "Agent not found"}
 
-    identity_prompt = _apply_corporate_brand(prompt_override or row.get("identity_prompt") or "")
+    identity_prompt = _compose_identity_prompt(
+        prompt_override or row.get("identity_prompt") or "",
+        display_name=row.get("display_name") or row.get("name") or "",
+        gender=row.get("gender") or "",
+        ethnicity=row.get("ethnicity") or "",
+        age_range=row.get("age_range") or "",
+        appearance_notes=row.get("appearance_notes") or "",
+    )
     if not identity_prompt.strip():
         return {"success": False, "error": "No identity prompt set. Add one in DHQ Roster first."}
 
     queue_ids = []
-    use_ip_adapter = bool(row.get("approved") and row.get("ip_adapter_ref_path"))
+    reference_path = _portrait_reference_path(row)
 
-    parsed = _parse_provider_or_model(model, model_override=model_override)
-    _model = parsed["model"] or "sd_xl_base_1.0.safetensors"
+    model_params = _portrait_model_params(model, model_override=model_override)
+    identity_params = _identity_generation_params(
+        identity_mode,
+        identity_weight,
+        has_reference=bool(reference_path),
+        model_params=model_params,
+    )
+    if identity_params.get("error"):
+        return {"success": False, "error": identity_params["error"]}
     for style in _FANOUT_STYLES:
         prompt = identity_prompt + (f", {style}" if style else "")
         params: Dict = {
-            "model": _model,
             "width": 1024,
             "height": 1024,
             "steps": 30,
@@ -556,11 +954,11 @@ def generate_fanout(
             "seed": -1,
             "asset_type": "portrait",
         }
-        if parsed["provider"]:
-            params["provider"] = parsed["provider"]
-        if use_ip_adapter and not parsed["provider"]:
-            params["ip_adapter_ref"] = row["ip_adapter_ref_path"]
-            params["ip_adapter_weight"] = 0.85
+        params.update(model_params)
+        params.update(identity_params)
+        if reference_path and not params.get("provider"):
+            params["ip_adapter_ref"] = reference_path
+            params["ip_adapter_weight"] = params["identity_weight"]
 
         result = submit_generation(
             user_id=None,
@@ -983,15 +1381,17 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
 
         cur.execute(
             """
-            INSERT INTO agent_portraits (agent_id, canonical_image_path, face_seed, approved, updated_at)
-            VALUES (%s, %s, %s, true, NOW())
+            INSERT INTO agent_portraits
+                (agent_id, canonical_image_path, ip_adapter_ref_path, face_seed, approved, updated_at)
+            VALUES (%s, %s, %s, %s, true, NOW())
             ON CONFLICT (agent_id) DO UPDATE SET
                 canonical_image_path = EXCLUDED.canonical_image_path,
+                ip_adapter_ref_path = EXCLUDED.ip_adapter_ref_path,
                 face_seed = COALESCE(EXCLUDED.face_seed, agent_portraits.face_seed),
                 approved = true,
                 updated_at = NOW()
             """,
-            (agent_id, file_path, seed),
+            (agent_id, file_path, file_path, seed),
         )
 
         thumb = media.get("thumbnail_path") or file_path
@@ -1230,6 +1630,7 @@ def upload_canonical(
             """
             UPDATE agent_portraits
             SET canonical_image_path = %s,
+                ip_adapter_ref_path  = %s,
                 identity_prompt      = %s,
                 approved             = true,
                 provider             = 'upload',
@@ -1238,22 +1639,26 @@ def upload_canonical(
                 updated_at           = NOW()
             WHERE agent_id = %s
             """,
-            (dest_rel, identity_prompt, final_w, final_h, agent_id),
+            (dest_rel, dest_rel, identity_prompt, final_w, final_h, agent_id),
         )
         if cur.rowcount == 0:
             cur.execute(
                 """
                 INSERT INTO agent_portraits
-                    (agent_id, canonical_image_path, identity_prompt, approved,
+                    (agent_id, canonical_image_path, ip_adapter_ref_path, identity_prompt, approved,
                      provider, resolution_w, resolution_h, updated_at)
                 VALUES
-                    (%s, %s, %s, true, 'upload', %s, %s, NOW())
+                    (%s, %s, %s, %s, true, 'upload', %s, %s, NOW())
                 """,
-                (agent_id, dest_rel, identity_prompt, final_w, final_h),
+                (agent_id, dest_rel, dest_rel, identity_prompt, final_w, final_h),
             )
 
-    # Single-writer path for agents.avatar_url.
-    agent_service.update_agent(agent_id, avatar_url=avatar_url_relative)
+    agent_service.update_agent(
+        agent_id,
+        avatar_url=avatar_url_relative,
+        avatar_generation_prompt=identity_prompt,
+        portrait_prompt=identity_prompt,
+    )
 
     return {
         "success": True,
@@ -1266,7 +1671,15 @@ def upload_canonical(
 
 
 def update_identity_prompt(agent_id: int, prompt: str) -> Dict:
-    """Update the identity prompt for an agent's portraits."""
+    """Update the identity prompt and keep roster prompt fields synchronized."""
+    prompt = (prompt or "").strip()
+    if not agent_service.update_agent(
+        agent_id,
+        avatar_generation_prompt=prompt,
+        portrait_prompt=prompt,
+    ):
+        return {"success": False, "error": "Agent not found"}
+
     _ensure_portrait_record(agent_id, prompt)
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -1276,7 +1689,7 @@ def update_identity_prompt(agent_id: int, prompt: str) -> Dict:
             """,
             (prompt, agent_id),
         )
-    return {"status": "updated", "agent_id": agent_id}
+    return {"status": "updated", "success": True, "agent_id": agent_id, "identity_prompt": prompt}
 
 
 def generate_environment(target_type: str, target_id: Optional[int], prompt: str) -> Dict:

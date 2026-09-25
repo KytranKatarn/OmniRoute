@@ -393,10 +393,24 @@
                     </div>
                     <div class="ms-canonical-actions" style="flex-direction:column;align-items:center;gap:8px;">
                         <span id="ms-portrait-status" class="ms-status-badge"></span>
-                        <select id="ms-canonical-model" class="ms-model-select" title="Image model" style="width:100%;" onchange="updateProviderModelPicker('ms-canonical-model', 'ms-canonical-provider-model')">
+                        <div id="ms-portrait-metadata" class="ms-portrait-meta"></div>
+                        <select id="ms-canonical-model" class="ms-model-select" title="Image model" style="width:100%;" onchange="updateProviderModelPicker('ms-canonical-model', 'ms-canonical-provider-model'); updateIdentityControls()">
                             <option value="">Auto (fleet-aware)</option>
                         </select>
                         <select id="ms-canonical-provider-model" class="ms-model-select" title="Provider model" style="width:100%;display:none;"></select>
+                        <select id="ms-identity-mode" class="ms-model-select" title="Character consistency mode" style="width:100%;" onchange="updateIdentityControls()">
+                            <option value="auto">Auto identity</option>
+                            <option value="prompt">Prompt only</option>
+                            <option value="faceid">FaceID</option>
+                            <option value="faceid_detail">FaceID + detail</option>
+                            <option value="instantid">InstantID (experimental)</option>
+                            <option value="instantid_detail">InstantID + detail (experimental)</option>
+                        </select>
+                        <label style="font-size:.65rem;color:rgba(255,255,255,.45);display:flex;align-items:center;gap:6px;width:100%;">
+                            <span>Identity strength</span>
+                            <input id="ms-identity-weight" type="number" min="0.1" max="1.2" step="0.05" value="0.85" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:4px;padding:4px 6px;font-size:.72rem;" />
+                        </label>
+                        <div id="ms-identity-mode-note" style="font-size:.62rem;color:rgba(255,255,255,.35);line-height:1.35;">Auto uses FaceID detail when an approved reference exists.</div>
                         <button id="ms-generate-canonical-btn"
                                 onclick="generateCanonical()"
                                 style="background:var(--ms-accent,#7c3aed);color:#fff;border:none;padding:8px 24px;border-radius:6px;font-family:'Orbitron',sans-serif;font-size:0.8rem;letter-spacing:1px;cursor:pointer;font-weight:600;width:100%;">
@@ -410,11 +424,19 @@
 
                 <div class="ms-identity-panel">
                     <label data-i18n="media_studio.identity_prompt">Identity Prompt</label>
-                    <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4" readonly style="opacity:1;color:var(--ms-text-primary)"></textarea>
-                    <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;">
+                     <textarea id="ms-identity-prompt" class="ms-prompt-area" rows="4" readonly style="opacity:1;color:var(--ms-text-primary)"></textarea>
+                     <div style="font-size:.65rem;color:rgba(255,255,255,.45);margin-top:5px;">Generation adds a fixed identity lock from Roster gender, age, ethnicity, appearance, and a repeatable seed.</div>
+                     <div class="ms-identity-actions" style="display:flex;gap:8px;margin-top:6px;">
+
                         <a href="/tools/department-hq#roster" class="ms-btn ms-btn-ghost" style="font-size:.75rem;text-decoration:none">← Edit in DHQ Roster</a>
-                    </div>
-                </div>
+                     </div>
+                     <div id="ms-identity-context" style="margin-top:12px;padding:10px;border:1px solid rgba(0,229,255,.18);border-radius:6px;background:rgba(0,229,255,.04);">
+                         <div style="font-size:.65rem;letter-spacing:1.2px;text-transform:uppercase;color:rgba(0,229,255,.75);margin-bottom:7px;">Identity Context</div>
+                         <div id="ms-identity-context-body" style="font-size:.7rem;color:rgba(255,255,255,.68);line-height:1.45;"></div>
+                     </div>
+                 </div>
+
+
 
                 <!-- M.U.S.E. Collaborative Refinement Panel -->
                 <div class="ms-identity-panel" style="margin-top:12px;border-top:1px solid rgba(139,92,246,0.25);padding-top:14px;">
@@ -493,11 +515,13 @@
                     <option value="action pose">Action</option>
                     <option value="LCARS holographic">Holographic</option>
                 </select>
-                <select id="ms-variant-model" class="ms-model-select" title="Image model" onchange="updateProviderModelPicker('ms-variant-model', 'ms-variant-provider-model')">
+                <select id="ms-variant-model" class="ms-model-select" title="Image model" onchange="updateProviderModelPicker('ms-variant-model', 'ms-variant-provider-model'); updateIdentityControls()">
                     <option value="">Auto (fleet-aware)</option>
                 </select>
                 <select id="ms-variant-provider-model" class="ms-model-select" title="Provider model" style="display:none;"></select>
+                <span id="ms-variant-identity-note" style="font-size:.62rem;color:rgba(255,255,255,.35);">Uses the identity mode above.</span>
             </div>
+
 
             <div id="ms-variant-grid" class="ms-recent-grid">
                 <!-- Populated by loadPortraitDetail() -->
@@ -1964,7 +1988,7 @@
                     if (!confirm("Generate a new variant for this agent?")) return;
                     genBtn.disabled = true;
                     genBtn.querySelector('span').textContent = ' Generating...';
-                    api("POST", "/api/portraits/" + agentId + "/generate-variant", {}).then(function() {
+                    api("POST", "/api/portraits/" + agentId + "/generate-variant", _identityPayload()).then(function() {
                         closeMediaModal();
                         if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
                     }).catch(function(err) {
@@ -2277,20 +2301,13 @@
 
                     var thumb = document.createElement('div');
                     thumb.className = 'ms-portrait-thumb';
-                    if (agent.avatar_url || agent.canonical_image_path) {
+                    if (agent.avatar_url || agent.canonical_image_path || agent.latest_media_thumbnail || agent.latest_media_path) {
                         var imgEl = document.createElement('img');
-                        // Prefer avatar_url (single source of truth used by
-                        // Roster, Directory, AI Directors). canonical_image_path
-                        // is the portrait-workflow field and may lack /static/.
-                        // Normalize both: absolute paths pass through;
-                        // relative paths get /static/ prefixed.
-                        var src = agent.avatar_url || agent.canonical_image_path;
+                        var src = agent.avatar_url || agent.canonical_image_path || agent.latest_media_thumbnail || agent.latest_media_path;
                         if (src && src.charAt(0) !== '/' && !/^https?:\/\//i.test(src)) {
                             src = '/static/' + src;
                         }
-                        // Cache-bust: stable per-agent paths (e.g. /static/media/portraits/<name>.png)
-                        // would otherwise serve a stale browser-cache hit after re-upload/approve.
-                        var ts = agent.avatar_updated_at || agent.updated_at;
+                        var ts = agent.avatar_updated_at || agent.latest_media_at || agent.updated_at;
                         if (src && ts) {
                             var v = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
                             src = src + (src.indexOf('?') === -1 ? '?' : '&') + 'v=' + v;
@@ -2327,6 +2344,18 @@
                     status.className = 'ms-status-badge ' + (agent.approved ? 'completed' : agent.has_portrait ? 'pending' : 'idle');
                     status.textContent = agent.approved ? 'Approved' : agent.has_portrait ? 'Pending' : 'No Portrait';
                     info.appendChild(status);
+
+                    var metaParts = [];
+                    var created = _formatPortraitDate(agent.latest_media_at || agent.portrait_created_at || agent.portrait_updated_at);
+                    if (created) metaParts.push(created);
+                    if (agent.latest_model) metaParts.push(agent.latest_model.replace('.safetensors', '').replace('.ckpt', ''));
+                    if (agent.latest_provider) metaParts.push(agent.latest_provider);
+                    if (metaParts.length) {
+                        var meta = document.createElement('div');
+                        meta.className = 'ms-portrait-meta';
+                        meta.textContent = metaParts.join(' · ');
+                        info.appendChild(meta);
+                    }
 
                     card.appendChild(info);
                     grid.appendChild(card);
@@ -2374,7 +2403,9 @@
         sel.replaceChildren();  // Safe DOM clear (no innerHTML — XSS lint)
         var autoOpt = document.createElement('option');
         autoOpt.value = data.auto.value;
-        autoOpt.textContent = data.auto.label;
+        autoOpt.textContent = data.portrait_default_model
+            ? 'Auto (' + data.portrait_default_model.replace('.safetensors', '') + ' default)'
+            : data.auto.label;
         sel.appendChild(autoOpt);
         var groups = [
             ['Local Checkpoints', data.local],
@@ -2423,10 +2454,85 @@
         modelPicker.style.display = '';
     };
 
+    function _identityPayload() {
+        var modeEl = document.getElementById('ms-identity-mode');
+        var weightEl = document.getElementById('ms-identity-weight');
+        var payload = {identity_mode: modeEl ? modeEl.value : 'auto'};
+        if (weightEl && weightEl.value !== '') payload.identity_weight = Number(weightEl.value);
+        return payload;
+    }
+
+    window.updateIdentityControls = function() {
+        var modeEl = document.getElementById('ms-identity-mode');
+        var noteEl = document.getElementById('ms-identity-mode-note');
+        var variantNoteEl = document.getElementById('ms-variant-identity-note');
+        if (!modeEl) return;
+        var modelEl = document.getElementById('ms-canonical-model');
+        var model = modelEl ? (modelEl.value || '') : '';
+        var isCloud = model.indexOf('provider:') === 0;
+        var hasReference = !!(_currentPortraitData && _currentPortraitData.has_reference);
+        var selected = modeEl.value;
+        Array.prototype.forEach.call(modeEl.options, function(option) {
+            var identityMode = option.value;
+            var blocked = isCloud && identityMode !== 'prompt' && identityMode !== 'auto';
+            option.disabled = blocked || (identityMode !== 'prompt' && identityMode !== 'auto' && !hasReference);
+        });
+        if (isCloud && selected !== 'prompt' && selected !== 'auto') modeEl.value = 'auto';
+        if (!hasReference && selected !== 'prompt' && selected !== 'auto') modeEl.value = 'auto';
+        var message = !hasReference
+            ? 'No approved reference — Auto will use the prompt.'
+            : (isCloud ? 'Cloud providers support prompt mode only.' : 'Auto uses FaceID + detail with the approved reference.');
+        if (modeEl.value.indexOf('instantid') === 0) message = 'InstantID is experimental; review outputs for text or watermark artifacts.';
+        if (noteEl) noteEl.textContent = message;
+        if (variantNoteEl) variantNoteEl.textContent = message;
+    };
+
+    function _renderIdentityContext(data) {
+        _currentPortraitData = data || {};
+        var body = document.getElementById('ms-identity-context-body');
+        if (!body) return;
+        while (body.firstChild) body.removeChild(body.firstChild);
+        var context = _currentPortraitData.identity_context || {};
+        var writing = context.writing_voice || {};
+        var voice = context.voice_profile || {};
+        var rows = [
+            ['Grade', context.grade_status || 'Unrated'],
+            ['Pronouns', context.pronouns || 'Needs review'],
+            ['Bio', context.bio || 'Needs review'],
+            ['Demographics', [context.gender, context.ethnicity, context.age_range].filter(Boolean).join(' · ') || 'Needs review'],
+            ['Writing voice', [writing.tone, writing.communication_style].filter(Boolean).join(' · ') || 'Needs review'],
+            ['TTS voice', [voice.profile_name, voice.speaker, voice.default_emotion].filter(Boolean).join(' · ') || 'Needs review'],
+            ['Appearance', context.appearance_notes || 'Needs review']
+        ];
+        rows.forEach(function(pair) {
+            var line = document.createElement('div');
+            line.style.cssText = 'display:flex;gap:8px;margin:2px 0;';
+            var key = document.createElement('span');
+            key.textContent = pair[0] + ':';
+            key.style.cssText = 'min-width:82px;color:rgba(0,229,255,.65);font-weight:600;';
+            var value = document.createElement('span');
+            value.textContent = pair[1];
+            value.style.cssText = 'flex:1;min-width:0;overflow-wrap:anywhere;';
+            line.appendChild(key); line.appendChild(value); body.appendChild(line);
+        });
+        var missing = context.missing_fields || [];
+        if (missing.length) {
+            var review = document.createElement('div');
+            review.textContent = 'Review fields: ' + missing.join(', ');
+            review.style.cssText = 'margin-top:7px;color:rgba(255,170,0,.85);';
+            body.appendChild(review);
+        }
+        updateIdentityControls();
+    }
+
+    var _currentPortraitData = null;
+
     window.openPortraitDetail = function(agentId) {
         // Cancel any in-flight SSE stream from the previous agent
         if (_activeRefineAbort) { _activeRefineAbort.abort(); _activeRefineAbort = null; }
         _currentAgentId = agentId;
+        _currentPortraitData = null;
+        updateIdentityControls();
         // Populate model dropdowns from /api/image-providers (cached after first call)
         populateImageProviderSelect(document.getElementById('ms-canonical-model'));
         populateImageProviderSelect(document.getElementById('ms-variant-model'));
@@ -2503,9 +2609,19 @@
 
     window.closePortraitDetail = function() {
         _currentAgentId = null;
+        _currentPortraitData = null;
         document.getElementById('ms-portrait-detail').style.display = 'none';
         document.getElementById('ms-portrait-grid').style.display = '';
     };
+
+    function _formatPortraitDate(value) {
+        if (!value) return '';
+        if (typeof ArchieTime !== 'undefined' && ArchieTime.format) {
+            return ArchieTime.format(value, 'datetime');
+        }
+        var date = new Date(value);
+        return isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+    }
 
     // Normalize a path that may be absolute (starts with /), HTTP(S), or a
     // legacy relative path (no leading slash) to a browser-usable URL.
@@ -2541,19 +2657,29 @@
                 statusBadge.className = 'ms-status-badge ' + (data.approved ? 'completed' : hasPortrait ? 'pending' : 'idle');
                 statusBadge.textContent = data.approved ? 'Approved' : hasPortrait ? 'Pending Approval' : 'No Portrait';
 
-                // Canonical image
                 var canonPanel = document.getElementById('ms-canonical-image');
                 _clearChildren(canonPanel);
-                if (data.canonical_image_path) {
+                var previewPath = data.canonical_image_path || data.latest_media_thumbnail || data.latest_media_path;
+                if (previewPath) {
                     var img = document.createElement('img');
-                    img.src = _bustPath(_normalizeStaticPath(data.canonical_image_path), data.avatar_updated_at || data.updated_at);
-                    img.alt = 'Canonical portrait';
+                    img.src = _bustPath(_normalizeStaticPath(previewPath), data.avatar_updated_at || data.latest_media_at || data.updated_at);
+                    img.alt = data.canonical_image_path ? 'Canonical portrait' : 'Portrait awaiting review';
                     canonPanel.appendChild(img);
                 } else {
                     var ph = document.createElement('div');
                     ph.className = 'ms-placeholder';
-                    ph.textContent = 'No canonical portrait';
+                    ph.textContent = 'No portrait generated';
                     canonPanel.appendChild(ph);
+                }
+
+                var metadata = document.getElementById('ms-portrait-metadata');
+                if (metadata) {
+                    var metaParts = [];
+                    var created = _formatPortraitDate(data.latest_media_at || data.portrait_created_at || data.portrait_updated_at);
+                    if (created) metaParts.push('Generated ' + created);
+                    if (data.latest_model) metaParts.push(data.latest_model.replace('.safetensors', '').replace('.ckpt', ''));
+                    if (data.latest_provider) metaParts.push(data.latest_provider);
+                    metadata.textContent = metaParts.join(' · ');
                 }
 
                 // Show/hide buttons
@@ -2565,6 +2691,8 @@
                 var ipField = document.getElementById('ms-identity-prompt');
                 ipField.value = data.identity_prompt || '';
                 ipField.placeholder = data.identity_prompt ? '' : 'No portrait prompt set. Go to DHQ Roster → Portraits tab to add a visual description.';
+                _renderIdentityContext(data);
+
 
                 // Restore saved feedback draft from agent profile (DB — works across all browsers)
                 var refineInp = document.getElementById('ms-refine-input');
@@ -2632,7 +2760,8 @@
                     var PROVIDER_DISPLAY = {
                         openai: 'OpenAI', stability_ai: 'Stability AI', replicate: 'Replicate',
                         fal_ai: 'Fal.ai', huggingface: 'HuggingFace', cloudflare_ai: 'Cloudflare AI',
-                        gemini: 'Google Gemini', together: 'Together AI', pollinations: 'Pollinations'
+                        gemini: 'Google Gemini', together: 'Together AI', pollinations: 'Pollinations',
+                        omniroute: 'OmniRoute · AI Horde'
                     };
                     var rightLabel = null;
                     if (v.provider) {
@@ -2654,6 +2783,27 @@
                             + 'backdrop-filter:blur(2px);';
                         modelBadge.textContent = rightLabel;
                         item.appendChild(modelBadge);
+                    }
+                    if (v.metadata && v.metadata.identity_quality_warning) {
+                        var warningBadge = document.createElement('div');
+                        warningBadge.style.cssText = 'position:absolute;top:24px;left:4px;'
+                            + 'background:rgba(120,70,0,0.8);color:#ffd166;'
+                            + 'font-size:9px;font-weight:600;letter-spacing:0.5px;'
+                            + 'padding:2px 5px;border-radius:3px;pointer-events:none;'
+                            + 'backdrop-filter:blur(2px);';
+                        warningBadge.textContent = 'REVIEW';
+                        warningBadge.title = v.metadata.identity_quality_warning;
+                        item.appendChild(warningBadge);
+                    }
+
+                    if (v.created_at) {
+                        var createdBadge = document.createElement('div');
+                        createdBadge.style.cssText = 'position:absolute;top:4px;left:4px;'
+                            + 'background:rgba(0,0,0,0.55);color:rgba(255,255,255,0.75);'
+                            + 'font-size:9px;padding:2px 5px;border-radius:3px;pointer-events:none;'
+                            + 'backdrop-filter:blur(2px);';
+                        createdBadge.textContent = _formatPortraitDate(v.created_at);
+                        item.appendChild(createdBadge);
                     }
 
                     vGrid.appendChild(item);
@@ -2730,11 +2880,11 @@
                 fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-canonical', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
+                    body: JSON.stringify(Object.assign({
                         prompt: prompt || undefined,
                         model: canonicalModel,
                         model_override: canonicalProviderModel
-                    })
+                    }, _identityPayload()))
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
@@ -2996,9 +3146,19 @@
             'Generate with Refined Prompt',
             bodyText,
             function() {
+                var canonicalModel = (document.getElementById('ms-canonical-model') || {}).value || undefined;
+                var canonicalProviderModel;
+                var cpmSel = document.getElementById('ms-canonical-provider-model');
+                if (cpmSel && cpmSel.style.display !== 'none' && cpmSel.value) {
+                    canonicalProviderModel = cpmSel.value;
+                }
                 fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-canonical', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({prompt: prompt})
+                    body: JSON.stringify(Object.assign({
+                        prompt: prompt,
+                        model: canonicalModel,
+                        model_override: canonicalProviderModel
+                    }, _identityPayload()))
                 }).then(function(r) { return r.json(); }).then(function(data) {
                     if (data.error) {
                         var s = document.getElementById('ms-refine-status');
@@ -3057,6 +3217,7 @@
         if (vpmSel && vpmSel.style.display !== 'none' && vpmSel.value) {
             payload.model_override = vpmSel.value;
         }
+        Object.assign(payload, _identityPayload());
         fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/generate-variant', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

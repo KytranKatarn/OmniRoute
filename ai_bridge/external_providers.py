@@ -734,6 +734,7 @@ def generate_media(provider_key: str, request: dict) -> dict:
         "cloudflare_ai": _cloudflare_image_adapter,
         "together": _together_image_adapter,
         "pollinations": _pollinations_image_adapter,
+        "omniroute": _omniroute_image_adapter,
     }
     adapter = adapters.get(provider_key)
     if not adapter:
@@ -1163,14 +1164,17 @@ def _pollinations_image_adapter(request: dict) -> dict:
     width = params.get("width", 1024)
     height = params.get("height", 1024)
     seed = params.get("seed", -1)
+    negative_prompt = request.get("negative_prompt") or params.get("negative_prompt", "")
 
     if not prompt:
         return {"success": False, "error": "Pollinations: empty prompt"}
 
     encoded = urllib.parse.quote(prompt, safe="")
-    query = f"width={width}&height={height}&model={model}&nologo=true"
+    query = f"width={width}&height={height}&model={model}&nologo=true&private=true"
     if seed and seed > 0:
         query += f"&seed={seed}"
+    if negative_prompt:
+        query += "&" + urllib.parse.urlencode({"negative_prompt": negative_prompt})
     url = f"https://image.pollinations.ai/prompt/{encoded}?{query}"
 
     start = time.time()
@@ -1210,5 +1214,103 @@ def _pollinations_image_adapter(request: dict) -> dict:
             "width": width,
             "height": height,
             "duration_ms": duration_ms,
+        },
+    }
+
+
+def _omniroute_image_adapter(request: dict) -> dict:
+    import base64
+    import uuid
+    from datetime import date
+
+    prompt = request.get("prompt", "")
+    negative_prompt = request.get("negative_prompt") or ""
+    params = request.get("params") or {}
+    if negative_prompt:
+        prompt = f"{prompt}. Avoid: {negative_prompt}"
+    model = params.get("model") or os.getenv("MEDIA_STUDIO_OMNIROUTE_IMAGE_MODEL", "aihorde/Realistic Vision")
+    width = int(params.get("width", 1024))
+    height = int(params.get("height", 1024))
+    base_url = os.getenv("OMNIROUTE_BASE_URL", "http://omniroute:20128/v1").rstrip("/")
+    api_key = os.getenv("OMNIROUTE_API_KEY", "").strip()
+    if not api_key:
+        return {"success": False, "error": "OMNIROUTE_API_KEY not configured"}
+    if not prompt:
+        return {"success": False, "error": "OmniRoute: empty prompt"}
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    start = time.time()
+    try:
+        response = requests.post(
+            f"{base_url}/images/generations",
+            headers=headers,
+            json={"model": model, "prompt": prompt, "n": 1, "size": f"{width}x{height}"},
+            timeout=int(os.getenv("OMNIROUTE_IMAGE_TIMEOUT", "180")),
+        )
+    except Exception as exc:
+        return {"success": False, "error": f"OmniRoute request failed: {exc}"}
+
+    if response.status_code != 200:
+        return {
+            "success": False,
+            "error": f"OmniRoute API error {response.status_code}: {response.text[:300]}",
+        }
+
+    try:
+        payload = response.json()
+    except Exception as exc:
+        return {"success": False, "error": f"OmniRoute returned invalid JSON: {exc}"}
+
+    items = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(items, list) or not items:
+        items = [payload] if isinstance(payload, dict) else []
+    item = items[0] if items and isinstance(items[0], dict) else {}
+    encoded = item.get("b64_json") or item.get("image_base64") or item.get("image")
+    image_url = item.get("url") or item.get("image_url")
+    image_bytes = None
+
+    if isinstance(encoded, str) and encoded:
+        if encoded.startswith("data:") and "," in encoded:
+            encoded = encoded.split(",", 1)[1]
+        try:
+            image_bytes = base64.b64decode(encoded)
+        except Exception:
+            image_bytes = None
+    elif isinstance(image_url, str) and image_url:
+        try:
+            if image_url.startswith("data:") and "," in image_url:
+                image_bytes = base64.b64decode(image_url.split(",", 1)[1])
+            else:
+                image_response = requests.get(image_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=120)
+                image_response.raise_for_status()
+                image_bytes = image_response.content
+        except Exception as exc:
+            return {"success": False, "error": f"OmniRoute image download failed: {exc}"}
+
+    if not image_bytes or len(image_bytes) < 1024:
+        return {"success": False, "error": "OmniRoute returned no usable image data"}
+
+    date_str = date.today().strftime("%Y-%m-%d")
+    rel_dir = f"static/media/images/{date_str}"
+    app_root = os.environ.get("FLASK_APP_ROOT", "/app")
+    abs_dir = os.path.join(app_root, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+    file_name = f"omniroute_{uuid.uuid4().hex[:12]}.png"
+    file_path = os.path.join(abs_dir, file_name)
+    with open(file_path, "wb") as f:
+        f.write(image_bytes)
+
+    return {
+        "success": True,
+        "file_path": f"/{rel_dir}/{file_name}",
+        "metadata": {
+            "provider": "omniroute",
+            "model": model,
+            "cost_usd": 0.0,
+            "mime_type": "image/png",
+            "file_size_bytes": len(image_bytes),
+            "width": width,
+            "height": height,
+            "duration_ms": int((time.time() - start) * 1000),
         },
     }

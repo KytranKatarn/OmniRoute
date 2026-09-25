@@ -39,6 +39,7 @@ DEFAULT_IMAGE_PARAMS = {
     "cfg": 7.0,
     "sampler": "euler_ancestral",
     "seed": -1,
+    "identity_mode": "prompt",
 }
 
 DEFAULT_VIDEO_PARAMS = {
@@ -287,6 +288,10 @@ def on_generation_complete(
     for _k in ("theme_id", "scene_id"):
         if params.get(_k) is not None:
             entry_metadata[_k] = params[_k]
+    if params.get("identity_mode") in {"instantid", "instantid_detail"}:
+        entry_metadata["identity_quality_warning"] = (
+            "InstantID is experimental; inspect for text or watermark artifacts before approval."
+        )
 
     # Insert into media_library
     media_id = create_media_entry(
@@ -428,8 +433,26 @@ def get_queue_status(
         return [dict(row) for row in cur.fetchall()]
 
 
+def _dashboard_media_url(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    value = str(path)
+    if value.startswith(("http://", "https://", "/")):
+        return value
+    if value.startswith("static/"):
+        return "/" + value
+    return "/static/" + value
+
+
+def _dashboard_media_item(row) -> Dict:
+    item = dict(row)
+    item["url"] = _dashboard_media_url(item.get("file_path"))
+    item["thumbnail_url"] = _dashboard_media_url(item.get("thumbnail_path") or item.get("file_path"))
+    return item
+
+
 def get_dashboard_stats(user_id: int) -> Dict:
-    """Aggregate stats for the dashboard tab."""
+    """Aggregate live operational stats for the Media Studio dashboard."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
@@ -439,32 +462,48 @@ def get_dashboard_stats(user_id: int) -> Dict:
                 COUNT(*) FILTER (WHERE media_type = 'video') AS videos,
                 COUNT(*) FILTER (WHERE media_type = 'audio') AS audio
             FROM media_library
-            WHERE owner_type = 'user' AND owner_id = %s AND is_deleted = false
-            """,
-            (user_id,),
+            WHERE owner_type IN ('user', 'agent', 'brand') AND is_deleted = false
+            """
         )
         counts = dict(cur.fetchone())
 
-        # Count all active jobs (user + agent portraits)
         cur.execute(
             """
-            SELECT COUNT(*) AS active
-            FROM media_generation_queue
-            WHERE status IN ('pending', 'dispatched', 'generating')
+            SELECT owner_type, COUNT(*) AS cnt
+            FROM media_library
+            WHERE owner_type IN ('user', 'agent', 'brand') AND is_deleted = false
+            GROUP BY owner_type
             """
         )
-        counts["queue_active"] = cur.fetchone()["active"]
+        owner_counts = {row["owner_type"]: int(row["cnt"] or 0) for row in cur.fetchall()}
+        counts["user_assets"] = owner_counts.get("user", 0)
+        counts["fleet_assets"] = owner_counts.get("agent", 0)
+        counts["brand_assets"] = owner_counts.get("brand", 0)
 
-        # Active jobs with agent names for live queue widget
+        cur.execute(
+            """
+            SELECT status, COUNT(*) AS cnt
+            FROM media_generation_queue
+            GROUP BY status
+            """
+        )
+        queue_counts = {row["status"]: int(row["cnt"] or 0) for row in cur.fetchall()}
+        counts["queue_by_status"] = queue_counts
+        counts["queue_pending"] = queue_counts.get("pending", 0)
+        counts["queue_running"] = queue_counts.get("dispatched", 0) + queue_counts.get("generating", 0)
+        counts["queue_active"] = counts["queue_pending"] + counts["queue_running"]
+        counts["queue_failed"] = queue_counts.get("failed", 0)
+        counts["queue_completed"] = queue_counts.get("completed", 0)
+
         cur.execute(
             """
             SELECT q.id, q.owner_type, q.owner_id, q.status, q.media_type,
                    q.params->>'prompt' AS prompt,
-                   CASE WHEN q.owner_type='agent' THEN a.display_name ELSE 'User' END AS agent_name,
-                   ap.canonical_image_path
+                   q.params->>'model' AS model,
+                   q.created_at, q.started_at,
+                   CASE WHEN q.owner_type = 'agent' THEN a.display_name ELSE 'User' END AS agent_name
             FROM media_generation_queue q
             LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
-            LEFT JOIN agent_portraits ap ON ap.agent_id = q.owner_id AND q.owner_type = 'agent'
             WHERE q.status IN ('pending', 'dispatched', 'generating')
             ORDER BY q.created_at ASC
             LIMIT 10
@@ -472,53 +511,101 @@ def get_dashboard_stats(user_id: int) -> Dict:
         )
         counts["active_jobs"] = [dict(row) for row in cur.fetchall()]
 
-        # Recent 8 items for dashboard grid
         cur.execute(
             """
-            SELECT id, media_type, file_path, thumbnail_path, prompt, created_at
-            FROM media_library
-            WHERE owner_type = 'user' AND owner_id = %s AND is_deleted = false
-            ORDER BY created_at DESC
+            SELECT ml.id, ml.media_type, ml.file_path, ml.thumbnail_path,
+                   ml.prompt, ml.created_at, ml.owner_type, ml.owner_id,
+                   CASE WHEN ml.owner_type = 'agent' THEN a.display_name
+                        WHEN ml.owner_type = 'brand' THEN 'Brand'
+                        ELSE 'You' END AS owner_name
+            FROM media_library ml
+            LEFT JOIN agents a ON a.id = ml.owner_id AND ml.owner_type = 'agent'
+            WHERE ml.owner_type IN ('user', 'agent', 'brand') AND ml.is_deleted = false
+            ORDER BY ml.created_at DESC
             LIMIT 8
-            """,
-            (user_id,),
+            """
         )
-        counts["recent"] = [dict(row) for row in cur.fetchall()]
+        counts["recent"] = [_dashboard_media_item(row) for row in cur.fetchall()]
 
-        # Portraits completed but not yet approved
         cur.execute(
             """
+            WITH candidates AS (
+                SELECT DISTINCT ON (ml.owner_id)
+                       ml.owner_id AS agent_id, ml.id AS media_id,
+                       ml.file_path, ml.thumbnail_path, ml.prompt, ml.created_at
+                FROM media_library ml
+                WHERE ml.owner_type = 'agent'
+                  AND ml.media_type = 'image'
+                  AND ml.is_deleted = false
+                  AND COALESCE(ml.metadata->>'asset_type', 'portrait') = 'portrait'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM agent_portraits approved
+                      WHERE approved.agent_id = ml.owner_id
+                        AND approved.approved = true
+                        AND ltrim(COALESCE(approved.canonical_image_path, ''), '/') =
+                            ltrim(COALESCE(ml.file_path, ''), '/')
+                  )
+                ORDER BY ml.owner_id, ml.created_at DESC NULLS LAST, ml.id DESC
+            )
             SELECT a.id AS agent_id, a.name, a.display_name,
-                   ap.canonical_image_path, ap.id AS portrait_id,
-                   ap.updated_at AS created_at
-            FROM agent_portraits ap
-            JOIN agents a ON a.id = ap.agent_id
-            WHERE ap.canonical_image_path IS NOT NULL AND ap.approved = false
-            ORDER BY ap.updated_at DESC LIMIT 5
-        """
+                   c.media_id, c.file_path, c.thumbnail_path, c.prompt,
+                   c.created_at, ap.id AS portrait_id, ap.approved,
+                   COUNT(*) OVER() AS total_pending
+            FROM candidates c
+            JOIN agents a ON a.id = c.agent_id
+            LEFT JOIN LATERAL (
+                SELECT ap.id, ap.approved
+                FROM agent_portraits ap
+                WHERE ap.agent_id = c.agent_id
+                ORDER BY ap.approved DESC NULLS LAST, ap.is_primary DESC NULLS LAST,
+                         ap.updated_at DESC NULLS LAST, ap.id DESC
+                LIMIT 1
+            ) ap ON TRUE
+            ORDER BY c.created_at DESC NULLS LAST, c.media_id DESC
+            LIMIT 5
+            """
         )
-        counts["pending_approvals"] = [dict(r) for r in cur.fetchall()]
-        for item in counts["pending_approvals"]:
+        pending_rows = [dict(row) for row in cur.fetchall()]
+        for item in pending_rows:
+            item["url"] = _dashboard_media_url(item.get("file_path"))
+            item["thumbnail_url"] = _dashboard_media_url(item.get("thumbnail_path") or item.get("file_path"))
             if hasattr(item.get("created_at"), "isoformat"):
                 item["created_at"] = item["created_at"].isoformat()
+        counts["pending_approvals"] = pending_rows
+        counts["pending_approval_count"] = int(pending_rows[0]["total_pending"] if pending_rows else 0)
+        for item in pending_rows:
+            item.pop("total_pending", None)
 
-        # Social video queue items (draft + scheduled)
         try:
             cur.execute(
-                "SELECT id, title, status, platform, scheduled_at, thumbnail_path "
-                "FROM social_video_queue WHERE status IN ('draft','scheduled') "
-                "ORDER BY scheduled_at ASC NULLS LAST LIMIT 5"
+                """
+                SELECT status, COUNT(*) AS cnt
+                FROM social_video_queue
+                WHERE status IN ('draft', 'rendering', 'pending_approval', 'scheduled')
+                GROUP BY status
+                """
             )
-            raw = cur.fetchall()
+            social_counts = {row["status"]: int(row["cnt"] or 0) for row in cur.fetchall()}
+            cur.execute(
+                """
+                SELECT id, title, status, platform, scheduled_at, thumbnail_path
+                FROM social_video_queue
+                WHERE status IN ('draft', 'rendering', 'pending_approval', 'scheduled')
+                ORDER BY scheduled_at ASC NULLS LAST, created_at DESC
+                LIMIT 5
+                """
+            )
+            social_rows = [dict(row) for row in cur.fetchall()]
         except Exception:
-            raw = []
-        sq = []
-        for r in raw:
-            d = dict(r)
-            if hasattr(d.get("scheduled_at"), "isoformat"):
-                d["scheduled_at"] = d["scheduled_at"].isoformat()
-            sq.append(d)
-        counts["social_queue"] = sq
+            social_counts = {}
+            social_rows = []
+        for item in social_rows:
+            if hasattr(item.get("scheduled_at"), "isoformat"):
+                item["scheduled_at"] = item["scheduled_at"].isoformat()
+        counts["social_queue_by_status"] = social_counts
+        counts["social_queue_count"] = sum(social_counts.values())
+        counts["social_queue"] = social_rows
 
     counts["total_generated"] = counts.get("total", 0)
     return counts
@@ -623,6 +710,7 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
     request = {
         "type": "image",
         "prompt": params.get("prompt", ""),
+        "negative_prompt": params.get("negative_prompt", ""),
         "params": {
             "model": params.get("model"),
             "width": params.get("width", 1024),
@@ -680,6 +768,53 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
     return media_id
 
 
+def _resolve_reference_image_path(reference_path: str) -> str:
+    raw = str(reference_path or "").strip()
+    if not raw or raw.startswith(("http://", "https://")):
+        raise ValueError("A local approved portrait reference is required")
+    if os.path.splitext(raw)[1].lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise ValueError("Approved portrait reference must be an image")
+    candidates = []
+    if raw.startswith("/static/"):
+        candidates.append(os.path.join(_PLATFORM_DIR, raw.lstrip("/")))
+    elif raw.startswith("static/"):
+        candidates.append(os.path.join(_PLATFORM_DIR, raw))
+    elif raw.startswith("media/"):
+        candidates.append(os.path.join(_PLATFORM_DIR, "static", raw))
+    elif os.path.isabs(raw):
+        candidates.append(raw)
+    else:
+        candidates.extend([os.path.join(MEDIA_ROOT, raw), os.path.join(_PLATFORM_DIR, "static", raw)])
+    for candidate in candidates:
+        resolved = os.path.realpath(candidate)
+        roots = [os.path.realpath(_PLATFORM_DIR), os.path.realpath(MEDIA_ROOT)]
+        if any(resolved == root or resolved.startswith(root + os.sep) for root in roots) and os.path.isfile(resolved):
+            return resolved
+    raise ValueError("Approved portrait reference is missing from the Media Studio media tree")
+
+
+def _upload_reference_image(comfyui_url: str, reference_path: str, queue_id: int) -> str:
+    import mimetypes
+    import requests
+
+    source_path = _resolve_reference_image_path(reference_path)
+    suffix = os.path.splitext(source_path)[1].lower() or ".png"
+    filename = f"portrait_reference_{queue_id}_{int(time.time())}{suffix}"
+    mime_type = mimetypes.guess_type(source_path)[0] or "image/png"
+    with open(source_path, "rb") as source:
+        response = requests.post(
+            f"{comfyui_url.rstrip('/')}/upload/image",
+            files={"image": (filename, source, mime_type)},
+            data={"overwrite": "true", "type": "input"},
+            timeout=60,
+        )
+    response.raise_for_status()
+    payload = response.json()
+    name = payload.get("name") or filename
+    subfolder = payload.get("subfolder")
+    return f"{subfolder}/{name}" if subfolder else name
+
+
 def generate_via_comfyui(queue_id: int) -> Optional[int]:
     """Direct ComfyUI generation — called when Bridge routes an image_generation job to a local ComfyUI node.
 
@@ -700,11 +835,27 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         return None
 
     params = queue_row["params"] or {}
+    try:
+        from tools.media_studio.services.comfyui_manager import normalize_identity_mode
+
+        identity_mode = normalize_identity_mode(
+            value=params.get("identity_mode") or "auto",
+            has_reference=bool(params.get("ip_adapter_ref")),
+            provider=params.get("provider"),
+            model=params.get("model", "sd_xl_base_1.0.safetensors"),
+        )
+    except ValueError as exc:
+        on_generation_failed(queue_id, str(exc))
+        return None
 
     # Contractor branch — if a cloud provider was selected, route through external_providers
     # instead of ComfyUI. Local checkpoint flow continues unchanged below when no provider set.
     contractor_key = params.get("provider")
     if contractor_key and contractor_key not in ("comfyui", "ollama_diffuser"):
+        if identity_mode != "prompt":
+            message = "Character consistency requires a local ComfyUI provider"
+            on_generation_failed(queue_id, message)
+            return None
         # Validate against known providers before passing to adapter
         if contractor_key not in PROVIDER_DEFAULT_MODEL:
             logger.warning("[MediaStudio] Unknown provider '%s' — falling back to ComfyUI", contractor_key)
@@ -745,11 +896,15 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         # Fleet-aware routing — prefer Starship RTX nodes over hub Quadro M4000.
         # Falls back to hub svc.generate_image() on any fleet failure.
         from tools.media_studio.services.comfyui_manager import (
+            build_identity_workflow,
             build_txt2img_workflow,
             get_best_comfyui_url,
         )
 
-        fleet_url, fleet_node = get_best_comfyui_url(model_name=model)
+        fleet_url, fleet_node = get_best_comfyui_url(
+            model_name=model,
+            identity_mode=identity_mode,
+        )
         is_fleet = fleet_node is not None
 
         if fleet_node:
@@ -789,17 +944,45 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         if is_fleet:
             if seed < 0:
                 seed = random.randint(0, 2**63)
-            workflow = build_txt2img_workflow(
-                prompt=prompt_text,
-                negative_prompt=negative_prompt,
-                model=model,
-                width=width,
-                height=height,
-                seed=seed,
-                steps=steps,
-                cfg=float(cfg) if cfg is not None else 7.0,
-                sampler=sampler,
-            )
+            if identity_mode != "prompt":
+                reference_path = params.get("ip_adapter_ref")
+                if not reference_path:
+                    on_generation_failed(
+                        queue_id,
+                        "Character consistency requires an approved canonical reference",
+                    )
+                    return None
+                remote_reference = _upload_reference_image(fleet_url, reference_path, queue_id)
+                try:
+                    identity_weight = float(params.get("identity_weight", 0.85))
+                except (TypeError, ValueError):
+                    identity_weight = 0.85
+                workflow = build_identity_workflow(
+                    prompt=prompt_text,
+                    negative_prompt=negative_prompt,
+                    model=model,
+                    width=width,
+                    height=height,
+                    seed=seed,
+                    steps=steps,
+                    cfg=float(cfg) if cfg is not None else 7.0,
+                    sampler=sampler,
+                    reference_image=remote_reference,
+                    identity_mode=identity_mode,
+                    identity_weight=max(0.1, min(1.2, identity_weight)),
+                )
+            else:
+                workflow = build_txt2img_workflow(
+                    prompt=prompt_text,
+                    negative_prompt=negative_prompt,
+                    model=model,
+                    width=width,
+                    height=height,
+                    seed=seed,
+                    steps=steps,
+                    cfg=float(cfg) if cfg is not None else 7.0,
+                    sampler=sampler,
+                )
             resp = _http.post(f"{fleet_url}/prompt", json=workflow, timeout=10)
             resp.raise_for_status()
             prompt_id = resp.json()["prompt_id"]
@@ -856,6 +1039,12 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
                 return None
 
         if not is_fleet:
+            if identity_mode != "prompt":
+                on_generation_failed(
+                    queue_id,
+                    "Character consistency requires the configured ComfyUI identity node",
+                )
+                return None
             svc = get_comfyui_service()
             result = svc.generate_image(
                 prompt=prompt_text,
@@ -1451,15 +1640,17 @@ PROVIDER_DEFAULT_MODEL = {
     "pollinations": "flux",
     "comfyui": None,
     "ollama_diffuser": None,
+    "omniroute": "aihorde/Realistic Vision",
 }
 
-FREE_PROVIDERS = {"comfyui", "ollama_diffuser", "pollinations", "cloudflare_ai", "together"}
+FREE_PROVIDERS = {"comfyui", "ollama_diffuser", "pollinations", "cloudflare_ai", "together", "omniroute"}
 
 # Per-provider model catalog. Each entry is (model_id, display_label).
 # Only well-known, validated model IDs — silent failures from wrong IDs
 # are worse than a smaller list. Add more as users validate them.
 PROVIDER_MODELS = {
     "openai": [
+        ("gpt-image-1", "GPT Image 1"),
         ("dall-e-3", "DALL-E 3"),
         ("dall-e-2", "DALL-E 2 (legacy)"),
     ],
@@ -1493,7 +1684,113 @@ PROVIDER_MODELS = {
         ("flux-anime", "FLUX Anime"),
         ("turbo", "Turbo (fast)"),
     ],
+    "omniroute": [
+        ("aihorde/Realistic Vision", "AI Horde · Realistic Vision"),
+        ("aihorde/ICBINP - I Can't Believe It's Not Photography", "AI Horde · ICBINP"),
+        ("aihorde/Juggernaut XL", "AI Horde · Juggernaut XL"),
+        ("aihorde/Realism Engine", "AI Horde · Realism Engine"),
+        ("aihorde/DreamShaper XL", "AI Horde · DreamShaper XL"),
+        ("aihorde/Flux.1-Schnell fp8 (Compact)", "AI Horde · FLUX Schnell"),
+    ],
 }
+
+OMNIROUTE_IMAGE_DEFAULT_MODEL = os.getenv("MEDIA_STUDIO_OMNIROUTE_IMAGE_MODEL", "aihorde/Realistic Vision")
+OMNIROUTE_IMAGE_MODELS_FALLBACK = [
+    {"value": model_id, "label": label} for model_id, label in PROVIDER_MODELS["omniroute"]
+]
+OMNIROUTE_IMAGE_MODEL_CACHE = {"expires_at": 0.0, "models": []}
+KEYED_IMAGE_PROVIDERS = {"cloudflare_ai", "together"}
+SUPPORTED_IMAGE_PROVIDERS = {
+    "cloudflare_ai",
+    "gemini",
+    "huggingface",
+    "omniroute",
+    "openai",
+    "pollinations",
+    "together",
+}
+IMAGE_PROVIDER_PRIORITY = {
+    "pollinations": 10,
+    "omniroute": 20,
+    "cloudflare_ai": 30,
+    "together": 40,
+}
+LOCAL_IMAGE_PRIORITY = {
+    "RealVisXL_V4.0.safetensors": 10,
+    "juggernautXL_v9.safetensors": 20,
+    "sd_xl_base_1.0.safetensors": 30,
+    "sdxl_turbo.safetensors": 40,
+    "v1-5-pruned-emaonly.safetensors": 50,
+    "v1-5-pruned-emaonly.ckpt": 50,
+}
+LOCAL_IMAGE_NOTES = {
+    "RealVisXL_V4.0.safetensors": " · recommended",
+    "juggernautXL_v9.safetensors": " · recommended",
+    "sd_xl_base_1.0.safetensors": " · secondary",
+    "sdxl_turbo.safetensors": " · experimental",
+    "v1-5-pruned-emaonly.safetensors": " · experimental",
+    "v1-5-pruned-emaonly.ckpt": " · experimental",
+}
+
+
+def _get_omniroute_image_models() -> list:
+    now = time.time()
+    cached = OMNIROUTE_IMAGE_MODEL_CACHE.get("models") or []
+    if cached and now < OMNIROUTE_IMAGE_MODEL_CACHE.get("expires_at", 0):
+        return cached
+
+    base_url = os.getenv("OMNIROUTE_BASE_URL", "http://omniroute:20128/v1").rstrip("/")
+    headers = {}
+    api_key = os.getenv("OMNIROUTE_API_KEY", "").strip()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    models = []
+    try:
+        import requests
+
+        response = requests.get(f"{base_url}/images/generations", headers=headers, timeout=4)
+        response.raise_for_status()
+        payload = response.json()
+        for item in payload.get("data", []):
+            if not isinstance(item, dict):
+                continue
+            model_id = item.get("id")
+            if not isinstance(model_id, str) or not model_id.startswith("aihorde/"):
+                continue
+            name = item.get("name") or model_id.split("/", 1)[1]
+            models.append({"value": model_id, "label": f"AI Horde · {name}"})
+    except Exception as exc:
+        logger.debug("OmniRoute image catalog unavailable: %s", exc)
+
+    if models:
+        preferred = (
+            "realistic vision",
+            "icbinp",
+            "juggernaut xl",
+            "realism engine",
+            "dreamshaper xl",
+            "flux.1-schnell",
+        )
+
+        def sort_key(entry):
+            label = entry["label"].lower()
+            for index, needle in enumerate(preferred):
+                if needle in label:
+                    return index, label
+            return len(preferred), label
+
+        models.sort(key=sort_key)
+    else:
+        models = list(OMNIROUTE_IMAGE_MODELS_FALLBACK)
+
+    OMNIROUTE_IMAGE_MODEL_CACHE["models"] = models
+    OMNIROUTE_IMAGE_MODEL_CACHE["expires_at"] = now + 300
+    return models
+
+
+def _provider_priority(provider_key: str) -> int:
+    return IMAGE_PROVIDER_PRIORITY.get(provider_key, 100)
 
 
 def get_image_providers() -> dict:
@@ -1507,27 +1804,52 @@ def get_image_providers() -> dict:
       "cloud_paid": [{"value": "provider:<key>", "label": str, "free": False}, ...],
     }
     """
+    from .comfyui_manager import IDENTITY_MODE_VALUES, IDENTITY_NODE_NAME, IDENTITY_LOCAL_MODELS
+
     result = {
         "auto": {"value": "", "label": "Auto (fleet-aware)"},
         "local": [],
         "cloud_free": [],
         "cloud_paid": [],
+        "identity_modes": list(IDENTITY_MODE_VALUES),
+        "identity_node": IDENTITY_NODE_NAME,
     }
 
     try:
-        for fname in sorted(os.listdir(IMAGE_CHECKPOINT_DIR)):
+        local_entries = []
+        for fname in os.listdir(IMAGE_CHECKPOINT_DIR):
             if not (fname.endswith(".safetensors") or fname.endswith(".ckpt")):
                 continue
+            if fname.lower().startswith("ltx-video"):
+                continue
             label = LOCAL_DISPLAY_NAMES.get(fname, fname.replace(".safetensors", "").replace(".ckpt", ""))
-            result["local"].append({"value": fname, "label": f"{label} (free)", "free": True})
+            local_entries.append(
+                {
+                    "value": fname,
+                    "label": f"{label} (free){LOCAL_IMAGE_NOTES.get(fname, '')}",
+                    "free": True,
+                    "quality": (
+                        "recommended"
+                        if "recommended" in LOCAL_IMAGE_NOTES.get(fname, "")
+                        else "secondary" if "secondary" in LOCAL_IMAGE_NOTES.get(fname, "") else "experimental"
+                    ),
+                    "identity_modes": (
+                        list(IDENTITY_MODE_VALUES)
+                        if fname in IDENTITY_LOCAL_MODELS
+                        else ["prompt"]
+                    ),
+                    "_priority": LOCAL_IMAGE_PRIORITY.get(fname, 100),
+                }
+            )
+        local_entries.sort(key=lambda item: (item["_priority"], item["label"].lower()))
+        for item in local_entries:
+            item.pop("_priority", None)
+        result["local"] = local_entries
     except OSError as e:
         logger.warning(f"Could not list local checkpoints at {IMAGE_CHECKPOINT_DIR}: {e}")
 
     try:
         with get_db_cursor() as (conn, cur):
-            # Active API keys — used to decide which paid providers should be
-            # selectable in the dropdown. Free providers (Pollinations, etc.)
-            # bypass the key check.
             cur.execute(
                 "SELECT provider FROM external_api_keys "
                 "WHERE is_active = true AND api_key_encrypted IS NOT NULL "
@@ -1536,35 +1858,67 @@ def get_image_providers() -> dict:
             active_keys = {r["provider"] for r in cur.fetchall()}
 
             cur.execute(
-                """SELECT provider_key, display_name
+                """SELECT provider_key, display_name, auth_env_var, capabilities
                    FROM contractor_providers
-                   WHERE is_active = true AND capabilities ? 'image_gen'
+                   WHERE is_active = true
                    ORDER BY display_name"""
             )
             for row in cur.fetchall():
                 pk = row["provider_key"]
+                capabilities = row.get("capabilities") or []
                 if pk in ("comfyui", "ollama_diffuser"):
                     continue
+                if pk not in SUPPORTED_IMAGE_PROVIDERS:
+                    continue
+                if pk != "omniroute" and "image_gen" not in capabilities:
+                    continue
+                if row.get("auth_env_var") and os.getenv(row["auth_env_var"], "").strip():
+                    active_keys.add(pk)
+
                 is_free = pk in FREE_PROVIDERS
-                needs_key = (not is_free) and (pk not in active_keys)
-                if is_free:
-                    suffix = " (free)"
-                elif needs_key:
-                    suffix = " ($) — needs API key"
+                if pk == "omniroute":
+                    models = _get_omniroute_image_models()
+                    needs_key = not bool(os.getenv("OMNIROUTE_API_KEY", "").strip())
+                    suffix = " (self-hosted/free AI Horde, may be slow)"
+                    if needs_key:
+                        suffix += " — needs gateway key"
+                    default_model = OMNIROUTE_IMAGE_DEFAULT_MODEL
+                    quality = "experimental"
                 else:
-                    suffix = " ($)"
-                models = [{"value": m, "label": lbl} for m, lbl in PROVIDER_MODELS.get(pk, [])]
+                    models = [{"value": m, "label": lbl} for m, lbl in PROVIDER_MODELS.get(pk, [])]
+                    needs_key = (pk in KEYED_IMAGE_PROVIDERS or not is_free) and pk not in active_keys
+                    if pk == "pollinations":
+                        suffix = " (free, experimental/watermarked)"
+                    elif is_free and needs_key:
+                        suffix = " (free tier) — needs API key"
+                    elif is_free:
+                        suffix = " (free)"
+                    elif needs_key:
+                        suffix = " ($) — needs API key"
+                    else:
+                        suffix = " ($)"
+                    default_model = PROVIDER_DEFAULT_MODEL.get(pk)
+                    quality = "experimental" if pk in {"pollinations", "together"} else "secondary"
+
                 entry = {
                     "value": f"provider:{pk}",
                     "label": f"{row['display_name']}{suffix}",
                     "free": is_free,
                     "needs_key": needs_key,
                     "models": models,
-                    "default_model": PROVIDER_DEFAULT_MODEL.get(pk),
+                    "default_model": default_model,
+                    "quality": quality,
+                    "identity_modes": ["prompt"],
                 }
                 target = result["cloud_free"] if is_free else result["cloud_paid"]
                 target.append(entry)
     except Exception as e:
         logger.warning(f"Failed to query image providers: {e}")
 
+    result["cloud_free"].sort(
+        key=lambda item: (_provider_priority(item["value"].split(":", 1)[1]), item["label"].lower())
+    )
+    result["cloud_paid"].sort(
+        key=lambda item: (_provider_priority(item["value"].split(":", 1)[1]), item["label"].lower())
+    )
     return result

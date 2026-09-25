@@ -34,6 +34,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from services.review_coverage import file_progress  # noqa: E402
 from tools.repair_bay.services import pr_review_service as svc  # noqa: E402
 from tools.repair_bay.services.pr_review_service import (  # noqa: E402
     _REAP_STALE_MINUTES,
@@ -65,6 +66,13 @@ class TestReviewProgressMapping(unittest.TestCase):
         self.assertTrue(p["active"])
         self.assertEqual(p["elapsed_minutes"], 4)
         self.assertIn("4m", p["label"])
+        self.assertIn("Full review", p["label"])
+
+    def test_elapsed_uses_run_start_not_heartbeat(self):
+        p = review_progress("in_progress", _ago(1), now=_NOW, started_at=_ago(20))
+        self.assertEqual(p["elapsed_minutes"], 20)
+        self.assertFalse(p["stale"])
+        self.assertIn("Full review", p["label"])
 
     def test_absent_timestamp_reads_unknown_not_zero(self):
         """THE FABRICATION GUARD. Rendering '0m' for a row with no timestamp would say
@@ -73,7 +81,7 @@ class TestReviewProgressMapping(unittest.TestCase):
         p = review_progress("in_progress", None, now=_NOW)
         self.assertTrue(p["active"])
         self.assertIsNone(p["elapsed_minutes"])
-        self.assertEqual(p["label"], "Analyzing…")
+        self.assertEqual(p["label"], "Full review · elapsed unknown")
         self.assertNotIn("0m", p["label"])
         self.assertFalse(p["stale"], "cannot claim overdue without knowing the elapsed time")
         self.assertIn("unknown", p["hint"].lower())
@@ -90,12 +98,16 @@ class TestReviewProgressMapping(unittest.TestCase):
         OverflowError) after the F.O.R.G.E. review of #3389. These are the shapes that
         actually arrive from a bad row; each must read "unknown", not crash the listing
         and not fabricate an elapsed time."""
-        for junk in ("2026-09-15T12:00:00", 1789518783, object(), []):
+        for junk in ("not-a-date", object(), []):
             p = review_progress("in_progress", junk, now=_NOW)
             self.assertTrue(p["active"], junk)
             self.assertIsNone(p["elapsed_minutes"], junk)
-            self.assertEqual(p["label"], "Analyzing…", junk)
+            self.assertEqual(p["label"], "Full review · elapsed unknown", junk)
             self.assertFalse(p["stale"], junk)
+
+    def test_iso_timestamp_is_supported_for_run_clock(self):
+        p = review_progress("in_progress", _ago(1), now=_NOW, started_at="2026-09-15T11:40:00+00:00")
+        self.assertEqual(p["elapsed_minutes"], 20)
 
     def test_future_timestamp_clamps_instead_of_going_negative(self):
         p = review_progress("in_progress", _NOW + timedelta(minutes=3), now=_NOW)
@@ -104,6 +116,46 @@ class TestReviewProgressMapping(unittest.TestCase):
     def test_hours_are_humanized(self):
         self.assertIn("2h 5m", review_progress("in_progress", _ago(125), now=_NOW)["label"])
         self.assertIn("3h", review_progress("in_progress", _ago(180), now=_NOW)["label"])
+
+
+class TestDocumentProgress(unittest.TestCase):
+    def test_each_document_has_a_status_and_percentage(self):
+        diff = (
+            "diff --git a/a.py b/a.py\n@@ -1 +1 @@\n+alpha\n"
+            "diff --git a/b.py b/b.py\n@@ -1 +1 @@\n+beta\n"
+            "diff --git a/c.py b/c.py\n@@ -1 +1 @@\n+gamma\n"
+        )
+        progress = file_progress(
+            diff,
+            processed_paths=["a.py", "b.py"],
+            shown_diff=diff,
+            bound_dropped=["c.py"],
+        )
+        self.assertEqual(progress["total_files"], 3)
+        self.assertEqual(
+            progress["files"],
+            [
+                {"path": "a.py", "status": "complete", "percent": 100},
+                {"path": "b.py", "status": "complete", "percent": 100},
+                {"path": "c.py", "status": "not_sent", "percent": 0},
+            ],
+        )
+
+    def test_partial_document_keeps_its_percentage(self):
+        full = "diff --git a/large.py b/large.py\n@@ -1 +1 @@\n+" + ("x" * 200) + "\n"
+        shown = "diff --git a/large.py b/large.py\n@@ -1 +1 @@\n+" + ("x" * 80) + "\n"
+        progress = file_progress(full, processed_paths=["large.py"], shown_diff=shown)
+        self.assertEqual(progress["files"][0]["status"], "partial")
+        self.assertGreater(progress["files"][0]["percent"], 0)
+        self.assertLess(progress["files"][0]["percent"], 100)
+
+    def test_template_exposes_full_timer_and_document_percentages(self):
+        source = _TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn("FULL REVIEW PROGRESS", source)
+        self.assertIn("review_file_progress", source)
+        self.assertIn("100% shown", source)
+        self.assertIn("0% shown", source)
+        self.assertIn("Full review ·", source)
 
 
 class TestOverdueBoundary(unittest.TestCase):
@@ -147,7 +199,9 @@ class TestThresholdIsSharedWithTheReaper(unittest.TestCase):
         reaper_src = inspect.getsource(reap_stale_reviews)
         self.assertIn("updated_at <", reaper_src.replace("\n", " "))
         list_src = inspect.getsource(svc.list_reviews)
-        self.assertIn('review_progress(row.get("review_status"), row.get("updated_at"))', list_src)
+        self.assertIn('review_progress(', list_src)
+        self.assertIn('row.get("updated_at")', list_src)
+        self.assertIn('started_at=_meta.get("review_started_at")', list_src)
 
 
 class TestServerSideOnly(unittest.TestCase):

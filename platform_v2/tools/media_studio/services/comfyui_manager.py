@@ -48,6 +48,72 @@ OPERATION_REQUIREMENTS = {
     "instantid": "instantid",
 }
 
+IDENTITY_NODE_NAME = os.getenv("MEDIA_STUDIO_IDENTITY_NODE", "Starship - Defiant - USS-246")
+IDENTITY_MODE_PROMPT = "prompt"
+IDENTITY_MODE_FACEID = "faceid"
+IDENTITY_MODE_INSTANTID = "instantid"
+IDENTITY_MODE_FACEID_DETAIL = "faceid_detail"
+IDENTITY_MODE_INSTANTID_DETAIL = "instantid_detail"
+IDENTITY_MODE_AUTO = "auto"
+IDENTITY_MODES = (
+    IDENTITY_MODE_PROMPT,
+    IDENTITY_MODE_FACEID,
+    IDENTITY_MODE_INSTANTID,
+    IDENTITY_MODE_FACEID_DETAIL,
+    IDENTITY_MODE_INSTANTID_DETAIL,
+)
+IDENTITY_MODE_VALUES = (IDENTITY_MODE_AUTO,) + IDENTITY_MODES
+IDENTITY_MODE_REQUIRES_REFERENCE = frozenset(
+    {
+        IDENTITY_MODE_FACEID,
+        IDENTITY_MODE_INSTANTID,
+        IDENTITY_MODE_FACEID_DETAIL,
+        IDENTITY_MODE_INSTANTID_DETAIL,
+    }
+)
+IDENTITY_LOCAL_MODELS = frozenset(
+    {
+        "RealVisXL_V4.0.safetensors",
+        "juggernautXL_v9.safetensors",
+        "sd_xl_base_1.0.safetensors",
+    }
+)
+
+
+def identity_mode_requires_reference(mode: str) -> bool:
+    return mode in IDENTITY_MODE_REQUIRES_REFERENCE
+
+
+def identity_mode_uses_detailer(mode: str) -> bool:
+    return mode in {IDENTITY_MODE_FACEID_DETAIL, IDENTITY_MODE_INSTANTID_DETAIL}
+
+
+def normalize_identity_mode(
+    value: Optional[str] = None,
+    has_reference: bool = False,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+) -> str:
+    mode = str(value or IDENTITY_MODE_AUTO).strip().lower()
+    if mode not in IDENTITY_MODE_VALUES:
+        raise ValueError(f"Unknown portrait identity mode: {mode}")
+    if provider and mode != IDENTITY_MODE_PROMPT:
+        if mode == IDENTITY_MODE_AUTO:
+            mode = IDENTITY_MODE_PROMPT
+        else:
+            raise ValueError("Character consistency modes require a local ComfyUI provider")
+    if mode == IDENTITY_MODE_AUTO:
+        mode = (
+            IDENTITY_MODE_FACEID_DETAIL
+            if has_reference and (model is None or model in IDENTITY_LOCAL_MODELS)
+            else IDENTITY_MODE_PROMPT
+        )
+    if identity_mode_requires_reference(mode) and not has_reference:
+        raise ValueError("Character consistency requires an approved canonical reference")
+    if mode != IDENTITY_MODE_PROMPT and model and model not in IDENTITY_LOCAL_MODELS:
+        raise ValueError("Character consistency is available only for supported SDXL portrait checkpoints")
+    return mode
+
 
 def classify_gpu_tier(vram_mb: int) -> str:
     """Classify a GPU into a capability tier based on VRAM."""
@@ -188,7 +254,48 @@ def rank_nodes_for_operation(operation: str) -> List[Dict]:
     return capable
 
 
-def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optional[str]]:
+def _get_identity_comfyui_url(model_name: Optional[str]) -> Tuple[str, str]:
+    try:
+        with get_db_cursor() as (_, cur):
+            cur.execute(
+                """
+                SELECT node_name, extra_capabilities->>'comfyui_url' AS comfyui_url,
+                       extra_capabilities->'comfyui_models' AS comfyui_models
+                FROM remote_nodes
+                WHERE node_name = %s
+                  AND status = 'online'
+                  AND gpu_available = TRUE
+                  AND comfyui_available = TRUE
+                  AND extra_capabilities ? 'comfyui_url'
+                  AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                LIMIT 1
+                """,
+                (IDENTITY_NODE_NAME,),
+            )
+            row = cur.fetchone()
+    except Exception as exc:
+        raise RuntimeError(f"Identity ComfyUI node {IDENTITY_NODE_NAME} is unavailable") from exc
+
+    if not row or not row.get("comfyui_url"):
+        raise RuntimeError(f"Identity ComfyUI node {IDENTITY_NODE_NAME} is unavailable")
+
+    fleet_models = row.get("comfyui_models") or []
+    if isinstance(fleet_models, str):
+        import json as _json
+
+        try:
+            fleet_models = _json.loads(fleet_models)
+        except (TypeError, ValueError):
+            fleet_models = []
+    if model_name and model_name not in fleet_models:
+        raise RuntimeError(f"Identity model {model_name} is not installed on {IDENTITY_NODE_NAME}")
+    return row["comfyui_url"], row["node_name"]
+
+
+def get_best_comfyui_url(
+    model_name: Optional[str] = None,
+    identity_mode: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
     """Return (comfyui_url, node_name) for the best available ComfyUI node.
 
     Prefers fleet nodes with higher VRAM over hub — RTX Starships beat the
@@ -201,7 +308,12 @@ def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optiona
 
     Uses extra_capabilities.comfyui_url + gpu_vram_gb from remote_nodes
     (populated by heartbeat), not metadata.gpu which is unreliable.
+    Identity modes fail closed to the configured identity node instead of
+    falling back to a node without the required model stack.
     """
+
+    if identity_mode and identity_mode != IDENTITY_MODE_PROMPT:
+        return _get_identity_comfyui_url(model_name)
 
     hub_url = os.environ.get("COMFYUI_HOST", "http://host.docker.internal:8188")
     hub_vram_mb = 8192  # Quadro M4000 8 GB
@@ -342,6 +454,210 @@ def build_txt2img_workflow(
     }
 
 
+def build_identity_workflow(
+    prompt: str,
+    negative_prompt: str = "",
+    model: str = "sd_xl_base_1.0.safetensors",
+    width: int = 1024,
+    height: int = 1024,
+    seed: int = -1,
+    steps: int = 30,
+    cfg: float = 7.0,
+    sampler: str = "euler_ancestral",
+    reference_image: str = "",
+    identity_mode: str = IDENTITY_MODE_FACEID,
+    identity_weight: float = 0.85,
+    detailer_denoise: float = 0.28,
+) -> Dict:
+    """Build a modern FaceID, InstantID, or detailer portrait workflow."""
+    import random
+
+    mode = str(identity_mode or IDENTITY_MODE_PROMPT).strip().lower()
+    if mode not in IDENTITY_MODE_REQUIRES_REFERENCE:
+        raise ValueError(f"Identity workflow does not support mode: {mode}")
+    if not reference_image:
+        raise ValueError("Identity workflow requires a reference image")
+    if seed < 0:
+        seed = random.randint(0, 2**63)
+
+    nodes: Dict[str, Dict] = {
+        "1": {
+            "class_type": "CheckpointLoaderSimple",
+            "inputs": {"ckpt_name": model},
+        },
+        "2": {
+            "class_type": "EmptyLatentImage",
+            "inputs": {"width": width, "height": height, "batch_size": 1},
+        },
+        "3": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"text": prompt, "clip": ["1", 1]},
+        },
+        "4": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {
+                "text": negative_prompt or "blurry, low quality, distorted, deformed",
+                "clip": ["1", 1],
+            },
+        },
+    }
+
+    if mode in {IDENTITY_MODE_FACEID, IDENTITY_MODE_FACEID_DETAIL}:
+        nodes.update(
+            {
+                "5": {
+                    "class_type": "IPAdapterUnifiedLoaderFaceID",
+                    "inputs": {
+                        "model": ["1", 0],
+                        "preset": "FACEID PLUS V2",
+                        "lora_strength": 0.6,
+                        "provider": "CUDA",
+                    },
+                },
+                "6": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": reference_image},
+                },
+                "7": {
+                    "class_type": "IPAdapterAdvanced",
+                    "inputs": {
+                        "model": ["5", 0],
+                        "ipadapter": ["5", 1],
+                        "image": ["6", 0],
+                        "weight": float(identity_weight),
+                        "weight_type": "linear",
+                        "combine_embeds": "concat",
+                        "start_at": 0.0,
+                        "end_at": 1.0,
+                        "embeds_scaling": "V only",
+                    },
+                },
+            }
+        )
+        sampler_inputs = {
+            "model": ["7", 0],
+            "positive": ["3", 0],
+            "negative": ["4", 0],
+        }
+    else:
+        nodes.update(
+            {
+                "5": {
+                    "class_type": "InstantIDModelLoader",
+                    "inputs": {"instantid_file": "ip-adapter.bin"},
+                },
+                "6": {
+                    "class_type": "InstantIDFaceAnalysis",
+                    "inputs": {"provider": "CUDA"},
+                },
+                "7": {
+                    "class_type": "ControlNetLoader",
+                    "inputs": {"control_net_name": "instantid_xl.safetensors"},
+                },
+                "8": {
+                    "class_type": "LoadImage",
+                    "inputs": {"image": reference_image},
+                },
+                "9": {
+                    "class_type": "ApplyInstantID",
+                    "inputs": {
+                        "instantid": ["5", 0],
+                        "insightface": ["6", 0],
+                        "control_net": ["7", 0],
+                        "image": ["8", 0],
+                        "model": ["1", 0],
+                        "positive": ["3", 0],
+                        "negative": ["4", 0],
+                        "weight": float(identity_weight),
+                        "start_at": 0.0,
+                        "end_at": 1.0,
+                    },
+                },
+            }
+        )
+        sampler_inputs = {
+            "model": ["9", 0],
+            "positive": ["9", 1],
+            "negative": ["9", 2],
+        }
+
+    nodes["10"] = {
+        "class_type": "KSampler",
+        "inputs": {
+            **sampler_inputs,
+            "latent_image": ["2", 0],
+            "seed": seed,
+            "steps": steps,
+            "cfg": cfg,
+            "sampler_name": sampler,
+            "scheduler": "normal",
+            "denoise": 1.0,
+        },
+    }
+    nodes["11"] = {
+        "class_type": "VAEDecode",
+        "inputs": {"samples": ["10", 0], "vae": ["1", 2]},
+    }
+
+    output_node = "11"
+    if identity_mode_uses_detailer(mode):
+        nodes["12"] = {
+            "class_type": "UltralyticsDetectorProvider",
+            "inputs": {"model_name": "bbox/face_yolov8n.pt"},
+        }
+        nodes["13"] = {
+            "class_type": "SAMLoader",
+            "inputs": {"model_name": "sam_vit_b_01ec64.pth", "device_mode": "AUTO"},
+        }
+        nodes["14"] = {
+            "class_type": "FaceDetailer",
+            "inputs": {
+                "image": ["11", 0],
+                "model": ["1", 0],
+                "clip": ["1", 1],
+                "vae": ["1", 2],
+                "guide_size": 384,
+                "guide_size_for": True,
+                "max_size": min(width, height),
+                "seed": seed,
+                "steps": max(12, min(24, steps)),
+                "cfg": max(4.0, min(8.0, cfg)),
+                "sampler_name": sampler,
+                "scheduler": "normal",
+                "positive": ["3", 0],
+                "negative": ["4", 0],
+                "denoise": max(0.1, min(0.6, float(detailer_denoise))),
+                "feather": 5,
+                "noise_mask": True,
+                "force_inpaint": True,
+                "bbox_threshold": 0.5,
+                "bbox_dilation": 10,
+                "bbox_crop_factor": 3.0,
+                "sam_detection_hint": "center-1",
+                "sam_dilation": 0,
+                "sam_threshold": 0.93,
+                "sam_bbox_expansion": 0,
+                "sam_mask_hint_threshold": 0.7,
+                "sam_mask_hint_use_negative": "False",
+                "drop_size": 10,
+                "bbox_detector": ["12", 0],
+                "wildcard": "",
+                "cycle": 1,
+                "sam_model_opt": ["13", 0],
+            },
+        }
+        output_node = "14"
+
+    nodes[str(int(output_node) + 1)] = {
+        "class_type": "SaveImage",
+        "inputs": {
+            "images": [output_node, 0],
+            "filename_prefix": "portrait_identity",
+        },
+    }
+    return {"prompt": nodes}
+
+
 def build_ipadapter_workflow(
     prompt: str,
     negative_prompt: str = "",
@@ -354,88 +670,56 @@ def build_ipadapter_workflow(
     sampler: str = "euler_ancestral",
     ip_adapter_ref: str = "",
     ip_adapter_weight: float = 0.85,
+    detailer_denoise: float = 0.28,
 ) -> Dict:
-    """Build ComfyUI workflow with IP-Adapter for face-consistent generation.
+    """Build a FaceID Plus v2 workflow for an approved reference image."""
+    return build_identity_workflow(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        model=model,
+        width=width,
+        height=height,
+        seed=seed,
+        steps=steps,
+        cfg=cfg,
+        sampler=sampler,
+        reference_image=ip_adapter_ref,
+        identity_mode=IDENTITY_MODE_FACEID,
+        identity_weight=ip_adapter_weight,
+        detailer_denoise=detailer_denoise,
+    )
 
-    Requires ComfyUI_IPAdapter_plus custom node.
-    ip_adapter_ref: path to the reference face image.
-    """
-    import random
 
-    if seed < 0:
-        seed = random.randint(0, 2**63)
-
-    return {
-        "prompt": {
-            "1": {
-                "class_type": "CheckpointLoaderSimple",
-                "inputs": {"ckpt_name": model},
-            },
-            "2": {
-                "class_type": "EmptyLatentImage",
-                "inputs": {"width": width, "height": height, "batch_size": 1},
-            },
-            "3": {
-                "class_type": "CLIPTextEncode",
-                "inputs": {"text": prompt, "clip": ["1", 1]},
-            },
-            "4": {
-                "class_type": "CLIPTextEncode",
-                "inputs": {
-                    "text": negative_prompt or "blurry, low quality, distorted, deformed",
-                    "clip": ["1", 1],
-                },
-            },
-            "10": {
-                "class_type": "IPAdapterModelLoader",
-                "inputs": {"ipadapter_file": "ip-adapter-faceid-plusv2_sdxl.bin"},
-            },
-            "11": {
-                "class_type": "LoadImage",
-                "inputs": {"image": ip_adapter_ref},
-            },
-            "12": {
-                "class_type": "IPAdapterApply",
-                "inputs": {
-                    "ipadapter": ["10", 0],
-                    "clip_vision": ["10", 1],
-                    "image": ["11", 0],
-                    "model": ["1", 0],
-                    "weight": ip_adapter_weight,
-                    "noise": 0.0,
-                    "weight_type": "original",
-                    "start_at": 0.0,
-                    "end_at": 1.0,
-                },
-            },
-            "5": {
-                "class_type": "KSampler",
-                "inputs": {
-                    "model": ["12", 0],
-                    "positive": ["3", 0],
-                    "negative": ["4", 0],
-                    "latent_image": ["2", 0],
-                    "seed": seed,
-                    "steps": steps,
-                    "cfg": cfg,
-                    "sampler_name": sampler,
-                    "scheduler": "normal",
-                    "denoise": 1.0,
-                },
-            },
-            "6": {
-                "class_type": "VAEDecode",
-                "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
-            },
-            "7": {
-                "class_type": "SaveImage",
-                "inputs": {
-                    "images": ["6", 0],
-                    "filename_prefix": "portrait_variant",
-                },
-            },
-        }
-    }
+def build_instantid_workflow(
+    prompt: str,
+    negative_prompt: str = "",
+    model: str = "sd_xl_base_1.0.safetensors",
+    width: int = 1024,
+    height: int = 1024,
+    seed: int = -1,
+    steps: int = 30,
+    cfg: float = 5.0,
+    sampler: str = "euler_ancestral",
+    reference_image: str = "",
+    identity_weight: float = 0.8,
+    detailer_denoise: float = 0.28,
+) -> Dict:
+    """Build a native InstantID workflow for an approved reference image."""
+    return build_identity_workflow(
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        model=model,
+        width=width,
+        height=height,
+        seed=seed,
+        steps=steps,
+        cfg=cfg,
+        sampler=sampler,
+        reference_image=reference_image,
+        identity_mode=IDENTITY_MODE_INSTANTID,
+        identity_weight=identity_weight,
+        detailer_denoise=detailer_denoise,
+    )
 
 
 def build_animatediff_workflow(

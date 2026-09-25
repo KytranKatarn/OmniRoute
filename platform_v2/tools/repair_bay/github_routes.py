@@ -1333,7 +1333,13 @@ def register_github_routes(bp, admin_required):
                 409,
             )
 
-        prog = review_progress(status, review.get("updated_at"))
+        _meta = review.get("metadata") if isinstance(review.get("metadata"), dict) else {}
+        prog = review_progress(
+            status,
+            review.get("updated_at"),
+            started_at=_meta.get("review_started_at"),
+            file_progress=_meta.get("review_file_progress"),
+        )
         mark_review_pending(pr_number, repo=_repo_in or None)
         logger.info(
             "[F.O.R.G.E.] review retry: PR #%s (%s) reset after %sm in_progress by %s",

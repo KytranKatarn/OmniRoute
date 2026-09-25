@@ -18,7 +18,9 @@ from services.review_coverage import (
     annotate,
     chunk_plan,
     coverage,
+    diff_files,
     file_plan_detail,
+    file_progress,
     prioritize,
     summarize,
 )
@@ -26,6 +28,7 @@ from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
     get_review,
     mark_review_done,
+    mark_review_file_progress,
     mark_review_pending,
     mark_review_progress,
     mark_review_started,
@@ -3017,6 +3020,48 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
     return text
 
 
+def _publish_file_progress(
+    diff: str,
+    chunks: list,
+    completed_passes: int,
+    bound_dropped: list,
+    cap: int,
+    pr_number: int,
+    repo: str,
+) -> dict:
+    processed = []
+    shown = []
+    for chunk in chunks[:completed_passes]:
+        processed.extend(diff_files(chunk))
+        shown.append(_truncate_diff(chunk, cap)[0])
+    snapshot = file_progress(
+        diff,
+        processed_paths=processed,
+        shown_diff="\n".join(shown),
+        bound_dropped=bound_dropped,
+    )
+    total_passes = len(chunks)
+    snapshot.update(
+        {
+            "total_passes": total_passes,
+            "completed_passes": completed_passes,
+            "current_pass": min(completed_passes + 1, total_passes) if total_passes else 0,
+            "current_file": (
+                diff_files(chunks[completed_passes])[0]
+                if completed_passes < total_passes and diff_files(chunks[completed_passes])
+                else None
+            ),
+            "status": "running" if completed_passes < total_passes else "complete",
+        }
+    )
+    if pr_number:
+        try:
+            mark_review_file_progress(pr_number, repo=repo, progress=snapshot)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[PR Review] PR #%s file-progress update failed: %s", pr_number, exc)
+    return snapshot
+
+
 def _obtain_review_summary(
     review: dict, diff: str, pr_number: int = None, repo: str = None, wide: bool = False
 ) -> str | None:
@@ -3105,6 +3150,7 @@ def _obtain_review_summary(
     # max_chunks=1 killswitch is unaffected.
     _shown = "\n".join(_truncate_diff(_c, _cap)[0] for _c in _chunks)
     _cov = coverage(diff, _shown, bound_dropped=_bound_dropped)
+    _publish_file_progress(diff, _chunks, 0, _bound_dropped, _cap, pr_number, repo)
     if not _cov["complete"]:
         logger.warning("[PR Review] PR #%s — %s", pr_number, summarize(_cov))
 
@@ -3238,6 +3284,7 @@ def _obtain_review_summary(
                 + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
             )
         _summaries.append(summary)
+        _publish_file_progress(diff, _chunks, _idx + 1, _bound_dropped, _cap, pr_number, repo)
 
     # #5836 follow-up — RE-MEASURE coverage against the cap the passes actually ran at.
     # The pre-loop _cov was computed at the conservative planning cap because the path was
@@ -3254,6 +3301,8 @@ def _obtain_review_summary(
             _cap,
             summarize(_cov),
         )
+
+    _publish_file_progress(diff, _chunks, len(_chunks), _bound_dropped, _eff_cap, pr_number, repo)
 
     if len(_summaries) == 1:
         return annotate(_summaries[0], _cov)

@@ -101,6 +101,7 @@ EXPECTED_FIELDS = {
     "ethnicity",
     "social_topics",
     "auto_approve_threshold",
+    "voice_profile",
     "shift_state",
     "status",
     "avatar_url",

@@ -75,6 +75,10 @@ class TestMergeStateMapping(unittest.TestCase):
         self.assertEqual(ms["state"], "changes_requested")
         self.assertFalse(ms["mergeable"])
 
+    def test_changes_requested_keeps_document_coverage_for_display(self):
+        ms = merge_state("reviewed", CHANGES_PLUS_COVERAGE)
+        self.assertEqual(ms["dropped_files"], ["platform_v2/c.py"])
+
     def test_in_progress_and_empty(self):
         self.assertEqual(merge_state("in_progress", "")["state"], "reviewing")
         self.assertEqual(merge_state("pending", "")["state"], "awaiting_review")
@@ -134,10 +138,8 @@ class TestCoverageFilesVisibleBeforeTheClick(unittest.TestCase):
 
     def test_the_detail_lists_the_dropped_files_from_server_state(self):
         src = _TEMPLATE.read_text()
-        # The coverage box may render ONLY when the server state says coverage_only,
-        # and it must consume the server's list, not build one.
         idx = src.index("msCov.dropped_files")
-        self.assertIn("state === 'coverage_only'", src[:idx])
+        self.assertIn("covDropped.length || covPartial.length", src[idx:idx + 300])
         self.assertIn("covList.appendChild(rowEl)", src)
 
     def test_the_dropped_files_are_clickable_to_read_at_the_pr_head(self):

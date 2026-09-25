@@ -139,15 +139,9 @@ class TestTheButtonIsReachable(unittest.TestCase):
         self.tpl = _TEMPLATE.read_text(encoding="utf-8")
 
     def test_panel_is_gated_on_the_state_not_on_a_list_length(self):
-        """The exact defect: `state === 'coverage_only' && dropped_files.length`.
-
-        Mutation-checked at authoring time against the pre-fix file from git — the
-        old gate fails this test, the new one passes.
-        """
-        m = re.search(r"msCov\s*&&\s*msCov\.state\s*===\s*'coverage_only'([^\)]*)\)", self.tpl)
-        self.assertIsNotNone(m, "the coverage panel gate was not found at all")
-        self.assertNotIn("dropped_files", m.group(1), "panel still gated on dropped_files.length")
-        self.assertNotIn(".length", m.group(1), "panel still gated on a list length")
+        """Coverage detail renders whenever the server supplies a missing or partial file."""
+        self.assertIn("covDropped.length || covPartial.length", self.tpl)
+        self.assertNotIn("msCov.state === 'coverage_only')", self.tpl)
 
     def test_the_rereview_button_lives_inside_that_panel(self):
         """If the button moves out from under the gate this test stops meaning anything,
@@ -163,6 +157,20 @@ class TestTheButtonIsReachable(unittest.TestCase):
         fn = self.tpl[self.tpl.index("function triggerPRReReview") :][:1200]
         self.assertIn("wide: true", fn)
         self.assertIn("/analyze", fn)
+
+    def test_completed_reviews_without_coverage_have_a_rereview_action(self):
+        source = self.tpl
+        self.assertIn("pr.review_status === 'reviewed'", source)
+        self.assertIn("!coverageReviewActionRendered", source)
+        self.assertIn("generalReBtn.onclick", source)
+        self.assertIn("triggerPRReReview", source)
+
+    def test_notifications_use_the_lcars_modal(self):
+        start = self.tpl.index("function triggerPRReReview")
+        end = self.tpl.index("function prFileUrl", start)
+        fn = self.tpl[start:end]
+        self.assertIn("_rbLcarsAlert", fn)
+        self.assertNotRegex(fn, r"\balert\s*\(")
 
     def test_partial_files_are_rendered_with_their_percentage(self):
         self.assertIn("partial_files", self.tpl)

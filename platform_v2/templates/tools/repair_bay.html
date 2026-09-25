@@ -3767,8 +3767,8 @@ window.loadPRReviews = function(state) {
                 var _overdue = !!(rp && rp.stale);
                 var _rpCol = _overdue ? '239,68,68' : '34,211,238';
                 analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(' + _rpCol + ',0.1);border:1px solid rgba(' + _rpCol + ',0.3);color:' + (_overdue ? '#fca5a5' : '#67e8f9') + ';border-radius:4px;cursor:not-allowed;opacity:0.75;';
-                analyzeBtn.textContent = (rp && rp.label ? rp.label : 'Analyzing…') + (_overdue ? ' ⚠' : '');
-                if (rp && rp.hint) analyzeBtn.title = rp.hint;
+                analyzeBtn.textContent = (rp && rp.label ? rp.label : 'Full review · Analyzing…') + (_overdue ? ' ⚠' : '');
+                analyzeBtn.title = (rp && rp.hint) || 'Elapsed time is for the full PR review; document percentages are shown separately.';
                 analyzeBtn.disabled = true;
             } else {
                 analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
@@ -3890,6 +3890,86 @@ window.loadPRReviews = function(state) {
     });
 };
 
+function _reviewFileProgress(pr) {
+    return (pr && pr.review_file_progress) ||
+           (pr && pr.review_progress && pr.review_progress.file_progress) || null;
+}
+
+function _renderReviewProgress(wrap, pr) {
+    var rp = pr.review_progress || {};
+    var fp = _reviewFileProgress(pr);
+    var active = pr.review_status === 'in_progress';
+    if (!active && (!fp || !fp.files || !fp.files.length)) return;
+
+    var box = document.createElement('div');
+    box.style.cssText = 'margin:0 0 12px 0;padding:10px 12px;border:1px solid rgba(34,211,238,0.35);border-radius:4px;background:rgba(34,211,238,0.06);';
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:0.68rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:1px;color:#67e8f9;margin-bottom:6px;';
+    title.textContent = active ? 'FULL REVIEW PROGRESS' : 'DOCUMENT COVERAGE';
+    box.appendChild(title);
+
+    var timer = document.createElement('div');
+    timer.style.cssText = 'font-size:0.75rem;color:#e2e8f0;line-height:1.5;margin-bottom:6px;';
+    var elapsedText = rp.label ? String(rp.label).replace(/^Full review · /, '') : 'unknown';
+    timer.textContent = active
+        ? ('Full review elapsed: ' + elapsedText + '. This timer covers the entire PR review.')
+        : 'The timer covered the full PR review; percentages below show how much of each document was shown to F.O.R.G.E.';
+    box.appendChild(timer);
+
+    if (fp && fp.files && fp.files.length) {
+        var stats = document.createElement('div');
+        stats.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:#94a3b8;margin-bottom:6px;';
+        var totalPasses = fp.total_passes === undefined ? '?' : fp.total_passes;
+        var completedPasses = fp.completed_passes === undefined ? '?' : fp.completed_passes;
+        stats.textContent = 'Passes: ' + completedPasses + ' / ' + totalPasses +
+            ' · Current: ' + (fp.current_file || '—') +
+            ' · Documents fully read: ' + (fp.fully_read_files || 0) + ' / ' + (fp.total_files || 0) +
+            ' · Partial: ' + (fp.partial_files || 0) +
+            ' · Queued: ' + (fp.queued_files || 0) +
+            ' · Not sent: ' + (fp.not_sent_files || 0);
+        box.appendChild(stats);
+
+        var list = document.createElement('div');
+        list.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;line-height:1.6;max-height:220px;overflow-y:auto;border-top:1px solid rgba(34,211,238,0.18);padding-top:6px;';
+        fp.files.forEach(function(file) {
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 0;';
+            var path = document.createElement(file.path ? 'a' : 'span');
+            if (file.path) {
+                path.href = prFileUrl(pr, file.path) || '#';
+                path.target = '_blank';
+                path.style.cssText = 'color:#67e8f9;text-decoration:none;border-bottom:1px dotted rgba(34,211,238,0.4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                if (!path.href || path.href === '#') path.style.pointerEvents = 'none';
+            } else {
+                path.style.color = '#64748b';
+            }
+            path.textContent = file.path || '(unnamed file)';
+            row.appendChild(path);
+            var status = String(file.status || 'queued');
+            var percent = Number(file.percent || 0);
+            var statusText = status === 'complete' ? '100% shown'
+                : status === 'partial' ? ('~' + percent + '% shown')
+                : status === 'not_sent' ? 'not sent · 0% shown'
+                : 'queued';
+            var color = status === 'complete' ? '#4ade80'
+                : status === 'partial' ? '#fbbf24'
+                : status === 'not_sent' ? '#f87171' : '#94a3b8';
+            var state = document.createElement('span');
+            state.style.cssText = 'color:' + color + ';white-space:nowrap;';
+            state.textContent = statusText;
+            row.appendChild(state);
+            list.appendChild(row);
+        });
+        box.appendChild(list);
+    } else {
+        var waiting = document.createElement('div');
+        waiting.style.cssText = 'font-size:0.7rem;color:#94a3b8;line-height:1.5;';
+        waiting.textContent = 'Per-document percentages will appear as the full review passes through the diff.';
+        box.appendChild(waiting);
+    }
+    wrap.appendChild(box);
+}
+
 function showPRDetail(pr) {
     var detail = document.getElementById('prReviewDetail');
     if (!detail) return;
@@ -3937,31 +4017,33 @@ function showPRDetail(pr) {
     });
     if (meta.children.length) wrap.appendChild(meta);
 
+    _renderReviewProgress(wrap, pr);
+
     // #6769 — COVERAGE GATE explainer. merge_state is stamped server-side (#5853); the
     // `dropped_files` list is the same one the merge refusal uses, so this panel and the
-    // confirm dialog can never disagree about what the human is discharging. Rendered only
-    // when a genuine coverage demotion exists (files were truncated away before the model
-    // read them), never on a REQUEST CHANGES.
+    // confirm dialog can never disagree about what the human is discharging. Coverage is
+    // shown for any non-empty server list, including a review that also has findings.
     var msCov = pr.merge_state || null;
-    // The gate is the STATE, never the length of one list. It used to require
-    // dropped_files.length, which is empty for a #5910 partial read — so a PR demoted
-    // because a file was cut mid-way rendered no panel and, with it, no re-review
-    // button: the one case that most needs a wider window had no way to ask for one.
-    if (msCov && msCov.state === 'coverage_only') {
-        var covDropped = msCov.dropped_files || [];
-        var covPartial = msCov.partial_files || [];
+    var covDropped = msCov ? (msCov.dropped_files || []) : [];
+    var covPartial = msCov ? (msCov.partial_files || []) : [];
+    var coverageReviewActionRendered = false;
+    if (msCov && (covDropped.length || covPartial.length)) {
+        var coverageOnly = msCov.state === 'coverage_only';
         var covBox = document.createElement('div');
         covBox.style.cssText = 'margin:0 0 12px 0;padding:10px 12px;border:1px solid rgba(251,191,36,0.45);border-radius:4px;background:rgba(251,191,36,0.08);';
         var covTitle = document.createElement('div');
         covTitle.style.cssText = 'font-size:0.68rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:1px;color:#fbbf24;margin-bottom:6px;';
-        covTitle.textContent = (msCov.label || 'COVERAGE').toUpperCase()
-            + ' — THE REVIEWER DID NOT SEE ALL OF THIS DIFF';
+        covTitle.textContent = coverageOnly
+            ? (msCov.label || 'COVERAGE').toUpperCase() + ' — THE REVIEWER DID NOT SEE ALL OF THIS DIFF'
+            : 'DOCUMENT COVERAGE — SOME FILES WERE NOT READ';
         covBox.appendChild(covTitle);
         var covText = document.createElement('div');
         covText.style.cssText = 'font-size:0.75rem;line-height:1.55;color:#e2e8f0;margin-bottom:6px;';
-        covText.textContent = covDropped.length
-            ? 'F.O.R.G.E. APPROVED everything it read, but the file(s) below were truncated away before it saw them — the row stays mergeable ONLY by a human who reads and accepts them. A README is cheap to discharge; the deploy path is not. Re-review with a wider window if you want the gate cleared instead of discharging.'
-            : 'F.O.R.G.E. APPROVED everything it read, but the window cut mid-file — it saw only part of the file(s) below, so the verdict cannot cover the rest. Re-review with a wider window to clear the gate, or read the remainder yourself and accept it.';
+        covText.textContent = coverageOnly
+            ? (covDropped.length
+                ? 'F.O.R.G.E. APPROVED everything it read, but the file(s) below were truncated away before it saw them — the row stays mergeable ONLY by a human who reads and accepts them. A README is cheap to discharge; the deploy path is not. Re-review with a wider window if you want the gate cleared instead of discharging.'
+                : 'F.O.R.G.E. APPROVED everything it read, but the window cut mid-file — it saw only part of the file(s) below, so the verdict cannot cover the rest. Re-review with a wider window to clear the gate, or read the remainder yourself and accept it.')
+            : 'F.O.R.G.E. returned changes and could not read all of this diff. The findings apply to what it could inspect; the documents below were not fully covered.';
         covBox.appendChild(covText);
         var covList = document.createElement('div');
         covList.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;line-height:1.7;color:#fbbf24;max-height:180px;overflow-y:auto;border-top:1px solid rgba(251,191,36,0.2);padding-top:6px;';
@@ -3979,7 +4061,7 @@ function showPRDetail(pr) {
             pRow.appendChild(pl);
             var pct = document.createElement('span');
             pct.style.cssText = 'font-size:0.62rem;color:#94a3b8;white-space:nowrap;';
-            pct.textContent = (e && typeof e.shown_pct === 'number') ? ('~' + e.shown_pct + '% read') : 'partly read';
+            pct.textContent = (e && typeof e.shown_pct === 'number') ? ('~' + e.shown_pct + '% shown') : 'partly shown';
             pRow.appendChild(pct);
             covList.appendChild(pRow);
         });
@@ -3994,6 +4076,10 @@ function showPRDetail(pr) {
             fl.textContent = f || '(unnamed file)';
             fl.title = 'Read ' + (f || 'this file') + ' at the PR head on GitHub (opens new tab)';
             rowEl.appendChild(fl);
+            var droppedPct = document.createElement('span');
+            droppedPct.style.cssText = 'font-size:0.62rem;color:#f87171;white-space:nowrap;';
+            droppedPct.textContent = '0% shown';
+            rowEl.appendChild(droppedPct);
             if (pr.diff_url) {
                 var dLink = document.createElement('a');
                 dLink.href = pr.diff_url;
@@ -4029,7 +4115,19 @@ function showPRDetail(pr) {
             covActions.appendChild(fullDiff);
         }
         covBox.appendChild(covActions);
+        coverageReviewActionRendered = true;
         wrap.appendChild(covBox);
+    }
+    if (pr.review_status === 'reviewed' && !coverageReviewActionRendered) {
+        var reviewActions = document.createElement('div');
+        reviewActions.style.cssText = 'display:flex;gap:8px;margin:0 0 12px 0;';
+        var generalReBtn = document.createElement('button');
+        generalReBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
+        generalReBtn.textContent = 'F.O.R.G.E. re-review — full diff';
+        generalReBtn.title = 'Run a fresh full-diff review of this PR head.';
+        generalReBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo); };
+        reviewActions.appendChild(generalReBtn);
+        wrap.appendChild(reviewActions);
     }
 
     // F.O.R.G.E. review body — field is ai_summary in the DB
@@ -4181,10 +4279,34 @@ function triggerPRReReview(prNumber, repo) {
            // server re-review a Dependabot bump while this pane showed an engine PR.
            body: JSON.stringify(_prScopeBody({wide: true, repo: repo || null}))})
         .then(function(r){ return r.json(); }).then(function(d) {
-            if (d.error) { alert('Re-review failed: ' + d.error); return; }
-            alert('F.O.R.G.E. re-review dispatched (full diff, ' + _prScopeLabel() + ') — the list refreshes when it lands.');
-            setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);
-        }).catch(function(e){ alert('Re-review request failed.'); });
+            if (d.error) {
+                _rbLcarsAlert({
+                    title: 'F.O.R.G.E. RE-REVIEW FAILED',
+                    message: d.error,
+                    okText: 'CLOSE',
+                    accent: '#ef4444',
+                    accentRgb: '239,68,68'
+                });
+                return;
+            }
+            _rbLcarsAlert({
+                title: 'F.O.R.G.E. RE-REVIEW DISPATCHED',
+                message: 'Full diff review started (' + _prScopeLabel() + ').\n\nThe Reviews list refreshes when it lands.',
+                okText: 'OK',
+                accent: '#fbbf24',
+                accentRgb: '251,191,36'
+            }).then(function() {
+                setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);
+            });
+        }).catch(function(e){
+            _rbLcarsAlert({
+                title: 'F.O.R.G.E. RE-REVIEW FAILED',
+                message: e && e.message ? e.message : 'The re-review request could not be sent.',
+                okText: 'CLOSE',
+                accent: '#ef4444',
+                accentRgb: '239,68,68'
+            });
+        });
 }
 
 function prFileUrl(pr, path) {

@@ -247,6 +247,20 @@ def register_work_routes(bp, admin_required):
                 )
                 reset_row = cur.fetchone()
 
+                try:
+                    cur.execute(
+                        """
+                        SELECT status, COUNT(*) AS cnt
+                        FROM media_generation_queue
+                        WHERE status IN ('pending', 'dispatched', 'generating')
+                           OR (status = 'failed' AND created_at > NOW() - INTERVAL '24 hours')
+                        GROUP BY status
+                        """
+                    )
+                    media_queue_by_status = {row["status"]: int(row["cnt"] or 0) for row in cur.fetchall()}
+                except Exception:
+                    media_queue_by_status = {}
+
             # Task #3798: fixed 24-slot hour grid (oldest → newest) so every agent's
             # recovery series has the same shape and empty hours render as zero.
             from datetime import timedelta
@@ -474,6 +488,13 @@ def register_work_routes(bp, admin_required):
                 at_limit_count=at_limit_count,
                 active_count=active_count,
                 total_ai_agents=resting_count + at_limit_count + active_count,
+                media_queue={
+                    "by_status": media_queue_by_status,
+                    "active": sum(
+                        media_queue_by_status.get(status, 0) for status in ("pending", "dispatched", "generating")
+                    ),
+                    "failed": media_queue_by_status.get("failed", 0),
+                },
             )
         except Exception as e:
             return jsonify(success=False, error=str(e)[:200]), 500

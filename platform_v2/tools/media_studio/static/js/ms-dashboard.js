@@ -10,15 +10,23 @@
 
   function _el(id) { return document.getElementById(id); }
   function _setText(id, val) { var el = _el(id); if (el) el.textContent = val != null ? val : '--'; }
+  function _mediaSrc(item) {
+    var path = item && (item.thumbnail_url || item.url || item.thumbnail_path || item.file_path);
+    if (!path) return '';
+    if (/^(https?:)?\/\//i.test(path) || path.charAt(0) === '/') return path;
+    if (path.indexOf('static/') === 0) return '/' + path;
+    return '/static/' + path;
+  }
 
   window.msDashboard = {
     load: function () {
       _get('/api/dashboard').then(function (d) {
-        _setText('msDashStatGenerating', d.queue_active || 0);
-        _setText('msDashStatApprovals', (d.pending_approvals || []).length);
-        _setText('msDashStatSocial', (d.social_queue || []).length);
-        _setText('msDashStatTotal', d.total_generated || 0);
-        _setText('msDashStatFailed', 0);
+        _setText('msDashStatGenerating', d.queue_active != null ? d.queue_active : (d.active_jobs || []).length);
+        _setText('msDashStatApprovals', d.pending_approval_count != null ? d.pending_approval_count : (d.pending_approvals || []).length);
+        _setText('msDashStatSocial', d.social_queue_count != null ? d.social_queue_count : (d.social_queue || []).length);
+        _setText('msDashStatTotal', d.total_generated != null ? d.total_generated : 0);
+        _setText('msDashStatFailed', d.queue_failed != null ? d.queue_failed : 0);
+        _setText('msDashUpdated', 'Updated ' + new Date().toLocaleTimeString());
         msDashboard._renderGenerating(d.active_jobs || []);
         msDashboard._renderApprovals(d.pending_approvals || []);
         msDashboard._renderSocialQueue(d.social_queue || []);
@@ -28,7 +36,7 @@
 
     start: function () {
       msDashboard.load();
-      if (!_timer) _timer = setInterval(msDashboard.load, 15000);
+      if (!_timer) _timer = setInterval(msDashboard.load, 10000);
     },
 
     stop: function () {
@@ -79,9 +87,9 @@
         row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
         var thumb = document.createElement('div');
         thumb.style.cssText = 'width:36px;height:36px;border-radius:4px;background:#1a2a3a;flex-shrink:0;overflow:hidden;';
-        if (item.canonical_image_path) {
+        if (item.thumbnail_url || item.file_path || item.thumbnail_path || item.canonical_image_path) {
           var img = document.createElement('img');
-          img.src = item.canonical_image_path;
+          img.src = _mediaSrc(item);
           img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
           thumb.appendChild(img);
         }
@@ -99,7 +107,9 @@
         var approve = document.createElement('button');
         approve.style.cssText = 'background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#22c55e;padding:3px 7px;border-radius:3px;font-size:0.6rem;cursor:pointer;';
         approve.textContent = '✓';
-        approve.onclick = (function (pid) { return function () { msDashboard._approve(pid); }; })(item.portrait_id);
+        approve.onclick = (function (agentId, mediaId) {
+          return function () { msDashboard._approve(agentId, mediaId); };
+        })(item.agent_id, item.media_id);
         btns.appendChild(approve);
         row.appendChild(thumb); row.appendChild(info); row.appendChild(btns);
         el.appendChild(row);
@@ -135,12 +145,19 @@
       var el = _el('msDashRecentGrid');
       if (!el) return;
       el.textContent = '';
+      if (!items.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'grid-column:1/-1;color:#555;font-size:0.7rem;padding:6px 0;';
+        empty.textContent = 'No completed media yet.';
+        el.appendChild(empty);
+        return;
+      }
       items.slice(0, 6).forEach(function (item) {
         var div = document.createElement('div');
         div.style.cssText = 'aspect-ratio:1;background:#1a2a3a;border-radius:4px;border:1px solid #222;overflow:hidden;cursor:pointer;';
-        if (item.thumbnail_url || item.url) {
+        if (item.thumbnail_url || item.url || item.thumbnail_path || item.file_path) {
           var img = document.createElement('img');
-          img.src = item.thumbnail_url || item.url;
+          img.src = _mediaSrc(item);
           img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
           img.loading = 'lazy';
           div.appendChild(img);
@@ -152,10 +169,18 @@
       });
     },
 
-    _approve: function (portraitId) {
-      fetch(_API + '/api/portraits/' + portraitId + '/approve', {
+    _approve: function (agentId, mediaId) {
+      if (!agentId || !mediaId) {
+        console.warn('[msDashboard] approval item is missing agent_id or media_id');
+        return;
+      }
+      fetch(_API + '/api/portraits/' + agentId + '/approve', {
         method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ media_id: mediaId })
+      }).then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
       }).then(function () { msDashboard.load(); }).catch(function (err) { console.warn('[msDashboard] approve failed:', err); });
     }
   };

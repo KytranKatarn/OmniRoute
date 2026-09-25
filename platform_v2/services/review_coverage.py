@@ -174,6 +174,42 @@ def coverage(full_diff: str | None, shown_diff: str | None, bound_dropped=None) 
     }
 
 
+def file_progress(
+    full_diff: str | None,
+    processed_paths: Iterable[str] | None = None,
+    shown_diff: str | None = None,
+    bound_dropped: Iterable[str] | None = None,
+) -> dict:
+    paths = diff_files(full_diff)
+    processed = set(processed_paths or [])
+    not_sent = set(bound_dropped or [])
+    current = coverage(full_diff, shown_diff or "", bound_dropped=bound_dropped)
+    partial = {entry.get("path"): entry.get("shown_pct") for entry in current.get("partial", [])}
+    rows = []
+    for path in paths:
+        if path in not_sent:
+            status = "not_sent"
+            percent = 0
+        elif path not in processed:
+            status = "queued"
+            percent = 0
+        elif path in partial:
+            status = "partial"
+            percent = partial[path] or 0
+        else:
+            status = "complete"
+            percent = 100
+        rows.append({"path": path, "status": status, "percent": percent})
+    return {
+        "total_files": len(rows),
+        "fully_read_files": sum(row["status"] == "complete" for row in rows),
+        "partial_files": sum(row["status"] == "partial" for row in rows),
+        "queued_files": sum(row["status"] == "queued" for row in rows),
+        "not_sent_files": sum(row["status"] == "not_sent" for row in rows),
+        "files": rows,
+    }
+
+
 def coverage_note(cov: dict, *, max_listed: int = 12) -> str:
     """Human-readable coverage block. Lists the dropped paths — a count alone does not
     tell a reviewer whether the missing file was a README or the deploy path."""

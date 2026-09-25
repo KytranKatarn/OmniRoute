@@ -98,6 +98,19 @@ class TestMarkReviewProgress:
         # Returning False rather than raising lets the caller log-and-continue: a
         # review whose row was reaped out from under it should finish, not crash.
         assert prs.mark_review_progress(42, repo="o/r") is False
+    def test_start_stamps_a_total_run_clock(self, cur):
+        prs.mark_review_started(42, repo="o/r")
+        assert "review_started_at" in cur.sql, cur.sql
+        assert "review_file_progress" in cur.sql, cur.sql
+
+    def test_file_progress_is_best_effort_and_state_scoped(self, cur):
+        assert prs.mark_review_file_progress(42, repo="o/r", progress={"files": []}) is True
+        assert "review_status='in_progress'" in cur.sql
+        assert "review_file_progress" in cur.sql
+
+    def test_invalid_file_progress_is_not_written(self, cur):
+        assert prs.mark_review_file_progress(42, repo="o/r", progress=None) is False
+        assert cur.sql is None
 
 
 def _analyzer():
@@ -120,6 +133,10 @@ class TestWiredIntoThePassLoop:
         # The next pass boundary after the loop header — not somewhere outside it.
         i_next_def = src.index("\ndef ", i_loop)
         assert i_loop < i_call < i_next_def, "the heartbeat must fire inside the pass loop"
+
+    def test_file_progress_is_published_at_pass_boundaries(self):
+        src = _analyzer()
+        assert src.count("_publish_file_progress(") >= 3
 
     def test_it_cannot_fail_the_review(self):
         # A monitoring write must never break the thing it monitors.

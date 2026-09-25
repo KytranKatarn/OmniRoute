@@ -788,7 +788,7 @@ async function generateAllMissingPortraits() {
             fail++;
         }
     }
-    if (btn) btn.textContent = 'Done — ' + ok + ' ok, ' + fail + ' failed';
+    if (btn) btn.textContent = 'Queued ' + ok + ' for review — ' + fail + ' failed';
     // Refresh roster after a moment to pick up new avatar_urls
     setTimeout(loadRoster, 1500);
 }
@@ -1183,6 +1183,12 @@ async function loadKinWelfare() {
         if (rc) { rc.textContent = (d.resting_count || 0) + ' resting'; rc.style.color = (d.resting_count || 0) > 0 ? '#f59e0b' : '#10b981'; }
         if (al) { al.textContent = (d.at_limit_count || 0) + ' at limit'; al.style.color = (d.at_limit_count || 0) > 0 ? '#ef4444' : 'var(--dhq-text-dim)'; }
         if (ac) ac.textContent = (d.active_count || 0) + ' active';
+        var mq = document.getElementById('kinMediaQueueCount');
+        if (mq) {
+            var mediaQueue = d.media_queue || {};
+            mq.textContent = (mediaQueue.active || 0) + ' media active · ' + (mediaQueue.failed || 0) + ' failed 24h';
+            mq.style.color = (mediaQueue.failed || 0) > 0 ? '#ef4444' : ((mediaQueue.active || 0) > 0 ? '#a78bfa' : 'var(--dhq-text-dim)');
+        }
 
         if (!el) return;
         el.innerHTML = '';
@@ -5356,7 +5362,9 @@ function loadQueueStatus() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (!data.success) return;
-            var total = (data.queued || 0) + (data.running || 0);
+            var queued = data.platform_queued != null ? data.platform_queued : (data.queued || 0);
+            var running = data.platform_running != null ? data.platform_running : (data.running || 0);
+            var total = queued + running;
 
             // Badge
             var badge = document.getElementById('queueTotalBadge');
@@ -5365,8 +5373,8 @@ function loadQueueStatus() {
                     badge.textContent = 'idle';
                     badge.style.color = 'var(--dhq-text-dim)';
                 } else {
-                    badge.textContent = data.queued + ' queued · ' + data.running + ' running';
-                    badge.style.color = data.running > 0 ? '#10b981' : '#f59e0b';
+                    badge.textContent = queued + ' queued · ' + running + ' running';
+                    badge.style.color = running > 0 ? '#10b981' : '#f59e0b';
                 }
             }
 
@@ -5432,6 +5440,35 @@ function loadQueueStatus() {
                         row.appendChild(cnt); row.appendChild(st);
                         qp.appendChild(row);
                     });
+
+                    if (data.media_jobs && data.media_jobs.length) {
+                        var mediaHeader = document.createElement('div');
+                        mediaHeader.style.cssText = 'margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);color:#00bcd4;font-size:0.62rem;letter-spacing:1px;';
+                        mediaHeader.textContent = 'MEDIA STUDIO JOBS';
+                        qp.appendChild(mediaHeader);
+                        data.media_jobs.forEach(function(job) {
+                            var mediaRow = document.createElement('div');
+                            var mediaActive = job.status === 'pending' || job.status === 'dispatched' || job.status === 'generating';
+                            var mediaColor = mediaActive ? '#10b981' : '#ef4444';
+                            mediaRow.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.68rem;';
+                            var mediaDot = document.createElement('span');
+                            mediaDot.style.cssText = 'width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + mediaColor + ';';
+                            var mediaName = document.createElement('span');
+                            mediaName.style.cssText = 'color:var(--dhq-text-main);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                            mediaName.textContent = '#' + job.id + ' · ' + (job.agent_name || 'User') + ' · ' + (job.media_type || 'image');
+                            var mediaModel = document.createElement('span');
+                            mediaModel.style.cssText = 'color:var(--dhq-text-dim);font-size:0.6rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                            mediaModel.textContent = job.model || job.provider || '—';
+                            var mediaStatus = document.createElement('span');
+                            mediaStatus.style.cssText = 'color:' + mediaColor + ';font-size:0.6rem;text-transform:uppercase;';
+                            mediaStatus.textContent = job.status || '';
+                            mediaRow.appendChild(mediaDot);
+                            mediaRow.appendChild(mediaName);
+                            mediaRow.appendChild(mediaModel);
+                            mediaRow.appendChild(mediaStatus);
+                            qp.appendChild(mediaRow);
+                        });
+                    }
                 }
             }
 

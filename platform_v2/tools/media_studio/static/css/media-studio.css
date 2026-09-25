@@ -1447,6 +1447,14 @@
     text-overflow: ellipsis;
 }
 
+.ms-portrait-meta {
+    color: var(--ms-text-tertiary);
+    font-size: 0.62rem;
+    line-height: 1.35;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
 .ms-portrait-actions {
     display: flex;
     justify-content: flex-end;

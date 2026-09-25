@@ -1667,6 +1667,36 @@ def register_dashboard_routes(bp, auth_decorator):
                     except Exception:
                         pass
 
+                platform_queued = sum(
+                    int(item.get("count") or 0)
+                    for item in platform_queues
+                    if item.get("status") in ("queued", "pending")
+                )
+                platform_running = sum(
+                    int(item.get("count") or 0)
+                    for item in platform_queues
+                    if item.get("status") in ("running", "dispatched", "generating", "in_progress")
+                )
+
+                try:
+                    cur.execute(
+                        """
+                        SELECT q.id, q.status, q.media_type, q.created_at, q.started_at,
+                               q.completed_at, q.params->>'model' AS model,
+                               q.params->>'provider' AS provider,
+                               CASE WHEN q.owner_type = 'agent' THEN a.display_name ELSE 'User' END AS agent_name
+                        FROM media_generation_queue q
+                        LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
+                        WHERE q.status IN ('pending', 'dispatched', 'generating')
+                           OR (q.status = 'failed' AND q.created_at > NOW() - INTERVAL '24 hours')
+                        ORDER BY q.created_at DESC
+                        LIMIT 20
+                        """
+                    )
+                    media_jobs = [dict(row) for row in cur.fetchall()]
+                except Exception:
+                    media_jobs = []
+
             # --- fleet node model state from DB (job #46 saves every 5m) ---
             fleet_loaded = []
             remote_rows = []
@@ -2040,6 +2070,9 @@ def register_dashboard_routes(bp, auth_decorator):
                 # `queued`/`running` keys keep their all-rows meaning.
                 queued_real=totals_real.get("queued", 0),
                 running_real=totals_real.get("running", 0),
+                platform_queued=platform_queued,
+                platform_running=platform_running,
+                media_jobs=media_jobs,
                 items=items,
                 loaded=loaded,
                 gpu_hw=gpu_hw,

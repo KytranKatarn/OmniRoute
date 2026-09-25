@@ -22,32 +22,37 @@
 
           <div id="msDashUpdated" style="text-align:right;color:#64748b;font-size:0.62rem;margin-bottom:8px;">—</div>
 
-          <!-- 5 stat counters -->
+          <!-- 5 stat counters (click to jump to the relevant tab) -->
           <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:20px;">
-            <div class="ms-stat-card">
+            <div class="ms-stat-card ms-jump" onclick="msDashboard.jumpTo('queue');" title="View generation queue">
               <div class="ms-stat-label">Generating</div>
               <div class="ms-stat-value" id="msDashStatGenerating">--</div>
+              <div class="ms-stat-sub" id="msDashSubGenerating"></div>
               <i data-lucide="activity" class="ms-stat-icon"></i>
             </div>
-            <div class="ms-stat-card">
+            <div class="ms-stat-card ms-jump" onclick="msDashboard.jumpTo('portraits');" title="Review portraits">
               <div class="ms-stat-label">Needs Approval</div>
               <div class="ms-stat-value" id="msDashStatApprovals" style="color:#f59e0b;">--</div>
+              <div class="ms-stat-sub" id="msDashSubApprovals"></div>
               <i data-lucide="check-circle" class="ms-stat-icon"></i>
             </div>
-            <div class="ms-stat-card">
+            <div class="ms-stat-card ms-jump" onclick="msDashboard.jumpTo('social-video');" title="View social queue">
               <div class="ms-stat-label">Social Queued</div>
               <div class="ms-stat-value" id="msDashStatSocial" style="color:#a78bfa;">--</div>
+              <div class="ms-stat-sub" id="msDashSubSocial"></div>
               <i data-lucide="send" class="ms-stat-icon"></i>
             </div>
-            <div class="ms-stat-card">
+            <div class="ms-stat-card ms-jump" onclick="msDashboard.jumpTo('gallery');" title="Open gallery">
               <div class="ms-stat-label">Total Assets</div>
               <div class="ms-stat-value" id="msDashStatTotal">--</div>
+              <div class="ms-stat-sub" id="msDashSubTotal"></div>
               <i data-lucide="layers" class="ms-stat-icon"></i>
             </div>
-            <div class="ms-stat-card">
+            <div class="ms-stat-card ms-jump" onclick="msDashboard.jumpTo('queue');" title="View failed jobs">
                <div class="ms-stat-label">Failed (all)</div>
 
               <div class="ms-stat-value" id="msDashStatFailed" style="color:#ef4444;">--</div>
+              <div class="ms-stat-sub" id="msDashSubFailed"></div>
               <i data-lucide="alert-triangle" class="ms-stat-icon"></i>
             </div>
           </div>
@@ -59,7 +64,10 @@
               <div id="msDashGeneratingList"></div>
             </div>
             <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:6px;padding:12px;">
-              <div style="color:#f59e0b;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">&#x2713; Needs Approval</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                <div style="color:#f59e0b;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;">&#x2713; Needs Approval</div>
+                <a href="#" id="msDashShowDismissed" onclick="msDashboard.toggleDismissed();return false;" style="color:#555;font-size:0.6rem;text-decoration:none;cursor:pointer;">Show dismissed</a>
+              </div>
               <div id="msDashApprovalList"></div>
             </div>
             <div style="background:rgba(167,139,250,0.04);border:1px solid rgba(167,139,250,0.15);border-radius:6px;padding:12px;">

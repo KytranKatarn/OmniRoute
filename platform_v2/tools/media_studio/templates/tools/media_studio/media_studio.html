@@ -464,6 +464,7 @@
                          </div>
                          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;">
                              <button id="ms-id-suggest-btn" onclick="suggestIdentityFields()" style="background:rgba(255,170,0,.15);color:#ffaa00;border:1px solid rgba(255,170,0,.4);border-radius:4px;padding:6px 14px;font-size:.75rem;cursor:pointer;">Suggest from reference</button>
+                             <button id="ms-id-batch-btn" onclick="startIdentityBatch()" title="Draft identity fields for every agent with an approved portrait" style="background:rgba(255,170,0,.08);color:#ffaa00;border:1px dashed rgba(255,170,0,.35);border-radius:4px;padding:6px 14px;font-size:.75rem;cursor:pointer;">Suggest all agents…</button>
                              <button onclick="saveIdentityFields()" style="background:rgba(0,229,255,.12);color:#00e5ff;border:1px solid rgba(0,229,255,.35);border-radius:4px;padding:6px 14px;font-size:.75rem;cursor:pointer;">Save identity fields</button>
                              <span id="ms-id-fields-status" style="font-size:.66rem;color:rgba(255,255,255,.4);"></span>
                          </div>
@@ -1601,9 +1602,15 @@
     };
 
     window.bulkDelete = function() {
-        if (!confirm('Delete ' + selectedMediaIds.length + ' items?')) return;
-        api('POST', '/api/gallery/bulk/delete', { media_ids: selectedMediaIds })
-            .then(function() { bulkDeselectAll(); loadGallery(1); });
+        showMsConfirm(
+            'Delete Selection',
+            'Delete ' + selectedMediaIds.length + ' items?',
+            function() {
+                api('POST', '/api/gallery/bulk/delete', { media_ids: selectedMediaIds })
+                    .then(function() { bulkDeselectAll(); loadGallery(1); });
+            },
+            'Delete'
+        );
     };
 
     window.bulkTag = function() {
@@ -1627,17 +1634,24 @@
 
     window.bulkExport = function() {
         api('POST', '/api/export', { media_ids: selectedMediaIds }).then(function(data) {
-            alert('Export started! Job ID: ' + data.job_id + '. Check queue for download link.');
+            showMsToast('Export started! Job ID: ' + data.job_id + '. Check queue for download link.', 'success');
             bulkDeselectAll();
         });
     };
 
     window.bulkRegenerate = function() {
-        if (!confirm('Re-queue ' + selectedMediaIds.length + ' items for regeneration?')) return;
-        api('POST', '/api/gallery/bulk/regenerate', { media_ids: selectedMediaIds }).then(function(data) {
-            alert('Queued: ' + data.queued + ', Skipped: ' + data.skipped);
-            bulkDeselectAll();
-        });
+        if (!window.selectedMediaIds || !selectedMediaIds.length) return;
+        showMsConfirm(
+            'Re-queue Selection',
+            'Re-queue ' + selectedMediaIds.length + ' items for regeneration?',
+            function() {
+                api('POST', '/api/gallery/bulk/regenerate', { media_ids: selectedMediaIds }).then(function(data) {
+                    showMsToast('Queued: ' + data.queued + ', Skipped: ' + data.skipped, 'success');
+                    bulkDeselectAll();
+                });
+            },
+            'Re-queue'
+        );
     };
 
     // ─── Facets + Collections Load ──────────────────────────────────
@@ -1921,6 +1935,9 @@
             }
 
             addMeta("prompt", "Prompt", item.prompt);
+            if (item.provider) addMeta("provider", "Provider", item.provider);
+            if (item.cost) addMeta("cost", "Cost", "$" + parseFloat(item.cost).toFixed(4));
+            addMeta("source", "Source", (item.owner_type === 'agent') ? 'Portrait Engine' : (item.owner_type || 'User'));
             addMeta("model", "Model", item.model);
             addMeta("size", "Size", (item.width || "?") + " x " + (item.height || "?"));
             addMeta("steps", "Steps", item.steps);
@@ -1959,7 +1976,7 @@
                     if (window.msGallery && typeof msGallery.loadAssets === "function") msGallery.loadAssets();
                 }).catch(function(err) {
                     catSel.disabled = false;
-                    alert("Failed to change category: " + (err.message || err));
+                    showMsToast("Failed to change category: " + (err.message || err), 'error');
                 });
             });
             catRow.appendChild(catSel);
@@ -1987,29 +2004,21 @@
 
             var favBtn = document.createElement("button");
             favBtn.className = "ms-modal-action-btn" + (item.is_favorite ? " fav-active" : "");
+            favBtn.title = "Toggle favorite — approval is separate (Use as Portrait)";
             favBtn.addEventListener("click", function() {
-                var isAgentPortrait = item.owner_type === 'agent' && item.owner_id;
-                if (isAgentPortrait && !item.is_favorite) {
-                    // For portrait variants: Favorite = select + deploy as canonical portrait
-                    favBtn.disabled = true;
-                    favText.textContent = ' Setting...';
-                    Promise.all([
-                        api("POST", "/api/portraits/" + item.owner_id + "/approve", { media_id: item.id }),
-                        toggleFavorite(item.id)
-                    ]).then(function() {
-                        item.is_favorite = true;
-                        favBtn.classList.add("fav-active");
-                        favText.textContent = ' Favorited';
-                        favBtn.disabled = false;
-                        if (typeof loadPortraitDetail === 'function') loadPortraitDetail(item.owner_id);
-                    }).catch(function(err) {
-                        favBtn.disabled = false;
-                        favText.textContent = ' Favorite';
-                        alert('Failed: ' + err.message);
-                    });
-                } else {
-                    toggleFavorite(item.id);
-                }
+                var favTarget = item.is_favorite ? false : true;
+                favBtn.disabled = true;
+                favText.textContent = ' Setting...';
+                api("POST", "/api/gallery/" + item.id + "/favorite").then(function() {
+                    item.is_favorite = favTarget;
+                    favBtn.classList.toggle("fav-active", favTarget);
+                    favText.textContent = favTarget ? ' Favorited' : ' Favorite';
+                    favBtn.disabled = false;
+                }).catch(function(err) {
+                    favBtn.disabled = false;
+                    favText.textContent = item.is_favorite ? ' Favorited' : ' Favorite';
+                    showMsToast('Failed to toggle favorite: ' + err.message, 'error');
+                });
             });
             var favIcon = document.createElement("i");
             favIcon.setAttribute("data-lucide", "star");
@@ -2031,18 +2040,24 @@
                 genBtn.className = "ms-modal-action-btn";
                 genBtn.title = "Generate another variant for this agent";
                 genBtn.addEventListener("click", function() {
-                    if (!confirm("Generate a new variant for this agent?")) return;
                     genBtn.disabled = true;
-                    genBtn.querySelector('span').textContent = ' Generating...';
-                    api("POST", "/api/portraits/" + agentId + "/generate-variant", _identityPayload()).then(function() {
-                        closeMediaModal();
-                        if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
-                    }).catch(function(err) {
-                        alert("Generate failed: " + err.message);
-                        genBtn.disabled = false;
-                        genBtn.querySelector('span').textContent = ' Generate New';
-                        genBtn.disabled = false;
-                    });
+                    showMsConfirm(
+                        'Generate Variant',
+                        'Generate a new variant for this agent?',
+                        function() {
+                            genBtn.querySelector('span').textContent = ' Generating...';
+                            api("POST", "/api/portraits/" + agentId + "/generate-variant", _identityPayload()).then(function() {
+                                closeMediaModal();
+                                if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
+                                showMsToast('Variant generation submitted — check Queue tab.', 'success');
+                            }).catch(function(err) {
+                                showMsToast('Generate failed: ' + err.message, 'error');
+                                genBtn.disabled = false;
+                                genBtn.querySelector('span').textContent = ' Generate New';
+                            });
+                        },
+                        'Generate'
+                    );
                 });
                 var genIcon = document.createElement("i");
                 genIcon.setAttribute("data-lucide", "refresh-cw");
@@ -2060,17 +2075,24 @@
                 canonBtn.className = "ms-modal-action-btn ms-btn-success";
                 canonBtn.title = "Use this image as the agent's portrait — updates Roster, Org Chart, and public website";
                 canonBtn.addEventListener("click", function() {
-                    if (!confirm("Use this image as the agent's portrait?\n\nIt will appear on the Roster, Org Chart, and public website.")) return;
                     canonBtn.disabled = true;
-                    canonBtn.querySelector('span').textContent = ' Saving...';
-                    api("POST", "/api/portraits/" + agentId + "/approve", { media_id: item.id }).then(function() {
-                        closeMediaModal();
-                        if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
-                    }).catch(function(err) {
-                        alert("Failed: " + err.message);
-                        canonBtn.disabled = false;
-                        canonBtn.querySelector('span').textContent = ' Use as Portrait';
-                    });
+                    showMsConfirm(
+                        'Use as Portrait',
+                        "Use this image as the agent's portrait?\n\nIt will appear on the Roster, Org Chart, and public website.",
+                        function() {
+                            canonBtn.querySelector('span').textContent = ' Saving...';
+                            api("POST", "/api/portraits/" + agentId + "/approve", { media_id: item.id }).then(function() {
+                                closeMediaModal();
+                                if (typeof loadPortraitDetail === 'function') loadPortraitDetail(agentId);
+                                showMsToast('Portrait saved as canonical.', 'success');
+                            }).catch(function(err) {
+                                showMsToast('Failed: ' + err.message, 'error');
+                                canonBtn.disabled = false;
+                                canonBtn.querySelector('span').textContent = ' Use as Portrait';
+                            });
+                        },
+                        'Set as Portrait'
+                    );
                 });
                 var canonIcon = document.createElement("i");
                 canonIcon.setAttribute("data-lucide", "check-circle");
@@ -2109,7 +2131,12 @@
             var delBtn = document.createElement("button");
             delBtn.className = "ms-modal-action-btn danger";
             delBtn.addEventListener("click", function() {
-                if (confirm("Delete this media?")) deleteMedia(item.id);
+                showMsConfirm(
+                    'Delete Media',
+                    'Delete this media? This cannot be undone.',
+                    function() { deleteMedia(item.id); },
+                    'Delete'
+                );
             });
             var delIcon = document.createElement("i");
             delIcon.setAttribute("data-lucide", "trash-2");
@@ -2153,7 +2180,7 @@
             }
         }).catch(function(err) {
             console.error("Delete failed:", err);
-            alert("Delete failed: " + (err.message || err));
+            showMsToast("Delete failed: " + (err.message || err), 'error');
         });
     };
 
@@ -2315,11 +2342,11 @@
                 ? data.rescued + ' orphaned job(s) recovered! Refresh the Portraits tab to see new variants.'
                 : 'No orphaned jobs found. All ComfyUI completions are accounted for.';
             if (data.error) msg = 'Rescue failed: ' + data.error;
-            alert(msg);
+            showMsToast(msg, data.error ? 'error' : 'success');
             loadQueue();
         }).catch(function(err) {
             if (btn) { btn.disabled = false; btn.textContent = 'Rescue Orphaned'; }
-            alert('Rescue failed: ' + err.message);
+            showMsToast('Rescue failed: ' + err.message, 'error');
         });
     };
 
@@ -2633,6 +2660,7 @@
         suggestBtn.title = (data && data.has_reference) ? '' : 'Approved reference image required';
         var fieldsStatus = document.getElementById('ms-id-fields-status');
         if (fieldsStatus) fieldsStatus.textContent = '';
+        _applyIdentityBatchDraft();
     }
 
     window.suggestIdentityFields = function() {
@@ -2691,6 +2719,81 @@
         })
         .catch(function(err) { if (status) status.textContent = 'Save failed: ' + err; });
     };
+
+    var _identityBatchTimer = null;
+    var _identityBatchDrafts = null;
+    var _identityBatchTaskId = null;
+
+    function _identityBatchSetStatus(msg, color) {
+        var status = document.getElementById('ms-id-fields-status');
+        if (status) { status.textContent = msg || ''; if (color) status.style.color = color; }
+    }
+
+    function _identityBatchPoll() {
+        if (!_identityBatchTaskId) return;
+        fetch(API_BASE + '/api/portraits/identity-suggest-batch/' + _identityBatchTaskId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.error) { _identityBatchSetStatus(data.error, 'rgba(239,68,68,.9)'); _identityBatchStopPolling(); return; }
+                if (data.status === 'running') {
+                    var done = Object.keys(data.results || {}).length;
+                    _identityBatchSetStatus('Batch drafting… ' + done + ' agents done.', null);
+                    return;
+                }
+                _identityBatchStopPolling();
+                if (data.status === 'completed') {
+                    _identityBatchDrafts = data.results || {};
+                    var failed = data.failed_count || 0;
+                    var total = Object.keys(_identityBatchDrafts).length;
+                    var ok = total - failed;
+                    _identityBatchSetStatus('Batch done: ' + ok + ' drafted' + (failed ? ', ' + failed + ' failed' : '') + '. Drafts for this agent, if any, are loaded below — review, edit, then Save.', 'rgba(0,229,255,.85)');
+                    if (_currentAgentId) loadPortraitDetail(_currentAgentId);
+                } else {
+                    _identityBatchSetStatus('Batch failed.', 'rgba(239,68,68,.9)');
+                }
+            })
+            .catch(function(err) { _identityBatchStopPolling(); _identityBatchSetStatus('Batch status check failed: ' + err, 'rgba(239,68,68,.9)'); });
+    }
+
+    function _identityBatchStopPolling() {
+        if (_identityBatchTimer) { clearInterval(_identityBatchTimer); _identityBatchTimer = null; }
+        var btn = document.getElementById('ms-id-batch-btn');
+        if (btn) btn.disabled = false;
+    }
+
+    window.startIdentityBatch = function() {
+        var btn = document.getElementById('ms-id-batch-btn');
+        if (btn) btn.disabled = true;
+        _identityBatchSetStatus('Starting batch…', null);
+        fetch(API_BASE + '/api/portraits/identity-suggest-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: '{}'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { _identityBatchSetStatus(data.error, 'rgba(239,68,68,.9)'); if (btn) btn.disabled = false; return; }
+            _identityBatchTaskId = data.task_id;
+            _identityBatchSetStatus('Batch started (' + data.task_id + ') — drafting…', null);
+            if (_identityBatchTimer) clearInterval(_identityBatchTimer);
+            _identityBatchTimer = setInterval(_identityBatchPoll, 3000);
+            _identityBatchPoll();
+        })
+        .catch(function(err) { _identityBatchSetStatus('Batch start failed: ' + err, 'rgba(239,68,68,.9)'); if (btn) btn.disabled = false; });
+    };
+
+    function _applyIdentityBatchDraft() {
+        if (!_currentAgentId || !_identityBatchDrafts) return;
+        var draft = _identityBatchDrafts[String(_currentAgentId)];
+        if (!draft || !draft.success || !draft.fields) return;
+        var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; };
+        set('ms-id-appearance', draft.fields.appearance_notes);
+        set('ms-id-gender', draft.fields.gender);
+        set('ms-id-ethnicity', draft.fields.ethnicity);
+        set('ms-id-age', draft.fields.age_range);
+        var status = document.getElementById('ms-id-fields-status');
+        if (status && draft.success) status.textContent = 'Batch draft loaded — review, edit, then Save.';
+    }
 
     var _currentPortraitData = null;
 
@@ -2868,7 +2971,7 @@
 
                 // Show/hide buttons
                 document.getElementById('ms-approve-btn').style.display = (hasPortrait && !data.approved) ? '' : 'none';
-                document.getElementById('ms-variant-btn').style.display = data.approved ? '' : 'none';
+                document.getElementById('ms-variant-btn').style.display = hasPortrait ? '' : 'none';
 
                 // Identity prompt — show saved visual description, or empty with placeholder.
                 // default_identity_prompt is bio text (not a valid generation prompt).
@@ -3061,11 +3164,40 @@
         _msConfirmCallback = null;
     };
 
+    // ── LCARS Toast — brief non-blocking feedback replacing native alert() ──
+    var _msToastTimer = null;
+    window.showMsToast = function(message, kind) {
+        var toast = document.getElementById('msToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'msToast';
+            toast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:10001;max-width:380px;'
+                + 'padding:11px 16px;border-radius:6px;font-size:.8rem;line-height:1.5;'
+                + 'box-shadow:0 8px 28px rgba(0,0,0,0.55);background:#1a1a2e;'
+                + 'border:1px solid rgba(0,229,255,0.4);color:rgba(255,255,255,0.88);'
+                + 'opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;'
+                + 'pointer-events:none;font-family:Antonio,sans-serif;letter-spacing:.2px;';
+            document.body.appendChild(toast);
+        }
+        var border = kind === 'error' ? 'rgba(239,68,68,0.55)' : (kind === 'success' ? 'rgba(34,197,94,0.6)' : 'rgba(0,229,255,0.4)');
+        var bg = kind === 'error' ? '#2a1420' : '#1a1a2e';
+        toast.style.borderColor = border;
+        toast.style.background = bg;
+        toast.textContent = message;
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+        if (_msToastTimer) clearTimeout(_msToastTimer);
+        _msToastTimer = setTimeout(function() {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(8px)';
+        }, 4200);
+    };
+
     window.generateCanonical = function() {
         if (!_currentAgentId) return;
         var prompt = document.getElementById('ms-identity-prompt').value.trim();
         if (!prompt) {
-            alert('No identity prompt set. Set one in DHQ Roster first.');
+            showMsToast('No identity prompt set. Set one in DHQ Roster first.', 'error');
             return;
         }
         var agentName = (document.getElementById('ms-portrait-agent-name') || {}).textContent || 'this agent';
@@ -3182,13 +3314,16 @@
     window.refinePromptWithMuse = function() {
         if (!_currentAgentId) return;
         var feedback = (document.getElementById('ms-refine-input').value || '').trim();
-        if (!feedback) { alert('Enter feedback for M.U.S.E. first.'); return; }
+        if (!feedback) { showMsToast('Enter feedback for M.U.S.E. first.', 'error'); return; }
 
         var btn = document.getElementById('ms-refine-btn');
         var statusEl = document.getElementById('ms-refine-status');
         var streamEl = document.getElementById('ms-refine-stream');
         var resultEl = document.getElementById('ms-refine-result');
         var green = 'rgba(34,197,94,0.8)';
+
+        var _lastVision = '';
+        var _lastAgent = '';
 
         if (btn) { btn.disabled = true; btn.textContent = 'Working...'; }
         if (statusEl) statusEl.textContent = '';
@@ -3219,6 +3354,7 @@
                     if (vl) { vl.textContent = '⟳ ' + (evt.label || 'Analyzing portrait...'); vl.style.color = 'rgba(0,229,255,0.8)'; }
                 } else if (evt.status === 'done') {
                     if (vl) { vl.textContent = '✓ Vision analyzed'; vl.style.color = green; }
+                    if (evt.result) _lastVision = evt.result;
                     if (vR && evt.result) { vR.textContent = '"' + evt.result + '"'; vR.style.display = ''; }
                 }
             } else if (evt.step === 'agent') {
@@ -3226,6 +3362,7 @@
                     if (al) { al.textContent = '⟳ ' + (evt.label || 'Consulting agent...'); al.style.color = 'rgba(255,170,0,0.8)'; }
                 } else if (evt.status === 'done') {
                     if (al) { al.textContent = '✓ Agent consulted'; al.style.color = green; }
+                    if (evt.result) _lastAgent = evt.result;
                     if (aR && evt.result) { aR.textContent = evt.result; aR.style.display = ''; }
                 }
             } else if (evt.step === 'muse') {
@@ -3243,9 +3380,25 @@
                 if (expl) { expl.textContent = evt.explanation || ''; expl.style.display = evt.explanation ? '' : 'none'; }
                 if (sugg) sugg.value = evt.refined_prompt || '';
                 if (resultEl) resultEl.style.display = '';
-                var round = {feedback: feedback, refined_prompt: evt.refined_prompt, explanation: evt.explanation, created_at: new Date().toISOString()};
+                var round = {
+                    feedback: feedback || '',
+                    vision_description: _lastVision,
+                    agent_perspective: _lastAgent,
+                    refined_prompt: evt.refined_prompt || '',
+                    explanation: evt.explanation || '',
+                    accepted: false,
+                    created_at: new Date().toISOString()
+                };
                 _refineHistory.push(round);
                 try { localStorage.setItem('ms_refine_history_' + _currentAgentId, JSON.stringify(_refineHistory)); } catch(_) {}
+                // Persist the round to the DB refinement-log so history survives a browser switch.
+                try {
+                    fetch(API_BASE + '/api/portraits/' + _currentAgentId + '/refinement-log', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(round)
+                    }).catch(function() {});
+                } catch(_) {}
                 var hBtn = document.getElementById('ms-history-toggle');
                 if (hBtn) { hBtn.style.display = ''; hBtn.textContent = 'History (' + _refineHistory.length + ')'; }
                 _updateHistoryPanel();
@@ -3390,12 +3543,12 @@
             method: 'PUT', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({prompt: prompt})
         }).then(function(r) { return r.json(); }).then(function(data) {
-            if (data.error) { alert('Save failed: ' + data.error); return; }
+            if (data.error) { showMsToast('Save failed: ' + data.error, 'error'); return; }
             document.getElementById('ms-identity-prompt').value = prompt;
             document.getElementById('ms-refine-result').style.display = 'none';
             document.getElementById('ms-refine-input').value = '';
             document.getElementById('ms-refine-status').textContent = 'Saved ✓';
-        }).catch(function(err) { alert('Failed: ' + err.message); });
+        }).catch(function(err) { showMsToast('Failed: ' + err.message, 'error'); });
     };
 
     window.refineAgain = function() {
@@ -3407,8 +3560,32 @@
     };
 
     window.dismissRefine = function() {
-        document.getElementById('ms-refine-result').style.display = 'none';
-        document.getElementById('ms-refine-stream').style.display = 'none';
+        if (_activeRefineAbort) { try { _activeRefineAbort.abort(); } catch (_e) {} }
+        var resultEl = document.getElementById('ms-refine-result');
+        var streamEl = document.getElementById('ms-refine-stream');
+        var inp = document.getElementById('ms-refine-input');
+        var sugg = document.getElementById('ms-refine-suggestion');
+        var expl = document.getElementById('ms-muse-explanation');
+        var lbl = document.getElementById('ms-suggested-label');
+        var statusEl = document.getElementById('ms-refine-status');
+        var btn = document.getElementById('ms-refine-btn');
+        if (resultEl) resultEl.style.display = 'none';
+        if (streamEl) streamEl.style.display = 'none';
+        if (inp) inp.value = '';
+        if (sugg) { sugg.value = ''; }
+        if (expl) { expl.textContent = ''; expl.style.display = 'none'; }
+        if (lbl) lbl.textContent = 'M.U.S.E. Refinement';
+        if (statusEl) statusEl.textContent = '';
+        if (btn) { btn.disabled = false; btn.textContent = 'ASK M.U.S.E.'; }
+        ['ms-step-vision-label','ms-step-agent-label','ms-step-muse-label'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) { el.textContent = '— Awaiting...'; el.style.color = 'rgba(255,255,255,0.3)'; }
+        });
+        ['ms-step-vision-result','ms-step-agent-result'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) { el.textContent = ''; el.style.display = 'none'; }
+        });
+        try { localStorage.removeItem('ms_refine_input_' + _currentAgentId); } catch(_) {}
     };
 
     window.generateVariant = function() {
@@ -3440,8 +3617,8 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            if (data.error) { alert(data.error); return; }
-            alert('Variant generation submitted. Check Queue tab for progress.');
+            if (data.error) { showMsToast(data.error, 'error'); return; }
+            showMsToast('Variant generation submitted. Check Queue tab for progress.', 'success');
         });
     };
 
@@ -3451,7 +3628,7 @@
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.variants || !data.variants.length) {
-                    alert('No images to approve. Generate a canonical first.');
+                    showMsToast('No images to approve. Generate a canonical first.', 'error');
                     return;
                 }
                 var mediaId = data.variants[0].id;
@@ -3462,8 +3639,9 @@
                 })
                 .then(function(r) { return r.json(); })
                 .then(function(result) {
-                    if (result.error) { alert(result.error); return; }
+                    if (result.error) { showMsToast(result.error, 'error'); return; }
                     loadPortraitDetail(_currentAgentId);
+                    showMsToast('Portrait approved and deployed.', 'success');
                 });
             });
     };
@@ -3830,7 +4008,7 @@
             if (panel.style.display === 'none') toggleQueuePanel();
             else { loadQueueStats(); loadQueueItems(); }
         }).catch(function(err) {
-            alert('Batch creation failed: ' + (err.message || err));
+            showMsToast('Batch creation failed: ' + (err.message || err), 'error');
             document.getElementById('msBatchSubmit').disabled = false;
         });
     };
@@ -4020,13 +4198,13 @@
     window.triggerAgentGeneration = function(agentName) {
         api('POST', '/api/agent-config/' + encodeURIComponent(agentName) + '/trigger').then(function(data) {
             if (data.error) {
-                alert(data.error);
+                showMsToast(data.error, 'error');
             } else {
-                alert('Generation queued: ID ' + (data.id || 'unknown'));
+                showMsToast('Generation queued: ID ' + (data.id || 'unknown'), 'success');
                 loadAgentConfig();
             }
         }).catch(function(err) {
-            alert('Trigger failed: ' + (err.message || err));
+            showMsToast('Trigger failed: ' + (err.message || err), 'error');
         });
     };
 
@@ -4186,7 +4364,7 @@
             if (maskData) body.mask_data = maskData;
 
             api('POST', '/api/media-studio/edit', body).then(function(data) {
-                if (data.error) { alert(data.error); return; }
+                if (data.error) { showMsToast(data.error, 'error'); return; }
                 closeEditModal();
                 if (data.status === 'completed') {
                     if (typeof loadGallery === 'function') loadGallery();
@@ -4202,7 +4380,7 @@
                     if (data.status === 'completed' || data.status === 'failed') {
                         clearInterval(interval);
                         if (data.status === 'completed' && typeof loadGallery === 'function') loadGallery();
-                        if (data.status === 'failed') alert('Edit failed: ' + (data.error_message || 'Unknown error'));
+                        if (data.status === 'failed') showMsToast('Edit failed: ' + (data.error_message || 'Unknown error'), 'error');
                     }
                 });
             }, 3000);
@@ -4500,7 +4678,7 @@
 
         window.saveTemplate = function() {
             var name = document.getElementById('msTplName').value.trim();
-            if (!name) { alert('Template name is required.'); return; }
+            if (!name) { showMsToast('Template name is required.', 'error'); return; }
             var payload = {
                 name: name,
                 description: document.getElementById('msTplDesc').value.trim(),
@@ -4513,7 +4691,7 @@
             api(method, path, payload).then(function() {
                 closeTemplateModal();
                 loadTemplateLibrary();
-            }).catch(function() { alert('Failed to save template.'); });
+            }).catch(function() { showMsToast('Failed to save template.', 'error'); });
         };
 
         window.runTemplate = function(templateId) {
@@ -4521,7 +4699,7 @@
                 if (data.execution_id) {
                     showPipelineProgress(data.execution_id);
                 }
-            }).catch(function() { alert('Failed to start pipeline.'); });
+            }).catch(function() { showMsToast('Failed to start pipeline.', 'error'); });
         };
 
         window.customizeTemplate = function(templateId) {
@@ -4531,14 +4709,15 @@
         window.cloneTemplate = function(templateId) {
             api('POST', '/api/media-studio/templates/' + templateId + '/clone', {}).then(function() {
                 loadTemplateLibrary();
-            }).catch(function() { alert('Failed to clone template.'); });
+            }).catch(function() { showMsToast('Failed to clone template.', 'error'); });
         };
 
         window.deleteTemplate = function(templateId) {
-            if (!confirm('Delete this template?')) return;
-            api('DELETE', '/api/media-studio/templates/' + templateId).then(function() {
-                loadTemplateLibrary();
-            }).catch(function() { alert('Failed to delete template.'); });
+            showMsConfirm('Delete Template', 'Delete this template?', function() {
+                api('DELETE', '/api/media-studio/templates/' + templateId).then(function() {
+                    loadTemplateLibrary();
+                }).catch(function() { showMsToast('Failed to delete template.', 'error'); });
+            }, 'Delete');
         };
 
         window.showPipelineProgress = function(executionId) {
@@ -4928,14 +5107,14 @@
         document.querySelectorAll('#msSharePlatforms input[type="checkbox"]:checked').forEach(function(cb) {
             platforms.push(cb.value);
         });
-        if (platforms.length === 0) { alert('Select at least one platform'); return; }
+        if (platforms.length === 0) { showMsToast('Select at least one platform', 'error'); return; }
 
         var caption = document.getElementById('msShareCaption').value.trim() || null;
         var scheduleVal = document.getElementById('msShareSchedule').value;
         var schedule_at = null;
 
         if (mode === 'schedule') {
-            if (!scheduleVal) { alert('Select a schedule time'); return; }
+            if (!scheduleVal) { showMsToast('Select a schedule time', 'error'); return; }
             schedule_at = new Date(scheduleVal).toISOString();
         }
 
@@ -4944,9 +5123,9 @@
                 media_library_ids: [_shareMediaId],
                 platforms: platforms,
             }).then(function(data) {
-                if (data.error) { alert(data.error); return; }
+                if (data.error) { showMsToast(data.error, 'error'); return; }
                 closeShareModal();
-                alert('Saved as draft (' + data.count + ' posts). Review in Social Media Manager.');
+                showMsToast('Saved as draft (' + data.count + ' posts). Review in Social Media Manager.', 'success');
             });
             return;
         }
@@ -4957,9 +5136,9 @@
             caption: caption,
             schedule_at: schedule_at,
         }).then(function(data) {
-            if (data.error) { alert(data.error); return; }
+            if (data.error) { showMsToast(data.error, 'error'); return; }
             closeShareModal();
-            alert(data.status === 'scheduled' ? 'Post scheduled!' : 'Post queued for publishing!');
+            showMsToast(data.status === 'scheduled' ? 'Post scheduled!' : 'Post queued for publishing!', 'success');
         });
     };
 
@@ -5050,7 +5229,7 @@
         document.querySelectorAll('input[name="svPlatform"]:checked').forEach(function(cb) {
             platforms.push(cb.value);
         });
-        if (!platforms.length) { alert("Select at least one platform."); return; }
+        if (!platforms.length) { showMsToast("Select at least one platform.", 'error'); return; }
 
         var payload = {
             content_type: document.getElementById("svContentType").value,
@@ -5063,11 +5242,11 @@
         };
 
         api("POST", "/api/social-video/generate", payload).then(function(data) {
-            alert(data.message || "Generation queued!");
+            showMsToast(data.message || "Generation queued!", 'success');
             svLoadStats();
             svLoadQueue();
         }).catch(function(err) {
-            alert("Generate failed: " + err.message);
+            showMsToast("Generate failed: " + err.message, 'error');
         });
     };
 
@@ -5208,29 +5387,29 @@
 
     window.svApprove = function(id) {
         api("POST", "/api/social-video/queue/" + id + "/approve", {}).then(function() {
-            alert("Approved!");
+            showMsToast("Approved!", 'success');
             svLoadQueue();
             svLoadStats();
-        }).catch(function(err) { alert("Approve failed: " + err.message); });
+        }).catch(function(err) { showMsToast("Approve failed: " + err.message, 'error'); });
     };
 
     window.svReject = function(id) {
         var reason = window.prompt("Rejection reason (optional):");
         if (reason === null) return; // cancelled
         api("POST", "/api/social-video/queue/" + id + "/reject", { reason: reason || "" }).then(function() {
-            alert("Rejected.");
+            showMsToast("Rejected.", 'success');
             svLoadQueue();
             svLoadStats();
-        }).catch(function(err) { alert("Reject failed: " + err.message); });
+        }).catch(function(err) { showMsToast("Reject failed: " + err.message, 'error'); });
     };
 
     window.svSchedule = function(id) {
         var dt = window.prompt("Schedule datetime (ISO, e.g. 2026-04-01T10:00:00):");
         if (!dt) return;
         api("POST", "/api/social-video/queue/" + id + "/schedule", { scheduled_at: dt }).then(function() {
-            alert("Scheduled!");
+            showMsToast("Scheduled!", 'success');
             svLoadQueue();
-        }).catch(function(err) { alert("Schedule failed: " + err.message); });
+        }).catch(function(err) { showMsToast("Schedule failed: " + err.message, 'error'); });
     };
 
 })();

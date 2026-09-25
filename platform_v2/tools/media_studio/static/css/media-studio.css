@@ -105,6 +105,25 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
+/* Dashboard stat cards: clickable rows (jump to relevant tab) + sub-label */
+.ms-stat-card.ms-jump {
+    cursor: pointer;
+}
+
+.ms-stat-card.ms-jump:hover {
+    border-color: rgba(var(--ms-accent-rgb), 0.6);
+}
+
+.ms-stat-sub {
+    margin-top: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    color: var(--ms-text-tertiary, rgba(255, 255, 255, 0.45));
+    line-height: 1.45;
+    min-height: 12px;
+}
+
 .ms-stat-card::before {
     content: '';
     position: absolute;
@@ -1538,6 +1557,82 @@
     align-items: center;
     margin-bottom: 16px;
     flex-wrap: wrap;
+    padding: 12px 14px;
+    background: rgba(0, 229, 255, 0.04);
+    border: 1px solid rgba(0, 229, 255, 0.16);
+    border-radius: 6px;
+}
+
+/* Base LCARS button — previously undefined, which left "Generate New",
+   "Edit in DHQ Roster" and "Use as Portrait" rendering as unstyled form
+   buttons. Variants: accent (primary action), ghost (secondary/quiet),
+   success (affirmative/promote). Small/danger variants already existed. */
+.ms-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 18px;
+    background: rgba(var(--ms-accent-rgb), 0.08);
+    border: 1px solid rgba(var(--ms-accent-rgb), 0.35);
+    border-radius: var(--ms-radius-sm, 4px);
+    color: var(--ms-accent, #00e5ff);
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.ms-btn:hover {
+    background: rgba(var(--ms-accent-rgb), 0.14);
+    border-color: rgba(var(--ms-accent-rgb), 0.6);
+    box-shadow: 0 0 12px rgba(var(--ms-accent-rgb), 0.15);
+}
+
+.ms-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ms-btn-accent {
+    background: var(--ms-accent, #00e5ff);
+    border-color: transparent;
+    color: #04070d;
+    font-weight: 600;
+}
+
+.ms-btn-accent:hover {
+    background: #33ebff;
+    border-color: transparent;
+    color: #04070d;
+}
+
+.ms-btn-ghost {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.ms-btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+
+.ms-btn-success {
+    background: #22c55e;
+    border-color: transparent;
+    color: #04070d;
+    font-weight: 600;
+}
+
+.ms-btn-success:hover {
+    background: #4ade80;
+    border-color: transparent;
+    color: #04070d;
 }
 
 .ms-variant-label {

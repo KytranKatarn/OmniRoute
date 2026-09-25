@@ -19,19 +19,71 @@
   }
 
   window.msDashboard = {
+    _showDismissed: false,
+
     load: function () {
-      _get('/api/dashboard').then(function (d) {
+      var url = '/api/dashboard' + (msDashboard._showDismissed ? '?include_dismissed=1' : '');
+      _get(url).then(function (d) {
         _setText('msDashStatGenerating', d.queue_active != null ? d.queue_active : (d.active_jobs || []).length);
-        _setText('msDashStatApprovals', d.pending_approval_count != null ? d.pending_approval_count : (d.pending_approvals || []).length);
+        var pendingCount = d.pending_approval_count != null ? d.pending_approval_count : (d.pending_approvals || []).length;
+        _setText('msDashStatApprovals', pendingCount);
         _setText('msDashStatSocial', d.social_queue_count != null ? d.social_queue_count : (d.social_queue || []).length);
         _setText('msDashStatTotal', d.total_generated != null ? d.total_generated : 0);
         _setText('msDashStatFailed', d.queue_failed != null ? d.queue_failed : 0);
         _setText('msDashUpdated', 'Updated ' + new Date().toLocaleTimeString());
+        msDashboard._renderSubLabels(d);
         msDashboard._renderGenerating(d.active_jobs || []);
         msDashboard._renderApprovals(d.pending_approvals || []);
         msDashboard._renderSocialQueue(d.social_queue || []);
         msDashboard._renderRecent(d.recent || []);
+        msDashboard._renderShowDismissedToggle();
       }).catch(function (err) { console.warn('[msDashboard] load failed:', err); });
+    },
+
+    _renderSubLabels: function (d) {
+      var by = d.queue_by_status || {};
+      var pending = (by.pending || 0) + (by.dispatched || 0);
+      var running = by.generating || 0;
+      _setText('msDashSubGenerating', pending + ' waiting \u00b7 ' + running + ' running');
+      var pendingCount = d.pending_approval_count != null ? d.pending_approval_count : (d.pending_approvals || []).length;
+      _setText('msDashSubApprovals', pendingCount + ' awaiting review');
+      var sq = d.social_queue_by_status || {};
+      var drafts = sq.draft || 0;
+      var sched = sq.scheduled || 0;
+      _setText('msDashSubSocial', drafts + ' draft \u00b7 ' + sched + ' scheduled');
+      _setText('msDashSubTotal', (d.images || 0) + ' img \u00b7 ' + (d.videos || 0) + ' vid \u00b7 ' + (d.audio || 0) + ' aud');
+      _setText('msDashSubFailed', (by.failed || 0) + ' failed');
+    },
+
+    _renderShowDismissedToggle: function () {
+      var link = _el('msDashShowDismissed');
+      if (!link) return;
+      if (msDashboard._showDismissed) {
+        link.textContent = 'Hide dismissed';
+        link.style.color = '#22c55e';
+      } else {
+        link.textContent = 'Show dismissed';
+        link.style.color = '#555';
+      }
+      link.style.display = 'inline';
+    },
+
+    jumpTo: function (tab) {
+      if (window.switchMsTab) {
+        window.switchMsTab(tab);
+        return;
+      }
+      var els = document.querySelectorAll('[data-ms-tab="' + tab + '"], .ms-tab-btn');
+      if (els.length) {
+        for (var i = 0; i < els.length; i++) {
+          if (els[i].textContent.toLowerCase().indexOf(tab.replace('-', ' ')) !== -1) { els[i].click(); return; }
+        }
+      }
+    },
+
+    toggleDismissed: function () {
+      msDashboard._showDismissed = !msDashboard._showDismissed;
+      msDashboard.load();
     },
 
     start: function () {
@@ -78,13 +130,15 @@
       if (!items.length) {
         var empty = document.createElement('div');
         empty.style.cssText = 'color:#555;font-size:0.7rem;padding:6px 0;';
-        empty.textContent = 'Nothing pending.';
+        empty.textContent = msDashboard._showDismissed ? 'No dismissed portraits to restore.' : 'Nothing pending.';
         el.appendChild(empty);
         return;
       }
       items.forEach(function (item) {
         var row = document.createElement('div');
-        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;';
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;border-radius:4px;';
+        row.onclick = function () { if (window.showMediaDetail && item.media_id) window.showMediaDetail(item.media_id); };
+        row.title = 'Open media details';
         var thumb = document.createElement('div');
         thumb.style.cssText = 'width:36px;height:36px;border-radius:4px;background:#1a2a3a;flex-shrink:0;overflow:hidden;';
         if (item.thumbnail_url || item.file_path || item.thumbnail_path || item.canonical_image_path) {
@@ -101,16 +155,30 @@
         var t = document.createElement('div');
         t.style.cssText = 'color:#555;font-size:0.58rem;';
         t.textContent = item.created_at ? new Date(item.created_at).toLocaleTimeString() : '';
+        if (item.approval_dismissed) {
+          t.textContent = (t.textContent ? t.textContent + ' · ' : '') + 'dismissed';
+          t.style.color = '#ef4444';
+        }
         info.appendChild(n); info.appendChild(t);
         var btns = document.createElement('div');
         btns.style.cssText = 'display:flex;gap:3px;flex-shrink:0;';
+        btns.onclick = function (ev) { ev.stopPropagation(); };
         var approve = document.createElement('button');
         approve.style.cssText = 'background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#22c55e;padding:3px 7px;border-radius:3px;font-size:0.6rem;cursor:pointer;';
         approve.textContent = '✓';
+        approve.title = 'Approve as canonical portrait';
         approve.onclick = (function (agentId, mediaId) {
           return function () { msDashboard._approve(agentId, mediaId); };
         })(item.agent_id, item.media_id);
         btns.appendChild(approve);
+        var dismiss = document.createElement('button');
+        dismiss.style.cssText = 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#ef4444;padding:3px 7px;border-radius:3px;font-size:0.6rem;cursor:pointer;';
+        dismiss.textContent = item.approval_dismissed ? '↩' : '✗';
+        dismiss.title = item.approval_dismissed ? 'Restore to the approvals list' : 'Soft-dismiss (keep image)';
+        dismiss.onclick = (function (agentId, mediaId, cur) {
+          return function () { msDashboard._dismiss(agentId, mediaId, !cur); };
+        })(item.agent_id, item.media_id, item.approval_dismissed);
+        btns.appendChild(dismiss);
         row.appendChild(thumb); row.appendChild(info); row.appendChild(btns);
         el.appendChild(row);
       });
@@ -182,6 +250,18 @@
         if (!r.ok) throw new Error(r.status);
         return r.json();
       }).then(function () { msDashboard.load(); }).catch(function (err) { console.warn('[msDashboard] approve failed:', err); });
+    },
+
+    _dismiss: function (agentId, mediaId, dismissed) {
+      if (!agentId || !mediaId) return;
+      fetch(_API + '/api/portraits/' + agentId + '/approval-dismiss', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ media_id: mediaId, dismissed: dismissed })
+      }).then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      }).then(function () { msDashboard.load(); }).catch(function (err) { console.warn('[msDashboard] dismiss failed:', err); });
     }
   };
 })();

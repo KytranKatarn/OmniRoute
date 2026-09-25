@@ -1438,6 +1438,38 @@ def refine_identity_prompt(agent_id: int, feedback: str, history: Optional[list]
     }
 
 
+def set_approval_dismissed(agent_id: int, media_id: int, dismissed: bool = True) -> Dict:
+    """Soft-dismiss (or restore) an unapproved portrait from dashboard review.
+
+    Toggles media_library.metadata->>'approval_dismissed' for the agent's
+    portrait candidate media row. This never deletes the image and never
+    changes approval state — it only hides the row from the dashboard
+    quick-review until re-listed. The owner can restore it with dismissed=False.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT owner_id FROM media_library WHERE id = %s AND owner_type = 'agent' AND is_deleted = false",
+            (media_id,),
+        )
+        row = cur.fetchone()
+        if not row or row["owner_id"] != agent_id:
+            return {"error": "media not found or not owned by this agent"}
+        cur.execute(
+            """
+            UPDATE media_library
+            SET metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb),
+                    '{approval_dismissed}',
+                    %s::jsonb,
+                    true
+                )
+            WHERE id = %s
+            """,
+            (("true" if dismissed else "false"), media_id),
+        )
+    return {"status": "dismissed" if dismissed else "restored", "agent_id": agent_id, "media_id": media_id}
+
+
 def approve_canonical(agent_id: int, media_id: int) -> Dict:
     """Approve image as canonical portrait, update agent avatar.
 

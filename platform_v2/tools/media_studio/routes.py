@@ -35,7 +35,10 @@ def api_dashboard():
     from .services.generation_service import get_dashboard_stats
     from .services.comfyui_manager import get_fleet_comfyui_status
 
-    stats = get_dashboard_stats(current_user.id)
+    stats = get_dashboard_stats(
+        current_user.id,
+        include_dismissed=(request.args.get("include_dismissed") == "1"),
+    )
     try:
         fleet = get_fleet_comfyui_status()
     except Exception as exc:
@@ -1181,6 +1184,25 @@ def api_approve_canonical(agent_id):
     return jsonify(result)
 
 
+@media_studio_bp.route("/api/portraits/<int:agent_id>/approval-dismiss", methods=["POST"])
+@login_required
+def api_approval_dismiss(agent_id):
+    """Soft-dismiss (or restore) an unapproved portrait from dashboard review.
+
+    Only toggles media_library.metadata->>'approval_dismissed' — never
+    deletes the image or changes approval state. Body: {media_id, dismissed}.
+    """
+    from .services.portrait_service import set_approval_dismissed
+
+    data = request.get_json()
+    if not data or "media_id" not in data:
+        return jsonify({"error": "media_id is required"}), 400
+    result = set_approval_dismissed(agent_id, data["media_id"], bool(data.get("dismissed", True)))
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
 @media_studio_bp.route("/api/portraits/<int:agent_id>/identity-prompt", methods=["PUT"])
 @admin_required
 def api_update_identity_prompt(agent_id):
@@ -1230,6 +1252,118 @@ def api_save_identity_fields(agent_id):
     if not result.get("success"):
         return jsonify(result), 404
     return jsonify(result)
+
+
+@media_studio_bp.route("/api/portraits/identity-suggest-batch", methods=["POST"])
+@login_required
+def api_suggest_identity_batch():
+    """Kick off a background batch that drafts identity fields for EVERY agent.
+
+    Each agent with an approved reference gets a vision pass (read-only —
+    nothing is written to agents). Results land in unified_tasks metadata;
+    poll GET /api/portraits/identity-suggest-batch/<task_id> to follow along.
+    The daemon thread keeps the web thread responsive.
+    """
+    import threading
+
+    import psycopg2.extras
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO unified_tasks
+               (title, task_type, status, priority, metadata, tags)
+               VALUES (%s, 'portrait_identity_batch', 'running', 8, %s,
+                       ARRAY['portrait_identity_batch'])
+               RETURNING id""",
+            (
+                "[Portrait] Batch identity draft for all agents",
+                psycopg2.extras.Json({"started_by": getattr(current_user, "id", None), "results": {}}),
+            ),
+        )
+        task_id = cur.fetchone()["id"]
+
+    def _batch_worker(task_id):
+        from .services.portrait_service import suggest_identity_fields
+
+        results = {}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.id AS agent_id
+                FROM agents a
+                JOIN agent_portraits ap ON ap.agent_id = a.id AND ap.approved = true
+                WHERE (COALESCE(ap.canonical_image_path, '') <> '' OR COALESCE(ap.ip_adapter_ref_path, '') <> '')
+                GROUP BY a.id
+                ORDER BY a.id
+                """
+            )
+            agent_ids = [row["agent_id"] for row in cur.fetchall()]
+        for agent_id in agent_ids:
+            try:
+                res = suggest_identity_fields(agent_id)
+                results[agent_id] = {
+                    "success": bool(res.get("success")),
+                    "fields": res.get("fields") or {},
+                    "model": res.get("model") or "",
+                    "error": res.get("error") or None,
+                }
+            except Exception as exc:
+                current_app.logger.exception("[identity-batch] agent %s failed", agent_id)
+                results[agent_id] = {"success": False, "fields": {}, "model": "", "error": str(exc)}
+            if len(results) % 5 == 0:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """UPDATE unified_tasks
+                           SET metadata = jsonb_set(metadata::jsonb, '{results}', %s::jsonb, true)
+                           WHERE id = %s""",
+                        (psycopg2.extras.Json(results), task_id),
+                    )
+        failed = sum(1 for r in results.values() if not r.get("success"))
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE unified_tasks
+                   SET status = 'completed',
+                       metadata = jsonb_set(jsonb_set(metadata::jsonb, '{results}', %s::jsonb, true), '{failed_count}', %s::jsonb, true)
+                   WHERE id = %s""",
+                (psycopg2.extras.Json(results), psycopg2.extras.Json(failed), task_id),
+            )
+        current_app.logger.info(
+            "[identity-batch] task %s done: %d agents, %d failed",
+            task_id,
+            len(results),
+            failed,
+        )
+
+    threading.Thread(target=_batch_worker, args=(task_id,), daemon=True).start()
+    return jsonify({"task_id": task_id, "status": "running", "agent_count": "pending"})
+
+
+@media_studio_bp.route("/api/portraits/identity-suggest-batch/<int:task_id>", methods=["GET"])
+@login_required
+def api_suggest_identity_batch_status(task_id):
+    """Poll a background identity-batch task.
+
+    Returns { status: running|completed|failed, results: {agent_id: {success, fields, model, error}}, failed_count }
+    """
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT status, metadata FROM unified_tasks WHERE id = %s",
+            (task_id,),
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"error": "Task not found"}), 404
+    meta = row["metadata"] or {}
+    return jsonify(
+        {
+            "status": row["status"],
+            "results": meta.get("results") or {},
+            "failed_count": meta.get("failed_count") or 0,
+        }
+    )
 
 
 @media_studio_bp.route("/api/portraits/<int:agent_id>/upload", methods=["POST"])

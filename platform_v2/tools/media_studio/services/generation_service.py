@@ -461,8 +461,13 @@ def _dashboard_media_item(row) -> Dict:
     return item
 
 
-def get_dashboard_stats(user_id: int) -> Dict:
-    """Aggregate live operational stats for the Media Studio dashboard."""
+def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
+    """Aggregate live operational stats for the Media Studio dashboard.
+
+    pending_approvals excludes portraits soft-dismissed by the owner
+    (media_library.metadata->>'approval_dismissed' = true) unless
+    include_dismissed is set, so the dashboard quick-review can re-list them.
+    """
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
@@ -542,7 +547,8 @@ def get_dashboard_stats(user_id: int) -> Dict:
             WITH candidates AS (
                 SELECT DISTINCT ON (ml.owner_id)
                        ml.owner_id AS agent_id, ml.id AS media_id,
-                       ml.file_path, ml.thumbnail_path, ml.prompt, ml.created_at
+                       ml.file_path, ml.thumbnail_path, ml.prompt, ml.created_at,
+                       COALESCE((ml.metadata->>'approval_dismissed')::boolean, false) AS approval_dismissed
                 FROM media_library ml
                 WHERE ml.owner_type = 'agent'
                   AND ml.media_type = 'image'
@@ -560,7 +566,8 @@ def get_dashboard_stats(user_id: int) -> Dict:
             )
             SELECT a.id AS agent_id, a.name, a.display_name,
                    c.media_id, c.file_path, c.thumbnail_path, c.prompt,
-                   c.created_at, ap.id AS portrait_id, ap.approved,
+                   c.created_at, c.approval_dismissed,
+                   ap.id AS portrait_id, ap.approved,
                    COUNT(*) OVER() AS total_pending
             FROM candidates c
             JOIN agents a ON a.id = c.agent_id
@@ -572,9 +579,11 @@ def get_dashboard_stats(user_id: int) -> Dict:
                          ap.updated_at DESC NULLS LAST, ap.id DESC
                 LIMIT 1
             ) ap ON TRUE
+            WHERE %(include_dismissed)s = true OR c.approval_dismissed = false
             ORDER BY c.created_at DESC NULLS LAST, c.media_id DESC
             LIMIT 5
-            """
+            """,
+            {"include_dismissed": include_dismissed},
         )
         pending_rows = [dict(row) for row in cur.fetchall()]
         for item in pending_rows:

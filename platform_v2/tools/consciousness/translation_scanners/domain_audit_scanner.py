@@ -25,6 +25,18 @@ logger = logging.getLogger("agent_loop")
 
 _MOCK_RE = re.compile(r"^Mock", re.IGNORECASE)
 _FETCH_TIMEOUT = 15
+# Hostinger's CDN (server: hcdn) answers 403 to a bare `Accept: */*`, which is
+# httpx's default. Every page fetch in this scanner therefore failed and the
+# domain audit reported ZERO keys — silently, apart from one log line — no
+# matter how complete EXTERNAL_DOMAINS was. Send a browser-shaped Accept (and
+# a real UA) so the audit can actually see the site.
+_FETCH_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+    ),
+}
 
 
 def _fetch_text(url: str) -> str | None:
@@ -32,7 +44,7 @@ def _fetch_text(url: str) -> str | None:
     try:
         import httpx
 
-        resp = httpx.get(url, timeout=_FETCH_TIMEOUT, follow_redirects=True)
+        resp = httpx.get(url, timeout=_FETCH_TIMEOUT, follow_redirects=True, headers=_FETCH_HEADERS)
         resp.raise_for_status()
         return resp.text
     except Exception as exc:

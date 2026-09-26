@@ -873,7 +873,7 @@ def test_generation_completion_brands_only_ke_corporate():
             fromlist=["on_generation_complete"],
         ).on_generation_complete
     )
-    assert "apply_ke_branding(dest_path)" in source
+    assert "apply_ke_branding(" in source and "dest_path," in source
     assert 'params.get("variant_branding") == "ke_corporate"' in source
     assert "ke_logo_applied" in source
 
@@ -1141,3 +1141,66 @@ def test_queue_api_supports_offset():
     body = routes[start:end]
     assert 'request.args.get("offset"' in body
     assert body.count("offset=offset") == 2, "offset must reach BOTH user and agent queries"
+
+
+# --- KE identity plate (name + department) --------------------------------
+# apply_ke_branding grew from "stamp the mark" to a name plate:
+#   top-left agent name (tracked, over its own corner scrim)
+#   bottom-left department
+#   bottom-right the mark
+# Applied automatically whenever variant_branding == 'ke_corporate'.
+
+
+def test_apply_ke_branding_accepts_identity_fields():
+    import inspect
+
+    sig = inspect.signature(apply_ke_branding).parameters
+    assert "agent_name" in sig, "the overlay needs the agent name"
+    assert "department" in sig, "the overlay needs the department"
+    # Both must default to empty so the pre-overlay call signature still works.
+    assert sig["agent_name"].default == ""
+    assert sig["department"].default == ""
+
+
+def test_ke_branding_resolves_agent_identity_for_agent_jobs():
+    src = inspect.getsource(
+        __import__(
+            "tools.media_studio.services.generation_service",
+            fromlist=["on_generation_complete"],
+        ).on_generation_complete
+    )
+    assert 'queue_row.get("owner_type") == "agent"' in src
+    assert "COALESCE(NULLIF(display_name,''), NULLIF(name,''))" in src
+    assert "agent_name=agent_name" in src
+    assert "department=department" in src
+
+
+def test_tracked_text_draws_shadow_and_fill_in_register():
+    """A per-character shadow pass mis-advanced the pen and left them offset."""
+    import inspect
+
+    from tools.media_studio.services.generation_service import _draw_tracked_text
+
+    src = inspect.getsource(_draw_tracked_text)
+    # The shadow must be a whole-string pass drawn BEFORE the fill pass.
+    assert src.index("if shadow:") < src.index("_pass(0, 0, fill)")
+    assert src.count("_pass(") == 3  # definition + shadow call + fill call
+
+
+def test_ke_branding_survives_missing_fonts():
+    """A missing font must degrade to mark-only, never fail the generation."""
+    import inspect
+
+    from tools.media_studio.services.generation_service import _load_ke_font
+
+    assert _load_ke_font(("/definitely/not/a/font.ttf",), 20) is None
+
+
+def test_ke_branding_does_not_require_identity_fields():
+    """Back-compat: mark-only branding (the pre-overlay call) must still work."""
+    import inspect
+
+    src = inspect.getsource(apply_ke_branding)
+    # Identity is an additive branch, not a precondition.
+    assert "if name or dept:" in src
+    assert "return False" not in src.split("if name or dept:")[1].split("if scrim:")[0]

@@ -205,6 +205,98 @@ def submit_generation(
 
 KE_LOGO_PATH = os.path.join(_PLATFORM_DIR, "static", "img", "kytran-logo.png")
 
+# Fonts for the identity overlay. The site loads Antonio/Orbitron from Google
+# Fonts and ships no local files (website .design-sync/NOTES.md), so these are
+# resolved from what the image actually has: Liberation is Arial-metric and
+# reads more officially than DejaVu, which is the guaranteed fallback.
+_KE_FONT_CANDIDATES_BOLD = (
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+)
+_KE_FONT_CANDIDATES_REGULAR = (
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+)
+
+# Identity-plate geometry. Every value is a FRACTION, never a pixel count, so the
+# plate scales with the render instead of breaking at another resolution. Each is
+# stated against the thing it is measured from — image height, image width, or the
+# text size it belongs to — so retuning one does not silently move another.
+_KE_NAME_SIZE_RATIO = 0.045  # of image height
+_KE_NAME_MIN_PX = 14  # floor, so a small render stays legible
+_KE_DEPT_SIZE_RATIO = 0.024  # of image height
+_KE_DEPT_MIN_PX = 11
+_KE_NAME_TRACKING_RATIO = 0.16  # of name size — the wide tracking IS the look
+_KE_DEPT_TRACKING_RATIO = 0.24  # of dept size
+_KE_NAME_SHADOW_RATIO = 0.10  # of name size — ≈ size // 10
+_KE_DEPT_SHADOW_RATIO = 0.143  # of dept size — ≈ size // 7, a touch firmer than the name
+# The accent bar left of the name, LCARS-style. Over-tall so it out-runs the caps,
+# and nudged down so it optically centres on them rather than sitting above.
+_KE_ACCENT_BAR_WIDTH_RATIO = 0.006  # of image width
+_KE_ACCENT_BAR_HEIGHT_RATIO = 1.05  # of name size
+_KE_ACCENT_BAR_NUDGE_RATIO = 0.12  # of name size
+_KE_NAME_TEXT_GAP_RATIO = 0.42  # of name size — the gap between bar and name
+_KE_DEPT_LIFT_RATIO = 0.055  # of image height — lifts the dept line off the hem
+# The corner scrim behind the name: a ramp spanning this much of the frame from
+# the top-left, fading to nothing before it reaches the subject.
+_KE_CORNER_REACH_X_RATIO = 0.62  # of image width
+_KE_CORNER_REACH_Y_RATIO = 0.30  # of image height
+_KE_CORNER_FALLOFF_X = 1.2  # exponent — how fast it fades rightward
+_KE_CORNER_FALLOFF_Y = 1.6  # exponent — steeper downward, so the subject stays clean
+_KE_CORNER_OPACITY = 0.80
+_KE_CORNER_BLUR_RATIO = 0.005  # of image width — softens the ramp's hard edge
+
+
+def _load_ke_font(candidates, size: int):
+    """First loadable TTF at ``size``, or None so the caller can skip gracefully.
+
+    Never raises: a missing font must degrade to 'no text overlay', not fail
+    the generation.
+    """
+    try:
+        from PIL import ImageFont
+    except ImportError:
+        return None
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return None
+
+
+def _draw_tracked_text(draw, xy, text, font, fill, tracking: int = 0, shadow=None, shadow_offset: int = 2):
+    """Draw text with manual letter-spacing, optionally over a soft shadow.
+
+    PIL has no letter-spacing, and the wide tracking is what makes the overlay
+    read as an official name plate rather than a caption. The shadow pass is
+    drawn for the WHOLE string first, then the fill — doing it per character
+    mis-advanced the pen and left the two passes out of register.
+
+    Returns the drawn width.
+    """
+    if not text or font is None:
+        return 0
+
+    def _pass(ox, oy, colour):
+        x, y = xy[0] + ox, xy[1] + oy
+        for ch in text:
+            draw.text((x, y), ch, font=font, fill=colour, anchor="la")
+            x += draw.textlength(ch, font=font) + tracking
+
+    if shadow:
+        _pass(shadow_offset, shadow_offset, shadow)
+    _pass(0, 0, fill)
+    return _text_width(draw, text, font, tracking)
+
+
+def _text_width(draw, text, font, tracking: int = 0) -> int:
+    if not text or font is None:
+        return 0
+    return int(sum(draw.textlength(c, font=font) for c in text) + tracking * max(0, len(text) - 1))
+
 
 def apply_ke_branding(
     image_path: str,
@@ -215,17 +307,23 @@ def apply_ke_branding(
     scrim: bool = True,
     scrim_ratio: float = 0.26,
     scrim_strength: float = 0.72,
+    agent_name: str = "",
+    department: str = "",
 ) -> bool:
-    """Composite the real Kytran Empowerment mark onto a finished image.
+    """Composite the KE mark and the agent identity onto a finished image.
 
     The mark is applied here rather than requested in the prompt: diffusion
     models cannot render a legible brand mark, and asking produced invented
     gibberish on the subject's clothing.
 
-    Sits bottom-right over a soft gradient scrim. The scrim is not decoration:
-    portraits are centre-framed, so a bare corner mark lands on the subject's
-    shoulder and reads as a lapel pin rather than branding. Darkening the lower
-    band gives the mark a consistent backing and separates it from the subject.
+    Layout (a name-plate, so the output reads as an official portrait card):
+      top-left     agent name, wide-tracked, over its own corner scrim
+      bottom-left  department, smaller and dimmer
+      bottom-right the mark, over the lower scrim
+
+    Both scrims are load-bearing. Portraits are centre-framed, so a bare corner
+    mark lands on the subject's shoulder and reads as a lapel pin, and
+    unbacked text over a light background is unreadable.
 
     Returns True if the image was modified. Never raises — a branding failure
     must not fail the generation.
@@ -268,6 +366,78 @@ def apply_ke_branding(
         pos = (base.width - logo.width - margin, base.height - logo.height - margin)
 
         out = base
+
+        # --- identity plate: agent name top-left, department bottom-left ---
+        # A NULL identity column reaches Python as None, so normalise once here
+        # rather than guarding every use of the two strings below.
+        name = (agent_name or "").strip()
+        dept = (department or "").strip()
+        if name or dept:
+            from PIL import ImageDraw
+
+            name_size = max(_KE_NAME_MIN_PX, int(round(base.height * _KE_NAME_SIZE_RATIO)))
+            dept_size = max(_KE_DEPT_MIN_PX, int(round(base.height * _KE_DEPT_SIZE_RATIO)))
+            name_font = _load_ke_font(_KE_FONT_CANDIDATES_BOLD, name_size) if name else None
+            dept_font = _load_ke_font(_KE_FONT_CANDIDATES_REGULAR, dept_size) if dept else None
+
+            if name_font or dept_font:
+                # Corner scrim behind the name: a linear ramp from the top-left,
+                # fading to nothing by the time it reaches the subject. Text over
+                # an unbacked light background is unreadable.
+                corner = Image.new("L", (base.width, base.height), 0)
+                cpx = corner.load()
+                reach_x = int(base.width * _KE_CORNER_REACH_X_RATIO)
+                reach_y = int(base.height * _KE_CORNER_REACH_Y_RATIO)
+                for y in range(reach_y):
+                    for x in range(reach_x):
+                        fx = 1.0 - (x / reach_x)
+                        fy = 1.0 - (y / reach_y)
+                        cpx[x, y] = int(
+                            255 * (fx**_KE_CORNER_FALLOFF_X) * (fy**_KE_CORNER_FALLOFF_Y) * _KE_CORNER_OPACITY
+                        )
+                corner = corner.filter(ImageFilter.GaussianBlur(radius=max(2, int(base.width * _KE_CORNER_BLUR_RATIO))))
+                corner_layer = Image.new("RGBA", base.size, (6, 10, 18, 255))
+                corner_layer.putalpha(corner)
+                out = Image.alpha_composite(out, corner_layer)
+
+                draw = ImageDraw.Draw(out)
+                pad = max(10, int(round(base.width * margin_ratio)))
+                x0 = pad
+                y0 = pad
+
+                if name_font:
+                    tracking = max(1, int(name_size * _KE_NAME_TRACKING_RATIO))
+                    # Accent bar to the left of the name, LCARS-style.
+                    bar_h = int(name_size * _KE_ACCENT_BAR_HEIGHT_RATIO)
+                    bar_w = max(3, int(round(base.width * _KE_ACCENT_BAR_WIDTH_RATIO)))
+                    bar_top = y0 + int(name_size * _KE_ACCENT_BAR_NUDGE_RATIO)
+                    draw.rectangle([x0, bar_top, x0 + bar_w, bar_top + bar_h], fill=(34, 211, 238, 255))
+                    _draw_tracked_text(
+                        draw,
+                        (x0 + bar_w + int(name_size * _KE_NAME_TEXT_GAP_RATIO), y0),
+                        name.upper(),
+                        name_font,
+                        (255, 255, 255, 255),
+                        tracking=tracking,
+                        shadow=(0, 0, 0, 170),
+                        shadow_offset=max(1, int(name_size * _KE_NAME_SHADOW_RATIO)),
+                    )
+
+                if dept_font:
+                    dtrack = max(1, int(dept_size * _KE_DEPT_TRACKING_RATIO))
+                    # Bottom-left, balancing the mark on the right. Lifted clear
+                    # of the very bottom edge so it does not sit on the hem.
+                    dy = base.height - pad - dept_size - int(base.height * _KE_DEPT_LIFT_RATIO)
+                    _draw_tracked_text(
+                        draw,
+                        (x0, dy),
+                        dept.upper(),
+                        dept_font,
+                        (34, 211, 238, 255),
+                        tracking=dtrack,
+                        shadow=(0, 0, 0, 190),
+                        shadow_offset=max(1, int(dept_size * _KE_DEPT_SHADOW_RATIO)),
+                    )
 
         # Gradient scrim across the lower band, transparent above it.
         if scrim:
@@ -380,8 +550,7 @@ def on_generation_complete(
             dest_path = source_path
     else:
         logger.error(
-            "Generation output missing for queue %s: resolved=%r raw=%r — "
-            "branding and thumbnail will be skipped",
+            "Generation output missing for queue %s: resolved=%r raw=%r — " "branding and thumbnail will be skipped",
             queue_id,
             source_path,
             file_path,
@@ -393,7 +562,27 @@ def on_generation_complete(
     # for a mark (models invent one) — this is the only reliable way to brand.
     ke_logo_applied = False
     if params.get("variant_branding") == "ke_corporate":
-        ke_logo_applied = apply_ke_branding(dest_path)
+        # Identity plate: resolve the agent's name + department so the output
+        # reads as an official portrait card. Best-effort — a lookup failure
+        # must not cost the mark, so this degrades to mark-only.
+        agent_name = ""
+        department = ""
+        if queue_row.get("owner_type") == "agent" and queue_row.get("owner_id"):
+            try:
+                with get_db_cursor(commit=False) as (_c, cur2):
+                    cur2.execute(
+                        """SELECT COALESCE(NULLIF(display_name,''), NULLIF(name,'')) AS n,
+                                  COALESCE(NULLIF(title,''), NULLIF(department,'')) AS d
+                           FROM agents WHERE id = %s""",
+                        (queue_row["owner_id"],),
+                    )
+                    row2 = cur2.fetchone()
+                if row2:
+                    agent_name = row2.get("n") or ""
+                    department = row2.get("d") or ""
+            except Exception as exc:
+                logger.warning("KE branding: agent lookup failed for %s: %s", queue_row["owner_id"], exc)
+        ke_logo_applied = apply_ke_branding(dest_path, agent_name=agent_name, department=department)
 
     # URL-friendly path for DB storage. Normalize to /static/<rel-to-static>
     # so avatar_url works directly as an <img src>. The old implementation

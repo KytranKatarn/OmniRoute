@@ -174,6 +174,18 @@ def _approve_autonomy(source_id: int, user_id: int):
         except Exception as _ee:
             logger.warning("email_reply DHQ approval execution failed: %s", _ee)
 
+    # host_root_command: run the allowlisted host-root command the owner just
+    # approved. Out of transaction, like email_reply above. The executor
+    # re-validates the spec and fails closed on expiry, so an approval that sat
+    # too long, or a row edited in the DB, cannot execute.
+    if action_type == "host_root_command":
+        try:
+            from services.host_command_service import execute_host_command
+
+            execute_host_command(source_id, user_id)
+        except Exception as _hc_err:
+            logger.warning("host_root_command DHQ approval execution failed: %s", _hc_err)
+
     # #4325: echo the dashboard decision onto Telegram (update text + drop buttons) so
     # the phone message reflects the action taken here. Best-effort — a Telegram failure
     # must never break the approve. The inbound callback does the same edit on a tap.
@@ -426,6 +438,14 @@ def list_pending_approvals():
                 category, display = "pr_merge", f"🔀 Merge PR #{_pr} — {_ptitle[:60]}"
             elif at == "contractor_dispatch":
                 category, display = "contractor_dispatch", "Contractor Dispatch"
+            elif at == "host_root_command":
+                # Host-root action awaiting the owner's signature. The label
+                # carries the literal argv, because "Host Root Command" alone
+                # would ask the owner to approve something they cannot see.
+                _ad = r.get("action_data") or {}
+                _argv = _ad.get("argv_preview") if isinstance(_ad, dict) else None
+                _argv_s = " ".join(_argv) if isinstance(_argv, list) else str(_argv or "?")
+                category, display = "host_root_command", f"🛡️ HOST ROOT — {_argv_s[:140]}"
             elif at == "restart_container":
                 category, display = "restart_container", "Container Restart"
             elif at == "welfare_rest_8h":

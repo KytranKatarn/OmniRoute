@@ -39,6 +39,10 @@ BULK_ALL_EXCLUDED_TYPES = frozenset(
         # this one; a live drive against real data surfaced it (hire_candidate was showing
         # an "Approve all 15" button). Hiring is a staffing decision per candidate.
         "hire_candidate",
+        # HOST ROOT, not publishing — the same reasoning one level up. A host-root
+        # command is unreviewable in aggregate by definition: approving a category
+        # blind is how a root command runs that nobody read. Per-item, always.
+        "host_root_command",
     }
 )
 
@@ -159,6 +163,7 @@ ACTION_CATEGORY = {
     # dispatch and the apply it gates must sit in the SAME tab, or a filtered view
     # hides the blocker from the blocked item.
     "cloud_code_apply": CATEGORY_SHIP,
+    "host_root_command": CATEGORY_OTHER,  # allowlisted host-root action; owner signs off
     # Mail
     "email_reply": CATEGORY_MAIL,
     # Agents — hiring and agent-account changes.

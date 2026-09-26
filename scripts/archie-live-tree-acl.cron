@@ -1,0 +1,50 @@
+# /etc/cron.d/archie-live-tree-acl
+#
+# Re-apply write ACLs to host_commands/completed/ once an hour.
+#
+# WHY THIS IS NEEDED
+#   archie_platform runs as uid 0 and writes these command-result files with an
+#   explicit chmod(644). On a file that already carries an ACL, chmod rewrites
+#   the *mask* instead of the named user entry — so it strips u:1000:rw while
+#   the mode string still reads as a plain 644. The files revert to root-only
+#   after every platform write. This job puts the grant back.
+#
+# WHY IT IS SCOPED TO ONE DIRECTORY
+#   A full-tree re-walk is ~227k entries and would reach into
+#   kytran-server-manager/data/postgres/, i.e. a live database directory. A
+#   timer has no business walking that on a schedule. The development workflow
+#   (source, .git, repos, scripts, website data) was fixed once by the
+#   tree-wide ACL and does not decay, because git, editors and build steps write
+#   without an explicit chmod and inherit correctly.
+#
+#   This directory is gitignored (.gitignore:141) platform output that nobody
+#   edits, so the job is housekeeping, not a correctness dependency.
+#
+# INSTALL
+#   sudo cp scripts/archie-live-tree-acl.cron /etc/cron.d/archie-live-tree-acl
+#   sudo chown root:root /etc/cron.d/archie-live-tree-acl
+#   sudo chmod 644 /etc/cron.d/archie-live-tree-acl
+#
+#   The installed name must be dot-free — Debian's cron silently ignores
+#   /etc/cron.d entries whose names contain a dot, which is why the repo copy is
+#   *.cron but the installed file is not.
+#
+# VERIFY IT IS PICKED UP
+#   sudo cat /var/log/syslog | grep CRON | tail -5
+#   Or run the exact command by hand first:
+#   sudo /mnt/archie_brain/scripts/fix-live-tree-ownership.sh --apply-acl \
+#        --path host_commands/completed
+#
+# SILENCE
+#   --quiet means a successful run mails nothing. You will only be told if
+#   something is wrong (setfacl missing, path gone, uid resolution failed).
+#
+# TO DISABLE
+#   sudo rm /etc/cron.d/archie-live-tree-acl      # nothing else depends on it
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# :17 past the hour — off-peak so it does not pile onto every other cron job
+# that fires at :00.
+17 * * * * root /mnt/archie_brain/scripts/fix-live-tree-ownership.sh --apply-acl --path host_commands/completed --quiet

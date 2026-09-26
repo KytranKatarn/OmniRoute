@@ -1747,11 +1747,15 @@ function renderRepoView(repos) {
   else renderRepoCards(repos);
 }
 
-function filterRepos(status) {
+function filterRepos(status, btn) {
   _ghFilter = status;
-  // Update active button
+  // Update active button. Was `event.target.closest('.gh-filter-btn')`, which
+  // relied on the deprecated implicit global `event` (absent in Firefox and
+  // Safari) and broke on the count <span> inside the button. The caller now
+  // passes the element explicitly.
   document.querySelectorAll('.gh-filter-btn').forEach(function(b) { b.classList.remove('active'); });
-  event.target.closest('.gh-filter-btn').classList.add('active');
+  var active = btn || document.querySelector('.gh-filter-btn[data-gh-filter="' + status + '"]');
+  if (active) active.classList.add('active');
   renderRepoView(_ghRepos);
 }
 

@@ -251,6 +251,62 @@
     box-shadow: 0 0 8px rgba(var(--cat-accent-rgb),0.3);
 }
 
+/* --- Repo Review Filter (restored) ---------------------------------------
+   The filter JS (filterRepos / _ghFilter / the ghFilter* count writers) was
+   left in consciousness.js while the markup went away, so setHtml() on the
+   missing ids was a silent no-op and the review-status filter became
+   unreachable. These styles plus the .gh-filter-btn / .active contract are
+   what filterRepos() queries. */
+.gh-filter-bar {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap; margin-bottom: 12px;
+}
+.gh-filter-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    border-radius: 999px; padding: 4px 12px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem; letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer; transition: all 0.15s;
+}
+.gh-filter-btn:hover {
+    border-color: rgba(var(--cat-accent-rgb), 0.5);
+    color: rgba(255,255,255,0.85);
+}
+.gh-filter-btn.active {
+    background: rgba(var(--cat-accent-rgb), 0.16);
+    border-color: var(--cat-accent);
+    color: var(--cat-accent);
+}
+.gh-filter-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem; letter-spacing: 0;
+    color: rgba(255,255,255,0.45);
+    background: rgba(0,0,0,0.3);
+    border-radius: 999px; padding: 1px 6px; min-width: 20px; text-align: center;
+}
+.gh-filter-btn.active .gh-filter-count { color: var(--cat-accent); }
+
+/* Separate class from .gh-filter-btn on purpose: filterRepos() clears
+   `.active` across every .gh-filter-btn, which would strip state off the view
+   toggle. */
+.gh-view-toggle {
+    display: inline-flex; align-items: center;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.6);
+    border-radius: 999px; padding: 3px 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem; letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer; transition: all 0.15s;
+}
+.gh-view-toggle:hover {
+    border-color: rgba(var(--cat-accent-rgb), 0.5);
+    color: var(--cat-accent);
+}
+
 /* --- Repo Intelligence Cards --- */
 .gh-cards-header {
     display: flex; align-items: center; gap: 10px;
@@ -4181,6 +4237,16 @@
             <div class="gh-cards-header">
                 <div class="gh-cards-header-cap"></div>
                 <div class="gh-cards-header-title">Indexed Repositories</div>
+                <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+                    <button class="gh-view-toggle" id="ghViewToggle" onclick="toggleRepoView()">Cards</button>
+                </div>
+            </div>
+            <div class="gh-filter-bar" id="ghFilterBar">
+                <button class="gh-filter-btn active" data-gh-filter="all" onclick="filterRepos('all', this)">All <span class="gh-filter-count" id="ghFilterAll">0</span></button>
+                <button class="gh-filter-btn" data-gh-filter="approved" onclick="filterRepos('approved', this)">Approved <span class="gh-filter-count" id="ghFilterApproved">0</span></button>
+                <button class="gh-filter-btn" data-gh-filter="under_review" onclick="filterRepos('under_review', this)">Under review <span class="gh-filter-count" id="ghFilterReview">0</span></button>
+                <button class="gh-filter-btn" data-gh-filter="pending" onclick="filterRepos('pending', this)">Pending <span class="gh-filter-count" id="ghFilterPending">0</span></button>
+                <button class="gh-filter-btn" data-gh-filter="rejected" onclick="filterRepos('rejected', this)">Rejected <span class="gh-filter-count" id="ghFilterRejected">0</span></button>
             </div>
             <div class="gh-cards-grid" id="ghRepoGrid">
                 <div class="cs-loading">Loading repositories...</div>

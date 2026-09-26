@@ -1051,3 +1051,93 @@ def test_confirm_modal_is_a_body_sibling_not_a_media_modal_child():
     body = tpl[tpl.index("function _ensureMsConfirmModal()") : tpl.index("window.showMsConfirm = function")]
     assert "document.body.appendChild(overlay)" in body
     assert "msMediaModal" not in body
+
+
+# --- Media Studio Queue tab -------------------------------------------------
+# The Queue tab had TWO poll timers, both assigning the single `queuePollTimer`
+# handle, and TWO renderers over the same containers. The 5s renderer's output
+# clobbered the 10s renderer's cards, so a per-item Retry button existed for at
+# most 5 seconds before being wiped — which is why Retry read as dead. The timer
+# leak also meant neither handle could ever be cleared.
+
+
+def _ms_template() -> str:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "media_studio"
+        / "templates"
+        / "tools"
+        / "media_studio"
+        / "media_studio.html"
+    ).read_text()
+
+
+def test_queue_tab_has_exactly_one_poll_timer():
+    src = _ms_template()
+    assert src.count("queuePollTimer = setInterval(") == 1, (
+        "the Queue tab must start exactly one poll timer; more than one leaks a "
+        "handle that can never be cleared"
+    )
+    assert "clearInterval(queuePollTimer)" in src
+
+
+def test_duplicate_queue_renderer_is_gone():
+    """Two renderers over msQueueActive/msQueueHistory fought each other."""
+    src = _ms_template()
+    assert "function renderQueue(" not in src, (
+        "the duplicate renderer must stay removed — it wrote the same containers "
+        "as loadQueueItems() and wiped its action buttons"
+    )
+    # The richer card renderer is the one that must remain.
+    assert "function _createQueueCard(" in src
+
+
+def test_queue_stat_elements_exist_in_the_markup():
+    """loadQueueStats wrote these two ids that were never in the template."""
+    src = _ms_template()
+    for eid in ("msQueueStats", "msQueueActiveCount"):
+        assert f'id="{eid}"' in src, f"{eid} is written by JS but missing from the markup"
+
+
+def test_queue_retry_reports_failure():
+    """retryQueueItem had no .catch(), so a 404 looked like a dead button."""
+    src = _ms_template()
+    i = src.index("window.retryQueueItem = function(")
+    body = src[i : i + 600]
+    assert ".catch(" in body, "retryQueueItem must surface failures, not swallow them"
+    assert "showMsToast" in body
+
+
+def test_queue_card_thumbnail_falls_back_to_file_path():
+    """thumbnail_path is NULL on rows generated before the fleet path fix."""
+    src = _ms_template()
+    i = src.index("function _createQueueCard(")
+    body = src[i : i + 2500]
+    assert "item.thumbnail_path || item.file_path" in body, (
+        "the queue card must fall back to file_path when thumbnail_path is NULL"
+    )
+
+
+def test_history_pager_controls_exist():
+    for eid in ("msQueueHistoryFilter", "msQueueHistPrev", "msQueueHistNext", "msQueueHistPage"):
+        assert f'id="{eid}"' in _ms_template(), f"missing history pager control {eid}"
+
+
+def test_queue_api_supports_offset():
+    """The pager is a fake without it — limit alone always returns page 1."""
+    import inspect
+
+    from tools.media_studio.services.generation_service import get_queue_status
+
+    assert "offset" in inspect.signature(get_queue_status).parameters
+    assert "OFFSET" in inspect.getsource(get_queue_status)
+
+    routes = (
+        Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py"
+    ).read_text()
+    start = routes.index("def api_queue(")
+    end = routes.index("@media_studio_bp.route", start + 1)
+    body = routes[start:end]
+    assert 'request.args.get("offset"' in body
+    assert body.count("offset=offset") == 2, "offset must reach BOTH user and agent queries"

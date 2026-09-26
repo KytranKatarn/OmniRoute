@@ -615,6 +615,10 @@
                 <span class="ms-section-title" data-i18n="media_studio.generation_queue">Generation Queue</span>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
+                <!-- These two were written by loadQueueStats() but never existed
+                     in the markup, so textContent assignment was a silent no-op
+                     and the queue stats line never rendered. -->
+                <span id="msQueueStats" style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:#666;">—</span>
                 <button id="msRescueBtn" onclick="rescueOrphans()" title="Scan ComfyUI history and recover any completed jobs the platform missed"
                         style="background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.35);color:#22c55e;padding:5px 12px;border-radius:5px;font-family:'Orbitron',sans-serif;font-size:0.65rem;letter-spacing:1px;cursor:pointer;white-space:nowrap;">
                     Rescue Orphaned
@@ -626,14 +630,42 @@
         </div>
 
         <!-- Active jobs (pending/dispatched) — no scroll limit -->
-        <div style="margin-bottom:4px;font-family:'Antonio',sans-serif;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:#666;">Active</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-family:'Antonio',sans-serif;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:#666;">
+            <span>Active</span>
+            <span id="msQueueActiveCount" style="font-family:'IBM Plex Mono',monospace;color:var(--ms-accent,#7c3aed);letter-spacing:0;">0</span>
+        </div>
         <div id="msQueueActive" style="margin-bottom:16px;">
             <div class="ms-queue-empty">No active jobs.</div>
         </div>
 
-        <!-- History (completed/failed) — scrollable, max 10 -->
-        <div style="margin-bottom:4px;font-family:'Antonio',sans-serif;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:#666;">Recent History</div>
-        <div id="msQueueHistory" style="max-height:320px;overflow-y:auto;padding-right:4px;">
+        <!-- History: was a hard cap of 10 with no filter and no pages. The
+             /api/queue endpoint already supported ?status= and ?per_page=; this
+             exposes them. -->
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-family:'Antonio',sans-serif;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:#666;">
+            <span>History</span>
+            <select id="msQueueHistoryFilter" onchange="setQueueHistoryFilter(this.value)"
+                    style="background:#0d1117;border:1px solid #1a2a3a;color:rgba(255,255,255,0.7);border-radius:4px;padding:3px 8px;font-size:0.7rem;font-family:'IBM Plex Mono',monospace;">
+                <option value="">All</option>
+                <option value="failed">Failed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+            <span style="margin-left:auto;display:flex;align-items:center;gap:6px;letter-spacing:0;text-transform:none;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;">
+                <button id="msQueueHistPrev" onclick="queueHistoryPage(-1)"
+                        style="background:transparent;border:1px solid #1a2a3a;color:rgba(255,255,255,0.6);border-radius:4px;padding:2px 9px;cursor:pointer;">←</button>
+                <span id="msQueueHistPage" style="color:rgba(255,255,255,0.5);min-width:74px;text-align:center;">—</span>
+                <button id="msQueueHistNext" onclick="queueHistoryPage(1)"
+                        style="background:transparent;border:1px solid #1a2a3a;color:rgba(255,255,255,0.6);border-radius:4px;padding:2px 9px;cursor:pointer;">→</button>
+                <select id="msQueueHistPerPage" onchange="setQueueHistoryPerPage(this.value)"
+                        style="background:#0d1117;border:1px solid #1a2a3a;color:rgba(255,255,255,0.7);border-radius:4px;padding:2px 6px;font-size:0.65rem;">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </span>
+        </div>
+        <div id="msQueueHistory" style="max-height:420px;overflow-y:auto;padding-right:4px;">
             <div class="ms-queue-empty">No history yet.</div>
         </div>
 
@@ -913,11 +945,7 @@
             if (window.msGallery) msGallery.init();
         }
         else if (tabId === "queue") {
-            loadQueueStats();
-            loadQueueItems();
-            loadComfyQueue();
-            if (queuePollTimer) clearInterval(queuePollTimer);
-            queuePollTimer = setInterval(function() { loadQueueStats(); loadQueueItems(); loadComfyQueue(); }, 10000);
+            startQueuePolling();
         }
         else if (tabId === "generate") {
             if (window.msGenerate) msGenerate.init();
@@ -2219,119 +2247,35 @@
         });
     }
 
-    window.loadQueue = function() {
-        api("GET", "/api/queue").then(function(data) {
-            renderQueue(data.jobs || []);
-        }).catch(function(err) {
-            console.error("Queue load failed:", err);
-        });
-        loadComfyQueue();
-
+    /* Queue polling.
+     *
+     * There were previously TWO poll timers, both assigning the single
+     * `queuePollTimer` handle: this one (5s, via loadQueue) and the tab-switch
+     * one (10s). Neither cleared the other, so calling loadQueue() from
+     * rescueOrphans()/cancelJob() orphaned the 10s timer — its handle was
+     * overwritten and could never be cleared — leaving both running forever.
+     * They also drove TWO renderers over the same containers (see renderQueue),
+     * so the 5s one clobbered the richer card output and any Retry button it
+     * contained, which is why per-item Retry appeared dead.
+     *
+     * One timer, one renderer, cleared before every set. */
+    function startQueuePolling() {
         if (queuePollTimer) clearInterval(queuePollTimer);
+        loadQueueStats();
+        loadQueueItems();
+        loadComfyQueue();
         queuePollTimer = setInterval(function() {
-            api("GET", "/api/queue").then(function(data) {
-                renderQueue(data.jobs || []);
-            }).catch(function() {});
+            loadQueueStats();
+            loadQueueItems();
             loadComfyQueue();
-        }, 5000);
+        }, _QUEUE_POLL_MS);
+    }
+
+    /* Kept as the public entry point other code already calls. Now a single
+     * refresh plus the poll timer — it no longer renders anything itself. */
+    window.loadQueue = function() {
+        startQueuePolling();
     };
-
-    function _renderEmptyDiv(text, container) {
-        var d = document.createElement('div');
-        d.className = 'ms-queue-empty';
-        d.textContent = text;
-        container.textContent = '';
-        container.appendChild(d);
-    }
-
-    function renderQueue(jobs) {
-        var activeEl = document.getElementById('msQueueActive');
-        var histEl = document.getElementById('msQueueHistory');
-        if (!activeEl || !histEl) return;
-        activeEl.textContent = '';
-        histEl.textContent = '';
-
-        var active = jobs.filter(function(j) { return j.status === 'pending' || j.status === 'dispatched'; });
-        var history = jobs.filter(function(j) { return j.status !== 'pending' && j.status !== 'dispatched'; }).slice(0, 10);
-
-        if (!active.length) { _renderEmptyDiv('No active jobs.', activeEl); }
-        if (!history.length) { _renderEmptyDiv('No history yet.', histEl); }
-
-        var allJobs = active.concat(history);
-        var el = activeEl; // start with active
-        if (!jobs.length) {
-            _renderEmptyDiv('Queue is empty.', activeEl);
-            return;
-        }
-
-        var histCount = 0;
-        for (var i = 0; i < allJobs.length; i++) {
-            var j = allJobs[i];
-            var status = (j.status || "pending").toLowerCase();
-            var canCancel = (status === "pending");
-            var isActive = (status === "pending" || status === "dispatched");
-            if (!isActive) {
-                histCount++;
-                if (histCount > 10) continue; // history cap
-            }
-
-            var row = document.createElement("div");
-            row.className = "ms-queue-item";
-
-            // Type icon
-            var iconWrap = document.createElement("div");
-            iconWrap.className = "ms-queue-type-icon";
-            var icon = document.createElement("i");
-            icon.setAttribute("data-lucide", typeIcon(j.media_type));
-            iconWrap.appendChild(icon);
-            row.appendChild(iconWrap);
-
-            // Info
-            var info = document.createElement("div");
-            info.className = "ms-queue-info";
-            if (j.agent_name) {
-                var agentLabel = document.createElement("div");
-                agentLabel.style.cssText = 'font-size:0.75rem;color:var(--ms-accent,#7c3aed);font-weight:600;margin-bottom:2px;';
-                agentLabel.textContent = j.agent_name + ' — Portrait';
-                info.appendChild(agentLabel);
-            }
-            var prompt = document.createElement("div");
-            prompt.className = "ms-queue-prompt";
-            var promptText = (j.params && j.params.prompt) ? j.params.prompt : (j.prompt || '');
-            prompt.textContent = truncate(promptText, 80);
-            info.appendChild(prompt);
-            var time = document.createElement("div");
-            time.className = "ms-queue-time";
-            if (j.created_at) {
-                var d = new Date(j.created_at);
-                time.textContent = isNaN(d) ? j.created_at : d.toLocaleString();
-            }
-            info.appendChild(time);
-            row.appendChild(info);
-
-            // Status badge
-            var badge = document.createElement("span");
-            badge.className = "ms-status-badge " + status;
-            badge.textContent = j.status || "Pending";
-            row.appendChild(badge);
-
-            // Cancel button
-            if (canCancel) {
-                var cancelBtn = document.createElement("button");
-                cancelBtn.className = "ms-queue-cancel";
-                cancelBtn.setAttribute("data-i18n", "media_studio.cancel");
-                cancelBtn.textContent = "Cancel";
-                cancelBtn.addEventListener("click", (function(queueId) {
-                    return function() { cancelJob(queueId); };
-                })(j.id));
-                row.appendChild(cancelBtn);
-            }
-
-            if (isActive) { activeEl.appendChild(row); } else { histEl.appendChild(row); }
-        }
-
-        if (typeof lucide !== "undefined") lucide.createIcons();
-    }
 
     window.rescueOrphans = function() {
         var btn = document.getElementById('msRescueBtn');
@@ -3735,6 +3679,46 @@
         });
     };
 
+    /* History filter + paging. The /api/queue endpoint already accepted
+     * ?status= and ?per_page=; the old UI hard-coded failed:10 + completed:5
+     * with no way to see anything else. */
+    var _QUEUE_HISTORY_FILTER = '';
+    var _QUEUE_HISTORY_PER_PAGE = 25;
+    var _QUEUE_HISTORY_PAGE = 1;
+    var _QUEUE_POLL_MS = 10000;
+
+    window.setQueueHistoryFilter = function(value) {
+        _QUEUE_HISTORY_FILTER = value || '';
+        _QUEUE_HISTORY_PAGE = 1;
+        loadQueueItems();
+    };
+
+    window.setQueueHistoryPerPage = function(value) {
+        _QUEUE_HISTORY_PER_PAGE = parseInt(value, 10) || 25;
+        _QUEUE_HISTORY_PAGE = 1;
+        loadQueueItems();
+    };
+
+    window.queueHistoryPage = function(delta) {
+        _QUEUE_HISTORY_PAGE = Math.max(1, _QUEUE_HISTORY_PAGE + delta);
+        loadQueueItems();
+    };
+
+    function _renderHistoryPager(shown, returned) {
+        var label = document.getElementById('msQueueHistPage');
+        if (label) {
+            var from = returned ? ((_QUEUE_HISTORY_PAGE - 1) * _QUEUE_HISTORY_PER_PAGE + 1) : 0;
+            var to = from + Math.max(0, returned - 1);
+            label.textContent = returned ? (from + '–' + to) : 'none';
+        }
+        var prev = document.getElementById('msQueueHistPrev');
+        var next = document.getElementById('msQueueHistNext');
+        if (prev) prev.disabled = _QUEUE_HISTORY_PAGE <= 1;
+        // A short page means there is no next page; requesting beyond the end
+        // returns nothing, which would otherwise look like data loss.
+        if (next) next.disabled = returned < _QUEUE_HISTORY_PER_PAGE;
+    }
+
     window.loadQueueItems = function() {
         var activeEl = document.getElementById('msQueueActive');
         var historyEl = document.getElementById('msQueueHistory');
@@ -3757,22 +3741,34 @@
             }
         }).catch(function() {});
 
-        Promise.all([
-            api('GET', '/api/queue?status=failed&per_page=10'),
-            api('GET', '/api/queue?status=completed&per_page=5')
-        ]).then(function(results) {
-            var history = (results[0].items || []).concat(results[1].items || []);
+        var histStatuses = _QUEUE_HISTORY_FILTER
+            ? [_QUEUE_HISTORY_FILTER]
+            : ['failed', 'completed', 'cancelled'];
+        var histOffset = (_QUEUE_HISTORY_PAGE - 1) * _QUEUE_HISTORY_PER_PAGE;
+        Promise.all(histStatuses.map(function(s) {
+            return api('GET', '/api/queue?status=' + encodeURIComponent(s) +
+                             '&per_page=' + _QUEUE_HISTORY_PER_PAGE +
+                             '&offset=' + histOffset);
+        })).then(function(results) {
+            var history = [];
+            results.forEach(function(r) { history = history.concat(r.items || []); });
             history.sort(function(a, b) { return (b.created_at || '') > (a.created_at || '') ? 1 : -1; });
-            if (!historyEl) return;
-            _clearChildren(historyEl);
-            if (!history.length) {
-                var empty = document.createElement('div');
-                empty.className = 'ms-queue-empty';
-                empty.textContent = 'No history yet.';
-                historyEl.appendChild(empty);
-            } else {
-                history.forEach(function(item) { historyEl.appendChild(_createQueueCard(item, item.status === 'failed' ? 'failed' : 'recent')); });
+            if (historyEl) {
+                _clearChildren(historyEl);
+                if (!history.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'ms-queue-empty';
+                    empty.textContent = _QUEUE_HISTORY_PAGE > 1
+                        ? 'No more history on this page.'
+                        : 'No history yet.';
+                    historyEl.appendChild(empty);
+                } else {
+                    history.forEach(function(item) {
+                        historyEl.appendChild(_createQueueCard(item, item.status === 'failed' ? 'failed' : 'recent'));
+                    });
+                }
             }
+            _renderHistoryPager(historyEl ? historyEl.children.length : 0, history.length);
         }).catch(function() {});
     };
 
@@ -3839,11 +3835,26 @@
         var body = document.createElement('div');
         body.className = 'ms-queue-card-body';
 
-        if (item.thumbnail_path) {
+        if (item.thumbnail_path || item.file_path) {
             var img = document.createElement('img');
-            img.src = item.thumbnail_path;
+            // thumbnail_path is NULL on every row generated before the fleet
+            // path fix (media_library #500/#501/#502 had no thumbnail at all), so
+            // fall back to the full image rather than rendering no preview.
+            img.src = item.thumbnail_path || item.file_path;
             img.className = 'ms-queue-thumb';
+            img.loading = 'lazy';
+            img.alt = '';
+            img.onerror = function() {
+                // Broken/absent asset: drop the slot rather than a torn image icon.
+                if (img.parentNode) img.parentNode.removeChild(img);
+            };
             body.appendChild(img);
+        }
+        if (item.agent_name) {
+            var agentLabel = document.createElement('span');
+            agentLabel.className = 'ms-queue-agent';
+            agentLabel.textContent = item.agent_name;
+            body.appendChild(agentLabel);
         }
         if (type === 'active') {
             var spinner = document.createElement('span');
@@ -3899,11 +3910,22 @@
     }
 
     window.cancelQueueItem = function(id) {
-        api('POST', '/api/queue/' + id + '/cancel').then(function() { loadQueueItems(); loadQueueStats(); });
+        api('POST', '/api/queue/' + id + '/cancel')
+            .then(function() { loadQueueItems(); loadQueueStats(); })
+            .catch(function(err) { showMsToast('Cancel failed: ' + err, 'error'); });
     };
 
     window.retryQueueItem = function(id) {
-        api('POST', '/api/queue/' + id + '/retry').then(function() { loadQueueItems(); loadQueueStats(); });
+        // Previously had no .catch(), so a 404 ("Item not found or not failed")
+        // — or any dispatch failure — was swallowed and looked like a dead
+        // button. The backend rejects anything not in 'failed', so say so.
+        api('POST', '/api/queue/' + id + '/retry')
+            .then(function() {
+                showMsToast('Retrying job #' + id, 'success');
+                loadQueueItems();
+                loadQueueStats();
+            })
+            .catch(function(err) { showMsToast('Retry failed: ' + err, 'error'); });
     };
 
     window.cancelBatch = function(id) {

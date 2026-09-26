@@ -566,8 +566,14 @@ def get_queue_status(
     owner_id: Optional[int] = None,
     limit: int = 20,
     status: Optional[str] = None,
+    offset: int = 0,
 ) -> list:
-    """Get recent queue entries for polling."""
+    """Get recent queue entries for polling.
+
+    ``offset`` exists for the Queue tab's history pager. Without it the tab
+    could only ever show the newest N — it had no way to reach page 2, because
+    ``limit`` alone always returns the same newest slice.
+    """
     with get_db_cursor() as (conn, cur):
         conditions = ["q.owner_type = %s"]
         params: list = [owner_type]
@@ -578,6 +584,8 @@ def get_queue_status(
             conditions.append("q.status = %s")
             params.append(status)
         where = "WHERE " + " AND ".join(conditions)
+        params.append(max(0, int(limit)))
+        params.append(max(0, int(offset)))
         cur.execute(
             f"""
             SELECT q.*, ml.thumbnail_path,
@@ -587,9 +595,9 @@ def get_queue_status(
             LEFT JOIN agents a ON a.id = q.owner_id AND q.owner_type = 'agent'
             {where}
             ORDER BY q.created_at DESC
-            LIMIT %s
+            LIMIT %s OFFSET %s
             """,
-            params + [limit],
+            params,
         )
         return [dict(row) for row in cur.fetchall()]
 

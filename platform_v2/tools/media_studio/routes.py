@@ -181,15 +181,16 @@ def api_generate():
 def api_queue():
     """Get generation queue — user jobs + agent portrait jobs (platform-wide for this tenant).
 
-    Supports ?status=pending|dispatched|generating|failed|completed and ?per_page=N
-    for the Queue tab status-filtered views.
+    Supports ?status=pending|dispatched|generating|failed|completed|cancelled,
+    ?per_page=N and ?offset=N for the Queue tab's status-filtered, paged views.
     """
     from .services.generation_service import get_queue_status
 
     status = request.args.get("status") or None
     limit = request.args.get("per_page", request.args.get("limit", 20), type=int)
-    user_jobs = get_queue_status(owner_type="user", owner_id=current_user.id, limit=limit, status=status)
-    agent_jobs = get_queue_status(owner_type="agent", owner_id=None, limit=limit, status=status)
+    offset = request.args.get("offset", 0, type=int)
+    user_jobs = get_queue_status(owner_type="user", owner_id=current_user.id, limit=limit, status=status, offset=offset)
+    agent_jobs = get_queue_status(owner_type="agent", owner_id=None, limit=limit, status=status, offset=offset)
     all_jobs = sorted(user_jobs + agent_jobs, key=lambda j: j.get("created_at") or "", reverse=True)[:limit]
     # Return both 'jobs' (legacy) and 'items' (Queue tab loadQueueItems expects items)
     return jsonify({"jobs": all_jobs, "items": all_jobs})

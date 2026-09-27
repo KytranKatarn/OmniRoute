@@ -4662,10 +4662,16 @@ async function loadClaudeFeed() {
         // so its rows live in unified_tasks until the worker dispatches them).
         var pendingHtml = '';
         if (pending.length) {
+            // "BLOCKED BY" appears ONLY when a row actually carries a blocker,
+            // so the common (nothing-stuck) table keeps its original width.
+            var anyBlocked = pending.some(function(p) { return !!(p.blockers || '').trim(); });
+            var hdr = '<th>STATUS</th><th>CAPABILITY</th><th>REASON</th>'
+                + (anyBlocked ? '<th>BLOCKED BY</th>' : '')
+                + '<th>SOURCE</th><th>AGE</th><th>QUEUED</th><th>ACTIONS</th>';
             pendingHtml = '<div style="margin-bottom:0.8rem">'
                 + '<div style="font-size:0.7rem;color:var(--dhq-text-dim);margin-bottom:0.3rem;font-family:\'Antonio\',sans-serif;letter-spacing:0.08em">DELEGATION QUEUE — ' + pending.length + ' not yet completed</div>'
                 + '<table class="dhq-loop-table"><thead><tr>'
-                + '<th>STATUS</th><th>CAPABILITY</th><th>REASON</th><th>SOURCE</th><th>AGE</th><th>QUEUED</th><th>ACTIONS</th>'
+                + hdr
                 + '</tr></thead><tbody>';
             pending.forEach(function(p) {
                 var statusColor = '#94a3b8';
@@ -4680,10 +4686,22 @@ async function loadClaudeFeed() {
                 }
                 var reason = (p.reason || '').replace(/\s+/g, ' ').trim();
                 if (reason.length > 80) reason = reason.slice(0, 77) + '…';
+                // The refusal itself, e.g. "Dispatcher refused: Ollama Cloud API
+                // error: 410 - minimax-m2.5 was retired at 2026-07-31". This is
+                // the difference between "blocked" and knowing WHY, and it is
+                // what tells a retryable stall from a dead-end one.
+                var blockerCell = '';
+                if (anyBlocked) {
+                    var b = (p.blockers || '').replace(/\s+/g, ' ').trim();
+                    if (b.length > 120) b = b.slice(0, 117) + '…';
+                    blockerCell = '<td title="' + esc(p.blockers || '') + '" style="color:#ef4444;font-size:0.7rem;max-width:22rem">'
+                        + (b ? esc(b) : '<span style="color:var(--dhq-text-dim)">—</span>') + '</td>';
+                }
                 pendingHtml += '<tr>'
                     + '<td style="color:' + statusColor + ';font-weight:600;font-family:monospace;font-size:0.72rem">' + esc(p.status || '?') + '</td>'
                     + '<td style="font-family:monospace;color:var(--dhq-accent);font-size:0.72rem">' + esc(p.capability || '?') + '</td>'
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(reason) + '</td>'
+                    + blockerCell
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(p.requested_by || p.delegation_source || '—') + '</td>'
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + ageStr + '</td>'
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + fmtTime(p.created_at) + '</td>'

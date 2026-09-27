@@ -1669,10 +1669,68 @@ def _blocker_reason(error: str, attempts: int, cap: int) -> str:
     return f"{detail} ({scope})"
 
 
+def _is_permanent_dispatch_failure(error: str) -> bool:
+    """True when a dispatch refusal can NEVER succeed on retry.
+
+    Why this exists: on 2026-09-27 eighteen ``translate`` delegations burned
+    three full retry rounds against ``minimax-m2.5``, which Ollama Cloud had
+    retired on 2026-07-31 and answered with a hard ``410 Gone``. Every retry
+    re-issued the identical doomed call, and the task then sat ``blocked`` for
+    33h because the retry budget and the failure are equally permanent. Worse,
+    the reason was invisible in the DHQ panel.
+
+    DELIBERATELY NARROW. Only refusals that no amount of waiting can fix count:
+
+    * ``410 Gone``        — the upstream resource was removed for good
+    * ``401`` / ``403``   — credential/permission problem, not a transient
+    * ``404`` + "model"   — Ollama's "model not found"
+    * explicit retirement wording
+
+    Everything else stays on the normal retry path. In particular GPU
+    contention MUST NOT match here: ``timeout``, ``timed out``, ``server
+    busy``, ``llama runner``, ``429``, ``5xx`` and connection resets are all
+    transient on this fleet and cancelling them would silently destroy
+    recoverable work. A 240s contention timeout that self-heals must keep its
+    three attempts.
+    """
+    if not error:
+        return False
+    text = str(error).lower()
+
+    # 410 Gone — the retirement case. Checked first: the 410 body is the most
+    # specific signal we get and it is unambiguous.
+    if re.search(r"\b410\b", text) and re.search(r"\bgone\b", text):
+        return True
+    if re.search(r"was retired|has been retired|model retired|no longer available", text):
+        return True
+    # Auth / permission refusals.
+    if re.search(r"\b(401|403)\b", text) and re.search(
+        r"unauthorized|forbidden|api key|credential|permission|quota exceeded", text
+    ):
+        return True
+    # Ollama's "model ... not found" is a 404, but only when it names a model —
+    # a bare 404 on a task endpoint means something else entirely.
+    if (
+        re.search(r"\b404\b", text)
+        and re.search(r"model", text)
+        and re.search(r"not found|does not exist|unknown model", text)
+    ):
+        return True
+    return False
+
+
 def mark_task_failed(task_id: int, error: str) -> None:
     """Record a delegate failure. After ``delegation:max_attempts`` failures the task is
     auto-dismissed (cancelled) rather than left 'blocked' — which the daily triage would
-    otherwise revive into an endless retry loop (#cont-103)."""
+    otherwise revive into an endless retry loop (#cont-103).
+
+    A refusal that can never succeed (``_is_permanent_dispatch_failure`` — a
+    retired model answering 410, a dead credential) skips the retry budget
+    entirely: it is cancelled on the FIRST failure and the owner is alerted.
+    Retrying an identical permanent refusal is pure cost, and parking it
+    'blocked' is what made the 2026-09-27 stale queue invisible.
+    """
+    permanent = _is_permanent_dispatch_failure(error)
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "SELECT COUNT(*) AS n FROM work_notes " "WHERE task_id = %s AND note_type = 'delegation_failure'",
@@ -1682,15 +1740,34 @@ def mark_task_failed(task_id: int, error: str) -> None:
         prior = int(_r["n"]) if _r and _r.get("n") is not None else 0
         attempts = prior + 1
         cap = _delegation_max_attempts()
-        give_up = cap > 0 and attempts >= cap
+        give_up = permanent or (cap > 0 and attempts >= cap)
         if give_up:
-            cur.execute(
-                "UPDATE unified_tasks SET status = 'cancelled', updated_at = now(), "
-                "  metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object("
-                "    'auto_dismissed', jsonb_build_object('after_attempts', %s, 'at', now())) "
-                "WHERE id = %s",
-                (attempts, task_id),
-            )
+            if permanent:
+                # Stamp WHY it was given up on, so a cancelled row is
+                # distinguishable from a task that merely ran out of attempts.
+                cur.execute(
+                    "UPDATE unified_tasks SET status = 'cancelled', updated_at = now(), "
+                    "  blockers = %s, "
+                    "  metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object("
+                    "    'auto_dismissed', jsonb_build_object("
+                    "        'after_attempts', %s, 'at', now(),"
+                    "        'permanent', TRUE, 'reason', %s::text)) "
+                    "WHERE id = %s",
+                    (
+                        f"NON-RETRYABLE: {_blocker_reason(error, attempts, cap)}",
+                        attempts,
+                        (error or "")[:400],
+                        task_id,
+                    ),
+                )
+            else:
+                cur.execute(
+                    "UPDATE unified_tasks SET status = 'cancelled', updated_at = now(), "
+                    "  metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object("
+                    "    'auto_dismissed', jsonb_build_object('after_attempts', %s, 'at', now())) "
+                    "WHERE id = %s",
+                    (attempts, task_id),
+                )
         else:
             # Stamp the reason onto the row, not just work_notes. The DHQ Dispatch panel
             # reads unified_tasks directly, so without this it renders "blocked" with no
@@ -1710,10 +1787,40 @@ def mark_task_failed(task_id: int, error: str) -> None:
             """,
             (
                 task_id,
-                (error + f" — auto-dismissed after {attempts} failed attempts") if give_up else error,
-                json.dumps({"outcome": "auto_dismissed" if give_up else "failed", "attempts": attempts}),
+                (
+                    error + " — NON-RETRYABLE, cancelled immediately (permanent refusal)"
+                    if permanent
+                    else (error + f" — auto-dismissed after {attempts} failed attempts") if give_up else error
+                ),
+                json.dumps(
+                    {
+                        "outcome": "auto_dismissed" if give_up else "failed",
+                        "attempts": attempts,
+                        "permanent": permanent,
+                    }
+                ),
             ),
         )
+
+    if permanent:
+        # A permanent refusal is a configuration fault, not a task failure: a
+        # retired model or a dead credential will fail every future delegation
+        # of this capability too. Silence here is what let 18 rows rot for 33h,
+        # so say so out loud. emit_delegation_event's 'fail' path routes to
+        # send_system (warning priority) and is fire-and-forget.
+        try:
+            emit_delegation_event(
+                task_id,
+                "fail",
+                capability="(unknown)",
+                summary=(
+                    f"Delegation permanently refused — cancelled without retry. "
+                    f"The target can never succeed, so every retry was skipped. "
+                    f"Refusal: {(error or '')[:300]}"
+                ),
+            )
+        except Exception as exc:  # never let alerting break the write path
+            logger.warning("permanent-failure alert failed for task %s: %s", task_id, exc)
 
 
 # ----------------------------------------------------------------------

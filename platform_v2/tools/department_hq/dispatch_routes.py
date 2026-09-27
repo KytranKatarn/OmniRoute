@@ -30,6 +30,28 @@ if not OLLAMA_URL.startswith("http"):
 _LIFETIME_CACHE = {"ts": 0.0, "data": None}
 
 
+def _flatten_blockers(value):
+    """Render unified_tasks.blockers (jsonb) as one display string.
+
+    The column is written by delegation_service as a plain string in the
+    common case, but it is jsonb and older/other writers have used a list
+    (and psycopg2 hands back a decoded object). Normalise all three shapes to
+    a string so the panel never renders "[object Object]" and never throws.
+    Returns "" when there is nothing to show.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        text = value
+    elif isinstance(value, (list, tuple)):
+        text = "; ".join(b if isinstance(b, str) else json.dumps(b, default=str) for b in value)
+    elif isinstance(value, dict):
+        text = json.dumps(value, default=str)
+    else:
+        text = str(value)
+    return " ".join(text.split())
+
+
 def _dispatch_lifetime_totals():
     """Cumulative dispatches / tokens / energy / CO2 across ALL of
     task_execution_log. CO2 uses the shared C.R.E.E.D. estimator fragment
@@ -1407,6 +1429,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 # can Retry/Dismiss them from the queue too.
                 cur.execute(
                     """SELECT id, status, title, delegation_args, delegation_source,
+                              blockers,
                               created_at, completed_at,
                               EXTRACT(EPOCH FROM (NOW() - created_at))::int AS age_secs
                        FROM unified_tasks
@@ -1439,6 +1462,16 @@ def register_dispatch_routes(bp, admin_required_decorator):
                             "reason": args.get("reason") or "",
                             "requested_by": args.get("requested_by") or "",
                             "delegation_source": r.get("delegation_source") or "",
+                            # Why it is stuck. delegation_service deliberately
+                            # stamps the refusal onto unified_tasks.blockers
+                            # (jsonb: string, list, or null) precisely so an
+                            # operator can tell a real failure from a false one
+                            # instead of seeing a bare "blocked". The panel
+                            # never selected the column, so 18 rows sat
+                            # unexplained for 33h while the actual cause
+                            # ("minimax-m2.5 was retired ... 410") was fully
+                            # written to the row the whole time.
+                            "blockers": _flatten_blockers(r.get("blockers")),
                             "age_secs": r.get("age_secs"),
                             "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
                             "completed_at": r["completed_at"].isoformat() if r.get("completed_at") else None,

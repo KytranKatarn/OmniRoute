@@ -517,6 +517,57 @@ def _log_cloud_usage(
             pass
 
 
+# Cloud models the provider has RETIRED. A call to one of these comes back
+# ``410 Gone`` — permanently, not transiently.
+#
+# Why this table exists rather than just deleting the names from the code:
+# on 2026-09-27 eighteen `translate` delegations were routed to
+# `minimax-m2.5` and every one died on a hard 410, then sat `blocked` for 33h.
+# #5706 (2026-08-17) had already changed the *default* here and removed the
+# name from the dispatcher's FREE_CLOUD_MODELS list — but the
+# `contractor_providers` row still carried it as its default_model, and
+# `/api/tags` still ADVERTISES `minimax-m2.5:cloud`. Two independent sources
+# outlived the code fix, so editing the code alone could never have been
+# enough.
+#
+# This is the single choke point every Ollama Cloud call funnels through, so
+# one entry here blocks a retired model no matter which path selects it —
+# including paths nobody has audited yet. It also short-circuits BEFORE the
+# HTTP call, so a known-dead model no longer burns a 300s round trip per
+# attempt (the 410 came back fast, but the retries were the expensive part).
+#
+# When the provider retires another model, add it here with the reason and the
+# date. The value is surfaced to the operator, so make it useful.
+RETIRED_CLOUD_MODELS = {
+    "minimax-m2.5": (
+        "retired by Ollama Cloud on 2026-07-31; the API answers 410 Gone. "
+        "Removed as the default in #5706 (2026-08-17), but the contractor row "
+        "and the /api/tags catalogue both outlived that fix."
+    ),
+    "qwen3-coder-next": (
+        "retired by Ollama Cloud on 2026-07-15; the API answers 410 Gone. This "
+        "was the REPLACEMENT for minimax-m2.5 (#5706) and the default for "
+        "call_ollama_cloud, so as of 2026-09-27 BOTH cloud-proxy contractors "
+        "point at dead models and the whole Ollama Cloud tier is unusable. "
+        "Verified live: it 410s on a trivial prompt. Repopulate this tier with a "
+        "currently-offered cloud model before re-enabling the contractors."
+    ),
+}
+
+
+def is_retired_cloud_model(model):
+    """True if ``model`` (with or without a ``:cloud`` suffix) is retired.
+
+    Lowercase BEFORE stripping the suffix: Ollama tags are case-insensitive in
+    practice, and stripping first meant ``MINIMAX-M2.5:CLOUD`` slipped past a
+    case-sensitive ``:cloud`` replace and then never matched the table. A guard
+    that can be walked past by capitalisation is not a guard.
+    """
+    if not model:
+        return False
+    return str(model).strip().lower().replace(":cloud", "") in RETIRED_CLOUD_MODELS
+
+
 def call_ollama_cloud(
     prompt,
     model="qwen3-coder-next",  # was minimax-m2.5 — retired 2026-08-17 (#5706), 410s on every dispatch
@@ -538,6 +589,24 @@ def call_ollama_cloud(
 
     start_time = time.time()
     api_key = os.getenv("OLLAMA_API_KEY")
+
+    # Refuse a retired model before spending a request on it. See
+    # RETIRED_CLOUD_MODELS above for why this is checked here rather than
+    # trusted to the callers. The return shape matches a normal failure so
+    # every existing caller handles it unchanged.
+    if is_retired_cloud_model(model):
+        return {
+            "success": False,
+            "error": (
+                f"Ollama Cloud model '{model}' is retired and cannot be called: "
+                f"{RETIRED_CLOUD_MODELS.get(str(model).strip().lower().replace(':cloud', ''), 'retired upstream')}. "
+                "Not retryable — pick a different model."
+            ),
+            "model": model,
+            "provider": "ollama_cloud",
+            "retired": True,
+            "non_retryable": True,
+        }
 
     if not api_key:
         return {
@@ -614,6 +683,11 @@ def call_ollama_cloud(
                 "error": f"Ollama Cloud API error: {response.status_code} - {response.text[:200]}",
                 "model": model,
                 "provider": "ollama_cloud",
+                # 410 Gone and 404 mean the model itself is gone. Flag it so
+                # callers stop retrying an identical doomed call, and so a
+                # model retired upstream *after* this table was last edited
+                # still degrades correctly instead of stalling for 33h.
+                **({"retired": True, "non_retryable": True} if response.status_code in (404, 410) else {}),
             }
 
     except Exception as e:

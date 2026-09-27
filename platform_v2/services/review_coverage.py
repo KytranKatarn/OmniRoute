@@ -347,9 +347,38 @@ _DOC_RE = re.compile(
 )
 
 
+# Non-text assets carry no reviewable content: a diff of a JPEG is a "Binary files
+# differ" stub, and `file_plan` gives EVERY file its own serial pass, so spending one
+# on an image burns budget the code in the same PR needs.
+#
+# Measured on #3496: 32 portrait JPEGs sorted ahead of the two `data/*.json` files
+# that carried every reviewable byte, so at max_files=10 those JSONs — #33 and #34 of
+# 34 — could never be sent, and the verdict could never be anything but NEEDS REVIEW.
+# A wide re-review did not rescue it either: it ran 16m38s, completed zero passes,
+# and was still sitting on the first JPEG when it was killed. `_BINARY_RE` is checked
+# BEFORE `_DOC_RE` on purpose, so `docs/diagram.png` bands as an asset (3), not a
+# document (2).
+#
+# This is an ORDER change only. `max_files <= 1` still returns the diff unchanged, and
+# a diff containing no binary paths is byte-identical to before — both properties are
+# pinned in tests/test_review_coverage.py.
+_BINARY_RE = re.compile(
+    r"\.(jpe?g|png|gif|webp|avif|bmp|tiff?|ico|icns|heic"
+    r"|pdf|mp[34]|m4[av]|mov|webm|avi|mkv"
+    r"|wav|flac|ogg|aac|opus|midi"
+    r"|woff2?|ttf|otf|eot"
+    r"|zip|gz|bz2|xz|tar|7z|rar|zst"
+    r"|so|dylib|dll|exe|class|jar|pyc|pyo|wasm|bin|o|a"
+    r"|iso|img|db|sqlite3?|mp4|mov)$",
+    re.IGNORECASE,
+)
+
+
 def file_band(path: str) -> int:
-    """0 = code, 1 = tests, 2 = docs/generated. Lower is reviewed first."""
+    """0 = code, 1 = tests, 2 = docs/generated, 3 = non-text asset. Lower is reviewed first."""
     p = (path or "").strip()
+    if _BINARY_RE.search(p):
+        return 3
     if _DOC_RE.search(p):
         return 2
     if _TEST_RE.search(p):
@@ -414,12 +443,22 @@ def file_plan_detail(diff: str | None, max_files: int, cap: int | None = None) -
     if not blocks:
         return [diff], []
     blocks.sort(key=lambda pb: file_band(pb[0]))
-    kept, refused = blocks[:max_files], [p for p, _b in blocks[max_files:]]
+    # Band 3 (non-text asset) is EXCLUDED, not merely sorted last. Sorting alone is
+    # not enough: on #3496 two band-0 files and thirty-two band-3 files left 8 of the
+    # 10 passes to JPEGs, and each of those is a full serial dispatch spent on a
+    # "Binary files differ" stub — that is what ran 16m38s and completed nothing.
+    # So an asset never becomes a pass; it always lands in `refused`, which keeps the
+    # count honest in the coverage note. (The note's remedy text says "re-review wider",
+    # which cannot help a JPEG — pre-existing wording, not made worse here: an asset is
+    # no longer counted as a file the bound REFUSED to fit, it was never reviewable.)
+    reviewable = [pb for pb in blocks if file_band(pb[0]) < 3]
+    assets = [p for p, _b in blocks if file_band(p) >= 3]
+    kept, refused = reviewable[:max_files], [p for p, _b in reviewable[max_files:]]
     chunks = []
     for path, block in kept:
         # cap=None keeps the pre-split behaviour byte-identical — the killswitch.
         chunks.extend(split_oversized_block(path, block, cap) if cap else [block])
-    return chunks, refused
+    return chunks, refused + assets
 
 
 def file_plan(diff: str | None, max_files: int, cap: int | None = None) -> list:

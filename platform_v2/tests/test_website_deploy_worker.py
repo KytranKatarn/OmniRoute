@@ -54,6 +54,8 @@ class Harness:
         self.since = {}  # domain -> iso str or None
         self.pipeline_result = _Result(True)
         self.pipeline_raises = None
+        self.queued_hash = {}
+        self.queued = []
 
     # -- fakes the worker's function-local imports resolve to ----------------
     def last_push_iso(self, domain):
@@ -68,6 +70,25 @@ class Harness:
         if self.pipeline_raises:
             raise self.pipeline_raises
         return self.pipeline_result
+
+    # Fast-cadence dedupe. Default None so the dedupe NEVER fires unless a test
+    # asks for it — every pre-existing expectation below is the "no prior queue"
+    # case and must keep passing unchanged.
+    def last_queued_hash(self, domain):
+        return self.queued_hash.get(domain)
+
+    def mark_deploy_queued(self, domain, changed_files):
+        # Must PERSIST, not just record the call: the real function writes
+        # system_config, which is what the next tick's last_queued_hash() reads.
+        # A fake that only appends would make every dedupe assertion pass for the
+        # wrong reason (the lookup always returning None).
+        import hashlib
+
+        files = sorted(str(f) for f in (changed_files or []))
+        digest = hashlib.sha256("\n".join(files).encode()).hexdigest()[:32]
+        self.queued.append((domain, list(changed_files or [])))
+        self.queued_hash[domain] = digest
+        return digest
 
     @contextmanager
     def get_db_cursor(self, commit=False):
@@ -99,6 +120,14 @@ def h(monkeypatch):
     ds.last_push_iso = harness.last_push_iso
     ds.changed_files_since = harness.changed_files_since
     ds.run_deploy_pipeline = harness.run_deploy_pipeline
+    ds.last_queued_hash = harness.last_queued_hash
+    ds.mark_deploy_queued = harness.mark_deploy_queued
+    # Pure function, no DB or deploy deps — use the real one so the worker's
+    # dedupe compares hashes the same way the service does.
+    import importlib as _il
+
+    sys.modules.pop("services.deploy_service", None)
+    ds.changed_files_hash = _il.import_module("services.deploy_service").changed_files_hash
     monkeypatch.setitem(sys.modules, "services.deploy_service", ds)
 
     db = types.ModuleType("database")
@@ -285,3 +314,64 @@ class TestSitesAreIndependent:
         assert h.value_for(st_key(KYTRAN)) == "failed"
         assert h.value_for(ts_key(CREED)) is not None, "second site must still run"
         assert st_key(CREED) not in h.keys(), "second site succeeded — no status"
+
+
+class TestFastCadenceDoesNotStorm:
+    """The behavioural invariant behind the 15-minute interval.
+
+    A queue does not move the PUSH watermark, so without a dedupe every tick
+    re-detects the same unpushed files. These run the real worker body against
+    the harness and count actual pipeline calls.
+    """
+
+    def _armed(self, h, changed):
+        h.since = {KYTRAN: "2026-07-27T03:00:00+00:00", CREED: "2026-07-27T03:00:00+00:00"}
+        h.changed = {KYTRAN: list(changed), CREED: list(changed)}
+        return changed
+
+    def test_first_run_queues_and_stamps(self, h):
+        changed = self._armed(h, ["data/x.json", "assets/portraits/a.jpg"])
+        run(h)
+        assert len(h.pipeline_calls) == 2, "the first run must queue both sites"
+        assert [d for d, _ in h.queued] == [KYTRAN, CREED], "the queued set must be stamped"
+
+    def test_second_run_with_identical_set_does_not_requeue(self, h):
+        """The storm guard: same files, still unpushed -> no second queue."""
+        changed = self._armed(h, ["data/x.json"])
+        run(h)
+        assert len(h.pipeline_calls) == 2
+        # the worker stamped the hash, so the next tick recognises it
+        h.pipeline_calls.clear()
+        h.queued.clear()
+        run(h)
+        assert h.pipeline_calls == [], "identical unpushed set must NOT be queued again"
+
+    def test_a_new_change_does_requeue(self, h):
+        changed = self._armed(h, ["data/x.json"])
+        run(h)
+        h.pipeline_calls.clear()
+        h.queued.clear()
+        h.changed = {KYTRAN: ["data/x.json", "data/new.json"], CREED: ["data/x.json", "data/new.json"]}
+        run(h)
+        assert len(h.pipeline_calls) == 2, "a genuinely new change must still queue"
+
+    def test_a_failed_queue_is_retried_even_when_the_set_is_identical(self, h):
+        """Otherwise one transient error strands the site forever."""
+        self._armed(h, ["data/x.json"])
+        h.pipeline_result = _Result(False, "boom")
+        run(h)
+        assert h.value_for(st_key(KYTRAN)) == "failed"
+        h.pipeline_calls.clear()
+        h.queued.clear()
+        run(h)
+        assert len(h.pipeline_calls) == 2, "a FAILED queue must be retried, not deduped away"
+
+    def test_reordering_the_file_list_is_not_a_new_change(self, h):
+        """The walk order must not defeat the dedupe."""
+        self._armed(h, ["b.txt", "a.txt"])
+        run(h)
+        h.pipeline_calls.clear()
+        h.queued.clear()
+        h.changed = {KYTRAN: ["a.txt", "b.txt"], CREED: ["a.txt", "b.txt"]}
+        run(h)
+        assert h.pipeline_calls == [], "same set, different order, must not re-queue"

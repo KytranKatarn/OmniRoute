@@ -241,6 +241,70 @@ def mark_deploy_pushed(domain: str, artifact: str = "", file_count: int = 0, byt
         return False
 
 
+def changed_files_hash(changed_files) -> str:
+    """Stable hash of a changed-file set, order-independent.
+
+    Used to recognise "this exact set is already queued and still unpushed". A
+    plain set/list comparison would not survive the worker re-listing the tree in
+    a different order, and comparing raw lists is what makes a dedupe check
+    brittle enough that people delete it.
+    """
+    import hashlib
+
+    joined = "\n".join(sorted(str(f) for f in (changed_files or [])))
+    return hashlib.sha256(joined.encode("utf-8", "replace")).hexdigest()[:32]
+
+
+def last_queued_hash(domain: str) -> Optional[str]:
+    """Hash of the changed-file set this domain was last QUEUED for (None if never).
+
+    WHY THIS EXISTS SEPARATE FROM ``last_push_iso``: the push watermark only moves
+    when bytes actually reach Hostinger (``mark_deploy_pushed``). QUEUING does not
+    move it — by design, because a queue is not a deploy. That is correct on a
+    daily cadence, where re-detecting an unpushed change once a day is harmless.
+    It is NOT correct on a fast cadence: a queued-but-unpushed site re-detects the
+    same files on every tick and re-queues, so a 15-minute interval turns one
+    pending deploy into up to 96 redundant queues a day. This watermark lets the
+    worker recognise the already-queued set and wait for the real push instead.
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (_, cur):
+            cur.execute("SELECT value FROM system_config WHERE key = %s", (f"website_deploy_queue_hash_{domain}",))
+            row = cur.fetchone()
+        if not row:
+            return None
+        return row["value"] if isinstance(row, dict) else row[0]
+    except Exception as exc:
+        logger.warning("[DeployStatic] last_queued_hash lookup failed for %s: %s", domain, exc)
+        return None
+
+
+def mark_deploy_queued(domain: str, changed_files) -> str:
+    """Record the changed-file set this domain was just queued for.
+
+    NOT a status claim. It says "these files are awaiting a push", which is true
+    the moment ``run_deploy_pipeline`` accepts the queue. Only
+    ``mark_deploy_pushed`` may say the bytes landed.
+    """
+    from database import get_db_cursor
+
+    digest = changed_files_hash(changed_files)
+    try:
+        with get_db_cursor(commit=True) as (_, cur):
+            cur.execute(
+                """INSERT INTO system_config (key, value, updated_at)
+                   VALUES (%s, %s, NOW())
+                   ON CONFLICT (key) DO UPDATE
+                   SET value = EXCLUDED.value, updated_at = NOW()""",
+                (f"website_deploy_queue_hash_{domain}", digest),
+            )
+    except Exception as exc:
+        logger.warning("[DeployStatic] mark_deploy_queued failed for %s: %s", domain, exc)
+    return digest
+
+
 def last_push_iso(domain: str) -> Optional[str]:
     """Timestamp of the last REAL push for ``domain`` (None if never pushed)."""
     from database import get_db_cursor

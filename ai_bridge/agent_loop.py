@@ -1967,11 +1967,20 @@ class AgentLoop:
             coalesce=True,
         )
 
-        from apscheduler.triggers.cron import CronTrigger as _CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger as _IntervalTrigger
 
+        # 15 minutes, not daily. Portrait approval writes the thumb into the site
+        # tree immediately, and a daily cadence left approved portraits unpublished
+        # for up to 24h — which is why the sync was being done by hand.
+        #
+        # Safe at this cadence ONLY because of the queue-hash dedupe added in
+        # _website_deploy_worker: the push watermark moves solely when bytes land, so
+        # without it a queued-but-unpushed site would re-queue on every tick (96
+        # redundant queues/day). The worker no-ops when nothing changed, and
+        # max_instances=1 + coalesce=True keep ticks from overlapping.
         self.scheduler.add_job(
             with_app_context(self._website_deploy_worker),
-            trigger=_CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
+            trigger=_IntervalTrigger(minutes=15, timezone="America/Toronto"),
             id="website_deploy_worker",
             name="Agent Loop: Website Deploy (Operations / B.A.S.E.)",
             max_instances=1,
@@ -3174,7 +3183,29 @@ class AgentLoop:
                 since = last_push_iso(domain)
                 changed = changed_files_since(site["source"], since) if since else []
                 nothing_to_do = False
-                if not since:
+                # FAST-CADENCE DEDUPE. The push watermark only moves when bytes land,
+                # so a queued-but-unpushed site re-detects the same files on every tick.
+                # Harmless at daily; on a 15-minute interval it is up to 96 redundant
+                # queues a day. If the exact same set is already queued AND we are not
+                # retrying a failure, wait for the real push instead of re-queuing.
+                # A FAILED queue is always retried — otherwise a transient error would
+                # strand the site forever, which is the failure this is meant to prevent.
+                if changed:
+                    from services.deploy_service import changed_files_hash, last_queued_hash
+
+                    _prev_hash = last_queued_hash(domain)
+                    _cur_hash = changed_files_hash(changed)
+                    _already_queued = bool(_prev_hash) and _prev_hash == _cur_hash
+                    if _already_queued and not failed:
+                        nothing_to_do = True
+                        logger.info(
+                            "[WebsiteDeploy] %s: identical set already queued, awaiting push — not re-queuing",
+                            domain,
+                        )
+                    else:
+                        changed_files = changed
+                        logger.info("[WebsiteDeploy] %s: %d file(s) changed since %s", domain, len(changed), since)
+                elif not since:
                     changed_files = ["assets/portraits/", "data/"]
                     logger.info("[WebsiteDeploy] %s has no recorded push — treating as unknown", domain)
                 elif not changed:
@@ -3204,6 +3235,15 @@ class AgentLoop:
                     if not result.success:
                         failed = True
                         logger.error("[WebsiteDeploy] %s not queued: %s", domain, result.error)
+                    else:
+                        # Stamp the set we just queued so a fast cadence recognises it
+                        # on the next tick instead of re-queuing until the push lands.
+                        try:
+                            from services.deploy_service import mark_deploy_queued
+
+                            mark_deploy_queued(domain, changed_files)
+                        except Exception as _qh:
+                            logger.warning("[WebsiteDeploy] %s queue-hash stamp failed: %s", domain, _qh)
             except Exception as exc:
                 logger.exception("[WebsiteDeploy] %s error: %s", domain, exc)
                 failed = True

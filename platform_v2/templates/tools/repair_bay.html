@@ -3385,9 +3385,35 @@ function loadWebsiteDeployStatus() {
             return;
         }
         data.sites.forEach(function(site) {
-            var statusColor = site.last_status === 'success' ? '#22c55e' : site.last_status === 'failed' ? '#ef4444' : '#6b7280';
-            var statusLabel = site.last_status === 'success' ? 'DEPLOYED' : site.last_status === 'failed' ? 'FAILED' : 'NEVER';
-            var lastRun = site.last_run ? new Date(site.last_run + 'Z').toLocaleString() : 'Never';
+            // Status keys off what deploy_service ACTUALLY writes, not 'success'.
+            // The worker is forbidden from writing 'success' (it used to, which read
+            // as a completed deploy for a push that never happened — #2533), so
+            // matching on it rendered BOTH live sites as "NEVER": measured
+            // 2026-09-26, kytranempowerment.com was 'deployed' 9h earlier and
+            // creed-ai.org was 'deploy_pending', and both showed NEVER/grey here.
+            // 'deployed' is written ONLY by mark_deploy_pushed (bytes landed);
+            // 'deploy_pending'/'dispatched' mean queued, not yet pushed.
+            var _s = site.last_status;
+            var statusColor = _s === 'deployed' ? '#22c55e'
+                : _s === 'failed' ? '#ef4444'
+                : (_s === 'deploy_pending' || _s === 'dispatched') ? '#eab308'
+                : '#6b7280';
+            var statusLabel = _s === 'deployed' ? 'DEPLOYED'
+                : _s === 'failed' ? 'FAILED'
+                : (_s === 'deploy_pending' || _s === 'dispatched') ? 'QUEUED — NOT PUSHED'
+                : 'NEVER';
+            // last_run is written as an ISO string that ALREADY carries the UTC
+            // offset (+00:00). Appending 'Z' produced "…+00:00Z", which is not a
+            // valid date, so the timestamp rendered Invalid Date. Parse defensively
+            // and only assume a missing offset is UTC.
+            var lastRun = 'Never';
+            if (site.last_run) {
+                var _d = new Date(site.last_run);
+                if (isNaN(_d.getTime()) && !/[Zz]|[+-]\d\d:?\d\d$/.test(site.last_run)) {
+                    _d = new Date(site.last_run + 'Z');
+                }
+                lastRun = isNaN(_d.getTime()) ? site.last_run : _d.toLocaleString();
+            }
 
             var card = document.createElement('div');
             card.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:16px;display:flex;align-items:center;gap:16px;';

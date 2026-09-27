@@ -13,13 +13,34 @@
 
   function _el(id) { return document.getElementById(id); }
 
+  // last_run is an ISO string that already carries its UTC offset, so blindly
+  // appending 'Z' yields "…+00:00Z" — not a valid date. Only assume UTC when the
+  // string has no offset at all.
+  function _parseUtc(s) {
+    if (!s) return null;
+    var d = new Date(s);
+    if (isNaN(d.getTime()) && !/[Zz]|[+-]\d\d:?\d\d$/.test(s)) { d = new Date(s + 'Z'); }
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function _ago(d) {
+    var mins = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 48) return hrs + 'h ago';
+    return Math.round(hrs / 24) + 'd ago';
+  }
+
   window.msGallery = {
     init: function () {
       try {
         var saved = sessionStorage.getItem('ms_gallery_subject');
         if (saved) _subject = JSON.parse(saved);
       } catch (e) {}
-      msGallery.loadSubjects();
+        msGallery.loadSubjects();
+        // Surface where the last publish landed, so an approved portrait's
+        // journey to the public site is visible from where it was approved.
+        msGallery.loadPublishStatus();
     },
 
     loadSubjects: function () {
@@ -335,6 +356,89 @@
     setSort: function (sort) {
       _sort = sort || 'newest';
       msGallery.loadAssets();
+    },
+
+    // ── Publish portraits to the public sites ──────────────────────────────
+    //
+    // The endpoint lives in Repair Bay, NOT under /tools/media-studio, so it
+    // needs its own base. Both routes are @login_required @admin_required; a
+    // non-admin gets 403 and is told so rather than shown a silent failure.
+    //
+    // An empty body means "all sites" — the trigger queues one deploy per
+    // configured domain. It runs in a background thread server-side, so this
+    // returns as soon as the queue is accepted; the status poll below is how
+    // you find out it landed.
+    publishPortraits: function () {
+      var btn = _el('msPublishSitesBtn');
+      var out = _el('msPublishSitesStatus');
+      if (btn) { btn.disabled = true; btn.textContent = 'QUEUEING…'; }
+      if (out) { out.textContent = 'Queueing deploy…'; out.style.color = '#9ca3af'; }
+
+      fetch('/tools/repair-bay/api/deploy/website-trigger', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+        .then(function (r) {
+          if (r.status === 403) { var e = new Error('forbidden'); e.forbidden = true; throw e; }
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          if (btn) { btn.disabled = false; btn.textContent = 'PUBLISH PORTRAITS'; }
+          if (out) {
+            out.textContent = data.success
+              ? 'Queued: ' + (data.queued || []).join(', ')
+              : 'Queue failed: ' + (data.error || 'unknown');
+            out.style.color = data.success ? '#22c55e' : '#ef4444';
+          }
+          // The queue is async and the status watermark only moves when bytes
+          // actually land, so poll rather than claiming success.
+          setTimeout(msGallery.loadPublishStatus, 3000);
+        })
+        .catch(function (err) {
+          if (btn) { btn.disabled = false; btn.textContent = 'PUBLISH PORTRAITS'; }
+          if (out) {
+            out.textContent = err.forbidden
+              ? 'Admin only — ask the owner to queue the deploy'
+              : 'Queue failed (' + err.message + ')';
+            out.style.color = '#ef4444';
+          }
+        });
+    },
+
+    // Status labels mirror what deploy_service actually WRITES. Deliberately not
+    // keyed on 'success': the daily worker is forbidden from writing that (it
+    // used to, which read as a completed deploy for a push that never happened —
+    // #2533). Real values are 'deployed' (bytes landed, written only by
+    // mark_deploy_pushed), 'deploy_pending'/'dispatched' (queued, not pushed),
+    // and 'failed'.
+    loadPublishStatus: function () {
+      var out = _el('msPublishSitesStatus');
+      if (!out) return;
+      fetch('/tools/repair-bay/api/deploy/website-status', { credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(function (data) {
+          var sites = data.sites || [];
+          if (!sites.length) { out.textContent = 'No sites configured.'; return; }
+          out.textContent = sites.map(function (s) {
+            var label = s.last_status === 'deployed' ? 'deployed'
+              : s.last_status === 'failed' ? 'FAILED'
+              : (s.last_status === 'dispatched' || s.last_status === 'deploy_pending') ? 'queued (not pushed)'
+              : (s.last_status || 'never');
+            var bits = [s.domain + ': ' + label];
+            var run = _parseUtc(s.last_run);
+            if (run) { bits.push('last run ' + _ago(run)); }
+            if (s.pending_portraits) { bits.push(s.pending_portraits + ' portrait(s) since last run'); }
+            return bits.join(' · ');
+          }).join('   |   ');
+          out.style.color = sites.some(function (s) { return s.last_status === 'failed'; }) ? '#ef4444' : '#9ca3af';
+        })
+        .catch(function (err) {
+          out.textContent = 'status unavailable (' + err.message + ')';
+          out.style.color = '#6b7280';
+        });
     }
   };
 })();

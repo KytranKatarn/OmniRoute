@@ -35,6 +35,13 @@
                 <option value="cost">Highest cost</option>
               </select>
             </div>
+            <!-- Publish approved portraits to the public sites -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+              <button id="msPublishSitesBtn" onclick="msGallery.publishPortraits()"
+                      title="Queue a deploy of the public sites so approved portraits (and the director data) go live. Runs in the background; the site is also published automatically every 15 minutes."
+                      style="background:#ec4899;color:#010409;border:none;border-radius:4px;padding:7px 16px;font-size:0.72rem;font-family:Antonio,sans-serif;letter-spacing:1.5px;cursor:pointer;font-weight:600;">PUBLISH PORTRAITS</button>
+              <span id="msPublishSitesStatus" style="font-size:0.68rem;color:#9ca3af;font-family:'Share Tech Mono',monospace;">loading publish status…</span>
+            </div>
             <!-- Image grid -->
             <div id="msGallerySubjectGrid" class="ms-gallery-subject-grid"></div>
             <!-- Brand theme library — shown when Brand subject selected -->

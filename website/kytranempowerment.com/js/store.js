@@ -15,11 +15,7 @@ var Store = (function () {
     }
 
     function getImageUrl(product) {
-        var imgs = product.images;
-        if (Array.isArray(imgs) && imgs.length > 0 && imgs[0].url) {
-            return KECart.resolveImageUrl(imgs[0].url);
-        }
-        return 'https://via.placeholder.com/400x260?text=No+Image';
+        return KECart.getProductImageUrl(product);
     }
 
     function createProductCard(product) {

@@ -12,11 +12,7 @@ var ProductDetail = (function () {
     var qty = 1;
 
     function getImageUrl(product) {
-        var imgs = product.images;
-        if (Array.isArray(imgs) && imgs.length > 0 && imgs[0].url) {
-            return KECart.resolveImageUrl(imgs[0].url);
-        }
-        return 'https://via.placeholder.com/400?text=No+Image';
+        return KECart.getProductImageUrl(product);
     }
 
     function renderQty() {

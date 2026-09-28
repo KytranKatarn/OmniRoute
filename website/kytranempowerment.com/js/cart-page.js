@@ -13,7 +13,7 @@ var CartPage = (function () {
         row.className = 'cart-item';
 
         var img = document.createElement('img');
-        img.src = item.image || 'https://via.placeholder.com/90x90?text=No+Image';
+        img.src = item.image || KECart.PLACEHOLDER_IMAGE;
         img.alt = item.name;
         img.className = 'cart-item-image';
         row.appendChild(img);

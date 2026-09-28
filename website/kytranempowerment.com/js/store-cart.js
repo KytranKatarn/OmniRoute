@@ -9,6 +9,15 @@ var KECart = (function () {
     var STORAGE_KEY = 'ke-cart';
     var API_ORIGIN = 'https://business.kytranempowerment.com';
 
+    /* via.placeholder.com has been dead since 2023 — an inline SVG never
+     * depends on a network call, so "no image" always renders something. */
+    var PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">' +
+        '<rect width="100%" height="100%" fill="#1a1a2e"/>' +
+        '<text x="50%" y="50%" fill="#666" font-family="sans-serif" font-size="18" ' +
+        'text-anchor="middle" dominant-baseline="middle">No Image</text></svg>'
+    );
+
     /* The public product API returns image paths relative to its own origin
      * (e.g. "/static/store/placeholder-tee.jpg") — set directly as <img src>
      * on kytranempowerment.com they'd resolve against the WRONG origin. */
@@ -16,6 +25,21 @@ var KECart = (function () {
         if (!url) return '';
         if (/^https?:\/\//i.test(url)) return url;
         return API_ORIGIN + (url.charAt(0) === '/' ? url : '/' + url);
+    }
+
+    /* product.images[0] is NOT a stable shape across sources: locally-seeded
+     * products store {url, alt} objects, Printful-synced products store bare
+     * URL strings (that's what Printful's own thumbnail_url is). Handle both
+     * rather than assuming one — this is the actual live API contract, not
+     * a hypothetical. */
+    function getProductImageUrl(product) {
+        var imgs = product && product.images;
+        if (Array.isArray(imgs) && imgs.length > 0) {
+            var first = imgs[0];
+            var raw = (typeof first === 'string') ? first : (first && first.url);
+            if (raw) return resolveImageUrl(raw);
+        }
+        return PLACEHOLDER_IMAGE;
     }
 
     function getCart() {
@@ -98,6 +122,8 @@ var KECart = (function () {
         cartCount: cartCount,
         cartTotal: cartTotal,
         updateCartBadges: updateCartBadges,
-        resolveImageUrl: resolveImageUrl
+        resolveImageUrl: resolveImageUrl,
+        getProductImageUrl: getProductImageUrl,
+        PLACEHOLDER_IMAGE: PLACEHOLDER_IMAGE
     };
 })();

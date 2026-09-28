@@ -89,9 +89,15 @@ if [ -d /work/archie-platform/.git ]; then
     git -C /work/archie-platform config core.hooksPath /opt/lane-guard 2>/dev/null \
         && echo "[opencode] scope guard armed on the lane clone (opencode/* branches only)" >&2 \
         || echo "[opencode] WARNING: could not arm the scope guard — pushes are unprotected" >&2
-    # The credential helper matches codex's shape. The secret is NOT mounted yet
-    # (owner decision); with no file, git simply fails to authenticate, which is the
-    # honest outcome — it never silently pushes as someone else.
+    # The credential helper matches codex's shape. Whether the secret is present is
+    # decided when the CONTAINER is created, not here — as of 2026-09-28 all three
+    # running instances (archie_opencode_terminal, _host, _gf) mount
+    # /run/secrets/opencode_github_token, so any comment here claiming otherwise is
+    # stale. Measured, not assumed: `docker inspect <c> --format '{{range .Mounts}}...`.
+    # With no file, git simply fails to authenticate, which is the honest outcome —
+    # it never silently pushes as someone else. Keep that property.
+    # Note the mount is read-only and shared with the LANE, not scoped to it: see
+    # Dev HQ #7026 for what a merge-capable PAT in an unrestricted lane implies.
     git config --global credential.helper \
         '!f() { echo username=x-access-token; echo "password=$(cat /run/secrets/opencode_github_token)"; }; f' \
         2>/dev/null || true

@@ -25,10 +25,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260924d">
-    <link rel="stylesheet" href="css/components.css?v=20260924d">
-    <link rel="stylesheet" href="css/responsive.css?v=20260924d">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260924d">
+    <link rel="stylesheet" href="css/base.css?v=20260928a">
+    <link rel="stylesheet" href="css/components.css?v=20260928a">
+    <link rel="stylesheet" href="css/responsive.css?v=20260928a">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260928a">
     <style>
         /* Checkout-specific styles */
         .checkout-grid {
@@ -105,41 +105,6 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 1rem;
-        }
-        /* Shipping options */
-        #shipping-options-container {
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid rgba(255,255,255,0.08);
-        }
-        #shipping-methods-radio label {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            margin-bottom: 0.6rem;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 0.9rem;
-            color: rgba(255,255,255,0.8);
-            cursor: pointer;
-            padding: 0.6rem 0.8rem;
-            border-radius: 0.5rem;
-            transition: background 0.2s ease;
-        }
-        #shipping-methods-radio label:hover {
-            background: rgba(255,255,255,0.04);
-        }
-        #shipping-methods-radio input[type="radio"] {
-            accent-color: #6366f1;
-            width: 16px;
-            height: 16px;
-        }
-        .shipping-msg {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 0.85rem;
-            color: rgba(255,255,255,0.5);
-        }
-        .shipping-msg--error {
-            color: #f87171;
         }
         /* Payment placeholder */
         .payment-placeholder {
@@ -531,27 +496,17 @@
                                 </div>
                             </div>
 
-                            <!-- Shipping Method -->
-                            <div id="shipping-options-container">
-                                <h3>Shipping Method</h3>
-                                <div id="shipping-methods-radio">
-                                    <p id="shipping-loading-message" class="shipping-msg">Calculating shipping rates...</p>
-                                    <p id="shipping-error-message" class="shipping-msg shipping-msg--error" style="display:none;"></p>
-                                    <p id="no-shipping-message" class="shipping-msg" style="display:none;"></p>
-                                </div>
-                            </div>
-
                             <!-- Payment -->
                             <div id="payment-section" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,0.08);">
-                                <h3>Payment Information</h3>
+                                <h3>Payment</h3>
                                 <div id="payment-element" class="payment-placeholder">
-                                    Payment form will appear here. For now, clicking "Place Order" will simulate success.
+                                    Payment is completed on Stripe's secure checkout page. Click "Continue to Payment" to proceed &mdash; card details are never entered on this site.
                                 </div>
                                 <div id="payment-errors" role="alert"></div>
                             </div>
 
-                            <button type="submit" id="place-order-button" class="place-order-btn" disabled>Place Order</button>
-                            <p id="checkout-loading-message" class="checkout-status-msg checkout-status-msg--loading" style="display:none;">Processing your order...</p>
+                            <button type="submit" id="place-order-button" class="place-order-btn">Continue to Payment</button>
+                            <p id="checkout-loading-message" class="checkout-status-msg checkout-status-msg--loading" style="display:none;">Redirecting to Stripe...</p>
                             <p id="checkout-error-message" class="checkout-status-msg checkout-status-msg--error" style="display:none;"></p>
                         </form>
                     </div>
@@ -560,12 +515,10 @@
                     <div class="order-summary-section">
                         <h3>Order Summary</h3>
                         <div id="order-summary-items" class="order-summary-items">
-                            <p id="summary-loading-message" class="summary-msg">Loading cart summary...</p>
                             <p id="summary-empty-message" class="summary-msg" style="display:none;">Your cart is empty.</p>
                         </div>
                         <div class="order-summary-totals">
                             <p>Subtotal: <span id="summary-subtotal">$0.00</span></p>
-                            <p>Shipping: <span id="summary-shipping">$0.00</span></p>
                             <p class="total">Total: <span id="summary-total">$0.00</span></p>
                         </div>
                     </div>
@@ -595,402 +548,20 @@
         </div>
     </footer>
     <!-- Scripts -->
-    <script defer src="js/lib/gsap.min.js?v=20260924d"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260924d"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260924d"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260924d"></script>
-    <script defer src="js/lib/barba.min.js?v=20260924d"></script>
-    <script defer src="js/effects.js?v=20260924d"></script>
-    <script defer src="js/nav.js?v=20260924d"></script>
-    <script defer src="js/ambient-background.js?v=20260924d"></script>
-    <script defer src="js/transitions.js?v=20260924d"></script>
-    <script defer src="js/i18n.js?v=20260924d"></script>
-    <script defer src="js/app.js?v=20260924d"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260928a"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260928a"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260928a"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260928a"></script>
+    <script defer src="js/lib/barba.min.js?v=20260928a"></script>
+    <script defer src="js/effects.js?v=20260928a"></script>
+    <script defer src="js/nav.js?v=20260928a"></script>
+    <script defer src="js/ambient-background.js?v=20260928a"></script>
+    <script defer src="js/transitions.js?v=20260928a"></script>
+    <script defer src="js/i18n.js?v=20260928a"></script>
+    <script defer src="js/store-cart.js?v=20260928a"></script>
+    <script defer src="js/checkout-page.js?v=20260928a"></script>
+    <script defer src="js/app.js?v=20260928a"></script>
 
-    <script>
-        // ── Session ID ──
-        let userSessionId = localStorage.getItem('userSessionId');
-        if (!userSessionId) {
-            userSessionId = crypto.randomUUID();
-            localStorage.setItem('userSessionId', userSessionId);
-        }
-
-        // ── State ──
-        let currentCartItems = [];
-        let selectedShippingMethod = null;
-        let currentSubtotal = 0;
-
-        // ── DOM refs (assigned after DOMContentLoaded) ──
-        let shippingOptionsContainer, shippingMethodsRadio, shippingLoadingMessage,
-            shippingErrorMessage, noShippingMessage, placeOrderButton,
-            summaryShippingSpan, summaryTotalSpan, summarySubtotalSpan,
-            summaryEmptyMessage, summaryLoadingMessage, orderSummaryItemsContainer,
-            checkoutLoadingMessage, checkoutErrorMessage, checkoutForm;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            shippingOptionsContainer = document.getElementById('shipping-options-container');
-            shippingMethodsRadio = document.getElementById('shipping-methods-radio');
-            shippingLoadingMessage = document.getElementById('shipping-loading-message');
-            shippingErrorMessage = document.getElementById('shipping-error-message');
-            noShippingMessage = document.getElementById('no-shipping-message');
-            placeOrderButton = document.getElementById('place-order-button');
-            summaryShippingSpan = document.getElementById('summary-shipping');
-            summaryTotalSpan = document.getElementById('summary-total');
-            summarySubtotalSpan = document.getElementById('summary-subtotal');
-            summaryEmptyMessage = document.getElementById('summary-empty-message');
-            summaryLoadingMessage = document.getElementById('summary-loading-message');
-            orderSummaryItemsContainer = document.getElementById('order-summary-items');
-            checkoutLoadingMessage = document.getElementById('checkout-loading-message');
-            checkoutErrorMessage = document.getElementById('checkout-error-message');
-            checkoutForm = document.getElementById('checkout-form');
-
-            if (shippingLoadingMessage) shippingLoadingMessage.style.display = 'block';
-            if (shippingErrorMessage) shippingErrorMessage.style.display = 'none';
-            if (noShippingMessage) noShippingMessage.style.display = 'none';
-
-            updateCartCount();
-            loadOrderSummary();
-
-            if (checkoutForm) {
-                checkoutForm.addEventListener('submit', handleCheckoutSubmit);
-            }
-
-            ['address1', 'city', 'state', 'zip', 'country'].forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.addEventListener('change', debounce(calculateAndDisplayShipping, 500));
-            });
-
-            updatePlaceOrderButtonState();
-        });
-
-        // ── Utilities ──
-        function debounce(func, delay) {
-            let timeout;
-            return function(...args) {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(this, args), delay);
-            };
-        }
-
-        // ── Cart count ──
-        async function updateCartCount() {
-            try {
-                const response = await fetch(`https://store.kytranempowerment.com/api/cart/${userSessionId}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                const count = (data.cart_items || []).reduce((t, i) => t + i.quantity, 0);
-                const el = document.getElementById('cart-count');
-                if (el) el.innerText = count;
-            } catch (e) {
-                console.error('Error updating cart count:', e);
-            }
-        }
-
-        // ── Order summary ──
-        async function loadOrderSummary() {
-            if (summaryLoadingMessage) summaryLoadingMessage.style.display = 'block';
-            if (summaryEmptyMessage) summaryEmptyMessage.style.display = 'none';
-            if (orderSummaryItemsContainer) orderSummaryItemsContainer.textContent = '';
-
-            currentSubtotal = 0;
-            selectedShippingMethod = null;
-            if (summaryShippingSpan) summaryShippingSpan.innerText = '$0.00';
-            if (summaryTotalSpan) summaryTotalSpan.innerText = '$0.00';
-
-            try {
-                const response = await fetch(`https://store.kytranempowerment.com/api/cart/${userSessionId}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                currentCartItems = data.cart_items || [];
-
-                if (summaryLoadingMessage) summaryLoadingMessage.style.display = 'none';
-
-                if (currentCartItems.length === 0) {
-                    if (summaryEmptyMessage) summaryEmptyMessage.style.display = 'block';
-                    updatePlaceOrderButtonState();
-                } else {
-                    const frag = document.createDocumentFragment();
-                    currentCartItems.forEach(item => {
-                        const itemTotal = item.price * item.quantity;
-                        currentSubtotal += itemTotal;
-
-                        let variantOptionText = item.selected_variant_name;
-                        if (item.variant_details_json) {
-                            try {
-                                const vd = JSON.parse(item.variant_details_json);
-                                const opts = [];
-                                if (vd.color) opts.push('Color: ' + vd.color);
-                                if (vd.size) opts.push('Size: ' + vd.size);
-                                if (opts.length) variantOptionText = opts.join(', ');
-                            } catch (e) { /* ignore */ }
-                        }
-                        const variantDisplay = variantOptionText ? ' (' + variantOptionText + ')' : '';
-
-                        const row = document.createElement('div');
-                        row.className = 'order-item-summary';
-                        const nameSpan = document.createElement('span');
-                        nameSpan.textContent = item.name + variantDisplay + ' (x' + item.quantity + ')';
-                        const priceSpan = document.createElement('span');
-                        priceSpan.textContent = '$' + itemTotal.toFixed(2);
-                        row.appendChild(nameSpan);
-                        row.appendChild(priceSpan);
-                        frag.appendChild(row);
-                    });
-                    if (orderSummaryItemsContainer) orderSummaryItemsContainer.appendChild(frag);
-
-                    if (summarySubtotalSpan) summarySubtotalSpan.innerText = '$' + currentSubtotal.toFixed(2);
-                    calculateAndDisplayShipping();
-                }
-            } catch (error) {
-                console.error('Error loading order summary:', error);
-                if (summaryLoadingMessage) summaryLoadingMessage.style.display = 'none';
-                if (orderSummaryItemsContainer) {
-                    const errP = document.createElement('p');
-                    errP.className = 'summary-msg';
-                    errP.style.color = '#f87171';
-                    errP.textContent = 'Failed to load cart. ' + error.message;
-                    orderSummaryItemsContainer.appendChild(errP);
-                }
-                updatePlaceOrderButtonState();
-            }
-        }
-
-        // ── Totals ──
-        function updateTotalsDisplay() {
-            const cost = selectedShippingMethod ? selectedShippingMethod.rate : 0;
-            if (summaryShippingSpan) summaryShippingSpan.innerText = '$' + cost.toFixed(2);
-            if (summaryTotalSpan) summaryTotalSpan.innerText = '$' + (currentSubtotal + cost).toFixed(2);
-            updatePlaceOrderButtonState();
-        }
-
-        function updatePlaceOrderButtonState() {
-            if (!placeOrderButton || !shippingMethodsRadio || !shippingErrorMessage || !noShippingMessage || !shippingLoadingMessage) return;
-
-            const hasItems = currentCartItems.length > 0;
-            let canOrder = false;
-
-            if (!hasItems) {
-                canOrder = false;
-            } else if (shippingErrorMessage.style.display === 'block') {
-                canOrder = false;
-            } else if (shippingLoadingMessage.style.display === 'block') {
-                canOrder = false;
-            } else if (noShippingMessage.style.display === 'block') {
-                canOrder = false;
-            } else {
-                canOrder = selectedShippingMethod !== null;
-            }
-
-            placeOrderButton.disabled = !canOrder;
-            placeOrderButton.classList.toggle('disabled', !canOrder);
-        }
-
-        // ── Shipping ──
-        async function calculateAndDisplayShipping() {
-            if (!shippingOptionsContainer || !shippingMethodsRadio || !shippingLoadingMessage || !shippingErrorMessage || !noShippingMessage) return;
-
-            shippingOptionsContainer.style.display = 'block';
-            shippingLoadingMessage.style.display = 'block';
-            shippingErrorMessage.style.display = 'none';
-            noShippingMessage.style.display = 'none';
-            shippingMethodsRadio.textContent = '';
-            selectedShippingMethod = null;
-            updateTotalsDisplay();
-
-            const formData = new FormData(checkoutForm);
-            const data = Object.fromEntries(formData.entries());
-
-            const required = ['address1', 'city', 'state', 'zip', 'country'];
-            const allFilled = required.every(f => data[f] && data[f].trim() !== '');
-
-            if (currentCartItems.length === 0 || !allFilled || data.country === '') {
-                shippingLoadingMessage.style.display = 'none';
-                noShippingMessage.innerText = 'Please fill out all required address fields and ensure your cart is not empty to calculate shipping.';
-                noShippingMessage.style.display = 'block';
-                updatePlaceOrderButtonState();
-                return;
-            }
-
-            const recipient = {
-                address1: data.address1,
-                address2: data.address2 || null,
-                city: data.city,
-                state: data.state,
-                zip: data.zip,
-                country: data.country
-            };
-
-            const items = currentCartItems.map(i => ({
-                product_id: i.product_id,
-                quantity: i.quantity,
-                selected_printful_variant_id: i.selected_printful_variant_id
-            }));
-
-            try {
-                const response = await fetch('https://store.kytranempowerment.com/api/shipping/rates', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ recipient, cart_items: items })
-                });
-
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.detail || 'HTTP ' + response.status);
-
-                const methods = result.shipping_methods || [];
-                shippingLoadingMessage.style.display = 'none';
-                shippingMethodsRadio.textContent = '';
-
-                if (methods.length === 0) {
-                    noShippingMessage.innerText = 'No shipping methods available for this address and cart items.';
-                    noShippingMessage.style.display = 'block';
-                    selectedShippingMethod = null;
-                } else {
-                    const frag = document.createDocumentFragment();
-                    methods.forEach(m => {
-                        const div = document.createElement('div');
-                        const label = document.createElement('label');
-                        const radio = document.createElement('input');
-                        radio.type = 'radio';
-                        radio.name = 'shippingMethod';
-                        radio.value = m.id;
-                        radio.dataset.rate = m.rate;
-                        radio.dataset.name = m.name;
-                        label.appendChild(radio);
-                        label.append(' ' + m.name + ' - $' + m.rate.toFixed(2));
-                        div.appendChild(label);
-                        frag.appendChild(div);
-                    });
-                    shippingMethodsRadio.appendChild(frag);
-
-                    shippingMethodsRadio.removeEventListener('change', handleShippingMethodChange);
-                    shippingMethodsRadio.addEventListener('change', handleShippingMethodChange);
-
-                    const first = shippingMethodsRadio.querySelector('input[name="shippingMethod"]');
-                    if (first) {
-                        first.checked = true;
-                        selectedShippingMethod = { id: first.value, name: first.dataset.name, rate: parseFloat(first.dataset.rate) };
-                    }
-                }
-                updateTotalsDisplay();
-            } catch (error) {
-                console.error('Error calculating shipping:', error);
-                shippingLoadingMessage.style.display = 'none';
-                shippingErrorMessage.innerText = 'Failed to calculate shipping: ' + error.message;
-                shippingErrorMessage.style.display = 'block';
-                selectedShippingMethod = null;
-                updateTotalsDisplay();
-            } finally {
-                updatePlaceOrderButtonState();
-            }
-        }
-
-        function handleShippingMethodChange(event) {
-            if (event.target.name === 'shippingMethod') {
-                selectedShippingMethod = {
-                    id: event.target.value,
-                    name: event.target.dataset.name,
-                    rate: parseFloat(event.target.dataset.rate)
-                };
-                updateTotalsDisplay();
-            }
-        }
-
-        // ── Place order ──
-        async function handleCheckoutSubmit(event) {
-            event.preventDefault();
-            if (!placeOrderButton || !checkoutLoadingMessage || !checkoutErrorMessage || !checkoutForm) return;
-
-            const formData = new FormData(checkoutForm);
-            const data = Object.fromEntries(formData.entries());
-
-            checkoutErrorMessage.style.display = 'none';
-            checkoutErrorMessage.innerText = '';
-            placeOrderButton.disabled = true;
-            placeOrderButton.classList.add('disabled');
-            checkoutLoadingMessage.style.display = 'block';
-            checkoutLoadingMessage.innerText = 'Processing your order...';
-
-            if (currentCartItems.length === 0) {
-                checkoutLoadingMessage.style.display = 'none';
-                checkoutErrorMessage.style.display = 'block';
-                checkoutErrorMessage.innerText = 'Your cart is empty. Please add items before checking out.';
-                placeOrderButton.disabled = false;
-                placeOrderButton.classList.remove('disabled');
-                return;
-            }
-
-            const hasShippingOptions = shippingMethodsRadio && shippingMethodsRadio.children.length > 0 && shippingErrorMessage.style.display !== 'block';
-
-            if (hasShippingOptions && selectedShippingMethod === null) {
-                checkoutLoadingMessage.style.display = 'none';
-                checkoutErrorMessage.style.display = 'block';
-                checkoutErrorMessage.innerText = 'Please select a shipping method.';
-                placeOrderButton.disabled = false;
-                placeOrderButton.classList.remove('disabled');
-                return;
-            } else if (!hasShippingOptions && shippingErrorMessage && shippingErrorMessage.style.display === 'block') {
-                checkoutLoadingMessage.style.display = 'none';
-                checkoutErrorMessage.style.display = 'block';
-                checkoutErrorMessage.innerText = 'Cannot proceed due to shipping calculation error. Please resolve the issue or contact support.';
-                placeOrderButton.disabled = false;
-                placeOrderButton.classList.remove('disabled');
-                return;
-            }
-
-            const payloadItems = currentCartItems.map(i => ({
-                product_id: i.product_id,
-                quantity: i.quantity,
-                selected_printful_variant_id: i.selected_printful_variant_id,
-                variant_name: i.selected_variant_name,
-                variant_price: i.price,
-                variant_details_json: i.variant_details_json
-            }));
-
-            const shippingCost = selectedShippingMethod ? selectedShippingMethod.rate : 0.00;
-            const shippingMethodId = selectedShippingMethod ? selectedShippingMethod.id : 'NO_SHIPPING_METHOD_NEEDED';
-
-            const orderPayload = {
-                session_id: userSessionId,
-                shipping_cost: shippingCost,
-                tax_amount: 0.00,
-                discount_amount: 0.00,
-                shipping_method: shippingMethodId,
-                recipient: {
-                    name: data.fullName,
-                    email: data.email,
-                    phone: data.phone || null,
-                    address1: data.address1,
-                    address2: data.address2 || null,
-                    city: data.city,
-                    state: data.state,
-                    zip: data.zip,
-                    country: data.country
-                },
-                cart_items: payloadItems
-            };
-
-            try {
-                const response = await fetch('https://store.kytranempowerment.com/api/orders/place', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(orderPayload)
-                });
-
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.detail || 'HTTP ' + response.status);
-
-                checkoutLoadingMessage.style.display = 'none';
-                window.location.href = 'order-success.html?order_id=' + result.order_id + '&printful_order_id=' + (result.printful_order_id || 'N/A');
-            } catch (error) {
-                checkoutLoadingMessage.style.display = 'none';
-                checkoutErrorMessage.style.display = 'block';
-                checkoutErrorMessage.innerText = 'Order failed: ' + error.message;
-                console.error('Checkout error:', error);
-                placeOrderButton.disabled = false;
-                placeOrderButton.classList.remove('disabled');
-            }
-        }
-    </script>
     <!-- Cookie Consent -->
     <div id="cookieConsent" class="cookie-consent" style="display:none;">
       <div class="cookie-consent__inner">

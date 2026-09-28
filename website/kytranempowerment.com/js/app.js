@@ -45,7 +45,20 @@ document.addEventListener('DOMContentLoaded', function () {
     Effects.init();
     Transitions.init();
 
-    /* ---- Page-Specific Init ---- */
+    initPageScripts();
+});
+
+/* ---- Page-Specific Init ----
+ * A plain global function (not wrapped in the DOMContentLoaded closure) so
+ * Transitions.js can call it again from Barba's `after` hook. Barba swaps
+ * the container's HTML without re-firing DOMContentLoaded or executing any
+ * inline <script> tags inside the swapped content, so a page whose dynamic
+ * content only ran here once would stay blank on every in-app nav-link
+ * transition into it and only work on a hard page load. This dispatch is
+ * what makes a Barba-arrival re-run the right page module.
+ */
+function initPageScripts() {
+    'use strict';
     var page = document.querySelector('[data-barba-namespace]');
     var namespace = page ? page.getAttribute('data-barba-namespace') : '';
 
@@ -60,5 +73,22 @@ document.addEventListener('DOMContentLoaded', function () {
         case 'compliance':
             if (typeof Compliance !== 'undefined' && typeof Compliance.init === 'function') Compliance.init();
             break;
+        case 'store':
+            if (typeof Store !== 'undefined' && typeof Store.init === 'function') Store.init();
+            break;
+        case 'product-detail':
+            if (typeof ProductDetail !== 'undefined' && typeof ProductDetail.init === 'function') ProductDetail.init();
+            break;
+        case 'cart':
+            if (typeof CartPage !== 'undefined' && typeof CartPage.init === 'function') CartPage.init();
+            break;
+        case 'checkout':
+            if (typeof CheckoutPage !== 'undefined' && typeof CheckoutPage.init === 'function') CheckoutPage.init();
+            break;
+        case 'order-success':
+            if (typeof OrderSuccess !== 'undefined' && typeof OrderSuccess.init === 'function') OrderSuccess.init();
+            break;
     }
-});
+
+    if (typeof KECart !== 'undefined') KECart.updateCartBadges();
+}

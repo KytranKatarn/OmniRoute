@@ -36,6 +36,12 @@ var Transitions = (function () {
                     // Reinitialize effects and navigation for the new page
                     Effects.init();
                     Nav.highlightActive();
+                    // Re-run the arriving page's own dynamic init (app.js) —
+                    // Barba swaps the container's HTML without re-firing
+                    // DOMContentLoaded or executing inline <script> tags, so
+                    // this is the only place a client-side nav transition
+                    // re-triggers a page's data fetch/render logic.
+                    if (typeof initPageScripts === 'function') initPageScripts();
                     // Scroll to top
                     window.scrollTo(0, 0);
                 }

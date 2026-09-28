@@ -25,10 +25,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;700&family=Orbitron:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/base.css?v=20260924d">
-    <link rel="stylesheet" href="css/components.css?v=20260924d">
-    <link rel="stylesheet" href="css/responsive.css?v=20260924d">
-    <link rel="stylesheet" href="css/reduced-motion.css?v=20260924d">
+    <link rel="stylesheet" href="css/base.css?v=20260928a">
+    <link rel="stylesheet" href="css/components.css?v=20260928a">
+    <link rel="stylesheet" href="css/responsive.css?v=20260928a">
+    <link rel="stylesheet" href="css/reduced-motion.css?v=20260928a">
     <style>
         /* ── Product Detail Page ── */
         .pd-wrapper {
@@ -94,87 +94,6 @@
             color: var(--accent, #00e5ff);
         }
 
-        /* Variant groups */
-        .pd-variant-group {
-            margin-bottom: .25rem;
-        }
-        .pd-variant-group label {
-            display: block;
-            font-family: 'IBM Plex Mono', monospace;
-            font-weight: 500;
-            font-size: .85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: rgba(255,255,255,0.5);
-            margin-bottom: .5rem;
-        }
-
-        /* Color swatches */
-        .pd-color-swatches {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .6rem;
-        }
-        .pd-color-swatch {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.15);
-            cursor: pointer;
-            transition: border-color .2s, transform .2s, box-shadow .2s;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        }
-        .pd-color-swatch:hover {
-            transform: scale(1.08);
-        }
-        .pd-color-swatch.selected {
-            border-color: var(--accent, #00e5ff);
-            transform: scale(1.12);
-            box-shadow: 0 0 0 3px rgba(0,229,255,0.35);
-        }
-
-        /* Size buttons */
-        .pd-size-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .5rem;
-        }
-        .pd-size-btn {
-            padding: .45rem 1rem;
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 999px;
-            background: rgba(255,255,255,0.05);
-            color: rgba(255,255,255,0.8);
-            cursor: pointer;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: .85rem;
-            transition: background .2s, border-color .2s, transform .2s, color .2s;
-        }
-        .pd-size-btn:hover:not(.disabled) {
-            background: rgba(255,255,255,0.1);
-        }
-        .pd-size-btn.selected {
-            background: var(--accent, #00e5ff);
-            color: #0a0a1a;
-            border-color: var(--accent, #00e5ff);
-            transform: translateY(-2px);
-            font-weight: 700;
-        }
-        .pd-size-btn.disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-        }
-
-        /* Variant details */
-        .pd-variant-details {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: .82rem;
-            color: rgba(255,255,255,0.45);
-            min-height: 1.2rem;
-            line-height: 1.5;
-        }
-        .pd-variant-details span { display: block; }
-
         /* Quantity */
         .pd-quantity-group {
             display: flex;
@@ -189,16 +108,30 @@
             letter-spacing: 1px;
             color: rgba(255,255,255,0.5);
         }
-        .pd-qty-input {
-            width: 70px;
-            text-align: center;
-            padding: .5rem;
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: .5rem;
-            background: rgba(255,255,255,0.05);
-            color: #fff;
+        .pd-qty-value {
             font-family: 'IBM Plex Mono', monospace;
             font-size: 1rem;
+            color: #fff;
+            min-width: 2rem;
+            text-align: center;
+        }
+        .cart-qty-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: 6px;
+            background: rgba(255,255,255,.04);
+            color: #fff;
+            font-size: 1.1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .2s, border-color .2s;
+        }
+        .cart-qty-btn:hover {
+            background: rgba(255,255,255,.1);
+            border-color: rgba(255,255,255,.3);
         }
 
         /* Actions */
@@ -487,34 +420,17 @@
                         <p class="pd-description hidden-description" id="product-description"></p>
                         <p class="pd-price" id="product-price"></p>
 
-                        <div id="variant-selection-container">
-                            <div class="pd-variant-group" id="color-options" style="display:none;">
-                                <label>Color:</label>
-                                <div class="pd-color-swatches"></div>
-                            </div>
-
-                            <div class="pd-variant-group" id="size-options" style="display:none;">
-                                <label>Size:</label>
-                                <div class="pd-size-buttons"></div>
-                            </div>
-
-                            <input type="hidden" id="selected-variant-id">
-                            <input type="hidden" id="selected-variant-name">
-                            <input type="hidden" id="selected-variant-price">
-                            <input type="hidden" id="selected-variant-details-json">
-
-                            <div class="pd-variant-details" id="variant-details-display"></div>
-                        </div>
-
                         <div class="pd-quantity-group">
-                            <label for="quantity-input">Qty:</label>
-                            <input type="number" id="quantity-input" class="pd-qty-input" value="1" min="1">
+                            <label>Qty:</label>
+                            <button type="button" id="qty-decrease" class="cart-qty-btn" aria-label="Decrease quantity">&minus;</button>
+                            <span id="quantity-value" class="pd-qty-value">1</span>
+                            <button type="button" id="qty-increase" class="cart-qty-btn" aria-label="Increase quantity">+</button>
                         </div>
 
                         <div class="pd-actions">
-                            <button id="add-to-cart-btn" class="pd-btn pd-btn--primary disabled" disabled>Add to Cart</button>
-                            <a href="cart.html" class="pd-btn pd-btn--secondary">View Cart</a>
-                            <a href="store.html" class="pd-btn pd-btn--secondary">Back to Store</a>
+                            <button id="add-to-cart-btn" class="pd-btn pd-btn--primary">Add to Cart</button>
+                            <a href="cart.html" class="pd-btn pd-btn--secondary" data-barba-prevent="self">View Cart</a>
+                            <a href="store.html" class="pd-btn pd-btn--secondary" data-barba-prevent="self">Back to Store</a>
                         </div>
                     </div>
                 </div>
@@ -543,476 +459,20 @@
         </div>
     </footer>
     <!-- Scripts -->
-    <script defer src="js/lib/gsap.min.js?v=20260924d"></script>
-    <script defer src="js/lib/ScrollTrigger.min.js?v=20260924d"></script>
-    <script defer src="js/lib/lenis.min.js?v=20260924d"></script>
-    <script defer src="js/lib/splitting.min.js?v=20260924d"></script>
-    <script defer src="js/lib/barba.min.js?v=20260924d"></script>
-    <script defer src="js/effects.js?v=20260924d"></script>
-    <script defer src="js/nav.js?v=20260924d"></script>
-    <script defer src="js/ambient-background.js?v=20260924d"></script>
-    <script defer src="js/transitions.js?v=20260924d"></script>
-    <script defer src="js/i18n.js?v=20260924d"></script>
-    <script defer src="js/app.js?v=20260924d"></script>
+    <script defer src="js/lib/gsap.min.js?v=20260928a"></script>
+    <script defer src="js/lib/ScrollTrigger.min.js?v=20260928a"></script>
+    <script defer src="js/lib/lenis.min.js?v=20260928a"></script>
+    <script defer src="js/lib/splitting.min.js?v=20260928a"></script>
+    <script defer src="js/lib/barba.min.js?v=20260928a"></script>
+    <script defer src="js/effects.js?v=20260928a"></script>
+    <script defer src="js/nav.js?v=20260928a"></script>
+    <script defer src="js/ambient-background.js?v=20260928a"></script>
+    <script defer src="js/transitions.js?v=20260928a"></script>
+    <script defer src="js/i18n.js?v=20260928a"></script>
+    <script defer src="js/store-cart.js?v=20260928a"></script>
+    <script defer src="js/product-detail.js?v=20260928a"></script>
+    <script defer src="js/app.js?v=20260928a"></script>
 
-    <script>
-    /* ── Product Detail Logic ── */
-    /* NOTE: variant details use innerHTML with data from our own store API (trusted source) */
-    (function() {
-        let userSessionId = localStorage.getItem('userSessionId');
-        if (!userSessionId) {
-            userSessionId = crypto.randomUUID();
-            localStorage.setItem('userSessionId', userSessionId);
-        }
-
-        let currentProductData = null;
-        let allProductVariants = [];
-        let uniqueColors = [];
-        let uniqueSizes = [];
-        let selectedColor = null;
-        let selectedSize = null;
-        let isVariantSelected = false;
-
-        document.addEventListener('DOMContentLoaded', () => {
-            updateCartCount();
-            fetchProductDetails();
-        });
-
-        async function updateCartCount() {
-            try {
-                const response = await fetch(`https://business.kytranempowerment.com/plugins/store/api/cart/${userSessionId}`);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const data = await response.json();
-                const cart = data.cart_items || [];
-                const count = cart.reduce((total, item) => total + item.quantity, 0);
-                const el = document.getElementById('cart-count');
-                if (el) el.innerText = count;
-            } catch (e) {
-                console.error('Error updating cart count:', e);
-            }
-        }
-
-        async function fetchProductDetails() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const productId = urlParams.get('id');
-
-            const productLoading = document.getElementById('product-loading');
-            const productError = document.getElementById('product-error');
-            const productWrapper = document.getElementById('product-wrapper');
-            const colorOptionsDiv = document.getElementById('color-options');
-            const sizeOptionsDiv = document.getElementById('size-options');
-            const colorSwatchesContainer = colorOptionsDiv.querySelector('.pd-color-swatches');
-            const sizeButtonsContainer = sizeOptionsDiv.querySelector('.pd-size-buttons');
-            const addToCartBtn = document.getElementById('add-to-cart-btn');
-            const variantDetailsDisplay = document.getElementById('variant-details-display');
-            const productDescriptionElement = document.getElementById('product-description');
-            const quantityInput = document.getElementById('quantity-input');
-
-            productLoading.style.display = 'block';
-            productError.style.display = 'none';
-            productWrapper.style.display = 'none';
-            colorOptionsDiv.style.display = 'none';
-            sizeOptionsDiv.style.display = 'none';
-            variantDetailsDisplay.textContent = '';
-            addToCartBtn.classList.add('disabled');
-            addToCartBtn.disabled = true;
-
-            if (!productId) {
-                productLoading.style.display = 'none';
-                productError.style.display = 'block';
-                productError.textContent = 'Error: Product ID not found in URL.';
-                return;
-            }
-
-            try {
-                const response = await fetch(`https://business.kytranempowerment.com/plugins/store/api/products/${productId}`);
-                if (!response.ok) {
-                    const errorDetail = await response.text();
-                    throw new Error(`HTTP error! Status: ${response.status}. Detail: ${errorDetail}`);
-                }
-                currentProductData = await response.json();
-
-                if (!currentProductData || Object.keys(currentProductData).length === 0) {
-                    productLoading.style.display = 'none';
-                    productError.style.display = 'block';
-                    productError.textContent = 'Product not found.';
-                    return;
-                }
-
-                document.getElementById('product-name').textContent = currentProductData.name;
-                if (currentProductData.description && currentProductData.description.trim() !== '' && currentProductData.description.trim() !== 'No description available.') {
-                    productDescriptionElement.textContent = currentProductData.description;
-                    productDescriptionElement.classList.remove('hidden-description');
-                } else {
-                    productDescriptionElement.classList.add('hidden-description');
-                }
-
-                document.getElementById('product-image').src = currentProductData.image_url || 'https://via.placeholder.com/400?text=No+Image';
-                document.getElementById('product-price').textContent = `$${currentProductData.price.toFixed(2)}`;
-
-                if (currentProductData.printful_variant_ids) {
-                    try {
-                        allProductVariants = JSON.parse(currentProductData.printful_variant_ids);
-
-                        uniqueColors = [...new Set(allProductVariants.map(v => v.color).filter(Boolean))].sort();
-                        uniqueSizes = [...new Set(allProductVariants.map(v => v.size).filter(Boolean))].sort((a, b) => {
-                            const sizeOrder = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
-                            return sizeOrder.indexOf(a) - sizeOrder.indexOf(b);
-                        });
-
-                        colorSwatchesContainer.replaceChildren();
-                        if (uniqueColors.length > 0) {
-                            uniqueColors.forEach(color => {
-                                const swatch = document.createElement('div');
-                                swatch.className = 'pd-color-swatch';
-                                swatch.style.backgroundColor = mapColorNameToHex(color);
-                                swatch.title = color;
-                                swatch.dataset.color = color;
-                                swatch.addEventListener('click', () => selectColor(color));
-                                colorSwatchesContainer.appendChild(swatch);
-                            });
-                            colorOptionsDiv.style.display = 'block';
-                            selectedColor = uniqueColors[0];
-                            document.querySelector(`.pd-color-swatch[data-color="${selectedColor}"]`).classList.add('selected');
-                            selectedSize = null;
-                            updateSizeButtons();
-                        } else {
-                            colorOptionsDiv.style.display = 'none';
-                        }
-
-                        sizeButtonsContainer.replaceChildren();
-                        if (uniqueSizes.length > 0) {
-                            sizeOptionsDiv.style.display = 'block';
-                        } else {
-                            sizeOptionsDiv.style.display = 'none';
-                        }
-
-                        if (uniqueColors.length === 0 && uniqueSizes.length > 0) {
-                            selectedSize = uniqueSizes[0];
-                            updateDisplayedVariantDetails();
-                        } else {
-                            updateDisplayedVariantDetails();
-                        }
-
-                    } catch (e) {
-                        console.error("Error parsing Printful variants JSON:", e);
-                        document.getElementById('variant-selection-container').style.display = 'none';
-                        document.getElementById('product-price').textContent = `$${currentProductData.price.toFixed(2)}`;
-                        document.getElementById('selected-variant-id').value = '';
-                        document.getElementById('selected-variant-name').value = currentProductData.name;
-                        document.getElementById('selected-variant-price').value = currentProductData.price;
-                        document.getElementById('selected-variant-details-json').value = '';
-                        variantDetailsDisplay.textContent = '';
-                        isVariantSelected = true;
-                        addToCartBtn.classList.remove('disabled');
-                        addToCartBtn.disabled = false;
-                    }
-                } else {
-                    document.getElementById('variant-selection-container').style.display = 'none';
-                    document.getElementById('product-price').textContent = `$${currentProductData.price.toFixed(2)}`;
-                    document.getElementById('selected-variant-id').value = '';
-                    document.getElementById('selected-variant-name').value = currentProductData.name;
-                    document.getElementById('selected-variant-price').value = currentProductData.price;
-                    document.getElementById('selected-variant-details-json').value = '';
-                    variantDetailsDisplay.textContent = '';
-                    isVariantSelected = true;
-                    addToCartBtn.classList.remove('disabled');
-                    addToCartBtn.disabled = false;
-                }
-
-                addToCartBtn.onclick = () => {
-                    const selectedVariantId = document.getElementById('selected-variant-id').value;
-                    const selectedVariantName = document.getElementById('selected-variant-name').value;
-                    const selectedVariantPrice = parseFloat(document.getElementById('selected-variant-price').value);
-                    const selectedVariantDetailsJson = document.getElementById('selected-variant-details-json').value;
-                    const quantity = parseInt(quantityInput.value, 10);
-
-                    if (isNaN(quantity) || quantity < 1) {
-                        alert('Please enter a valid quantity (1 or more).');
-                        return;
-                    }
-
-                    if (allProductVariants.length > 0 && (!isVariantSelected || !selectedVariantId)) {
-                        alert('Please select all required product options (e.g., color and size).');
-                        return;
-                    }
-
-                    const finalProductId = currentProductData.id;
-                    const finalVariantId = selectedVariantId || null;
-                    const finalVariantName = selectedVariantName || currentProductData.name;
-                    const finalVariantPrice = isNaN(selectedVariantPrice) ? currentProductData.price : selectedVariantPrice;
-                    const finalVariantDetailsJson = finalVariantId ? selectedVariantDetailsJson : null;
-
-                    addToCartBackend(
-                        finalProductId,
-                        finalVariantId,
-                        quantity,
-                        finalVariantName,
-                        finalVariantPrice,
-                        finalVariantDetailsJson
-                    );
-                };
-
-                productLoading.style.display = 'none';
-                productWrapper.style.display = 'flex';
-
-            } catch (error) {
-                console.error('Error fetching product details:', error);
-                productLoading.style.display = 'none';
-                productError.style.display = 'block';
-                productError.textContent = `Failed to load product details. Please try again later. Error: ${error.message}`;
-                productWrapper.style.display = 'none';
-                addToCartBtn.classList.add('disabled');
-                addToCartBtn.disabled = true;
-            }
-        }
-
-        function mapColorNameToHex(colorName) {
-            const colorMap = {
-                'black': '#000000', 'white': '#FFFFFF', 'navy': '#000080', 'dark navy': '#000050',
-                'royal blue': '#4169E1', 'red': '#FF0000', 'maroon': '#800000', 'green camo': '#7C7F60',
-                'dark grey': '#A9A9A9', 'silver': '#C0C0C0', 'heather/black': '#696969', 'heather grey/navy': '#778899',
-                'heather grey/red': '#8B0000', 'heather grey': '#B0B0B0', 'oxford blue': '#4682B4', 'olive': '#808000',
-                'charcoal': '#36454F', 'blue': '#0000FF', 'desert sunrise': '#EDC9AF', 'clear': '#E0E0E0',
-                'athletic heather': '#C0C0C0', 'natural': '#F5F5DC', 'j. navy': '#2C3E50', 'black heather': '#36454F',
-                'sport grey': '#999999', 'cranberry': '#800020', 'spruce': '#0A7570', 'khaki': '#C3B091',
-                'stone': '#D3D3D3', 'truered': '#A80000', 'athleticheather': '#C0C0C0', 'darkheathergrey': '#36454F',
-                'graphiteheather': '#555555', 'carbonheather': '#3C3C3C', 'carolina blue': '#82BBEF', 'forest': '#228B22',
-                'oxford': '#002147', 'steel': '#4682B4', 'true royal': '#00008B', 'true navy': '#000080',
-                'dark green': '#006400', 'kelly': '#4CBB17', 'light blue': '#ADD8E6', 'light steel': '#B0C4DE',
-                'gold': '#FFD700', 'orange': '#FFA500', 'purple': '#800080', 'squad green': '#005D00',
-                'sunshine': '#FFD700', 'yellow': '#FFFF00', 'irish green': '#009A49', 'safety green': '#66CD00',
-                'safety orange': '#FF8C00', 'safety pink': '#FF1493', 'neon blue': '#0000FF', 'neon green': '#39FF14',
-                'azalea': '#F75B70', 'berry': '#C91C5C', 'coral': '#FF7F50', 'daisy': '#FFFF00',
-                'electric green': '#00FF00', 'fuchsia': '#FF00FF', 'heather sport royal': '#4169E1', 'heather radiant orchid': '#B065B8',
-                'heather irish green': '#009A49', 'heather safety pink': '#FF1493', 'heather military green': '#6B8E23', 'heather dark grey': '#A9A9A9',
-                'heather orange': '#FFA500', 'heather purple': '#800080', 'heather red': '#FF0000', 'heather sapphire': '#0F52BA',
-                'heather sport dark green': '#006400', 'heather sport scarlet': '#FF2400', 'heather sport yellow': '#FFFF00',
-            };
-            return colorMap[colorName.toLowerCase()] || '#CCCCCC';
-        }
-
-        function selectColor(color) {
-            selectedColor = color;
-            document.querySelectorAll('.pd-color-swatch').forEach(swatch => {
-                swatch.classList.remove('selected');
-            });
-            const selectedSwatch = document.querySelector(`.pd-color-swatch[data-color="${color}"]`);
-            if (selectedSwatch) selectedSwatch.classList.add('selected');
-
-            selectedSize = null;
-            updateSizeButtons();
-            updateDisplayedVariantDetails();
-        }
-
-        function selectSize(size) {
-            selectedSize = size;
-            document.querySelectorAll('.pd-size-btn').forEach(button => {
-                button.classList.remove('selected');
-            });
-            const selectedButton = document.querySelector(`.pd-size-btn[data-size="${size}"]`);
-            if (selectedButton) selectedButton.classList.add('selected');
-
-            updateDisplayedVariantDetails();
-        }
-
-        function updateSizeButtons() {
-            const sizeButtonsContainer = document.getElementById('size-options').querySelector('.pd-size-buttons');
-            if (!sizeButtonsContainer) return;
-            sizeButtonsContainer.replaceChildren();
-
-            const availableSizesForSelectedColor = new Set();
-            allProductVariants.forEach(variant => {
-                if ((selectedColor === null || variant.color === selectedColor) && (variant.availability_status === 'active' || variant.availability_status === true)) {
-                    if (variant.size) availableSizesForSelectedColor.add(variant.size);
-                }
-            });
-
-            const sortedAvailableSizes = [...availableSizesForSelectedColor].sort((a, b) => {
-                const sizeOrder = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
-                const indexA = sizeOrder.indexOf(a);
-                const indexB = sizeOrder.indexOf(b);
-                if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-                if (indexA === -1) return 1;
-                if (indexB === -1) return -1;
-                return indexA - indexB;
-            });
-
-            if (sortedAvailableSizes.length > 0) {
-                sortedAvailableSizes.forEach(size => {
-                    const button = document.createElement('button');
-                    button.className = 'pd-size-btn';
-                    button.textContent = size;
-                    button.dataset.size = size;
-
-                    const variantAvailable = allProductVariants.some(v =>
-                        (selectedColor === null || v.color === selectedColor) &&
-                        v.size === size &&
-                        (v.availability_status === 'active' || v.availability_status === true)
-                    );
-
-                    if (!variantAvailable) {
-                        button.classList.add('disabled');
-                        button.disabled = true;
-                    } else {
-                        button.addEventListener('click', () => selectSize(size));
-                    }
-                    sizeButtonsContainer.appendChild(button);
-                });
-                document.getElementById('size-options').style.display = 'block';
-            } else {
-                document.getElementById('size-options').style.display = 'none';
-            }
-
-            const currentlySelectedSizeButton = sizeButtonsContainer.querySelector(`.pd-size-btn[data-size="${selectedSize}"]`);
-            if (selectedSize && (!currentlySelectedSizeButton || currentlySelectedSizeButton.classList.contains('disabled'))) {
-                selectedSize = null;
-            }
-
-            updateDisplayedVariantDetails();
-        }
-
-        function renderVariantDetails(container, variant) {
-            container.replaceChildren();
-            if (variant.sku) {
-                const skuSpan = document.createElement('span');
-                skuSpan.textContent = `SKU: ${variant.sku}`;
-                container.appendChild(skuSpan);
-            }
-            if (variant.currency) {
-                const currSpan = document.createElement('span');
-                currSpan.textContent = `Currency: ${variant.currency}`;
-                container.appendChild(currSpan);
-            }
-            const availSpan = document.createElement('span');
-            availSpan.textContent = `Availability: ${variant.availability_status || 'N/A'}`;
-            container.appendChild(availSpan);
-        }
-
-        function renderSelectAllMessage(container) {
-            container.replaceChildren();
-            const msgSpan = document.createElement('span');
-            msgSpan.style.color = '#ef4444';
-            msgSpan.textContent = 'Please select all options.';
-            container.appendChild(msgSpan);
-        }
-
-        function updateDisplayedVariantDetails() {
-            const productPriceElement = document.getElementById('product-price');
-            const selectedVariantIdInput = document.getElementById('selected-variant-id');
-            const selectedVariantNameInput = document.getElementById('selected-variant-name');
-            const selectedVariantPriceInput = document.getElementById('selected-variant-price');
-            const selectedVariantDetailsJsonInput = document.getElementById('selected-variant-details-json');
-            const variantDetailsDisplay = document.getElementById('variant-details-display');
-            const productImage = document.getElementById('product-image');
-            const addToCartBtn = document.getElementById('add-to-cart-btn');
-
-            let matchingVariant = null;
-            isVariantSelected = false;
-
-            const hasVariants = allProductVariants.length > 0;
-            const requiresColor = uniqueColors.length > 0;
-            const requiresSize = uniqueSizes.length > 0;
-
-            if (hasVariants) {
-                if (requiresColor && requiresSize) {
-                    if (selectedColor !== null && selectedSize !== null) {
-                        matchingVariant = allProductVariants.find(v => v.color === selectedColor && v.size === selectedSize);
-                    }
-                } else if (requiresColor) {
-                    if (selectedColor !== null) {
-                        matchingVariant = allProductVariants.find(v => v.color === selectedColor);
-                    }
-                } else if (requiresSize) {
-                    if (selectedSize !== null) {
-                        matchingVariant = allProductVariants.find(v => v.size === selectedSize);
-                    }
-                }
-            }
-
-            if (matchingVariant) {
-                const displayPrice = parseFloat(matchingVariant.retail_price || matchingVariant.price || '0.00');
-                productPriceElement.textContent = `$${displayPrice.toFixed(2)}`;
-                selectedVariantIdInput.value = matchingVariant.id;
-                selectedVariantNameInput.value = matchingVariant.name;
-                selectedVariantPriceInput.value = displayPrice;
-                selectedVariantDetailsJsonInput.value = JSON.stringify(matchingVariant);
-
-                renderVariantDetails(variantDetailsDisplay, matchingVariant);
-
-                let variantImageUrl = currentProductData.image_url;
-                if (matchingVariant.files && matchingVariant.files.length > 0) {
-                    const previewFile = matchingVariant.files.find(f => f.type === 'preview' || f.type === 'mockup');
-                    if (previewFile && previewFile.preview_url) {
-                        variantImageUrl = previewFile.preview_url;
-                    } else if (matchingVariant.files[0].preview_url) {
-                        variantImageUrl = matchingVariant.files[0].preview_url;
-                    } else if (matchingVariant.files[0].url) {
-                        variantImageUrl = matchingVariant.files[0].url;
-                    }
-                }
-                productImage.src = variantImageUrl || 'https://via.placeholder.com/400?text=No+Image';
-
-                isVariantSelected = true;
-                addToCartBtn.classList.remove('disabled');
-                addToCartBtn.disabled = false;
-
-            } else if (!hasVariants) {
-                productPriceElement.textContent = `$${currentProductData.price.toFixed(2)}`;
-                selectedVariantIdInput.value = '';
-                selectedVariantNameInput.value = currentProductData.name;
-                selectedVariantPriceInput.value = currentProductData.price;
-                selectedVariantDetailsJsonInput.value = '';
-                variantDetailsDisplay.textContent = '';
-                productImage.src = currentProductData.image_url || 'https://via.placeholder.com/400?text=No+Image';
-
-                isVariantSelected = true;
-                addToCartBtn.classList.remove('disabled');
-                addToCartBtn.disabled = false;
-
-            } else {
-                productPriceElement.textContent = `$${currentProductData.price.toFixed(2)}`;
-                selectedVariantIdInput.value = '';
-                selectedVariantNameInput.value = '';
-                selectedVariantPriceInput.value = '';
-                selectedVariantDetailsJsonInput.value = '';
-                renderSelectAllMessage(variantDetailsDisplay);
-                productImage.src = currentProductData.image_url || 'https://via.placeholder.com/400?text=No+Image';
-
-                isVariantSelected = false;
-                addToCartBtn.classList.add('disabled');
-                addToCartBtn.disabled = true;
-            }
-        }
-
-        async function addToCartBackend(productId, selectedVariantId, quantity, variantName, variantPrice, variantDetailsJson) {
-            try {
-                const response = await fetch('https://business.kytranempowerment.com/plugins/store/api/cart/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: userSessionId,
-                        product_id: productId,
-                        quantity: quantity,
-                        selected_printful_variant_id: selectedVariantId,
-                        variant_name: variantName,
-                        variant_price: variantPrice,
-                        variant_details_json: variantDetailsJson
-                    }),
-                });
-
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.detail || `HTTP error! status: ${response.status}`);
-
-                alert(result.message);
-                updateCartCount();
-            } catch (error) {
-                console.error('Error adding product to cart:', error);
-                alert(`Failed to add product to cart: ${error.message}`);
-            }
-        }
-    })();
-    </script>
     <!-- Cookie Consent -->
     <div id="cookieConsent" class="cookie-consent" style="display:none;">
       <div class="cookie-consent__inner">

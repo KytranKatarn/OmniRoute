@@ -259,6 +259,10 @@ class KytranAuth:
                 "is_owner": userinfo.get("is_owner", False),
                 "entitlements": entitlements,
                 "product_tiers": userinfo.get("product_tiers", {}),
+                # T23 Phase 2 — canonical identity fields from hub /oauth/userinfo
+                "account_id": userinfo.get("account_id"),          # stable UUID across email aliases
+                "email_aliases": userinfo.get("email_aliases", []), # all known emails for this account
+                "is_admin": userinfo.get("is_admin", False),        # hub admin flag
                 "access_token": access_token,
                 "refresh_token": _refresh_token_val,
                 "access_token_exp": _access_token_exp,

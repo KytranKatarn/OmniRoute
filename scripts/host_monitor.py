@@ -5871,6 +5871,76 @@ def _hub_run_git(checkout, args, timeout=120):
         return {"returncode": -1, "stdout": "", "stderr": str(e)}
 
 
+def _inflight_review_prs():
+    """PR numbers with a F.O.R.G.E. review currently in flight. Returns a list.
+
+    Returns EMPTY on any failure. The caller uses this to decide whether to defer a
+    container restart, so a false EMPTY is the safe direction (it restarts and risks
+    killing a review) and a false NON-EMPTY is the risky one (it silently withholds a
+    deploy). An unreadable pr_reviews table must therefore never invent rows.
+
+    GOES THROUGH `docker exec` RATHER THAN A DIRECT DB CONNECTION, and that is not a
+    style preference. host_monitor runs as a service under root, and psycopg2 lives
+    in the invoking user's site-packages — so `import psycopg2` raises
+    ModuleNotFoundError in the service context and every direct connection attempt
+    fails. The first version of this guard did exactly that and returned [] on a
+    database that had two reviews in flight: a guard that silently never fires is
+    worse than no guard, because it reads as one. The platform container has both
+    psycopg2 and the DB credentials, so ask it.
+
+    Read-only. Does not touch the review rows themselves.
+    """
+    probe = (
+        "import sys; sys.path.insert(0, '/app'); "
+        "from database import get_db_cursor; "
+        "c = get_db_cursor(); "
+        "conn, cur = c.__enter__(); "
+        "cur.execute(\"SELECT pr_number FROM pr_reviews "
+        "WHERE review_status IN ('in_progress','pending','started') ORDER BY pr_number\"); "
+        # get_db_cursor yields DICT rows, not tuples: r[0] raises KeyError.
+        "print(','.join(str(list(r.values())[0]) for r in cur.fetchall())); "
+        "c.__exit__(None, None, None)"
+    )
+    try:
+        res = run_command_full(
+            ["docker", "exec", "archie_platform", "python3", "-c", probe], timeout=45
+        )
+        if res.get("returncode") != 0:
+            # The exact failure that shipped in the first version: the probe raised
+            # KeyError on r[0] because get_db_cursor yields dicts, so this returned
+            # [] forever. Loud now, because a quiet guard reads as a healthy one.
+            print(
+                "[hub_deploy] DRAIN GUARD INACTIVE: review probe exited "
+                f"{res.get('returncode')}: {(res.get('stderr') or '').strip()[:300]} "
+                "- proceeding with restart.",
+                flush=True,
+            )
+            return []
+        raw = (res.get("stdout") or "").strip()
+        if not raw:
+            print(
+                "[hub_deploy] DRAIN GUARD: probe returned nothing (no rows, or the "
+                "platform container is not answering) - proceeding with restart.",
+                flush=True,
+            )
+            return []
+        return [int(p) for p in raw.split(",") if p.strip().isdigit()]
+    except Exception as exc:  # noqa: BLE001 - a broken guard must not wedge deploys
+        # Failing open is the right CALL (see the docstring) but it must never be
+        # silent. The first version of this guard returned [] on every call because
+        # psycopg2 is not importable in the service context, and that reads exactly
+        # like "no reviews in flight" — a guard that quietly stops guarding is worse
+        # than no guard at all. Every failure path announces itself, so the restart
+        # decision is never made on a false negative without a trace.
+        print(
+            "[hub_deploy] DRAIN GUARD INACTIVE: could not read in-flight reviews "
+            f"({type(exc).__name__}: {exc}) - proceeding with restart. "
+            "A review in flight right now WOULD be killed by it.",
+            flush=True,
+        )
+        return []
+
+
 def handle_hub_deploy(params):
     """Merge -> auto-deploy the hub: ff-only pull origin/main, then restart containers.
 
@@ -5929,6 +5999,42 @@ def handle_hub_deploy(params):
             "applied": False,
             "changed": False,
             "message": "Already up to date — no restart needed.",
+        }
+
+    # 2b. DRAIN GUARD — do not restart while a F.O.R.G.E. review is mid-flight.
+    #
+    # WHY: the restart reloads archie_platform, which is the container the review
+    # itself runs inside. A wide review is a run of serial inference dispatches and
+    # measured ~25 minutes on the first pass alone, so a restart landing inside that
+    # window kills the pass. The review row is then left `in_progress` with no worker
+    # behind it until the 20-minute reaper notices — which is the state PR #3525 sat
+    # in for an hour. An auto-merge on any other PR is enough to trigger it.
+    #
+    # The merge above is deliberately NOT undone. The code is on disk and fast-
+    # forwarded; what is deferred is only the restart, so the hub reports
+    # `restart_required` from the provenance monitor rather than silently serving a
+    # half-applied deploy. That is the honest state: deployed-but-not-loaded.
+    #
+    # FAIL-OPEN on the GUARD ITSELF: if the review state cannot be read, restart
+    # anyway. A broken check must not wedge deploys forever — that trade is the
+    # opposite of the fetch rule above, and deliberately so. The fetch is a
+    # SAFETY gate (it decides what code lands); this is a CONVENIENCE gate (it
+    # decides when to reload), and only the first one is worth blocking on.
+    inflight = _inflight_review_prs()
+    if inflight:
+        return {
+            "success": True,
+            "applied": True,
+            "changed": True,
+            "restart_deferred": True,
+            "inflight_reviews": inflight,
+            "step": "drain",
+            "message": (
+                f"Fast-forwarded to origin/main, but DEFERRED the restart: "
+                f"{len(inflight)} F.O.R.G.E. review(s) in flight ({', '.join('#' + str(n) for n in inflight)}). "
+                f"Restarting would kill them. Code is on disk and not yet loaded — "
+                f"re-run this deploy once reviews finish."
+            ),
         }
 
     # 3. Restart from the compose file's directory (restart = load the newly

@@ -37,6 +37,27 @@ RUN mkdir -p /opt/no-guard \\
 # control that reports the opposite of its state is its own defect.
 RUN sed -i 's|scope guard armed on the lane clone|scope guard DISABLED (guard-free build)|' /start.sh \\
  && sed -i 's|WARNING: could not arm the scope guard|INFO: guard-free build, no scope guard|' /start.sh
+# Same class of defect, in a COMMENT rather than a log line: the git-identity
+# comment above names a BAKED scope guard, which is true of the base image and
+# false here. The base file is left alone on purpose -- the line is CORRECT in
+# the guarded build, so the correction belongs in the derivation, not in a
+# hand-edit of a derived image (which a rebuild would silently undo). Measured
+# 2026-09-28 on the running guard-free instance, which still showed the stale
+# text at /start.sh:78 while line 90 correctly printed DISABLED.
+# The pattern is anchored to end-of-line and avoids the apostrophe in "lane's",
+# which would otherwise close the shell quoting around the sed.
+RUN sed -i 's|^# Git identity + the BAKED scope guard.*$|# Git identity + the lane clone. Guard-free build: no scope guard by design (hooksPath points at an EMPTY /opt/no-guard).|' /start.sh
+# Bake the tracked guardfree instruction set in, and fill the lane's config tree
+# from it on every boot. The base image bakes nothing into /opencode-home, so a
+# fresh volume would otherwise start with the SOURCE lane's documents. Copied
+# NO-CLOBBER at boot (see the wrapper) so a file a human edited survives a
+# restart. This is the guard-free SET only; the guarded image keeps its own.
+COPY lane-docs /opt/lane-docs-guardfree
+COPY lane-docs-boot /usr/local/bin/lane-docs-boot
+RUN chmod +x /usr/local/bin/lane-docs-boot
+# Wrap the base entrypoint: fill the config tree from the baked set (no-clobber),
+# then exec the real /start.sh. The base image's ENTRYPOINT is ["/start.sh"].
+ENTRYPOINT ["/usr/local/bin/lane-docs-boot"]
 ENV CODEX_ALLOWLIST_FILE=""
 """.format(base=BASE_IMAGE)
 

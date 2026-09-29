@@ -73,6 +73,32 @@ if [ -d "$SRC" ]; then
   cp -an "$SRC/." "$DST/" 2>/dev/null || true
   chown -R 1000:1000 /opencode-home 2>/dev/null || true
 fi
+
+# The hostinger MCP is a LOCAL-EXEC server: opencode.json runs
+# /opencode-home/opt/node_modules/.bin/hostinger-hosting-mcp. That path lives in
+# the /opencode-home VOLUME, not in this image, so a fresh or recreated volume
+# has no binary and the MCP silently fails to start -- which is exactly how it
+# went missing here on 2026-09-29, while the archie-kb MCP (remote) kept working
+# and made the loss easy to miss. Reinstall ONLY when absent, so a normal boot
+# costs one stat() and stays quiet.
+HOSTINGER_BIN=/opencode-home/opt/node_modules/.bin/hostinger-hosting-mcp
+if [ ! -x "$HOSTINGER_BIN" ]; then
+  echo "[lane-docs-boot] hostinger MCP binary absent - installing (one-off)..." >&2
+  mkdir -p /opencode-home/opt
+  if [ ! -f /opencode-home/opt/package.json ]; then
+    printf '{"dependencies":{"hostinger-api-mcp":"^1.63.3"}}\n' \
+      > /opencode-home/opt/package.json
+  fi
+  if ( cd /opencode-home/opt && npm install --no-audit --no-fund >/dev/null 2>&1 ); then
+    echo "[lane-docs-boot] hostinger MCP installed" >&2
+  else
+    # Non-fatal on purpose: a missing MCP must not stop a terminal that works.
+    # The audit script reports it rather than this wrapper failing the boot.
+    echo "[lane-docs-boot] WARNING: hostinger MCP install failed; that MCP will not start" >&2
+  fi
+  chown -R 1000:1000 /opencode-home 2>/dev/null || true
+fi
+
 exec /start.sh "$@"
 """
 

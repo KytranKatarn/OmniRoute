@@ -14,11 +14,18 @@
 # Requires: /run/secrets/opencode_github_token — a fine-grained PAT scoped to THIS
 # repo with Contents + Pull requests write, and NOTHING else.
 #
-# ⚠️ THAT SECRET IS NOT MOUNTED YET, and that is deliberate: the owner's standing
-# instruction is that no GitHub token goes into this lane without their explicit
-# decision. Until it is mounted this script stops at the check below with a clear
-# message rather than failing somewhere confusing inside git. Mounting the token is
-# the ONLY remaining step to make opencode able to ship.
+# /run/secrets/opencode_github_token IS mounted, deliberately — the owner
+# confirmed this on 2026-09-28. Measured: present in all three instances
+# (canonical 17685, guarded 17686, guard-free 17687), a 94-byte file bind-mounted
+# read-only from secrets/opencode/github_token.txt.
+#
+# Having it is NOT permission to use it. This lane still never merges, never
+# approves its own PR, and ships only via this script. The credential is
+# fine-grained (Contents + Pull requests write) and "Pull requests: write" is
+# indivisible on GitHub, so this token COULD merge a PR — which is why branch
+# protection on main is load-bearing here, not ceremonial. Treat the token as
+# plumbing: never print, echo, log or commit it, never put it on a command line,
+# never write it into a file in the repo.
 #
 # ⚠️ "Pull requests: write" is not divisible on GitHub — it permits merging as well
 # as opening. So the token alone cannot stop a merge from here; the /usr/local/bin/gh

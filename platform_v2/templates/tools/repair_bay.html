@@ -3955,6 +3955,38 @@ function _renderReviewProgress(wrap, pr) {
             ' · Not sent: ' + (fp.not_sent_files || 0);
         box.appendChild(stats);
 
+        // A pass is one serial inference dispatch, so on a wide review of a 15-file
+        // PR the counter sits at 0 for as long as the first pass takes — measured
+        // at ~19 minutes on #3526. That reads as a hang unless the rate and the
+        // projected finish are on screen, which is what these three lines are for.
+        if (active && fp.elapsed_seconds !== undefined && fp.elapsed_seconds !== null) {
+            function _dur(s) {
+                if (s === undefined || s === null) { return '—'; }
+                s = Math.max(0, Math.round(s));
+                if (s >= 3600) { return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm'; }
+                if (s >= 60) { return Math.floor(s / 60) + 'm ' + (s % 60) + 's'; }
+                return s + 's';
+            }
+            var pace = document.createElement('div');
+            pace.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:#94a3b8;margin-bottom:4px;';
+            var paceText = 'Elapsed: ' + _dur(fp.elapsed_seconds) +
+                ' · Average per pass: ' + _dur(fp.avg_pass_seconds);
+            if (fp.eta_seconds !== undefined && fp.eta_seconds !== null) {
+                paceText += ' · Projected finish: ~' + _dur(fp.eta_seconds) +
+                    (fp.eta_provisional ? ' (provisional — one pass measured)' : '');
+            }
+            pace.textContent = paceText;
+            box.appendChild(pace);
+
+            if (fp.stale) {
+                var stale = document.createElement('div');
+                stale.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:#fbbf24;margin-bottom:4px;';
+                stale.textContent = '⚠ No pass has completed for ' + _dur(fp.last_pass_completed_ago) +
+                    '. Slow is expected here; if this keeps growing with no verdict, the review may be wedged.';
+                box.appendChild(stale);
+            }
+        }
+
         var list = document.createElement('div');
         list.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;line-height:1.6;max-height:220px;overflow-y:auto;border-top:1px solid rgba(34,211,238,0.18);padding-top:6px;';
         fp.files.forEach(function(file) {

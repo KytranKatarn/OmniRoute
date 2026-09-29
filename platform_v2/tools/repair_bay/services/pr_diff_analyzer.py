@@ -10,9 +10,11 @@ import logging
 import os
 import re
 import threading as _threading
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
+from dateutil import parser as dateutil_parser
 
 from services.review_coverage import (
     annotate,
@@ -3020,6 +3022,100 @@ def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
     return text
 
 
+def _review_started_at(pr_number, repo):
+    """Best-effort read of when this review started. Never raises."""
+    if not pr_number:
+        return None
+    try:
+        row = get_review(pr_number, repo=repo) or {}
+        raw = (row.get("metadata") or {}).get("review_started_at")
+        if not raw:
+            return None
+        dt = dateutil_parser.parse(str(raw))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:  # noqa: BLE001 - progress must never break on a read
+        return None
+
+
+def _pass_timing(completed_passes, total_passes, pr_number=None, repo=None):
+    """Elapsed, per-pass rate, projected finish, and a staleness flag.
+
+    WHY THIS EXISTS: progress is published once per pass (the call at the bottom of
+    the chunk loop), and a pass is one serial inference dispatch. On a wide review of
+    a 15-file PR that is 17 passes, so "Passes: 0 / 17" is the truthful reading for
+    most of the wall-clock -- a first pass measured at ~19 minutes. That is
+    indistinguishable from a hung review unless the numbers say otherwise, which is
+    exactly the question an operator is asking when they stare at a frozen counter.
+
+    Nothing here changes the review. It only describes the one already in flight.
+
+    ETA is deliberately marked provisional until at least two passes have completed:
+    a single sample cannot distinguish "one slow cold-load" from "every pass is this
+    slow", and projecting 17 passes from one measurement overstates the finish by an
+    order of magnitude. Staleness is measured from the pass START (elapsed minus the
+    time the in-flight pass has already been running is not knowable here), so it
+    means "no pass has completed in this long" -- not "no progress is being made".
+    """
+    out = {
+        "elapsed_seconds": None,
+        "avg_pass_seconds": None,
+        "eta_seconds": None,
+        "eta_provisional": True,
+        "last_pass_completed_ago": None,
+        "stale": False,
+    }
+    started = _review_started_at(pr_number, repo)
+    if not started:
+        return out
+    now = datetime.now(timezone.utc)
+    elapsed = (now - started).total_seconds()
+    if elapsed < 0:
+        return out
+    out["elapsed_seconds"] = int(elapsed)
+
+    # Per-pass rate from completed passes, floored at 1s so a fast first pass
+    # cannot divide by ~0 and report a nanosecond ETA.
+    if completed_passes:
+        out["avg_pass_seconds"] = elapsed / completed_passes
+        remaining = max(0, (total_passes or 0) - completed_passes)
+        out["eta_seconds"] = int(out["avg_pass_seconds"] * remaining)
+    out["eta_provisional"] = completed_passes < 2
+
+    # How long the IN-FLIGHT pass has been running. There is no per-pass timestamp
+    # to diff against, and the tempting `elapsed - completed_passes * per_pass` is
+    # identically zero by construction, so it can never say anything. The floor of
+    # the published snapshot IS the last write the pipeline made, so the age of that
+    # row is the honest "no pass has finished since" signal. Read from the review
+    # row's own updated_at, which mark_review_file_progress touches on every publish.
+    last_ago = None
+    try:
+        if pr_number:
+            row = get_review(pr_number, repo=repo) or {}
+            touched = row.get("updated_at")
+            if touched:
+                t = touched if isinstance(touched, datetime) else dateutil_parser.parse(str(touched))
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=timezone.utc)
+                last_ago = (now - t).total_seconds()
+    except Exception:  # noqa: BLE001 - progress must never break on a read
+        last_ago = None
+    out["last_pass_completed_ago"] = int(last_ago) if last_ago is not None and last_ago >= 0 else None
+
+    # Two passes' worth of average with no completion is where "slow, and the design
+    # says so" separates from "wedged". Never fires below 10 minutes: a wide review
+    # of 15 files measured ~25 min on the first pass, so anything tighter would
+    # cry wolf on the normal case.
+    out["stale"] = bool(
+        total_passes
+        and completed_passes < total_passes
+        and out["last_pass_completed_ago"] is not None
+        and out["last_pass_completed_ago"] > max(600, (out["avg_pass_seconds"] or 0) * 2)
+    )
+    return out
+
+
 def _publish_file_progress(
     diff: str,
     chunks: list,
@@ -3054,6 +3150,7 @@ def _publish_file_progress(
             "status": "running" if completed_passes < total_passes else "complete",
         }
     )
+    snapshot.update(_pass_timing(completed_passes, total_passes, pr_number, repo))
     if pr_number:
         try:
             mark_review_file_progress(pr_number, repo=repo, progress=snapshot)

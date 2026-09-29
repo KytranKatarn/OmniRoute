@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# opencode-Primary — launch the GUARD-FREE opencode lane from the host.
+#
+# WHAT THIS IS: the same three skills (archie-lane-ship, archie-repair-bay,
+# deploy-website) and the same MCP servers (archie-kb, hostinger-api) as the
+# guarded lane, but running in the guard-free instance with no scope guard:
+#   core.hooksPath=/opt/no-guard (empty) -> git runs no pre-push hook
+#   /opt/lane-guard absent, no allowlist, no blocked-glob enforcement
+#
+# WHY IT NEEDS THIS WRAPPER: start.sh (the container ENTRYPOINT) exports
+#   OPENCODE_HOME=/opencode-home
+#   XDG_CONFIG_HOME=/opencode-home/config
+# but `docker exec` BYPASSES the entrypoint. Without those variables opencode
+# finds no config, silently creates an empty one under /home/node/.config/, and
+# you get a session with no skills and no MCP servers -- while the real config
+# sits unread at /opencode-home/config/opencode. That is exactly what happened
+# on 2026-09-29; this script exists so it cannot recur.
+#
+# WORKING DIRECTORY: the lane's own clone at /work/archie-platform, deliberately
+# NOT /mnt/archie_brain. The live tree is mounted rw in this lane, so pointing an
+# unrestricted agent at it would mean it edits the owner's tree in place with no
+# clone and no isolation. Use --live-tree if you actually want that, and read the
+# warning it prints first.
+#
+# Usage:
+#   ./opencode-Primary                 launch the agent in the lane clone
+#   ./opencode-Primary --check         verify config/skills/MCP, then exit
+#   ./opencode-Primary --live-tree     launch with cwd=/mnt/archie_brain (warns)
+#   ./opencode-Primary -- <args>       pass args through to opencode
+#
+# Web terminal (already correct, no wrapper needed): http://127.0.0.1:17687
+
+set -euo pipefail
+
+CONTAINER="${GF_CONTAINER:-archie_opencode_terminal_gf}"
+LANE_CLONE=/work/archie-platform
+LIVE_TREE=/mnt/archie_brain
+# XDG_CONFIG_HOME is what start.sh exports and what we must pass through; opencode
+# then reads $XDG_CONFIG_HOME/opencode/ (XDG convention), which is where the
+# skills and opencode.json actually live. Two different paths -- conflating them
+# is what made the first version of --check report everything missing.
+XDG_DIR=/opencode-home/config
+CONFIG_DIR=/opencode-home/config/opencode
+
+die() { printf 'opencode-Primary: %s\n' "$1" >&2; exit 1; }
+
+# ---------------------------------------------------------------- preflight
+docker inspect "$CONTAINER" >/dev/null 2>&1 \
+  || die "container '$CONTAINER' does not exist. Create it with:
+    cd /mnt/archie_brain && python3 scripts/opencode_guardfree_terminal.py --apply"
+
+if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" != "true" ]; then
+  echo "opencode-Primary: $CONTAINER is stopped, starting it..." >&2
+  docker start "$CONTAINER" >/dev/null
+  for _ in $(seq 1 30); do
+    [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" = "true" ] && break
+    sleep 1
+  done
+fi
+
+# ---------------------------------------------------------------- --check
+if [ "${1:-}" = "--check" ]; then
+  echo "== config the agent will read: $CONFIG_DIR =="
+  docker exec "$CONTAINER" sh -lc "test -f $CONFIG_DIR/opencode.json && echo '  PASS opencode.json present' || echo '  FAIL opencode.json missing'"
+  echo "== skills =="
+  docker exec "$CONTAINER" sh -lc "ls -1 $CONFIG_DIR/skills 2>/dev/null | sed 's/^/    /'"
+  echo "== mcp servers configured =="
+  docker exec "$CONTAINER" python3 -c "
+import json
+d = json.load(open('$CONFIG_DIR/opencode.json'))
+mcp = d.get('mcp', {})
+for k, v in mcp.items():
+    kind = 'remote' if isinstance(v, dict) and v.get('type') == 'remote' else 'local-exec'
+    print('    %-14s %s' % (k, kind))
+print('    total: %d' % len(mcp))
+" 2>/dev/null || echo "    (could not read opencode.json)"
+  echo "== local-exec MCP binaries must exist =="
+  docker exec "$CONTAINER" sh -lc "grep -o '/opencode-home/opt[^\"]*' $CONFIG_DIR/opencode.json 2>/dev/null | sort -u | while read b; do
+      [ -x \"\$b\" ] && echo \"    PASS \$b\" || echo \"    FAIL \$b (absent — this MCP will not start)\"
+  done" 2>/dev/null
+  echo "== guard state (this is the point of the lane) =="
+  docker exec "$CONTAINER" sh -lc 'echo "    hooksPath : $(git -C /work/archie-platform config --get core.hooksPath)"'
+  docker exec "$CONTAINER" sh -lc '[ -e /opt/lane-guard ] && echo "    FAIL /opt/lane-guard present" || echo "    PASS no /opt/lane-guard"'
+  docker exec "$CONTAINER" sh -lc 'n=$(ls -A /opt/no-guard 2>/dev/null | wc -l); [ "$n" = "0" ] && echo "    PASS /opt/no-guard empty (no hook runs)" || echo "    FAIL /opt/no-guard holds $n entries"'
+  echo
+  echo "web terminal: http://127.0.0.1:17687"
+  exit 0
+fi
+
+# ---------------------------------------------------------------- launch
+WORKDIR="$LANE_CLONE"
+if [ "${1:-}" = "--live-tree" ]; then
+  cat >&2 <<'WARN'
+opencode-Primary: --live-tree requested.
+
+  This puts an UNRESTRICTED agent (no scope guard, no pre-push hook) directly
+  into /mnt/archie_brain — the shared live tree, with no clone and no isolation.
+  Edits land in the owner's working tree immediately and are not reviewable
+  before they happen.
+
+  The lane clone at /work/archie-platform is the default for that reason.
+WARN
+  WORKDIR="$LIVE_TREE"
+  shift
+fi
+[ "${1:-}" = "--" ] && shift
+
+echo "opencode-Primary: entering the GUARD-FREE lane ($CONTAINER)" >&2
+echo "  work tree : $WORKDIR" >&2
+echo "  config    : $XDG_DIR/opencode" >&2
+echo "  guard     : none (core.hooksPath=/opt/no-guard, empty)" >&2
+echo "  web alt   : http://127.0.0.1:17687" >&2
+echo >&2
+
+exec docker exec -it \
+  -e XDG_CONFIG_HOME="$XDG_DIR" \
+  -e OPENCODE_HOME=/opencode-home \
+  -w "$WORKDIR" \
+  "$CONTAINER" opencode "$@"

@@ -111,6 +111,12 @@ var KECart = (function () {
         var count = cartCount(cart);
         var els = document.querySelectorAll('[data-cart-count]');
         for (var i = 0; i < els.length; i++) els[i].textContent = String(count);
+        /* Same-tab notice for the shared sitewide nav badge (nav.js), which
+         * reads localStorage directly and doesn't require KECart to be
+         * loaded on every page — this event is just its instant-update hook. */
+        try {
+            window.dispatchEvent(new CustomEvent('ke:cart-changed', { detail: { count: count } }));
+        } catch (e) {}
     }
 
     return {

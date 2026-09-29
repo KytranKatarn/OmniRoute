@@ -201,7 +201,16 @@ var Nav = (function () {
         });
     }
 
-    /* ---- Cart badge (design Nav: hidden when empty; reads the backend cart) ---- */
+    /* ---- Cart badge (design Nav: hidden when empty; reads the real cart) ----
+     * The cart itself is client-side localStorage (see js/store-cart.js,
+     * KECart) — the whole cart is posted to the live kbs_store checkout
+     * endpoint in one shot, there is no server-side per-session cart to
+     * poll. This used to fetch a `.../api/cart/<userSessionId>` endpoint
+     * that predates that design and no longer exists server-side, keyed
+     * on a `userSessionId` localStorage value nothing ever sets — so the
+     * badge always read 0 and the link never un-hid, on every page.
+     * KECart itself is only loaded on the 5 store-group pages, so this
+     * reads the `ke-cart` key directly rather than depending on it. */
     function bindCartBadge() {
         var actions = document.querySelector('.nav__actions');
         if (!actions) return;
@@ -211,44 +220,42 @@ var Nav = (function () {
         link.className = 'nav__cart-link';
         link.title = 'Cart';
         link.setAttribute('hidden', '');
-        link.innerHTML = 'Cart <span class="nav__cart-badge">0</span>';
+        link.innerHTML = 'Cart <span class="nav__cart-badge" data-cart-count>0</span>';
         var cta = actions.querySelector('.nav__link--cta');
         actions.insertBefore(link, cta || actions.querySelector('.nav__menu-btn'));
         var badge = link.querySelector('.nav__cart-badge');
-        var timer = null;
+
+        function readCartCount() {
+            try {
+                var raw = localStorage.getItem('ke-cart');
+                var items = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(items)) return 0;
+                return items.reduce(function (t, i) { return t + (i.qty || 0); }, 0);
+            } catch (e) {
+                return 0;
+            }
+        }
 
         function refresh() {
-            var sid = null;
-            try { sid = localStorage.getItem('userSessionId'); } catch (e) {}
-            if (!sid) { link.setAttribute('hidden', ''); return; }
-            fetch('https://business.kytranempowerment.com/plugins/store/api/cart/' + sid)
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (data) {
-                    var items = (data && data.cart_items) || [];
-                    var count = items.reduce(function (t, i) { return t + (i.quantity || 0); }, 0);
-                    if (count > 0) {
-                        badge.textContent = String(count);
-                        link.removeAttribute('hidden');
-                    } else {
-                        link.setAttribute('hidden', '');
-                    }
-                })
-                .catch(function () {});
+            var count = readCartCount();
+            if (count > 0) {
+                badge.textContent = String(count);
+                link.removeAttribute('hidden');
+            } else {
+                link.setAttribute('hidden', '');
+            }
         }
 
-        function start() {
-            if (timer === null) { timer = setInterval(refresh, 1500); }
-            refresh();
-        }
-        function stop() {
-            if (timer !== null) { clearInterval(timer); timer = null; }
-        }
-
-        document.addEventListener('visibilitychange', function () {
-            if (document.hidden) stop(); else start();
-        });
+        /* pageshow: full nav+page reload/back-forward-cache restore.
+         * storage: cart changed in another tab.
+         * ke:cart-changed: same-tab, same-page instant update, dispatched
+         * by KECart.updateCartBadges() after every cart mutation. */
         window.addEventListener('pageshow', refresh);
-        start();
+        window.addEventListener('storage', function (e) {
+            if (e.key === 'ke-cart') refresh();
+        });
+        window.addEventListener('ke:cart-changed', refresh);
+        refresh();
     }
 
     /* ---- Init ---- */

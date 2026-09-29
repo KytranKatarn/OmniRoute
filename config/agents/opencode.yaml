@@ -54,7 +54,19 @@ opencode:
     # Single-writer + dispatch invariants (CLAUDE.md, ADR-013). Guarded elsewhere by
     # pre-commit hooks; blocking here fails EARLIER, at push.
     - "platform_v2/services/agent_service.py"
-    - "**/department_dispatcher.py"
+    # ── 2026-09-27 owner-authorised narrowing (was: "**/department_dispatcher.py")
+    # The broad glob matched every dispatcher at any depth and blocked the ONE
+    # canonical file, so the lane could not fix dispatch routing. It is replaced
+    # by an explicit deny of the paths that must stay shut. There is no negation
+    # syntax in the guard (fnmatch, blocked-first), so the denials are restated.
+    #
+    # STILL BLOCKED — do not re-grant without the owner saying so:
+    - "platform_v2/services/agent_service.py"   # single-writer for the agents table
+    - "**/services/department_coordinator.py"   # CAPABILITY_DEPARTMENT_MAP is routing SSOT
+    #
+    # NOW IN SCOPE (via allowed_paths platform_v2/):
+    #   platform_v2/tools/department_hq/services/department_dispatcher.py
+    # Verify with: ./scripts/grant_opencode_dispatch_scope.py --verify
 
   preflight:
     - "git status --porcelain"    # the lane must be clean before a task starts

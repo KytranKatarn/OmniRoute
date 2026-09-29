@@ -99,6 +99,19 @@ def run_container(name, port, source, replace, lane_name):
             "-v", "{}:{}:ro".format(SECRETS + "/mcp_bearer.txt", "/run/secrets/opencode_kb_bearer"),
             "-v", "{}:{}:ro".format(SECRETS + "/github_token.txt", "/run/secrets/opencode_github_token"),
         ]
+        # Hostinger API token. Same per-file read-only treatment as the other two,
+        # and for the same reason: it was the ONLY secret in this stack living
+        # plaintext inside opencode.json, a file seed_config copies from the
+        # canonical lane into every new instance. Mounted, it never travels with
+        # the config tree. opencode.json points the MCP at this path instead of
+        # embedding the value.
+        _hostinger_secret = SECRETS + "/hostinger_token.txt"
+        if host_file_exists(_hostinger_secret):
+            cmd += ["-v", "{}:{}:ro".format(_hostinger_secret, "/run/secrets/hostinger_token")]
+        else:
+            say("  WARNING: {} not found -> mounting NOTHING." .format(_hostinger_secret))
+            say("    The hostinger MCP will fall back to whatever token is embedded in")
+            say("    opencode.json, if any. Create the file (0600) to mount it properly.")
         if host_file_exists(HOST_CLAUDE_SETTINGS):
             cmd += ["-v", "{}:{}:ro".format(HOST_CLAUDE_SETTINGS, HOST_CLAUDE_MOUNT)]
             say("  host Claude settings: daemon sees the file -> mounting (single file, ro)")

@@ -73,6 +73,40 @@ for name, v in (d.get(\"mcp\") or {}).items():
     done <<EOF
 $bins
 EOF
+    # A local-exec MCP whose command reads a SECRET PATH is only as healthy as the
+    # mount behind it. The mount is applied at container-create time, so editing
+    # opencode.json to read /run/secrets/... without recreating the container leaves
+    # a config pointing at a file that does not exist -- and the MCP fails with no
+    # message anywhere. This is exactly the half-finished state of 2026-09-29, so
+    # it is checked rather than assumed.
+    refs="$(in_container "$c" 'python3 -c "
+import json
+d = json.load(open(\"/opencode-home/config/opencode/opencode.json\"))
+for name, v in (d.get(\"mcp\") or {}).items():
+    if not isinstance(v, dict):
+        continue
+    for b in (v.get(\"command\") or []):
+        if isinstance(b, str) and \"/run/secrets/\" in b:
+            import re
+            for m in re.findall(r\"/run/secrets/[A-Za-z0-9_.-]+\", b):
+                print(name, m)
+"')"
+    if [ -z "$refs" ]; then
+        continue   # no secret-path MCP: nothing further to verify
+    fi
+    while read -r name path; do
+        [ -n "${path:-}" ] || continue
+        if in_container "$c" "[ -r '$path' ]"; then
+            pass "$c: $name secret path $path readable"
+        else
+            fail "$c: $name reads $path but it is NOT MOUNTED"
+            printf '        opencode.json points at a secret the container does not have.\n'
+            printf '        Mounts apply at create time: recreate the lane, it is not enough\n'
+            printf '        to edit the config. Until then this MCP cannot authenticate.\n'
+        fi
+    done <<EOF
+$refs
+EOF
 done
 
 printf '\n'

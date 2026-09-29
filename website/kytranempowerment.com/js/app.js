@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             smoothWheel: true
         });
+        // Exposed so Transitions.js can resync it on Barba page swaps — see
+        // the comment on window.scrollTo there for why this matters.
+        window.__lenis = lenis;
 
         // Drive Lenis from exactly ONE loop. gsap.ticker already runs on
         // requestAnimationFrame internally, so when GSAP is present it is

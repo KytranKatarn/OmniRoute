@@ -16,6 +16,12 @@ import time
 from .common import (BASE_IMAGE, GF_IMAGE, HOST_CLAUDE_MOUNT, HOST_CLAUDE_SETTINGS,
                      NETWORK, SECRETS, die, run, say)
 from .guards import guard_name_free, guard_not_protected, guard_port_free, host_file_exists
+# remove_container lives in seed.py (it is the same "undo what seeding did"
+# concern) but the --replace path calls it from here. Without this import
+# --apply --replace died with NameError on the very first line, so the one
+# operation you need in order to UPDATE a lane had never been run: the original
+# create worked because nothing existed to remove.
+from .seed import remove_container
 
 
 # --------------------------------------------------------------------------

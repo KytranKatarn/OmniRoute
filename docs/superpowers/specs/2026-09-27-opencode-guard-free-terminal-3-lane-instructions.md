@@ -100,39 +100,13 @@ Measured on the live instance, all three paths:
 * file carrying a hand-edit → `WARNING: 1 file(s) differ from BOTH…`, marker
   survived, nothing overwritten.
 
-This does not close the image-level half of #7027. `opencode/workspace/GUARDRAILS.md`
-is still baked into the base image and is the owner's to change; a fresh volume
-repaired only by `--apply` still ships wrong instructions in the window between
-volume creation and apply. What changed is that the correct set is now reviewable
-in git, and re-provisioning is a single command instead of a manual audit.
+The image-level half of #7027 is still open and is the OWNER's to close.
+`opencode/workspace/GUARDRAILS.md` remains baked into the base image, so
+`seed_config` still copies the **guarded** lane's documents into a fresh volume.
+Measured again 2026-09-28 after the docs were merged: the source container
+(17685) still holds 8 files carrying the wrong ship paths, so a newly created
+guard-free volume is wrong **from boot** until it is repaired.
 
-## Correction — what is actually known about `main` protection
+### Provisioning a fresh volume
 
-Earlier revisions of this spec, and the dry-run text, said protection was
-"unverifiable" and told the reader to check it themselves. That was wrong in a
-way that mattered: the `403` came from hitting the **admin-only**
-`/branches/main/protection` endpoint, not from protection being absent. Measured
-2026-09-28 with both host tokens:
-
-| fact | value | how |
-|---|---|---|
-| `main` protected | **yes** (`protected: true`) | `GET /branches/main` — repo read, not admin |
-| repository rulesets | **0** | `GET /rulesets` |
-| required status checks | **enforcement off** | `protection.required_status_checks` in branch metadata |
-| `required_approving_review_count` | **unknown** | needs `Administration: read`; REST `403`, GraphQL `404` |
-| `enforce_admins` | **unknown** | same |
-
-History is the uncomfortable part: the last 10 merges into `main` carried **zero
-reviews**, all authored by the owner account. So a review-free merge has been
-possible in practice. That is consistent with admin bypass, with
-`enforce_admins=false`, or with a review requirement that simply is not stopping
-this account — and `main` is `mergeable_state: blocked` for #3504 right now, so
-*something* is being enforced at the moment.
-
-The honest statement, replacing the earlier one: `main` **is** protected and the
-residual risk is **not** "unprotected branch" but "cannot tell whether the
-credential this lane holds clears the remaining requirement". Only the owner can
-close that, by reading the rule in the GitHub UI, or by granting
-`Administration: read` to a token used only for audit. Dev HQ #7026.
-
----
+Moved to [part 5](2026-09-27-opencode-guard-free-terminal-5-provisioning-and-validation.md) — the procedure and the live validation evidence — so this part stays inside the review pass window and the evidence is read in full rather than truncated.

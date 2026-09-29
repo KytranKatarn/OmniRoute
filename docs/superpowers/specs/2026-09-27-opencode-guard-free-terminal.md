@@ -42,3 +42,5 @@ learn what was decided:
 | [2 — Decisions and first inspection](2026-09-27-opencode-guard-free-terminal-2-decisions-and-inspection.md) | The token-mount decision; the three gaps found on first inspection and how each closed |
 | [3 — Lane instructions](2026-09-27-opencode-guard-free-terminal-3-lane-instructions.md) | The same defect on a second surface (lane instructions), the tracked doc set, what is actually known about `main` protection |
 | [4 — The guarded lane](2026-09-27-opencode-guard-free-terminal-4-guarded-lane.md) | Why the guarded lane needed the same treatment and is a genuinely different instruction set |
+| [5 — Provisioning and validation](2026-09-27-opencode-guard-free-terminal-5-provisioning-and-validation.md) | The required step for a fresh volume, and the live evidence that it works (idempotence, both lanes, all refusals) |
+| [6 — `main` protection](2026-09-27-opencode-guard-free-terminal-6-main-protection.md) | What is actually known about branch protection on `main` — corrected, not assumed |

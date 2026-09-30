@@ -10,6 +10,8 @@ Callers pass row mappings straight from psycopg2/SQLAlchemy; only key access is
 used, so dicts work equally well in tests.
 """
 
+import re
+
 # ── A.U.R.O.R.A. map payload ────────────────────────────────────────────────
 # CWFIS still emits Newfoundland as the legacy "NF"; the GeoJSON (and every
 # other page on this site) says "NL". Canonicalise ONCE, here, at the payload
@@ -383,3 +385,45 @@ def build_fire_alert_tiles(hotspot_rows, obs_date, alerts, evac_naad, evac_bc_or
         tiles.append(tile("cities", "Cities reporting", f"{reporting} / {total}", note,
                           "ok" if reporting == total else "warn"))
     return tiles
+
+
+# ── Alert text (weather page alert strip) ─────────────────────────────────────
+# Environment Canada CAP descriptions sometimes carry MARKDOWN headings inline
+# ("...monitor alerts. ### This warning is issued when ..."), which rendered raw as
+# "###" on the live page. The text after the first heading marker is boilerplate
+# explanation, not the alert itself, so the summary stops there.
+_MD_HEADING = re.compile(r"\s*#{2,}\s")
+
+
+def clean_alert_text(desc, limit: int = 220):
+    """PURE. Raw CAP description in, a short plain-text summary (or None) out.
+
+    Cuts at the first markdown heading marker, strips leftover ``#``/``*`` runs,
+    collapses whitespace, and truncates on a word boundary with an ellipsis.
+    Never invents text: an empty or all-markup input returns None so the caller can
+    omit the line rather than render a blank one.
+    """
+    if not desc or not isinstance(desc, str):
+        return None
+    head = ""
+    for chunk in _MD_HEADING.split(desc):
+        head = re.sub(r"\s+", " ", re.sub(r"[#*_`]+", " ", chunk)).strip()
+        if head:
+            break  # first real chunk; a leading bare "###" must not blank the summary
+    if not head:
+        return None
+    if len(head) <= limit:
+        return head
+    cut = head[:limit].rsplit(" ", 1)[0].rstrip(",;:- ")
+    return cut + "\u2026"
+
+
+def alert_counts(total: int, severities) -> dict:
+    """PURE. Header numbers for the strip, from REAL rows only.
+
+    ``total`` is the full count of active alerts (the list shown is capped);
+    ``severe`` counts Severe/Extreme by the alert's own severity field. No province
+    count is derived — CAP office codes span provinces (see routes.weather()).
+    """
+    severe = sum(1 for s in (severities or []) if str(s or "").lower() in ("severe", "extreme"))
+    return {"total": int(total or 0), "severe": severe}

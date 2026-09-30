@@ -16,7 +16,7 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | 5 | `wtf-news.html` | `news.html` | todo | | |
 | 6 | `wtf-archive.html` | `archive.html` | todo | | |
 | 7 | `wtf-article.html` | `article.html` | todo | | |
-| 8 | `wtf-weather.html` | `weather.html` | todo | | Already on `wtf-map.js`; diff layers only |
+| 8 | `wtf-weather.html` | `weather.html` | partial (8a) | | 8a: counted alert header + one scrolling strip, clean summaries (no leaked `###`), evacuations folded with counts so the map is reachable. Remaining sub-slices: layer/legend parity vs the design, forecast + AQHI panels |
 | 9 | `wtf-city.html` | weather city view | todo | | |
 | 10 | `wtf-mps.html` | `mps.html` | todo | | Riding / province / party from DB — never derived |
 | 11 | `wtf-mp.html`, `wtf-senator.html` | `mp.html`, `senator.html` | todo | | |

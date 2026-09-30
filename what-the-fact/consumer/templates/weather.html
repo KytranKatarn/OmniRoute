@@ -278,6 +278,25 @@
   max-height:3.2em; overflow:hidden; }
 .wtf-wx-alert-src { font-size:9px; color:#6b7280; margin-top:6px; text-transform:uppercase; letter-spacing:0.5px; }
 
+/* Compact alert strip (PORT-STATUS row 8): a counted header + one horizontally
+   scrolling row, so the map is reachable without scrolling past a wall of text.
+   Every alert is still present and readable; nothing is hidden, only re-flowed. */
+.wtf-wx-alerthead { font-size:12px; color:#d1d5db; margin:0 0 8px; letter-spacing:0.3px; }
+.wtf-wx-alerthead-severe { color:#ef4444; }
+.wtf-wx-alerthead-note { color:#9ca3af; }
+.wtf-wx-alertstrip { display:flex; gap:10px; overflow-x:auto; overflow-y:hidden; border:0;
+  padding-bottom:8px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
+.wtf-wx-alertstrip .wtf-wx-alert { flex:0 0 min(320px, 86vw); scroll-snap-align:start;
+  border:1px solid #0a1a2a; border-left-width:4px; border-radius:6px; }
+.wtf-wx-alertstrip .wtf-wx-alert + .wtf-wx-alert { border-top:1px solid #0a1a2a; }
+.wtf-wx-evacfold > summary { cursor:pointer; list-style:none; padding:10px 14px; background:#0d1520;
+  font-size:12px; font-weight:700; color:#e5e7eb; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.wtf-wx-evacfold > summary::-webkit-details-marker { display:none; }
+.wtf-wx-evacfold-count { font-weight:400; color:#9ca3af; }
+.wtf-wx-evacfold-hint { margin-left:auto; font-weight:400; font-size:10px; color:#6b7280;
+  text-transform:uppercase; letter-spacing:0.5px; }
+.wtf-wx-evacfold[open] .wtf-wx-evacfold-hint { display:none; }
+
 /* ── Evacuation-order panel (Dev HQ #6624) ──────────────────────────────
    Two sources, kept visually distinct since they answer different questions:
    NAAD = "is there an evacuation-shaped alert anywhere in Canada right now"
@@ -332,6 +351,11 @@
    parameter / areaDesc), never a derived province — office codes are
    weather-office codes spanning multiple provinces, not a province key. #}
 {% if active_alerts %}
+<div class="wtf-wx-alerthead" id="wtf-wx-alerthead">
+  <strong>{{ alert_summary.total }}</strong> alert{{ '' if alert_summary.total == 1 else 's' }} in effect
+  {% if alert_summary.severe %}· <strong class="wtf-wx-alerthead-severe">{{ alert_summary.severe }}</strong> severe or extreme{% endif %}
+  {% if alert_summary.total > active_alerts|length %}<span class="wtf-wx-alerthead-note">· showing the {{ active_alerts|length }} most severe</span>{% endif %}
+</div>
 <div class="wtf-wx-alertstrip">
   {% for al in active_alerts %}
   <div class="wtf-wx-alert sev-{{ (al.severity or 'unknown')|lower }}">
@@ -342,7 +366,7 @@
         {{ al.coverage_name or al.area_desc or '' }}{% if al.coverage_name and al.area_desc %} · {{ al.area_desc }}{% endif %}
         {% if al.severity %} · {{ al.severity }}{% endif %}
       </div>
-      {% if al.description %}<div class="wtf-wx-alert-desc">{{ al.description }}</div>{% endif %}
+      {% if al.summary %}<div class="wtf-wx-alert-desc">{{ al.summary }}</div>{% endif %}
       <div class="wtf-wx-alert-src">Environment Canada · Meteorological Service of Canada</div>
     </div>
   </div>
@@ -358,7 +382,12 @@
    not simple lat/lon pins) — shows "0 active" gracefully, which is the
    expected common case, not an error state. #}
 {% if active_evacuations_naad or active_evacuations_bc %}
-<div class="wtf-wx-evacpanel">
+<details class="wtf-wx-evacpanel wtf-wx-evacfold" id="wtf-wx-evacfold">
+  <summary class="wtf-wx-evacfold-sum">
+    {{ evac_icon(15) }} Evacuation orders &amp; alerts
+    <span class="wtf-wx-evacfold-count">{{ active_evacuations_naad|length }} national · {{ active_evacuations_bc|length }} British Columbia</span>
+    <span class="wtf-wx-evacfold-hint">tap to expand</span>
+  </summary>
   <div class="wtf-wx-evac-sechead">{{ evac_icon(15) }} Evacuation orders &amp; alerts — Alert Ready (national)</div>
   {% if active_evacuations_naad %}
     {% for ev in active_evacuations_naad %}
@@ -401,7 +430,7 @@
     {% endfor %}
     <div class="wtf-wx-evac-attrib">Source: Emergency Management BC, updated hourly — for time-critical confirmation check the local authority directly.</div>
   {% endif %}
-</div>
+</details>
 {% endif %}
 
 {# ── MAP ZONE ──────────────────────────────────────────────────────────────

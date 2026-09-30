@@ -910,6 +910,8 @@ def news():
 
 
 from .aurora_map import (  # pure, DB-free (see module docstring)
+    alert_counts,
+    clean_alert_text,
     _aurora_map_payload,
     _aurora_city_payload,
     build_fire_alert_tiles,
@@ -1202,6 +1204,24 @@ def weather():
             LIMIT 20
         """)).mappings().all()
         active_alerts = [dict(r) for r in active_alerts]
+        # The list above is LIMIT 20, so the headline count comes from its own query:
+        # "20 alerts" on a day with 60 would be a lie the strip cannot see.
+        _alert_sev = [
+            r[0]
+            for r in c.execute(
+                text("""
+                SELECT severity FROM wtf.aurora_alerts
+                WHERE status = 'Actual'
+                  AND COALESCE(location_status, '') NOT IN ('ended', 'expired')
+                  AND (expires_utc IS NULL OR expires_utc > now())
+            """)
+            ).all()
+        ]
+        alert_summary = alert_counts(len(_alert_sev), _alert_sev)
+        for _al in active_alerts:
+            # EC descriptions arrive as markdown-ish text ("### What ... ###"); the raw
+            # string leaked into the page. The clean form is for the strip only.
+            _al["summary"] = clean_alert_text(_al.get("description"))
 
         # Evacuation-order layer (#6624) — NAAD/Alert Ready + BC DataBC. Same
         # "compute active at query time" discipline as active_alerts above.
@@ -1254,6 +1274,7 @@ def weather():
                            aurora_cities=city_payload,
                            aurora_aqhi=aqhi_payload,
                            active_alerts=active_alerts,
+                           alert_summary=alert_summary,
                            active_evacuations_naad=active_evacuations_naad,
                            active_evacuations_bc=active_evacuations_bc,
                            obs_time=obs_time,

@@ -96,8 +96,8 @@ a { color: inherit; }
 }
 .wtf-nav-brand {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  align-items: center;
+  gap: 11px;
   text-decoration: none;
   flex-shrink: 0;
 }
@@ -112,9 +112,17 @@ a { color: inherit; }
 .wtf-subbrand {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
-  color: #6b7280;
+  color: var(--wtf-brand);
   text-transform: uppercase;
 }
+.wtf-nav-logo {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid #1d2b3a;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.07), 0 2px 10px -4px rgba(0,0,0,.9);
+}
+.wtf-nav-brand-txt { display: flex; flex-direction: column; gap: 0; }
+.wtf-wordmark b { color: var(--wtf-brand); font-weight: 700; }
+@media (max-width: 760px) { .wtf-nav-brand-txt { display: none; } }
 /* ── Grouped nav (#6149 phase 2) ───────────────────────────────────────────
    Six sections replace the flat wall of links. Opens on hover AND on
    focus-within, so it is reachable by keyboard, not only by pointer. */
@@ -181,7 +189,7 @@ a { color: inherit; }
   gap: 0.4rem;
   font-size: 0.65rem;
   letter-spacing: 0.15em;
-  color: var(--wtf-accent);
+  color: var(--wtf-brand);
   white-space: nowrap;
   /* Now an <a> to /activity rather than a dead <div>; suppress the default
      underline so the pill looks unchanged. */
@@ -192,7 +200,7 @@ a { color: inherit; }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--wtf-accent);
+  background: var(--wtf-brand);
   display: inline-block;
   animation: wtf-pulse 1.2s ease-in-out infinite;
 }

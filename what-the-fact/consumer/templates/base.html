@@ -90,8 +90,11 @@
 <body>
   <nav class="wtf-nav">
     <a href="/" class="wtf-nav-brand">
-      <span class="wtf-wordmark">WHAT&middot;THE&middot;FACT</span>
-      <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
+      <img src="{{ url_for('static', filename='wtf-logo.png') }}" alt="" class="wtf-nav-logo" width="36" height="36">
+      <span class="wtf-nav-brand-txt">
+        <span class="wtf-wordmark">WHAT&middot;<b>THE</b>&middot;FACT</span>
+        <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
+      </span>
     </a>
     <div class="wtf-nav-links">
       {# #6149 phase 2 — ONE nav definition, rendered by both the desktop bar and

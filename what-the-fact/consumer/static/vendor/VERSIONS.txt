@@ -24,3 +24,10 @@ TO UPDATE
   npm install d3-geo@<version>
   cp node_modules/{internmap,d3-array,d3-geo}/dist/*.min.js consumer/static/vendor/
   update the versions above, then re-run tests/test_wtf_map.py
+
+DATA (not a library) — consumer/static/world-countries.geojson
+  Natural Earth 1:110m Admin 0 Countries (public domain, naturalearthdata.com).
+  Reduced to {properties:{code (ISO 3166-1 alpha-2), name}}; 177 features,
+  2 carry no code (N. Cyprus, Somaliland) and are drawn as no-data.
+  Boundaries are Natural Earth's de facto lines and are not an endorsement of any
+  claim. Used only by the "world" scope of wtf-map.js; loaded on first use.

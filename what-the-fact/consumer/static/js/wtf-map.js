@@ -62,11 +62,24 @@
  *      and silently clipping is how a map claims coverage it does not have.
  *   5. All point/tooltip text goes in via textContent. Article titles are
  *      external content (WTF XSS rule) and never touch innerHTML.
+ *
+ * SCOPES — `scope: "canada"` (default) or `"world"`, switchable at runtime with
+ * setScope(). Canada is the default so every existing caller is unchanged.
+ * World uses a Natural Earth projection fitted to the whole sphere, and its
+ * regions are keyed by ISO alpha-2 country code, so metric(code)/tooltip(code)
+ * work exactly as they do for provinces. Boundaries are Natural Earth 110m
+ * (public domain, de facto); a country the file carries with no code is drawn
+ * as no-data rather than guessed at. The world file loads on first use, so a
+ * page that never asks for it never pays for it.
  */
 (function (global) {
   "use strict";
 
   var GEOJSON_URL = "/static/canada-provinces.geojson";
+  // Natural Earth 110m admin-0 (public domain). One feature per country, keyed
+  // by properties.code (ISO 3166-1 alpha-2). Two features carry no code
+  // (N. Cyprus, Somaliland) — they are drawn as no-data, never guessed at.
+  var WORLD_GEOJSON_URL = "/static/world-countries.geojson";
   var NO_DATA = "#1b2430";
 
   // Kept for callers that still pass bounds; the conic projection is fitted to
@@ -111,7 +124,10 @@
     var layers = opts.layers || [];
     var active = opts.active || (layers[0] && layers[0].id);
     var selected = null;
-    var geo = null;              // the GeoJSON FeatureCollection
+    var scope = opts.scope === "world" ? "world" : "canada";
+    var geo = null;              // the ACTIVE scope's FeatureCollection
+    var caGeo = null;            // Canada provinces, loaded once
+    var worldGeo = null;         // world countries, loaded on first use
     var projection = null;
     var path = null;
     var focusCode = null;        // province the view is fitted to, or null
@@ -153,29 +169,45 @@
       return [Math.max(w, 240), Math.max(h, 200)];
     }
 
-    /** Fit the conic projection to `feature` (or all of Canada when null). */
+    /** Region code of a feature under the ACTIVE scope, or undefined. */
+    function codeOf(f) {
+      var pr = f && f.properties;
+      if (!pr) return undefined;
+      return scope === "world" ? (pr.code || undefined) : PROVINCE_CODES[pr.name];
+    }
+
+    /** Fit the projection to `feature` (or the whole scope when null).
+     *  Canada: conic conformal. World: Natural Earth, fitted to the sphere so
+     *  nothing is clipped and no country is privileged by the framing. */
     function fit(feature) {
       var wh = size();
       svg.setAttribute("viewBox", "0 0 " + wh[0] + " " + wh[1]);
       svg.setAttribute("width", wh[0]);
       svg.setAttribute("height", wh[1]);
-      projection = global.d3.geoConicConformal()
-        .parallels([49, 77])
-        .rotate([96, 0]);
-      // A little padding so a focused province is not flush with the edge.
+      // A little padding so a focused region is not flush with the edge.
       var pad = 12;
-      projection.fitExtent(
-        [[pad, pad], [wh[0] - pad, wh[1] - pad]],
-        feature || geo
-      );
+      if (scope === "world") {
+        projection = global.d3.geoNaturalEarth1();
+        projection.fitExtent(
+          [[pad, pad], [wh[0] - pad, wh[1] - pad]],
+          feature || { type: "Sphere" }
+        );
+      } else {
+        projection = global.d3.geoConicConformal()
+          .parallels([49, 77])
+          .rotate([96, 0]);
+        projection.fitExtent(
+          [[pad, pad], [wh[0] - pad, wh[1] - pad]],
+          feature || geo
+        );
+      }
       path = global.d3.geoPath(projection);
     }
 
     function featureFor(code) {
       if (!geo || !code) return null;
       for (var i = 0; i < geo.features.length; i++) {
-        var f = geo.features[i];
-        if (PROVINCE_CODES[f.properties && f.properties.name] === code) return f;
+        if (codeOf(geo.features[i]) === code) return geo.features[i];
       }
       return null;
     }
@@ -199,7 +231,7 @@
       if (!geo || !path) return;
       var def = layerDef(active);
       geo.features.forEach(function (f) {
-        var code = PROVINCE_CODES[f.properties && f.properties.name];
+        var code = codeOf(f);
         var d = path(f);
         if (!d) return;
         var p = el("path", { d: d, class: "wtf-map-prov", "data-code": code || "" });
@@ -318,9 +350,10 @@
       if (offscreen > 0) {
         var off = document.createElement("div");
         off.className = "wtf-map-legend-note is-offscreen";
+        var viewOf = scope === "world" ? "the world map" : "Canada";
         off.textContent = offscreen === 1
-          ? "1 location falls outside this view of Canada and is not drawn."
-          : offscreen + " locations fall outside this view of Canada and are not drawn.";
+          ? "1 location falls outside this view of " + viewOf + " and is not drawn."
+          : offscreen + " locations fall outside this view of " + viewOf + " and are not drawn.";
         box.appendChild(off);
       }
       if (invalidCount > 0) {
@@ -363,6 +396,42 @@
       if (geo) { fit(null); restyle(); }
     }
 
+    function legendBox() {
+      return opts.legendEl
+        ? (typeof opts.legendEl === "string" ? document.getElementById(opts.legendEl) : opts.legendEl)
+        : null;
+    }
+
+    /** Switch between "canada" and "world". World geometry loads on first use;
+     *  a failed load says so in words and leaves the current scope drawn. */
+    function setScope(next) {
+      next = next === "world" ? "world" : "canada";
+      if (next === scope && geo) return;
+      function apply(fc) {
+        scope = next;
+        geo = fc;
+        selected = null;
+        focusCode = null;
+        fit(null);
+        if (opts.onScope) opts.onScope(scope);
+        restyle();
+      }
+      if (next === "canada") { if (caGeo) apply(caGeo); return; }
+      if (!global.d3.geoNaturalEarth1) {
+        var b = legendBox();
+        if (b) b.textContent = "World projection is not available in this build of the map library.";
+        return;
+      }
+      if (worldGeo) { apply(worldGeo); return; }
+      fetch(WORLD_GEOJSON_URL).then(function (r) { return r.json(); }).then(function (gj) {
+        worldGeo = gj;
+        apply(worldGeo);
+      }).catch(function () {
+        var bx = legendBox();
+        if (bx) bx.textContent = "World outlines could not be loaded; showing Canada.";
+      });
+    }
+
     var resizeTimer = null;
     function onResize() {
       if (!geo) return;
@@ -375,7 +444,9 @@
     global.addEventListener("resize", onResize);
 
     fetch(GEOJSON_URL).then(function (r) { return r.json(); }).then(function (gj) {
-      geo = gj;
+      caGeo = gj;
+      if (scope === "world") { setScope("world"); return; }
+      geo = caGeo;
       fit(null);
       restyle();
     }).catch(function () {
@@ -392,6 +463,8 @@
       refresh: restyle,
       focusProvince: focusProvince,
       resetView: resetView,
+      setScope: setScope,
+      getScope: function () { return scope; },
       getLayer: function () { return active; },
       getSelected: function () { return selected; },
       // Points the active layer asked for that the projection could not place.
@@ -405,6 +478,7 @@
     ramp: ramp,
     PROVINCE_CODES: PROVINCE_CODES,
     NO_DATA: NO_DATA,
+    WORLD_GEOJSON_URL: WORLD_GEOJSON_URL,
     CANADA_BOUNDS: CANADA_BOUNDS
   };
 })(window);

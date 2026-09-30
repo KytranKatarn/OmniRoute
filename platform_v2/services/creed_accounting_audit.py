@@ -92,7 +92,15 @@ def _check_token_undercount(cur) -> Dict[str, Any] | None:
     'internal'/'browser' sentinels) that logged ``tokens_used=0``. A spike above
     threshold usually means a new dispatch write-site forgot to persist
     tokens_used (the historical pattern behind KB mistake #276900 / the A.R.M.A.D.A.
-    accounting fixes)."""
+    accounting fixes).
+
+    Only SUCCESSFUL rows are counted. A failed dispatch (timeout, reaper kill,
+    admission-gate shed) produced nothing to meter and legitimately logs
+    ``tokens_used=0``; counting those measured the failure rate, not the write
+    site. 2026-09-29: 18.0% flagged (1823/10121) but 0.5% (47/9404) on success
+    only — 1288 of wtf_hub's 1290 zero rows were failures. A real write-site
+    regression still shows here, as successful rows that persisted no tokens.
+    The failure rate itself is watched elsewhere (dispatch_health_service)."""
     cur.execute(
         """
         SELECT model_used,
@@ -100,6 +108,7 @@ def _check_token_undercount(cur) -> Dict[str, Any] | None:
                SUM(CASE WHEN COALESCE(tokens_used, 0) = 0 THEN 1 ELSE 0 END) AS zero_n
         FROM task_execution_log
         WHERE worker_type IS NOT NULL
+          AND success = true
           AND created_at >= NOW() - INTERVAL '%s hours'
         GROUP BY model_used
         """,
@@ -124,7 +133,7 @@ def _check_token_undercount(cur) -> Dict[str, Any] | None:
         "token_undercount",
         "warning",
         (
-            f"{zero}/{total} ({fraction:.1%}) real-LLM task_execution_log rows in the last "
+            f"{zero}/{total} ({fraction:.1%}) SUCCESSFUL real-LLM task_execution_log rows in the last "
             f"{WINDOW_HOURS}h logged tokens_used=0 — above the {TOKEN_UNDERCOUNT_MAX_FRACTION:.0%} "
             "threshold. Likely a dispatch write-site regression (missing tokens_used persistence)."
         ),

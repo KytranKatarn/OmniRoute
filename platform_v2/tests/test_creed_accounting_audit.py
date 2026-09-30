@@ -77,3 +77,63 @@ def test_info_findings_do_not_fail_ok():
     result = run_accounting_audit()
     actionable = [f for f in result["findings"] if f["severity"] in ("warning", "critical", "error")]
     assert result["ok"] == (len(actionable) == 0)
+
+
+# ---------------------------------------------------------------------------
+# token_undercount — seeded rows. The shape tests above pass on an EMPTY table,
+# so they cannot catch a wrong denominator; these seed a tagged population and
+# read it back through the real SQL (rolled back by the db_conn fixture).
+# ---------------------------------------------------------------------------
+import pytest  # noqa: E402
+from psycopg2.extras import RealDictCursor  # noqa: E402
+
+from services.creed_accounting_audit import _check_token_undercount  # noqa: E402
+
+_MODEL = "audittest-undercount:7b"  # unique so live rows in the window cannot interfere
+
+
+@pytest.fixture
+def cur(db_conn):
+    with db_conn.cursor(cursor_factory=RealDictCursor) as c:
+        c.execute("DELETE FROM task_execution_log WHERE model_used = %s", (_MODEL,))
+        yield c
+
+
+def _seed_rows(cur, *, success, tokens, n):
+    for _ in range(n):
+        cur.execute(
+            """
+            INSERT INTO task_execution_log
+                (agent_name, capability, worker_type, success, tokens_used, model_used, created_at)
+            VALUES ('audit-test', 'bias_analysis', 'internal', %s, %s, %s, NOW())
+            """,
+            (success, tokens, _MODEL),
+        )
+
+
+def test_failed_zero_token_rows_are_not_an_undercount(cur):
+    # 90 healthy rows with tokens + 60 FAILED rows with 0 tokens: 40% zero overall
+    # (the pre-fix check flagged exactly this), but every zero is a failure —
+    # nothing to meter. Must NOT flag.
+    _seed_rows(cur, success=True, tokens=120, n=90)
+    _seed_rows(cur, success=False, tokens=0, n=60)
+    # Prove the population is really there, so a None below cannot be vacuous.
+    cur.execute(
+        "SELECT COUNT(*) FILTER (WHERE NOT success) AS bad, COUNT(*) AS n "
+        "FROM task_execution_log WHERE model_used = %s",
+        (_MODEL,),
+    )
+    seeded = cur.fetchone()
+    assert (seeded["bad"], seeded["n"]) == (60, 150)
+    assert _check_token_undercount(cur) is None
+
+
+def test_successful_zero_token_rows_still_flag(cur):
+    # Genuine write-site regression: SUCCESSFUL rows that persisted no tokens. A
+    # large seeded population dominates whatever live rows share the window.
+    _seed_rows(cur, success=True, tokens=0, n=600)
+    finding = _check_token_undercount(cur)
+    assert finding is not None
+    assert finding["code"] == "token_undercount"
+    assert finding["severity"] == "warning"
+    assert "SUCCESSFUL" in finding["detail"]

@@ -74,7 +74,34 @@ except urllib.error.HTTPError as e:
 if not p.get("push"):
     print("FAIL|authenticates as %s but has NO push on archie-platform — add Contents: read and write"
           % u.get("login")); raise SystemExit
-print("OK|%s|push=%s admin=%s" % (u.get("login"), p.get("push"), p.get("admin")))
+
+# Pull-request access is checked SEPARATELY and explicitly, because the header above
+# promises it and `permissions.push` does not cover it. 2026-09-30: a token carrying
+# Contents-only passed this check, was written, and left the lane unable to open a PR
+# (GET /pulls 403, POST /pulls 403) while opencode-pr sat installed and both lane
+# skills insisted it worked. The lane looks healthy and cannot ship.
+try:
+    urllib.request.urlopen(urllib.request.Request(
+        "https://api.github.com/repos/KytranKatarn/archie-platform/pulls?state=open&per_page=1",
+        headers=H), timeout=20)
+    pr = "ok"
+except urllib.error.HTTPError as e:
+    pr = "no (HTTP %s)" % e.code
+except Exception as e:
+    pr = "unknown (%s)" % type(e).__name__
+
+if pr != "ok":
+    # Warnings go to STDERR so they reach the terminal without polluting $CHECK,
+    # which the caller parses as "<STATUS>|<detail>". stdout still ends in OK, so a
+    # push-only token is installed (it is still useful) rather than blocking setup.
+    eprint = lambda m: print(m, file=sys.stderr)
+    eprint("! authenticates as %s and can push, but CANNOT READ pull requests: %s."
+           % (u.get("login"), pr))
+    eprint("!  The lane will push branches fine but CANNOT open a PR — opencode-pr and")
+    eprint("!  mk-pr.sh will both fail with a 403 that reads like a broken script.")
+    eprint("!  Add 'Pull requests: Read and write' to the token and re-run for parity.")
+else:
+    print("OK|%s|push=%s pr=readable admin=%s" % (u.get("login"), p.get("push"), p.get("admin")))
 PY
 )
 if [ "${CHECK%%|*}" != "OK" ]; then

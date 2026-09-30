@@ -11697,44 +11697,47 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     def _run_warden_user_audit(self):
-        """Daily user account audit — inactive users, locked accounts, expired invites."""
+        """Daily user account audit — inactive users, locked accounts, stale invites.
+
+        Computed from the database (``services.warden_user_audit``), NOT asked of an
+        LLM. This job used to send a 7B model a prompt with no data and log the reply
+        as a success; the replies were templates ("[Insert Number]") or invented
+        figures, and the queued dispatch intermittently returned nothing at all. A
+        read-only SQL audit cannot time out or fabricate. Task #7054.
+        """
+        start = time.time()
         try:
             import sys
 
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-            # #5340: queue-aware dispatch (ADR-990 / KB #276153). The bare dispatch()
-            # held a 240s sync window that a qwen2.5:7b cold-load blows (~30% of daily
-            # runs), and the resulting retries tripped the hub 7B admission cap. The
-            # queued path rides dispatch_pending_queue instead: the row waits for
-            # warmth and the worker delivers whenever the model lands. Daily job —
-            # latency is irrelevant, completion is everything, so the poll window is
-            # generous (queue-row expiry still bounds it).
-            from services.cluster_dispatch import queued_dispatch_text
+            from database import get_db_cursor
+            from services.warden_user_audit import collect_user_audit, format_report, needs_attention
 
-            start = time.time()
-            text = queued_dispatch_text(
-                "user_audit",
-                (
-                    "Run a daily user account audit for the A.R.C.H.I.E. platform. "
-                    "Check for: (1) users inactive for more than 30 days, "
-                    "(2) currently locked accounts (auth_events), "
-                    "(3) expired or pending invites older than 7 days. "
-                    "Summarise findings concisely. Flag anything that needs attention."
-                ),
-                module_id="warden_daily",
-                poll_timeout_s=900,
-            )
-            duration_ms = int((time.time() - start) * 1000)
-            success = bool(text)
+            with get_db_cursor() as (_conn, cur):
+                facts = collect_user_audit(cur)
             self._log_cycle(
                 "warden_user_audit",
-                1 if success else 0,
-                0 if success else 1,
-                duration_ms,
-                details={"response": text[:500] if text else "no response"},
+                1,
+                0,
+                int((time.time() - start) * 1000),
+                details={
+                    "needs_attention": needs_attention(facts),
+                    "facts": facts,
+                    "response": format_report(facts),
+                },
             )
         except Exception as e:
             logger.error("warden_user_audit failed: %s", e)
+            # Log the failure WITH its reason — a bare logger.error left no row at
+            # all, and the next run's "(no reason recorded)" told nobody anything.
+            self._log_cycle(
+                "warden_user_audit",
+                0,
+                1,
+                int((time.time() - start) * 1000),
+                details={"response": "audit query failed"},
+                error_message=f"{type(e).__name__}: {e}"[:500],
+            )
 
     def _run_warden_backup_verify(self):
         """Daily backup integrity check — checksums, age, retention policy."""

@@ -36,6 +36,17 @@ opencode:
     - "docs/"
     - "scripts/"              # scripts/dr/* and scripts/agents/* stay BLOCKED
     - "config/"               # config/agents/* stays BLOCKED (no self-widening)
+    # 2026-09-30 owner decision. `opencode/` holds exactly two files: the lane's own
+    # Dockerfile and its ship script (opencode-pr.sh). Worth it so the lane can fix its
+    # own PR tooling instead of asking the owner for every ship-script fix.
+    #
+    # ⚠️ THE WIDENING IS INERT WITHOUT A REBUILD, and that is not a detail — it is the
+    # whole shape of this file. The guard reads a BAKED copy (opencode/Dockerfile.terminal
+    # COPYs this file to /opt/lane-guard/allowlist.yaml; the pre-push hook reads that path,
+    # never the working tree). So this line does not change the GUARDED lanes until an
+    # image rebuild bakes it. It also never affects the guard-free lane at all, which has
+    # no guard — that instance is unaffected by anything in this file either way.
+    - "opencode/"
   blocked_globs:                  # always denied even if under an allowed path
     # With a platform-wide allowlist THIS LIST is the control, not the allowlist.
     - "*.env"
@@ -48,6 +59,17 @@ opencode:
     # leave it open. codex lacked this until 2026-09-14; opencode already had it.
     - "config/agents/*"
     - "scripts/agents/*"
+    # Closes the escape that `opencode/` above would otherwise open. The Dockerfile is
+    # what decides WHAT GETS BAKED: it holds `COPY config/agents/opencode.yaml
+    # /opt/lane-guard/allowlist.yaml`. Blocking config/agents/* stops the obvious route
+    # (editing the allowlist), but with the Dockerfile in scope the lane could instead
+    # point that COPY at a file it controls, and "needs a rebuild to exploit" is exactly
+    # the reasoning the block two entries up rejects. So the Dockerfile is denied outright
+    # and the ship script beside it stays editable. Wildcarded against a rename.
+    # ⚠️ Residual, and it is structural: whoever BUILDS the image can still bake whatever
+    # they want. This makes the repo file safe to widen; it does not make the image
+    # build a trust boundary. Only the owner runs the build.
+    - "opencode/Dockerfile*"
     # Reachable for the FIRST TIME now that scope is platform-wide. Under the old
     # six-module allowlist nothing here was in range, so its absence cost nothing.
     - "secrets/*"

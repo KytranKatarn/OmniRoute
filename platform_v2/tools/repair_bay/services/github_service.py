@@ -1513,6 +1513,18 @@ def merge_pr(
         except Exception as _appr_exc:  # noqa: BLE001
             logger.warning("post-merge approval cleanup skipped for #%s: %s", pr_number, _appr_exc)
 
+        # A merge on GitHub deploys NOTHING on the hub (bind-mounted checkout). Ask the host
+        # to fast-forward + restart from the choke point, so EVERY merge path closes the gap
+        # and not only F.O.R.G.E.'s deploy_via_merge. Default repo only, and only when the PR
+        # touched code the hub runs. Best-effort: never turns a successful merge into a failure.
+        try:
+            if _repo == REPO_FULL:
+                from services.hub_deploy_sync import request_hub_deploy
+
+                request_hub_deploy("merge_pr", changed_paths=pr_files(pr_number), check_paths=True)
+        except Exception as _dep_exc:  # noqa: BLE001
+            logger.warning("post-merge hub deploy request skipped for #%s: %s", pr_number, _dep_exc)
+
         return {
             "success": True,
             # GitHub's merge response carries "merged": true; default True since a

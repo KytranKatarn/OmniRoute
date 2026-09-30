@@ -810,22 +810,45 @@ def hub_deploy_provenance_monitor():
             return
 
         logger.warning("[HubProvenance] %s — %s", status, check.get("reason"))
-        try:
-            from services.telegram_service import send_system
 
-            send_system(
-                title=f"🚨 Hub deploy drift — {status}",
-                message=(
-                    f"{check.get('reason')}\n\n"
-                    f"local={(check.get('local_head') or '?')[:9]} "
-                    f"origin/main={(check.get('remote_head') or '?')[:9]}\n\n"
-                    f"Remedy:\n{check.get('remedy')}"
-                ),
-            )
-        except Exception as notif_err:
-            logger.debug("[HubProvenance] alert send failed: %s", notif_err)
+        # Drift is a STATE, not a job failure. Try to close it (queue the host hub_deploy);
+        # only page a human when it cannot be closed automatically (working branch, dirty
+        # tree). The cycle is logged as a SUCCESS carrying the state in ``details`` so the
+        # Overview can say "hub is N behind, deploy queued" instead of "job failed 10x" —
+        # "failed" now means the monitor itself crashed.
+        from services.hub_deploy_sync import ACTION_BLOCKED, request_hub_deploy
 
-        _log_cycle("hub_deploy_provenance", 0, 1, 0, error_message=str(check.get("reason"))[:300])
+        outcome = request_hub_deploy("hub_deploy_provenance")
+        if outcome.get("action") == ACTION_BLOCKED:
+            try:
+                from services.telegram_service import send_system
+
+                send_system(
+                    title=f"🚨 Hub deploy drift — {status}",
+                    message=(
+                        f"{check.get('reason')}\n\n"
+                        f"local={(check.get('local_head') or '?')[:9]} "
+                        f"origin/main={(check.get('remote_head') or '?')[:9]}\n\n"
+                        f"Not auto-deploying: {outcome.get('reason')}\n\n"
+                        f"Manual remedy:\n{check.get('remedy')}"
+                    ),
+                )
+            except Exception as notif_err:
+                logger.debug("[HubProvenance] alert send failed: %s", notif_err)
+
+        _log_cycle(
+            "hub_deploy_provenance",
+            1,
+            0,
+            0,
+            details={
+                "drift": status,
+                "reason": str(check.get("reason"))[:300],
+                "behind_main": outcome.get("behind_main"),
+                "branch": outcome.get("branch"),
+                "deploy": {k: outcome.get(k) for k in ("action", "queued", "reason")},
+            },
+        )
     except Exception as e:
         _log_cycle("hub_deploy_provenance", 0, 1, 0, error_message=str(e))
         logger.warning("Hub deploy provenance check failed: %s", e)

@@ -262,6 +262,10 @@ def register_routes(bp, _admin_required=None):
                         SELECT job_name, COUNT(*) as fails
                         FROM autonomy_loop_log
                         WHERE status IN ('error', 'failed') AND created_at > NOW() - INTERVAL '24 hours'
+                          -- Pre-2026-09-30 the provenance monitor logged DRIFT as an error row.
+                          -- Drift is reported by the dedicated hub-deploy item below instead.
+                          AND NOT (job_name = 'hub_deploy_provenance'
+                                   AND error_message ~ '^(checkout is at|running [0-9a-f]+)')
                         GROUP BY job_name
                         HAVING COUNT(*) >= 3
                         ORDER BY fails DESC LIMIT 5
@@ -276,6 +280,39 @@ def register_routes(bp, _admin_required=None):
                                 "category": "jobs",
                             }
                         )
+                except Exception:
+                    conn.rollback()
+
+                # Hub deploy drift — ONE stated situation, not a count of failed checks.
+                try:
+                    cur.execute(
+                        """
+                        SELECT details, created_at FROM autonomy_loop_log
+                        WHERE job_name = 'hub_deploy_provenance' ORDER BY id DESC LIMIT 1
+                        """
+                    )
+                    _row = cur.fetchone()
+                    if _row and (_row[0] or {}).get("drift"):
+                        cur.execute(
+                            """
+                            SELECT EXTRACT(EPOCH FROM (NOW() - MIN(created_at))) / 3600.0
+                            FROM autonomy_loop_log
+                            WHERE job_name = 'hub_deploy_provenance'
+                              AND created_at > COALESCE((
+                                    SELECT MAX(created_at) FROM autonomy_loop_log
+                                    WHERE job_name = 'hub_deploy_provenance'
+                                      AND status = 'success'
+                                      AND COALESCE(details->>'drift', 'in_sync') = 'in_sync'
+                                  ), '-infinity')
+                            """
+                        )
+                        _h = cur.fetchone()[0]
+                        _hours = float(_h) if _h is not None else None
+                        from services.hub_deploy_sync import attention_item
+
+                        _item = attention_item(_row[0], _hours)
+                        if _item:
+                            attention.append(_item)
                 except Exception:
                     conn.rollback()
 

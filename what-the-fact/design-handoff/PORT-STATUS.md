@@ -9,7 +9,7 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 
 | # | Design file | Template | Status | PR | Notes |
 |---|---|---|---|---|---|
-| 1 | shell (`_nav.html`, `wtf-shell.css`) | `base.html`, `static/style.css` | pr | #3544 | PR 01 (logo + brand cyan) applied. NOT yet ported: nav bar background, one-row layout with LIVE pill, globe+EN, search circle, SIGN IN as plain text, chip order, ECONOMY emoji |
+| 1 | shell (`_nav.html`, `wtf-shell.css`) | `base.html`, `static/style.css` | pr | #3544 merged, #3548 | Logo + brand cyan (#3544). Nav parity: bar ground, one row >820px, LIVE pill, globe + `EN`, search circle, SIGN IN as text, chip order. Repo source never had the ECONOMY emoji seen on the live site — deployed image is older than main |
 | 2 | `wtf-home.html` map zone | `index.html` | todo | | Leaflet → `wtf-map.js`: prepared as PR 02 |
 | 3 | world projection | `static/js/wtf-map.js` | todo | | Shared component — own PR |
 | 4 | `wtf-home.html` rest (weather strip glyphs, feed spread, gate) | `index.html` | todo | | |

@@ -116,9 +116,6 @@
         </div>
       </div>
       {% endfor %}
-      <a href="/search" class="wtf-nav-search" aria-label="Search">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
-      </a>
     </div>
     {# The pill advertised live activity and went nowhere — a dead <div><span>,
        item 10 of the handoff's corrections table. It now links to /activity,
@@ -129,6 +126,13 @@
       <span class="wtf-live-label">LIVE &middot; {{ nav_source_count | default(source_count) | default(0) }} SOURCES</span>
     </a>
     <div class="wtf-nav-actions">
+      <button class="wtf-lang-btn" id="wtfLangBtn" aria-label="Change language">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span class="wtf-lang-cur" id="wtfLangCur">EN</span>
+      </button>
+      <a href="/search" class="wtf-nav-search" aria-label="Search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      </a>
       {% if session.get('wtf_authenticated') %}
       <a href="/alerts" id="cw-bell-link" title="Platform Alerts" style="position:relative;margin-right:6px;text-decoration:none;font-size:1.1rem;">🔔<span id="cw-badge" style="display:none;position:absolute;top:-4px;right:-8px;background:#e53e3e;color:#fff;border-radius:9px;padding:1px 5px;font-size:10px;line-height:1.4;font-weight:700;"></span></a>
       <script>
@@ -146,12 +150,9 @@
       <a href="/account" class="wtf-nav-login" style="margin-right:4px;">Account</a>
       <a href="/logout" class="wtf-nav-login">Sign out</a>
       {% else %}
-      <a href="/join" class="wtf-nav-subscribe">Subscribe</a>
       <a href="/login" class="wtf-nav-login">Sign in</a>
+      <a href="/join" class="wtf-nav-subscribe">Subscribe</a>
       {% endif %}
-      <button class="wtf-lang-btn" id="wtfLangBtn" aria-label="Change language">
-        <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M2 10h16M10 2c-2.5 3-2.5 13 0 16M10 2c2.5 3 2.5 13 0 16" stroke="currentColor" stroke-width="1.5"/></svg>
-      </button>
       <button class="wtf-menu-btn" id="wtfMenuBtn" aria-label="Toggle menu" aria-expanded="false">
         <span class="wtf-menu-icon"></span>
       </button>
@@ -284,7 +285,10 @@
           updateActiveLang(btn.dataset.lang);
         });
       });
+      var LANG_CODE = {zh:'\u4e2d\u6587', ar:'\u0639\u0631\u0628\u064a', he:'\u05e2\u05d1\u05e8\u05d9\u05ea'};
       function updateActiveLang(lang){
+        var cur = document.getElementById('wtfLangCur');
+        if (cur) cur.textContent = LANG_CODE[lang] || String(lang || 'en').toUpperCase();
         document.querySelectorAll('.wtf-lang-opt').forEach(function(b){
           b.classList.toggle('active', b.dataset.lang === lang);
         });

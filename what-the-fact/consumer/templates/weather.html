@@ -289,6 +289,15 @@
 .wtf-wx-alertstrip .wtf-wx-alert { flex:0 0 min(320px, 86vw); scroll-snap-align:start;
   border:1px solid #0a1a2a; border-left-width:4px; border-radius:6px; }
 .wtf-wx-alertstrip .wtf-wx-alert + .wtf-wx-alert { border-top:1px solid #0a1a2a; }
+.wtf-wx-spread { margin:0 0 18px; }
+.wtf-wx-spread-note { font-size:11px; color:#9ca3af; line-height:1.5; margin:0 0 10px; }
+.wtf-wx-spread-row { display:grid; grid-template-columns:minmax(110px,170px) 1fr minmax(150px,auto); gap:10px;
+  align-items:center; padding:5px 0; border-bottom:1px solid #0a1a2a; font-size:12px; color:#e5e7eb; }
+.wtf-wx-spread-bar { height:8px; background:#0d1520; border-radius:4px; overflow:hidden; }
+.wtf-wx-spread-bar i { display:block; height:100%; background:var(--wtf-aurora); }
+.wtf-wx-spread-val small { display:block; color:#9ca3af; font-size:10px; }
+.wtf-wx-spread-row.is-nodata { color:#6b7280; }
+@media (max-width:640px) { .wtf-wx-spread-row { grid-template-columns:1fr; gap:4px; } }
 .wtf-wx-evacfold > summary { cursor:pointer; list-style:none; padding:10px 14px; background:#0d1520;
   font-size:12px; font-weight:700; color:#e5e7eb; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .wtf-wx-evacfold > summary::-webkit-details-marker { display:none; }
@@ -539,6 +548,28 @@
          already does. #}
       <div class="wtf-wx-section-title" id="wtf-wx-cards-title">Fire-weather station readings</div>
       <div class="wtf-wx-cards" id="wtf-wx-cards"></div>
+      {# Spread pressure (PORT-STATUS row 8b). A CURRENT-CONDITIONS index built from real
+         rows only — see aurora_map.spread_pressure. Not a forecast: the page says so, and
+         prints the formula. Under-measured provinces read "no data", never a guess. #}
+      {% if spread_rows %}
+      <div class="wtf-wx-section-title" id="wtf-wx-spread-title">Fire spread pressure by province</div>
+      <div class="wtf-wx-spread" id="wtf-wx-spread">
+        <p class="wtf-wx-spread-note">{{ spread_formula }}</p>
+        {% for r in spread_rows %}
+        <div class="wtf-wx-spread-row{{ ' is-nodata' if r.score is none }}">
+          <span class="wtf-wx-spread-name">{{ r.name }}</span>
+          {% if r.score is none %}
+          <span class="wtf-wx-spread-bar"></span>
+          <span class="wtf-wx-spread-val">no data <small>({{ r.n_inputs }} of 2 inputs needed)</small></span>
+          {% else %}
+          <span class="wtf-wx-spread-bar"><i style="width:{{ r.score }}%"></i></span>
+          <span class="wtf-wx-spread-val"><strong>{{ r.score }}</strong> · {{ r.band }}
+            <small>{% for k, v in r.inputs.items() %}{{ {'fwi':'FWI','wind':'wind','temp':'temp','hotspots':'hotspots'}[k] }} {{ v.pct }}%{{ ' · ' if not loop.last }}{% endfor %}</small></span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
       <div class="wtf-wx-section-title">Recent climate &amp; science stories</div>
 
       <div class="wtf-wx-article-list">

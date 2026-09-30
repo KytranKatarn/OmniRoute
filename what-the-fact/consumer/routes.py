@@ -910,8 +910,10 @@ def news():
 
 
 from .aurora_map import (  # pure, DB-free (see module docstring)
+    SPREAD_FORMULA,
     alert_counts,
     clean_alert_text,
+    spread_pressure,
     _aurora_map_payload,
     _aurora_city_payload,
     build_fire_alert_tiles,
@@ -1254,6 +1256,8 @@ def weather():
     # One definition of "current", read from the registry rather than restated in
     # JS. Fallback matches the view's city_obs value so behaviour is unchanged if
     # the row is ever missing.
+    spread_rows = spread_pressure([dict(r) for r in fire_provinces],
+                                  [dict(r) for r in station_provinces])
     _city_stale_min = 180
     for _l in layers:
         if _l["layer_key"] == "city_obs" and _l["stale_after_hours"]:
@@ -1275,6 +1279,8 @@ def weather():
                            aurora_aqhi=aqhi_payload,
                            active_alerts=active_alerts,
                            alert_summary=alert_summary,
+                           spread_rows=spread_rows,
+                           spread_formula=SPREAD_FORMULA,
                            active_evacuations_naad=active_evacuations_naad,
                            active_evacuations_bc=active_evacuations_bc,
                            obs_time=obs_time,

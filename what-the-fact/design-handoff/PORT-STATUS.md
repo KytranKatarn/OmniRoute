@@ -16,7 +16,7 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | 5 | `wtf-news.html` | `news.html` | todo | | |
 | 6 | `wtf-archive.html` | `archive.html` | todo | | |
 | 7 | `wtf-article.html` | `article.html` | todo | | |
-| 8 | `wtf-weather.html` | `weather.html` | partial (8a) | | 8a: counted alert header + one scrolling strip, clean summaries (no leaked `###`), evacuations folded with counts so the map is reachable. Remaining sub-slices: layer/legend parity vs the design, forecast + AQHI panels |
+| 8 | `wtf-weather.html` | `weather.html` | partial (8a, 8b) | | 8b: province spread-pressure index (current conditions from real rows, formula printed, 'no data' when under 2 inputs; NOT a forecast — A.U.R.O.R.A. predictions to be scored against it later). 8a: counted alert header + one scrolling strip, clean summaries (no leaked `###`), evacuations folded with counts so the map is reachable. Remaining sub-slices: forecast-accuracy section, AQHI panel parity. NOT ported: the design's generated fire perimeters (sample shapes, not data) |
 | 9 | `wtf-city.html` | weather city view | todo | | |
 | 10 | `wtf-mps.html` | `mps.html` | todo | | Riding / province / party from DB — never derived |
 | 11 | `wtf-mp.html`, `wtf-senator.html` | `mp.html`, `senator.html` | todo | | |

@@ -427,3 +427,77 @@ def alert_counts(total: int, severities) -> dict:
     """
     severe = sum(1 for s in (severities or []) if str(s or "").lower() in ("severe", "extreme"))
     return {"total": int(total or 0), "severe": severe}
+
+
+# ── Spread pressure — a CURRENT-CONDITIONS index, not a forecast ────────────────
+# Editorial constants, published verbatim on the page (see SPREAD_FORMULA). Each
+# input is scaled 0..1 against a fixed ceiling and the index is the mean of the
+# inputs that were actually measured. Nothing is imputed: an unmeasured input is
+# left out, and a province with fewer than SPREAD_MIN_INPUTS is "no data".
+# The two fire layers cover disjoint halves of the country (stations east,
+# hotspots west/north), so requiring every input would blank most provinces.
+SPREAD_CEILINGS = {"fwi": 30.0, "wind": 50.0, "temp": (10.0, 35.0), "hotspots": 300.0}
+SPREAD_MIN_INPUTS = 2
+SPREAD_BANDS = ((75, "extreme"), (50, "high"), (25, "moderate"), (0, "low"))
+SPREAD_FORMULA = (
+    "Mean of the inputs measured for the province, each scaled 0–100% against a fixed "
+    "ceiling: fire weather index (FWI) 30, peak wind 50 km/h, peak temperature 10–35°C, "
+    "hotspots over 3 days 300. Needs at least 2 inputs. A reading of current conditions, "
+    "not a forecast."
+)
+
+
+def _clamp01(x: float) -> float:
+    return max(0.0, min(1.0, x))
+
+
+def spread_pressure(fire_provinces, station_provinces) -> list[dict]:
+    """PURE. Per-province spread-pressure index from REAL rows only.
+
+    ``fire_provinces`` rows: prov, hotspots, max_fwi.  ``station_provinces`` rows:
+    prov, max_wind, max_temp, max_fwi.  Province codes go through ``_canon_prov``
+    (the one canonicalisation boundary). Returns rows sorted most-pressure first;
+    under-measured provinces are returned with ``score=None`` so the page can say
+    "no data" instead of omitting them.
+    """
+    by: dict[str, dict] = {}
+    for r in fire_provinces or []:
+        p = by.setdefault(_canon_prov(r.get("prov")), {})
+        if r.get("hotspots") is not None:
+            p["hotspots"] = float(r["hotspots"])
+        if r.get("max_fwi") is not None:
+            p["fwi"] = max(p.get("fwi", 0.0), float(r["max_fwi"]))
+    for r in station_provinces or []:
+        p = by.setdefault(_canon_prov(r.get("prov")), {})
+        if r.get("max_wind") is not None:
+            p["wind"] = float(r["max_wind"])
+        if r.get("max_temp") is not None:
+            p["temp"] = float(r["max_temp"])
+        if r.get("max_fwi") is not None:
+            p["fwi"] = max(p.get("fwi", 0.0), float(r["max_fwi"]))
+
+    lo, hi = SPREAD_CEILINGS["temp"]
+    rows = []
+    for code, raw in by.items():
+        if not code:
+            continue
+        norm = {}
+        if "fwi" in raw:
+            norm["fwi"] = _clamp01(raw["fwi"] / SPREAD_CEILINGS["fwi"])
+        if "wind" in raw:
+            norm["wind"] = _clamp01(raw["wind"] / SPREAD_CEILINGS["wind"])
+        if "temp" in raw:
+            norm["temp"] = _clamp01((raw["temp"] - lo) / (hi - lo))
+        if "hotspots" in raw:
+            norm["hotspots"] = _clamp01(raw["hotspots"] / SPREAD_CEILINGS["hotspots"])
+        score = band = None
+        if len(norm) >= SPREAD_MIN_INPUTS:
+            score = round(100 * sum(norm.values()) / len(norm))
+            band = next(name for floor, name in SPREAD_BANDS if score >= floor)
+        rows.append({
+            "code": code, "name": _PROV_NAMES.get(code, code), "score": score, "band": band,
+            "inputs": {k: {"raw": raw[k], "pct": round(100 * v)} for k, v in norm.items()},
+            "n_inputs": len(norm),
+        })
+    rows.sort(key=lambda r: (r["score"] is None, -(r["score"] or 0), r["name"]))
+    return rows

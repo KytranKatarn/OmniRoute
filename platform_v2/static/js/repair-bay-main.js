@@ -526,6 +526,278 @@ function _rbLcarsConfirm(opts) {
     });
 }
 
+/* LCARS prompt modal — free-text input. Returns a Promise<string|null>.
+ * Sibling of _rbLcarsConfirm above: same shell/frame/header/footer build, plus a
+ * textarea. Resolves with the trimmed text, or null when cancelled or left blank.
+ *
+ * Used where an action must be ATTRIBUTED in writing — closing a PR posts the
+ * operator's reason onto the PR itself, so the server requires it and this modal
+ * must not be able to submit an empty one. That is why the confirm button starts
+ * disabled and only enables on non-whitespace input, rather than validating on
+ * click and showing an error afterwards.
+ */
+function _rbLcarsPrompt(opts) {
+    opts = opts || {};
+    var title = opts.title || 'Input';
+    var message = opts.message || '';
+    var placeholder = opts.placeholder || '';
+    var confirmText = opts.confirmText || 'Confirm';
+    var accent = opts.accent || '#22d3ee';
+    var accentRgb = opts.accentRgb || '34,211,238';
+
+    return new Promise(function(resolve) {
+        var overlay = _rbMakeEl('div', {
+            cls: 'bm-overlay active',
+            style: '--bm-accent:' + accent + '; --bm-accent-rgb:' + accentRgb + ';'
+        });
+        function close(result) {
+            document.removeEventListener('keydown', onKey);
+            overlay.remove();
+            resolve(result);
+        }
+        function onKey(e) {
+            if (e.key === 'Escape') { close(null); return; }
+            // Enter submits, but only through the confirm button so the disabled
+            // state stays honest — never close(true) with an empty value.
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                submit();
+            }
+        }
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) close(null);
+        });
+
+        function submit() {
+            var val = (input.value || '').trim();
+            if (!val) return;          // empty reason is not a valid answer
+            close(val);
+        }
+
+        var shell = _rbMakeEl('div', {cls: 'bm-shell', style: 'max-width:480px;'});
+
+        var frame = _rbMakeEl('div', {cls: 'bm-frame'});
+        ['bm-frame-elbow-top', 'bm-frame-seg', 'bm-frame-seg dim', 'bm-frame-light on',
+         'bm-frame-light amber', 'bm-frame-seg purple', 'bm-frame-fill',
+         'bm-frame-elbow-bottom'].forEach(function(cls) {
+            frame.appendChild(_rbMakeEl('div', {cls: cls}));
+        });
+
+        var content = _rbMakeEl('div', {cls: 'bm-content'});
+
+        var header = _rbMakeEl('div', {cls: 'bm-header'});
+        header.appendChild(_rbMakeEl('span', {cls: 'bm-header-title', text: title}));
+        var headerStrip = _rbMakeEl('div', {cls: 'bm-header-strip'});
+        ['w1', 'w2', 'w3'].forEach(function(w) {
+            headerStrip.appendChild(_rbMakeEl('div', {cls: 'bm-header-pip ' + w}));
+        });
+        headerStrip.appendChild(_rbMakeEl('button', {
+            cls: 'bm-close', text: '\u00D7',
+            onclick: function() { close(null); }
+        }));
+        header.appendChild(headerStrip);
+
+        var body = _rbMakeEl('div', {
+            cls: 'bm-body',
+            style: 'padding:22px 24px; color:#e2e8f0; font-size:0.9rem; line-height:1.55;'
+        });
+        if (message) {
+            body.appendChild(_rbMakeEl('div', {style: 'white-space:pre-line;', text: message}));
+        }
+        var input = document.createElement('textarea');
+        input.rows = 4;
+        input.placeholder = placeholder;
+        input.style.cssText = 'width:100%; margin-top:14px; box-sizing:border-box; padding:10px 12px; ' +
+            'background:rgba(15,23,42,0.9); border:1px solid rgba(' + accentRgb + ',0.35); ' +
+            'border-radius:3px; color:#e2e8f0; font-family:"IBM Plex Mono",monospace; font-size:0.8rem; ' +
+            'line-height:1.5; resize:vertical;';
+        body.appendChild(input);
+
+        var hint = _rbMakeEl('div', {
+            style: 'margin-top:8px; font-size:0.68rem; color:rgba(148,163,184,0.85);'
+        });
+        hint.textContent = 'Required — it is posted on the PR as the record of why.';
+        body.appendChild(hint);
+
+        var confirmBtn = _rbMakeEl('button', {
+            text: confirmText,
+            style: 'padding:8px 18px; background:' + accent + '; border:1px solid ' + accent + '; color:#0b1120; ' +
+                   'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; letter-spacing:0.08em; ' +
+                   'text-transform:uppercase; font-weight:600; cursor:not-allowed; opacity:0.45; border-radius:2px;',
+            onclick: submit
+        });
+        function syncEnabled() {
+            var has = !!(input.value || '').trim();
+            confirmBtn.disabled = !has;
+            confirmBtn.style.opacity = has ? '1' : '0.45';
+            confirmBtn.style.cursor = has ? 'pointer' : 'not-allowed';
+        }
+        input.addEventListener('input', syncEnabled);
+        input.addEventListener('keydown', function(e) {
+            // Plain Enter is a newline inside the reason; Cmd/Ctrl+Enter submits.
+            e.stopPropagation();
+        });
+        setTimeout(function() { input.focus(); syncEnabled(); }, 0);
+
+        var footer = _rbMakeEl('div', {
+            cls: 'bm-footer',
+            style: 'display:flex; justify-content:flex-end; gap:10px; padding:14px 24px; border-top:1px solid rgba(' + accentRgb + ',0.2);'
+        });
+        footer.appendChild(_rbMakeEl('button', {
+            text: 'Cancel',
+            style: 'padding:8px 18px; background:rgba(100,116,139,0.15); border:1px solid #64748b; color:#cbd5e1; ' +
+                   'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; letter-spacing:0.08em; ' +
+                   'text-transform:uppercase; cursor:pointer; border-radius:2px;',
+            onclick: function() { close(null); }
+        }));
+        footer.appendChild(confirmBtn);
+
+        content.appendChild(header);
+        content.appendChild(body);
+        content.appendChild(footer);
+        shell.appendChild(frame);
+        shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+/* Derive the merge button's label/colour/enabled state from a stamped merge_state.
+ *
+ * ONE source of truth, because #5853's own comment states the intent — "stamp the
+ * SAME merge_state that list_reviews() uses so both surfaces agree" — and the
+ * server half of that landed while only the Reviews-tab renderer was updated. The
+ * F.O.R.G.E. stats panel kept rendering an unconditional green Merge on PRs the
+ * server would refuse. Same payload, two renderers, two answers.
+ *
+ * Parameters:
+ *   ms            — the server-stamped merge_state object (may be null/absent)
+ *   orderBlocked  — bool from the row's merge_order
+ *   droppedCount  — count for the "n unread" coverage suffix
+ *
+ * Returns {text, col, bg, br, can, title}. When `ms` is absent the caller gets the
+ * legacy permissive result, because an unstamped row means the stamp FAILED
+ * (best-effort by design) and a stale payload must not silently disable every button
+ * on the panel — the server is still the authority either way.
+ *
+ * ⚠️ This predicts the F.O.R.G.E. verdict gate only. deploy_via_merge additionally
+ * applies the unattended AUTHORITY gate (tier ceiling + path allowlist,
+ * _automerge_governance_ok), so a button this renders as enabled can still be
+ * refused. It is an honest preview, never a second gate — same contract as
+ * merge_state.hint and the merge-order badge.
+ */
+function _prMergeAffordance(ms, orderBlocked, droppedCount, orderLabel) {
+    var d = droppedCount || 0;
+    var o = {
+        text: 'Merge', col: '#4ade80', bg: 'rgba(34,197,94,0.15)', br: 'rgba(34,197,94,0.4)',
+        can: true, title: ''
+    };
+    // Dependency order is checked FIRST, and before any merge_state fallback.
+    // merge_state and merge_order are stamped by two INDEPENDENT best-effort
+    // steps server-side, each with its own try/except — so a PR can arrive with
+    // no merge_state (the stamp raised) while still carrying a live
+    // merge_order.blocked. Returning the legacy green Merge there would advertise
+    // an enabled button for a dependency the server refuses to merge. The Reviews
+    // tab got this right by applying the block unconditionally; keep that order.
+    if (orderBlocked) {
+        o.can = false;
+        o.text = orderLabel || 'Blocked';
+        o.col = '#f97316';
+        o.bg = 'rgba(249,115,22,0.10)';
+        o.br = 'rgba(249,115,22,0.35)';
+        return o;
+    }
+    if (!ms) return o;                                  // unstamped/stale => legacy
+    o.can = !!ms.mergeable;
+    switch (ms.state) {
+        case 'coverage_only':
+            o.text = 'Merge (' + d + ' unread)'; o.col = '#fbbf24';
+            o.bg = 'rgba(251,191,36,0.15)'; o.br = 'rgba(251,191,36,0.45)'; break;
+        case 'changes_requested':
+            o.text = 'Blocked — re-review'; o.col = '#ef4444';
+            o.bg = 'rgba(239,68,68,0.10)'; o.br = 'rgba(239,68,68,0.35)'; break;
+        case 'awaiting_review':
+            o.text = 'Waiting for review'; o.col = '#94a3b8';
+            o.bg = 'rgba(148,163,184,0.10)'; o.br = 'rgba(148,163,184,0.30)'; break;
+        case 'reviewing':
+            o.text = 'Reviewing…'; o.col = '#67e8f9';
+            o.bg = 'rgba(34,211,238,0.10)'; o.br = 'rgba(34,211,238,0.30)'; break;
+    }
+    o.title = ms.hint || '';
+    return o;
+}
+
+/* Style + bind a merge button from an affordance produced above.
+ * `onClick` is only wired when the button is enabled, so a disabled button cannot
+ * fire — the Reviews tab used to set onclick unconditionally and rely on the server.
+ */
+function _prStyleMergeBtn(btn, aff) {
+    btn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:' + aff.bg +
+        ';border:1px solid ' + aff.br + ';color:' + aff.col + ';border-radius:4px;cursor:' +
+        (aff.can ? 'pointer' : 'not-allowed') + ';' + (aff.can ? '' : 'opacity:0.6;');
+    btn.textContent = aff.text;
+    if (aff.title) btn.title = aff.title;
+    if (!aff.can) btn.disabled = true;
+    return btn;
+}
+
+/* Close a PR from Repair Bay with a WRITTEN reason.
+ *
+ * The reason is not decoration: github_service.close_pr refuses without one and posts
+ * it onto the PR before closing, so the operator's justification is attributed and
+ * survives the close. A confirm/alert pair cannot collect that, hence _rbLcarsPrompt.
+ *
+ * Human-only by contract — this control is admin-gated server-side and there is
+ * deliberately no unattended caller.
+ */
+function forgeClosePR(prNumber, repo) {
+    _rbLcarsPrompt({
+        title: 'CLOSE PR #' + prNumber,
+        message: 'Close PR #' + prNumber + (repo ? ' (' + repo + ')' : '') +
+                 ' WITHOUT merging.\n\nThe branch is left in place — this is not a revert. ' +
+                 'Anyone can reopen it.',
+        placeholder: 'e.g. superseded by #1234 / abandoned lane branch / duplicate of #1234',
+        confirmText: 'Close PR',
+        accent: '#f97316',
+        accentRgb: '249,115,22'
+    }).then(function(reason) {
+        if (!reason) return;                            // cancelled or blank
+        fetch('/tools/repair-bay/api/forge/pr/' + prNumber + '/close',
+              {method: 'POST', headers: {'Content-Type': 'application/json'},
+               body: JSON.stringify({reason: reason, repo: repo || null})})
+            .then(function(r) { return r.json().then(function(d) { return {ok: r.ok, d: d}; }); })
+            .then(function(res) {
+                if (res.ok && res.d.success) {
+                    if (typeof loadForgeStats === 'function') loadForgeStats();
+                    if (typeof loadPRReviews === 'function') {
+                        loadPRReviews(typeof _prStateFilter === 'string' ? _prStateFilter : 'open');
+                    }
+                    _rbLcarsAlert({
+                        title: 'PR CLOSED',
+                        message: 'PR #' + prNumber + ' closed.\n\nReason recorded on the PR:\n"' +
+                                 res.d.reason + '"',
+                        okText: 'Done', accent: '#f97316', accentRgb: '249,115,22'
+                    });
+                } else {
+                    _rbLcarsAlert({
+                        title: 'CLOSE REFUSED',
+                        message: 'PR #' + prNumber + ' was not closed.\n\n' +
+                                 (res.d.error || 'Unknown error'),
+                        okText: 'OK', accent: '#ef4444', accentRgb: '239,68,68'
+                    });
+                }
+            })
+            .catch(function(e) {
+                _rbLcarsAlert({
+                    title: 'CLOSE FAILED',
+                    message: 'Could not reach Repair Bay: ' + e,
+                    okText: 'OK', accent: '#ef4444', accentRgb: '239,68,68'
+                });
+            });
+    });
+}
+
 /* LCARS info modal — single "OK" button, no Cancel. Returns a Promise<void>.
  * Replaces native window.alert() for Repair Bay notices.
  * Usage: _rbLcarsAlert({title, message, okText, accent}).then(() => {...})

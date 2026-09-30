@@ -3655,16 +3655,46 @@ function loadForgeStats() {
             link.style.cssText = 'font-size:0.65rem; color:#22d3ee; text-decoration:none;';
             link.textContent = 'View';
 
-            var mergeBtn = document.createElement('button');
-            mergeBtn.style.cssText = 'font-size:0.6rem; padding:2px 8px; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.4); color:#22c55e; border-radius:3px; cursor:pointer;';
-            mergeBtn.textContent = 'Merge';
+            // #5853 follow-up. This panel renders from /api/forge/prs, which HAS
+            // always stamped merge_state + merge_order — the server fix covered both
+            // surfaces on purpose ("so both surfaces agree") and only the Reviews-tab
+            // renderer was updated. The result was an unconditional green Merge here,
+            // so the only way to learn a PR was unmergeable was to click and read the
+            // refusal. Same bug the Reviews tab already fixed once on #2736.
+            var _ms = pr.merge_state || null;
+            var _ob = !!(pr.merge_order && pr.merge_order.blocked);
+            var _obLabel = _ob ? ('Blocked \u2014 after #' +
+                (((pr.merge_order || {}).declared_after) || []).join(', #')) : undefined;
+            var _aff = _prMergeAffordance(_ms, _ob, (_ms && _ms.dropped_files) ? _ms.dropped_files.length : 0, _obLabel);
+
+            var mergeBtn = _prStyleMergeBtn(document.createElement('button'), _aff);
             mergeBtn.setAttribute('data-pr', pr.number);
-            mergeBtn.onclick = function() { forgeDeployPR(parseInt(this.getAttribute('data-pr'))); };
+            if (_aff.can) {
+                mergeBtn.onclick = function() { forgeDeployPR(parseInt(this.getAttribute('data-pr'))); };
+            }
+            if (_ob && pr.merge_order.reason) mergeBtn.title = pr.merge_order.reason;
+
+            // CLOSE is the other half of the review lifecycle and was missing entirely:
+            // the service could DETECT a closed PR but nothing could produce one, so a PR
+            // flagged NEEDS REVIEW could only be dealt with off-platform.
+            // Deliberately NOT gated on merge_order, unlike the Merge button. `blocked`
+            // means THIS PR depends on an open #X, so this row is the dependent: closing
+            // it strands nothing, #X still lands on its own. Blocking it here would invent
+            // a restriction close_pr does not have and would contradict the operator's
+            // choice that close works on any open PR. Both surfaces list open PRs only,
+            // so this button always acts on something closable.
+            var closeBtn = document.createElement('button');
+            closeBtn.style.cssText = 'font-size:0.6rem; padding:2px 8px; background:rgba(249,115,22,0.10); ' +
+                'border:1px solid rgba(249,115,22,0.35); color:#f97316; border-radius:3px; cursor:pointer;';
+            closeBtn.textContent = 'Close';
+            closeBtn.title = 'Close without merging — asks for a written reason, which is posted on the PR.';
+            closeBtn.onclick = function() { forgeClosePR(pr.number, pr.repo); };
 
             row.appendChild(num);
             row.appendChild(title);
             row.appendChild(link);
             row.appendChild(mergeBtn);
+            row.appendChild(closeBtn);
             el.appendChild(row);
         });
     }).catch(function() {});
@@ -3858,47 +3888,39 @@ window.loadPRReviews = function(state) {
             actions.appendChild(infoBtn);
 
             if (pr.state === 'open') {
-                var mergeBtn = document.createElement('button');
-                // The button now SAYS what will happen. It used to be unconditionally green
+                // The button SAYS what will happen. It used to be unconditionally green
                 // and enabled for every open PR, so the only way to learn the real state was
                 // to click and read the refusal (measured on #2736: click -> 422 -> click).
-                var _st = ms ? ms.state : null;
-                var _can = ms ? !!ms.mergeable : true;   // no state (stale payload) => legacy
-                // A declared, still-open dependency disables the button; the server refuses
-                // it too (github_service._dependency_refusal) — this is the honest preview.
+                // The mapping now lives in _prMergeAffordance (repair-bay-main.js) because the
+                // F.O.R.G.E. stats panel needs the identical one and had drifted — two
+                // renderers of one payload answering the same question differently. Behaviour
+                // here is unchanged; only the source of the values moved.
+                // A declared, still-open dependency disables the button; the server refuses it
+                // too (github_service._dependency_refusal) — this is the honest preview.
                 var _orderBlocked = !!(pr.merge_order && pr.merge_order.blocked);
-                if (_orderBlocked) { _can = false; }
-                var _n = (ms && ms.dropped_files) ? ms.dropped_files.length : 0;
-                var _text = 'Merge', _col = '#4ade80', _bg = 'rgba(34,197,94,0.15)', _br = 'rgba(34,197,94,0.4)';
-                if (_orderBlocked) {
-                    _text = 'Blocked \u2014 after #' + (pr.merge_order.declared_after || []).join(', #'); _col = '#f97316';
-                    _bg = 'rgba(249,115,22,0.10)'; _br = 'rgba(249,115,22,0.35)';
-                } else if (_st === 'coverage_only') {
-                    _text = 'Merge (' + _n + ' unread)'; _col = '#fbbf24';
-                    _bg = 'rgba(251,191,36,0.15)'; _br = 'rgba(251,191,36,0.45)';
-                } else if (_st === 'changes_requested') {
-                    _text = 'Blocked — re-review'; _col = '#ef4444';
-                    _bg = 'rgba(239,68,68,0.10)'; _br = 'rgba(239,68,68,0.35)';
-                } else if (_st === 'awaiting_review') {
-                    _text = 'Waiting for review'; _col = '#94a3b8';
-                    _bg = 'rgba(148,163,184,0.10)'; _br = 'rgba(148,163,184,0.30)';
-                } else if (_st === 'reviewing') {
-                    _text = 'Reviewing…'; _col = '#67e8f9';
-                    _bg = 'rgba(34,211,238,0.10)'; _br = 'rgba(34,211,238,0.30)';
-                }
-                mergeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:' + _bg +
-                    ';border:1px solid ' + _br + ';color:' + _col + ';border-radius:4px;cursor:' +
-                    (_can ? 'pointer' : 'not-allowed') + ';' + (_can ? '' : 'opacity:0.6;');
-                mergeBtn.textContent = _text;
-                // A disabled button must carry its REASON — reachable without clicking.
+                var _orderLabel = 'Blocked \u2014 after #' +
+                    ((pr.merge_order && pr.merge_order.declared_after) || []).join(', #');
+                var _aff = _prMergeAffordance(
+                    ms, _orderBlocked, (ms && ms.dropped_files) ? ms.dropped_files.length : 0, _orderLabel);
+                var mergeBtn = _prStyleMergeBtn(document.createElement('button'), _aff);
+                // A disabled button must carry its REASON \u2014 reachable without clicking.
                 if (_orderBlocked) mergeBtn.title = pr.merge_order.reason || '';
-                else if (ms && ms.hint) mergeBtn.title = ms.hint;
-                if (_can) {
+                if (_aff.can) {
                     mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number, false, pr.repo); };
-                } else {
-                    mergeBtn.disabled = true;
                 }
                 actions.appendChild(mergeBtn);
+
+                // CLOSE — the missing half of the review lifecycle (see forgeClosePR).
+                // NOT gated on merge_order, unlike the Merge button above: `blocked`
+                // marks this PR as the DEPENDENT of an open #X, so closing it strands
+                // nothing. Only pr.state === 'open' reaches here, so the PR is closable.
+                var closeBtn = document.createElement('button');
+                closeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(249,115,22,0.10);' +
+                    'border:1px solid rgba(249,115,22,0.35);color:#f97316;border-radius:4px;cursor:pointer;';
+                closeBtn.textContent = 'Close';
+                closeBtn.title = 'Close without merging \u2014 asks for a written reason, posted on the PR.';
+                closeBtn.onclick = function(e){ e.stopPropagation(); forgeClosePR(pr.pr_number, pr.repo); };
+                actions.appendChild(closeBtn);
             }
 
             card.appendChild(header);

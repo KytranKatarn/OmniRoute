@@ -1845,6 +1845,108 @@ def get_coderabbit_reviews(pr_number: int) -> Dict:
     return {"success": True, "reviews": reviews, "count": len(reviews)}
 
 
+def close_pr(pr_number: int, reason: str, authored_by: str, repo: str = None) -> Dict:
+    """Close a pull request WITHOUT merging, leaving a written reason on it.
+
+    Why this exists: F.O.R.G.E. had ``close_issue`` and could *detect* a closed PR
+    (``pr_merge_state``/``pr_is_open``/``pr_was_merged``), but no way to produce one.
+    So a PR the reviewer flagged NEEDS REVIEW, or a lane branch abandoned mid-task,
+    could only be dealt with by leaving it open forever or by a human leaving the
+    platform for github.com. Closing is the other half of the review lifecycle and
+    it was missing.
+
+    ⚠️ HUMAN-ONLY BY CONTRACT — there is deliberately no ``human_override`` flag and
+    no unattended path. That is the opposite of ``merge_pr``, where ``False`` is the
+    gated default and ``True`` is the attended one. Here the ONLY caller is an
+    interactive, authenticated operator (the Repair Bay close control, behind
+    ``@login_required @admin_required``), because closing a PR is a judgement call
+    with no server-side gate behind it: unlike a merge, there is no F.O.R.G.E. verdict
+    that can refuse it, so nothing downstream would catch an automated agent closing a
+    PR on a stale read of the review. Keep it that way — if you find yourself wanting
+    to call this from a loop or a Telegram button, the answer is a new governance gate,
+    not a new call site.
+
+    ``reason`` is REQUIRED and is posted as a comment BEFORE the close, so the decision
+    is attributed and auditable on the PR itself rather than living only in a log line.
+    Same reasoning as ``dismiss_finding``: an operator asserting "I read this and it
+    should not land" is evidence, and silence would make the corpus unlabelled.
+
+    Fails CLOSED on an unreadable state, matching decision #953 (safety is universal):
+    an unreadable ``pr_merge_state`` is ``None``, and we refuse rather than guess, so a
+    GitHub blip can never be reported as a successful close.
+
+    ``repo`` (owner/name) selects the target repo; defaults to REPO_FULL. Threaded for
+    the same reason as ``merge_pr`` (#4494): watch-product PRs live in their own repos.
+    """
+    target = repo or REPO_FULL
+
+    reason = (reason or "").strip()
+    if not reason:
+        return {
+            "success": False,
+            "closed": False,
+            "error": "a written reason is required — silent closes are not allowed",
+        }
+    actor = (authored_by or "").strip()
+    if not actor:
+        return {"success": False, "closed": False, "error": "authored_by is required — a close must be attributable"}
+
+    # State FIRST, and fail closed on unreadable. Deciding before we know the state
+    # would let a GitHub outage look like a clean close.
+    state = pr_merge_state(pr_number, target)
+    if state is None:
+        return {
+            "success": False,
+            "closed": False,
+            "error": f"cannot read PR #{pr_number} state from GitHub — refusing to guess (fail-closed)",
+        }
+    if state == "merged":
+        # GitHub treats this as a no-op, so do not report success for a close that
+        # did not happen — a "closed" here would read as "we reverted it".
+        return {
+            "success": False,
+            "closed": False,
+            "already_merged": True,
+            "error": f"PR #{pr_number} is already MERGED — closing is not a revert, it changes nothing",
+        }
+    if state == "closed":
+        return {
+            "success": False,
+            "closed": False,
+            "already_closed": True,
+            "error": f"PR #{pr_number} is already closed",
+        }
+
+    # The reason goes on the PR before it closes, so it survives the close.
+    body = f"Closing from Repair Bay — {reason}\n\n_(closed by {actor})_"
+    ok_comment, comment_data = _api_post(f"/repos/{target}/issues/{pr_number}/comments", {"body": body})
+    if not ok_comment:
+        return {
+            "success": False,
+            "closed": False,
+            "error": f"could not record the reason on PR #{pr_number}: {comment_data.get('error')}",
+        }
+
+    ok, data = _api_patch(f"/repos/{target}/pulls/{pr_number}", {"state": "closed"})
+    if not ok:
+        # The comment landed but the close did not — say so, so the operator knows
+        # the PR now carries a "closing" note that is not true yet.
+        return {
+            "success": False,
+            "closed": False,
+            "reason_posted": True,
+            "error": data.get("error") or "close failed after the reason was posted",
+        }
+    return {
+        "success": True,
+        "closed": True,
+        "pr_number": pr_number,
+        "repo": target,
+        "reason": reason,
+        "closed_by": actor,
+    }
+
+
 def close_issue(issue_number: int, comment: str = None) -> Dict:
     """Close a GitHub issue, optionally with a comment."""
     if comment:

@@ -106,6 +106,39 @@ def register_github_routes(bp, admin_required):
             }
         )
 
+    @bp.route("/api/forge/pr/<int:pr_number>/close", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_close_pr(pr_number):
+        """Close a PR without merging, recording a written reason on it.
+
+        ADMIN-ONLY and ATTRIBUTED, for the same reason as ``forge_dismiss_finding``
+        above: this is a human correcting the outcome of a review, so the operator's
+        name and their written reason both land on the PR itself. There is no
+        unattended path and no server-side gate behind it — see ``close_pr``'s
+        docstring for why that is deliberate rather than an oversight.
+        """
+        from .services.github_service import close_pr
+
+        body = request.get_json(silent=True) or {}
+        reason = (body.get("reason") or "").strip()
+        repo = (body.get("repo") or "").strip() or None
+
+        if not reason:
+            return (
+                jsonify({"success": False, "error": "a written reason is required — silent closes are not allowed"}),
+                400,
+            )
+
+        who = getattr(current_user, "username", None) or "admin"
+        result = close_pr(pr_number, reason=reason, authored_by=who, repo=repo)
+        if not result.get("success"):
+            # 409: the PR is in a state where closing is meaningless (already
+            # merged/closed) — that is a conflict, not a bad request or a server fault.
+            code = 409 if (result.get("already_merged") or result.get("already_closed")) else 502
+            return jsonify(result), code
+        return jsonify(result)
+
     @bp.route("/api/forge/health", methods=["GET"])
     @login_required
     @admin_required

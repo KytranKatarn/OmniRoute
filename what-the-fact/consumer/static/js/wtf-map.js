@@ -465,6 +465,12 @@
       resetView: resetView,
       setScope: setScope,
       getScope: function () { return scope; },
+      // Display name of a region code under the ACTIVE scope, or null (countries: the
+      // GeoJSON name; provinces: the dataset spelling).
+      regionName: function (code) {
+        var f = featureFor(code);
+        return f && f.properties && f.properties.name ? f.properties.name : null;
+      },
       getLayer: function () { return active; },
       getSelected: function () { return selected; },
       // Points the active layer asked for that the projection could not place.

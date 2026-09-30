@@ -30,9 +30,28 @@ def test_lean_and_volume_layers_are_wired():
         assert token in INDEX, token
 
 
-def test_world_mode_states_the_projection_limit_instead_of_clipping():
-    assert 'id="wtf-world-note"' in INDEX
-    assert "map projection covers Canada" in INDEX
+def test_world_mode_uses_the_real_world_projection_not_a_disclaimer():
+    body = INDEX[INDEX.index("function setMapMode("):INDEX.index("function loadArticleFeed_country")]
+    assert "wtfmap.setScope(mode === 'world' ? 'world' : 'canada')" in body
+    assert "wtf-world-note" not in INDEX and "projection covers Canada" not in INDEX
+    # the old code hid the map in world mode; it must stay visible now
+    assert "host.hidden" not in body
+
+
+def test_world_layers_read_country_counts_and_never_province_data():
+    for layer_id in ("'lean'", "'volume'"):
+        i = INDEX.index("{ id: " + layer_id)
+        metric = INDEX[i:INDEX.index("tooltip:", i)]
+        assert "mapMode === 'world'" in metric, layer_id
+        world_branch = metric[metric.index("mapMode === 'world'"):]
+        world_branch = world_branch[: world_branch.index("var pd") if "var pd" in world_branch else len(world_branch)]
+        assert "mapProvinces" not in world_branch, layer_id  # provinces are Canada-only data
+    assert "function worldTip(" in INDEX and "wtfmap.regionName(cc)" in INDEX
+
+
+def test_world_country_click_loads_that_countrys_feed():
+    body = INDEX[INDEX.index("onSelect: function(pc)"):INDEX.index("function loadMapData")]
+    assert "mapMode === 'world'" in body and "loadArticleFeed_country(pc)" in body
 
 
 def test_province_select_uses_the_component_not_a_map_object():

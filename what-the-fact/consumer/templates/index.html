@@ -168,10 +168,6 @@
     </div>
     <div id="wtf-canada-map"></div>
   </div>
-  <div id="wtf-world-note" class="wtf-map-legend-note" hidden>
-    World coverage is listed in the index. The map projection covers Canada;
-    a world projection is coming in a follow-up.
-  </div>
   <div id="wtf-home-map-legend" class="wtf-map-legend"></div>
 </div>
 
@@ -482,14 +478,32 @@ function provName(pc) {
   return (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
 }
 
+function worldMax() {
+  var m = 0;
+  Object.keys(geoCounts).forEach(function (cc) { m = Math.max(m, (geoCounts[cc] || {}).count || 0); });
+  return m;
+}
+function worldName(cc) { return (wtfmap && wtfmap.regionName(cc)) || cc; }
+function worldTip(cc) {
+  var cd = geoCounts[cc];
+  return worldName(cc) + " · " + (cd && cd.count ? cd.count.toLocaleString() + " stories" : "no stories in this window");
+}
+
 var LAYERS = [
   { id: 'lean',
     metric: function(pc) {
+      if (mapMode === 'world') {
+        // Band is computed server-side per country; unmeasured = no data, never a guess.
+        var wd = geoCounts[pc];
+        var wcol = wd && wd.count ? BIAS_COLOURS[wd.band] : null;
+        return wcol ? { col: wcol } : null;
+      }
       var pd = mapProvinces[pc];
       var col = pd ? leanColour(pd.avg_bias, pd.articles) : null;
       return col ? { col: col } : null;
     },
     tooltip: function(pc) {
+      if (mapMode === 'world') return worldTip(pc);
       var pd = mapProvinces[pc];
       if (!pd) return provName(pc) + " · no stories in this window";
       return provName(pc) + " · " + pd.articles + " stories" + leanLabel(pd.avg_bias, pd.articles) +
@@ -499,20 +513,33 @@ var LAYERS = [
            [0,  BIAS_COLOURS.center, "balanced"],
            [1,  BIAS_COLOURS.right, "coverage leans right"]],
     noDataLabel: "not measured (<" + LEAN_MIN_N + " articles)",
-    coverageNote: function(){ return "Colour is the average lean of coverage in each province, scored per story. It is not a label on the province."; }
+    coverageNote: function(){
+      return mapMode === 'world'
+        ? "Colour is the lean band of stories located in each country, scored per story. It is not a label on the country."
+        : "Colour is the average lean of coverage in each province, scored per story. It is not a label on the province.";
+    }
   },
   { id: 'volume',
     metric: function(pc) {
+      if (mapMode === 'world') {
+        var wc = (geoCounts[pc] || {}).count || 0, wcol = volColour(wc, worldMax());
+        return wcol ? { col: wcol } : null;
+      }
       var c = provCount(pc), col = volColour(c, volMax());
       return col ? { col: col } : null;
     },
     tooltip: function(pc) {
+      if (mapMode === 'world') return worldTip(pc);
       var c = provCount(pc);
       return provName(pc) + " · " + (c ? c.toLocaleString() + " stories" : "no stories in this window");
     },
     ramp: volRamp(),
     noDataLabel: "no stories in this window",
-    coverageNote: function(){ return "Volume is not importance — a province with more stories has more outlets in it."; }
+    coverageNote: function(){
+      return mapMode === 'world'
+        ? "Volume is not importance — a country with more stories has more outlets covering it."
+        : "Volume is not importance — a province with more stories has more outlets in it.";
+    }
   }
 ];
 
@@ -531,6 +558,10 @@ function initMap() {
     layers: LAYERS,
     active: 'lean',
     onSelect: function(pc) {
+      if (mapMode === 'world') {
+        if (pc) loadArticleFeed_country(pc); else loadArticleFeed();
+        return;
+      }
       if (pc) setProvince(pc, true); else clearProvince(true);
     }
   });
@@ -595,9 +626,10 @@ function loadArticlesGeo() {
       if (scope === 'world') {
         renderMapIndex(Object.keys(geoCounts).map(function(cc) {
           var cd = geoCounts[cc] || {};
-          return { code: cc, name: cc, count: cd.count || 0,
+          return { code: cc, name: worldName(cc), count: cd.count || 0,
                    colour: BIAS_COLOURS[cd.band] || null };
         }), 'world');
+        if (wtfmap) wtfmap.refresh();
         return;
       }
       LAYERS[1].ramp = volRamp();
@@ -621,16 +653,8 @@ function setMapMode(mode) {
   document.getElementById('btn-world').className = 'wtf-map-btn' + (mode === 'world' ? ' active' : '');
   document.getElementById('wtf-map-label').textContent =
     mode === 'canada' ? 'LIVE — CANADA NEWS MAP' : 'LIVE — WORLD COVERAGE';
-  // The component projects Canada only (Lambert conic). Until PR 03 adds a
-  // world projection, World shows the ranked index + feed and SAYS so, rather
-  // than drawing countries off a Canada projection and clipping them silently.
-  var host = document.getElementById('wtf-canada-map');
-  var note = document.getElementById('wtf-world-note');
-  var layerBtns = document.getElementById('wtf-map-layer-toggle');
-  host.hidden = mode === 'world';
-  note.hidden = mode !== 'world';
-  layerBtns.hidden = mode === 'world';
-  document.getElementById('wtf-home-map-legend').hidden = mode === 'world';
+  // One component, two scopes: Lambert conic for Canada, Natural Earth for the world.
+  if (wtfmap) wtfmap.setScope(mode === 'world' ? 'world' : 'canada');
   if (mode === 'canada') { loadMapData(); }
   else if (currentProvince) { clearProvince(); return; }
   loadArticlesGeo();

@@ -10,9 +10,9 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | # | Design file | Template | Status | PR | Notes |
 |---|---|---|---|---|---|
 | 1 | shell (`_nav.html`, `wtf-shell.css`) | `base.html`, `static/style.css` | pr | #3544 merged, #3548 | Logo + brand cyan (#3544). Nav parity: bar ground, one row >820px, LIVE pill, globe + `EN`, search circle, SIGN IN as text, chip order. Repo source never had the ECONOMY emoji seen on the live site — deployed image is older than main |
-| 2 | `wtf-home.html` map zone | `index.html` | pr | #3546 | Leaflet -> `wtf-map.js` (PR 02 applied). World still shows the Canada-only note until row 3 |
+| 2 | `wtf-home.html` map zone | `index.html` | merged | #3546, world wiring this PR | Leaflet -> `wtf-map.js` (#3546). World button now drives the real Natural Earth projection: country lean/volume layers, real names, click = that country's feed. The "projection coming" note is gone |
 | 3 | world projection | `static/js/wtf-map.js` | merged | #3549 | `setScope('world')` on the shared map (Natural Earth, `/static/world-countries.geojson`, lazy). Canada stays the default. Homepage World button wiring is a follow-up after row 2 merges |
-| 4 | `wtf-home.html` rest (weather strip glyphs, feed spread, gate) | `index.html` | pr | bands PR | Weather strip + Wildfire-and-alerts band ported (5 tiles). **Design needs a source for the 6th tile 'Spread pressure'** - no table/feed carries it. Feed spread + gate not done |
+| 4 | `wtf-home.html` rest (weather strip glyphs, feed spread, gate) | `index.html` | merged | #3547 | Weather strip + Wildfire-and-alerts band ported (5 tiles). **Design needs a source for the 6th tile 'Spread pressure'** - no table/feed carries it. Feed spread + gate not done |
 | 5 | `wtf-news.html` | `news.html` | todo | | |
 | 6 | `wtf-archive.html` | `archive.html` | todo | | |
 | 7 | `wtf-article.html` | `article.html` | todo | | |

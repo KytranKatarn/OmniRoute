@@ -1,3 +1,8 @@
+# HUB_CODE_ROOT — where the platform's CODE mounts come from. Unset/default = this checkout
+# (today's behaviour, byte-identical mounts). Set to /mnt/archie_deploy (a clean always-main
+# clone) at the approved cutover so a working branch here can never block a deploy.
+# Run compose with `--project-directory /mnt/archie_brain` so the state mounts (./backups,
+# ./secrets, ./conversation_logs, ...) keep resolving to THIS checkout. Plan: task #7067.
 services:
   # PostgreSQL Database (with pgvector for semantic embeddings)
   archie_database:
@@ -149,11 +154,11 @@ services:
       - stripe_publishable_key
     volumes:
       # Mount ai-bridge into container (rw for self-improvement deployments)
-      - ./ai_bridge:/mnt/archie_brain/ai_bridge:rw
+      - ${HUB_CODE_ROOT:-.}/ai_bridge:/mnt/archie_brain/ai_bridge:rw
       # Mount documentation (rw for self-improvement deployments)
       - ./docs:/mnt/archie_brain/docs:rw
       # Mount platform code (for development)
-      - ./platform_v2:/app:rw
+      - ${HUB_CODE_ROOT:-.}/platform_v2:/app:rw
       - ./backups:/backups
       # Mount external USB backup storage
       - /mnt/external-backup:/mnt/external-backup:rw
@@ -164,27 +169,27 @@ services:
       # Mount Docker socket for sandbox management
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount sandbox compose file
-      - ./docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
+      - ${HUB_CODE_ROOT:-.}/docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
       # staging compose + sandbox worktree — self-heal deploy gate (#4930)
-      - ./docker-compose.staging.yml:/mnt/archie_brain/docker-compose.staging.yml:ro
+      - ${HUB_CODE_ROOT:-.}/docker-compose.staging.yml:/mnt/archie_brain/docker-compose.staging.yml:ro
       - /mnt/archie_sandbox:/mnt/archie_sandbox:rw
       # Additional mounts for full backup support (rw for self-improvement)
-      - ./database/migrations:/mnt/archie_brain/database/migrations:rw
+      - ${HUB_CODE_ROOT:-.}/database/migrations:/mnt/archie_brain/database/migrations:rw
       # Host monitor data file (from host_monitor.py running on host)
       - ./host_monitor_data.json:/mnt/archie_brain/host_monitor_data.json:ro
       # Fleet app catalog (YAML entries for KSO app store)
-      - ./fleet/catalog:/mnt/archie_brain/fleet/catalog:ro
+      - ${HUB_CODE_ROOT:-.}/fleet/catalog:/mnt/archie_brain/fleet/catalog:ro
       # Fleet SSL cert storage (wildcard cert for *.kytranempowerment.com)
       - /opt/archie-fleet/certs:/opt/archie-fleet/certs:rw
       - ./bandwidth_history.json:/mnt/archie_brain/bandwidth_history.json:ro
       - ./scripts:/mnt/archie_brain/scripts:rw
-      - ./nginx:/mnt/archie_brain/nginx:ro
-      - ./docker-compose.yml:/mnt/archie_brain/docker-compose.yml:ro
+      - ${HUB_CODE_ROOT:-.}/nginx:/mnt/archie_brain/nginx:ro
+      - ${HUB_CODE_ROOT:-.}/docker-compose.yml:/mnt/archie_brain/docker-compose.yml:ro
       # Mount Goose orchestration directory (Phase 55)
       - ./goose:/mnt/archie_brain/goose:rw
       # Mount .mcp.json, CLAUDE.md, and .claude/rules for Dev HQ + Skill Sync
       - ./.mcp.json:/mnt/archie_brain/.mcp.json:ro
-      - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
+      - ${HUB_CODE_ROOT:-.}/CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
       - ./.claude/rules:/mnt/archie_brain/.claude/rules:rw
       - ./.claude/skills:/mnt/archie_brain/.claude/skills:rw
       # commands: read by the Living Platform Registry collector (#5230/#5242).
@@ -194,16 +199,16 @@ services:
       # is :rw because Skill Sync writes learned-skills.md into it, but nothing on
       # the platform authors slash-commands, so this stays least-privilege.
       # MUST stay in step with the archie_scheduler block below (KB #263303).
-      - ./.claude/commands:/mnt/archie_brain/.claude/commands:ro
+      - ${HUB_CODE_ROOT:-.}/.claude/commands:/mnt/archie_brain/.claude/commands:ro
       # Mount .git for git operations (CodeRabbit Local Git management)
-      - ./.git:/mnt/archie_brain/.git:rw
+      - ${HUB_CODE_ROOT:-.}/.git:/mnt/archie_brain/.git:rw
       # GitHub repo clones — ARCHIE's local copies for reading/modifying/sharing
       - ./repos:/mnt/archie_brain/repos:rw
       - ./secrets:/mnt/archie_brain/secrets:ro
       # Mount node client package for remote node deployment
-      - ./node_client:/mnt/archie_brain/node_client:ro
+      - ${HUB_CODE_ROOT:-.}/node_client:/mnt/archie_brain/node_client:ro
       # Website and standalone product sources (Code Health scanning)
-      - ./website:/mnt/archie_brain/website:ro
+      - ${HUB_CODE_ROOT:-.}/website:/mnt/archie_brain/website:ro
       # Translation bundle export (#2089) — nested :rw overrides on data/
       # only so _export_bundle can write translations.json while the rest of
       # each site stays :ro for Code Health scan boundary integrity.
@@ -218,8 +223,8 @@ services:
       # scanner). These products live in the hub repo but outside the
       # /mnt/standalone tree, so the resolver's fallback candidate
       # /mnt/archie_brain/<dir> needs the matching bind to find them.
-      - ./archie-comms:/mnt/archie_brain/archie-comms:ro
-      - ./what-the-fact:/mnt/archie_brain/what-the-fact:ro
+      - ${HUB_CODE_ROOT:-.}/archie-comms:/mnt/archie_brain/archie-comms:ro
+      - ${HUB_CODE_ROOT:-.}/what-the-fact:/mnt/archie_brain/what-the-fact:ro
       # kbs was missing from this list, so backup_standalone tarred a path that does not
       # exist in-container: all 16 kbs backups were 0 files / 0 bytes (measured 2026-07-20).
       # Must be THIS path — /mnt/standalone/kytran-business-suite is a DIFFERENT directory
@@ -228,11 +233,11 @@ services:
       # Mirrored in archie_scheduler on purpose — volume drift there silently degrades
       # scheduled work (KB #263303).
       - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
-      - ./standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
+      - ${HUB_CODE_ROOT:-.}/standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw
       # Migration compose files for Docker stack management
-      - ./migrations:/mnt/archie_brain/migrations:ro
+      - ${HUB_CODE_ROOT:-.}/migrations:/mnt/archie_brain/migrations:ro
       # Docker stacks directory for System Operations stack management
       - /mnt/stacks:/mnt/stacks:ro
       # Nagios monitoring data (status.dat) for health integration
@@ -263,6 +268,16 @@ services:
       - ./credentials:/app/credentials:rw
       # Browser automation screenshots (Project Autonomy Phase 4)
       - ./platform_v2/static/screenshots:/app/static/screenshots:rw
+      # Runtime state that lives INSIDE the platform_v2 code tree but is not in git
+      # (gitignored). Kept on the brain so the code mount above can point at a clean
+      # always-main clone (HUB_CODE_ROOT) without these vanishing. With the default
+      # HUB_CODE_ROOT these overlay their own content and change nothing.
+      # Plan: KB #367081 / #367082, task #7067.
+      - ./platform_v2/static/media:/app/static/media:rw
+      - ./platform_v2/static/downloads:/app/static/downloads:rw
+      - ./platform_v2/static/baselines:/app/static/baselines:rw
+      - ./platform_v2/static/qa_reports:/app/static/qa_reports:rw
+      - ./platform_v2/secrets:/app/secrets:rw
       # ── Standalone Products + Websites (read-only for Code Health scanner) ──
       - /mnt/standalone:/mnt/standalone:ro
       # Translation bundle export (#2089) — nested :rw overrides on data/ only
@@ -376,29 +391,29 @@ services:
       - stripe_webhook_secret
       - stripe_publishable_key
     volumes:
-      - ./ai_bridge:/mnt/archie_brain/ai_bridge:rw
+      - ${HUB_CODE_ROOT:-.}/ai_bridge:/mnt/archie_brain/ai_bridge:rw
       - ./docs:/mnt/archie_brain/docs:rw
-      - ./platform_v2:/app:rw
+      - ${HUB_CODE_ROOT:-.}/platform_v2:/app:rw
       - ./backups:/backups
       - /mnt/external-backup:/mnt/external-backup:rw
       - /mnt/data2:/mnt/data2:rw
       - ./conversation_logs:/mnt/archie_brain/conversation_logs:rw
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
+      - ${HUB_CODE_ROOT:-.}/docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
       # staging compose + sandbox worktree — self-heal deploy gate (#4930)
-      - ./docker-compose.staging.yml:/mnt/archie_brain/docker-compose.staging.yml:ro
+      - ${HUB_CODE_ROOT:-.}/docker-compose.staging.yml:/mnt/archie_brain/docker-compose.staging.yml:ro
       - /mnt/archie_sandbox:/mnt/archie_sandbox:rw
-      - ./database/migrations:/mnt/archie_brain/database/migrations:rw
+      - ${HUB_CODE_ROOT:-.}/database/migrations:/mnt/archie_brain/database/migrations:rw
       - ./host_monitor_data.json:/mnt/archie_brain/host_monitor_data.json:ro
-      - ./fleet/catalog:/mnt/archie_brain/fleet/catalog:ro
+      - ${HUB_CODE_ROOT:-.}/fleet/catalog:/mnt/archie_brain/fleet/catalog:ro
       - /opt/archie-fleet/certs:/opt/archie-fleet/certs:rw
       - ./bandwidth_history.json:/mnt/archie_brain/bandwidth_history.json:ro
       - ./scripts:/mnt/archie_brain/scripts:rw
-      - ./nginx:/mnt/archie_brain/nginx:ro
-      - ./docker-compose.yml:/mnt/archie_brain/docker-compose.yml:ro
+      - ${HUB_CODE_ROOT:-.}/nginx:/mnt/archie_brain/nginx:ro
+      - ${HUB_CODE_ROOT:-.}/docker-compose.yml:/mnt/archie_brain/docker-compose.yml:ro
       - ./goose:/mnt/archie_brain/goose:rw
       - ./.mcp.json:/mnt/archie_brain/.mcp.json:ro
-      - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
+      - ${HUB_CODE_ROOT:-.}/CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
       - ./.claude/rules:/mnt/archie_brain/.claude/rules:rw
       - ./.claude/skills:/mnt/archie_brain/.claude/skills:rw
       # MUST mirror archie_platform above — the scheduler is where the nightly
@@ -406,19 +421,19 @@ services:
       # matters most (#5242). A scheduler whose volumes drift from the platform's
       # degrades silently: a missing /mnt/standalone:ro once cut Code Health by
       # 35% with no error at all (KB #263303).
-      - ./.claude/commands:/mnt/archie_brain/.claude/commands:ro
-      - ./.git:/mnt/archie_brain/.git:rw
+      - ${HUB_CODE_ROOT:-.}/.claude/commands:/mnt/archie_brain/.claude/commands:ro
+      - ${HUB_CODE_ROOT:-.}/.git:/mnt/archie_brain/.git:rw
       - ./repos:/mnt/archie_brain/repos:rw
       - ./secrets:/mnt/archie_brain/secrets:ro
-      - ./node_client:/mnt/archie_brain/node_client:ro
-      - ./website:/mnt/archie_brain/website:ro
+      - ${HUB_CODE_ROOT:-.}/node_client:/mnt/archie_brain/node_client:ro
+      - ${HUB_CODE_ROOT:-.}/website:/mnt/archie_brain/website:ro
       - ./website/kytranempowerment.com/data:/mnt/archie_brain/website/kytranempowerment.com/data:rw
       - ./website/creed-ai.org/data:/mnt/archie_brain/website/creed-ai.org/data:rw
       - ./website/kytranempowerment.com/assets/portraits:/mnt/archie_brain/website/kytranempowerment.com/assets/portraits:rw
       - ./website/creed-ai.org/assets/portraits:/mnt/archie_brain/website/creed-ai.org/assets/portraits:rw
       - ./kytran-server-manager:/mnt/archie_brain/kytran-server-manager:ro
       - ./host_commands:/mnt/archie_brain/host_commands:rw
-      - ./migrations:/mnt/archie_brain/migrations:ro
+      - ${HUB_CODE_ROOT:-.}/migrations:/mnt/archie_brain/migrations:ro
       - /mnt/stacks:/mnt/stacks:ro
       - monitoring_nagios_data:/opt/nagios-data:ro
       # SSH key for W.A.R.D.E.N. warden_wtf_rsync job (hub→VPS code sync)
@@ -448,12 +463,22 @@ services:
       # Browser automation screenshots — scheduled jobs that screenshot pages
       # write here; mirrors archie_platform mount.
       - ./platform_v2/static/screenshots:/app/static/screenshots:rw
+      # Runtime state that lives INSIDE the platform_v2 code tree but is not in git
+      # (gitignored). Kept on the brain so the code mount above can point at a clean
+      # always-main clone (HUB_CODE_ROOT) without these vanishing. With the default
+      # HUB_CODE_ROOT these overlay their own content and change nothing.
+      # Plan: KB #367081 / #367082, task #7067.
+      - ./platform_v2/static/media:/app/static/media:rw
+      - ./platform_v2/static/downloads:/app/static/downloads:rw
+      - ./platform_v2/static/baselines:/app/static/baselines:rw
+      - ./platform_v2/static/qa_reports:/app/static/qa_reports:rw
+      - ./platform_v2/secrets:/app/secrets:rw
       # Hub-resident standalone product source (read-only for Code Health
       # scanner). Mirrors archie_platform; resolver finds these via the
       # /mnt/archie_brain/<dir> + /mnt/archie_brain/standalone/<dir>
       # fallback candidates in code_metrics_service._resolve_standalone_path.
-      - ./archie-comms:/mnt/archie_brain/archie-comms:ro
-      - ./what-the-fact:/mnt/archie_brain/what-the-fact:ro
+      - ${HUB_CODE_ROOT:-.}/archie-comms:/mnt/archie_brain/archie-comms:ro
+      - ${HUB_CODE_ROOT:-.}/what-the-fact:/mnt/archie_brain/what-the-fact:ro
       # kbs was missing from this list, so backup_standalone tarred a path that does not
       # exist in-container: all 16 kbs backups were 0 files / 0 bytes (measured 2026-07-20).
       # Must be THIS path — /mnt/standalone/kytran-business-suite is a DIFFERENT directory
@@ -462,7 +487,7 @@ services:
       # Mirrored in archie_scheduler on purpose — volume drift there silently degrades
       # scheduled work (KB #263303).
       - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
-      - ./standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
+      - ${HUB_CODE_ROOT:-.}/standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
       # ── Standalone Products + Websites (read-only for Code Health scanner) ──
       # Mirrors archie_platform line 220. Without this parent mount, scheduled
       # Code Health scans (jobs #40 + #55) silently miss every standalone product

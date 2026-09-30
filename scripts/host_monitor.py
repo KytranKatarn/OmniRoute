@@ -5895,16 +5895,14 @@ def _inflight_review_prs():
         "from database import get_db_cursor; "
         "c = get_db_cursor(); "
         "conn, cur = c.__enter__(); "
-        "cur.execute(\"SELECT pr_number FROM pr_reviews "
+        'cur.execute("SELECT pr_number FROM pr_reviews '
         "WHERE review_status IN ('in_progress','pending','started') ORDER BY pr_number\"); "
         # get_db_cursor yields DICT rows, not tuples: r[0] raises KeyError.
         "print(','.join(str(list(r.values())[0]) for r in cur.fetchall())); "
         "c.__exit__(None, None, None)"
     )
     try:
-        res = run_command_full(
-            ["docker", "exec", "archie_platform", "python3", "-c", probe], timeout=45
-        )
+        res = run_command_full(["docker", "exec", "archie_platform", "python3", "-c", probe], timeout=45)
         if res.get("returncode") != 0:
             # The exact failure that shipped in the first version: the probe raised
             # KeyError on r[0] because get_db_cursor yields dicts, so this returned
@@ -5960,7 +5958,13 @@ def handle_hub_deploy(params):
         (deploy-provenance honesty: unverified state reports failure, never "in_sync").
       * git runs as the CHECKOUT OWNER, never root, so host .git ownership is preserved.
     """
-    checkout = "/mnt/archie_brain"
+    # HUB_DEPLOY_ROOT (host env, empty by default = today's behaviour): a clean always-main
+    # CLONE the platform's code mounts read from (docker-compose HUB_CODE_ROOT), so a
+    # working branch in /mnt/archie_brain can never block this fast-forward. State mounts
+    # keep resolving to the brain via --project-directory below. Plan: KB #367081, #7067.
+    brain = "/mnt/archie_brain"
+    deploy_root = (os.environ.get("HUB_DEPLOY_ROOT") or "").strip()
+    checkout = deploy_root or brain
     docker_compose_yml = os.path.join(checkout, "docker-compose.yml")
 
     if not os.path.isdir(os.path.join(checkout, ".git")):
@@ -6039,9 +6043,31 @@ def handle_hub_deploy(params):
 
     # 3. Restart from the compose file's directory (restart = load the newly
     #    fast-forwarded bind-mounted code). Runs as root on the host.
-    restart = run_command_full(
-        ["docker", "compose", "restart", "archie_platform", "archie_scheduler"], timeout=180, cwd=checkout
-    )
+    if deploy_root:
+        # Clone mode: the clone's compose file, the BRAIN as project dir (state mounts), and the
+        # code root exported so the mounts resolve to the clone. `restart` reloads the
+        # fast-forwarded bind-mounted code; it does not re-read mounts (that is the one-off
+        # cutover `up -d --no-deps`, not a per-deploy action).
+        restart = run_command_full(
+            [
+                "docker",
+                "compose",
+                "-f",
+                docker_compose_yml,
+                "--project-directory",
+                brain,
+                "restart",
+                "archie_platform",
+                "archie_scheduler",
+            ],
+            timeout=180,
+            cwd=brain,
+            env={**os.environ, "HUB_CODE_ROOT": deploy_root},
+        )
+    else:
+        restart = run_command_full(
+            ["docker", "compose", "restart", "archie_platform", "archie_scheduler"], timeout=180, cwd=checkout
+        )
     if restart["returncode"] != 0:
         return {
             "success": False,

@@ -70,40 +70,73 @@
 })();
 </script>
 
-<!-- ══ LOCAL WEATHER ══ (A.U.R.O.R.A. — wtf.aurora_city_* / _fire_hotspot_daily,
-     see _home_weather_strip() in routes.py. "Local" = one representative city
-     per province, not IP-derived — this site has no per-visitor geolocation. -->
+<!-- ══ LOCAL WEATHER + WILDFIRE AND ALERTS ══ (A.U.R.O.R.A. — wtf.aurora_*,
+     see _home_weather_strip() in routes.py). "Local" = the visitor's home city from
+     /weather (localStorage wtf.homeCity) first, then alert-flagged cities; there is
+     no per-visitor geolocation on this site. Every figure comes from a query; an
+     unreadable one is an em dash, never 0. -->
 {% if weather_strip.cities %}
 <div id="wtf-weather-strip">
   <div class="wtf-h-wx-header-row">
-    <span class="wtf-section-label">Weather across Canada</span>
+    <div class="wtf-h-wx-title">
+      <span class="wtf-section-label">Your local weather</span>
+      <span class="wtf-h-wx-note" id="wtf-wx-note">Set a default city on the weather page</span>
+    </div>
     <a href="/weather" class="wtf-h-wx-link">A.U.R.O.R.A. &rarr;</a>
   </div>
-  <div class="wtf-weather-cards">
+  <div class="wtf-weather-cards" id="wtf-weather-cards">
     {% for city in weather_strip.cities %}
-    <div class="wtf-weather-card{% if city.temp is not none and city.temp >= 30 %} is-alert{% endif %}">
-      <div class="wtf-weather-card-name">{{ city.name }}</div>
-      <div class="wtf-weather-card-temp">{{ ("%+.0f"|format(city.temp)) ~ "°" if city.temp is not none else "—" }}</div>
-      <div class="wtf-weather-card-cond">{{ city.condition or (city.age_min is none and "no data") or "—" }}</div>
-    </div>
+    {% set stale = city.age_min is not none and city.age_min > 180 %}
+    <a href="/weather" class="wtf-weather-card{% if city.alert %} is-alert{% endif %}{% if stale %} is-stale{% endif %}" data-city="{{ city.name }}">
+      <div class="wtf-weather-card-top">
+        <span class="wtf-weather-card-name">{{ city.name }}</span>
+        <span class="wtf-weather-card-prov">{{ city.prov or "" }}</span>
+      </div>
+      <div class="wtf-weather-card-mid">
+        <span class="wtf-weather-card-temp">{{ ("%.0f"|format(city.temp)) ~ "°" if city.temp is not none else "—" }}</span>
+        {{ icon(city.glyph, 26) }}
+      </div>
+      <div class="wtf-weather-card-cond">
+        {% if city.alert %}<span class="wtf-weather-card-dot"></span>{% endif %}
+        {{ city.alert or city.condition or ("no data" if city.age_min is none else "—") }}{% if stale %} &middot; {{ (city.age_min // 60) }}h old{% endif %}
+      </div>
+    </a>
     {% endfor %}
   </div>
 
-  {% if weather_strip.fire_provinces %}
+  {% if weather_strip.bands %}
   <div class="wtf-h-fire-header-row">
-    <span class="wtf-section-label wtf-section-label--aurora">Wildfire activity, last 3 days</span>
+    <span class="wtf-section-label wtf-section-label--aurora">Wildfire and alerts</span>
+    {% if weather_strip.fire_obs_date %}<span class="wtf-h-wx-note">CWFIS hotspots through {{ weather_strip.fire_obs_date }}</span>{% endif %}
+    <a href="/weather" class="wtf-h-wx-link wtf-h-wx-link--end">Full map &rarr;</a>
   </div>
   <div class="wtf-fire-grid">
-    {% for p in weather_strip.fire_provinces %}
-    <div class="wtf-fire-card">
-      <div class="wtf-fire-card-key">{{ p.prov }}</div>
-      <div class="wtf-fire-card-value">{{ p.hotspots }}</div>
-      <div class="wtf-fire-card-note">hotspots{% if p.max_fwi %} &middot; FWI {{ "%.0f"|format(p.max_fwi) }}{% endif %}</div>
-    </div>
+    {% for t in weather_strip.bands %}
+    <a class="wtf-fire-card wtf-fire-card--{{ t.tone }}" href="{{ t.href }}" data-tile="{{ t.key }}">
+      <span class="wtf-fire-card-key">{{ t.label }}</span>
+      <span class="wtf-fire-card-value">{{ t.value }}</span>
+      <span class="wtf-fire-card-note">{{ t.note }}</span>
+    </a>
     {% endfor %}
   </div>
   {% endif %}
 </div>
+<script>
+/* Home city first: reads the key /weather writes (wtf.homeCity). The design's
+   mock used 'wtf-default-city'; /weather has never written that, so following it
+   would leave the strip permanently ignoring the visitor's choice. */
+(function () {
+  var home = null;
+  try { home = localStorage.getItem("wtf.homeCity"); } catch (e) {}
+  var box = document.getElementById("wtf-weather-cards"), note = document.getElementById("wtf-wx-note");
+  if (!box || !home) return;
+  var cards = [].slice.call(box.children), hit = cards.filter(function (c) { return c.getAttribute("data-city") === home; })[0];
+  if (!hit) return;
+  box.insertBefore(hit, box.firstChild);
+  var prov = hit.querySelector(".wtf-weather-card-prov"); if (prov) prov.textContent = "DEFAULT";
+  if (note) note.textContent = "Default city set to " + home;
+})();
+</script>
 {% endif %}
 
 <!-- Zone 1: Canada Map -->

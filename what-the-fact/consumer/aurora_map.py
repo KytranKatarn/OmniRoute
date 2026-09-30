@@ -257,3 +257,129 @@ def _aurora_city_payload(city_rows, forecast_rows):
         "coldest": min(temps) if temps else None,
         "provinces": sorted({c["prov"] for c in cities if c["prov"]}),
     }
+
+
+# ── Homepage weather strip + wildfire/alerts band (PORT-STATUS row 4) ─────────
+# Pure so the honesty rules below are unit-tested without a database. The design's
+# numbers are sample data; every figure here comes from a query, and a figure with
+# no source renders as an em dash — never as 0 (same rule as measurement()).
+import re as _re
+import unicodedata as _ud
+
+# First match wins, so ORDER IS LOAD-BEARING: "Partly cloudy" must reach cloudsun
+# before the bare "cloud" rule, and "Mainly clear" before "clear". Snow has no
+# glyph in the design set, so it falls to the generic cloud — the condition WORD
+# beside the icon carries the meaning (an icon is decoration, never the label).
+_GLYPH_RULES = (
+    (("smoke", "haze"), "smoke"),
+    (("fog", "mist"), "fog"),
+    (("thunder", "rain", "shower", "drizzle"), "rain"),
+    (("wind",), "wind"),
+    (("partly", "mainly clear", "mainly sunny", "mix of sun"), "cloudsun"),
+    (("clear", "sunny"), "sun"),
+    (("cloud", "overcast"), "cloud"),
+)
+
+
+def wx_glyph(condition):
+    """Icon-registry key for an ECCC condition string. Unknown/empty -> 'cloud'."""
+    c = (condition or "").lower()
+    for needles, key in _GLYPH_RULES:
+        if any(n in c for n in needles):
+            return key
+    return "cloud"
+
+
+def _fold(s):
+    """Lower-case and strip accents so 'Montréal' matches 'Montreal'."""
+    return _ud.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+
+
+_SEV_RANK = {"Extreme": 0, "Severe": 1, "Moderate": 2, "Minor": 3}
+
+
+def match_city_alerts(cities, alerts):
+    """{city code: {'event', 'severity'}} for cities named in an active alert's area.
+
+    Matches the city NAME as a whole word inside the alert's `area_desc` only. It is
+    deliberately NOT matched on `coverage_name` (province-wide): flagging Halifax
+    for an alert on Victoria County would assert something the feed did not say.
+    The cost is honest under-flagging — an alert whose area names a county not a
+    city will not mark that city; the full list stays on /weather.
+    """
+    out = {}
+    for c in cities:
+        name = _fold(c.get("name"))
+        if not name:
+            continue
+        pat = _re.compile(r"(?<![a-z])" + _re.escape(name) + r"(?![a-z])")
+        best = None
+        for a in alerts:
+            if not pat.search(_fold(a.get("area_desc"))):
+                continue
+            rank = _SEV_RANK.get(a.get("severity"), 4)
+            if best is None or rank < best[0]:
+                best = (rank, a)
+        if best:
+            out[c["code"]] = {"event": best[1].get("event"), "severity": best[1].get("severity")}
+    return out
+
+
+def is_warning(event):
+    """A 'warning-level' alert = the event name says warning (not watch/advisory/statement)."""
+    return "warning" in (event or "").lower()
+
+
+_PROV_TERR_TOTAL = 13
+
+
+def build_fire_alert_tiles(hotspot_rows, obs_date, alerts, evac_naad, evac_bc_orders,
+                           reporting, total, silent_names):
+    """Five tiles for the homepage 'Wildfire and alerts' band.
+
+    The design also shows a 'Spread pressure' tile (84, 'Extreme, next 48h'). No table
+    or feed in this schema carries such a figure, so it is NOT built — the design
+    needs to name a source first (see PORT-STATUS row 4).
+    """
+    def tile(key, label, value, note, tone):
+        return {"key": key, "label": label, "value": value, "note": note, "tone": tone,
+                "href": "/weather"}
+
+    rows = [r for r in (hotspot_rows or []) if r.get("hotspots") is not None]
+    if obs_date is None or not rows:
+        tiles = [tile("hotspots", "Hotspots, 72h", "—", "no recent detection data", "fire"),
+                 tile("worst", "Worst province", "—", "no recent detection data", "severe")]
+    else:
+        total_h = sum(int(r["hotspots"]) for r in rows)
+        with_fire = sum(1 for r in rows if int(r["hotspots"]) > 0)
+        tiles = [tile("hotspots", "Hotspots, 72h", f"{total_h:,}",
+                      f"Across {with_fire} of {_PROV_TERR_TOTAL} provinces and territories", "fire")]
+        worst = max(rows, key=lambda r: int(r["hotspots"]))
+        fwi = worst.get("max_fwi")
+        note = f"{int(worst['hotspots']):,} detections" + (f" · FWI {float(fwi):.1f}" if fwi else "")
+        tiles.append(tile("worst", "Worst province", worst["prov"], note, "severe"))
+
+    if alerts is None:
+        tiles.append(tile("alerts", "Alerts in effect", "—", "alert feed unavailable", "warn"))
+    else:
+        w = sum(1 for a in alerts if is_warning(a.get("event")))
+        tiles.append(tile("alerts", "Alerts in effect", str(len(alerts)),
+                          f"{w} of them warnings" if w else "none are warnings", "warn"))
+
+    if evac_naad is None or evac_bc_orders is None:
+        tiles.append(tile("evac", "Under evacuation", "—", "evacuation feeds unavailable", "evac"))
+    else:
+        # Components stay visible: the national feed and BC's order list can describe
+        # the same event, and a bare sum would hide that. No population figure — only
+        # BC publishes one, and it would read as national.
+        tiles.append(tile("evac", "Under evacuation", str(evac_naad + evac_bc_orders),
+                          f"{evac_naad} Alert Ready · {evac_bc_orders} BC orders", "evac"))
+
+    if not total:
+        tiles.append(tile("cities", "Cities reporting", "—", "no city observations", "ok"))
+    else:
+        note = (", ".join(silent_names[:2]) + (" silent" if len(silent_names) <= 2 else f" +{len(silent_names) - 2} silent")
+                if silent_names else "all reporting")
+        tiles.append(tile("cities", "Cities reporting", f"{reporting} / {total}", note,
+                          "ok" if reporting == total else "warn"))
+    return tiles

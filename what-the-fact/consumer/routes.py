@@ -912,6 +912,9 @@ def news():
 from .aurora_map import (  # pure, DB-free (see module docstring)
     _aurora_map_payload,
     _aurora_city_payload,
+    build_fire_alert_tiles,
+    match_city_alerts,
+    wx_glyph,
 )
 from .aurora_verify import (  # pure, DB-free (see module docstring)
     verification_payload as _verification_payload,
@@ -2818,20 +2821,65 @@ def _home_weather_strip():
                   ON m.site_code = f.site_code AND m.latest = f.issued_utc
                 ORDER BY f.site_code, f.period_index
             """)).mappings().all()
-            fire_provinces = c.execute(text("""
+            fire_all = [dict(r) for r in c.execute(text("""
                 SELECT prov, sum(hotspot_count) AS hotspots, max(max_fwi) AS max_fwi,
                        max(obs_date) AS obs_date
                 FROM wtf.aurora_fire_hotspot_daily
                 WHERE obs_date > CURRENT_DATE - 3
-                GROUP BY prov ORDER BY sum(hotspot_count) DESC LIMIT 6
-            """)).mappings().all()
+                GROUP BY prov ORDER BY sum(hotspot_count) DESC
+            """)).mappings().all()]
         payload = _aurora_city_payload(city_rows, forecast_rows)
-        payload["cities"] = [c for c in payload["cities"] if c["is_capital"]]
-        payload["fire_provinces"] = [dict(r) for r in fire_provinces]
+        payload["fire_provinces"] = fire_all[:6]
+
+        # Alerts + evacuations get their OWN transactions: a missing/renamed table
+        # must blank two tiles to an em dash, not take the whole strip (and the
+        # weather cards with it) down. None = "could not be read", never 0.
+        alerts = evac_naad = evac_bc = None
+        try:
+            with _db().begin() as c2:
+                alerts = [dict(r) for r in c2.execute(text("""
+                    SELECT event, severity, area_desc
+                    FROM wtf.aurora_alerts
+                    WHERE status = 'Actual'
+                      AND COALESCE(location_status, '') NOT IN ('ended', 'expired')
+                      AND (expires_utc IS NULL OR expires_utc > now())
+                """)).mappings().all()]
+        except Exception:
+            alerts = None
+        try:
+            with _db().begin() as c3:
+                evac_naad = int(c3.execute(text("""
+                    SELECT count(*) FROM wtf.aurora_evacuations
+                    WHERE status = 'Actual' AND (expires_utc IS NULL OR expires_utc > now())
+                """)).scalar() or 0)
+                evac_bc = int(c3.execute(text("""
+                    SELECT count(*) FROM wtf.aurora_bc_evacuations
+                    WHERE order_alert_status = 'Order'
+                """)).scalar() or 0)
+        except Exception:
+            evac_naad = evac_bc = None
+
+        # All 25 grid cities, not just the 13 capitals: the strip is "your local
+        # weather", and /weather lets a visitor pick any of the 25 as their home
+        # city — a home city outside the list could never appear.
+        flagged = match_city_alerts(payload["cities"], alerts or [])
+        for ct in payload["cities"]:
+            ct["glyph"] = wx_glyph(ct["condition"])
+            ct["alert"] = (flagged.get(ct["code"]) or {}).get("event")
+        # Alert-flagged cities first (a warning is why someone glances at the strip);
+        # sorted() is stable, so the curated grid order is otherwise preserved.
+        payload["cities"] = sorted(payload["cities"], key=lambda ct: ct["alert"] is None)
+        silent = [ct["name"] for ct in payload["cities"] if ct["temp"] is None]
+        obs = max((r["obs_date"] for r in fire_all if r.get("obs_date")), default=None)
+        payload["bands"] = build_fire_alert_tiles(
+            fire_all, obs, alerts, evac_naad, evac_bc,
+            payload["reporting"], payload["count"], silent)
+        payload["fire_obs_date"] = obs.isoformat() if obs else None
         return payload
     except Exception:
         return {"cities": [], "count": 0, "reporting": 0, "warmest": None,
-                "coldest": None, "provinces": [], "fire_provinces": []}
+                "coldest": None, "provinces": [], "fire_provinces": [], "bands": [],
+                "fire_obs_date": None}
 
 
 @bp.get("/")

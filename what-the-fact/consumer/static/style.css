@@ -1336,7 +1336,10 @@ p { text-wrap: pretty; }
 }
 .wtf-weather-card {
   flex: 0 0 auto;
-  min-width: 148px;
+  min-width: 152px;
+  display: block;
+  text-decoration: none;
+  color: inherit;
   background: var(--wtf-bg-panel);
   border: 1px solid var(--wtf-border);
   border-left: 3px solid var(--wtf-local);
@@ -1347,6 +1350,12 @@ p { text-wrap: pretty; }
 }
 .wtf-weather-card:hover { transform: translateY(-2px); border-color: #2f3d52; }
 .wtf-weather-card.is-alert { border-left-color: var(--wtf-developing); }
+.wtf-weather-card.is-stale { opacity: .62; }
+.wtf-weather-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.wtf-weather-card-prov { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: .12em; color: var(--wtf-text-muted); }
+.wtf-weather-card-mid { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0 2px; }
+.wtf-weather-card-mid .wxi { color: var(--wtf-brand); flex-shrink: 0; }
+.wtf-weather-card.is-alert .wtf-weather-card-mid .wxi { color: var(--wtf-developing); }
 .wtf-weather-card-name { font-size: 12.5px; color: var(--wtf-text); font-weight: 500; }
 .wtf-weather-card-temp {
   font-family: var(--wtf-font-mono);
@@ -1354,10 +1363,12 @@ p { text-wrap: pretty; }
   font-weight: 600;
   letter-spacing: -.02em;
   color: var(--wtf-text);
-  margin: 5px 0 2px;
+  margin: 0;
   font-variant-numeric: tabular-nums lining-nums;
 }
-.wtf-weather-card-cond { font-family: var(--wtf-font-mono); font-size: 9.5px; color: var(--wtf-text-muted); }
+.wtf-weather-card-cond { display: flex; align-items: center; gap: 5px; font-family: var(--wtf-font-mono); font-size: 9.5px; color: var(--wtf-text-muted); }
+.wtf-weather-card.is-alert .wtf-weather-card-cond { color: var(--wtf-developing); }
+.wtf-weather-card-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: wtf-pulse 1.6s ease-in-out infinite; }
 
 .wtf-fire-grid {
   display: grid;
@@ -1374,6 +1385,17 @@ p { text-wrap: pretty; }
   flex-direction: column;
   gap: 3px;
 }
+.wtf-fire-card { text-decoration: none; color: inherit; transition: transform .18s var(--wtf-ease); }
+.wtf-fire-card:hover { transform: translateY(-1px); }
+/* Tone -> colour lives here, not inline in the template (a hardcoded hex there stops
+   tracking the palette). Fire orange is the one colour with no shared token. */
+.wtf-fire-card--fire   { --tone: #ea580c; }
+.wtf-fire-card--severe { --tone: var(--wtf-accent); }
+.wtf-fire-card--warn   { --tone: var(--wtf-developing); }
+.wtf-fire-card--evac   { --tone: var(--wtf-contested); }
+.wtf-fire-card--ok     { --tone: var(--wtf-established); }
+.wtf-fire-card[class*="wtf-fire-card--"] { border-left-color: var(--tone); }
+.wtf-fire-card[class*="wtf-fire-card--"] .wtf-fire-card-value { color: var(--tone); }
 .wtf-fire-card-key { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--wtf-text-muted); }
 .wtf-fire-card-value { font-family: var(--wtf-font-mono); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 600; line-height: 1.1; }
 .wtf-fire-card-note { font-size: 11px; line-height: 1.5; color: var(--wtf-text-muted); }
@@ -1519,6 +1541,9 @@ p { text-wrap: pretty; }
   margin-bottom: 9px;
   flex-wrap: wrap;
 }
+.wtf-h-wx-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.wtf-h-wx-note { font-family: var(--wtf-font-mono); font-size: 9px; color: var(--wtf-text-muted); }
+.wtf-h-wx-link--end { margin-left: auto; }
 .wtf-h-wx-link {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 9px;

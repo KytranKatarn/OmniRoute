@@ -8,9 +8,6 @@
    tokens. tests/test_clusters_index.py and test_archive_index.py assert the
    same rule for their pages. Do not reintroduce one here. #}
 
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-
 <!-- Beat Filter Pills — update map + article panel in place (like CANADA/WORLD toggle) -->
 <div id="wtf-beat-strip">
   <button class="wtf-beat-pill active" data-beat="all" onclick="setBeat(this,'all')">ALL</button>
@@ -121,6 +118,10 @@
           <div onclick="clearProvince()" class="wtf-h-province-dd-all" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
         </div>
       </div>
+      <div class="wtf-map-toggle" id="wtf-map-layer-toggle">
+        <button id="btn-lean" class="wtf-map-btn active" onclick="setMapLayer('lean')">DOMINANT LEAN</button>
+        <button id="btn-volume" class="wtf-map-btn" onclick="setMapLayer('volume')">VOLUME</button>
+      </div>
       <div class="wtf-map-toggle">
         <button id="btn-canada" class="wtf-map-btn active" onclick="setMapMode('canada')">{{ icon('maple', 12) }} CANADA</button>
         <button id="btn-world" class="wtf-map-btn" onclick="setMapMode('world')">{{ icon('globe', 12) }} WORLD</button>
@@ -134,6 +135,11 @@
     </div>
     <div id="wtf-canada-map"></div>
   </div>
+  <div id="wtf-world-note" class="wtf-map-legend-note" hidden>
+    World coverage is listed in the index. The map projection covers Canada;
+    a world projection is coming in a follow-up.
+  </div>
+  <div id="wtf-home-map-legend" class="wtf-map-legend"></div>
 </div>
 
 <!-- Zone 2 + 3 -->
@@ -192,8 +198,9 @@
 
 </div>
 
-<!-- Leaflet JS -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="/static/vendor/d3-array.min.js"></script>
+<script src="/static/vendor/d3-geo.min.js"></script>
+<script src="{{ url_for('static', filename='js/wtf-map.js') }}"></script>
 <script>
 // GeoJSON uses property key "name"; Yukon is "Yukon Territory" in this dataset
 var PROVINCE_CODES = {
@@ -264,41 +271,19 @@ var ICO = {
 {%- endfor %}
 };
 
-var map = L.map("wtf-canada-map", {
-  center: [60, -96], zoom: 3,
-  zoomControl: true,
-  attributionControl: false
-});
+/* Homepage map on the shared WTFMap component (static/js/wtf-map.js, ADR-018),
+ * the same component /map and /weather use. Replaces the old raster-tile map.
+ * Data: /api/proxy/map-data?beat=          -> provinces{PC:{articles, avg_bias, dominant_outlet}}
+ *       /api/proxy/articles/geo?beat=&scope=&province=  -> province_counts
+ * Nothing is derived. A province missing from the payload renders as no-data. */
 
-// WARNING: ATTRIBUTION IS REQUIRED, NOT DECORATIVE (#6145).
-// CARTO's free basemap terms and the OSM licence both require visible credit.
-// This map ran with `attributionControl: false` and no `attribution` option, i.e.
-// no credit at all — and on 2026-08-30 the basemap rendered as repeating
-// "API KEY REQUIRED / carto.com/basemaps" watermark tiles. Watermarking is the
-// standard enforcement for unattributed free-tier use.
-// Keep this control on. If the watermark returns even WITH attribution, the next
-// step is a provider swap or a paid key — see the task, not a re-deletion of this.
-L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
-
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-  subdomains: "abcd", maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-}).addTo(map);
-
-// Custom panes so clusters + pins always sit above province polygons
-map.createPane('provincePane'); map.getPane('provincePane').style.zIndex = 400;
-map.getPane('provincePane').style.pointerEvents = 'none';
-map.createPane('clusterPane');  map.getPane('clusterPane').style.zIndex  = 450;
-map.createPane('pinPane');      map.getPane('pinPane').style.zIndex      = 500;
-
-var provinceLayer = null;
-var clusterLayer = null;
-var pinLayer = null;
-var worldLayer = null;
 var mapMode = 'canada';
 var currentBeat = 'all';
 var currentProvince = null;
 var IS_SUBSCRIBER = {{ is_subscriber | tojson }};
+var mapProvinces = {};     // map-data payload, keyed by province code
+var geoCounts = {};        // articles/geo province_counts (canada) or country counts (world)
+var wtfmap = null;
 
 function esc(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -367,71 +352,6 @@ function buildActivityItem(ev) {
   return item;
 }
 
-function loadMapData() {
-  // World rendering is owned by loadArticlesGeo() — bail before fetching so the
-  // 30-min refresh + beat switches never double-build worldLayer from a second
-  // data source (the old renderWorldMap raced loadArticlesGeo → flicker).
-  if (mapMode === 'world') return;
-  Promise.all([
-    fetch("/static/canada-provinces.geojson").then(function(r){ return r.json(); }),
-    fetch("/api/proxy/map-data?beat=" + currentBeat).then(function(r){ return r.json(); })
-  ]).then(function(results) {
-    var geo = results[0];
-    var data = results[1];
-    var provinces = data.provinces || {};
-
-    if (provinceLayer) map.removeLayer(provinceLayer);
-    provinceLayer = L.geoJSON(geo, {
-      pane: 'provincePane',
-      interactive: false,
-      style: function(feature) {
-        var name = feature.properties.name || "";
-        var pc = PROVINCE_CODES[name] || "";
-        var pd = provinces[pc];
-        // Province fill = coverage LEAN (ADR-011): continuous avg bias score on
-        // the Canadian party ramp (red left / grey balanced / blue right) — the
-        // same leanColour() as the count circles, grey under LEAN_MIN_N articles.
-        // (The old MODE-band fill rendered ~every province the same 'center'
-        // green; avg_bias is the tech map-data endpoint's continuous mean.)
-        var colour = pd ? leanColour(pd.avg_bias, pd.articles) : "#1a3a5a";
-        var measurable = pd && leanIsSufficient(pd.avg_bias, pd.articles);
-        // Opacity scales with volume, but ONLY where a lean was actually
-        // measured. Applying it to an unmeasurable province made a 19-article
-        // province look almost as solid as a 20-article one across the
-        // measurable/unmeasurable boundary — the very distinction being drawn.
-        var opacity = measurable ? Math.min(0.3 + pd.articles / 50, 0.85)
-                    : (pd ? 0.4 : 0.15);
-        return {
-          fillColor: colour,
-          fillOpacity: opacity,
-          color: "#1a3a5a",
-          weight: 1,
-          // Second channel, so the difference survives a colourblind reader and
-          // a bad monitor: a province we cannot measure is DASHED.
-          dashArray: measurable ? null : "4,3"
-        };
-      },
-      onEachFeature: function(feature, layer) {
-        var name = feature.properties.name || "";
-        var pc = PROVINCE_CODES[name] || "";
-        var pd = provinces[pc];
-        if (pd) {
-          layer.bindTooltip(
-            "<b>" + esc(name) + "</b><br>" +
-            pd.articles + " stories" + leanLabel(pd.avg_bias, pd.articles) +
-            "<br>Top: " + esc(pd.dominant_outlet)
-          );
-        }
-        // Province polygon click-to-filter removed (#3382) — use the province
-        // dropdown (toggleProvinceDropdown / setProvince) instead. Polygons are
-        // now non-interactive so pins and clusters receive clicks correctly.
-      }
-    }).addTo(map);
-  }).catch(function(e) {
-    console.warn("WTF map load failed:", e);
-  });
-}
-
 function loadAgentActivity() {
   fetch("/api/proxy/agent-activity")
     .then(function(r){ return r.json(); })
@@ -462,36 +382,10 @@ function timeAgo(iso) {
   return Math.floor(mins / 60) + "h ago";
 }
 
-var PROVINCE_CENTROIDS = {
-  "ON":[51.25,-85.32],"QC":[53.00,-70.00],"BC":[53.73,-127.65],
-  "AB":[53.93,-116.58],"SK":[52.94,-106.45],"MB":[56.42,-98.74],
-  "NB":[46.57,-66.46],"NS":[44.68,-63.74],"NL":[53.14,-57.66],
-  "PE":[46.51,-63.42],"YT":[64.28,-135.00],"NT":[64.28,-119.18],"NU":[70.30,-83.11]
-};
-// Province LEAN colouring (ADR-011) — CANADIAN political colour semantics:
-// red = coverage leans LEFT (Liberal red), blue = leans RIGHT (Conservative blue).
-// Continuous ramp on the province's average bias score, anchored at the NATIONAL
-// mean (the corpus reads centre-heavy; anchoring at absolute 0 would render one
-// colour everywhere). Provinces with fewer than LEAN_MIN_N articles show neutral
-// grey ("insufficient data") so low-n noise never paints a province.
+// ── lean helpers: unchanged, still one source of truth ────────────────────
 var LEAN_MIN_N = 20;
-var LEAN_ANCHOR = -0.028;   // national mean of avg bias score
-var LEAN_SPREAD = 0.06;     // score delta from the anchor that saturates the ramp
-// #6149 — the poles were baked into ARITHMETIC: neutral (148,163,184),
-// left (220,38,38) = #dc2626, right (37,99,235) = #2563eb. Channel constants
-// track no palette at all, so this ramp kept the retired poles even after the
-// tokens changed. Now derived from BIAS_COLOURS (defined near the top of this
-// file), so the choropleth, the discrete BIAS_COLOURS buckets and /sources
-// cannot drift.
-//
-// This used to call _leanToken("--wtf-center"/"--wtf-left"/"--wtf-right") a
-// SECOND time here, with its own hardcoded RGB fallback triples independent
-// of BIAS_COLOURS's own "#929aa5" fallback — a missing token would render
-// this ramp's neutral point in a different grey than the discrete pins used,
-// and would render the left/right poles in colour even where the discrete
-// map had already fallen back to grey. Reusing BIAS_COLOURS's already-
-// resolved, already-fallback-safe hex strings makes this ONE source of truth
-// for lean colour instead of two that can disagree.
+var LEAN_ANCHOR = -0.028;
+var LEAN_SPREAD = 0.06;
 function _rgb(hex) {
   var h = (hex || "").trim().replace("#", "");
   if (h.length !== 6) return null;
@@ -500,45 +394,127 @@ function _rgb(hex) {
 var _LEAN_NEUTRAL = _rgb(BIAS_COLOURS["center"]);
 var _LEAN_L       = _rgb(BIAS_COLOURS["left"]);
 var _LEAN_R       = _rgb(BIAS_COLOURS["right"]);
-
-// ONE predicate for "can this be measured at all". The fill, the tooltip label,
-// the dashed outline and the legend all ask THIS function, so they cannot end up
-// disagreeing about whether a province is measurable.
 function leanIsSufficient(avgScore, count) {
   return !(avgScore === null || avgScore === undefined || count < LEAN_MIN_N);
 }
-
-// #6211 — "insufficient data" used to be #9ca3af while the ramp's BALANCED
-// centre is #929aa5. Ten points per channel apart: indistinguishable. So a
-// province we cannot measure and a province whose coverage is genuinely centred
-// painted the SAME colour, and only the legend's wording told them apart.
-// Absence and a reading must never look alike, so this is now (a) far darker
-// than any point on the ramp and (b) dashed — two channels, not one.
-var LEAN_INSUFFICIENT = "#454e5c";
-
 function leanColour(avgScore, count) {
-  // Insufficient data is explicitly not a lean reading — a province with too few
-  // articles must never be painted as if it leant somewhere.
-  if (!leanIsSufficient(avgScore, count)) return LEAN_INSUFFICIENT;
+  if (!leanIsSufficient(avgScore, count)) return null;   // component draws no-data
   var t = Math.max(-1, Math.min(1, (avgScore - LEAN_ANCHOR) / LEAN_SPREAD));
-  var k = Math.abs(t);
-  var pole = t < 0 ? _LEAN_L : _LEAN_R;
-  var r = Math.round(_LEAN_NEUTRAL[0] + k * (pole[0] - _LEAN_NEUTRAL[0]));
-  var g = Math.round(_LEAN_NEUTRAL[1] + k * (pole[1] - _LEAN_NEUTRAL[1]));
-  var b = Math.round(_LEAN_NEUTRAL[2] + k * (pole[2] - _LEAN_NEUTRAL[2]));
-  return "rgb(" + r + "," + g + "," + b + ")";
+  var k = Math.abs(t), pole = t < 0 ? _LEAN_L : _LEAN_R;
+  return "rgb(" + [0,1,2].map(function(i){
+    return Math.round(_LEAN_NEUTRAL[i] + k * (pole[i] - _LEAN_NEUTRAL[i]));
+  }).join(",") + ")";
 }
 function leanLabel(avgScore, count) {
-  if (!leanIsSufficient(avgScore, count)) return " · lean: insufficient data";
+  if (!leanIsSufficient(avgScore, count)) return " · lean: not measured (<" + LEAN_MIN_N + " articles)";
   var d = avgScore - LEAN_ANCHOR;
   if (d < -0.015) return " · coverage leans left";
   if (d > 0.015) return " · coverage leans right";
   return " · balanced coverage";
 }
 
-// Ranked sidebar list beside the map (#wtf-map-index-list). Built from the
-// SAME aggregateCounts already fetched by loadArticlesGeo() below — no
-// second request. Click behaviour mirrors the matching map circle's onclick.
+// ── volume: neutral slate, accent on the single highest value only ────────
+// Handoff correction #2: a magnitude colour must never read as a lean colour.
+var ACCENT = _leanToken("--wtf-accent") || "#dc2626";
+var VOL_SHADES = ["#2a3342", "#465163", "#6b7686", "#929aa5"];
+function provCount(pc) {
+  var d = geoCounts[pc];
+  if (d === undefined || d === null) return null;
+  return typeof d === 'object' ? d.count : d;
+}
+function volMax() {
+  var m = 0;
+  Object.keys(geoCounts).forEach(function(pc){ var c = provCount(pc) || 0; if (c > m) m = c; });
+  return m;
+}
+function volColour(c, max) {
+  if (!c) return null;
+  if (c === max) return ACCENT;
+  var i = Math.min(3, Math.floor((c / max) * 4));
+  return VOL_SHADES[i];
+}
+function volRamp() {
+  var max = volMax() || 1;
+  var q = function(f){ return Math.max(1, Math.round(max * f)); };
+  return [
+    [q(.25), VOL_SHADES[0], "≤ " + q(.25).toLocaleString()],
+    [q(.5),  VOL_SHADES[1], "≤ " + q(.5).toLocaleString()],
+    [q(.75), VOL_SHADES[2], "≤ " + q(.75).toLocaleString()],
+    [max - 1, VOL_SHADES[3], "< " + max.toLocaleString()],
+    [max,    ACCENT,        "highest · " + max.toLocaleString()]
+  ];
+}
+
+function provName(pc) {
+  return (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
+}
+
+var LAYERS = [
+  { id: 'lean',
+    metric: function(pc) {
+      var pd = mapProvinces[pc];
+      var col = pd ? leanColour(pd.avg_bias, pd.articles) : null;
+      return col ? { col: col } : null;
+    },
+    tooltip: function(pc) {
+      var pd = mapProvinces[pc];
+      if (!pd) return provName(pc) + " · no stories in this window";
+      return provName(pc) + " · " + pd.articles + " stories" + leanLabel(pd.avg_bias, pd.articles) +
+             (pd.dominant_outlet ? " · top: " + pd.dominant_outlet : "");
+    },
+    ramp: [[-1, BIAS_COLOURS.left, "coverage leans left"],
+           [0,  BIAS_COLOURS.center, "balanced"],
+           [1,  BIAS_COLOURS.right, "coverage leans right"]],
+    noDataLabel: "not measured (<" + LEAN_MIN_N + " articles)",
+    coverageNote: function(){ return "Colour is the average lean of coverage in each province, scored per story. It is not a label on the province."; }
+  },
+  { id: 'volume',
+    metric: function(pc) {
+      var c = provCount(pc), col = volColour(c, volMax());
+      return col ? { col: col } : null;
+    },
+    tooltip: function(pc) {
+      var c = provCount(pc);
+      return provName(pc) + " · " + (c ? c.toLocaleString() + " stories" : "no stories in this window");
+    },
+    ramp: volRamp(),
+    noDataLabel: "no stories in this window",
+    coverageNote: function(){ return "Volume is not importance — a province with more stories has more outlets in it."; }
+  }
+];
+
+function setMapLayer(id) {
+  if (!wtfmap) return;
+  if (id === 'volume') LAYERS[1].ramp = volRamp();
+  wtfmap.setLayer(id);
+  document.getElementById('btn-lean').classList.toggle('active', id === 'lean');
+  document.getElementById('btn-volume').classList.toggle('active', id === 'volume');
+}
+
+function initMap() {
+  wtfmap = WTFMap.create({
+    el: "wtf-canada-map",
+    legendEl: "wtf-home-map-legend",
+    layers: LAYERS,
+    active: 'lean',
+    onSelect: function(pc) {
+      if (pc) setProvince(pc, true); else clearProvince(true);
+    }
+  });
+}
+
+function loadMapData() {
+  if (mapMode === 'world') return;
+  fetch("/api/proxy/map-data?beat=" + encodeURIComponent(currentBeat))
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      mapProvinces = data.provinces || {};
+      if (wtfmap) wtfmap.refresh();
+    })
+    .catch(function(e){ console.warn("WTF map load failed:", e); });
+}
+
+// Ranked sidebar — unchanged behaviour, colours now from the active layer.
 function renderMapIndex(rows, mode) {
   var list = document.getElementById('wtf-map-index-list');
   if (!list) return;
@@ -553,10 +529,10 @@ function renderMapIndex(rows, mode) {
   }
   rows.forEach(function(r, i) {
     var row = document.createElement('div');
-    row.className = 'wtf-map-index-row';
-    var swatch = document.createElement('i');
-    swatch.className = 'wtf-map-index-swatch';
-    swatch.style.background = r.colour;
+    row.className = 'wtf-map-index-row' + (r.code === currentProvince ? ' is-active' : '');
+    var sw = document.createElement('i');
+    sw.className = 'wtf-map-index-swatch' + (r.colour ? '' : ' is-nodata');
+    if (r.colour) sw.style.background = r.colour;
     var rank = document.createElement('b');
     rank.className = 'wtf-map-index-rank';
     rank.textContent = '#' + (i + 1);
@@ -566,203 +542,76 @@ function renderMapIndex(rows, mode) {
     var count = document.createElement('span');
     count.className = 'wtf-map-index-count';
     count.textContent = r.count.toLocaleString();
-    row.appendChild(swatch);
-    row.appendChild(rank);
-    row.appendChild(name);
-    row.appendChild(count);
+    row.appendChild(sw); row.appendChild(rank); row.appendChild(name); row.appendChild(count);
     row.addEventListener('click', function() {
-      if (mode === 'canada') { setProvince(r.code); }
-      else { loadArticleFeed_country(r.code); }
+      if (mode === 'canada') setProvince(r.code === currentProvince ? null : r.code);
+      else loadArticleFeed_country(r.code);
     });
     list.appendChild(row);
   });
 }
 
 function loadArticlesGeo() {
-  var _scope = (mapMode === 'world') ? 'world' : 'canada';
-  var _geoUrl = "/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat) + "&scope=" + _scope;
-  if (_scope === 'canada' && currentProvince) _geoUrl += "&province=" + encodeURIComponent(currentProvince);
-  fetch(_geoUrl)
-    .then(function(r) { return r.json(); })
+  var scope = mapMode === 'world' ? 'world' : 'canada';
+  var url = "/api/proxy/articles/geo?beat=" + encodeURIComponent(currentBeat) + "&scope=" + scope;
+  if (scope === 'canada' && currentProvince) url += "&province=" + encodeURIComponent(currentProvince);
+  fetch(url)
+    .then(function(r){ return r.json(); })
     .then(function(data) {
-      var articles = data.articles || [];
-      var aggregateCounts = data.province_counts || {};
-
-      if (mapMode === 'world') {
-        // WORLD MODE: replace world layer with local-data country circles
-        if (worldLayer) map.removeLayer(worldLayer);
-        worldLayer = L.layerGroup();
-        var _indexRowsWorld = [];
-        Object.keys(aggregateCounts).forEach(function(cc) {
-          var cd = aggregateCounts[cc];
-          var count = cd.count || 0;
-          var lat = cd.lat, lng = cd.lng;
-          if (!lat || !lng) return;
-          var colour = BIAS_COLOURS[cd.band] || BIAS_COLOURS['center'];
-          _indexRowsWorld.push({ code: cc, name: cc, count: count, colour: colour });
-          var radius = Math.min(6 + Math.sqrt(count) * 1.8, 26);
-          var circle = L.circleMarker([lat, lng], {
-            pane: 'clusterPane', radius: radius,
-            fillColor: colour, fillOpacity: 0.8, color: '#fff', weight: 1.5,
-          });
-          circle.bindTooltip(cc + ' · ' + count.toLocaleString() + ' stories · ' + (cd.band || 'center'));
-          circle.on('click', function() {
-            loadArticleFeed_country(cc);
-          });
-          worldLayer.addLayer(circle);
-          worldLayer.addLayer(L.marker([lat, lng], {
-            icon: L.divIcon({
-              html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count.toLocaleString() + "</div>",
-              className: '', iconSize: [30, 12], iconAnchor: [15, 6],
-            }),
-            interactive: false,
-          }));
-        });
-        worldLayer.addTo(map);
-        renderMapIndex(_indexRowsWorld, 'world');
-      } else {
-        // CANADA MODE: province cluster badges (use aggregate counts)
-        if (clusterLayer) map.removeLayer(clusterLayer);
-        clusterLayer = L.layerGroup();
-        var _indexRowsCanada = [];
-        Object.keys(aggregateCounts).forEach(function(pc) {
-          var centroid = PROVINCE_CENTROIDS[pc];
-          if (!centroid) return;
-          var pcData = aggregateCounts[pc];
-          var count = typeof pcData === 'object' ? pcData.count : pcData;
-          var radius = Math.min(6 + Math.sqrt(count) * 1.5, 20);
-          var avgScore = (typeof pcData === 'object' && pcData.avg_score !== undefined) ? pcData.avg_score : null;
-          var colour = leanColour(avgScore, count);   // bias-lean ramp (ADR-011)
-          var circle = L.circleMarker(centroid, {
-            pane: 'clusterPane', radius: radius,
-            fillColor: colour, fillOpacity: 0.85, color: "#ffffff", weight: 1.5,
-            // Same rule as the choropleth: a badge whose lean could not be
-            // measured is dashed. The count on it is still a real number — only
-            // the COLOUR is withheld — so the badge stays fully opaque.
-            dashArray: leanIsSufficient(avgScore, count) ? null : "3,2"
-          });
-          circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories" + leanLabel(avgScore, count));
-          var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
-          _indexRowsCanada.push({ code: pc, name: pname, count: count, colour: colour });
-          var cpopup =
-            "<div style='font-family:monospace;font-size:13px;color:#fff;text-align:center;'>" +
-            "<b>" + esc(count.toLocaleString()) + " article" + (count === 1 ? "" : "s") + "</b><br>" +
-            "from " + esc(pname) +
-            "<br><a href='/news?province=" + escAttr(pc) + "' style='color:#0af;text-decoration:none;font-weight:bold;'>View all &rarr;</a>" +
-            "</div>";
-          circle.bindPopup(cpopup);
-          circle.on("click", function() { circle.openPopup(); setProvince(pc); map.fitBounds(provinceLayer && (function(){ var b=null; provinceLayer.eachLayer(function(l){ if((PROVINCE_CODES[l.feature&&l.feature.properties&&l.feature.properties.name]||'')=== pc) b=l.getBounds(); }); return b; }()) || map.getBounds(), {padding:[20,20]}); });
-          clusterLayer.addLayer(circle);
-          clusterLayer.addLayer(L.marker(centroid, {
-            icon: L.divIcon({
-              html: "<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>" + count.toLocaleString() + "</div>",
-              className: "", iconSize: [28, 12], iconAnchor: [14, 6],
-            }),
-            interactive: false,
-          }));
-        });
-        clusterLayer.addTo(map);
-        renderMapIndex(_indexRowsCanada, 'canada');
-        // Lean legend — created once, bottom-left of the map (ADR-011)
-        if (!window._leanLegend) {
-          window._leanLegend = L.control({ position: "bottomleft" });
-          window._leanLegend.onAdd = function () {
-            var div = L.DomUtil.create("div");
-            div.style.cssText = "background:#0a1520cc;border:1px solid #1a3a5a;border-radius:3px;padding:4px 8px;font-family:monospace;font-size:9px;letter-spacing:0.5px;color:#9ca3af;";
-            // #6149 — the legend restated the poles as its own literals
-            // (#dc2626 / #94a3b8 / #2563eb): a THIRD copy in this file, and the
-            // exact defect found on /sources, where 2 of 5 legend swatches did
-            // not match the cards they described. Built from the same values the
-            // map paints with, so the legend cannot contradict the choropleth.
-            var _swatch = function (rgbArr, label) {
-              return "<span style='color:rgb(" + rgbArr.join(",") + ");'>&#9679;</span> " + label + " &nbsp;";
-            };
-            // #6211 — the "insufficient data" hint was TEXT coloured #6b7280,
-            // a grey that appears nowhere on the map, while the actual fill was
-            // a near-twin of the "balanced" swatch. The reader was given no way
-            // to tell an unmeasurable province from a genuinely centred one.
-            // It now carries its own swatch in the REAL fill colour, and says
-            // "not measured" rather than naming a colour the map may not use.
-            div.innerHTML =
-              "COVERAGE LEAN&nbsp; " +
-              _swatch(_LEAN_L, "left") +
-              _swatch(_LEAN_NEUTRAL, "balanced") +
-              _swatch(_LEAN_R, "right") +
-              "<span style='color:" + LEAN_INSUFFICIENT + ";'>&#9679;</span> " +
-              "<span style='color:#6b7280;'>not measured (&lt;" + LEAN_MIN_N +
-              " articles, shown dashed)</span>";
-            return div;
-          };
-          window._leanLegend.addTo(map);
-        }
+      geoCounts = data.province_counts || {};
+      if (scope === 'world') {
+        renderMapIndex(Object.keys(geoCounts).map(function(cc) {
+          var cd = geoCounts[cc] || {};
+          return { code: cc, name: cc, count: cd.count || 0,
+                   colour: BIAS_COLOURS[cd.band] || null };
+        }), 'world');
+        return;
       }
-
-      // Layer 3: Individual bias pins (hidden at zoom < 5)
-      if (pinLayer) map.removeLayer(pinLayer);
-      pinLayer = L.layerGroup();
-      var currentZoom = map.getZoom();
-      var pinOpacity = currentZoom >= 5 ? 0.9 : 0;
-      articles.forEach(function(a) {
-        if (!a.lat || !a.lng) return;
-        var colour = BIAS_COLOURS[a.bias_band] || BIAS_COLOURS["center"];
-        var pin = L.circleMarker([a.lat, a.lng], {
-          pane: 'pinPane',
-          radius: 5,
-          fillColor: colour,
-          fillOpacity: pinOpacity,
-          color: colour,
-          weight: 1,
-          opacity: pinOpacity,
-        });
-        pin.bindTooltip(esc(a.source_name || "") + " — " + esc(a.bias_band || "center"));
-        pin.on("click", function() { window.location = "/article/" + a.id; });
-        pinLayer.addLayer(pin);
-      });
-      pinLayer.addTo(map);
-
-      // Zoom listener: reveal pins at zoom >= 5
-      map.off("zoomend.pins");
-      map.on("zoomend.pins", function() {
-        var opacity = map.getZoom() >= 5 ? 0.9 : 0;
-        pinLayer.eachLayer(function(layer) {
-          layer.setStyle({ fillOpacity: opacity, opacity: opacity });
-        });
-      });
+      LAYERS[1].ramp = volRamp();
+      var layer = wtfmap ? wtfmap.getLayer() : 'lean';
+      var max = volMax();
+      renderMapIndex(Object.keys(geoCounts).map(function(pc) {
+        var c = provCount(pc) || 0;
+        var pd = mapProvinces[pc];
+        var colour = layer === 'volume' ? volColour(c, max)
+                   : (pd ? leanColour(pd.avg_bias, pd.articles) : null);
+        return { code: pc, name: provName(pc), count: c, colour: colour };
+      }), 'canada');
+      if (wtfmap) wtfmap.refresh();
     })
-    .catch(function(e) {
-      console.warn("WTF geo pins load failed:", e);
-    });
+    .catch(function(e){ console.warn("WTF geo load failed:", e); });
 }
 
 function setMapMode(mode) {
   mapMode = mode;
   document.getElementById('btn-canada').className = 'wtf-map-btn' + (mode === 'canada' ? ' active' : '');
   document.getElementById('btn-world').className = 'wtf-map-btn' + (mode === 'world' ? ' active' : '');
-  document.getElementById('wtf-map-label').textContent = mode === 'canada' ? 'LIVE — CANADA NEWS MAP' : 'LIVE — WORLD NEWS MAP';
-  if (mode === 'canada') {
-    map.setView([60, -96], 3);
-    if (worldLayer) { map.removeLayer(worldLayer); worldLayer = null; }
-    loadMapData();
-    loadArticlesGeo();
-  } else {
-    map.setView([20, -20], 2);
-    if (provinceLayer) { map.removeLayer(provinceLayer); provinceLayer = null; }
-    if (clusterLayer) { map.removeLayer(clusterLayer); clusterLayer = null; }
-    if (pinLayer) { map.removeLayer(pinLayer); pinLayer = null; }
-    loadArticlesGeo();  // builds world country circles + global pins from local DB
-    loadArticleFeed();  // refresh feed for world scope
-  }
+  document.getElementById('wtf-map-label').textContent =
+    mode === 'canada' ? 'LIVE — CANADA NEWS MAP' : 'LIVE — WORLD COVERAGE';
+  // The component projects Canada only (Lambert conic). Until PR 03 adds a
+  // world projection, World shows the ranked index + feed and SAYS so, rather
+  // than drawing countries off a Canada projection and clipping them silently.
+  var host = document.getElementById('wtf-canada-map');
+  var note = document.getElementById('wtf-world-note');
+  var layerBtns = document.getElementById('wtf-map-layer-toggle');
+  host.hidden = mode === 'world';
+  note.hidden = mode !== 'world';
+  layerBtns.hidden = mode === 'world';
+  document.getElementById('wtf-home-map-legend').hidden = mode === 'world';
+  if (mode === 'canada') { loadMapData(); }
+  else if (currentProvince) { clearProvince(); return; }
+  loadArticlesGeo();
+  loadArticleFeed();
 }
 
 function loadArticleFeed_country(cc) {
-  // Filter article feed by country code when clicking world map circle
   var url = '/api/v1/articles?limit=15&country=' + encodeURIComponent(cc);
   if (currentBeat && currentBeat !== 'all') url += '&beat=' + encodeURIComponent(currentBeat);
   var container = document.getElementById('wtf-feed-articles');
   if (!container) return;
   container.innerHTML = '<div style="color:#555;font-size:11px;padding:8px 0;">Loading ' + esc(cc) + ' articles...</div>';
   fetch(url)
-    .then(function(r) { return r.json(); })
+    .then(function(r){ return r.json(); })
     .then(function(data) {
       var articles = data.articles || [];
       if (!articles.length) { container.innerHTML = '<div style="color:#555;font-size:11px;padding:8px 0;">No articles for ' + esc(cc) + '.</div>'; return; }
@@ -772,22 +621,20 @@ function loadArticleFeed_country(cc) {
         var ago = a.published_at ? ' &middot; <span style="color:#6b7280;">' + esc(timeAgo(a.published_at)) + '</span>' : '';
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
           '<div class="wtf-card-meta"><span>' + src + ' &middot; ' + esc(cc) + ago + '</span>' +
-          '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' + '</div>' +
-          '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a></div>';
+          '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + esc(band.toUpperCase()) + '</span></div>' +
+          '<a class="wtf-card-title" href="/article/' + parseInt(a.id) + '">' + esc(a.title) + '</a></div>';
       }).join('');
     })
-    .catch(function(e) { console.warn('Country feed failed:', e); });
+    .catch(function(e){ console.warn('Country feed failed:', e); });
 }
 
-// renderWorldMap removed (#4898): world rendering is owned solely by
-// loadArticlesGeo() — the old second builder raced it on worldLayer (flicker).
-
+initMap();
 loadMapData();
 loadAgentActivity();
 loadArticlesGeo();
-setInterval(loadMapData, 1800000);      // refresh map every 30 min
-setInterval(loadAgentActivity, 60000);  // refresh activity every 1 min
-setInterval(loadArticlesGeo, 1800000);  // refresh geo pins every 30 min
+setInterval(loadMapData, 1800000);
+setInterval(loadAgentActivity, 60000);
+setInterval(loadArticlesGeo, 1800000);
 
 var BEAT_CONFIG = {
   'sports':     { color: '#f97316', label: 'SPORTS MODE',     path: '/news?beat=sports' },
@@ -899,7 +746,8 @@ function loadArticleFeed() {
     .catch(function(e) { console.warn('Feed load failed:', e); });
 }
 
-function setProvince(pc) {
+function setProvince(pc, fromMap) {
+  if (!pc) return clearProvince();
   currentProvince = pc;
   var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
   // Write the LABEL span, never the button itself: assigning textContent to
@@ -915,20 +763,13 @@ function setProvince(pc) {
     // this label carries no mark and the words do the work.
     document.getElementById('wtf-province-banner-label').textContent = pname.toUpperCase();
   }
-  // Zoom map to province bounds (works whether triggered by click or dropdown)
-  if (provinceLayer) {
-    provinceLayer.eachLayer(function(layer) {
-      var name = layer.feature && layer.feature.properties && layer.feature.properties.name;
-      if ((PROVINCE_CODES[name] || '') === pc) {
-        map.fitBounds(layer.getBounds(), {padding: [20, 20]});
-      }
-    });
-  }
+  // Refit the shared map to the province (skip re-selecting when the click came from the map itself).
+  if (wtfmap) { if (!fromMap) wtfmap.select(pc); wtfmap.focusProvince(pc); }
   loadArticlesGeo();
   loadArticleFeed();
 }
 
-function clearProvince() {
+function clearProvince(fromMap) {
   currentProvince = null;
   var btnLabel2 = document.getElementById('wtf-province-btn-label');
   if (btnLabel2) btnLabel2.textContent = 'PROVINCE ▾';
@@ -936,7 +777,7 @@ function clearProvince() {
   if (banner) banner.style.display = 'none';
   var dd = document.getElementById('wtf-province-dropdown');
   if (dd) dd.style.display = 'none';
-  map.setView([60, -96], 3);
+  if (wtfmap) { if (!fromMap) wtfmap.select(null); wtfmap.resetView(); }
   loadArticlesGeo();
   loadArticleFeed();
 }
@@ -956,8 +797,8 @@ function toggleProvinceDropdown(e) {
         item.onclick = function(ev) {
           ev.stopPropagation();
           dd.style.display = 'none';
-          setProvince(p.code);
           if (mapMode !== 'canada') setMapMode('canada');
+          setProvince(p.code);
         };
         dd.appendChild(item);
       });

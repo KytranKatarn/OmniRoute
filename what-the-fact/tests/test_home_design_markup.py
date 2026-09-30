@@ -54,13 +54,13 @@ def test_the_homepage_markup_does_not_hardcode_the_retired_navy(tpl: str):
     assert not found, f"retired palette back in index.html markup: {found}"
 
 
-def test_the_known_navy_residual_does_not_grow(tpl: str):
-    """Exactly one retired hex may remain, in the map-label JS. If this count
-    moves, either the map phase landed (drop this test) or a new hardcoded
-    colour crept in (fix it) — both deserve a human look."""
+def test_no_retired_navy_remains_in_the_page_scripts(tpl: str):
+    """The one retired hex that used to live in the Leaflet map-label JS went with
+    Leaflet (PORT-STATUS row 2, homepage map on wtf-map.js). The residual is now
+    zero: any retired navy in a <script> is a new hardcoded colour — fix it."""
     scripts = "".join(re.findall(r"<script\b.*?</script>", tpl, flags=re.S | re.I))
     residual = sorted(h for h in RETIRED_NAVY if h in scripts)
-    assert residual == ["#0a1520"], f"navy residual changed: {residual}"
+    assert residual == [], f"retired navy back in the page scripts: {residual}"
 
 
 def test_the_js_display_hook_survives_on_every_toggled_band(tpl: str):

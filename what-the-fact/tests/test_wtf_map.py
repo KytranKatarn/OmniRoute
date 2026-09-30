@@ -89,7 +89,9 @@ def _code_without_comments(path: Path) -> str:
 # BOTH directions below: a new offender fails, and a page that has since been
 # cleaned ALSO fails, forcing it out of the list. A known-gap list nobody is
 # obliged to shrink is how "temporary" becomes permanent.
-_NOT_YET_MIGRATED = {"index.html"}
+# index.html left this set when the homepage moved onto wtf-map.js (PORT-STATUS row 2);
+# it is now covered by every check below like any other migrated page.
+_NOT_YET_MIGRATED = set()
 
 
 @pytest.mark.parametrize("host", _FORBIDDEN_HOSTS)

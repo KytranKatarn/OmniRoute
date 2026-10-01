@@ -45,6 +45,12 @@ def _b(v_millions):
     return None if v_millions is None else v_millions / 1000.0
 
 
+def _bd(v_dollars):
+    """Whole dollars -> billions. (_b is for StatCan's MILLIONS; contract values are in dollars —
+    mixing them up is a 1000x error that a plausible-looking page would hide.)"""
+    return None if v_dollars is None else v_dollars / 1e9
+
+
 def _ratio(num, den):
     if num is None or den in (None, 0):
         return None
@@ -194,6 +200,59 @@ def quarter_rows(quarterly: dict[tuple[int, int], dict[str, float]]) -> list[dic
     return out
 
 
+CONTRACT_YEARS = 8
+CONTRACT_TOP_N = 10
+
+
+def contracts_view(rows: list[dict], today_year: int) -> dict | None:
+    """Federal contracts SIGNED, by department — from gov-watch's proactive disclosures,
+    bridged by scripts/gov_contracts_bridge.sh.
+
+    Value at signing, each contract counted once, in the year it was signed. This is a
+    commitment measure, NOT spending: a multi-year contract counts in full in its first
+    year, so a single award can dominate a department-year (shown via `largest`).
+    The current year is partial and is returned separately, never ranked against full years."""
+    if not rows:
+        return None
+    by_year: dict[int, dict] = {}
+    by_dept_year: dict[tuple[int, str], dict] = {}
+    for r in rows:
+        y = int(r["year"])
+        v = float(r["signed_value"])
+        t = by_year.setdefault(y, {"year": y, "n": 0, "value": 0.0})
+        t["n"] += int(r["n_contracts"])
+        t["value"] += v
+        by_dept_year[(y, r["owner_org"])] = {
+            "dept": r["title_en"], "n": int(r["n_contracts"]), "value": v, "largest": float(r["largest_value"]),
+        }
+    years = sorted(by_year)
+    full = [y for y in years if y < today_year]
+    if not full:
+        return None
+    latest_full = full[-1]
+
+    def top(year):
+        cands = [d for (y, _), d in by_dept_year.items() if y == year]
+        total = by_year[year]["value"] or 1.0
+        cands.sort(key=lambda d: -d["value"])
+        out = []
+        for d in cands[:CONTRACT_TOP_N]:
+            out.append({"dept": d["dept"], "n": d["n"], "value": _bd(d["value"]),
+                        "share": d["value"] / total * 100.0, "largest": _bd(d["largest"]),
+                        "largest_share": (d["largest"] / d["value"] * 100.0) if d["value"] else None})
+        return out
+
+    series = [{"year": y, "n": by_year[y]["n"], "value": _bd(by_year[y]["value"])} for y in full[-CONTRACT_YEARS:]]
+    ytd = None
+    if today_year in by_year:
+        ytd = {"year": today_year, "n": by_year[today_year]["n"], "value": _bd(by_year[today_year]["value"]),
+               "top": top(today_year)}
+    return {"series": series, "latest_full": latest_full,
+            "latest_full_total": _bd(by_year[latest_full]["value"]),
+            "latest_full_n": by_year[latest_full]["n"],
+            "top": top(latest_full), "ytd": ytd}
+
+
 def _direction(now, then, lower_is_better=True, tol=0.05):
     """'improved' | 'worsened' | 'about the same' | None — pure sign logic, no judgement of size."""
     if now is None or then is None:
@@ -234,7 +293,8 @@ def verdict(rows: list[dict]) -> list[dict]:
     return out
 
 
-def build(annual_rows: list[dict], quarterly_rows: list[dict]) -> dict | None:
+def build(annual_rows: list[dict], quarterly_rows: list[dict], contract_rows: list[dict] | None = None,
+          today_year: int | None = None) -> dict | None:
     """Returns None when the ingest has not loaded anything yet (page shows an honest empty state)."""
     annual = _index_annual(annual_rows)
     # a year only counts if it carries the page's spine
@@ -254,4 +314,5 @@ def build(annual_rows: list[dict], quarterly_rows: list[dict]) -> dict | None:
         "verdict": verdict(rows),
         "ytd": year_to_date(quarterly, years[-1]),
         "quarters": quarter_rows(quarterly),
+        "contracts": contracts_view(contract_rows or [], today_year or (quarterly and max(y for y, _ in quarterly)) or years[-1] + 1),
     }

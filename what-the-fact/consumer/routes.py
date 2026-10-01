@@ -9554,17 +9554,20 @@ def debt():
     the by-department table (Public Accounts Vol. II, not ingested) and the
     "interest now exceeds health transfers" sentence (no health-transfer series).
     """
-    annual_rows, quarterly_rows = [], []
+    annual_rows, quarterly_rows, contract_rows = [], [], []
     with _db().connect() as c:
         for target, sql in (
             (annual_rows, "SELECT ref_year, item_key, value_millions FROM market_watch.fiscal_federal_annual"),
             (quarterly_rows, "SELECT ref_quarter, item_key, value_millions FROM market_watch.fiscal_federal_quarterly"),
+            # bridged from gov-watch by scripts/gov_contracts_bridge.sh (Citadel host cron)
+            (contract_rows, "SELECT owner_org, title_en, year, n_contracts, signed_value, largest_value "
+                            "FROM gov_watch.contracts_signed_by_dept_year"),
         ):
             try:
                 target.extend(dict(r) for r in c.execute(text(sql)).mappings().all())
             except Exception:  # table not created yet → honest empty state, not a 500
                 c.rollback()
-    data = _debt_data.build(annual_rows, quarterly_rows)
+    data = _debt_data.build(annual_rows, quarterly_rows, contract_rows, today_year=datetime.date.today().year)
     return render_template("debt.html", d=data, is_subscriber=is_subscriber())
 
 

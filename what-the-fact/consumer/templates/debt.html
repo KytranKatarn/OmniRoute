@@ -124,8 +124,27 @@
   <div class="wtf-db-bars">
     {% for r in d.expense_breakdown %}<div class="r"><span>{{ r.label }}</span><span class="t"><i style="width:{{ '{:.1f}'.format(r.share|abs) }}%"></i></span><span class="n">{{ B(r.value) }} &middot; {{ P(r.share, 0) }}</span></div>{% endfor %}
   </div>
-  <p class="wtf-db-note">Statistics Canada groups spending by <em>type</em>, not by department. Much of &ldquo;grants&rdquo; and &ldquo;social benefits&rdquo; is money that passes through to provinces and households rather than programs Ottawa runs itself. A department-by-department view needs the Public Accounts (Volume II), which is not loaded here yet.</p>
+  <p class="wtf-db-note">Statistics Canada groups spending by <em>type</em>, not by department. Much of &ldquo;grants&rdquo; and &ldquo;social benefits&rdquo; is money that passes through to provinces and households rather than programs Ottawa runs itself. Spending by department needs the Public Accounts (Volume II), which is not loaded here yet; the contracts panel below shows what each department <em>bought</em> from suppliers.</p>
 </div>
+
+{% if d.contracts %}{% set K = d.contracts %}
+<div class="wtf-db-panel" id="departments">
+  <div class="wtf-db-psec">Federal contracts signed &middot; by department &middot; {{ K.latest_full }}</div>
+  <p style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);margin:0 0 12px;max-width:78ch">
+    In {{ K.latest_full }} departments signed <strong>{{ '{:,}'.format(K.latest_full_n) }}</strong> contracts worth <strong>{{ B(K.latest_full_total) }}</strong> at signing (contracts over $10,000, from the Gov Watch series). This is a slice of federal spending &mdash; what was bought from suppliers &mdash; not the whole budget.</p>
+  <div class="wtf-db-bars">
+    {% for r in K.top %}<div class="r"><span>{{ r.dept }}{% if r.largest_share is not none and r.largest_share >= 40 %} <span class="wtf-db-flat" title="One contract is {{ P(r.largest_share, 0) }} of this department&rsquo;s total">&middot; one award {{ B(r.largest) }}</span>{% endif %}</span><span class="t"><i style="width:{{ '{:.1f}'.format(r.share|abs) }}%"></i></span><span class="n">{{ B(r.value) }} &middot; {{ P(r.share, 0) }}</span></div>{% endfor %}
+  </div>
+  {% if K.ytd %}<div class="wtf-db-psec" style="margin-top:18px">{{ K.ytd.year }} so far &middot; {{ '{:,}'.format(K.ytd.n) }} contracts, {{ B(K.ytd.value) }} &middot; not a full year</div>
+  <div class="wtf-db-bars">
+    {% for r in K.ytd.top[:6] %}<div class="r"><span>{{ r.dept }}</span><span class="t"><i style="width:{{ '{:.1f}'.format(r.share|abs) }}%"></i></span><span class="n">{{ B(r.value) }} &middot; {{ P(r.share, 0) }}</span></div>{% endfor %}
+  </div>{% endif %}
+  <div style="overflow-x:auto;margin-top:14px"><table class="wtf-db-tbl"><thead><tr><th>Year signed</th><th>Contracts</th><th>Value at signing</th></tr></thead><tbody>
+    {% for r in K.series|reverse %}<tr><td>{{ r.year }}</td><td>{{ '{:,}'.format(r.n) }}</td><td>{{ B(r.value) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p class="wtf-db-note"><strong>What this counts.</strong> The value each contract carried <em>when it was signed</em>, counted once, in the calendar year it was signed &mdash; so it measures commitments, not money paid out in that year. A multi-year contract counts in full in its first year, which is why a single large award can dominate a department (flagged above). Later amendments are left out because the source file contains entry errors in amended totals. The disclosure file re-reports contracts in later quarters; each is counted once here. Source: Treasury Board proactive disclosure, through <a href="https://gov.kytranempowerment.com">Gov Watch</a>.</p>
+</div>
+{% endif %}
 
 <div class="wtf-db-panel">
   <div class="wtf-db-psec">Better or worse? &middot; the honest answer is which measure, and compared with when</div>

@@ -221,3 +221,62 @@ def test_the_current_year_is_not_ranked_against_full_years_in_the_annual_table()
     html = _render(dd.build(_annual(range(2015, 2026)), q))
     table = html[html.index("Revenue in, expenses out"):]
     assert "2026" not in table.split("</table>")[0]
+
+
+# --------------------------------------------------------------------------- contracts (Gov Watch bridge)
+def _k(org, title, year, n, value, largest):
+    return {"owner_org": org, "title_en": title, "year": year, "n_contracts": n, "signed_value": value, "largest_value": largest}
+
+
+def test_contracts_view_is_none_without_rows_or_without_a_full_year():
+    assert dd.contracts_view([], 2026) is None
+    assert dd.contracts_view([_k("a", "A", 2026, 1, 5.0, 5.0)], 2026) is None  # only a partial year
+
+
+def test_contracts_current_year_is_separate_and_never_in_the_full_year_series():
+    rows = [_k("a", "A", 2025, 10, 8e9, 5e9), _k("b", "B", 2025, 5, 2e9, 1e9), _k("a", "A", 2026, 3, 1e9, 6e8)]
+    v = dd.contracts_view(rows, 2026)
+    assert v["latest_full"] == 2025 and [r["year"] for r in v["series"]] == [2025]
+    assert v["latest_full_total"] == pytest.approx(10.0) and v["latest_full_n"] == 15
+    assert v["ytd"]["year"] == 2026 and v["ytd"]["value"] == pytest.approx(1.0)
+
+
+def test_contracts_top_is_ranked_with_shares_and_flags_a_dominant_award():
+    rows = [_k("a", "A", 2025, 10, 8e9, 7e9), _k("b", "B", 2025, 5, 2e9, 1e8)]
+    top = dd.contracts_view(rows, 2026)["top"]
+    assert [t["dept"] for t in top] == ["A", "B"]
+    assert top[0]["share"] == pytest.approx(80.0) and top[0]["largest_share"] == pytest.approx(87.5)
+    assert top[1]["largest_share"] < 40
+
+
+def test_build_without_contract_rows_has_no_contracts_panel():
+    d = dd.build(_annual(range(2015, 2026)), [])
+    assert d["contracts"] is None
+    assert "Federal contracts signed" not in _text(_render(d))
+
+
+def test_contracts_panel_says_what_it_counts_and_what_it_does_not():
+    d = dd.build(_annual(range(2015, 2026)), [], [_k("a", "National Defence", 2025, 10, 8e9, 7e9)], today_year=2026)
+    t = _text(_render(d))
+    assert "Federal contracts signed" in t and "National Defence" in t
+    assert "commitments, not money paid out" in t and "counted once" in t
+    assert "one award" in t  # dominance flag shown
+
+
+def test_bridge_script_is_one_transaction_with_a_floor_and_a_heartbeat():
+    sh = (ROOT / "scripts" / "gov_contracts_bridge.sh").read_text(encoding="utf-8")
+    assert "--single-transaction" in sh and "ON_ERROR_STOP=1" in sh
+    assert "refusing to replace" in sh and "MIN_ROWS" in sh
+    assert "parliament.ingest_log" in sh and "flock" in sh
+
+
+def test_bridge_sql_dedupes_on_the_contract_not_the_reporting_period():
+    sql = (ROOT / "scripts" / "gov_contracts_by_dept.sql").read_text(encoding="utf-8")
+    assert "DISTINCT ON (raw_row->>'owner_org', vendor_name, contract_date, original_value)" in sql
+    assert "reporting_period" not in sql.split("*/")[-1] and "contract_date <= current_date" in sql
+    assert "original_value" in sql and "buyer_name" not in sql.replace("NOT buyer_name", "")
+
+
+def test_bridge_is_watched_and_required_by_the_drift_guard():
+    from ingest.parliament import drift_guard
+    assert "gov_contracts_bridge" in drift_guard._MAX_AGE_DAYS and "gov_contracts_bridge" in drift_guard._REQUIRED_TASKS

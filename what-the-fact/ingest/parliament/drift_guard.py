@@ -119,6 +119,10 @@ _MAX_AGE_DAYS = {
     # the job still firing and StatCan still answering, not data freshness (the
     # annual table only moves a few times a year).
     "fiscal_federal": int(os.environ.get("WTF_DRIFT_FISCAL_DAYS", "10")),
+    # Gov Watch -> WTF contracts bridge (scripts/gov_contracts_bridge.sh, a Citadel HOST cron,
+    # nightly). 3 days = two missed nights plus slack. It is NOT scheduled by ingest/run.py, so
+    # this is the only thing that notices the host cron was never installed or has died.
+    "gov_contracts_bridge": int(os.environ.get("WTF_DRIFT_GOVBRIDGE_DAYS", "3")),
     # StatCan CPI/unemployment/GDP/housing-starts (Batch 12, #6523). All four
     # release monthly with real-world lag (StatCan itself can take 3-4 weeks
     # after the reference period), so this measures the WEEKLY job still
@@ -174,6 +178,9 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # fiscal_federal — brand-new puller (/debt), zero prior rows:
                    # a puller that never runs must alarm, not read green.
                    "fiscal_federal",
+                   # gov_contracts_bridge — a host cron outside the ingest loop; required so a
+                   # bridge that never runs alarms instead of reading green-by-omission.
+                   "gov_contracts_bridge",
                    # aurora_aqhi and aurora_alerts are BOTH brand-new pullers
                    # (#6621) — same reasoning as boc_rates/fx_rates above: a
                    # puller that never runs must alarm, not report

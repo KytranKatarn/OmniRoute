@@ -1086,100 +1086,6 @@ services:
       retries: 3
       start_period: 20s
 
-  # Kytran Business Suite — standalone SaaS product
-  kytran-business-suite:
-    build: ./kytran-business-suite
-    container_name: kbs_app
-    ports:
-      - "8091:8090"
-    env_file: ./kytran-business-suite/.env
-    dns: 192.168.1.200
-    read_only: true
-    tmpfs:
-      - /tmp:size=256m
-      - /var/run:size=16m
-    depends_on:
-      - archie_database
-      - kbs-redis
-    mem_limit: 512m
-    cpus: 1.0
-    cap_drop:
-      - ALL
-    cap_add:
-      - DAC_OVERRIDE
-      - SETGID
-      - SETUID
-    restart: unless-stopped
-    networks:
-      - archie_internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-    environment:
-      TZ: America/Toronto
-  kbs-redis:
-    image: redis:7-alpine
-    container_name: kbs_redis
-    # read_only not feasible — Redis writes AOF/RDB persistence files to /data volume
-    volumes:
-      - kbs-redis-data:/data
-    tmpfs:
-      - /tmp:size=64m
-      - /var/run:size=16m
-    mem_limit: 128m
-    cpus: 0.25
-    cap_drop:
-      - ALL
-    cap_add:
-      - SETGID
-      - SETUID
-    restart: unless-stopped
-    networks:
-      - archie_internal
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-
-    environment:
-      TZ: America/Toronto
-  kbs-worker:
-    build: ./kytran-business-suite
-    container_name: kbs_worker
-    command: python -m core.worker
-    env_file: ./kytran-business-suite/.env
-    read_only: true
-    tmpfs:
-      - /tmp:size=256m
-      - /var/run:size=16m
-    depends_on:
-      - archie_database
-      - kbs-redis
-    mem_limit: 256m
-    cpus: 0.5
-    cap_drop:
-      - ALL
-    cap_add:
-      - DAC_OVERRIDE
-      - SETGID
-      - SETUID
-    restart: unless-stopped
-    networks:
-      - archie_internal
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
-    environment:
-      TZ: America/Toronto
   kytran_market_api:
     build: ./market-watch
     container_name: kytran_market_api
@@ -1744,4 +1650,3 @@ volumes:
   monitoring_nagios_data:
     external: true
     name: monitoring_nagios_data
-  kbs-redis-data:

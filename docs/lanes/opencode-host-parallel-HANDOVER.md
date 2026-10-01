@@ -236,3 +236,183 @@ other, which is the worst combination.
   `git add -A` there. Look, do not stage.
 - **Never write a secret to stdout**, into a commit, or into the repo.
 - Two agents must not write `/mnt/archie_brain` concurrently — there is no boundary.
+---
+
+## 8. Session 2026-09-30 — MCP gateway repaired, 5 PRs, procedures exposed
+
+Previous agent. Sections 0–7 are the inherited baseline and still hold unless noted.
+
+### 8.1 Section 2's "NOT verified" list is now RESOLVED — do not redo it
+
+| Item | Verdict |
+|---|---|
+| Both MCP servers | **WORK.** Real `initialize` POST → 200 with bearer, 401 without. |
+| TMPDIR / noexec-`/tmp` fix | **WORKS.** `opencode --version` → 1.18.33; shared npm prefix intact (`opencode-ai`, `@openai`, `@anthropic-ai`, `playwright`, `hostinger-api-mcp`, `token-optimizer-mcp` all present). The reported 30-package removal did **not** happen. |
+| Entry points | Work — **after an exec-bit fix**, see 8.2. |
+
+### 8.2 Shipped
+
+`#3554` repair-bay close-PR · `#3555` host-lane provisioning · `#3556` opencode lane
+scope widened (owner decision; inert until the opencode terminal image is rebuilt) ·
+`#3558` fix(mcp) · `#3559` OmniRoute DS9/LCARS spec — **all merged**. `#3563`
+`.opencode/command/` wrappers — **open**.
+
+`#3555` needed one fix on top of the replayed history: the six entry-point scripts
+ship mode `0644` but are invoked as `./scripts/*.sh`, so they failed with `Permission
+denied` before running a line — including `install_opencode_on_host.sh`, the documented
+one-command install. Two commits had already tried to fix this and neither left the
+tree matching its own message: `788e5e414` is titled *"restore exec bit (100644 ->
+100755)"* but actually diffs `mode change 100755 => 100644` — it **removed** the bit;
+`98d8d1d32` did set `100644 => 100755` and `0161d124b` silently put it back. Set with
+`git update-index --chmod=+x`, deliberately not `chmod + add`, which is the sequence
+that silently failed. **This is the recurring pattern: assert what you expect rather
+than what you need to know.**
+
+### 8.3 The MCP gateway defects (`#3558`)
+
+Three causes, none matching its symptom:
+
+1. **`check_platform_health` probed `/api/health`, which does not exist.** Every
+   `/api/*` sits behind Flask-Login, so it 302'd, `requests` followed the redirect, and
+   `response.json()` hit the HTML login page → `Expecting value: line 1 column 1
+   (char 0)`. That is a `ValueError`, which `requests.RequestException` does **not**
+   catch, so it escaped and a healthy hub read as `offline`. Now probes `/health` with
+   `allow_redirects=False` and catches `ValueError`.
+2. **`list_agents` / `get_system_status` read the DB.** The lane's role is `codex_ro`
+   (SELECT-only, 40 tables) with no grant on `agents` or `bridge_stations`. Both failed
+   with `permission denied for table agents`. **The credential was already there** —
+   `/api/internal/agents` returns 200 from inside the gateway with the key it already
+   carries, and `coder_lanes` already holds `agents:read`. `docker-compose.yml` says it
+   outright: task/agent tools *"call the hub's INTERNAL HTTP API (never the DB), so the
+   Postgres role above stays read-only."* The tools were not using it. No new
+   credential, no widened scope.
+3. **`get_system_status` shared one transaction**, so the first permission error
+   poisoned it and `InFailedSqlTransaction` killed sections whose tables *were*
+   readable. Now each section rolls back independently.
+
+Also: the MCP client sends **explicit `null`** for omitted optional args, so
+`arguments.get("status", "active")` silently disabled the documented default. Use
+`arguments.get("status") or "active"`.
+
+Verified through the running process, not the file: 158 agents; agents 158/153 + 17
+stations + knowledge 98,257; platform healthy v2.0.
+
+### 8.4 Deploy: the gateway inherits `platform_v2` only via its base image
+
+`mcp-gateway/Dockerfile` is `FROM archie_platform:latest` and COPYs just `gateway.py`
++ `entrypoint.sh`. So:
+
+- Rebuilding **only** `archie_mcp_gateway` rebuilds on the same stale base and
+  **serves old code while looking green.**
+- `docker compose build <svc>` does **not** touch running containers. Use it to refresh
+  an image with no restart — that is how to avoid a double-bounce when another lane
+  just restarted a service.
+- `docker compose up -d` will **not** recreate a container whose image ID is unchanged.
+  Compare `sha256sum` of the file inside the container against the commit before
+  declaring a deploy landed.
+
+Correct sequence:
+
+```bash
+docker compose build archie_platform      # base first
+docker compose build archie_mcp_gateway   # then the leaf
+docker compose up -d --no-deps archie_mcp_gateway
+```
+
+The platform container itself never needs restarting — it bind-mounts `platform_v2`.
+Record `docker inspect -f '{{.Image}}' <container>` before recreating, for rollback.
+
+### 8.5 GUARDRAILS.md is stale — trust the handover over it
+
+| GUARDRAILS claims | Reality |
+|---|---|
+| `/opencode-home/data/archie-handover.md` is this instance's handover, read at boot | **Does not exist** and cannot be created — `/` is not writable, no volume mounted. |
+| `/work/archie-platform` is a clean `main` clone | Empty root-owned dir, **no `.git`**. This lane works in `/mnt/archie_brain`. |
+| `opencode-pr` at `/usr/local/bin` | **Absent.** Push with `git` + `gh`; the credential helper reads `secrets/opencode/github_token.txt`. |
+| `/ship` exists, "rewritten for this instance" | **Was absent.** Now written in `#3563`. |
+| `/opt/no-guard`, `core.hooksPath = /opt/no-guard` | Absent; hooks are **active** at `/mnt/archie_brain/.git/hooks`. |
+| GitHub token at `/run/secrets/opencode_github_token` | Not mounted. |
+
+`gh` here is the **real** CLI 2.63.2, not the refusing shim, and `enforce_admins` is
+`false` on `main`. Branch protection **is** on (`required_approving_review_count: 1`) —
+that previously-unverified risk is now closed — but it will not stop *this* lane from
+merging its own PR. Restraint is the only control.
+
+### 8.6 opencode reads `.claude/skills/` but NOT `.claude/commands/`
+
+~60 skills loaded fine this session while **all 20 platform procedures were
+invisible** — `/archie-save` was not invocable and its steps were executed by hand
+after reading the markdown. opencode scans `~/.config/opencode/command`,
+`.opencode/command/`, `.opencode/commands/`. `#3563` adds a **delegating** wrapper per
+procedure (so they cannot drift) plus `/ship`.
+
+**Two upstream procedures merge** — `merge-pr.md` (*"HARD GATE, enforced here"*) and
+`commit-push-merge.md` (*"auto-merge"*). Their wrappers carry a hard override: stop
+after the review check, report `mergeStateStatus`/`reviewDecision`, never merge.
+
+### 8.7 This lane cannot write the KB
+
+No `store_memory` among its 71 exposed tools, and `github_search` returns 0 for
+everything. So `/archie-save` step 4 — the **mandatory** Consciousness doc refresh —
+cannot be completed here. The KB has **zero** entries for `omniroute`, DS9 or LCARS,
+which is exactly why that plan has been reported "lost" twice. **A lane with
+`store_memory` must write them.**
+
+### 8.8 OmniRoute — what is actually true
+
+The Phase 3 plan was **executed 2026-09-09** (`docs/superpowers/plans/2026-09-09-
+phase3-omniroute-contractor.md`, 1,652 lines) and DS9 governed routing **shipped**
+(`#3439`, spec `#3395`). The plan was never lost — it was undiscoverable.
+
+```
+container   diegosouzapw/omniroute:3.8.50   Up 11 days (healthy)
+publishes   192.168.1.200:20128 -> 20128/tcp  ->  HTTP 200, 534 models
+opencode.json baseURL  http://127.0.0.1:20128/v1  ->  HTTP 000, NOTHING BOUND
+```
+
+That one-line address mismatch is the likely cause of "had issues to get working".
+
+**Correction to record:** an earlier probe this session reported OmniRoute *down* from
+a `127.0.0.1:20128` curl returning HTTP 000. **Wrong** — it is healthy; the probe used
+an address it does not bind. Check what a service binds; do not reason about what it
+probably binds.
+
+Contractor → Engineer is migration-scale: 809 Python occurrences, 23 files on
+`contractor_providers`, 4 tables, 2 views, 3 UI files. **Trap:**
+`construction_subcontractors` is a different domain — build the exclusion list before
+renaming. Scope is in `#3559`.
+
+**Unanswered:** whether the 5 non-`:free` model ids route to free or paid upstream.
+Probes timed out (`000`) or 502'd inside 10 s. The executed plan is free-only until
+V.I.G.L. clears and treats every prompt as public.
+
+### 8.9 Still open
+
+- **Rotate `OMNIROUTE_API_KEY`** — plaintext in `opencode.json` (3rd copy; root `.env`
+  and `platform_v2/.env` mirror correctly). Deferred to codex_cli testing.
+- **Rotate `INTERNAL_API_KEY_CODER_LANES`** — printed into a session transcript by a
+  careless `docker compose config | grep`. Hash, never print. Needs
+  `--force-recreate` on both platform and gateway.
+- **Blocked by design** (no `/api/internal/*` equivalent): `get_station_assignments`,
+  `manage_shifts`, `view_analytics`, `get_node_status`, `forge_stats`,
+  `check_infra_heartbeat`, `get_skills_matrix`. Needs new scoped routes in `app.py`
+  (platform work) or a `codex_ro` grant — an owner decision.
+- **`get_welfare_digest`** throws `'>=' not supported between instances of 'int' and
+  'NoneType'` — independent NULL bug, unrelated to auth.
+- **12 `http_endpoint` tools** untouched deliberately: they need general platform API
+  auth this lane lacks, and `send_email` / `run_backup` / `create_invoice` map to
+  scopes it is explicitly denied (`mail`, `repair:write`).
+
+### 8.10 More shell traps (extends section 5)
+
+- **`docker cp` cannot write into a `read_only` container's tmpfs.** Stream:
+  `tar -C <dir> -cf - <pkg> | docker exec -i <c> sh -c 'tar -xf - -C /tmp/verify'`.
+- Running `python3` with cwd=`/app` makes `/app` beat `PYTHONPATH`, so a shadow copy in
+  `/tmp` is silently ignored. `cd` to the shadow dir first.
+- **Host Black ≠ repo Black.** The hook pins `black 24.4.2 --line-length=120`; host
+  Black is 26.x and disagrees on untouched lines. Never pre-format with the host
+  version — let the hook decide, re-stage when it reformats, and **do not amend** a
+  rejected commit.
+- `psycopg2` here returns `RealDictCursor`, so `for (t,) in rows` yields dict KEYS. Use
+  `r['table']`. A failed statement poisons the transaction: `InFailedSqlTransaction` on
+  the next query means roll back first.

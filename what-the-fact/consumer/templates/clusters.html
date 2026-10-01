@@ -49,14 +49,12 @@
          windows[], beats[], sizes{}, medians[], shown, url_windows[],
          url_sorts[], url_clear. #}
 
-<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
-  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Story clusters</h1>
-  <p class="wtf-a-tile-d" style="margin:0;max-width:72ch;">
-    One event, many tellings. Articles describing the same story are grouped across the outlets we
-    track, so the spread of framing sits in one place. Clusters carried by at least two outlets appear
-    here, widest framing spread first.
-  </p>
-</div>
+<div class="wtf-pg-wrap">
+<header class="wtf-pg-head">
+  <div class="wtf-pg-eyebrow">One event, many tellings</div>
+  <h1 class="wtf-pg-title">Story clusters</h1>
+  <p class="wtf-pg-lede">Articles describing the same story are grouped across the outlets we track, so the spread of framing sits in one place. Clusters carried by at least two outlets appear here, widest framing spread first.</p>
+</header>
 
 {# ⚠️ Tile 1 is the QUALIFYING count, not clusters|length — that is the page
    size. The same mislabelling is called out in blindspot.html. Tile 2 is the
@@ -176,4 +174,5 @@
        ('Coverage blind spots →', '/blindspot', False),
        ('How we score bias →', 'https://what-the-fact.tech/transparency', True)]) }}
 </div>
+</div>{# /.wtf-pg-wrap #}
 {% endblock %}

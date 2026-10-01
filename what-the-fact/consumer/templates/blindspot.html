@@ -9,9 +9,6 @@
 /* Design-handoff scoping (task #6524 redesign) — same wtf-bs-* classes as
    before, no new hex-color literals, everything reads a var(--wtf-*) token.
    See TestNoPrivateStyling in test_blindspot_page.py. */
-.wtf-bs-header { padding:16px 0; border-bottom:1px solid var(--wtf-border); margin-bottom:16px; }
-.wtf-bs-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; margin:0 0 4px; }
-.wtf-bs-lede { margin:0; max-width:72ch; }
 .wtf-bs-window { margin:16px 0; }
 .wtf-bs-empty { padding:28px 0; }
 .wtf-bs-spec { display:flex; height:6px; border-radius:3px; overflow:hidden; margin:10px 0; background:var(--wtf-bg); }
@@ -45,14 +42,12 @@
    carrying blindspot_side, lean_l/c/r_count, age_hours, reasons[]), days,
    windows[], is_subscriber. #}
 
-<div class="wtf-bs-header">
-  <h1 class="wtf-bs-title">Coverage blind spots</h1>
-  <p class="wtf-a-tile-d wtf-bs-lede">
-    Stories where one side of the political spectrum covered the news and the other side
-    (almost) didn&rsquo;t. A left blindspot means right-leaning outlets stayed quiet; a right
-    blindspot means the left did.
-  </p>
-</div>
+<div class="wtf-pg-wrap">
+<header class="wtf-pg-head">
+  <div class="wtf-pg-eyebrow">What one side is not seeing</div>
+  <h1 class="wtf-pg-title">Blindspot</h1>
+  <p class="wtf-pg-lede">Stories where one side of the political spectrum covered the news and the other side (almost) didn&rsquo;t. A left blindspot means right-leaning outlets stayed quiet; a right blindspot means the left did. A blindspot is a coverage gap, not proof that a story is being suppressed &mdash; sometimes an outlet simply has no reporter on that beat.</p>
+</header>
 
 {# The first tile MUST be the QUALIFYING COUNT, not blindspots|length — that
    is the page size (20). The population inside the window can run far
@@ -136,4 +131,5 @@
        ('Coverage divergence →', '/divergence', False),
        ('All sources →', '/sources', False)]) }}
 </div>
+</div>{# /.wtf-pg-wrap #}
 {% endblock %}

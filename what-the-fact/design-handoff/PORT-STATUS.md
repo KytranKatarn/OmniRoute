@@ -20,9 +20,9 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | 9 | `wtf-city.html` | weather city view | todo | | |
 | 10 | `wtf-mps.html` | `mps.html` | partial (10a) | | Live already has the seating map, tabs, photos, filters. 10a: centred eyebrow/title/lede + content-width container (lede count = live `mps|length`, not the design's sample 343). Riding / province / party stay from DB — never derived. Remaining: stat tiles (needs per-party seat tallies from real rows), non-emoji tab labels |
 | 11 | `wtf-mp.html`, `wtf-senator.html` | `mp.html`, `senator.html` | todo | | |
-| 12 | `wtf-blindspot.html` | `blindspot.html` | todo | | |
+| 12 | `wtf-blindspot.html` | `blindspot.html` | partial (12a) | | 12a: shared `.wtf-pg-*` header + 1080px container (centred eyebrow, serif title, lede keeps the live definition and adds the design's 'a coverage gap, not proof of suppression'). Remaining: design's 5-tile stat row (called / balanced / left / right / too-thin — from real rows), filter bar, row layout |
 | 13 | `wtf-divergence.html` | `divergence.html` | todo | | |
-| 14 | `wtf-clusters.html` | `clusters.html` | todo | | |
+| 14 | `wtf-clusters.html` | `clusters.html` | partial (14a) | | 14a: shared `.wtf-pg-*` header + container. Remaining: row layout / filters. Row 13 (divergence) has several views — own slice |
 | 15 | `wtf-lobbying.html` | `lobbying.html` | todo | | |
 | 16 | `wtf-gic.html` | `gic.html` | todo | | |
 | 17 | `wtf-ethics.html` | `ethics.html` | todo | | |

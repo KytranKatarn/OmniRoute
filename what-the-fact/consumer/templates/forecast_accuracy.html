@@ -79,7 +79,7 @@
 <div class="wtf-fa-head">
   <div class="wtf-fa-kicker">A.U.R.O.R.A. — forecast accountability</div>
   <h1 class="wtf-fa-title">We keep score on the weather forecast, the same way we keep score on the news</h1>
-  <p class="wtf-fa-lede">Every daily high published for our 25 tracked cities is stored with the moment it was issued, then checked against the highest temperature the station actually recorded. These are our own measurements, not a claim from any forecaster.</p>
+  <p class="wtf-fa-lede">Every daily high Environment Canada publishes for our 25 tracked cities is stored with the moment it was issued, then checked against the highest temperature the station actually recorded. The forecasts are Environment Canada&rsquo;s; the scoring and the measurements are ours.</p>
 </div>
 
 {% if not verification.has_data %}
@@ -116,10 +116,10 @@
     <div class="wtf-fa-tile-l">Persistence catches up</div>
     {% if s.persistence_catchup_lead is not none %}
     <div class="wtf-fa-tile-n">+{{ s.persistence_catchup_lead }}D</div>
-    <div class="wtf-fa-tile-d">Lead time where the naive "no change" guess stops losing to our forecast</div>
+    <div class="wtf-fa-tile-d">Lead time where the naive "no change" guess stops losing to the Environment Canada forecast</div>
     {% else %}
     <div class="wtf-fa-tile-n">&mdash;</div>
-    <div class="wtf-fa-tile-d">Not yet observed &mdash; our forecast still beats persistence at every lead we hold</div>
+    <div class="wtf-fa-tile-d">Not yet observed &mdash; the Environment Canada forecast still beats persistence at every lead we hold</div>
     {% endif %}
   </div>
   <div class="wtf-fa-tile">
@@ -132,7 +132,7 @@
 <div class="wtf-fa-panel">
   <h2 class="wtf-fa-section">How accuracy decays with lead time</h2>
   <div class="wtf-fa-legend">
-    <span><span class="wtf-fa-legend-swatch"></span>Our forecast (average miss)</span>
+    <span><span class="wtf-fa-legend-swatch"></span>Environment Canada forecast (average miss)</span>
     {% if verification.persistence_curve %}
     <span><span class="wtf-fa-legend-dash"></span>Persistence baseline — "the target day will be like the day this was issued"</span>
     <span><span class="wtf-fa-legend-swatch wtf-fa-legend-swatch-beat"></span>Beats persistence</span>

@@ -143,10 +143,13 @@
 @media (max-width:600px) { .sb-chamber-row { grid-template-columns:44px 1fr 34px; font-size:10px; } }
 </style>
 
-<div class="wtf-mps-header">
-  <h1 class="wtf-mps-title">🏛 Members of Parliament</h1>
-  <div class="wtf-mps-subtitle">{{ mps|length }} current MPs tracked · votes, media coverage, accountability intelligence</div>
-</div>
+<div class="wtf-mps-wrap">
+<header class="wtf-mps-head">
+  <div class="wtf-mps-eyebrow">Both chambers</div>
+  <h1 class="wtf-mps-h1">MPs &amp; Senate</h1>
+  {# Real count only (mps|length, the same figure the page always showed); the design's 343 was a sample. #}
+  <p class="wtf-mps-lede">{{ mps|length }} current members of the House of Commons, the Senate and every riding, with votes, media coverage and accountability records. Coverage shows how often a member is written about &mdash; volume, not favour.</p>
+</header>
 
 <div class="wtf-mps-tabs">
   <button class="wtf-mps-tab active" onclick="wtfTab('hoc',this)">🏛 House of Commons</button>
@@ -1185,4 +1188,5 @@ function wtfShowSenatorCard(s, cx, cy) {
 
 
 
+</div>{# /.wtf-mps-wrap #}
 {% endblock %}

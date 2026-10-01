@@ -46,13 +46,16 @@
          is_subscriber, gated, cap, url_export, url_permalink #}
 
 
-<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
-  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">The full archive</h1>
-  <p class="wtf-a-tile-d" style="margin:0;max-width:72ch;">
+<div class="wtf-ar-wrap">
+<header class="wtf-ar-head">
+  <div class="wtf-ar-eyebrow">Complete record</div>
+  <h1 class="wtf-ar-title">The full archive</h1>
+  <p class="wtf-ar-lede">
     Everything we have tracked. <strong>By story</strong> groups the outlets covering one event into a
-    single row; <strong>every article</strong> lists them separately.
+    single row; <strong>every article</strong> lists them separately. Latest shows what is happening
+    now; the archive is what you cite.
   </p>
-</div>
+</header>
 
 {% if f.date_from or f.date_to %}
   {% set window_detail = (f.date_from|string if f.date_from else 'earliest') ~ ' → ' ~ (f.date_to|string if f.date_to else 'now') %}
@@ -219,4 +222,5 @@
        ('Coverage blind spots →', '/blindspot', False),
        ('All sources →', '/sources', False)]) }}
 </div>
+</div>{# /.wtf-ar-wrap #}
 {% endblock %}

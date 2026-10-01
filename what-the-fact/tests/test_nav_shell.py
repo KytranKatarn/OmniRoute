@@ -94,16 +94,16 @@ def test_every_nav_destination_has_a_route(client):
 
 
 def test_placeholder_routes_are_all_reachable(client):
-    # ⚠️ `races`, `parties`, `methodology`, `creed` and `echo` are
-    # deliberately ABSENT: all five graduated to real pages
+    # ⚠️ `races`, `parties`, `methodology`, `creed`, `echo` and `debt` are
+    # deliberately ABSENT: all six graduated to real pages
     # (test_races_pages.py, test_party_identity.py, test_methodology_page.py,
-    # test_creed_page.py, test_echo_real_data.py). This test asserts
+    # test_creed_page.py, test_echo_real_data.py, test_debt_page.py). This test asserts
     # placeholders render with NO database, so a real page listed here fails
     # on the engine rather than on the view — which is exactly how each
     # graduation announced itself (echo's own failure here was exactly that:
     # sqlalchemy.exc.ArgumentError, not a 200/404). Slugs move OUT of this
     # list as they are built; a slug in both places is the bug.
-    for slug in ("platforms", "elections", "global", "debt"):
+    for slug in ("platforms", "elections", "global"):
         assert client.get(f"/{slug}").status_code == 200, slug
 
 
@@ -111,7 +111,7 @@ def test_a_built_page_is_no_longer_advertised_as_a_placeholder(client):
     """The two sets must stay disjoint. A page that exists while still being
     described as unbuilt tells the reader the opposite of the truth."""
     from consumer.routes import _COMING_SOON
-    for built in ("races", "parties", "methodology", "creed", "echo"):
+    for built in ("races", "parties", "methodology", "creed", "echo", "debt"):
         assert built not in _COMING_SOON, built
 
 

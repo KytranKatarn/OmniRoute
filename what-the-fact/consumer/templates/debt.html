@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Debt tracker — taxes, spending and the federal debt · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Federal revenue, spending, deficit, net debt and interest costs from Statistics Canada — annual since 1990 and updated each quarter — with an honest 'better or worse?' by measure.">
+{% endblock %}
+{% block content %}
+{# /debt — real data only (ingest/market/fiscal_federal.py → consumer/debt_data.py).
+   Ported from design-handoff/wtf-debt.html in a REDUCED form. NOT ported: the design's
+   hand-typed sample series; the by-department table (Public Accounts Vol. II is not
+   ingested); the 'interest now exceeds health transfers' sentence (no health-transfer
+   series to prove it); the Watch cross-reference chips (nothing to count yet).
+   Years are CALENDAR years on Statistics Canada's government-finance-statistics basis —
+   not Public Accounts fiscal years — and the page must keep saying so. #}
+{% macro B(v, dp=1) -%}{%- if v is none -%}—{%- else -%}{{ '−' if v < 0 else '' }}${{ ('{:,.' ~ dp ~ 'f}').format(v|abs) }}B{%- endif -%}{%- endmacro %}
+{% macro P(v, dp=1) -%}{%- if v is none -%}—{%- else -%}{{ '−' if v < 0 else '' }}{{ ('{:.' ~ dp ~ 'f}').format(v|abs) }}%{%- endif -%}{%- endmacro %}
+{% macro D(v) -%}{%- if v is none -%}—{%- else -%}{{ '+' if v > 0 else ('−' if v < 0 else '') }}${{ '{:,.1f}'.format(v|abs) }}B{%- endif -%}{%- endmacro %}
+<style>
+  .wtf-db-stats { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin: 6px 0 8px }
+  .wtf-db-stat { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-left: 3px solid var(--wtf-brand); border-radius: var(--wtf-r-md); padding: 12px 16px; min-width: 140px; text-align: center }
+  .wtf-db-stat-n { font-family: var(--wtf-font-mono); font-size: 1.2rem; color: var(--wtf-text) }
+  .wtf-db-stat-l { font-size: 9px; color: var(--wtf-text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px }
+  .wtf-db-panel { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-lg); padding: 16px 18px; margin-top: 18px }
+  .wtf-db-psec { font-size: 10px; letter-spacing: 2px; color: var(--wtf-text-muted); text-transform: uppercase; margin-bottom: 12px }
+  .wtf-db-note { font-size: 11px; color: var(--wtf-text-muted); line-height: 1.7; margin-top: 10px }
+  .wtf-db-ytd { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 11px }
+  .wtf-db-card { background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-md); padding: 13px 15px }
+  .wtf-db-card h4 { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--wtf-text-muted); margin: 0 0 6px; font-weight: 500 }
+  .wtf-db-card .v { font-family: var(--wtf-font-mono); font-size: 1.15rem; color: var(--wtf-text) }
+  .wtf-db-card .m { font-family: var(--wtf-font-mono); font-size: 9.5px; color: var(--wtf-text-muted); margin-top: 4px; line-height: 1.6 }
+  .wtf-db-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 11px }
+  .wtf-db-tbl { width: 100%; border-collapse: collapse }
+  .wtf-db-tbl th { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--wtf-text-muted); text-align: right; padding: 0 10px 9px; border-bottom: 1px solid var(--wtf-border); white-space: nowrap }
+  .wtf-db-tbl th:first-child, .wtf-db-tbl td:first-child { text-align: left }
+  .wtf-db-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--wtf-border); font-family: var(--wtf-font-mono); font-size: 12px; color: var(--wtf-text-2); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
+  .wtf-db-tbl tr.cur td { color: var(--wtf-text) }
+  .wtf-db-bars .r { display: grid; grid-template-columns: minmax(150px, 34%) 1fr 92px; gap: 10px; align-items: center; padding: 5px 0; font-size: 12.5px; color: var(--wtf-text-2) }
+  .wtf-db-bars .t { height: 9px; background: var(--wtf-bg-panel); border-radius: 5px; overflow: hidden }
+  .wtf-db-bars .t i { display: block; height: 100%; background: var(--wtf-brand); border-radius: 5px }
+  .wtf-db-bars .n { font-family: var(--wtf-font-mono); font-size: 11.5px; text-align: right; color: var(--wtf-text) }
+  .wtf-db-vd { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 11px }
+  .wtf-db-vd .w { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: .5px; text-transform: uppercase }
+  .wtf-db-good { color: var(--wtf-established) } .wtf-db-bad { color: var(--wtf-contested) } .wtf-db-flat { color: var(--wtf-text-muted) }
+  .wtf-db-empty { text-align: center; padding: 40px 20px; color: var(--wtf-text-muted); font-size: 12px; line-height: 1.8 }
+  @media (max-width: 640px) { .wtf-db-bars .r { grid-template-columns: 1fr 70px } .wtf-db-bars .t { grid-column: 1 / -1; order: 3 } }
+</style>
+
+<div class="wtf-pg-wrap">
+<header class="wtf-pg-head">
+  <div class="wtf-pg-eyebrow">Public money &middot; the whole picture</div>
+  <h1 class="wtf-pg-title">Debt tracker</h1>
+  <p class="wtf-pg-lede">Taxes in, spending out, and what the gap has added to the federal debt &mdash; annual figures for the last {{ (d.rows|length - 1) if d else 10 }} years and, because Statistics Canada publishes them every quarter, the current year as it happens. Every figure is Statistics Canada&rsquo;s, for the federal government only; provincial debt is not included.</p>
+</header>
+
+{% if not d %}
+<div class="wtf-db-panel"><div class="wtf-db-empty">The federal fiscal series has not been loaded yet. It is pulled from Statistics Canada once a week; nothing is shown here until real figures arrive, and none are filled in by hand.</div></div>
+{% else %}
+{% set L = d.latest %}
+
+<div class="wtf-db-stats">
+  <div class="wtf-db-stat"><div class="wtf-db-stat-n">{{ B(L.revenue) }}</div><div class="wtf-db-stat-l">Revenue &middot; {{ L.year }}</div></div>
+  <div class="wtf-db-stat"><div class="wtf-db-stat-n">{{ B(L.expense) }}</div><div class="wtf-db-stat-l">Expenses &middot; {{ L.year }}</div></div>
+  <div class="wtf-db-stat"><div class="wtf-db-stat-n">{{ B(L.balance) }}</div><div class="wtf-db-stat-l">{{ 'Surplus' if L.balance is not none and L.balance > 0 else 'Deficit' }} &middot; {{ L.year }}</div></div>
+  <div class="wtf-db-stat"><div class="wtf-db-stat-n">{{ B(L.net_debt, 0) }}</div><div class="wtf-db-stat-l">Net debt &middot; {{ L.year }}</div></div>
+  <div class="wtf-db-stat"><div class="wtf-db-stat-n">{{ P(L.net_debt_gdp) }}</div><div class="wtf-db-stat-l">Net debt / GDP</div></div>
+  <div class="wtf-db-stat"><div class="wtf-db-stat-n">{{ B(L.interest) }}</div><div class="wtf-db-stat-l">Interest &middot; {{ L.year }}</div></div>
+</div>
+<p class="wtf-db-note" style="text-align:center">Canadian dollars. <strong>B</strong> = billions. Years are <strong>calendar years</strong> on Statistics Canada&rsquo;s government-finance-statistics basis &mdash; not the Public Accounts fiscal year (April&ndash;March), so these will not match the Public Accounts headline deficit.</p>
+
+{% if d.ytd %}{% set Y = d.ytd %}
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">{{ Y.year }} so far &middot; {{ Y.label }}, through {{ Y.through }} &middot; not yet a full year</div>
+  <div class="wtf-db-ytd">
+    {% for key, title in [('revenue','Revenue'),('expense','Expenses'),('net_lending','Balance'),('interest','Interest on the debt')] %}
+    {% set m = Y.metrics[key] %}
+    <div class="wtf-db-card"><h4>{{ title }}</h4><div class="v">{{ B(m.value) }}</div>
+      <div class="m">{% if Y.comparable and m.year_ago is not none %}same {{ 'quarter' if Y.quarters|length == 1 else 'quarters' }} {{ Y.prev_year }}: {{ B(m.year_ago) }}<br>change {{ D(m.change) }}{% if m.change_pct is not none and key != 'net_lending' %} ({{ P(m.change_pct, 1) }}){% endif %}{% else %}no like-for-like year-ago figure{% endif %}</div></div>
+    {% endfor %}
+    <div class="wtf-db-card"><h4>Net debt, end {{ Y.through.split(' ')[0] }}</h4><div class="v">{{ B(Y.net_debt, 0) }}</div>
+      <div class="m">{% if Y.net_debt_year_ago is not none %}a year earlier: {{ B(Y.net_debt_year_ago, 0) }}<br>change {{ D(Y.net_debt_change) }}{% endif %}</div></div>
+  </div>
+  <p class="wtf-db-note">Only whole quarters are counted, and each is set against the <em>same</em> quarter a year earlier &mdash; quarterly flows are not seasonally adjusted, so a spring quarter is never compared with a winter one, and a part-year is never ranked against full years.</p>
+</div>
+{% endif %}
+
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">Quarter by quarter &middot; the most recent {{ d.quarters|length }} quarters</div>
+  <div style="overflow-x:auto"><table class="wtf-db-tbl">
+    <thead><tr><th>Quarter</th><th>Revenue</th><th>Expenses</th><th>Balance</th><th>Interest</th><th>Net debt</th><th>Revenue vs yr ago</th><th>Expenses vs yr ago</th></tr></thead>
+    <tbody>
+    {% for q in d.quarters %}
+      <tr {% if loop.first %}class="cur"{% endif %}><td>{{ q.span }}</td><td>{{ B(q.revenue) }}</td><td>{{ B(q.expense) }}</td><td>{{ B(q.balance) }}</td><td>{{ B(q.interest) }}</td><td>{{ B(q.net_debt, 0) }}</td><td>{{ D(q.revenue_yoy) }}</td><td>{{ D(q.expense_yoy) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="wtf-db-note">Statistics Canada, table 10-10-0015-01 (quarterly, calendar quarters). The quarterly table is revised more often than the annual one, so a year&rsquo;s four quarters can differ by up to about one per cent from that year&rsquo;s annual figure below.</p>
+</div>
+
+<div style="margin-top:18px"><div class="wtf-db-psec">{{ d.rows|length }} calendar years &middot; CAD billions unless marked</div>
+  <div class="wtf-db-grid" id="db-charts"></div>
+  <p class="wtf-db-note">Statistics Canada, table 10-10-0172-01 (federal government), with nominal GDP from table 36-10-0104-01 averaged over each calendar year. Net debt is liabilities minus financial assets &mdash; Statistics Canada&rsquo;s &ldquo;net financial worth&rdquo; with the sign flipped &mdash; which is a different measure from the Public Accounts &ldquo;accumulated deficit&rdquo;.</p></div>
+
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">Revenue in, expenses out &middot; every year shown</div>
+  <div style="overflow-x:auto"><table class="wtf-db-tbl">
+    <thead><tr><th>Year</th><th>Revenue</th><th>Expenses</th><th>Balance</th><th>Net debt</th><th>Net debt / GDP</th><th>Interest</th><th>Interest / revenue</th></tr></thead>
+    <tbody>
+    {% for r in d.rows|reverse %}
+      <tr {% if loop.first %}class="cur"{% endif %}><td>{{ r.year }}</td><td>{{ B(r.revenue) }}</td><td>{{ B(r.expense) }}</td><td>{{ B(r.balance) }}</td><td>{{ B(r.net_debt, 0) }}</td><td>{{ P(r.net_debt_gdp) }}</td><td>{{ B(r.interest) }}</td><td>{{ P(r.interest_share) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="wtf-db-note">The balance is net lending/borrowing: a negative number is a deficit that adds to the debt. 2020 is the pandemic year.</p>
+</div>
+
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">Where the money comes from &middot; {{ L.year }} revenue</div>
+  <div class="wtf-db-bars">
+    {% for r in d.revenue_breakdown %}<div class="r"><span>{{ r.label }}</span><span class="t"><i style="width:{{ '{:.1f}'.format(r.share|abs) }}%"></i></span><span class="n">{{ B(r.value) }} &middot; {{ P(r.share, 0) }}</span></div>{% endfor %}
+  </div>
+</div>
+
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">Where it goes &middot; {{ L.year }} expenses</div>
+  <div class="wtf-db-bars">
+    {% for r in d.expense_breakdown %}<div class="r"><span>{{ r.label }}</span><span class="t"><i style="width:{{ '{:.1f}'.format(r.share|abs) }}%"></i></span><span class="n">{{ B(r.value) }} &middot; {{ P(r.share, 0) }}</span></div>{% endfor %}
+  </div>
+  <p class="wtf-db-note">Statistics Canada groups spending by <em>type</em>, not by department. Much of &ldquo;grants&rdquo; and &ldquo;social benefits&rdquo; is money that passes through to provinces and households rather than programs Ottawa runs itself. A department-by-department view needs the Public Accounts (Volume II), which is not loaded here yet.</p>
+</div>
+
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">Better or worse? &middot; the honest answer is which measure, and compared with when</div>
+  <div class="wtf-db-vd">
+    {% for v in d.verdict %}
+    <div class="wtf-db-card"><h4>{{ v.title }}</h4><div class="v">{{ v.now }}</div><div class="m">{{ v.year }}</div>
+      {% for ref in [v.vs_prior, v.vs_base] if ref %}
+        <div class="m">vs {{ ref.year }} ({{ ref.value or '—' }}): <span class="w {{ 'wtf-db-good' if ref.word == 'improved' else ('wtf-db-bad' if ref.word == 'worsened' else 'wtf-db-flat') }}">{{ ref.word or 'n/a' }}</span></div>
+      {% endfor %}
+      <div class="m" style="margin-top:6px">{{ v.note }}</div></div>
+    {% endfor %}
+  </div>
+  <p class="wtf-db-note">Each measure is compared with the previous year and with 2019, the last year before the pandemic. Nothing here says whether a given level of debt is too high &mdash; that is a judgement, not a statistic.</p>
+</div>
+
+<div class="wtf-db-panel">
+  <div class="wtf-db-psec">Related</div>
+  <p class="wtf-db-note" style="margin:0"><a href="/economy">Economy indicators</a> &middot; <a href="/rates">Bank of Canada rates</a> &middot; <a href="/cost">Cost of Parliament</a> &middot; <a href="/lobbying">Lobbying</a></p>
+</div>
+{% endif %}
+</div>{# /.wtf-pg-wrap #}
+
+{% if d %}
+<script>
+(function () {
+  var ROWS = {{ d.rows|map(attribute='year')|list|tojson }};
+  var SERIES = [
+    ['Revenue', {{ d.rows|map(attribute='revenue')|list|tojson }}, 'B'],
+    ['Expenses', {{ d.rows|map(attribute='expense')|list|tojson }}, 'B'],
+    ['Balance', {{ d.rows|map(attribute='balance')|list|tojson }}, 'B'],
+    ['Net debt', {{ d.rows|map(attribute='net_debt')|list|tojson }}, 'B'],
+    ['Net debt / GDP', {{ d.rows|map(attribute='net_debt_gdp')|list|tojson }}, '%'],
+    ['Interest', {{ d.rows|map(attribute='interest')|list|tojson }}, 'B']
+  ];
+  function fmt(v, u) {
+    if (v === null) return '—';
+    var s = Math.abs(v).toFixed(u === '%' ? 1 : 0);
+    return (v < 0 ? '−' : '') + (u === 'B' ? '$' + s + 'B' : s + '%');
+  }
+  function line(vals) {
+    var W = 300, H = 70, pad = 5, pts = vals.map(function (v, i) { return [i, v]; }).filter(function (p) { return p[1] !== null; });
+    if (pts.length < 2) return '';
+    var lo = Math.min.apply(null, pts.map(function (p) { return p[1]; }).concat([0])),
+        hi = Math.max.apply(null, pts.map(function (p) { return p[1]; }).concat([0]));
+    var x = function (i) { return pad + i / (vals.length - 1) * (W - pad * 2); },
+        y = function (v) { return H - pad - (v - lo) / ((hi - lo) || 1) * (H - pad * 2); };
+    var d = pts.map(function (p, k) { return (k ? 'L' : 'M') + x(p[0]).toFixed(1) + ' ' + y(p[1]).toFixed(1); }).join(' ');
+    var last = pts[pts.length - 1];
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" aria-hidden="true">' +
+      '<line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y(0).toFixed(1) + '" y2="' + y(0).toFixed(1) + '" stroke="currentColor" stroke-opacity=".18"/>' +
+      '<path d="' + d + '" fill="none" stroke="var(--wtf-brand)" stroke-width="1.7" stroke-linejoin="round"/>' +
+      '<circle cx="' + x(last[0]).toFixed(1) + '" cy="' + y(last[1]).toFixed(1) + '" r="2.8" fill="var(--wtf-brand)"/></svg>';
+  }
+  var host = document.getElementById('db-charts');
+  SERIES.forEach(function (s) {
+    var vals = s[1], last = vals[vals.length - 1], first = vals[0];
+    var card = document.createElement('div'); card.className = 'wtf-db-card';
+    var h = document.createElement('h4'); h.textContent = s[0]; card.appendChild(h);
+    var v = document.createElement('div'); v.className = 'v'; v.textContent = fmt(last, s[2]); card.appendChild(v);
+    var chart = document.createElement('div'); chart.style.marginTop = '8px'; chart.innerHTML = line(vals); card.appendChild(chart);
+    var m = document.createElement('div'); m.className = 'm'; m.textContent = ROWS[0] + ': ' + fmt(first, s[2]) + ' → ' + ROWS[ROWS.length - 1] + ': ' + fmt(last, s[2]); card.appendChild(m);
+    host.appendChild(card);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

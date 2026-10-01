@@ -33,7 +33,7 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | 22 | `wtf-economy.html` | `economy.html` | todo | | |
 | 23 | `wtf-rates.html` | `rates.html` | todo | | |
 | 24 | `wtf-cost.html` | `cost.html` | todo | | |
-| 25 | `wtf-global.html`, `wtf-debt.html` | `/global`, `/debt` | todo | | Both ROUTES exist but are `_COMING_SOON` placeholders: no fiscal / Global Affairs spending ingest. Design numbers are hand-typed samples, so nothing is ported until a real source is ingested (needs a source decision) |
+| 25 | `wtf-global.html`, `wtf-debt.html` | `debt.html`, `/global` | partial (25a) | | **25a `/debt` is REAL.** Weekly ingest of Statistics Canada 10-10-0172-01 (annual 1990→) + 10-10-0015-01 (quarterly, current to Apr–Jun 2026) + nominal GDP into `market_watch.fiscal_federal_*`; page shows latest-year stats, **2026 year-to-date vs same quarters of 2025**, an 8-quarter table, 11-year series, revenue/expense breakdown and a by-measure "better or worse". ⚠️ **Years are CALENDAR years (verified: the four quarters sum exactly to the annual), NOT Public Accounts fiscal years** — design labels ("15–16 … 24–25") and its sample numbers were not used. Not ported (no data): by-department table (Public Accounts Vol. II), "interest exceeds health transfers", Watch chips. Next: contract spend by department from gov-watch (its DB is on a separate Citadel network). `/global` still a placeholder — needs a Global Affairs source |
 | 26 | `wtf-markets.html` | `markets.html` | todo | | |
 | 27 | `wtf-sources.html`, `wtf-outlet.html` | `sources.html`, `source.html` | todo | | |
 | 28 | `wtf-owners.html` | `owners.html` | todo | | |

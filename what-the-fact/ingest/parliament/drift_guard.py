@@ -115,6 +115,10 @@ _MAX_AGE_DAYS = {
     # holiday gap in the underlying series is normal and handled by
     # fx_rates._build_rows, not this guard).
     "fx_rates": int(os.environ.get("WTF_DRIFT_FX_DAYS", "10")),
+    # Federal fiscal aggregates (/debt). Weekly job like boc_rates: this measures
+    # the job still firing and StatCan still answering, not data freshness (the
+    # annual table only moves a few times a year).
+    "fiscal_federal": int(os.environ.get("WTF_DRIFT_FISCAL_DAYS", "10")),
     # StatCan CPI/unemployment/GDP/housing-starts (Batch 12, #6523). All four
     # release monthly with real-world lag (StatCan itself can take 3-4 weeks
     # after the reference period), so this measures the WEEKLY job still
@@ -167,6 +171,9 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # that never runs must alarm, not report green-by-omission.
                    "fx_rates",
                    "statcan_indicators",
+                   # fiscal_federal — brand-new puller (/debt), zero prior rows:
+                   # a puller that never runs must alarm, not read green.
+                   "fiscal_federal",
                    # aurora_aqhi and aurora_alerts are BOTH brand-new pullers
                    # (#6621) — same reasoning as boc_rates/fx_rates above: a
                    # puller that never runs must alarm, not report

@@ -16,6 +16,7 @@ from sqlalchemy import create_engine, text
 from . import rate_limit as _rate_limit  # shared bucket store (#5747/#5748)
 from . import rate_policy as _rate_policy  # pure, stdlib-only decision logic
 from . import echo_data as _echo_data  # pure series math for /echo (#6272 follow-up)
+from . import debt_data as _debt_data  # pure view-model for /debt (StatCan federal fiscal)
 from .auth import is_subscriber
 
 import logging
@@ -9505,14 +9506,8 @@ _COMING_SOON = {
         "and who receives it.",
         "Waiting on a Global Affairs spending ingest. Not yet collected.",
     ),
-    "debt": (
-        "Debt tracker — taxes, spending and the federal debt",
-        "Debt tracker",
-        "Taxes in, spending out, and what the gap has added to the federal "
-        "debt across ten fiscal years.",
-        "Waiting on fiscal aggregates. Departmental contracts are ingested, "
-        "but revenue, total programme spending and the debt series are not.",
-    ),
+    # "debt" graduated to a real page — see debt() below. Its placeholder is DELETED
+    # rather than disabled: a page that exists must not also be advertised as unbuilt.
     # "echo" graduated to a real page — see echo() below (#6272 follow-up).
     # "methodology" graduated to a real page — see methodology() below. Its
     # placeholder is DELETED rather than disabled: a page that exists must not
@@ -9546,6 +9541,31 @@ def _register_coming_soon(slug, title, h1, lede, blocker):
 
 for _slug, _copy in _COMING_SOON.items():
     _register_coming_soon(_slug, *_copy)
+
+
+@bp.get("/debt")
+def debt():
+    """Debt tracker — real federal fiscal series from Statistics Canada.
+
+    Backed by market_watch.fiscal_federal_annual / _quarterly (ingest/market/
+    fiscal_federal.py). Years are CALENDAR years on the government-finance-
+    statistics basis, NOT Public Accounts fiscal years — the template says so.
+    Not ported from design-handoff/wtf-debt.html: its hand-typed sample series,
+    the by-department table (Public Accounts Vol. II, not ingested) and the
+    "interest now exceeds health transfers" sentence (no health-transfer series).
+    """
+    annual_rows, quarterly_rows = [], []
+    with _db().connect() as c:
+        for target, sql in (
+            (annual_rows, "SELECT ref_year, item_key, value_millions FROM market_watch.fiscal_federal_annual"),
+            (quarterly_rows, "SELECT ref_quarter, item_key, value_millions FROM market_watch.fiscal_federal_quarterly"),
+        ):
+            try:
+                target.extend(dict(r) for r in c.execute(text(sql)).mappings().all())
+            except Exception:  # table not created yet → honest empty state, not a 500
+                c.rollback()
+    data = _debt_data.build(annual_rows, quarterly_rows)
+    return render_template("debt.html", d=data, is_subscriber=is_subscriber())
 
 
 @bp.get("/echo")

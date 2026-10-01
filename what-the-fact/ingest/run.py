@@ -400,6 +400,7 @@ def main():
     _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
     _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
     _last_boc_week = None        # BoC overnight rate decisions (weekly) — #6272, Batch 9
+    _last_fiscal_week = None     # federal fiscal aggregates, StatCan (weekly) — /debt
     _last_fx_week = None          # CAD/USD daily exchange rate (weekly fetch of daily obs) — Batch 12
     _last_statcan_week = None     # StatCan CPI/unemployment/GDP/housing (weekly, monthly-release data) — Batch 12
     _last_aqhi_alerts_hour = None  # A.U.R.O.R.A. AQHI + EC alerts (hourly, same gate as citypage) — #6621
@@ -662,6 +663,18 @@ def main():
             except Exception:
                 log.exception("boc rates crashed")
             _last_boc_week = _elec_week
+
+        # Federal fiscal aggregates (StatCan 10-10-0172-01 + GDP) — WEEKLY for /debt.
+        # The annual table moves a few times a year, so weekly is ample; the point
+        # of running it weekly is that run_fiscal_federal writes a parliament.ingest_log
+        # heartbeat on every path, so drift_guard can see a dead puller. Never raises.
+        if _last_fiscal_week != _elec_week:
+            try:
+                from ingest.market.fiscal_federal import run_fiscal_federal
+                log.info("fiscal federal: %s", run_fiscal_federal(engine))
+            except Exception:
+                log.exception("fiscal federal crashed")
+            _last_fiscal_week = _elec_week
 
         # CAD/USD daily exchange rate — WEEKLY fetch of the daily series
         # (Batch 12, #6523). The series itself updates once per business day,

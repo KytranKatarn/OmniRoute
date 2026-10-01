@@ -666,19 +666,34 @@ async def check_platform_health_handler(arguments: Dict[str, Any]) -> Dict[str, 
         "services": {},
     }
 
-    # Check platform
+    # Check platform. There is no /api/health route: the platform's liveness
+    # endpoint is /health, and every /api/* path sits behind Flask-Login and
+    # answers 302 with an HTML login page. Probing /api/health followed that
+    # redirect and then died in response.json() with "Expecting value: line 1
+    # column 1 (char 0)" -- a ValueError, which requests.RequestException does
+    # NOT catch, so the failure escaped and a healthy hub read as degraded.
     try:
-        response = requests.get(f"{PLATFORM_URL}/api/health", timeout=5)
+        response = requests.get(f"{PLATFORM_URL}/health", timeout=5, allow_redirects=False)
         if response.status_code == 200:
             data = response.json()
+            if data.get("status") == "healthy":
+                health["platform"] = {
+                    "status": "healthy",
+                    "version": data.get("version", "unknown"),
+                    "uptime": data.get("uptime"),
+                }
+            else:
+                health["platform"] = {"status": "unhealthy", "detail": data}
+        elif response.status_code in (301, 302, 307, 308):
+            # A redirect means we hit an auth-gated path, not the platform.
             health["platform"] = {
-                "status": "healthy",
-                "version": data.get("version", "unknown"),
-                "uptime": data.get("uptime"),
+                "status": "unhealthy",
+                "code": response.status_code,
+                "detail": "redirected to auth — wrong path for a liveness probe",
             }
         else:
             health["platform"] = {"status": "unhealthy", "code": response.status_code}
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         health["platform"] = {"status": "offline", "error": str(e)}
 
     # Check database

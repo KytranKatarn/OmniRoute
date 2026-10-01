@@ -21,10 +21,81 @@ Tools are organized by category:
 Total: 85 tools
 """
 
-from typing import Dict, List, Callable, Any
+from typing import Dict, List, Callable, Any, Optional
 
 # Tool registry
 _tools: Dict[str, Dict] = {}
+
+
+def internal_api(
+    path: str,
+    params: Optional[Dict[str, Any]] = None,
+    timeout: int = 15,
+) -> Dict[str, Any]:
+    """Call the hub's scoped `/api/internal/*` surface as the coder-lane gateway.
+
+    The lane's own DB role (`codex_ro`) is deliberately SELECT-only on a narrow
+    table set, so agent/roster tools must not read `agents` or `bridge_stations`
+    directly. docker-compose.yml states the intent outright: task/agent tools
+    "call the hub's INTERNAL HTTP API (never the DB), so the Postgres role above
+    stays read-only." This is that call. The key is scoped by
+    `services.internal_auth.CALLER_SCOPES["coder_lanes"]` to
+    {tasks:read, tasks:write, agents:read, agents:manage, delegation} — a route
+    outside those families answers 403, which is the point: the lane's reach is
+    the scope table, not a blanket credential.
+
+    Returns `{"ok": bool, ...}`. `ok=False` carries `error` and, for an auth
+    failure, `status`, so a caller can distinguish "not configured" from
+    "forbidden" from "hub unreachable" instead of surfacing a stack trace.
+    """
+    import os
+
+    import requests
+
+    base = os.getenv("ARCHIE_HUB_URL", "http://archie_platform:3000").rstrip("/")
+    key = os.getenv("INTERNAL_API_KEY_CODER_LANES", "")
+    if not key:
+        return {
+            "ok": False,
+            "error": "INTERNAL_API_KEY_CODER_LANES is not set on this gateway",
+        }
+
+    url = f"{base}{path if path.startswith('/') else '/' + path}"
+    try:
+        response = requests.get(
+            url,
+            params=params or None,
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            timeout=timeout,
+            allow_redirects=False,
+        )
+    except requests.RequestException as e:
+        return {"ok": False, "error": f"hub unreachable at {base}: {e}"}
+
+    if response.status_code in (301, 302, 307, 308):
+        # The internal API answers 401/403 for a bad or unscoped key; a redirect
+        # means the request escaped to the Flask-Login surface and got the HTML
+        # login page, so there is no JSON to parse.
+        return {
+            "ok": False,
+            "status": response.status_code,
+            "error": "redirected to auth — not an /api/internal route",
+        }
+    if response.status_code == 403:
+        return {"ok": False, "status": 403, "error": "caller lacks the scope for this route"}
+    if response.status_code == 401:
+        return {"ok": False, "status": 401, "error": "internal key rejected"}
+    if response.status_code != 200:
+        return {"ok": False, "status": response.status_code, "error": f"HTTP {response.status_code}"}
+
+    try:
+        payload = response.json()
+    except ValueError as e:
+        return {"ok": False, "error": f"hub returned non-JSON: {e}"}
+
+    if isinstance(payload, dict) and payload.get("success") is False:
+        return {"ok": False, "error": payload.get("error", "hub reported failure")}
+    return {"ok": True, "data": payload}
 
 
 def cap_limit(arguments: Dict[str, Any], default: int, cap: int) -> int:

@@ -14,9 +14,9 @@ import psycopg2
 import subprocess
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, List
 
-from . import register_tool, cap_limit
+from . import register_tool, cap_limit, internal_api
 
 logger = logging.getLogger("archie_mcp.tools.admin")
 
@@ -197,127 +197,103 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
             "sections": {},
         }
 
-        # Agent statistics
-        cur.execute(
+        # Agent statistics + department coverage come from the hub's scoped
+        # internal API (scope agents:read). This lane's DB role has no grant on
+        # `agents`, so querying it directly raised InFailedSqlTransaction and
+        # failed the entire tool — including the sections that DO work. limit=1:
+        # we only want `total` and the facets, not the roster.
+        roster = internal_api("/api/internal/agents", params={"limit": 1})
+        if roster.get("ok"):
+            facets = roster["data"].get("facets", {}) or {}
+            states = facets.get("states", {}) or {}
+            by_department = facets.get("departments", {}) or {}
+            status["sections"]["agents"] = {
+                "total": roster["data"].get("total"),
+                "active": states.get("active"),
+                "inactive": states.get("off_duty"),
+                "training": states.get("training"),
+                "by_state": states,
+                "by_department": [
+                    {"department": dept, "count": count}
+                    for dept, count in sorted(by_department.items(), key=lambda kv: -kv[1])
+                ],
+                "source": "/api/internal/agents",
+            }
+            status["sections"]["stations"] = {
+                "total": len(by_department),
+                "coverage": [
+                    {"department": dept, "agent_count": count} for dept, count in sorted(by_department.items())
+                ],
+                "empty": [],
+                "note": "Derived from agent departments; bridge_stations is not readable by this lane.",
+            }
+        else:
+            status["sections"]["agents"] = {
+                "error": roster.get("error", "roster read failed"),
+                "source": "/api/internal/agents",
+            }
+
+        # Each remaining section is independent: a table this lane cannot read
+        # degrades that one section instead of failing the whole report. The
+        # rollback is load-bearing — psycopg2 leaves the transaction aborted
+        # after a permission error, so without it every later section would
+        # fail with InFailedSqlTransaction even when its table IS readable.
+        def _section(name: str, query: str, build):
+            try:
+                cur.execute(query)
+                status["sections"][name] = build(cur.fetchall())
+            except Exception as exc:
+                logger.warning(f"get_system_status: section '{name}' unavailable: {exc}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                status["sections"][name] = {"error": "not readable by this lane", "detail": str(exc).split("\n")[0]}
+
+        _section(
+            "improvements",
+            "SELECT status, COUNT(*) as count FROM improvement_proposals GROUP BY status",
+            lambda rows: {
+                "total": sum(r["count"] for r in rows),
+                "by_status": {r["status"]: r["count"] for r in rows},
+            },
+        )
+
+        _section(
+            "knowledge",
+            "SELECT knowledge_type, COUNT(*) as count FROM knowledge_base GROUP BY knowledge_type",
+            lambda rows: {
+                "total": sum(r["count"] for r in rows),
+                "by_type": {r["knowledge_type"]: r["count"] for r in rows},
+            },
+        )
+
+        _section(
+            "activity_24h",
             """
             SELECT
-                COUNT(*) as total,
-                COUNT(*) FILTER (WHERE status = 'active') as active,
-                COUNT(*) FILTER (WHERE status = 'inactive') as inactive,
-                COUNT(*) FILTER (WHERE status = 'training') as training
-            FROM agents
-        """
-        )
-        agent_stats = cur.fetchone()
-        status["sections"]["agents"] = dict(agent_stats)
-
-        # Agent by department
-        cur.execute(
-            """
-            SELECT department, COUNT(*) as count
-            FROM agents
-            WHERE department IS NOT NULL
-            GROUP BY department
-            ORDER BY count DESC
-        """
-        )
-        status["sections"]["agents"]["by_department"] = [dict(r) for r in cur.fetchall()]
-
-        # Department coverage (station_assignments dropped — agents use agents.department directly)
-        cur.execute(
-            """
-            SELECT department, COUNT(*) as agent_count
-            FROM agents
-            WHERE shift_state = 'active' AND department IS NOT NULL
-            GROUP BY department
-            ORDER BY department
-            """
-        )
-        dept_coverage = [dict(r) for r in cur.fetchall()]
-        status["sections"]["stations"] = {
-            "total": len(dept_coverage),
-            "coverage": dept_coverage,
-            "empty": [],
-        }
-
-        # Improvement proposals
-        cur.execute(
-            """
-            SELECT
-                status,
-                COUNT(*) as count
-            FROM improvement_proposals
-            GROUP BY status
-        """
-        )
-        improvements = {r["status"]: r["count"] for r in cur.fetchall()}
-        status["sections"]["improvements"] = {
-            "total": sum(improvements.values()),
-            "by_status": improvements,
-        }
-
-        # Knowledge base
-        cur.execute(
-            """
-            SELECT
-                knowledge_type,
-                COUNT(*) as count
-            FROM knowledge_base
-            GROUP BY knowledge_type
-        """
-        )
-        knowledge = {r["knowledge_type"]: r["count"] for r in cur.fetchall()}
-        status["sections"]["knowledge"] = {
-            "total": sum(knowledge.values()),
-            "by_type": knowledge,
-        }
-
-        # Recent activity (last 24 hours)
-        cur.execute(
-            """
-            SELECT COUNT(*) as count
+                COUNT(*) as api_calls,
+                COALESCE(SUM(prompt_tokens + completion_tokens), 0) as tokens
             FROM token_usage_log
             WHERE created_at > NOW() - INTERVAL '24 hours'
-        """
+            """,
+            lambda rows: {
+                "api_calls": rows[0]["api_calls"],
+                "tokens_used": int(rows[0]["tokens"]),
+            },
         )
-        api_calls = cur.fetchone()["count"]
-
-        cur.execute(
-            """
-            SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0) as total
-            FROM token_usage_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        tokens_24h = cur.fetchone()["total"]
-
-        status["sections"]["activity_24h"] = {
-            "api_calls": api_calls,
-            "tokens_used": int(tokens_24h),
-        }
 
         if include_details:
-            # Recent improvements
-            cur.execute(
-                """
-                SELECT id, title, status, priority, proposed_at
-                FROM improvement_proposals
-                ORDER BY proposed_at DESC
-                LIMIT 5
-            """
+            _section(
+                "recent_improvements",
+                "SELECT id, title, status, priority, proposed_at FROM improvement_proposals ORDER BY proposed_at DESC LIMIT 5",
+                lambda rows: [dict(r) for r in rows],
             )
-            status["sections"]["recent_improvements"] = [dict(r) for r in cur.fetchall()]
-
-            # Recent backups
-            cur.execute(
-                """
-                SELECT id, backup_type, status, file_size_bytes, created_at
-                FROM backup_log
-                ORDER BY created_at DESC
-                LIMIT 5
-            """
+            _section(
+                "recent_backups",
+                "SELECT id, backup_type, status, file_size_bytes, created_at FROM backup_log ORDER BY created_at DESC LIMIT 5",
+                lambda rows: [dict(r) for r in rows],
             )
-            status["sections"]["recent_backups"] = [dict(r) for r in cur.fetchall()]
 
         return status
 
@@ -367,71 +343,84 @@ async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     List all agents with optional filtering
     """
-    status_filter = arguments.get("status", "active")
+    # `or "active"`, not `.get("status", "active")`: the MCP client sends an explicit
+    # null for an omitted optional arg, which a two-arg get treats as a real value and
+    # so silently disables the documented default filter.
+    status_filter = arguments.get("status") or "active"
     department = arguments.get("department")
     station_code = arguments.get("station_code")
     limit = cap_limit(arguments, 50, 100)
 
-    conn, cur = get_db_connection()
-    if not conn:
-        return {"success": False, "error": "Database connection failed"}
+    # Read the roster through the hub's scoped internal API rather than the DB.
+    # This lane's role is codex_ro, which has no grant on `agents` or
+    # `bridge_stations`, so the previous direct query failed with "permission
+    # denied for table agents" on every call. /api/internal/agents is the
+    # intended path (scope: agents:read) and needs no new credential.
+    params: Dict[str, Any] = {"limit": limit}
+    if department:
+        params["department"] = department
 
-    try:
-        # station_assignments was DROPPED (see the notes at the top of this module);
-        # this query still joined it and so raised UndefinedTable on EVERY call —
-        # list_agents was entirely broken. Agents belong to departments, and the
-        # surviving station link is bridge_stations.station_name = agents.department.
-        # assignment_type / shift_preference lived only on the dropped table and have
-        # no replacement, so they are gone rather than faked.
-        query = """
-            SELECT
-                a.id, a.name, a.first_name, a.last_name, a.title,
-                a.department, a.status, a.model, a.tier,
-                a.worker_type, a.cost_tier, a.shift_state,
-                bs.station_code, bs.station_name,
-                a.is_department_ai
-            FROM agents a
-            LEFT JOIN bridge_stations bs
-                   ON bs.station_name = a.department AND bs.is_active = TRUE
-            WHERE 1=1
-        """
-        params = []
-
-        if status_filter and status_filter != "all":
-            query += " AND a.status = %s"
-            params.append(status_filter)
-
-        if department:
-            query += " AND a.department = %s"
-            params.append(department)
-
-        if station_code:
-            query += " AND bs.station_code = %s"
-            params.append(station_code.upper())
-
-        query += " ORDER BY a.name LIMIT %s"
-        params.append(limit)
-
-        cur.execute(query, params)
-        agents = [dict(r) for r in cur.fetchall()]
-
+    result = internal_api("/api/internal/agents", params=params)
+    if not result.get("ok"):
         return {
-            "success": True,
-            "count": len(agents),
-            "filters": {
-                "status": status_filter,
-                "department": department,
-                "station_code": station_code,
-            },
-            "agents": agents,
+            "success": False,
+            "error": result.get("error", "internal agents read failed"),
+            "hint": "The roster is served by /api/internal/agents (scope agents:read).",
         }
 
-    except Exception as e:
-        logger.error(f"Error listing agents: {e}")
-        return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
+    payload = result["data"]
+    rows = payload.get("agents", []) or []
+
+    # The roster endpoint filters on shift_state, not the legacy `status`
+    # column, and does not expose bridge_stations. Apply what we can here and
+    # say plainly what could not be honoured rather than silently ignoring it.
+    notes: List[str] = []
+    if status_filter and status_filter != "all":
+        kept = [a for a in rows if a.get("shift_state") == status_filter]
+        if len(kept) != len(rows):
+            rows = kept
+        if status_filter in ("inactive", "training"):
+            notes.append(
+                f"status='{status_filter}' has no shift_state equivalent; filtered on "
+                f"shift_state instead (available: {payload.get('facets', {}).get('states', {})})."
+            )
+    if station_code:
+        notes.append(
+            f"station_code='{station_code}' cannot be filtered: the roster endpoint does not "
+            "expose bridge_stations. Use department, which maps to the station name."
+        )
+
+    agents = [
+        {
+            "id": a.get("id"),
+            "name": a.get("name"),
+            "title": a.get("title"),
+            "department": a.get("department"),
+            "shift_state": a.get("shift_state"),
+            "model": a.get("model"),
+            "worker_type": a.get("worker_type"),
+            "is_department_ai": a.get("is_department_ai"),
+            "performance_score": a.get("performance_score"),
+            "success_rate": a.get("success_rate"),
+            "last_used": a.get("last_used"),
+        }
+        for a in rows
+    ]
+
+    out = {
+        "success": True,
+        "count": len(agents),
+        "total": payload.get("total"),
+        "filters": {
+            "status": status_filter,
+            "department": department,
+            "station_code": station_code,
+        },
+        "agents": agents,
+    }
+    if notes:
+        out["notes"] = notes
+    return out
 
 
 register_tool(

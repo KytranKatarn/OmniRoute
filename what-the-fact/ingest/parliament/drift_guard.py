@@ -240,6 +240,21 @@ def _reconciliation_problems(engine) -> list:
     ]
 
 
+def _election_calendar_problems(engine) -> list:
+    """The curated /elections calendar can't be refreshed by a feed, so its
+    trustworthiness is checked here: unverified rows, a passed latest date, a
+    verification older than shared.election_calendar.VERIFY_STALE_DAYS."""
+    import datetime as _dt
+    from shared.election_calendar import problems
+
+    with engine.connect() as conn:
+        rows = [dict(r) for r in conn.execute(text(
+            "SELECT jurisdiction_code, jurisdiction, level, last_election, "
+            "next_latest_date, rule, source_url, verified_at "
+            "FROM parliament.election_calendar")).mappings().all()]
+    return problems(rows, _dt.date.today())
+
+
 def _alert(title: str, message: str, priority: str = "high") -> bool:
     """Speak the alert to Kytran through A.R.C.H.I.E. (hub notify → Telegram). Fail-soft — a
     comms hiccup must never crash the guard (the ingest_log record still stands)."""
@@ -268,7 +283,7 @@ def run_drift_guard(engine) -> dict:
     Returns {ok, problems:[...], alerted}. Never raises — a guard that can crash is no guard.
     """
     problems = []
-    for check in (_reconciliation_problems, _source_freshness):
+    for check in (_reconciliation_problems, _source_freshness, _election_calendar_problems):
         try:
             problems.extend(check(engine))
         except Exception as exc:  # a check crashing is itself a problem worth surfacing

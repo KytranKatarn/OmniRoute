@@ -1,0 +1,36 @@
+{# Port of design-handoff/wtf-404.html. Shared shell (nav + footer) comes from
+   base.html, so a lost reader is never off the site. Copy is the design's:
+   it makes no claim about *why* the page is missing beyond what is true —
+   the address may have changed, or a story may have been withdrawn. Styles are
+   page-local (style.css is synced into the design system by .design-sync/). #}
+{% extends "base.html" %}
+{% block title %}Page not found · What The Fact{% endblock %}
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+{% block content %}
+<style>
+  .wtf-nf { max-width: 640px; margin: 0 auto; padding: 72px 20px 96px; text-align: center; }
+  .wtf-nf-eyebrow { font-family: var(--wtf-font-mono); font-size: 0.7rem; letter-spacing: 0.16em;
+                    text-transform: uppercase; color: var(--wtf-accent); }
+  .wtf-nf h1 { font-family: var(--wtf-font-serif); font-size: 2.1rem; line-height: 1.15;
+               color: var(--wtf-text); margin: 6px 0 10px; }
+  .wtf-nf p { font-size: 1.02rem; line-height: 1.6; color: var(--wtf-text-2); margin: 0 auto 22px; }
+  .wtf-nf-links { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
+  .wtf-nf-links a { padding: 10px 18px; border-radius: 999px; border: 1px solid var(--wtf-border);
+                    font-family: var(--wtf-font-mono); font-size: 0.65rem; letter-spacing: 0.1em;
+                    text-transform: uppercase; color: var(--wtf-text-2); text-decoration: none; }
+  .wtf-nf-links a:hover { color: var(--wtf-text); border-color: var(--wtf-accent); }
+  .wtf-nf-links a.is-primary { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+</style>
+<div class="wtf-nf">
+  <div class="wtf-nf-eyebrow">404</div>
+  <h1>This page is not here</h1>
+  <p>The address may have changed in the rebuild, or the story may have been withdrawn &mdash;
+     in which case its correction record is on the article page that replaced it.
+     Nothing is cached or fabricated to fill the gap.</p>
+  <div class="wtf-nf-links">
+    <a class="is-primary" href="/">Front page</a>
+    <a href="/search">Search everything</a>
+    <a href="/archive">Full archive</a>
+  </div>
+</div>
+{% endblock %}

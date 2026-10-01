@@ -235,3 +235,25 @@ def test_route_survives_a_broken_alerts_table_with_two_tiles_blanked(monkeypatch
     t = {x["key"]: x for x in p["bands"]}
     assert t["alerts"]["value"] == DASH and all(c["alert"] is None for c in p["cities"])
     assert t["hotspots"]["value"] == "100"
+
+
+# ── 6th tile: spread pressure (current conditions, never a forecast) ─────────
+def _spread(code="AB", name="Alberta", score=62, band="high"):
+    return {"code": code, "name": name, "score": score, "band": band, "inputs": {}, "n_inputs": 3}
+
+
+def test_spread_tile_absent_by_default_so_the_five_tile_band_is_unchanged():
+    assert "spread" not in _tiles()
+
+
+def test_spread_tile_names_province_and_says_current_conditions_not_forecast():
+    t = _tiles(spread_rows=[_spread(), _spread("BC", "British Columbia", 30, "moderate")])["spread"]
+    assert (t["value"], t["tone"]) == ("62", "severe")
+    assert "Alberta" in t["note"] and "current conditions" in t["note"]
+    assert "48" not in t["note"] and "next" not in t["note"].lower()
+
+
+def test_spread_tile_em_dash_not_zero_when_nothing_measurable():
+    for rows in ([], [_spread(score=None, band=None)]):
+        t = _tiles(spread_rows=rows)["spread"]
+        assert t["value"] == "—"

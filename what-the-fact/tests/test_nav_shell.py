@@ -44,7 +44,7 @@ def client(tmp_path, monkeypatch):
 
 def _nav_html(client) -> str:
     """The nav as rendered on a placeholder page (no DB reads on this path)."""
-    r = client.get("/elections")
+    r = client.get("/platforms")
     assert r.status_code == 200, r.status_code
     body = r.get_data(as_text=True)
     assert '<div class="wtf-nav-links"' in body, "nav did not render"
@@ -66,7 +66,7 @@ def test_seven_group_labels_render_in_order(client):
 def test_the_same_groups_reach_the_mobile_drawer(client):
     """base.html renders one nav_sections list into BOTH the desktop bar and the
     drawer. If they ever diverge, a phone gets a different site."""
-    body = client.get("/elections").get_data(as_text=True)
+    body = client.get("/platforms").get_data(as_text=True)
     drawer = body.split('class="wtf-nav-mobile"')[1]
     for label in EXPECTED_GROUPS:
         assert f"<span>{label}</span>" in drawer, label
@@ -103,7 +103,7 @@ def test_placeholder_routes_are_all_reachable(client):
     # graduation announced itself (echo's own failure here was exactly that:
     # sqlalchemy.exc.ArgumentError, not a 200/404). Slugs move OUT of this
     # list as they are built; a slug in both places is the bug.
-    for slug in ("platforms", "elections", "global"):
+    for slug in ("platforms", "global"):
         assert client.get(f"/{slug}").status_code == 200, slug
 
 
@@ -111,7 +111,7 @@ def test_a_built_page_is_no_longer_advertised_as_a_placeholder(client):
     """The two sets must stay disjoint. A page that exists while still being
     described as unbuilt tells the reader the opposite of the truth."""
     from consumer.routes import _COMING_SOON
-    for built in ("races", "parties", "methodology", "creed", "echo", "debt"):
+    for built in ("races", "parties", "methodology", "creed", "echo", "debt", "elections"):
         assert built not in _COMING_SOON, built
 
 
@@ -145,14 +145,14 @@ def test_a_placeholder_names_what_it_is_waiting_on(client):
 def test_live_pill_is_a_link_not_a_dead_span(client):
     """Item 10 of the handoff's corrections table: it advertised live activity
     and went nowhere."""
-    body = client.get("/elections").get_data(as_text=True)
+    body = client.get("/platforms").get_data(as_text=True)
     assert '<a href="/activity" class="wtf-nav-live"' in body
 
 
 def test_live_label_carries_the_class_the_breakpoint_hides(client):
     """The <=1180px rule drops the wording and keeps the dot. Without this class
     the rule silently matches nothing and the bar overflows instead."""
-    body = client.get("/elections").get_data(as_text=True)
+    body = client.get("/platforms").get_data(as_text=True)
     assert 'class="wtf-live-label"' in body
     css = (ROOT / "consumer" / "static" / "style.css").read_text()
     assert ".wtf-nav-live .wtf-live-label { display: none; }" in css

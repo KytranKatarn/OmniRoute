@@ -336,12 +336,15 @@ _PROV_TERR_TOTAL = 13
 
 
 def build_fire_alert_tiles(hotspot_rows, obs_date, alerts, evac_naad, evac_bc_orders,
-                           reporting, total, silent_names):
-    """Five tiles for the homepage 'Wildfire and alerts' band.
+                           reporting, total, silent_names, spread_rows=None):
+    """Five tiles for the homepage 'Wildfire and alerts' band, six with ``spread_rows``.
 
-    The design also shows a 'Spread pressure' tile (84, 'Extreme, next 48h'). No table
-    or feed in this schema carries such a figure, so it is NOT built — the design
-    needs to name a source first (see PORT-STATUS row 4).
+    The design's sixth tile reads 'Spread pressure 84 · Extreme, next 48h' — a FORECAST.
+    Nothing here forecasts, so the tile is built from ``spread_pressure()`` (the /weather
+    index: current conditions, real rows only) and says so in its note instead of
+    claiming a horizon. ``spread_rows=None`` (the default) keeps the original five tiles
+    byte-for-byte; an empty list means "could not be measured" and renders an em dash,
+    never 0.
     """
     def tile(key, label, value, note, tone):
         return {"key": key, "label": label, "value": value, "note": note, "tone": tone,
@@ -384,6 +387,17 @@ def build_fire_alert_tiles(hotspot_rows, obs_date, alerts, evac_naad, evac_bc_or
                 if silent_names else "all reporting")
         tiles.append(tile("cities", "Cities reporting", f"{reporting} / {total}", note,
                           "ok" if reporting == total else "warn"))
+
+    if spread_rows is not None:
+        scored = [r for r in spread_rows if r.get("score") is not None]
+        if not scored:
+            tiles.append(tile("spread", "Spread pressure", "—",
+                              "not enough measured inputs", "fire"))
+        else:
+            top = max(scored, key=lambda r: r["score"])  # rows arrive sorted; don't rely on it
+            tone = {"extreme": "severe", "high": "severe", "moderate": "warn"}.get(top["band"], "ok")
+            tiles.append(tile("spread", "Spread pressure", str(top["score"]),
+                              f"{top['name']} · {top['band'].title()} · current conditions", tone))
     return tiles
 
 

@@ -23,11 +23,18 @@
       now reports how many of the total actually matched instead of always
       repeating the unfiltered total.
    Deliberately NOT added (bigger builds — see sources.html's own comment for
-   the same call on a sibling page): the mockup's Cards/Table view toggle,
-   the medium filter + Flat/By-medium/By-outlet grouping (client-side demo
+   the same call on a sibling page): the medium filter + Flat/By-medium/By-outlet grouping (client-side demo
    state over the full corpus; this page paginates server-side at 200 and
    the schema has no "medium" concept for an outlet), and the inline
-   profile panel (a separate page already exists at /journalist/<id>). #}
+   profile panel (a separate page already exists at /journalist/<id>).
+
+   Cards/Table toggle ADDED: purely presentational over the same rows, so both
+   views are server-rendered and the toggle just flips `hidden` (no round trip,
+   works with JS off as Cards). The table carries only columns the data has:
+   journalist, outlet, articles, and the OUTLET's lean band as text. The
+   mockup's Medium / Beat / "Median band" columns are NOT carried: no medium or
+   beat exists per journalist, and "median band" would present an outlet
+   property as a per-writer score, which the lede above says we never do. #}
 
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <div class="wtf-a-tile-l" style="margin-bottom:8px;">Bylines in the index</div>
@@ -51,7 +58,16 @@
 </form>
 
 {% if journalists %}
-<div class="wtf-a-grid">
+<style>#jr-view{display:inline-flex;margin-bottom:14px;}
+#jr-view[hidden],#jr-cards[hidden],#jr-table[hidden]{display:none;}</style>
+<div role="group" aria-label="View" id="jr-view" hidden>
+  <button type="button" class="wtf-a-seg is-active" data-v="cards" aria-pressed="true">Cards</button>
+  <button type="button" class="wtf-a-seg" data-v="table" aria-pressed="false">Table</button>
+</div>
+{% endif %}
+
+{% if journalists %}
+<div class="wtf-a-grid" id="jr-cards">
   {% for j in journalists %}
   {% set sub = (j.article_count or 0)|string ~ ' article' ~ ('' if j.article_count == 1 else 's') %}
   {% if j.outlet_name %}{% set sub = sub ~ ' · ' ~ j.outlet_name %}{% endif %}
@@ -67,6 +83,42 @@
        right=(j.outlet_lean | replace('-', ' ') | title) if j.outlet_lean else None) }}
   {% endfor %}
 </div>
+<div class="wtf-a-tblwrap" id="jr-table" hidden>
+  <table class="wtf-a-tbl">
+    <thead><tr><th>Journalist</th><th>Outlet</th><th>Outlet lean</th><th class="wtf-a-num">Articles</th></tr></thead>
+    <tbody>
+      {% for j in journalists %}
+      <tr>
+        <td><a href="/journalist/{{ j.id }}" style="color:var(--wtf-text);text-decoration:none;">{{ j.canonical_name }}</a></td>
+        <td>{{ j.outlet_name or '—' }}</td>
+        <td>{{ (j.outlet_lean | replace('-', ' ') | title) if j.outlet_lean else '—' }}</td>
+        <td class="wtf-a-num">{{ j.article_count or 0 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>
+(function () {
+  var bar = document.getElementById('jr-view'), cards = document.getElementById('jr-cards'),
+      table = document.getElementById('jr-table');
+  if (!bar || !cards || !table) return;
+  bar.hidden = false;
+  function set(v) {
+    cards.hidden = v !== 'cards'; table.hidden = v !== 'table';
+    [].forEach.call(bar.querySelectorAll('button'), function (b) {
+      var on = b.getAttribute('data-v') === v;
+      b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    try { localStorage.setItem('wtf-jr-view', v); } catch (e) {}
+  }
+  bar.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (b) set(b.getAttribute('data-v'));
+  });
+  var saved = null; try { saved = localStorage.getItem('wtf-jr-view'); } catch (e) {}
+  if (saved === 'table') set('table');
+})();
+</script>
 {% if journalists|length >= 200 %}
 <p class="wtf-a-tile-d" style="margin-top:14px;">Showing the top 200 by coverage volume — use search to narrow.</p>
 {% endif %}

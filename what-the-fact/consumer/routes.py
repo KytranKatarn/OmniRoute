@@ -2859,6 +2859,22 @@ def _home_weather_strip():
         payload = _aurora_city_payload(city_rows, forecast_rows)
         payload["fire_provinces"] = fire_all[:6]
 
+        # Spread pressure (6th tile) gets its OWN transaction: if the station table
+        # cannot be read the strip keeps its five tiles instead of blanking. None =
+        # "could not be read" (tile omitted); [] would mean "read, nothing measured".
+        station_prov = None
+        try:
+            with _db().begin() as cs:
+                station_prov = [dict(r) for r in cs.execute(text("""
+                    SELECT prov, max(temp_c) AS max_temp, max(wind_speed_kmh) AS max_wind,
+                           max(fwi) AS max_fwi
+                    FROM wtf.aurora_firewx_obs
+                    WHERE rep_date = (SELECT max(rep_date) FROM wtf.aurora_firewx_obs)
+                    GROUP BY prov
+                """)).mappings().all()]
+        except Exception:
+            station_prov = None
+
         # Alerts + evacuations get their OWN transactions: a missing/renamed table
         # must blank two tiles to an em dash, not take the whole strip (and the
         # weather cards with it) down. None = "could not be read", never 0.
@@ -2901,7 +2917,9 @@ def _home_weather_strip():
         obs = max((r["obs_date"] for r in fire_all if r.get("obs_date")), default=None)
         payload["bands"] = build_fire_alert_tiles(
             fire_all, obs, alerts, evac_naad, evac_bc,
-            payload["reporting"], payload["count"], silent)
+            payload["reporting"], payload["count"], silent,
+            spread_rows=(spread_pressure(fire_all, station_prov)
+                         if station_prov is not None else None))
         payload["fire_obs_date"] = obs.isoformat() if obs else None
         return payload
     except Exception:
@@ -9487,14 +9505,8 @@ _COMING_SOON = {
         "text, not quotes from platform documents. Nothing here can "
         "honestly be shown as a tracked commitment yet.",
     ),
-    "elections": (
-        "Elections — federal, provincial and municipal",
-        "Elections",
-        "Every Canadian election on one calendar — federal, provincial and "
-        "municipal, with how soon each legislature must go to the polls.",
-        "Waiting on an election-calendar ingest. No table records election "
-        "dates, fixed-date rules or writ periods today.",
-    ),
+    # "elections" graduated to a real page — see elections() below (curated
+    # parliament.election_calendar; unverified rows withhold their date).
     # "races" graduated to a real page — see races() below. Its placeholder is
     # deleted rather than disabled: a page that exists must not also be
     # advertised as unbuilt.
@@ -9738,6 +9750,32 @@ def _races_bundle(ge_number: int) -> dict:
                                   if e["ge_number"] == ge_number), None)}
     _RACES_CACHE[key] = (time.time() + _RACES_CACHE_TTL, out)
     return out
+
+
+@bp.get("/elections")
+def elections():
+    """Election calendar — federal + provinces/territories (municipal planned).
+
+    Curated table, so every row is classified by shared.election_calendar: an
+    unverified row shows NO date, a passed date shows "awaiting roll-forward".
+    Days-until is computed here at request time, never stored."""
+    from shared.election_calendar import calendar_view
+    try:
+        with _db().begin() as c:
+            rows = [dict(r) for r in c.execute(text(
+                "SELECT jurisdiction_code, jurisdiction, level, last_election, "
+                "next_latest_date, rule, source_url, verified_at "
+                "FROM parliament.election_calendar")).mappings().all()]
+        ok = True
+    except Exception:
+        rows, ok = [], False
+    view = calendar_view(rows, datetime.date.today())
+    shown = [r for r in view if r["status"] == "upcoming"]
+    return render_template(
+        "elections.html", rows=view, available=ok,
+        next_up=shown[0] if shown else None,
+        verified_count=sum(1 for r in view if r["status"] != "unverified"),
+        total=len(view))
 
 
 @bp.get("/races")

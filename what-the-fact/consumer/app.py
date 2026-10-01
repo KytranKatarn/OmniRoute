@@ -74,6 +74,16 @@ def create_app():
     from .admin_mail import admin_mail_bp
     app.register_blueprint(admin_mail_bp)
 
+    @app.errorhandler(404)
+    def not_found(e):
+        """Branded 404 (design wtf-404). API paths keep Flask's default response so
+        machine clients never receive an HTML page."""
+        from flask import render_template, request
+
+        if request.path.startswith("/api/"):
+            return e
+        return render_template("404.html"), 404
+
     @app.route("/version")
     def version():
         """GET /version — deploy-provenance (#4776): the git commit this image was built

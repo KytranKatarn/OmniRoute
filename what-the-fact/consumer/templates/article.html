@@ -88,6 +88,13 @@
   .wtf-how-scored {
     grid-column: 2;
   }
+  /* Real right-hand column (design row 7a). The grid above shares ROWS between
+     the two columns, so a tall panel on the right stretched whatever main
+     content sat beside it, leaving big blank gaps on the left. The script at the
+     bottom moves the rail panels into this <aside> (spanning every main row plus
+     one flexible spacer row that absorbs the extra height) at >=981px, and puts
+     them back below that. No-JS keeps the original single-flow order. */
+  .wtf-art-rail { grid-column: 2; min-width: 0; }
 }
 .wtf-art-header { margin-bottom: 20px; }
 .wtf-art-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 11px; color: #666; }
@@ -1577,6 +1584,48 @@ async function wtfSubmitFlag(flagType) {
   if (printBtn) {
     printBtn.addEventListener('click', function() { window.print(); });
   }
+})();
+</script>
+<script>
+/* Article two-column rail (design row 7a). See the .wtf-art-rail comment above. */
+(function() {
+  var C = document.querySelector('.wtf-art-container');
+  if (!C || !window.matchMedia) return;
+  var SEL = '.wtf-art-rail-item,.wtf-bias-panel,.wtf-factcheck-panel,.wtf-paywall-panel,' +
+            '.wtf-mp-claims-panel,.wtf-crosswatch-panel,.wtf-how-scored';
+  var mq = window.matchMedia('(min-width: 981px)');
+  var aside = null, marks = [];
+  function visible(el) { return getComputedStyle(el).display !== 'none'; }
+  function split() {
+    if (aside) return;
+    var kids = Array.prototype.filter.call(C.children, visible);
+    var items = kids.filter(function(el) { return el.matches(SEL); });
+    if (!items.length) return;
+    var main = kids.length - items.length;
+    aside = document.createElement('aside');
+    aside.className = 'wtf-art-rail';
+    aside.setAttribute('aria-label', 'Analysis and context');
+    items.forEach(function(el) {
+      var m = document.createComment('rail');
+      C.insertBefore(m, el);
+      marks.push([m, el]);
+      aside.appendChild(el);
+    });
+    C.style.gridTemplateRows = 'repeat(' + Math.max(1, main) + ', auto) 1fr';
+    aside.style.gridRow = '1 / span ' + (Math.max(1, main) + 1);
+    C.appendChild(aside);
+  }
+  function join() {
+    if (!aside) return;
+    marks.forEach(function(p) { p[0].parentNode.insertBefore(p[1], p[0]); p[0].parentNode.removeChild(p[0]); });
+    marks = [];
+    aside.parentNode.removeChild(aside);
+    aside = null;
+    C.style.gridTemplateRows = '';
+  }
+  function sync() { if (mq.matches) split(); else join(); }
+  sync();
+  if (mq.addEventListener) mq.addEventListener('change', sync); else if (mq.addListener) mq.addListener(sync);
 })();
 </script>
 {% endblock %}

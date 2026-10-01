@@ -14,11 +14,7 @@
    consumer/static/style.css (unlike /economy, which needed literal-hex
    fallbacks) — grep '^\s*--wtf-' consumer/static/style.css. #}
 <style>
-  .wtf-eh-header { margin-bottom: 24px; max-width: 82ch }
-  .wtf-eh-eyebrow { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--wtf-aurora); margin-bottom: 6px }
-  .wtf-eh-h1 { font-family: var(--wtf-font-serif); font-size: 1.9rem; color: var(--wtf-text); margin: 0 0 10px }
-  .wtf-eh-lede { font-size: 13px; color: var(--wtf-text-2); line-height: 1.7 }
-  .wtf-eh-stats { display: flex; gap: 16px; flex-wrap: wrap; margin: 22px 0 26px }
+  .wtf-eh-stats { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin: 6px 0 26px }
   .wtf-eh-stat { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-left: 3px solid var(--wtf-aurora); border-radius: var(--wtf-r-md); padding: 12px 16px; min-width: 130px }
   .wtf-eh-stat-n { font-family: var(--wtf-font-mono); font-size: 1.15rem; color: var(--wtf-text) }
   .wtf-eh-stat-l { font-size: 9px; color: var(--wtf-text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px }
@@ -52,15 +48,11 @@
   @media (max-width: 600px) { .wtf-eh-stats { gap: 10px } }
 </style>
 
-<header class="wtf-eh-header">
-  <div class="wtf-eh-eyebrow">Media &middot; repetition, measured</div>
-  <h1 class="wtf-eh-h1">Echo</h1>
-  <p class="wtf-eh-lede">
-    How often a slogan or phrase repeats across Canadian news coverage, and which words
-    the corpus cannot stop using. Counts of usage, never of merit — a phrase that echoes
-    is not a phrase that is true. Slogan counts cover the last {{ window_weeks }} weeks;
-    word counts cover the last {{ word_window_days }} days.
-  </p>
+<div class="wtf-pg-wrap">
+<header class="wtf-pg-head">
+  <div class="wtf-pg-eyebrow" style="color:var(--wtf-aurora)">Media &middot; repetition, measured</div>
+  <h1 class="wtf-pg-title">Echo</h1>
+  <p class="wtf-pg-lede">How often a slogan or phrase repeats across Canadian news coverage, and which words the corpus cannot stop using. Counts of usage, never of merit &mdash; a phrase that echoes is not a phrase that is true. Slogan counts cover the last {{ window_weeks }} weeks; word counts cover the last {{ word_window_days }} days.</p>
 </header>
 
 <div class="wtf-eh-stats">
@@ -149,6 +141,8 @@
     phrase or it didn't.
   </p>
 </div>
+
+</div>{# /.wtf-pg-wrap #}
 
 <script>
 (function () {

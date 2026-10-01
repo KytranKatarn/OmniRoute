@@ -20,9 +20,9 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | 9 | `wtf-city.html` | weather city view | todo | | |
 | 10 | `wtf-mps.html` | `mps.html` | partial (10a) | | Live already has the seating map, tabs, photos, filters. 10a: centred eyebrow/title/lede + content-width container (lede count = live `mps|length`, not the design's sample 343). Riding / province / party stay from DB — never derived. Remaining: stat tiles (needs per-party seat tallies from real rows), non-emoji tab labels |
 | 11 | `wtf-mp.html`, `wtf-senator.html` | `mp.html`, `senator.html` | todo | | |
-| 12 | `wtf-blindspot.html` | `blindspot.html` | partial (12a) | | 12a: shared `.wtf-pg-*` header + 1080px container (centred eyebrow, serif title, lede keeps the live definition and adds the design's 'a coverage gap, not proof of suppression'). Remaining: design's 5-tile stat row (called / balanced / left / right / too-thin — from real rows), filter bar, row layout |
+| 12 | `wtf-blindspot.html` | `blindspot.html` | live (12a) | #3566 | 12a: shared `.wtf-pg-*` header + 1080px container (centred eyebrow, serif title, lede keeps the live definition and adds the design's 'a coverage gap, not proof of suppression'). Remaining: design's 5-tile stat row (called / balanced / left / right / too-thin — from real rows), filter bar, row layout |
 | 13 | `wtf-divergence.html` | `divergence.html` | todo | | |
-| 14 | `wtf-clusters.html` | `clusters.html` | partial (14a) | | 14a: shared `.wtf-pg-*` header + container. Remaining: row layout / filters. Row 13 (divergence) has several views — own slice |
+| 14 | `wtf-clusters.html` | `clusters.html` | live (14a) | #3566 | 14a: shared `.wtf-pg-*` header + container. Remaining: row layout / filters. Row 13 (divergence) has several views — own slice |
 | 15 | `wtf-lobbying.html` | `lobbying.html` | todo | | |
 | 16 | `wtf-gic.html` | `gic.html` | todo | | |
 | 17 | `wtf-ethics.html` | `ethics.html` | todo | | |
@@ -33,13 +33,13 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 | 22 | `wtf-economy.html` | `economy.html` | todo | | |
 | 23 | `wtf-rates.html` | `rates.html` | todo | | |
 | 24 | `wtf-cost.html` | `cost.html` | todo | | |
-| 25 | `wtf-global.html`, `wtf-debt.html` | new routes | todo | | |
+| 25 | `wtf-global.html`, `wtf-debt.html` | `/global`, `/debt` | todo | | Both ROUTES exist but are `_COMING_SOON` placeholders: no fiscal / Global Affairs spending ingest. Design numbers are hand-typed samples, so nothing is ported until a real source is ingested (needs a source decision) |
 | 26 | `wtf-markets.html` | `markets.html` | todo | | |
 | 27 | `wtf-sources.html`, `wtf-outlet.html` | `sources.html`, `source.html` | todo | | |
 | 28 | `wtf-owners.html` | `owners.html` | todo | | |
 | 29 | `wtf-journalists.html` | `journalists.html`, `journalist.html` | todo | | Delete the green-centre ramp |
 | 30 | `wtf-crtc.html` | `crtc.html` | todo | | |
-| 31 | `wtf-echo.html` | new route | todo | | |
+| 31 | `wtf-echo.html` | `echo.html` | partial (31a) | | Route already real (FTS counts from `wtf.articles`; see `echo_data.py`). 31a: shared centred header + container. Deliberately NOT ported, no data: pickup %, who-posts-most, Watch cross-links |
 | 32 | `wtf-map.html` | `map.html` | todo | | Already on `wtf-map.js` |
 | 33 | `wtf-chain.html` | `chain.html` | todo | | |
 | 34 | `wtf-cross-watch.html` | `cross_watch.html`, `entity.html` | todo | | |

@@ -312,3 +312,15 @@ class TestRouteWiring:
         end = src.index("\n\n\n", start)
         body = src[start:end]
         assert 'key=lambda r: r["trend_pct"]' in body
+
+
+def test_header_uses_shared_centred_page_header():
+    """9a: same .wtf-pg-* header/container as the other ported pages; the wrapper closes."""
+    import re
+
+    src = re.sub(r"\{#.*?#\}", "", (TPL / "echo.html").read_text(encoding="utf-8"), flags=re.S)
+    assert '<div class="wtf-pg-wrap">' in src
+    assert '<header class="wtf-pg-head">' in src
+    assert "wtf-eh-header" not in src
+    markup = src[: src.index("<script>")]  # the script builds <div>s in strings; count markup only
+    assert markup.count("<div") == markup.count("</div>")  # wrapper is balanced

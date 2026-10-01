@@ -149,7 +149,31 @@ website/kytranempowerment.com/assets/portraits/*.png
 website/kytranempowerment.com/assets/logo.png
 website/kytranempowerment.com/assets/cart-icon.png
 
-# Standalone products (live at /mnt/standalone/, symlinked here)
+# Standalone products — deliberately NOT tracked in this repo.
+#
+# These are three different shapes, and the comment this replaced ("live at
+# /mnt/standalone/, symlinked here") described only the first of them. Verified
+# 2026-10-01 by inspecting each path:
+#
+#   1. Symlinks into /mnt/standalone — archie-code, kytran-creed,
+#      website/creed-ai.org. The real tree is there; this repo just links it.
+#   2. Nested repos with their OWN remotes — kytran-business-suite
+#      (KytranKatarn/kytran-business-suite) and kytran-server-manager
+#      (KytranKatarn/kytran-system-operations). Git cannot track a nested repo
+#      without a submodule gitlink, and there is no .gitmodules in this repo, so
+#      each is versioned on its own and changes ship as PRs against ITS repo.
+#      kytran-server-manager is also symlinked into /mnt/standalone as
+#      kytran-system-operations.
+#   3. Plain untracked directories, no repo of their own — watch-api,
+#      legal-watch, market-watch.
+#
+# kytran-gov-watch and kytran-news no longer exist at these paths; the entries
+# are kept so a re-created directory does not silently start showing up as
+# untracked noise in `git status`.
+#
+# Do not "tidy" this by converting these to submodules or by tracking their
+# files. Each deploys on its own lifecycle, and a `git add -A` sweeping them
+# into a platform commit is exactly what these entries exist to prevent.
 archie-code/
 kytran-creed/
 website/creed-ai.org/

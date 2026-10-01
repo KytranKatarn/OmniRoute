@@ -3931,10 +3931,20 @@ def product_system_operations():
 
 @app.errorhandler(404)
 def not_found(e):
-    """Handle 404 errors — also catches blocked domain requests from AdGuard DNS."""
+    """Handle 404 errors — also catches blocked domain requests from AdGuard DNS.
+
+    An unknown /api/* path must answer JSON, never an HTML redirect. Machine
+    consumers of the internal API cannot read a 302 + login/dashboard HTML page:
+    their JSON parse dies on the first byte and they report a transport error
+    instead of the honest "no such endpoint". A caller that mistypes a path then
+    cannot tell its own bug from an outage. (500) and the generic Exception
+    handler below both already branch on /api/ for this reason; this one did not.
+    """
     host = request.host.split(":")[0] if request.host else ""
     if host and host != "192.168.1.200" and host != "localhost" and not host.endswith("kytranempowerment.com"):
         return render_template("block_page.html", domain=host), 200
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "not_found", "path": request.path}), 404
     flash("Page not found", "error")
     return redirect(url_for("dashboard"))
 
@@ -6061,9 +6071,12 @@ def api_internal_cloud_code_run():
                         provider_key,
                         model,
                     )
-                    return jsonify(
-                        {"success": False, "error": f"OmniRoute quota: {gate.get('reason')}", "quota_status": gate}
-                    ), 503
+                    return (
+                        jsonify(
+                            {"success": False, "error": f"OmniRoute quota: {gate.get('reason')}", "quota_status": gate}
+                        ),
+                        503,
+                    )
             except Exception as exc:  # noqa: BLE001 — fail-open
                 app.logger.warning("[OmniRoute quota] enqueue gate check failed open: %s", exc)
 

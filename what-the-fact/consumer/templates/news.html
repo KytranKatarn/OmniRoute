@@ -3,14 +3,12 @@
 {% block title %}Latest News — What The Fact{% endblock %}
 {% block content %}
 
-<div class="wtf-team-hero">
-  <div class="wtf-team-hero-live">
-    <span class="wtf-live-dot"></span>
-    LIVE &middot; AI NEWSROOM
-  </div>
-  <h1 class="wtf-nw-h1">LATEST NEWS</h1>
-  <p>{{ total }} articles from {{ source_count }} Canadian sources — sorted by most recent.</p>
-</div>
+<header class="wtf-nw-head">
+  <div class="wtf-nw-eyebrow">Every story, every lean</div>
+  <h1 class="wtf-nw-title">Latest news</h1>
+  {# Real counts only: the design's "33" was a sample. source_count is the live active-source count. #}
+  <p class="wtf-nw-lede">The full feed across {{ source_count }} Canadian sources. Lean is scored per story, not assigned to the outlet &mdash; the same masthead can appear in different bands on different days.</p>
+</header>
 
 {# Header stat row (design handoff #6149 phase 4 / task #16 slice 1) — all
    four figures come straight from news() in routes.py: the first three are
@@ -20,12 +18,14 @@
    helper — same threshold, so this page can never disagree with /blindspot
    about what counts as one. Reuses the shared stat_tiles() archetype macro
    (no new CSS). #}
+<div class="wtf-nw-stats">
 {{ stat_tiles([
   {"label": "Articles, last 24h", "value": articles_24h},
   {"label": "Sources in feed", "value": source_count},
   {"label": "Clustered stories", "value": clustered_stories_24h},
   {"label": "Blindspot flags", "value": blindspot_flags_24h},
 ]) }}
+</div>
 
 <!-- Source bar -->
 <div class="wtf-nw-srcbar">
@@ -338,7 +338,6 @@
 
 <style>
 /* ── Extracted inline styles (Phase 6 token-migration pass) — value-preserving ── */
-.wtf-nw-h1 { font-size: 1.6rem; }
 .wtf-nw-srcbar { overflow-x: auto; padding: 16px 0; border-bottom: 1px solid #112233; background: #050d1a; }
 .wtf-nw-srcbar-row { display: flex; gap: 12px; padding: 0 16px; min-width: max-content; }
 .wtf-nw-src-item { text-align: center; min-width: 72px; cursor: pointer; }

@@ -29,6 +29,7 @@
   <div class="wtf-team-hero-live">
     <span class="wtf-live-pulse"></span>
     <span class="wtf-nm-live-label">LAST 7 DAYS</span>
+    <span class="wtf-nm-live-label" id="wtfMapFresh" hidden></span>
   </div>
   <h1 class="wtf-nm-title">NEWS MAP</h1>
   <p class="wtf-nm-subtitle">
@@ -150,6 +151,7 @@
     .then(function(data) {
       if (!data.ok || !data.pins) throw new Error('bad payload');
       PINS = data.pins;
+      showFreshness(PINS);
       wtfmap = WTFMap.create({
         el: 'wtfMap',
         layers: [LAYER],
@@ -168,6 +170,25 @@
       // map reads as "no news anywhere" rather than "the request failed".
       if (box) box.textContent = 'Map data could not be loaded.';
     });
+
+  // Age of the NEWEST mapped story — what the pins can honestly say about
+  // freshness. It is NOT "last refreshed": the page cannot see the ingest clock.
+  // Hidden when no pin carries a timestamp rather than showing a made-up age.
+  function freshLabel(newestMs, nowMs) {
+    if (!isFinite(newestMs)) return '';
+    var m = Math.max(0, Math.round((nowMs - newestMs) / 60000));
+    if (m < 60) return 'Newest story ' + m + ' min ago';
+    var h = Math.round(m / 60);
+    return h < 48 ? 'Newest story ' + h + ' h ago' : 'Newest story ' + Math.round(h / 24) + ' d ago';
+  }
+  function showFreshness(pins) {
+    var el = document.getElementById('wtfMapFresh');
+    if (!el) return;
+    var t = -Infinity;
+    pins.forEach(function (p) { var v = Date.parse(p.latest); if (v > t) t = v; });
+    var label = freshLabel(t, Date.now());
+    if (label) { el.textContent = '\u00b7 ' + label; el.hidden = false; }
+  }
 
   // Built from the pins actually DRAWN. A bucket with no drawn pins is omitted
   // rather than shown at zero, so the legend always describes what is on screen.

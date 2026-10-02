@@ -23,6 +23,13 @@ def _render(journalists):
         journalists=journalists, q="", total=len(journalists), source_count=46)
 
 
+def test_cap_note_only_when_the_list_is_actually_capped():
+    many = [dict(ROWS[1], id=i) for i in range(200)]
+    html = _render(many)
+    assert 'id="jr-capnote"' in html and "Showing the top 200" in html
+    assert 'id="jr-capnote"' not in _render(ROWS)          # short list: no note
+
+
 def test_both_views_rendered_with_same_rows():
     html = _render(ROWS)
     assert 'id="jr-cards"' in html and 'id="jr-table"' in html

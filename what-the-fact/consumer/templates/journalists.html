@@ -46,6 +46,14 @@
       {{ total }} writers tracked, captured from bylines as articles are ingested. Coverage grows over time.
     {%- endif -%}
   </p>
+  {# The route caps the list at 200 (journalists_listing: LIMIT 200, ordered by coverage
+     volume). Say so — "N writers tracked" above the first 200 rows reads as "all N are
+     below". Matches the design's disclosure; the 200 here is the route's LIMIT. #}
+  {% if journalists|length >= 200 %}
+  <p class="wtf-a-tile-d" id="jr-capnote" style="margin:6px 0 0;">
+    Showing the top {{ journalists|length }} by coverage volume{% if not q and total > journalists|length %} of {{ '{:,}'.format(total) }}{% endif %} &mdash; use search to narrow.
+  </p>
+  {% endif %}
   <p class="wtf-a-tile-d" style="margin:6px 0 0;">
     Nothing here scores a journalist — the lean shown is where their stories landed, a property of the stories, not the writer.
   </p>

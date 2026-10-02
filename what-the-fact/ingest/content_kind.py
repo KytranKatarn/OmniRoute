@@ -221,3 +221,86 @@ def extract_tickers(body: str | None, limit: int = 6) -> list[str]:
         if len(seen) >= limit:
             break
     return seen
+
+
+# ── clean_body ────────────────────────────────────────────────────────────────
+# One cleaner for everything that READS a stored article body: the excerpt panel
+# and any writer that works from the captured story. The stored body is never
+# modified — this is a read-time view of it.
+#
+# Scraped bodies contain the PAGE, not just the article (see _FIGURE_NOISE above
+# for the live cases). Feeding that to a writer contaminates the draft; showing it
+# to a reader puts another publisher's sidebar under our name.
+#
+# STRICTER THAN _FIGURE_NOISE ON PURPOSE. _FIGURE_NOISE is allowed to over-reject
+# because losing a candidate "key figure" costs nothing. Here a rejected sentence is
+# a fact deleted from the writer's input, so only text that is page furniture is
+# dropped: `recommended` / `watch:` style words that ordinary prose also uses are
+# NOT in this list.
+_FURNITURE = re.compile(
+    r"article content|\badvertisement\b|\bsign up\b|\bsubscribe\b|\bnewsletter\b"
+    r"|all rights reserved|©|\bcookies?\b|\bread more\b|\bphoto by\b|getty images"
+    r"|\b\d+\s+(?:seconds?|minutes?|mins?|hours?|days?)\s+ago\b"
+    r"|\b\d+\s+min(?:ute)?s?\s+read\b"
+    r"|\btrending\b|\bmost read\b|\brelated stories\b|\bmore from\b"
+    r"|\bmore on\b|\bmore videos\b|\bmore stories\b|\bmost popular\b"
+    r"|\byou may also like\b|\bin the news\b",
+    re.I,
+)
+
+_MIN_CLEAN_CHARS = 200
+_MAX_DROPPED_FRACTION = 0.5
+
+
+def clean_body(body: str | None, max_chars: int | None = None) -> str:
+    """Article text with page furniture removed — VERBATIM sentences, nothing generated.
+
+    Works per sentence, so it also handles the older bodies that hold no newlines.
+    Paragraph breaks are kept where the body has them. Drops: furniture sentences
+    (navigation rails, timestamps, subscribe/cookie text, SHOUTED section headers),
+    bare-year fragments, and exact repeats (pull quotes).
+
+    Returns "" rather than a guess when the result is unusable:
+      - fewer than 200 characters survive, or
+      - more than half the sentences were furniture (the capture was mostly page,
+        so what is left cannot be trusted to be the article).
+
+    ``max_chars`` truncates on a SENTENCE boundary — never mid-sentence — and never
+    returns a partial first sentence.
+    """
+    if not body:
+        return ""
+    kept_paras: list[str] = []
+    seen: set[str] = set()
+    total = dropped = 0
+    for para in re.split(r"\n\s*\n|\n", body):
+        sentences = []
+        for raw in _SENTENCE_SPLIT.split(para):
+            s = " ".join(raw.split())
+            if not s:
+                continue
+            total += 1
+            key = s.lower()
+            if _FURNITURE.search(s) or _SHOUTED_RUN.search(s) or _BARE_YEAR.match(s):
+                dropped += 1          # furniture: counts toward the contamination guard
+                continue
+            if key in seen:
+                total -= 1            # a repeat (pull quote) is not furniture and not content
+                continue
+            seen.add(key)
+            sentences.append(s)
+        if sentences:
+            kept_paras.append(" ".join(sentences))
+    if not total or dropped / total > _MAX_DROPPED_FRACTION:
+        return ""
+    text = "\n\n".join(kept_paras)
+    if len(text) < _MIN_CLEAN_CHARS:
+        return ""
+    if max_chars is not None and len(text) > max_chars:
+        cut = text[:max_chars]
+        # back up to the last sentence end inside the window
+        ends = [m.end() for m in re.finditer(r"[.!?][\"”’)]?(?=\s|$)", cut)]
+        if not ends:
+            return ""
+        text = cut[:ends[-1]].rstrip()
+    return text

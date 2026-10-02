@@ -97,7 +97,15 @@ services:
   # starve what-the-fact.com /news (incident KB #273424). Same consumer image,
   # separate gunicorn + port; products POST here via ENTITY_INGEST_URL.
   wtf-ingest-api:
-    build: {context: ., dockerfile: Dockerfile.consumer}
+    # Shares Dockerfile.consumer AND the wtf-consumer:0.1.0 image tag, so it MUST pass the same
+    # provenance build args: with `deploy.sh all` this service builds last and re-tags the image,
+    # and without the args it overwrote the consumer's stamp with git_sha=unknown (2026-10-01).
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0
     restart: unless-stopped
     env_file: [.env]

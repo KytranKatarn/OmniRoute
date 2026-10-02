@@ -144,6 +144,15 @@ MODULE_FAMILIES = {
     "email": ("email_manager", "mailhq"),
     "social": ("signal", "linkedin"),
     "chronicle": ("mailbox_story", "chronicle"),
+    # What The Fact. Measured 2026-10-02: wtf_hub (fact_check) was the busiest
+    # module_source in the queue and belonged to NO family, so AUX POWER could not
+    # reason about it at all. `is_family_queue_row` is a substring match on
+    # module_id, so it now answers True instead of silently missing.
+    #
+    # Focused ONE family at a time, so this ADDS a selectable target without
+    # displacing repair_bay. Substrings are ordered so the more specific
+    # "wtf-ingest" wins over the bare "wtf" for a module_id containing both.
+    "wtf": ("wtf_hub", "wtf-ingest", "what_the_fact", "wtf"),
 }
 
 NEVER_BOOST_MODULES = ("kin_warmth", "fleet_warmup")

@@ -85,6 +85,9 @@ This is already how `elections_results`, `boc_rates`, `fx_rates` and `statcan_in
 
 ## 4. Elections — `wtf-elections` (route `/elections`)
 
+> **Update 2026-10-02:** built — calendar (085), history + completion (086: municipal rows, who-governs, curated non-federal history, `scripts/elections_admin.py`). What remains is DATA: verifying the dates and entering historical results, which needs a human with source access. See PORT-STATUS row 21.
+
+
 - **Needs**: calendar of federal, provincial, municipal elections with fixed-date rules and
   how soon each legislature must go to the polls; coverage readiness.
 - **Exists**: completed federal results (GE43/44) feeding `/races` and `/parties`. No calendar.

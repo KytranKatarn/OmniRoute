@@ -647,6 +647,14 @@ def main():
                 for _ge in (45, 44, 43):
                     log.info("elections GE%s: %s", _ge,
                              run_election_results(engine, _ge, optional=(_ge == 45)))
+                # Provincial/territorial history (Wikipedia infobox) BEFORE the calendar,
+                # which rolls forward from the newest election date held here.
+                from ingest.elections.wiki_history import run_wiki_history
+                log.info("elections history: %s", run_wiki_history(engine))
+                # Roll the calendar forward AFTER results (it reads the federal date they
+                # persist). Pure rules + rows we hold — no network. Never raises.
+                from ingest.elections.calendar import run_election_calendar
+                log.info("elections calendar: %s", run_election_calendar(engine))
             except Exception:
                 log.exception("elections results crashed")
             _last_elections_week = _elec_week

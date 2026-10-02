@@ -55,7 +55,7 @@ def _render(history):
 def test_page_renders_held_and_not_held_rows_and_provincial_disclosure():
     html = _render(federal_history(rows(44, dt.date(2021, 9, 20), Liberal=160)))
     assert "Liberal 160" in html and "Results not held" in html
-    assert 'href="/races?ge=44"' in html and "Provincial and territorial election history is not collected yet" in html
+    assert 'href="/races?ge=44"' in html and "has not been published yet" in html
     assert "45th general election" in html and "42nd general election" in html and "41st general election" in html
 
 

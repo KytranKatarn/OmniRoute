@@ -9813,13 +9813,14 @@ def elections():
         with _db().begin() as c:
             rows = [dict(r) for r in c.execute(text(
                 "SELECT jurisdiction_code, jurisdiction, level, last_election, "
-                "next_latest_date, rule, source_url, verified_at "
+                "next_latest_date, rule, source_url, verified_at, derived_at, "
+                "government_party, head_of_government, province_code "
                 "FROM parliament.election_calendar")).mappings().all()]
         ok = True
     except Exception:
         rows, ok = [], False
     view = calendar_view(rows, datetime.date.today())
-    shown = [r for r in view if r["status"] == "upcoming"]
+    shown = [r for r in view if r["status"] in ("upcoming", "projected")]
     # Federal history: derived from the INGESTED results (never typed in), own
     # transaction so a missing table blanks only this section.
     from shared.election_calendar import federal_history
@@ -9834,8 +9835,43 @@ def elections():
         history = federal_history(hist_rows)
     except Exception:
         history = None
+
+    # Federal seats vs votes for the latest ingested election — DERIVED, own transaction.
+    from shared.election_calendar import curated_history, seats_vs_votes
+    seats_votes = None
+    try:
+        with _db().begin() as c:
+            ge = c.execute(text("SELECT max(ge_number) FROM parliament.elections")).scalar()
+            if ge:
+                sv_rows = [dict(r) for r in c.execute(text("""
+                    SELECT ec.party, count(*) FILTER (WHERE ec.elected) AS seats,
+                           COALESCE(sum(ec.votes), 0) AS votes
+                      FROM parliament.election_candidates ec
+                      JOIN parliament.elections e ON e.id = ec.election_id
+                     WHERE e.ge_number = :ge AND ec.party <> ''
+                     GROUP BY 1"""), {"ge": ge}).mappings().all()]
+                seats_votes = seats_vs_votes(sv_rows) or None
+                if seats_votes:
+                    seats_votes["ge"] = int(ge)
+                    seats_votes["date"] = c.execute(text(
+                        "SELECT election_date FROM parliament.elections WHERE ge_number = :ge"),
+                        {"ge": ge}).scalar()
+    except Exception:
+        seats_votes = None
+
+    # Curated provincial/municipal history (verified+sourced rows only by construction).
+    try:
+        with _db().begin() as c:
+            ch_rows = [dict(r) for r in c.execute(text(
+                "SELECT jurisdiction_code, election_date, turnout_pct, seats_total, results, source_url "
+                "FROM parliament.election_history")).mappings().all()]
+        cur_hist = curated_history(ch_rows) or None
+    except Exception:
+        cur_hist = None
     return render_template(
         "elections.html", rows=view, available=ok, history=history,
+        seats_votes=seats_votes, curated_history=cur_hist,
+        names={r["code"]: r["name"] for r in view},
         next_up=shown[0] if shown else None,
         verified_count=sum(1 for r in view if r["status"] != "unverified"),
         total=len(view))

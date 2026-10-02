@@ -55,6 +55,9 @@ _MAX_AGE_DAYS = {
     # CKAN resource still fetches and parses. 10 = a 7-day cadence plus slack.
     # ⚠️ This number and that cadence are one decision; move them together.
     "elections_results": int(os.environ.get("WTF_DRIFT_ELECTIONS_DAYS", "10")),
+    # Calendar roll-forward runs in the SAME weekly block as elections_results.
+    "elections_history": int(os.environ.get("WTF_DRIFT_ELECTIONS_DAYS", "10")),
+    "elections_calendar": int(os.environ.get("WTF_DRIFT_ELECTIONS_DAYS", "10")),
     # Added 2026-08-18 (#5725): these five were EXACTLY the feeds that died
     # silently for 2-3 months while this guard watched everything else —
     # senators frozen 87d on a DEAD top-level bs4 import (never called —
@@ -150,7 +153,7 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # zero rows does not mean "not tracked yet" — it means the
                    # schedule is not running. Required, or the one signal that
                    # the job vanished is the signal we would skip.
-                   "elections_results",
+                   "elections_results", "elections_calendar", "elections_history",
                    # weekly_digest has ZERO rows as of 2026-09-01 (verified), so
                    # without this line the freshness loop would skip it as "not yet
                    # tracked" and it would report green forever — which is exactly
@@ -255,7 +258,7 @@ def _election_calendar_problems(engine) -> list:
     with engine.connect() as conn:
         rows = [dict(r) for r in conn.execute(text(
             "SELECT jurisdiction_code, jurisdiction, level, last_election, "
-            "next_latest_date, rule, source_url, verified_at "
+            "next_latest_date, rule, source_url, verified_at, derived_at "
             "FROM parliament.election_calendar")).mappings().all()]
     return problems(rows, _dt.date.today())
 

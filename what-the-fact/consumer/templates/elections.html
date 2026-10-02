@@ -1,12 +1,11 @@
-{# Port of design-handoff/wtf-elections.html — CALENDAR + federal history (phase 2).
-   Source: parliament.election_calendar, a CURATED table (no feed exists), judged by
-   shared/election_calendar.py: an unverified row withholds its date; a passed date
-   reads "awaiting roll-forward"; days-until is computed per request.
-   NOT ported yet (documented gaps): federal result bar / seats-vs-votes (data exists
-   in /races), provincial map + party/premier columns (no governing-party table),
-   municipal waves (planned: major cities already covered), by-elections, "who is
-   running". The design's "autumn 2026 is unusually dense" lede is NOT carried over —
-   it asserts municipal dates we do not hold. #}
+{# Port of design-handoff/wtf-elections.html — calendar, who governs, federal seats-vs-votes,
+   federal history (derived) and curated provincial/municipal history.
+   CURATED rows (calendar, government, non-federal history) come from parliament.election_calendar /
+   election_history and are judged by shared/election_calendar.py: an unverified row withholds its
+   date AND its office-holder; a passed date reads "awaiting roll-forward"; days-until is computed per
+   request. Federal results are DERIVED from the ingested riding-level data — nothing typed in.
+   Verification is done with scripts/elections_admin.py (refuses a row without an https source).
+   NOT built (no data source): by-elections, "who is running", provincial map. #}
 {% extends "base.html" %}
 {% from "_archetypes.html" import stat_tiles, chip %}
 {% block title %}Elections — What The Fact{% endblock %}
@@ -17,7 +16,7 @@
 {% endblock %}
 {% block content %}
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
-  <div class="wtf-a-tile-l" style="margin-bottom:8px;">Federal &middot; provincial &middot; territorial</div>
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">Federal &middot; provincial &middot; territorial &middot; municipal</div>
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Elections</h1>
   <p class="wtf-a-tile-d" style="margin:0;max-width:70ch;">
     The latest legal date each legislature can go to the polls. These are fixed-date
@@ -36,15 +35,16 @@
      {'label': 'Dates verified', 'value': verified_count ~ ' / ' ~ total,
       'detail': 'a date is shown only after it has been checked against its source'}]) }}
 
-{% for level, label, anchor in [('federal', 'Federal', 'federal'), ('provincial', 'Provinces and territories', 'provincial')] %}
+{% for level, label, anchor in [('federal', 'Federal', 'federal'), ('provincial', 'Provinces and territories', 'provincial'), ('municipal', 'Municipal — the major cities we cover', 'municipal')] %}
 <h2 id="{{ anchor }}" class="wtf-a-tile-l" style="margin:22px 0 8px;">{{ label }}</h2>
 <div class="wtf-a-tblwrap">
   <table class="wtf-a-tbl">
-    <thead><tr><th>Jurisdiction</th><th>Last election</th><th>Latest legal date</th><th class="wtf-a-num">Days left</th><th>Rule &amp; source</th></tr></thead>
+    <thead><tr><th>Jurisdiction</th><th>Government</th><th>Last election</th><th>Latest legal date</th><th class="wtf-a-num">Days left</th><th>Rule &amp; source</th></tr></thead>
     <tbody>
       {% for r in rows if r.level == level %}
       <tr>
-        <td>{{ r.name }}</td>
+        <td>{{ r.name }}{% if r.level == 'municipal' and r.province_code %} <span class="wtf-a-tile-d">{{ r.province_code }}</span>{% endif %}</td>
+        <td>{% if r.head_of_government or r.government_party %}{{ r.head_of_government or '' }}{% if r.head_of_government and r.government_party %} &middot; {% endif %}{{ r.government_party or '' }}{% else %}&mdash;{% endif %}</td>
         {% if r.status == 'unverified' %}
         <td colspan="3">{{ chip('Date being verified', 'This date has not yet been checked against its source, so it is not shown.') }}</td>
         {% else %}
@@ -52,7 +52,7 @@
         {% if r.status == 'overdue' %}
         <td colspan="2">{{ chip('Awaiting roll-forward', 'The recorded latest date has passed; the calendar is being updated.') }}</td>
         {% else %}
-        <td>{{ r.next_latest_date.isoformat() }}</td>
+        <td>{{ r.next_latest_date.isoformat() }}{% if r.status == 'projected' %} {{ chip('Projected', 'Computed from the statutory fixed-date rule and the last election; not yet checked against the statute text.') }}{% endif %}</td>
         <td class="wtf-a-num">{{ '{:,}'.format(r.days_until) }}</td>
         {% endif %}
         {% endif %}
@@ -67,6 +67,32 @@
   </table>
 </div>
 {% endfor %}
+
+{% if seats_votes and seats_votes.parties %}
+<h2 id="federal-result" class="wtf-a-tile-l" style="margin:22px 0 8px;">Federal result &mdash; {{ seats_votes.ge }}{{ 'th' if seats_votes.ge % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(seats_votes.ge % 10, 'th') }} general election{% if seats_votes.date %} ({{ seats_votes.date.isoformat() }}){% endif %}</h2>
+<div class="wtf-a-tblwrap">
+  <table class="wtf-a-tbl">
+    <thead><tr><th>Party</th><th class="wtf-a-num">Seats</th><th class="wtf-a-num">Share of seats</th><th class="wtf-a-num">Share of votes</th><th class="wtf-a-num">Seats minus votes</th></tr></thead>
+    <tbody>
+      {% for p in seats_votes.parties %}
+      <tr>
+        <td>{{ p.party }}</td>
+        <td class="wtf-a-num">{{ '{:,}'.format(p.seats) }}</td>
+        <td class="wtf-a-num">{{ p.seat_pct }}%</td>
+        <td class="wtf-a-num">{{ p.vote_pct }}%</td>
+        <td class="wtf-a-num">{{ '%+.1f'|format(p.gap) }} pts</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="wtf-a-tile-d" style="margin-top:8px;">
+  Tallied from the official riding-level results ({{ '{:,}'.format(seats_votes.total_votes) }} votes cast for listed parties
+  and independents; parties with no seats and under 0.5% of the vote add up to {{ seats_votes.other_vote_pct }}% and are
+  not listed). A positive gap means a party holds a larger share of seats than of votes &mdash; that is arithmetic, not a
+  verdict on the electoral system.
+</p>
+{% endif %}
 
 <h2 id="history" class="wtf-a-tile-l" style="margin:22px 0 8px;">Federal election history &mdash; last five</h2>
 {% if history is none %}
@@ -94,11 +120,30 @@
 </div>
 <p class="wtf-a-tile-d" style="margin-top:8px;">
   Seat counts are tallied from the official riding-level results we hold &mdash; nothing here is typed in.
-  Provincial and territorial election history is not collected yet.
 </p>
 {% endif %}
 
-<h2 id="municipal" class="wtf-a-tile-l" style="margin:22px 0 8px;">Municipal</h2>
-<p class="wtf-a-tile-d">Municipal elections are not on this calendar yet. They will be added for the major cities the site already covers.</p>
+{% if curated_history %}
+<h2 id="history-other" class="wtf-a-tile-l" style="margin:22px 0 8px;">Provincial, territorial and municipal history</h2>
+<div class="wtf-a-tblwrap">
+  <table class="wtf-a-tbl">
+    <thead><tr><th>Jurisdiction</th><th>Polling day</th><th class="wtf-a-num">Turnout</th><th>Seats by party / mayoral vote</th><th>Source</th></tr></thead>
+    <tbody>
+      {% for code, items in curated_history.items() %}{% for h in items %}
+      <tr>
+        <td>{{ names.get(code, code) }}</td>
+        <td>{{ h.date.isoformat() }}</td>
+        <td class="wtf-a-num">{{ ('%.1f%%'|format(h.turnout_pct|float)) if h.turnout_pct is not none else '—' }}</td>
+        <td>{% for r in h.results %}{% if r.candidate %}{{ r.candidate }}{% if r.pct is defined %} {{ '%.1f%%'|format(r.pct) }}{% endif %}{% else %}{{ r.party }} {{ r.seats }}{% endif %}{{ ' · ' if not loop.last }}{% endfor %}</td>
+        <td><a href="{{ h.source_url }}" rel="noopener nofollow">source</a></td>
+      </tr>
+      {% endfor %}{% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="wtf-a-tile-d" style="margin-top:8px;">Each row links to the article it was read from. Provincial rows itemise the parties the source lists; &ldquo;Other / not itemised&rdquo; is the total minus those (arithmetic, not data). Municipal rows show the mayoral vote share, winner first.</p>
+{% endif %}
+{% if not curated_history %}<p class="wtf-a-tile-d">Provincial, territorial and municipal election history has not been published yet; it is added only with a source, one election at a time.</p>{% endif %}
+
 {% endif %}
 {% endblock %}

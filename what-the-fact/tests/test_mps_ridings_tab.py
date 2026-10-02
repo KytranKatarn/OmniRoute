@@ -72,7 +72,7 @@ def _body(html):
 class TestRidingsTabPresent:
     def test_tab_button_present(self, env):
         b = _body(_render(env))
-        assert "🗺 Ridings" in b
+        assert ">Ridings</button>" in b  # design: text tab labels, no emoji
 
     def test_pane_present_and_initially_hidden(self, env):
         html = _render(env)

@@ -6596,7 +6596,11 @@ def mps_listing():
         _b["senate_yea_pct"] = round(_b["senate_yea"] / _s_total * 100, 1) if _s_total else None
         same_bill_votes.append(_b)
 
-    return render_template("mps.html", mps=mps, parties=list(parties),
+    from .parliament_stats import chamber_tiles
+    stat_tiles_data = chamber_tiles(
+        mps, senators_list, total_seats,
+        filtered=(party_filter != "all" or province_filter != "ALL"))
+    return render_template("mps.html", mps=mps, parties=list(parties), stat_tiles_data=stat_tiles_data,
                            provinces=list(provinces), party_filter=party_filter,
                            province_filter=province_filter, source_count=source_count,
                            senators=senators_list, total_seats=total_seats,

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles %}
 {% block title %}Members of Parliament · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{{ mps|length }} Members of Parliament tracked by What The Fact. See how they vote, who funds them, and how media covers them.">
@@ -151,10 +152,16 @@
   <p class="wtf-mps-lede">{{ mps|length }} current members of the House of Commons, the Senate and every riding, with votes, media coverage and accountability records. Coverage shows how often a member is written about &mdash; volume, not favour.</p>
 </header>
 
+{# Design's stat row (pl-stats). Counts from real rows by consumer/parliament_stats.py; the
+   design's "Government"/"Official Opposition" are NOT claimed — the data shows seat counts,
+   not offices — so the tiles read Largest / Second-largest party. Omitted when a filter is
+   active (party tiles would describe a subset). #}
+{% if stat_tiles_data %}{{ stat_tiles(stat_tiles_data) }}{% endif %}
+
 <div class="wtf-mps-tabs">
-  <button class="wtf-mps-tab active" onclick="wtfTab('hoc',this)">🏛 House of Commons</button>
-  <button class="wtf-mps-tab" onclick="wtfTab('senate',this)">🔴 Senate</button>
-  <button class="wtf-mps-tab" onclick="wtfTab('ridings',this)">🗺 Ridings</button>
+  <button class="wtf-mps-tab active" onclick="wtfTab('hoc',this)">House of Commons</button>
+  <button class="wtf-mps-tab" onclick="wtfTab('senate',this)">Senate</button>
+  <button class="wtf-mps-tab" onclick="wtfTab('ridings',this)">Ridings</button>
 </div>
 <script>
 function wtfTab(name, btn) {
@@ -186,7 +193,7 @@ function wtfTab(name, btn) {
 <!-- Parliament Seating Map -->
 <div id="wtf-seating-wrap" class="wtf-mps-seating-wrap">
   <div class="wtf-mps-seating-label">
-    🏛 Seating Map
+    Seating map
     <button onclick="var w=document.getElementById('wtf-seating-svg-wrap');var shown=w.style.display!=='none';w.style.display=shown?'none':'block';this.textContent=shown?'Show map':'Hide map';"
       class="wtf-mps-map-toggle">Hide map</button>
   </div>
@@ -697,7 +704,7 @@ function wtfShowSenatorCard(s, cx, cy) {
 <!-- Senate Tab -->
 <div id="wtf-tab-senate" style="display:none;">
   <div class="wtf-mps-senate-panel">
-    <div class="wtf-mps-senate-heading">🔴 Senate of Canada — The Red Chamber</div>
+    <div class="wtf-mps-senate-heading">Senate of Canada — The Red Chamber</div>
     <div class="wtf-mps-senate-desc">
       {{ senators|length }} current senators appointed until age 75. Six caucus groups sit in a red-upholstered horseshoe chamber.
     </div>

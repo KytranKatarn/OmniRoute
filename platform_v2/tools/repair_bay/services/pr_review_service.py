@@ -940,7 +940,10 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
         "[PR Review] PR #%s path=%s verdict=%s",
         pr_number,
         _path,
-        "approved" if verdict_is_approved(summary) else "needs_changes",
+        {
+            "APPROVE": "approved",
+            "REQUEST CHANGES": "needs_changes",
+        }.get(parse_verdict(summary), "needs_review"),
     )
 
     # Notify on every review completion (approved or not). F.O.R.G.E. is a
@@ -953,7 +956,12 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
 
         _r = get_review(pr_number)
         _pr_title = (_r or {}).get("title", f"PR #{pr_number}")
-        _verdict_label = "APPROVED ✅" if verdict_is_approved(summary) else "NEEDS CHANGES ⚠️"
+        _verdict = parse_verdict(summary)
+        _verdict_label = {
+            "APPROVE": "APPROVED ✅",
+            "REQUEST CHANGES": "CHANGES REQUESTED ⚠️",
+            "NEEDS REVIEW": "NEEDS REVIEW — a human should read it 🔎",
+        }.get(_verdict, "REVIEWED — a human should read it 🔎")
         submit_via_inbox(
             category="pr_review",
             title=f"F.O.R.G.E. reviewed #{pr_number}",
@@ -969,7 +977,13 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     # auto_merge so a later — possibly flaky / non-deterministic — APPROVE on the same
     # PR within the defer window gates to a human instead of auto-merging. The manual
     # review_pr path and the scheduled forge_pr_review poll review independently.
-    if not verdict_is_approved(summary):
+    #
+    # ONLY a real "REQUEST CHANGES" stamps this. NEEDS REVIEW / REVIEWED are the model
+    # declining to pick a side, not a human being told to fix code — stamping those made
+    # _changes_requested_recently() arm the 6h auto-merge defer on a PR with no findings
+    # (PR #3572: complete read, correct head, "No issues found."). The defer exists to
+    # stop a flaky APPROVE from overriding a REAL objection; a non-objection is not that.
+    if parse_verdict(summary) == "REQUEST CHANGES":
         try:
             _mark_changes_requested(pr_number, repo)
         except Exception as _cr_err:
@@ -1311,6 +1325,10 @@ MERGE_STATE_AWAITING = "awaiting_review"
 MERGE_STATE_APPROVED = "approved"
 MERGE_STATE_COVERAGE_ONLY = "coverage_only"
 MERGE_STATE_CHANGES = "changes_requested"
+# The reviewer read the diff and declined to pick a side (parse_verdict "NEEDS REVIEW" /
+# "REVIEWED"). Distinct from awaiting_review, which means NOTHING has reviewed the PR yet,
+# and from changes_requested, which means a human was told to fix code.
+MERGE_STATE_NEEDS_REVIEW = "needs_review"
 MERGE_STATE_CLOSED = "closed"
 
 
@@ -1442,6 +1460,31 @@ def merge_state(
 
     dropped = coverage_dropped_paths(summary) or []
     partial = coverage_partial_paths(summary) or []
+    # ⚠️ ORDER IS LOAD-BEARING, and NEEDS REVIEW must be tested BEFORE the
+    # changes_requested fallthrough. parse_verdict() returns THREE distinct
+    # non-approval tokens: "REQUEST CHANGES", "NEEDS REVIEW", and "REVIEWED"
+    # (no VERDICT line at all). Only the first is a code objection. Collapsing
+    # the other two into CHANGES REQUESTED is what made PR #3572 — whose review
+    # read all 2 files, matched the head, and reported "No issues found." —
+    # render as a blocking "Changes requested". A model that declines to pick a
+    # side has NOT found defects, and saying it has misreports the reviewer.
+    # NEEDS REVIEW stays non-mergeable (a human still decides) but reads as the
+    # indeterminate state it actually is, and stops arming the request-changes
+    # defer window as if a human had been told to fix something.
+    if parse_verdict(summary) in ("NEEDS REVIEW", "REVIEWED"):
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_NEEDS_REVIEW,
+                "mergeable": False,
+                "label": "NEEDS REVIEW",
+                "hint": _merge_hint(summary, False),
+                "dropped_files": dropped,
+                "partial_files": partial,
+            },
+            base_branch,
+            default_branch,
+        )
+
     return _with_merge_target(
         {
             "state": MERGE_STATE_CHANGES,

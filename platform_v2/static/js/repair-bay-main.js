@@ -717,6 +717,13 @@ function _prMergeAffordance(ms, orderBlocked, droppedCount, orderLabel) {
         case 'changes_requested':
             o.text = 'Blocked — re-review'; o.col = '#ef4444';
             o.bg = 'rgba(239,68,68,0.10)'; o.br = 'rgba(239,68,68,0.35)'; break;
+        // NEEDS REVIEW is the model declining to pick a side, not a code objection.
+        // It shares awaiting_review's non-mergeable posture but keeps its own label so
+        // a reviewer that found nothing is never reported as "Changes requested"
+        // (PR #3572: complete read, correct head, "No issues found.").
+        case 'needs_review':
+            o.text = 'Awaiting human read'; o.col = '#fbbf24';
+            o.bg = 'rgba(251,191,36,0.10)'; o.br = 'rgba(251,191,36,0.35)'; break;
         case 'awaiting_review':
             o.text = 'Waiting for review'; o.col = '#94a3b8';
             o.bg = 'rgba(148,163,184,0.10)'; o.br = 'rgba(148,163,184,0.30)'; break;

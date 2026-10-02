@@ -139,7 +139,7 @@ class TestCoverageFilesVisibleBeforeTheClick(unittest.TestCase):
     def test_the_detail_lists_the_dropped_files_from_server_state(self):
         src = _TEMPLATE.read_text()
         idx = src.index("msCov.dropped_files")
-        self.assertIn("covDropped.length || covPartial.length", src[idx:idx + 300])
+        self.assertIn("covDropped.length || covPartial.length", src[idx : idx + 300])
         self.assertIn("covList.appendChild(rowEl)", src)
 
     def test_the_dropped_files_are_clickable_to_read_at_the_pr_head(self):
@@ -233,3 +233,56 @@ class TestShippedTileReadsARealColumn(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── #3570/#3572: NEEDS REVIEW is not a code objection ────────────────────────
+# F.O.R.G.E. emits three distinct non-approval tokens. Only REQUEST CHANGES is
+# "a human was told to fix code". Both these PRs were rendered as a blocking
+# "Changes requested" while the reviewer had in fact found nothing:
+#   #3572 — 2/2 files read, head matched, summary literally "No issues found."
+#   #3570 — 6/8 files read, findings were all [INFO] suggestions.
+NEEDS_REVIEW_NO_ISSUES = "SUMMARY ok\nISSUES\n- [CRITICAL] No issues found. — \nVERDICT: NEEDS REVIEW"
+NEEDS_REVIEW_INFO_ONLY = "SUMMARY\nISSUES\n- [INFO] a docstring could be more detailed. — \nVERDICT: NEEDS REVIEW"
+NO_VERDICT_LINE_AT_ALL = "SUMMARY\nISSUES\n- [INFO] could be tidier. — "
+
+
+class TestNeedsReviewIsNotChangesRequested(unittest.TestCase):
+    """A reviewer that declined to pick a side must not be reported as an objection."""
+
+    def test_needs_review_with_no_issues_is_not_changes_requested(self):
+        ms = merge_state("reviewed", NEEDS_REVIEW_NO_ISSUES)
+        self.assertEqual(ms["state"], "needs_review")
+        self.assertNotEqual(ms["state"], "changes_requested")
+        self.assertEqual(ms["label"], "NEEDS REVIEW")
+
+    def test_needs_review_with_only_info_notes_is_not_changes_requested(self):
+        ms = merge_state("reviewed", NEEDS_REVIEW_INFO_ONLY)
+        self.assertEqual(ms["state"], "needs_review")
+
+    def test_absent_verdict_line_is_needs_review_not_changes_requested(self):
+        ms = merge_state("reviewed", NO_VERDICT_LINE_AT_ALL)
+        self.assertEqual(ms["state"], "needs_review")
+
+    def test_needs_review_stays_non_mergeable(self):
+        """Non-mergeable is CORRECT here — a human still decides. The fix is the label,
+        not the gate: this test exists so nobody 'fixes' the bug by allowing the merge."""
+        for summary in (NEEDS_REVIEW_NO_ISSUES, NEEDS_REVIEW_INFO_ONLY, NO_VERDICT_LINE_AT_ALL):
+            ms = merge_state("reviewed", summary)
+            self.assertFalse(ms["mergeable"])
+            self.assertTrue(ms["hint"], "a blocked button must carry its reason")
+
+    def test_a_real_request_changes_is_still_changes_requested(self):
+        """The fix must not soften a genuine objection — that is the whole safety point."""
+        ms = merge_state("reviewed", REQUEST_CHANGES)
+        self.assertEqual(ms["state"], "changes_requested")
+        self.assertFalse(ms["mergeable"])
+
+    def test_needs_review_is_distinct_from_awaiting_review(self):
+        """awaiting_review means NOTHING reviewed the PR; needs_review means a reviewer
+        looked and declined. Collapsing them would hide the distinction the UI shows."""
+        self.assertEqual(merge_state("pending", "")["state"], "awaiting_review")
+        self.assertEqual(merge_state("reviewed", NEEDS_REVIEW_NO_ISSUES)["state"], "needs_review")
+
+    def test_client_labels_the_new_state(self):
+        js = Path(__file__).resolve().parents[1] / "static" / "js" / "repair-bay-main.js"
+        self.assertIn("case 'needs_review':", js.read_text(), "merge button has no label for it")

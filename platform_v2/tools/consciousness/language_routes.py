@@ -108,6 +108,54 @@ def _get_db():
     )
 
 
+def _is_scanner_artifact(key: str) -> bool:
+    """True when a scraped ``data-i18n`` value is JS/HTML syntax, not a translation key.
+
+    The scanners read templates with a regex over ``data-i18n="..."``. That happily
+    matches values the template assembles at RENDER time in JavaScript, because the
+    concatenation fragments are inside the attribute as written:
+
+        platform_v2/static/js/dashboard.js:1451
+            '<div class="featured-card-name" data-i18n="' + nameKey + '">' + ...
+
+    ``nameKey`` is itself built at line 1442 as ``'module.' + mod.id + '.name'``, so
+    there is no literal key in the file to find. The regex captures the *fragments*
+    as if they were keys, and the coverage scan then approves them: the ``translations``
+    table carried 8 rows whose key is literally ``' + nameKey + '`` and 8 more for
+    ``' + descKey + '``. A bare JS call such as ``getInvolved()`` lands the same way.
+
+    These are not untranslated strings — they are not strings at all. They cannot be
+    translated, they cannot be rendered, and every one of them silently inflates the
+    denominator that the Languages tab's coverage matrix and Gap Feed report. That is
+    the number a human trusts when deciding whether to ship a language, so the noise
+    has to be rejected at the scrape, not filtered out of the report later.
+
+    Rejects, in order:
+      * empty / whitespace-only
+      * JS or template interpolation (``+``, ``${``, ``{{``, ``%s``-style braces) —
+        the concatenation fragments above
+      * a call — ``name(...)`` — matched by balanced-free trailing ``()``
+      * an HTML tag (``<div>``)
+      * a leading quote/bracket, which is what a captured fragment starts with
+    """
+    if not key or not key.strip():
+        return True
+    k = key.strip()
+    # Interpolation and concatenation fragments: "' + nameKey + '", "${t('x')}"
+    if any(tok in k for tok in ("+", "${", "{{", "}}", "{%", "%s", "%(")):
+        return True
+    # A call expression: getInvolved(), computeTotal()
+    if k.endswith(")") and "(" in k:
+        return True
+    # An HTML tag rather than a key.
+    if k.startswith("<") and k.endswith(">"):
+        return True
+    # A captured fragment keeps the quote/bracket it was delimited by.
+    if k[0] in "\"'`([{":
+        return True
+    return False
+
+
 def _scan_all_sources():
     """Scan all discoverable translation key sources.
 
@@ -169,6 +217,8 @@ def _scan_all_sources():
                         key = match.group(1)
                         if "{{" in key or "}}" in key:
                             continue
+                        if _is_scanner_artifact(key):
+                            continue
                         if key not in keys:
                             keys[key] = {
                                 "source": "template",
@@ -222,6 +272,8 @@ def _scan_all_sources():
                     for match in i18n_key_pattern.finditer(content):
                         key = match.group(1)
                         if "{{" in key or "}}" in key:
+                            continue
+                        if _is_scanner_artifact(key):
                             continue
                         if key not in keys:
                             keys[key] = {
@@ -296,6 +348,8 @@ def _scan_all_sources():
                     )
                 except (UnicodeDecodeError, UnicodeEncodeError):
                     pass  # keep raw value if decode fails
+            if _is_scanner_artifact(js_key):
+                continue
             # Only capture keys that look like translation keys (contain a dot)
             if "." in js_key:
                 keys[js_key] = {

@@ -94,6 +94,7 @@ SCOPES: frozenset[str] = frozenset(
         "agents:read",  # cockpit roster/agent/skills/budget READS — comms only (#6653 Phase 4)
         "tasks:read",  # cockpit Work pane: projects/tasks READS — comms only (#6679 Phase 4b)
         "tasks:write",  # cockpit Work pane: create/status/priority/note/delegate — comms only (#6679 Phase 4b)
+        "infra:read",  # V.I.G.I.L. infra heartbeat READ — the hub holds the docker socket, the gateway does not
     }
 )
 
@@ -149,7 +150,7 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
     #
     # Per-LANE identity is preserved one layer up, by the bearer the gateway validates
     # (codex-full vs opencode-full); the hub sees the gateway as one caller.
-    "coder_lanes": frozenset({"tasks:read", "tasks:write", "agents:read", "agents:manage", "delegation"}),
+    "coder_lanes": frozenset({"tasks:read", "tasks:write", "agents:read", "agents:manage", "delegation", "infra:read"}),
 }
 
 # endpoint name -> scope, filled by the decorator at registration time. The

@@ -24,6 +24,7 @@ import pytest
 
 from services.infra_heartbeat_service import (
     CRITICAL_CONTAINERS,
+    DockerObserverUnavailable,
     _absent_snapshot,
     _shares_network_namespace,
     check_container,
@@ -151,14 +152,23 @@ def test_absent_snapshot_carries_the_network_keys():
     assert snap["present"] is False
 
 
-def test_inspect_container_always_returns_the_network_keys(monkeypatch):
-    """Both inspectors failing must still yield a well-formed snapshot."""
+def test_both_inspectors_failing_reports_blindness_not_absence(monkeypatch):
+    """CHANGED CONTRACT — this test used to assert the opposite.
+
+    It previously required `inspect_container` to return an ABSENT snapshot when
+    neither inspector produced one. That is precisely the defect: a caller with
+    no docker access (archie_mcp_gateway) came back with present=False for every
+    container, which check_container rendered as "absent from docker (likely
+    removed)" at severity=error. All 42 containers were actually running.
+
+    The snapshot-shape contract above still holds for genuine absence — it is
+    `_absent_snapshot()`, not the no-client case, that must carry the keys.
+    """
     monkeypatch.setattr("services.infra_heartbeat_service._inspect_via_sdk", lambda _n: None)
     monkeypatch.setattr("services.infra_heartbeat_service._inspect_via_cli", lambda _n: None)
 
-    snap = inspect_container("nonexistent")
-
-    assert "networks" in snap and "network_mode" in snap
+    with pytest.raises(DockerObserverUnavailable):
+        inspect_container("nonexistent")
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +247,11 @@ def test_prefix_code_misses_the_defect(monkeypatch):
     is meaningful rather than vacuously true.
     """
     prefix = _load_prefix_module()
-    monkeypatch.setitem(prefix.__dict__, "inspect_container", lambda _n: _snap(networks=[], network_mode="bridge"))
+    monkeypatch.setitem(
+        prefix.__dict__,
+        "inspect_container",
+        lambda _n: _snap(networks=[], network_mode="bridge"),
+    )
 
     result = prefix.check_container("media_samba", {"tcp_probes": []})
 

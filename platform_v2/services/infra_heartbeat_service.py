@@ -55,11 +55,102 @@ from urllib import request as urllib_request
 logger = logging.getLogger(__name__)
 
 
+class DockerObserverUnavailable(RuntimeError):
+    """The check could not SEE docker at all.
+
+    This is the single most important distinction in this module, and getting it
+    wrong is worse than having no monitor at all.
+
+    ``docker inspect`` exits non-zero for two unrelated things: "No such object"
+    (the container is genuinely gone) and "Cannot connect to the Docker daemon"
+    (the observer is blind). Collapsing the second into the first makes a blind
+    observer manufacture an outage — every registered container reported as
+    "absent from docker (likely removed)", at ``severity: error``, with
+    ``auto_restart_safe`` set on most of them.
+
+    That is not hypothetical. ``archie_mcp_gateway`` deliberately runs WITHOUT a
+    docker socket (read-only DB role, no host access — see mcp-gateway/gateway.py),
+    and it serves the READ tools in-process. So every MCP caller — both coder lanes
+    and any agent using this tool — got a fabricated 9-of-10-down emergency for a
+    fully healthy hub. Verified against the running containers: all 42 up.
+
+    So: absence is a claim about a container. Blindness is a claim about the
+    observer. Only the first may raise an alert or file a restart approval.
+    """
+
+
+# Substrings that mean "the docker daemon is unreachable", as opposed to
+# "no such container". Checked against CLI stderr and SDK exception text.
+_DAEMON_UNREACHABLE_MARKERS = (
+    "cannot connect to the docker daemon",
+    "is the docker daemon running",
+    "error during connect",
+    "permission denied while trying to connect to the docker daemon",
+    "could not connect to docker",
+)
+
+
+def _looks_like_daemon_unreachable(text: str) -> bool:
+    """True when docker's own error text means 'I cannot see', not 'it is gone'."""
+    low = (text or "").lower()
+    return any(marker in low for marker in _DAEMON_UNREACHABLE_MARKERS)
+
+
 # ---------------------------------------------------------------------------
 # Registry of critical containers + their probes.
-# Keep this in sync with docker-compose.yml. Non-critical sidecars
-# (security_nmap, security_nikto, dev helpers) are intentionally absent.
+# Keep this in sync with the compose files named below.
+#
+# `compose_file` is NOT decoration. restart_container() shells out to
+# `docker compose -f <compose_file> up -d --no-deps <compose_service>`, and
+# `docker compose` with no -f only ever reads the compose file in its cwd
+# (/mnt/archie_brain/docker-compose.yml). Six of the ten original entries name
+# a service that does not exist in that file — media_plex's real service is
+# `plex` in media-stack/docker-compose.yml, kbs_app's is
+# `kytran-business-suite` in kytran-business-suite/docker-compose.yml, and so
+# on. Those restarts were therefore guaranteed to fail with "no such service"
+# (verified: `docker compose up --dry-run` for each). An approval that cannot
+# execute is worse than no approval: it spends a human's attention on a
+# recovery that does not happen. test_registry_compose_wiring_exists() now
+# fails if an entry names a service missing from its own compose file.
+#
+# `auto_restart_safe` means "compose-up of this entry would actually bring it
+# back, and doing so unattended is safe". It is NOT a statement about
+# importance — plenty of important containers are detection-only. A false
+# positive that files a restart for a mesh component or a stateful database is
+# worse than the alert it was trying to shorten.
+#
+# Two tiers, on purpose:
+#   tier 1  hub spine — everything else's failure traces back to one of these
+#   tier 2  data stores, media, mail, and the monitoring stack itself
+#
+# Deliberately NOT watched (presence is not a health signal for these):
+#   archie_opencode_terminal*, archie_codex_terminal — dev lanes; a lane with
+#     no active session is *supposed* to be down. An "absent" alert per lane
+#     would be noise on every restart, and reviving an idle lane is not a
+#     recovery.
+#   archie_browser, archie_browser_login, archie_scraper — interactive
+#     tooling, driven on demand.
+#   archie_staging, archie_staging_db — the sandbox (see the sandbox-work
+#     skill); its lifecycle is deliberate, not an incident.
+#   security_nmap/nikto/nuclei/testssl/zap — scanner fleet. Separate finding:
+#     security_zap's healthcheck curls `/`, which ZAP answers non-2xx, so it
+#     has been `unhealthy` continuously while serving fine. Watching it as-is
+#     would manufacture a permanent false alarm. Not added until its
+#     healthcheck is corrected.
 # ---------------------------------------------------------------------------
+
+_HUB_COMPOSE = "/mnt/archie_brain/docker-compose.yml"
+_MEDIA_COMPOSE = "/mnt/archie_brain/media-stack/docker-compose.yml"
+_KBS_COMPOSE = "/mnt/archie_brain/kytran-business-suite/docker-compose.yml"
+_NETTOOLS_COMPOSE = "/mnt/archie_brain/network-tools/docker-compose.yml"
+_SYSOPS_COMPOSE = "/mnt/archie_brain/kytran-server-manager/docker-compose.yml"
+_CREED_COMPOSE = "/mnt/archie_brain/kytran-creed/docker-compose.yml"
+_MEDIAHUB_COMPOSE = "/mnt/archie_brain/standalone/media_hub/docker-compose.yml"
+_TDARR_COMPOSE = "/mnt/archie_brain/standalone/tdarr/docker-compose.yml"
+_MAIL_COMPOSE = "/mnt/archie_brain/stalwart-mail/docker-compose.yml"
+# cadvisor/dozzle/nagios are NOT in network-tools/docker-compose.yml — they run
+# from a separate stack at /mnt/stacks/network-tools.
+_MONITORING_COMPOSE = "/mnt/stacks/network-tools/docker-compose.yml"
 
 CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
     # nginx_proxy_manager removed 2026-06-27 — NPM decommissioned, replaced by Beacon
@@ -68,78 +159,99 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
     # re-fired a restart_container approval every time it was stopped (the revival loop),
     # and the restart command (`docker compose up -d nginx_proxy_manager`) now errors since
     # the service is gone. Do NOT re-add.
-    "network_adguard": {
-        "description": "AdGuard DNS — internal resolution + ad blocking",
-        "tcp_probes": [53],
+    #
+    # === TIER 1 — HUB SPINE ===
+    "archie_database": {
+        "description": "PostgreSQL — the hub's primary datastore (every module reads it)",
+        "tcp_probes": [5432],
         "auto_restart_safe": True,
-        "compose_service": "network_adguard",
+        "compose_service": "archie_database",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+        # Detection + recovery only. NOT a probe-only entry: a hub with no
+        # database is down for every module, and this is the single most
+        # load-bearing process on the box.
+    },
+    "archie_platform": {
+        "description": "A.R.C.H.I.E. hub — Flask API + UI (port 3000)",
+        "tcp_probes": [3000],
+        "auto_restart_safe": True,
+        "compose_service": "archie_platform",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+    },
+    "archie_scheduler": {
+        "description": "Agent loop / cron runner — the process V.I.G.I.L. itself runs in",
+        # No tcp_probe on purpose. archie_scheduler publishes nothing; the only
+        # thing on 192.168.1.200:3000 is archie_platform. Probing it would test
+        # the platform and report a green light for the scheduler — the exact
+        # "looks monitored, isn't" shape #5409 was filed for. The container's own
+        # healthcheck (a real psycopg2 connect) is the honest signal.
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "archie_scheduler",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+    },
+    "archie_mcp_gateway": {
+        "description": "MCP stdio/HTTP gateway — the surface the observer-blindness fix (#3570) exists for",
+        # No tcp_probe: 7800 is bound to 127.0.0.1 only, unreachable from the
+        # probe host. Healthcheck is authoritative.
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "archie_mcp_gateway",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+    },
+    "archie_engine": {
+        "description": "Orchestration engine (ws 9090)",
+        # 9090 is bound to 127.0.0.1; healthcheck covers it.
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "archie_engine",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+    },
+    "archie_ollama": {
+        "description": "Ollama inference — all local LLM capacity",
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "archie_ollama",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+    },
+    "archie_headscale": {
+        "description": "Headscale control plane — the mesh every inter-service call runs on",
+        "tcp_probes": [8095],
+        "auto_restart_safe": True,
+        "compose_service": "archie_headscale",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
     },
     "archie_comms": {
         "description": "A.R.C.H.I.E. voice + Telegram bridge (port 3002)",
         "tcp_probes": [3002],
         "auto_restart_safe": True,
         "compose_service": "archie_comms",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
     },
-    "archie_comfyui": {
-        "description": "ComfyUI image generation service (port 8188) — on-demand",
-        "tcp_probes": [8188],
-        "auto_restart_safe": True,
-        "compose_service": "archie_comfyui",
-        # On-demand: container is only running during SDXL generation
-        # (VRAM swap with Ollama). Exited = normal idle — P.I.X.E.L. wakes it
-        # via media_generation_worker before claiming any pending job.
-        "service_class": "on-demand",
-    },
-    "kbs_app": {
-        "description": "Kytran Business Suite (port 8091)",
-        "tcp_probes": [8091],
-        "auto_restart_safe": True,
-        "compose_service": "kbs_app",
-    },
-    "kytran-system-operations": {
-        "description": "KSO compliance engine (port 8085)",
-        "tcp_probes": [8085],
-        "auto_restart_safe": True,
-        "compose_service": "kytran-system-operations",
-    },
-    "kytran_creed": {
-        "description": "C.R.E.E.D. governance (port 8086)",
-        "tcp_probes": [8086],
-        "auto_restart_safe": True,
-        "compose_service": "kytran_creed",
-    },
-    "media_plex": {
-        "description": "Plex media server",
-        "tcp_probes": [32400],
-        "auto_restart_safe": True,
-        "compose_service": "media_plex",
-    },
-    "media_jellyfin": {
-        "description": "Jellyfin media server",
-        "tcp_probes": [8096],
-        "auto_restart_safe": True,
-        "compose_service": "media_jellyfin",
-    },
-    # --- Added 2026-07-29 (#5409). Both of the Networks==0 incidents on this hub
-    # happened to containers that were NOT in this registry, so the detection
-    # added in check_container() would have caught neither. A check whose subject
-    # is unmonitored is unmonitored-while-appearing-monitored.
-    #
-    # Neither carries tcp_probes on purpose: media_samba publishes on
-    # 100.64.0.4:445, so probing _PROBE_HOST_FROM_CONTAINER (192.168.1.200) would
-    # report a false failure. Both DO have working docker healthchecks, which the
-    # existing `health != healthy` branch already consumes — media_samba's had a
-    # FailingStreak of 3014 while nothing was watching it.
-    "media_samba": {
-        "description": "SMB export of /media — Tdarr fleet nodes mount the library over it",
-        "tcp_probes": [],
-        # NOT restart-safe: media_samba is a bare `docker run` with no compose
-        # service (#5410), and restart_container() shells out to
-        # `docker compose up -d --no-deps <svc>`, which would fail every time —
-        # the same revival-loop shape as the nginx_proxy_manager note above.
-        # Flip to True only once #5410 gives it a real compose service.
+    "archie_hub_caddy": {
+        "description": "Caddy — the hub's front door (TLS, reverse proxy)",
+        # :80, verified — NOT :3001. Caddy runs in the host network namespace
+        # (`auto_https off`, no certs obtainable while inbound :80 is broken).
+        # 3001 looks like an obvious candidate on a host-mode container and is a
+        # trap: `ss` inside any host-mode container reports the WHOLE host
+        # namespace, so ntopng's listener appears to belong to Caddy. It does
+        # not — ntopng runs `-w 3001`. Probing 3001 here would have gone green
+        # while Caddy was dead.
+        "tcp_probes": [80],
+        # Bare `docker run`, no compose project (labels confirm). Detection
+        # only: there is no compose file to name, so restart is impossible.
         "auto_restart_safe": False,
-        "compose_service": "media_samba",
+        "compose_service": "archie_hub_caddy",
+        "compose_file": None,
+        "tier": 1,
     },
     "archie_tailscale": {
         "description": "Hub-LAN subnet router (mesh presence 100.64.0.1) — dormant but must stay registered",
@@ -149,6 +261,272 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
         # (`docker compose restart` does NOT reapply them — see .claude/rules/fleet.md).
         "auto_restart_safe": False,
         "compose_service": "archie_tailscale",
+        "compose_file": _HUB_COMPOSE,
+        "tier": 1,
+    },
+    "network_adguard": {
+        "description": "AdGuard DNS — internal resolution + ad blocking",
+        "tcp_probes": [53],
+        "auto_restart_safe": True,
+        "compose_service": "network_adguard",
+        "compose_file": _NETTOOLS_COMPOSE,
+        "tier": 1,
+    },
+    "kytran-system-operations": {
+        "description": "KSO compliance engine (port 8085)",
+        "tcp_probes": [8085],
+        "auto_restart_safe": True,
+        "compose_service": "kytran-system-operations",
+        "compose_file": _SYSOPS_COMPOSE,
+        "tier": 1,
+    },
+    "kytran_creed": {
+        "description": "C.R.E.E.D. governance (port 8086)",
+        "tcp_probes": [8086],
+        "auto_restart_safe": True,
+        # The service is `creed`, not `kytran_creed`. The container name and the
+        # compose service name differ for this one.
+        "compose_service": "creed",
+        "compose_file": _CREED_COMPOSE,
+        "tier": 1,
+    },
+    "kbs_app": {
+        "description": "Kytran Business Suite (port 8091)",
+        "tcp_probes": [8091],
+        "auto_restart_safe": True,
+        # service name is `kytran-business-suite`, container name is `kbs_app`.
+        "compose_service": "kytran-business-suite",
+        "compose_file": _KBS_COMPOSE,
+        "tier": 1,
+    },
+    # === TIER 2 — DATA STORES ===
+    "kbs_postgres": {
+        "description": "PostgreSQL — KBS datastore",
+        # No healthcheck on this container, and 5432 is unpublished. Probing
+        # the probe host's 5432 would test archie_database instead — a green
+        # light for the wrong database. Verified from inside the observer:
+        # both the compose DNS name and the container IP (172.28.0.3) time out,
+        # because the observer shares no network with kytran-business-suite_default.
+        "tcp_probes": [],
+        "presence_only_reason": (
+            "no healthcheck; isolated on kytran-business-suite_default, unreachable "
+            "from the observer by name or IP. Detects ABSENCE only — a wedged "
+            "postmaster still reports healthy. Fix by adding a healthcheck to the "
+            "kbs-postgres service, then drop this field."
+        ),
+        "auto_restart_safe": True,
+        "compose_service": "kbs-postgres",
+        "compose_file": _KBS_COMPOSE,
+        "tier": 2,
+    },
+    "kbs_redis": {
+        "description": "Redis — KBS job queues + cache",
+        # Same isolation as kbs_postgres: no healthcheck, no published port, and
+        # the observer cannot route to 172.28.0.2.
+        "tcp_probes": [],
+        "presence_only_reason": (
+            "no healthcheck; isolated on kytran-business-suite_default, unreachable "
+            "from the observer. Detects ABSENCE only. Add a redis-cli PING "
+            "healthcheck to the kbs-redis service to close this."
+        ),
+        "auto_restart_safe": True,
+        "compose_service": "kbs-redis",
+        "compose_file": _KBS_COMPOSE,
+        "tier": 2,
+    },
+    "creed_postgres": {
+        "description": "PostgreSQL — C.R.E.E.D. datastore",
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "postgres",
+        "compose_file": _CREED_COMPOSE,
+        "tier": 2,
+    },
+    "kytran-sysops-postgres": {
+        "description": "PostgreSQL — KSO datastore",
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "postgres",
+        "compose_file": _SYSOPS_COMPOSE,
+        "tier": 2,
+    },
+    "mediahub_db": {
+        "description": "PostgreSQL — media hub datastore",
+        "tcp_probes": [],
+        "auto_restart_safe": True,
+        "compose_service": "mediahub_db",
+        "compose_file": _MEDIAHUB_COMPOSE,
+        "tier": 2,
+    },
+    "network_redis": {
+        "description": "Redis — network-tools shared state",
+        # Publishes 6379 to 127.0.0.1 ONLY (verified: `docker port` shows
+        # 127.0.0.1:6379, and a connect from the observer to 192.168.1.200:6379
+        # is refused). So the port cannot be probed from the observer, and no
+        # healthcheck is defined.
+        "tcp_probes": [],
+        "presence_only_reason": (
+            "no healthcheck; publishes to 127.0.0.1 only, refused from the probe "
+            "host. Detects ABSENCE only. Add a redis-cli PING healthcheck."
+        ),
+        "auto_restart_safe": True,
+        "compose_service": "network_redis",
+        "compose_file": _NETTOOLS_COMPOSE,
+        "tier": 2,
+    },
+    # === TIER 2 — MEDIA ===
+    # All of these name a compose service in media-stack/docker-compose.yml.
+    "media_plex": {
+        "description": "Plex media server",
+        "tcp_probes": [32400],
+        "auto_restart_safe": True,
+        "compose_service": "plex",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_jellyfin": {
+        "description": "Jellyfin media server",
+        "tcp_probes": [8096],
+        "auto_restart_safe": True,
+        "compose_service": "jellyfin",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_radarr": {
+        "description": "Radarr — movie library automation (port 7878)",
+        "tcp_probes": [7878],
+        "auto_restart_safe": True,
+        "compose_service": "radarr",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_sonarr": {
+        "description": "Sonarr — TV library automation (port 8989)",
+        "tcp_probes": [8989],
+        "auto_restart_safe": True,
+        "compose_service": "sonarr",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_prowlarr": {
+        "description": "Prowlarr — indexer manager (port 9696)",
+        "tcp_probes": [9696],
+        "auto_restart_safe": True,
+        "compose_service": "prowlarr",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_sabnzbd": {
+        "description": "SABnzbd — usenet downloader (host 8083 → container 8080)",
+        "tcp_probes": [8083],
+        "auto_restart_safe": True,
+        "compose_service": "sabnzbd",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_overseerr": {
+        "description": "Overseerr — media request portal (port 5055)",
+        "tcp_probes": [5055],
+        "auto_restart_safe": True,
+        "compose_service": "overseerr",
+        "compose_file": _MEDIA_COMPOSE,
+        "tier": 2,
+    },
+    "media_samba": {
+        "description": "SMB export of /media — Tdarr fleet nodes mount the library over it",
+        "tcp_probes": [],
+        # NOT restart-safe: this entry is keyed on `docker-compose.samba.yml`,
+        # a separate file, and the approval path would otherwise compose-up the
+        # wrong stack. Detection only until that is wired.
+        # Also no tcp_probe: media_samba publishes on 100.64.0.4:445, so probing
+        # _PROBE_HOST_FROM_CONTAINER (192.168.1.200) would report a false
+        # failure. Its docker healthcheck is the honest signal — media_samba's
+        # had a FailingStreak of 3014 while nothing was watching it.
+        "auto_restart_safe": False,
+        "compose_service": "samba",
+        "compose_file": "/mnt/archie_brain/media-stack/docker-compose.samba.yml",
+        "tier": 2,
+    },
+    "mediahub_app": {
+        "description": "Media hub app (port 8105)",
+        "tcp_probes": [8105],
+        "auto_restart_safe": True,
+        "compose_service": "mediahub_app",
+        "compose_file": _MEDIAHUB_COMPOSE,
+        "tier": 2,
+    },
+    "tdarr": {
+        "description": "Tdarr — distributed transcode worker (port 8265)",
+        "tcp_probes": [8265],
+        "auto_restart_safe": True,
+        "compose_service": "tdarr",
+        "compose_file": _TDARR_COMPOSE,
+        "tier": 2,
+    },
+    # === TIER 2 — MAIL ===
+    "stalwart_mail": {
+        "description": "Stalwart — inbound/outbound mail (SMTP 25/587, IMAP 993)",
+        # 25/465/587/993 all verified reachable from the probe host. Probing
+        # only 25: a listener that binds SMTP but has lost IMAP is a real,
+        # distinct outage, and one probe would call it healthy.
+        "tcp_probes": [25, 587, 993],
+        "auto_restart_safe": True,
+        "compose_service": "stalwart-mail",
+        "compose_file": _MAIL_COMPOSE,
+        "tier": 2,
+    },
+    # === TIER 2 — THE MONITORING STACK ===
+    # If these are down, V.I.G.I.L. is the only thing still reporting — and
+    # nothing is watching V.I.G.I.L. itself. See _monitoring_redundancy_health.
+    "monitoring_cadvisor": {
+        "description": "cAdvisor — container metrics (port 8081)",
+        "tcp_probes": [8081],
+        "auto_restart_safe": True,
+        "compose_service": "cadvisor",
+        "compose_file": _MONITORING_COMPOSE,
+        "tier": 2,
+    },
+    "monitoring_dozzle": {
+        "description": "Dozzle — container log viewer (port 8080)",
+        "tcp_probes": [8080],
+        "auto_restart_safe": True,
+        "compose_service": "dozzle",
+        "compose_file": _MONITORING_COMPOSE,
+        "tier": 2,
+    },
+    "monitoring_nagios": {
+        "description": "Nagios — host/service checks (port 8082)",
+        "tcp_probes": [8082],
+        # No restart even though the compose wiring is known: this is the
+        # system's redundancy for V.I.G.I.L. itself, so a false positive here
+        # is the one most likely to be approved on autopilot. Detection first.
+        "auto_restart_safe": False,
+        "compose_service": "nagios",
+        "compose_file": _MONITORING_COMPOSE,
+        "tier": 2,
+    },
+    "network_ntopng": {
+        "description": "ntopng — flow analysis (host mode, web UI :3001)",
+        # 3001 IS ntopng — from its own argv: `ntopng --redis 127.0.0.1:6379
+        # -i eno1 -w 3001`. Verified reachable from the probe host. Watch the
+        # sibling entry archie_hub_caddy before "fixing" a port here.
+        "tcp_probes": [3001],
+        "auto_restart_safe": True,
+        "compose_service": "network_ntopng",
+        "compose_file": _NETTOOLS_COMPOSE,
+        "tier": 2,
+    },
+    "archie_comfyui": {
+        "description": "ComfyUI image generation service (port 8188) — on-demand",
+        "tcp_probes": [8188],
+        "auto_restart_safe": True,
+        "compose_service": "archie_comfyui",
+        "compose_file": _HUB_COMPOSE,
+        # On-demand: container is only running during SDXL generation
+        # (VRAM swap with Ollama). Exited = normal idle — P.I.X.E.L. wakes it
+        # via media_generation_worker before claiming any pending job.
+        "service_class": "on-demand",
+        "tier": 2,
     },
 }
 
@@ -209,7 +587,11 @@ def _absent_snapshot() -> Dict[str, Any]:
 
 
 def _inspect_via_sdk(name: str) -> Optional[Dict[str, Any]]:
-    """Return a snapshot dict (see :func:`inspect_container`) or None on failure."""
+    """Return a snapshot dict (see :func:`inspect_container`) or None on failure.
+
+    Raises :class:`DockerObserverUnavailable` when the SDK is present but cannot
+    reach the daemon — that is blindness, not absence (see that class).
+    """
     try:
         import docker  # type: ignore
 
@@ -230,15 +612,24 @@ def _inspect_via_sdk(name: str) -> Optional[Dict[str, Any]]:
     except ImportError:
         return None
     except Exception as e:
-        # NotFound raised if container doesn't exist
+        # NotFound raised if container doesn't exist. Checked FIRST because
+        # docker.errors.NotFound subclasses APIError which subclasses
+        # DockerException — a blanket DockerException catch would call a genuinely
+        # absent container "blind", which is the same category error in reverse.
         if "NotFound" in type(e).__name__ or "not found" in str(e).lower():
             return _absent_snapshot()
+        if _looks_like_daemon_unreachable(str(e)):
+            raise DockerObserverUnavailable(f"docker SDK cannot reach daemon: {e}") from e
         logger.warning("docker SDK inspect failed for %s: %s", name, e)
         return None
 
 
 def _inspect_via_cli(name: str) -> Optional[Dict[str, Any]]:
-    """Fallback: shell out to docker CLI."""
+    """Fallback: shell out to docker CLI.
+
+    Raises :class:`DockerObserverUnavailable` when the CLI is present but the
+    daemon is not reachable.
+    """
     try:
         result = subprocess.run(
             [
@@ -259,11 +650,18 @@ def _inspect_via_cli(name: str) -> Optional[Dict[str, Any]]:
             timeout=10,
         )
     except FileNotFoundError:
-        return None
+        # No docker client at all — we are blind, NOT looking at an empty fleet.
+        raise DockerObserverUnavailable("docker CLI not found on PATH")
     except subprocess.TimeoutExpired:
         return None
     if result.returncode != 0:
-        # Not found
+        # Two different failures share this exit code. Splitting them here is what
+        # stops archie_mcp_gateway (docker CLI present, socket absent) from
+        # reporting every watched container as removed.
+        stderr = (result.stderr or "").strip()
+        if _looks_like_daemon_unreachable(stderr):
+            raise DockerObserverUnavailable(f"docker CLI cannot reach daemon: {stderr[:300]}")
+        # Genuinely not found.
         return _absent_snapshot()
     parts = result.stdout.strip().split("|")
     state = parts[0] if parts else None
@@ -282,12 +680,39 @@ def _inspect_via_cli(name: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def docker_observer_available() -> None:
+    """Raise :class:`DockerObserverUnavailable` unless docker answers at all.
+
+    A one-call pre-flight. Called once per heartbeat pass so a blind observer
+    costs ONE failed subprocess instead of ten inspects plus ten ``docker events``
+    forensics queries — and, more importantly, so the pass reports one clear
+    "I cannot see" verdict instead of ten confident lies.
+    """
+    try:
+        result = subprocess.run(
+            ["docker", "version", "--format", "{{.Server.Version}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except FileNotFoundError:
+        raise DockerObserverUnavailable("docker CLI not found on PATH") from None
+    except subprocess.TimeoutExpired:
+        return  # slow, not blind — let the per-container path decide
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise DockerObserverUnavailable(f"docker daemon unreachable: {stderr[:300] or 'unknown error'}")
+
+
 def inspect_container(name: str) -> Dict[str, Any]:
     """Return a uniform snapshot of a container's state.
 
     Keys: ``present`` (bool), ``state`` (str|None), ``health`` (str|None),
     ``started_at`` (str|None), ``networks`` (list[str]),
     ``network_mode`` (str|None).
+
+    Raises :class:`DockerObserverUnavailable` when no docker client can answer.
+    It never returns ``present: False`` as a substitute for "I could not look".
     """
     snap = _inspect_via_sdk(name)
     if snap is not None:
@@ -295,7 +720,7 @@ def inspect_container(name: str) -> Dict[str, Any]:
     snap = _inspect_via_cli(name)
     if snap is not None:
         return snap
-    return _absent_snapshot()
+    raise DockerObserverUnavailable("no usable docker client (SDK and CLI both failed)")
 
 
 def _shares_network_namespace(network_mode: Optional[str]) -> bool:
@@ -322,6 +747,41 @@ def _shares_network_namespace(network_mode: Optional[str]) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _blind_record(name: str, config: Dict[str, Any], detail: str) -> Dict[str, Any]:
+    """The record for a container an observer could not look at.
+
+    One helper, used by both the per-container path and the whole-pass
+    short-circuit, so the two can never drift into claiming different things
+    about the same blindness.
+
+    ``present: False`` here means *unverified*, NOT *confirmed gone*. The
+    distinction is carried by ``observer_blind`` and the reason string, and it
+    is why this function never returns ``severity: "error"`` — that value is
+    what the agent loop turns into a restart approval.
+    """
+    return {
+        "name": name,
+        "description": config.get("description"),
+        "observer_blind": True,
+        "present": False,
+        "state": None,
+        "health": None,
+        "started_at": None,
+        "networks": [],
+        "network_mode": None,
+        "tcp_probes": {},
+        "http_probe": None,
+        "auto_restart_safe": bool(config.get("auto_restart_safe")),
+        "compose_service": config.get("compose_service", name),
+        "service_class": config.get("service_class", "always-on"),
+        "severity": "warning",
+        "reason": (
+            f"monitoring blind — docker daemon unreachable ({detail}). State of this "
+            "container is UNKNOWN, which is NOT the same as absent. Do not restart."
+        ),
+    }
+
+
 def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
     """Evaluate one container. Returns a structured record the job + MCP
     tool both render.
@@ -330,19 +790,35 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
       * ``error``   — container absent, exited, or running with no network
       * ``warning`` — container running but port/http probe fails
       * ``info``    — all probes pass
+
+    A BLIND observer is reported at ``warning`` with ``observer_blind: True`` and
+    an explicit "state UNKNOWN" reason — never ``error``. The agent-loop restart
+    path keys on ``severity == "error"``, so a blind observer structurally cannot
+    file a restart approval for a container it never actually looked at.
     """
-    snap = inspect_container(name)
     service_class = config.get("service_class", "always-on")
+    try:
+        snap = inspect_container(name)
+    except DockerObserverUnavailable as e:
+        return _blind_record(name, config, str(e))
+
     result: Dict[str, Any] = {
         "name": name,
         "description": config.get("description"),
-        **snap,
+        "observer_blind": False,
+        "present": False,
+        "state": None,
+        "health": None,
+        "started_at": None,
+        "networks": [],
+        "network_mode": None,
         "tcp_probes": {},
         "http_probe": None,
         "auto_restart_safe": bool(config.get("auto_restart_safe")),
         "compose_service": config.get("compose_service", name),
         "service_class": service_class,
     }
+    result.update(snap)
 
     # Escalate immediately if the container isn't present or running.
     if not snap["present"]:
@@ -476,8 +952,52 @@ def check_all_critical() -> Dict[str, Any]:
     Returns a structured payload for both the MCP tool and the agent-loop
     job. Does not mutate anything — logging + approval submission happen
     in the caller.
+
+    ``observer_blind`` is the load-bearing top-level field. When True, NOTHING in
+    this payload is evidence about any container: ``down_names`` is empty by
+    construction, because a check that could not see is not allowed to claim
+    absence. Consumers must treat a blind pass as "the monitor is broken", never
+    as "the fleet is healthy" — see :class:`DockerObserverUnavailable`.
     """
     ran_at = datetime.now(timezone.utc).isoformat()
+
+    # Pre-flight: one call decides whether the rest of the pass can mean anything.
+    # Blind is the common case for in-process MCP lanes, and it used to be
+    # indistinguishable from a total outage.
+    try:
+        docker_observer_available()
+    except DockerObserverUnavailable as e:
+        detail = str(e)
+        logger.error("[infra_heartbeat] observer blind, pass is inconclusive: %s", detail)
+        # Build the records directly. Calling check_container() here would work,
+        # but it would re-attempt the daemon for EVERY entry — 1 + 2N failed
+        # subprocesses instead of 1, to rediscover a fact the pre-flight just
+        # established. The pre-flight exists to be a short circuit.
+        per_container = [_blind_record(name, config, detail) for name, config in CRITICAL_CONTAINERS.items()]
+        return {
+            "ran_at": ran_at,
+            "checked_count": len(CRITICAL_CONTAINERS),
+            "containers": per_container,
+            # Deliberately empty. Blindness is not absence.
+            "down_names": [],
+            "warning_names": list(CRITICAL_CONTAINERS),
+            "severity": "warning",
+            "observer_blind": True,
+            "reasons": [
+                f"MONITORING BLIND — docker unreachable from this process ({detail}). "
+                f"All {len(CRITICAL_CONTAINERS)} watched containers are UNKNOWN; "
+                "no container has been found absent. The scheduled job runs where "
+                "docker IS reachable — check that before trusting any alarm."
+            ],
+            "summary_metrics": {
+                "total": len(CRITICAL_CONTAINERS),
+                "down": 0,
+                "warnings": 0,
+                "healthy": 0,
+                "blind": len(CRITICAL_CONTAINERS),
+            },
+        }
+
     per_container: List[Dict[str, Any]] = []
     down_names: List[str] = []
     warning_names: List[str] = []
@@ -509,6 +1029,7 @@ def check_all_critical() -> Dict[str, Any]:
         "down_names": down_names,
         "warning_names": warning_names,
         "severity": severity,
+        "observer_blind": False,
         "reasons": reasons,
         "summary_metrics": {
             "total": len(CRITICAL_CONTAINERS),
@@ -530,19 +1051,59 @@ def restart_container(compose_service: str, reason: str = "approved restart") ->
     ``--no-deps`` ensures we don't accidentally recreate siblings that
     happen to have pending config drift. Called only after an
     ``action_type='restart_container'`` approval is granted.
+
+    Accepts either a container name (the registry key) or a compose service
+    name, because both are what callers actually have: the agent loop files
+    ``compose_service`` from the record, while a human approving from Telegram
+    sees the container name.
+
+    The ``-f`` flag is the point of this rewrite. Six of the ten original
+    entries name a service that does not exist in /mnt/archie_brain's compose
+    file, so every one of their restarts failed with "no such service" —
+    an approval spent and a container never brought back. Each entry now
+    carries the compose file it belongs to, and this resolves it here.
     """
-    if compose_service not in {c.get("compose_service", k) for k, c in CRITICAL_CONTAINERS.items()}:
+    entry = None
+    entry_name = None
+    for key, cfg in CRITICAL_CONTAINERS.items():
+        if compose_service in (key, cfg.get("compose_service", key)):
+            entry, entry_name = cfg, key
+            break
+    if entry is None:
         return {
             "success": False,
             "error": f"{compose_service!r} is not in the critical container registry",
         }
+
+    service = entry.get("compose_service", entry_name)
+    compose_file = entry.get("compose_file")
+
+    # Refuse rather than guess. Falling back to a cwd-only compose invocation
+    # is exactly the bug this replaced: it silently targets the wrong stack, or
+    # errors "no such service" after a human has approved a restart.
+    if not compose_file:
+        return {
+            "success": False,
+            "error": (
+                f"{entry_name!r} has no compose_file in the registry — it is "
+                "detection-only and cannot be restarted automatically. "
+                "Recover it manually."
+            ),
+        }
+    if not os.path.exists(compose_file):
+        return {
+            "success": False,
+            "error": f"compose file {compose_file!r} for {entry_name!r} does not exist on this host",
+        }
+
+    cmd = ["docker", "compose", "-f", compose_file, "up", "-d", "--no-deps", service]
     try:
         result = subprocess.run(
-            ["docker", "compose", "up", "-d", "--no-deps", compose_service],
+            cmd,
             capture_output=True,
             text=True,
             timeout=90,
-            cwd="/mnt/archie_brain",
+            cwd=os.path.dirname(compose_file) or "/mnt/archie_brain",
         )
     except Exception as e:
         logger.error("restart_container(%s) subprocess failed: %s", compose_service, e)
@@ -552,11 +1113,14 @@ def restart_container(compose_service: str, reason: str = "approved restart") ->
             "success": False,
             "error": f"docker compose exit {result.returncode}: {result.stderr.strip()[:300]}",
             "stdout": result.stdout.strip()[:300],
+            "command": " ".join(cmd),
         }
-    logger.info("[infra_heartbeat] Restarted %s: %s", compose_service, reason)
+    logger.info("[infra_heartbeat] Restarted %s via %s: %s", entry_name, compose_file, reason)
     return {
         "success": True,
-        "compose_service": compose_service,
+        "container": entry_name,
+        "compose_service": service,
+        "compose_file": compose_file,
         "reason": reason,
         "stdout": result.stdout.strip()[:300],
     }
@@ -570,6 +1134,27 @@ def restart_container(compose_service: str, reason: str = "approved restart") ->
 def format_alert_message(result: Dict[str, Any]) -> str:
     """Compact message for Telegram / system_notifications."""
     metrics = result["summary_metrics"]
+
+    # Blindness gets its own rendering. Folding it into the normal header would
+    # print "0 down · 0 warning · 0 healthy" — which reads as a healthy fleet and
+    # is exactly the misreading that turns a broken monitor into a false all-clear.
+    if result.get("observer_blind"):
+        return "\n".join(
+            [
+                "V.I.G.I.L. — infra heartbeat",
+                "Severity: *WARNING* — ⚠️ *MONITORING BLIND* · "
+                f"{metrics.get('blind', 0)} unverified ({metrics['total']} watched)",
+                "",
+                "This process cannot reach the docker daemon, so it could not inspect "
+                "anything. Every watched container is UNKNOWN.",
+                "",
+                "**This is NOT a report of missing containers.**",
+                *(f"• {r}" for r in result.get("reasons", [])),
+                "",
+                "Check the hub's docker socket before trusting any alarm.",
+            ]
+        )
+
     lines = [
         "V.I.G.I.L. — infra heartbeat",
         f"Severity: *{result['severity'].upper()}* · "

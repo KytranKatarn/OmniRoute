@@ -654,6 +654,7 @@ class AgentLoop:
         self._running = False
         self._last_down_set: frozenset = frozenset()
         self._last_dns_class: str = "healthy"  # vigil_dns_monitor dedup (#4571)
+        self._blind_alerted: bool = False  # vigil_infra_heartbeat blindness dedup
 
     def _send_telegram(self, message, title="🔔 A.R.C.H.I.E."):
         """Send a Telegram alert as A.R.C.H.I.E. (thin wrapper over telegram_service.send_info).
@@ -10372,6 +10373,64 @@ class AgentLoop:
         except Exception as exc:
             logger.error("dns_monitor cycle failed: %s", exc)
 
+    def _notify_blind_observer(self, result, body):
+        """Report that the heartbeat itself could not see docker.
+
+        ``body`` is the already-formatted alert. Passed in rather than formatted
+        here because ``format_alert_message`` is a function-local import inside
+        _run_infra_heartbeat, not a module-level name in this file.
+
+        A broken monitor is a real fault and must page — but as WHAT IT IS. The
+        dangerous failure mode this exists to prevent is silence dressed as
+        health: before blindness was distinguished from absence, an observer that
+        could not reach docker produced down_names == [] and a cheerful all-clear.
+
+        Telegram fires once per blind STRETCH (``_blind_alerted``), not once per
+        5-minute tick, so a socket that stays gone for an hour paged once.
+        The system_notifications row is written every tick because that surface
+        is a log, not an alarm.
+
+        Never touches ``_last_down_set`` — sight returning must still produce a
+        real down-set transition.
+        """
+        now_blind = bool(result.get("observer_blind"))
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                    INSERT INTO system_notifications
+                      (type, title, message, source, priority, source_icon,
+                       related_action, visibility, target_user_id, is_read,
+                       metadata, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                    """,
+                (
+                    "warning",
+                    "V.I.G.I.L. — observer blind, infra heartbeat inconclusive",
+                    body,
+                    "vigil",
+                    "normal",
+                    "🛡️",
+                    "/tools/security-network",
+                    "all",
+                    None,
+                    psycopg2.extras.Json(result.get("summary_metrics", {})),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as notify_err:
+            logger.warning("V.I.G.I.L. blind-observer notification insert failed: %s", notify_err)
+
+        if now_blind and not self._blind_alerted:
+            try:
+                self._send_telegram(body)
+            except Exception as tg_err:
+                logger.warning("V.I.G.I.L. blind-observer Telegram failed: %s", tg_err)
+        self._blind_alerted = now_blind
+
     def _run_infra_heartbeat(self):
         """Every-5-min heartbeat over critical infrastructure containers.
 
@@ -10380,6 +10439,11 @@ class AgentLoop:
         where ``auto_restart_safe=True``, files a Tier-2 approval via
         ``request_approval(action_type='restart_container', ...)`` so
         Kytran approves the recovery from Telegram.
+
+        A blind pass (this process cannot reach docker) is reported through
+        :meth:`_notify_blind_observer` and files NO restart approvals — an
+        observer that could not look has no basis for claiming a container is
+        missing, let alone restarting it.
         """
         start = time.time()
         try:
@@ -10448,13 +10512,34 @@ class AgentLoop:
 
             # Telegram only when DOWN set changes (new failure or recovery).
             # Prevents flooding when a container stays down across many 5-min ticks.
-            current_down = frozenset(result["down_names"])
-            if current_down != self._last_down_set:
-                try:
-                    self._send_telegram(format_alert_message(result))
-                except Exception as tg_err:
-                    logger.warning("V.I.G.I.L. heartbeat: Telegram dispatch failed: %s", tg_err)
-                self._last_down_set = current_down
+            #
+            # A BLIND pass is excluded from this comparison entirely. Blindness
+            # reports down_names == [] by construction, so letting it through would
+            # read as "recovered from 9 down" and fire a cheerful all-clear
+            # Telegram while the monitor was in fact broken. Blindness has its own
+            # notification path, and _last_down_set is left UNTOUCHED so that when
+            # sight returns the real down-set transition is still detected.
+            if result.get("observer_blind"):
+                logger.warning(
+                    "V.I.G.I.L. heartbeat: observer blind — DOWN-set transition skipped "
+                    "(a blind pass must not read as a recovery)"
+                )
+                self._notify_blind_observer(result, format_alert_message(result))
+            else:
+                # Sight is restored. Re-arm the blind-observer latch so a FUTURE
+                # blind stretch alerts again. Without this the single Telegram sent
+                # for the first outage suppresses every later one for the life of
+                # the process — a second, unrelated blindness would pass in silence.
+                if self._blind_alerted:
+                    logger.info("V.I.G.I.L. heartbeat: sight restored — re-arming blind-observer alert")
+                    self._blind_alerted = False
+                current_down = frozenset(result["down_names"])
+                if current_down != self._last_down_set:
+                    try:
+                        self._send_telegram(format_alert_message(result))
+                    except Exception as tg_err:
+                        logger.warning("V.I.G.I.L. heartbeat: Telegram dispatch failed: %s", tg_err)
+                    self._last_down_set = current_down
 
             # File Tier-2 restart approvals for each auto_restart_safe DOWN
             # container. request_approval de-dups per action_type+agent, so

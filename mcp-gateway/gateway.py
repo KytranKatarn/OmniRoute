@@ -4,7 +4,9 @@ Gives both lanes the platform's READ tools in-process, and WRITE capability thro
 the hub's scoped internal HTTP API — never by writing to Postgres directly.
 
     lane --bearer--> gateway --+--> read handlers, in-process, role `codex_ro`
-                               +--> POST /api/internal/*, scoped internal key
+                               +--> GET /api/internal/*, scoped internal key, for reads
+                               |   that observe host state this container cannot see
+                               +--> POST /api/internal/*, scoped internal key, for writes
 
 WHY THE SPLIT (owner decision 2026-09-13). The obvious implementation is to serve all
 ~105 registry tools in-process and give this container a write-capable Postgres role.
@@ -23,6 +25,13 @@ rather than it appearing here for free.
 
 ⚠️ Read tools run as `codex_ro`. A read tool that needs a table `codex_ro` cannot see
 will fail at the DB, not here; that is the role doing its job, not a gateway bug.
+
+The other failure mode is the opposite: a read tool that observes something this
+container structurally CANNOT see, which returns a confident wrong answer rather than
+an error. `_HUB_PROXIED_READS` names those. The first entry is V.I.G.I.L.'s infra
+heartbeat — no docker socket here means every container reads as removed. Serving a
+false "9 of 10 critical containers DOWN" to a coding agent is worse than withholding
+the tool, so it is proxied to the hub instead.
 
 Run: uvicorn gateway:app --host 0.0.0.0 --port 7800   (see entrypoint.sh)
 """
@@ -70,6 +79,13 @@ def _needs_write():
     """
     if "write" not in (_PERMS.get() or ()):
         return {"success": False, "error": "forbidden: this token is read-scoped"}
+    return None
+
+
+def _needs_read():
+    """Error dict unless this request's bearer carries 'read'; None if it does."""
+    if "read" not in (_PERMS.get() or ()):
+        return {"success": False, "error": "forbidden: this token has no read grant"}
     return None
 
 
@@ -157,8 +173,30 @@ def _build_read_tool(spec: dict) -> Tool:
 
 mcp = FastMCP("archie-platform", host="0.0.0.0", port=7800)
 
-_read, _skipped, _withheld = 0, [], 0
+# READ tools that MUST be answered by the hub, not run here.
+#
+# Most read tools are pure DB queries and belong in-process on the read-only role.
+# A few observe something this container structurally cannot see — and for those,
+# "answer from here" is not degraded, it is FALSE. archie_mcp_gateway has no
+# docker socket by design (see the module docstring), so any tool that inspects
+# container state run here reports every subject as absent.
+#
+# That is not hypothetical: check_infra_heartbeat did exactly that, reporting 9 of
+# 10 critical containers DOWN at severity=error on a hub where all 42 containers
+# were running. Worse than useless — most of those carry auto_restart_safe, so an
+# operator reading the output could approve restarting healthy services.
+#
+# infra_heartbeat_service.py now raises DockerObserverUnavailable instead of
+# conflating "cannot see" with "not there", which stops the lie. This table stops
+# the blindness by giving the answer to a process that can actually see.
+_HUB_PROXIED_READS = {"check_infra_heartbeat"}
+
+_read, _skipped, _withheld, _proxied = 0, [], 0, 0
 for _spec in get_all_tools():
+    if _spec.get("name") in _HUB_PROXIED_READS:
+        # Served below via the hub's scoped API, not in-process.
+        _proxied += 1
+        continue
     if _spec.get("requires_permission", "read") != "read":
         # Deliberately NOT served in-process: its handler writes to Postgres, and this
         # container's role cannot. Serving it would list a tool that always fails.
@@ -172,8 +210,9 @@ for _spec in get_all_tools():
         _skipped.append((_spec.get("name"), str(exc)[:120]))
 
 logger.info(
-    "gateway: %d read tools in-process, %d write tools withheld (served via hub API), %d skipped",
-    _read, _withheld, len(_skipped),
+    "gateway: %d read tools in-process, %d write tools withheld (served via hub API), "
+    "%d read tools proxied to hub, %d skipped",
+    _read, _withheld, _proxied, len(_skipped),
 )
 for _n, _e in _skipped:
     logger.warning("gateway: tool %s NOT served: %s", _n, _e)
@@ -183,6 +222,39 @@ for _n, _e in _skipped:
 # residency_activation (KB #300145).
 if _read == 0:
     raise RuntimeError("gateway: no read tools registered — refusing to serve an empty gateway")
+
+
+# ---------------------------------------------------------------------------
+# PROXIED READ tools — hub-side, because this container cannot observe the subject
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def check_infra_heartbeat() -> dict:
+    """Run V.I.G.I.L. infrastructure heartbeat audit on demand.
+
+    Checks every critical container in the registry (network_adguard,
+    archie_comms, archie_comfyui, kbs_app, kytran-system-operations,
+    kytran_creed, media_plex, media_jellyfin, media_samba, archie_tailscale)
+    for presence, running state, healthcheck status, and TCP/HTTP reachability.
+
+    Returns severity ('info' | 'warning' | 'error'), per-container detail with
+    reasons, and summary_metrics (down, warnings, healthy counts). Read-only; it
+    never restarts anything.
+
+    IMPORTANT — read `observer_blind` before reading anything else. When it is
+    true this process could not reach the docker daemon and inspected NOTHING:
+    `down_names` is empty because nothing was checked, NOT because the fleet is
+    healthy. Treat a blind result as "the monitor is broken", never as an
+    all-clear and never as missing containers.
+
+    The check runs on the hub, which holds the docker socket; this gateway has
+    none, so it is proxied rather than answered locally.
+    """
+    err = _needs_read()
+    if err:
+        return err
+    return await _hub("GET", "/api/internal/infra/heartbeat")
 
 
 # ---------------------------------------------------------------------------

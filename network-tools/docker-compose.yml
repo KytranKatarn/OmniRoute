@@ -9,6 +9,15 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - network_redis_data:/data
+    healthcheck:
+      # 6379 is published to 127.0.0.1 ONLY, so V.I.G.I.L. cannot reach it from the
+      # observer host and cannot test it over TCP. A healthcheck is the only way it
+      # learns this container is wedged rather than merely missing. Verified inside
+      # the running container: `redis-cli ping` -> PONG.
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
     deploy:
       resources:
         limits:

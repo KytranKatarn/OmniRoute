@@ -5646,6 +5646,33 @@ def api_internal_repair_scan():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/internal/infra/heartbeat", methods=["GET"])
+@require_internal_scope("infra:read")
+def api_internal_infra_heartbeat():
+    """V.I.G.I.L. infrastructure heartbeat, executed where docker is visible.
+
+    Exists because archie_mcp_gateway deliberately has NO docker socket (it runs
+    read tools in-process on a read-only DB role), so serving the heartbeat there
+    made a blind observer report every watched container as removed. The gateway
+    proxies to this route instead of running the check locally.
+
+    Read-only. It inspects and probes; it never restarts anything. Restart
+    approvals are filed only by the scheduled agent-loop job.
+
+    Responds 200 with ``observer_blind: true`` rather than an error when this
+    process cannot reach the daemon — an unverifiable observer is a result, not
+    a failure, and must never be rendered as missing containers.
+    """
+    from services.infra_heartbeat_service import check_all_critical
+
+    try:
+        result = check_all_critical()
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"internal infra heartbeat failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/internal/repair/issues", methods=["GET"])
 @require_internal_scope("repair:read")
 def api_internal_repair_issues():

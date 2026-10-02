@@ -1593,6 +1593,13 @@ with reasons, and summary_metrics (down, warnings, healthy counts).
 The scheduled agent-loop job runs the same check every 5 min and files
 Tier-2 restart approvals for DOWN containers marked auto_restart_safe.
 
+READ observer_blind FIRST. When true, this process could not reach the
+docker daemon and inspected nothing: down_names is empty because nothing
+was checked, NOT because the fleet is healthy. A blind result means the
+monitor is broken — never treat it as an all-clear, and never as missing
+containers. (This check requires the docker socket; callers without one get
+the hub's answer instead, and the gateway proxies for exactly this reason.)
+
 Example: default → {}
 """,
     input_schema={

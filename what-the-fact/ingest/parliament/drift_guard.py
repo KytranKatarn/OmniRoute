@@ -119,6 +119,9 @@ _MAX_AGE_DAYS = {
     # the job still firing and StatCan still answering, not data freshness (the
     # annual table only moves a few times a year).
     "fiscal_federal": int(os.environ.get("WTF_DRIFT_FISCAL_DAYS", "10")),
+    # Canada ODA from the OECD (/global). Weekly job like fiscal_federal: measures the job
+    # firing and the OECD API answering, not data freshness (annual table).
+    "oda_canada": int(os.environ.get("WTF_DRIFT_ODA_DAYS", "10")),
     # Gov Watch -> WTF contracts bridge (scripts/gov_contracts_bridge.sh, a Citadel HOST cron,
     # nightly). 3 days = two missed nights plus slack. It is NOT scheduled by ingest/run.py, so
     # this is the only thing that notices the host cron was never installed or has died.
@@ -178,6 +181,8 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # fiscal_federal — brand-new puller (/debt), zero prior rows:
                    # a puller that never runs must alarm, not read green.
                    "fiscal_federal",
+                   # oda_canada — brand-new puller (/global), zero prior rows.
+                   "oda_canada",
                    # gov_contracts_bridge — a host cron outside the ingest loop; required so a
                    # bridge that never runs alarms instead of reading green-by-omission.
                    "gov_contracts_bridge",

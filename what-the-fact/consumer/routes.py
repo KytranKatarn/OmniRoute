@@ -17,6 +17,7 @@ from . import rate_limit as _rate_limit  # shared bucket store (#5747/#5748)
 from . import rate_policy as _rate_policy  # pure, stdlib-only decision logic
 from . import echo_data as _echo_data  # pure series math for /echo (#6272 follow-up)
 from . import debt_data as _debt_data  # pure view-model for /debt (StatCan federal fiscal)
+from . import global_data as _global_data  # pure view-model for /global (OECD ODA)
 from .auth import is_subscriber
 
 import logging
@@ -9510,14 +9511,7 @@ _COMING_SOON = {
     # "races" graduated to a real page — see races() below. Its placeholder is
     # deleted rather than disabled: a page that exists must not also be
     # advertised as unbuilt.
-    "global": (
-        "Global Affairs spending — what Canada sends abroad",
-        "Global Affairs spending",
-        "What Canada sends abroad from tax dollars — development assistance, "
-        "humanitarian aid, multilateral contributions and Ukraine support — "
-        "and who receives it.",
-        "Waiting on a Global Affairs spending ingest. Not yet collected.",
-    ),
+    # "global" graduated to a real page — see global_affairs() below. Placeholder DELETED.
     # "debt" graduated to a real page — see debt() below. Its placeholder is DELETED
     # rather than disabled: a page that exists must not also be advertised as unbuilt.
     # "echo" graduated to a real page — see echo() below (#6272 follow-up).
@@ -9553,6 +9547,29 @@ def _register_coming_soon(slug, title, h1, lede, blocker):
 
 for _slug, _copy in _COMING_SOON.items():
     _register_coming_soon(_slug, *_copy)
+
+
+@bp.get("/global")
+def global_affairs():
+    """Global Affairs spending — Canada's official development assistance (OECD DAC1).
+
+    Reduced from design-handoff/wtf-global.html: national ODA, bilateral vs multilateral, ODA as a
+    share of GNI and of federal spending. NOT built (no CAD / no source): the by-recipient table
+    (OECD DAC2A is USD with coded recipients) and Ukraine loans-vs-grants. The design's sample
+    series were not used."""
+    oda_rows, expense_rows, contract_rows = [], [], []
+    with _db().connect() as c:
+        for target, sql in (
+            (oda_rows, "SELECT ref_year, item_key, value FROM market_watch.oda_canada_annual"),
+            (expense_rows, "SELECT ref_year, item_key, value_millions FROM market_watch.fiscal_federal_annual WHERE item_key = 'expense'"),
+            (contract_rows, "SELECT title_en, year, n_contracts, signed_value FROM gov_watch.contracts_signed_by_dept_year"),
+        ):
+            try:
+                target.extend(dict(r) for r in c.execute(text(sql)).mappings().all())
+            except Exception:  # table not created yet -> honest empty state, not a 500
+                c.rollback()
+    data = _global_data.build(oda_rows, expense_rows, contract_rows, today_year=datetime.date.today().year)
+    return render_template("global.html", d=data, is_subscriber=is_subscriber())
 
 
 @bp.get("/debt")

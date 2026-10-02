@@ -401,6 +401,7 @@ def main():
     _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
     _last_boc_week = None        # BoC overnight rate decisions (weekly) — #6272, Batch 9
     _last_fiscal_week = None     # federal fiscal aggregates, StatCan (weekly) — /debt
+    _last_oda_week = None        # Canada ODA, OECD DAC1 (weekly) — /global
     _last_fx_week = None          # CAD/USD daily exchange rate (weekly fetch of daily obs) — Batch 12
     _last_statcan_week = None     # StatCan CPI/unemployment/GDP/housing (weekly, monthly-release data) — Batch 12
     _last_aqhi_alerts_hour = None  # A.U.R.O.R.A. AQHI + EC alerts (hourly, same gate as citypage) — #6621
@@ -675,6 +676,16 @@ def main():
             except Exception:
                 log.exception("fiscal federal crashed")
             _last_fiscal_week = _elec_week
+
+        # Canada's ODA (OECD DAC1) — WEEKLY for /global. The table moves about once a year; the
+        # weekly run exists so run_oda_canada's ingest_log heartbeat proves the puller is alive.
+        if _last_oda_week != _elec_week:
+            try:
+                from ingest.market.oda_canada import run_oda_canada
+                log.info("oda canada: %s", run_oda_canada(engine))
+            except Exception:
+                log.exception("oda canada crashed")
+            _last_oda_week = _elec_week
 
         # CAD/USD daily exchange rate — WEEKLY fetch of the daily series
         # (Batch 12, #6523). The series itself updates once per business day,

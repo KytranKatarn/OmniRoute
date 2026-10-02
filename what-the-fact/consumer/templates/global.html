@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Global Affairs spending — what Canada sends abroad · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Canada's official development assistance from the OECD: how much, how it splits between bilateral and multilateral, and what share of the economy and of federal spending it is.">
+{% endblock %}
+{% block content %}
+{# /global — real data only (ingest/market/oda_canada.py → consumer/global_data.py).
+   Reduced from design-handoff/wtf-global.html. NOT built (no CAD / no source): the by-recipient
+   table (OECD DAC2A is USD with coded recipients) and Ukraine loans-vs-grants. The design's sample
+   series were not used. Only years where all three OECD series exist are shown. #}
+{% macro B(v, dp=1) -%}{%- if v is none -%}—{%- else -%}{{ '−' if v < 0 else '' }}${{ ('{:,.' ~ dp ~ 'f}').format(v|abs) }}B{%- endif -%}{%- endmacro %}
+{% macro P(v, dp=1) -%}{%- if v is none -%}—{%- else -%}{{ '−' if v < 0 else '' }}{{ ('{:.' ~ dp ~ 'f}').format(v|abs) }}%{%- endif -%}{%- endmacro %}
+<style>
+  .wtf-gl-stats { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin: 6px 0 8px }
+  .wtf-gl-stat { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-left: 3px solid var(--wtf-brand); border-radius: var(--wtf-r-md); padding: 12px 16px; min-width: 140px; text-align: center }
+  .wtf-gl-stat-n { font-family: var(--wtf-font-mono); font-size: 1.2rem; color: var(--wtf-text) }
+  .wtf-gl-stat-l { font-size: 9px; color: var(--wtf-text-muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px }
+  .wtf-gl-panel { background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-lg); padding: 16px 18px; margin-top: 18px }
+  .wtf-gl-psec { font-size: 10px; letter-spacing: 2px; color: var(--wtf-text-muted); text-transform: uppercase; margin-bottom: 12px }
+  .wtf-gl-note { font-size: 11px; color: var(--wtf-text-muted); line-height: 1.7; margin-top: 10px }
+  .wtf-gl-card { background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border); border-radius: var(--wtf-r-md); padding: 13px 15px }
+  .wtf-gl-card h4 { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--wtf-text-muted); margin: 0 0 6px; font-weight: 500 }
+  .wtf-gl-card .v { font-family: var(--wtf-font-mono); font-size: 1.15rem; color: var(--wtf-text) }
+  .wtf-gl-card .m { font-family: var(--wtf-font-mono); font-size: 9.5px; color: var(--wtf-text-muted); margin-top: 4px }
+  .wtf-gl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 11px }
+  .wtf-gl-tbl { width: 100%; border-collapse: collapse }
+  .wtf-gl-tbl th { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--wtf-text-muted); text-align: right; padding: 0 10px 9px; border-bottom: 1px solid var(--wtf-border); white-space: nowrap }
+  .wtf-gl-tbl th:first-child, .wtf-gl-tbl td:first-child { text-align: left }
+  .wtf-gl-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--wtf-border); font-family: var(--wtf-font-mono); font-size: 12px; color: var(--wtf-text-2); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap }
+  .wtf-gl-tbl tr.cur td { color: var(--wtf-text) }
+  .wtf-gl-dollars { display: grid; grid-template-columns: repeat(20, 1fr); gap: 3px; max-width: 460px; margin: 10px 0 6px }
+  .wtf-gl-dollars i { aspect-ratio: 1; border-radius: 2px; background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border) }
+  .wtf-gl-dollars i.on { background: var(--wtf-brand); border-color: var(--wtf-brand) }
+  .wtf-gl-empty { text-align: center; padding: 40px 20px; color: var(--wtf-text-muted); font-size: 12px; line-height: 1.8 }
+</style>
+
+<div class="wtf-pg-wrap">
+<header class="wtf-pg-head">
+  <div class="wtf-pg-eyebrow">Public money &middot; abroad</div>
+  <h1 class="wtf-pg-title">Global Affairs spending</h1>
+  <p class="wtf-pg-lede">What Canada sends abroad as official development assistance &mdash; how much, how it splits between country-to-country programs and contributions to multilateral bodies, and how it sits against the economy and against everything else the federal government spends. Figures are the OECD&rsquo;s, for Canada, in Canadian dollars.</p>
+</header>
+
+{% if not d %}
+<div class="wtf-gl-panel"><div class="wtf-gl-empty">The aid series has not been loaded yet. It is pulled from the OECD once a week; nothing is shown here until real figures arrive, and none are filled in by hand.</div></div>
+{% else %}{% set L = d.latest %}
+<div class="wtf-gl-stats">
+  <div class="wtf-gl-stat"><div class="wtf-gl-stat-n">{{ B(L.total) }}</div><div class="wtf-gl-stat-l">Official development assistance &middot; {{ L.year }}</div></div>
+  <div class="wtf-gl-stat"><div class="wtf-gl-stat-n">{{ P(L.gni_pct, 2) }}</div><div class="wtf-gl-stat-l">Of gross national income</div></div>
+  <div class="wtf-gl-stat"><div class="wtf-gl-stat-n">{{ P(L.federal_share) }}</div><div class="wtf-gl-stat-l">Of federal spending (about)</div></div>
+  <div class="wtf-gl-stat"><div class="wtf-gl-stat-n">{{ P(L.bilateral_share, 0) }}</div><div class="wtf-gl-stat-l">Country-to-country (bilateral)</div></div>
+  {% if d.change %}<div class="wtf-gl-stat"><div class="wtf-gl-stat-n">{{ '+' if d.change.abs > 0 else '−' }}${{ '{:.1f}'.format(d.change.abs|abs) }}B</div><div class="wtf-gl-stat-l">vs {{ d.change.year }} ({{ P(d.change.pct) }})</div></div>{% endif %}
+</div>
+<p class="wtf-gl-note" style="text-align:center">Canadian dollars; <strong>B</strong> = billions. <strong>{{ L.year }} is the latest year the OECD has published{% if d.gap and d.gap > 0 %} &mdash; {{ L.year + 1 }} is not out yet{% endif %}</strong>, so this page cannot yet show what Canada is spending in the current year. Calendar years.</p>
+
+<div style="margin-top:18px"><div class="wtf-gl-psec">{{ d.rows|length }} years &middot; CAD billions unless marked</div>
+  <div class="wtf-gl-grid" id="gl-charts"></div></div>
+
+<div class="wtf-gl-panel">
+  <div class="wtf-gl-psec">Year by year</div>
+  <div style="overflow-x:auto"><table class="wtf-gl-tbl">
+    <thead><tr><th>Year</th><th>Total ODA</th><th>Bilateral</th><th>Multilateral (derived)</th><th>% of GNI</th><th>% of federal spending</th></tr></thead>
+    <tbody>{% for r in d.rows|reverse %}<tr {% if loop.first %}class="cur"{% endif %}><td>{{ r.year }}</td><td>{{ B(r.total) }}</td><td>{{ B(r.bilateral) }}</td><td>{{ B(r.multilateral) }}</td><td>{{ P(r.gni_pct, 2) }}</td><td>{{ P(r.federal_share) }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="wtf-gl-note"><strong>Bilateral</strong> is aid Canada directs to a country or project. <strong>Multilateral</strong> is shown as total minus bilateral &mdash; money pooled in bodies such as the World Bank or UN agencies, where a Canadian dollar cannot be traced to a project. It is derived here, not an OECD line. Only years where the OECD publishes the total, the bilateral part and the share of GNI together are shown (2018 onward); earlier years use a different method and are not spliced on.</p>
+</div>
+
+{% if L.federal_share is not none %}
+<div class="wtf-gl-panel">
+  <div class="wtf-gl-psec">In proportion &middot; of every $100 the federal government spent in {{ L.year }}</div>
+  <div class="wtf-gl-dollars" role="img" aria-label="About {{ '{:.1f}'.format(L.federal_share) }} dollars of every hundred went to international assistance">{% for i in range(20) %}<i class="{{ 'on' if (i * 5) < L.federal_share else '' }}"></i>{% endfor %}</div>
+  <p style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);margin:6px 0 0;max-width:78ch">About <strong>${{ '{:.2f}'.format(L.federal_share) }}</strong> of every $100. Each square is $5.</p>
+  <p class="wtf-gl-note">Official assistance ({{ B(L.total) }}) divided by federal expenses from the <a href="/debt">Debt tracker</a>. The two come from different statistical systems (OECD and Statistics Canada), so the ratio is approximate. Assistance that is counted but spent inside Canada &mdash; such as some first-year refugee support, which the OECD&rsquo;s rules count as aid &mdash; is part of the total.</p>
+</div>
+{% endif %}
+
+{% if d.own_contracts %}
+<div class="wtf-gl-panel">
+  <div class="wtf-gl-psec">Cross-referenced with the Watch series</div>
+  <p style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);margin:0;max-width:78ch">Global Affairs Canada itself signed <strong>{{ '{:,}'.format(d.own_contracts.n) }}</strong> supplier contracts in {{ d.own_contracts.year }} worth <strong>{{ B(d.own_contracts.value) }}</strong> at signing (<a href="/debt#departments">federal contracts by department</a>, from Gov Watch). That is what the department <em>bought</em> to run itself &mdash; it is not the aid above, which flows mostly as grants and contributions that the contract file does not cover.</p>
+</div>
+{% endif %}
+
+<div class="wtf-gl-panel" style="border-left:3px solid var(--wtf-developing)">
+  <div class="wtf-gl-psec" style="color:var(--wtf-developing)">Not on this page yet</div>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0;max-width:78ch">Which countries receive the aid, and loans to Ukraine versus grants, are not shown. The OECD&rsquo;s by-recipient table is published in US dollars with coded recipients, and no Canadian-dollar recipient series is loaded, so nothing is estimated in its place.</p>
+</div>
+{% endif %}
+</div>{# /.wtf-pg-wrap #}
+
+{% if d %}
+<script>
+(function () {
+  var YEARS = {{ d.rows|map(attribute='year')|list|tojson }};
+  var SERIES = [
+    ['Total ODA', {{ d.rows|map(attribute='total')|list|tojson }}, 'B'],
+    ['Bilateral', {{ d.rows|map(attribute='bilateral')|list|tojson }}, 'B'],
+    ['Multilateral (derived)', {{ d.rows|map(attribute='multilateral')|list|tojson }}, 'B'],
+    ['% of gross national income', {{ d.rows|map(attribute='gni_pct')|list|tojson }}, '%']
+  ];
+  function fmt(v, u) { return u === 'B' ? '$' + v.toFixed(1) + 'B' : v.toFixed(2) + '%'; }
+  function line(vals) {
+    var W = 300, H = 70, pad = 5;
+    var lo = Math.min.apply(null, vals.concat([0])), hi = Math.max.apply(null, vals.concat([0]));
+    var x = function (i) { return pad + i / (vals.length - 1) * (W - pad * 2); },
+        y = function (v) { return H - pad - (v - lo) / ((hi - lo) || 1) * (H - pad * 2); };
+    var d = vals.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
+    var n = vals.length - 1;
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" aria-hidden="true">' +
+      '<path d="' + d + '" fill="none" stroke="var(--wtf-brand)" stroke-width="1.7" stroke-linejoin="round"/>' +
+      '<circle cx="' + x(n).toFixed(1) + '" cy="' + y(vals[n]).toFixed(1) + '" r="2.8" fill="var(--wtf-brand)"/></svg>';
+  }
+  var host = document.getElementById('gl-charts');
+  SERIES.forEach(function (s) {
+    var vals = s[1], card = document.createElement('div'); card.className = 'wtf-gl-card';
+    var h = document.createElement('h4'); h.textContent = s[0]; card.appendChild(h);
+    var v = document.createElement('div'); v.className = 'v'; v.textContent = fmt(vals[vals.length - 1], s[2]); card.appendChild(v);
+    var c = document.createElement('div'); c.style.marginTop = '8px'; c.innerHTML = line(vals); card.appendChild(c);
+    var m = document.createElement('div'); m.className = 'm'; m.textContent = YEARS[0] + ': ' + fmt(vals[0], s[2]) + ' → ' + YEARS[YEARS.length - 1] + ': ' + fmt(vals[vals.length - 1], s[2]); card.appendChild(m);
+    host.appendChild(card);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

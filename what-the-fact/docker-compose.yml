@@ -129,9 +129,29 @@ services:
       WTF_GUNICORN_WORKERS: ${WTF_INGEST_API_WORKERS:-2}
 
   # WTF's own dedicated Postgres instance (task: DB separation from the hub, 2026-09-05).
-  # Provisioned empty; populated via a one-time pg_dump/restore from the hub's "wtf"
-  # database, then the 4 services above are cut over to WTF_DATABASE_URL pointing here.
-  # Until that cutover, this container exists but nothing points at it yet.
+  #
+  # ⚠️ THIS IS THE LIVE WTF DATABASE. Not a staging copy, not a replica.
+  #
+  # The cutover described below is DONE. The previous text said "Until that
+  # cutover, this container exists but nothing points at it yet" — that stopped
+  # being true and was left in place, which is how a hub-local `wtf` database got
+  # treated as live on 2026-10-02 and three migrations were applied to it (reverted).
+  #
+  # Current topology, verified 2026-10-02:
+  #   - All 4 WTF services read AND write HERE (WTF_DATABASE_URL -> wtf-postgres/wtf).
+  #   - This instance is the PRIMARY: pg_is_in_recovery() = false, ~62M writes on
+  #     parliament.ec_contributions and ~62M updates on wtf.story_clusters.
+  #   - The hub no longer has a `wtf` database at all. It was dropped after a
+  #     row-by-row comparison showed Citadel ahead on 41 of 42 differing tables,
+  #     with ZERO tables existing only on the hub.
+  #   - A streaming connection named `boston2_replica` is still visible in the hub's
+  #     pg_stat_replication. It is NOT this database (this one is not in recovery)
+  #     and does not carry WTF traffic. Do not infer the topology from it.
+  #
+  # Apply WTF migrations HERE, and only here:
+  #   cat migrations/0NN_x.sql | ssh root@100.64.0.10 \
+  #     "docker exec -i what-the-fact-wtf-postgres-1 psql -U wtfuser -d wtf -v ON_ERROR_STOP=1"
+  # See migrations/README.md — these are NOT re-runnable (seed INSERTs lack ON CONFLICT).
   wtf-postgres:
     image: pgvector/pgvector:pg16
     restart: unless-stopped

@@ -28,6 +28,23 @@ globs: ["database/**", "platform_v2/database.py", "platform_v2/services/**"]
 - Run: `docker exec archie_database psql -U archie -d archie -f /path/to/migration.sql`
 - Always idempotent (ON CONFLICT DO UPDATE or IF NOT EXISTS)
 
+### ⚠️ The command above is for PLATFORM migrations ONLY (2026-10-02)
+
+**This does not apply to every product's migrations.** What The Fact ships its
+own Postgres on a **different host**, and its table names overlap with the
+platform's (`parliament.*`, `wtf.*`), so targeting the wrong database does not
+error — it writes to a database nothing serves from, and reports success.
+
+Measured 2026-10-02: WTF migrations 085–087 were applied to the hub's local `wtf`
+database before anyone established that WTF runs on Citadel. The hub has a
+database named `wtf` with real data (4,156 `election_candidates`) and **no WTF
+workload on it** — nothing errors, nothing shows up, and it has to be reverted by
+hand. Read `what-the-fact/migrations/README.md` before touching any `what-the-fact`
+migration; it carries the Citadel host, container, and credentials.
+
+Other products with their own datastore (KBS, C.R.E.D.) have the same hazard —
+confirm the target host before running DDL, not just the target schema.
+
 ## ⚠️ Query traps — an EMPTY result is not a PASS (2026-07-28, KB #285009)
 
 These cost three wrong conclusions in a single session. All the same shape: a query

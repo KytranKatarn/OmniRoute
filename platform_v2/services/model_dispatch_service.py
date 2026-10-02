@@ -181,7 +181,24 @@ def _get_warm_models_nodes() -> dict[str, int]:
                   AND rn.last_heartbeat > NOW() - INTERVAL '3 minutes'
                   AND rn.ollama_available = TRUE
                   AND m.is_available = TRUE
-                ORDER BY rn.bridge_priority DESC, rn.current_load ASC
+                -- CAPACITY BEFORE PRIORITY (#PR-followup, 2026-10-02).
+                -- Starbase IS the hub (mesh_ip=host.docker.internal) and carries the
+                -- highest bridge_priority, so the old ordering gave it every warm-model
+                -- lookup whether it was idle or pinned at max_concurrent. Work then
+                -- queued behind a saturated GPU and died at the 600s dispatch timeout
+                -- -- 94 of 200 code_review timeouts in 7d were on that host.
+                --
+                -- The first key is a BOOLEAN, not a ratio: a node at or over
+                -- current_load >= max_concurrent sorts AFTER every node with room,
+                -- whatever its priority. Only once Starbase is full does Defiant
+                -- (bridge_priority 50) or Runabout (50) become first choice.
+                --
+                -- Deliberately SOFT: a saturated node still appears, just last. A hard
+                -- `current_load < max_concurrent` filter would starve the queue outright
+                -- when every node is full, which is a worse failure than queuing.
+                ORDER BY (rn.current_load >= rn.max_concurrent) ASC,
+                         rn.bridge_priority DESC,
+                         rn.current_load ASC
                 """
             )
             for row in cur.fetchall():
@@ -233,7 +250,13 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
                   AND rn.last_heartbeat > NOW() - INTERVAL '3 minutes'
                   AND rn.ollama_available = TRUE
                   AND m.is_available = TRUE
-                ORDER BY rn.bridge_priority DESC, rn.current_load ASC
+                -- Same capacity-before-priority rule as _get_warm_models_nodes: this
+                -- query feeds PARALLEL dispatch across every warm node for a model, so
+                -- ordering here decides which node leads the batch. A saturated node
+                -- must not lead just because it outranks the others.
+                ORDER BY (rn.current_load >= rn.max_concurrent) ASC,
+                         rn.bridge_priority DESC,
+                         rn.current_load ASC
                 """
             )
             for row in cur.fetchall():

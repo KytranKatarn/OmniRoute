@@ -642,8 +642,11 @@ def main():
         if _last_elections_week != _elec_week:
             try:
                 from ingest.elections.results import run_election_results
-                for _ge in (44, 43):
-                    log.info("elections GE%s: %s", _ge, run_election_results(engine, _ge))
+                # 45 is optional: published results may lag or sit on a host we may not
+                # fetch (see results.py). Absence is "skipped", never a drift alarm.
+                for _ge in (45, 44, 43):
+                    log.info("elections GE%s: %s", _ge,
+                             run_election_results(engine, _ge, optional=(_ge == 45)))
             except Exception:
                 log.exception("elections results crashed")
             _last_elections_week = _elec_week

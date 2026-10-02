@@ -1,4 +1,4 @@
-{# Port of design-handoff/wtf-elections.html — CALENDAR ONLY (phase 1).
+{# Port of design-handoff/wtf-elections.html — CALENDAR + federal history (phase 2).
    Source: parliament.election_calendar, a CURATED table (no feed exists), judged by
    shared/election_calendar.py: an unverified row withholds its date; a passed date
    reads "awaiting roll-forward"; days-until is computed per request.
@@ -67,6 +67,36 @@
   </table>
 </div>
 {% endfor %}
+
+<h2 id="history" class="wtf-a-tile-l" style="margin:22px 0 8px;">Federal election history &mdash; last five</h2>
+{% if history is none %}
+<p class="wtf-a-nodata">Election history could not be read right now.</p>
+{% else %}
+<div class="wtf-a-tblwrap">
+  <table class="wtf-a-tbl">
+    <thead><tr><th>Election</th><th>Polling day</th><th class="wtf-a-num">Seats won</th><th>Seats by party</th></tr></thead>
+    <tbody>
+      {% for h in history %}
+      <tr>
+        <td>{{ h.ge }}{{ 'th' if h.ge % 100 in (11, 12, 13) else {1: 'st', 2: 'nd', 3: 'rd'}.get(h.ge % 10, 'th') }} general election</td>
+        <td>{{ h.date.isoformat() if h.date else '—' }}</td>
+        {% if h.status == 'held' %}
+        <td class="wtf-a-num">{{ '{:,}'.format(h.seats) }}</td>
+        <td>{% for party, n in h.parties %}{{ party }} {{ n }}{{ ' · ' if not loop.last }}{% endfor %}
+          <a href="/races?ge={{ h.ge }}" style="margin-left:6px;">riding results</a></td>
+        {% else %}
+        <td colspan="2">{{ chip('Results not held', 'These results are not in our database: the official file was not available in a form we may fetch, or has not been ingested yet. It appears here automatically once it is.') }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="wtf-a-tile-d" style="margin-top:8px;">
+  Seat counts are tallied from the official riding-level results we hold &mdash; nothing here is typed in.
+  Provincial and territorial election history is not collected yet.
+</p>
+{% endif %}
 
 <h2 id="municipal" class="wtf-a-tile-l" style="margin:22px 0 8px;">Municipal</h2>
 <p class="wtf-a-tile-d">Municipal elections are not on this calendar yet. They will be added for the major cities the site already covers.</p>

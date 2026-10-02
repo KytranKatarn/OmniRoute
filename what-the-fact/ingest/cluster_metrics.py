@@ -29,10 +29,12 @@ _WRITE_BATCH = int(os.environ.get("WTF_CLUSTER_METRICS_WRITE_BATCH", "500"))
 
 # Ported verbatim from design-handoff/wtf-blindspot.js — do not retune without
 # also updating that file's comment, they must describe the same rule.
-_BLINDSPOT_MIN_TOTAL = 4    # fewer articles than this, no pattern to call
-_BLINDSPOT_MIN_SIDES = 4    # partisan (L+R) coverage needed before a side is judged
-_BLINDSPOT_MINOR_MAX = 0.25 # quiet side must be <= 25% of the two-sided coverage
-_BLINDSPOT_MIN_DIFF = 3     # and at least this many articles behind in absolute terms
+# The numbers now live ONCE in shared/blindspot_rules.py, because the /blindspot page
+# counts clusters by outcome and must apply the identical rule (a second copy is how a
+# tile and the list under it would disagree).
+from shared.blindspot_rules import (  # noqa: E402
+    MIN_TOTAL as _BLINDSPOT_MIN_TOTAL, MIN_SIDES as _BLINDSPOT_MIN_SIDES,
+    MINOR_MAX as _BLINDSPOT_MINOR_MAX, MIN_DIFF as _BLINDSPOT_MIN_DIFF)
 
 
 def _blindspot_side(l_count: int, c_count: int, r_count: int):

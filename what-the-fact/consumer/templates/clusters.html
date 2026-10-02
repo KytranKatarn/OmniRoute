@@ -51,7 +51,7 @@
 
 <div class="wtf-pg-wrap">
 <header class="wtf-pg-head">
-  <div class="wtf-pg-eyebrow">One event, many tellings</div>
+  <div class="wtf-pg-eyebrow">I.N.K. &middot; one event, many tellings</div>
   <h1 class="wtf-pg-title">Story clusters</h1>
   <p class="wtf-pg-lede">Articles describing the same story are grouped across the outlets we track, so the spread of framing sits in one place. Clusters carried by at least two outlets appear here, widest framing spread first.</p>
 </header>
@@ -160,7 +160,39 @@
   </p>
 {% endfor %}
 
+{# "How a cluster is built" — design wtf-clusters.html has this panel, but its copy is
+   FALSE for this codebase: it says clusters are built "from entities, dates and quoted
+   figures, not from headline similarity" and joined on "two of three within 72 hours".
+   ingest/cluster.py does the opposite — Jaccard similarity on normalized HEADLINE word
+   sets (stopwords and words under 3 letters dropped) within a 24-hour window, threshold
+   0.25. This page's whole claim is transparency, so the panel describes what the code
+   does, including the failure modes that follow from it. The numbers are the code's
+   DEFAULTS (WTF_CLUSTER_THRESHOLD / WTF_CLUSTER_WINDOW_HOURS can override them in the
+   ingest container), so the copy says "by default" rather than asserting them as fixed. #}
 <div style="margin-top:26px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">How a cluster is built</div>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 10px;">
+    I.N.K. groups articles by their <strong>headlines</strong>. Each headline is reduced to its
+    distinctive words (common words and words under three letters are dropped), and a new article
+    joins an existing cluster when the overlap between the two sets of words &mdash; Jaccard
+    similarity &mdash; reaches a threshold (by default 0.25) and the cluster was active within the
+    last 24 hours (by default). Otherwise it starts a cluster of its own.
+  </p>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 10px;">
+    That method is simple and fully inspectable, and it has known limits: one story told in
+    different words can be split across two clusters, and two different stories that share
+    distinctive words can be merged into one. It does not read entities, dates or quoted
+    figures. Treat a cluster as a strong lead on &ldquo;the same event&rdquo;, not a verdict.
+  </p>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0;">
+    The <strong>spread</strong> shown on each card is the 0&ndash;100 score of how far the scored
+    articles sit from one another on the five-band scale (0 = no spread, 100 = a full
+    left-to-right split). A cluster carried by fewer than six outlets is flagged as a
+    <strong>blindspot seed</strong>: it may be a small story, or one only part of the press noticed.
+  </p>
+</div>
+
+<div style="margin-top:14px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
   <div class="wtf-a-tile-l" style="margin-bottom:8px;">How a cluster's lean is reported</div>
   <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
     The median lean is the middle band across the cluster, not an average. Averaging a bimodal

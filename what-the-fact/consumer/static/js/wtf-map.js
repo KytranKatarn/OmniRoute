@@ -138,8 +138,10 @@
     host.classList.add("wtf-map-d3");
     var svg = el("svg", { class: "wtf-map-svg", role: "img" });
     var gProv = el("g", { class: "wtf-map-provinces" });
+    var gLab = el("g", { class: "wtf-map-labels" });
     var gPts = el("g", { class: "wtf-map-points" });
     svg.appendChild(gProv);
+    svg.appendChild(gLab);
     svg.appendChild(gPts);
     host.appendChild(svg);
 
@@ -217,11 +219,17 @@
       var m = (def && def.metric && code) ? def.metric(code) : null;
       var isSel = selected && code === selected;
       // RULE 1 — absence is dimmed AND dashed, never a darker fill.
+      // OPTIONAL per-layer look (homepage): `outline` draws the province border in
+      // the region's own colour and `fillOpacity` lets the ground show through, so
+      // the outline carries the signal — the design's treatment. Layers that set
+      // neither render exactly as before.
+      var outlined = !!(def && def.outline && m);
+      var fo = (def && typeof def.fillOpacity === "number") ? def.fillOpacity : 0.92;
       return {
         fill: m ? m.col : NO_DATA,
-        "fill-opacity": m ? (isSel ? 1 : 0.92) : 0.45,
-        stroke: isSel ? "#e6edf6" : "#0b1220",
-        "stroke-width": isSel ? 2.2 : 0.8,
+        "fill-opacity": m ? (isSel ? Math.min(1, fo + 0.25) : fo) : 0.45,
+        stroke: isSel ? "#e6edf6" : (outlined ? m.col : "#0b1220"),
+        "stroke-width": isSel ? 2.2 : (outlined ? 1.2 : 0.8),
         "stroke-dasharray": m ? null : "3,3"
       };
     }
@@ -246,6 +254,44 @@
           select(code === selected ? null : code);
         });
         gProv.appendChild(p);
+      });
+      drawLabels(def);
+    }
+
+    /** Province code (+ a quantity line) at each province's centre — the design's
+     *  on-map counter. Opt-in per layer via `label(code) -> string|null`.
+     *  Canada scope only (country shapes are too small and their codes are not
+     *  the ones readers know). Thresholds are the design's, in design pixels
+     *  (1000x352), scaled to this map's actual size. A province too small to hold
+     *  a label keeps its row in the index list — it is skipped, never crowded. */
+    function drawLabels(def) {
+      gLab.textContent = "";
+      if (scope !== "canada" || !geo || !path || !def || !def.label) return;
+      var wh = size();
+      var k = (wh[0] * wh[1]) / (1000 * 352);
+      geo.features.forEach(function (f) {
+        var code = codeOf(f);
+        if (!code) return;
+        var area;
+        try { area = path.area(f) / k; } catch (e) { return; }
+        if (!(area > 240)) return;
+        var c = path.centroid(f);
+        if (!isFinite(c[0]) || !isFinite(c[1])) return;
+        var dim = selected && selected !== code;
+        var big = area > 760;
+        function put(txt, y, size, tok) {
+          var t = el("text", { x: c[0], y: y, "text-anchor": "middle", "font-size": size,
+            "paint-order": "stroke", stroke: "#0d1117", "stroke-width": 2.5,
+            "pointer-events": "none", class: "wtf-map-lab" });
+          t.style.fill = "var(" + (dim ? "--wtf-text-muted" : tok) + ")";
+          t.textContent = txt;
+          gLab.appendChild(t);
+        }
+        put(code, c[1] + (big ? -4 : 3), 10, "--wtf-text");
+        if (big) {
+          var q = def.label(code);
+          if (q !== null && q !== undefined && q !== "") put(String(q), c[1] + 8, 9.5, "--wtf-text-2");
+        }
       });
     }
 

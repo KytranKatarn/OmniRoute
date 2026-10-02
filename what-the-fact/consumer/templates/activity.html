@@ -112,18 +112,12 @@
         L.O.C.A.L., each measured over the window it actually covers.',
        '/activity') }}
   {% endif %}
-  <!-- Pipeline health bar (#2955) -->
-  <div class="wtf-act-card--stats">
 {% if is_subscriber %}
-    <span class="wtf-act-label-inline">Pipeline health</span>
-    <span title="Articles ingest failed in last 24h"><b style="color:{% if stats.failed_ingest_24h > 0 %}#ef4444{% else %}#10b981{% endif %};">{{ "{:,}".format(stats.failed_ingest_24h) }}</b> failed ingest (24h)</span>
-    <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b class="wtf-act-c-amber">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
-    <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b class="wtf-act-c-gray">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
-    <span title="S.C.O.U.T. body rescues completed in last 24h"><b class="wtf-act-c-green">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
-    {% if stats.scout_body_failed > 0 %}<span title="Scout = body text scraper. Failed = couldn't extract full article text."><b class="wtf-act-c-red">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
-    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b class="wtf-act-c-aurora">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
-    {% if stats.tier2_failed > 0 %}<span title="Tier-2 = deep AI analysis (bias + fact-check). Failed = hub timeout or model error."><b class="wtf-act-c-red">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
-  </div>
+  {# Two-column layout (design wtf-activity): analytics in the main column, the compact
+     panels in a 340px aside, event log full-width below. Same blocks, same data — only
+     their placement changed. Collapses to one column under 900px. #}
+  <div class="wtf-act-cols">
+  <div class="wtf-act-main">
   {% set n = stats.total_articles %}
   {% set rows = [
     ('F.A.C.T.', 'fact', 'Articles ingested', stats.fact_ingested, n, '+{:,} in last 24h'.format(stats.articles_24h)),
@@ -233,34 +227,6 @@
     </div>
   </div>
 
-  <!-- Pipeline Health (#2955) — surfaces "skipped" / backlog the workers log to stdout
-       but never persisted. These are queryable proxies: failed_ingest, geo backlog,
-       LLM-pending articles, scout_body paywall rescues. -->
-  <div class="wtf-act-card">
-    <div class="wtf-act-card-title">
-      Pipeline Health &middot; backlog &amp; skipped counters
-    </div>
-    {% set scout_total = (stats.scout_body_done_24h or 0) + (stats.scout_body_failed or 0) %}
-    {% set scout_pct = ((stats.scout_body_done_24h or 0) / scout_total * 100) | int if scout_total else 0 %}
-    {% for label, value, color, hint in [
-      ('LLM pending',             stats.llm_pending,          '#f59e0b', 'articles still awaiting first-pass AI analysis'),
-      ('Geo retryable',           stats.geo_pending,          '#3b82f6', 'province=NULL but not terminal unmappable'),
-      ('Failed ingest (24h)',     stats.failed_ingest_24h,    '#ef4444', '({:,} total ever)'.format(stats.failed_ingest_total or 0)),
-      ('Scout body rescues',      stats.scout_body_done_24h,  '#10b981', 'paywall scrapes succeeded last 24h ({:,} failed total)'.format(stats.scout_body_failed or 0)),
-    ] %}
-    <div class="wtf-act-meter-row">
-      <div class="wtf-act-w160">{{ label }}</div>
-      <div class="wtf-act-meter-track14">
-        {% set max_v = [stats.llm_pending or 0, stats.geo_pending or 0, stats.failed_ingest_24h or 0, stats.scout_body_done_24h or 0] | max %}
-        {% set pct = ((value or 0) / max_v * 100) | int if max_v else 0 %}
-        <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ pct }}%;"></div>
-      </div>
-      <div class="wtf-act-w60">{{ "{:,}".format(value or 0) }}</div>
-      <div class="wtf-act-hint240">{{ hint }}</div>
-    </div>
-    {% endfor %}
-  </div>
-
   <!-- Tier distribution (Phase C #2943) — how many articles got quick-tier vs full -->
   <div class="wtf-act-card">
     <div class="wtf-act-card-title">
@@ -334,6 +300,80 @@
     </div>
   </div>
   {% endif %}
+  </div>
+  <aside class="wtf-act-aside">
+  <!-- Pipeline health bar (#2955) -->
+  <div class="wtf-act-card--stats">
+    <span class="wtf-act-label-inline">Pipeline health</span>
+    <span title="Articles ingest failed in last 24h"><b style="color:{% if stats.failed_ingest_24h > 0 %}#ef4444{% else %}#10b981{% endif %};">{{ "{:,}".format(stats.failed_ingest_24h) }}</b> failed ingest (24h)</span>
+    <span title="Articles where L.O.C.A.L. gave up — no Canadian province or country match"><b class="wtf-act-c-amber">{{ "{:,}".format(stats.geo_unmappable_24h) }}</b> geo unmappable (24h) · {{ "{:,}".format(stats.geo_unmappable) }} total</span>
+    <span title="Articles without geo coords, still in L.O.C.A.L. backlog"><b class="wtf-act-c-gray">{{ "{:,}".format(stats.geo_pending) }}</b> geo pending</span>
+    <span title="S.C.O.U.T. body rescues completed in last 24h"><b class="wtf-act-c-green">{{ "{:,}".format(stats.scout_body_done_24h) }}</b> scout rescued (24h)</span>
+    {% if stats.scout_body_failed > 0 %}<span title="Scout = body text scraper. Failed = couldn't extract full article text."><b class="wtf-act-c-red">{{ "{:,}".format(stats.scout_body_failed) }}</b> scout failed</span>{% endif %}
+    <span title="ML v2 = machine learning bias model v2. Scored = articles processed."><b class="wtf-act-c-aurora">{{ "{:,}".format(stats.bias_v2_scored) }}</b> ML v2 scored</span>
+    {% if stats.tier2_failed > 0 %}<span title="Tier-2 = deep AI analysis (bias + fact-check). Failed = hub timeout or model error."><b class="wtf-act-c-red">{{ "{:,}".format(stats.tier2_failed) }}</b> tier-2 failed</span>{% endif %}
+  </div>
+
+  <!-- Pipeline Health (#2955) — surfaces "skipped" / backlog the workers log to stdout
+       but never persisted. These are queryable proxies: failed_ingest, geo backlog,
+       LLM-pending articles, scout_body paywall rescues. -->
+  <div class="wtf-act-card">
+    <div class="wtf-act-card-title">
+      Pipeline Health &middot; backlog &amp; skipped counters
+    </div>
+    {% set scout_total = (stats.scout_body_done_24h or 0) + (stats.scout_body_failed or 0) %}
+    {% set scout_pct = ((stats.scout_body_done_24h or 0) / scout_total * 100) | int if scout_total else 0 %}
+    {% for label, value, color, hint in [
+      ('LLM pending',             stats.llm_pending,          '#f59e0b', 'articles still awaiting first-pass AI analysis'),
+      ('Geo retryable',           stats.geo_pending,          '#3b82f6', 'province=NULL but not terminal unmappable'),
+      ('Failed ingest (24h)',     stats.failed_ingest_24h,    '#ef4444', '({:,} total ever)'.format(stats.failed_ingest_total or 0)),
+      ('Scout body rescues',      stats.scout_body_done_24h,  '#10b981', 'paywall scrapes succeeded last 24h ({:,} failed total)'.format(stats.scout_body_failed or 0)),
+    ] %}
+    <div class="wtf-act-meter-row">
+      <div class="wtf-act-w160">{{ label }}</div>
+      <div class="wtf-act-meter-track14">
+        {% set max_v = [stats.llm_pending or 0, stats.geo_pending or 0, stats.failed_ingest_24h or 0, stats.scout_body_done_24h or 0] | max %}
+        {% set pct = ((value or 0) / max_v * 100) | int if max_v else 0 %}
+        <div style="background:{{ color }};height:14px;border-radius:2px;width:{{ pct }}%;"></div>
+      </div>
+      <div class="wtf-act-w60">{{ "{:,}".format(value or 0) }}</div>
+      <div class="wtf-act-hint240">{{ hint }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Newsroom roster — LOOPED FROM THE DATA. The six "agents" above are
+       pipeline STAGES whose names were hardcoded as SQL literals; News & Media
+       has 22 agents and dispatch picks by capability, so V.E.R.I.F.Y. performed
+       only 19% of fact_checks over 7 days while seven other agents did the rest
+       and were all published as "V.E.R.I.F.Y.". Never hardcode this list. -->
+  <div class="wtf-act-card">
+    <div class="wtf-act-label-inline">
+      Newsroom · who did the work (last 24h)
+    </div>
+    {% set nr = newsroom or {} %}
+    {% if nr.agents %}
+    <div class="wtf-act-roster">
+      {% for a in nr.agents %}
+      <span class="wtf-act-rosterpill">
+        <b class="wtf-act-c-bright">{{ a.agent }}</b>
+        <span class="wtf-act-c-dim">{{ "{:,}".format(a.events) }}</span>
+        {% if a.fact_checks %}<span class="wtf-act-checkmark" title="fact-checks">✓{{ a.fact_checks }}</span>{% endif %}
+        {% if a.bias_scores %}<span class="wtf-act-halfcirc" title="bias scores">◐{{ a.bias_scores }}</span>{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="wtf-act-dim70">No attributed work yet in this window.</div>
+    {% endif %}
+    <div class="wtf-act-rosterfoot">
+      {{ "{:,}".format(nr.attributed or 0) }} attributed
+      {% if nr.unattributed %}
+        · {{ "{:,}".format(nr.unattributed) }} not recorded
+        <span title="Written before agent attribution existed. Reported separately so the total reconciles, rather than folded into whichever name would make it look complete.">(pre-attribution)</span>
+      {% endif %}
+    </div>
+  </div>
 
   <!-- TOP STORIES TODAY -->
   {% if top_stories %}
@@ -416,69 +456,17 @@
     </div>
     {% endfor %}
   </div>
+  </aside>
+  </div>
 </div>
 
 <div class="wtf-act-wrap--btm">
-
-  {% if creed_scan %}
-  <div class="wtf-act-governance">
-    <a href="/governance" class="wtf-act-gov-link">AI Newsroom Governance</a>
-    <span class="wtf-act-gov-grade">Grade <strong class="wtf-act-c-lilac">{{ creed_scan.grade }}</strong></span>
-    <span class="wtf-act-dim65">&middot;</span>
-    <span class="wtf-act-gov-compliance">Compliance <strong class="wtf-act-c-aurora">{{ creed_scan.overall }}%</strong></span>
-    {% if creed_scan.event_count %}
-    <span class="wtf-act-dim65">&middot;</span>
-    <span class="wtf-act-dim65">{{ creed_scan.event_count }} events tracked</span>
-    {% endif %}
-    {% if creed_scan.by_category %}
-    <span class="wtf-act-gov-cats">
-      {# pillar values are dicts {score, grade, events, provisional, note} — the old
-         "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
-      {% for cat, pv in creed_scan.by_category.items() %}
-      <span class="wtf-act-gov-cat">{{ cat }}&nbsp;<span class="wtf-act-c-aurora">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
-      {% endfor %}
-    </span>
-    {% endif %}
-  </div>
-  {% endif %}
 
   <div class="wtf-act-toprow">
     <div class="wtf-act-toprow-count">
       {{ total }} events &middot; page {{ page }} / {{ total_pages }}
     </div>
     <div class="wtf-act-filterbar">
-  <!-- Newsroom roster — LOOPED FROM THE DATA. The six "agents" above are
-       pipeline STAGES whose names were hardcoded as SQL literals; News & Media
-       has 22 agents and dispatch picks by capability, so V.E.R.I.F.Y. performed
-       only 19% of fact_checks over 7 days while seven other agents did the rest
-       and were all published as "V.E.R.I.F.Y.". Never hardcode this list. -->
-  <div class="wtf-act-card">
-    <div class="wtf-act-label-inline">
-      Newsroom · who did the work (last 24h)
-    </div>
-    {% set nr = newsroom or {} %}
-    {% if nr.agents %}
-    <div class="wtf-act-roster">
-      {% for a in nr.agents %}
-      <span class="wtf-act-rosterpill">
-        <b class="wtf-act-c-bright">{{ a.agent }}</b>
-        <span class="wtf-act-c-dim">{{ "{:,}".format(a.events) }}</span>
-        {% if a.fact_checks %}<span class="wtf-act-checkmark" title="fact-checks">✓{{ a.fact_checks }}</span>{% endif %}
-        {% if a.bias_scores %}<span class="wtf-act-halfcirc" title="bias scores">◐{{ a.bias_scores }}</span>{% endif %}
-      </span>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="wtf-act-dim70">No attributed work yet in this window.</div>
-    {% endif %}
-    <div class="wtf-act-rosterfoot">
-      {{ "{:,}".format(nr.attributed or 0) }} attributed
-      {% if nr.unattributed %}
-        · {{ "{:,}".format(nr.unattributed) }} not recorded
-        <span title="Written before agent attribution existed. Reported separately so the total reconciles, rather than folded into whichever name would make it look complete.">(pre-attribution)</span>
-      {% endif %}
-    </div>
-  </div>
 
       {% set agents = [('all','All'),('F.A.C.T.','F.A.C.T.'),('B.I.A.S.','B.I.A.S.'),('V.E.R.I.F.Y.','V.E.R.I.F.Y.'),('L.O.C.A.L.','L.O.C.A.L.'),('D.R.A.F.T.','D.R.A.F.T.'),('I.N.K.','I.N.K.')] %}
       {% for val, label in agents %}
@@ -631,6 +619,16 @@
 .wtf-act-h1 { font-size:1.6rem; }
 .wtf-act-wrap { max-width:1100px; margin:0 auto; padding:16px 16px 0; }
 .wtf-act-wrap--btm { max-width:1100px; margin:0 auto; padding:0 16px 24px; }
+/* Two-column layout (design wtf-activity: main + 340px aside). Cards in the aside
+   are narrower than the rows were built for, so their rows wrap instead of
+   overflowing; nothing is hidden. One column under 900px. */
+.wtf-act-cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,340px); gap:14px; align-items:start; }
+.wtf-act-main, .wtf-act-aside { min-width:0; }
+.wtf-act-aside .wtf-act-meter-row { flex-wrap:wrap; }
+.wtf-act-aside .wtf-act-w160 { width:auto; flex:1 1 120px; }
+.wtf-act-aside .wtf-act-hint160, .wtf-act-aside .wtf-act-hint200, .wtf-act-aside .wtf-act-hint240 { width:100%; }
+.wtf-act-aside .wtf-act-card, .wtf-act-aside .wtf-act-card--wide { overflow:hidden; }
+@media (max-width:900px) { .wtf-act-cols { grid-template-columns:minmax(0,1fr); } }
 
 .wtf-act-card { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; margin-bottom:14px; }
 .wtf-act-card--wide { background:#050d1a; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; margin-bottom:20px; }

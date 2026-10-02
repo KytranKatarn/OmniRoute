@@ -14,7 +14,7 @@ def markup(name):
 
 PAGES = {
     "blindspot.html": ("What one side is not seeing", "Blindspot"),
-    "clusters.html": ("One event, many tellings", "Story clusters"),
+    "clusters.html": ("I.N.K. &middot; one event, many tellings", "Story clusters"),
 }
 
 

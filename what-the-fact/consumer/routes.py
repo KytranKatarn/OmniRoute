@@ -8077,6 +8077,33 @@ def _blindspot_total(days=7):
         """), {"days": days}).scalar() or 0
 
 
+def _blindspot_breakdown(days=7):
+    """Outcome counts for EVERY cluster in the window (called / balanced / left /
+    right / too thin) — the design's five-tile row. Same window and Canada filter as
+    _blindspot_total; classified by shared.blindspot_rules (the rule the ingest uses),
+    grouped by the distinct (l, c, r) combinations so it stays one small query.
+    Returns None if it cannot be read: the tiles are then omitted, never zeroed."""
+    from shared.blindspot_rules import breakdown
+    S = _schema()
+    try:
+        with _db().begin() as c:
+            rows = c.execute(text(f"""
+                SELECT sc.lean_l_count, sc.lean_c_count, sc.lean_r_count, count(*) AS n
+                FROM {S}.story_clusters sc
+                WHERE sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+                  AND EXISTS (
+                      SELECT 1 FROM {S}.articles a
+                      WHERE a.cluster_id = sc.id
+                        AND (a.country_code = 'CA'
+                             OR a.geo_scope IN ('national', 'provincial'))
+                  )
+                GROUP BY 1, 2, 3
+            """), {"days": days}).all()
+        return breakdown((r[0], r[1], r[2], r[3]) for r in rows)
+    except Exception:
+        return None
+
+
 def _blindspot_rows(days=7, limit=20):
     """Rows behind BOTH /blindspot and /api/v1/blindspot.
 
@@ -8213,6 +8240,7 @@ def blindspot_page():
     return render_template("blindspot.html",
                            blindspots=rows,
                            total_in_window=_blindspot_total(days=days),
+                           breakdown=_blindspot_breakdown(days=days),
                            days=days,
                            windows=_BLINDSPOT_WINDOWS,
                            is_subscriber=is_subscriber())
@@ -9788,8 +9816,22 @@ def elections():
         rows, ok = [], False
     view = calendar_view(rows, datetime.date.today())
     shown = [r for r in view if r["status"] == "upcoming"]
+    # Federal history: derived from the INGESTED results (never typed in), own
+    # transaction so a missing table blanks only this section.
+    from shared.election_calendar import federal_history
+    try:
+        with _db().begin() as c:
+            hist_rows = [dict(r) for r in c.execute(text("""
+                SELECT e.ge_number, e.election_date, ec.party, count(*) AS seats
+                  FROM parliament.election_candidates ec
+                  JOIN parliament.elections e ON e.id = ec.election_id
+                 WHERE ec.elected AND ec.party <> ''
+                 GROUP BY 1, 2, 3""")).mappings().all()]
+        history = federal_history(hist_rows)
+    except Exception:
+        history = None
     return render_template(
-        "elections.html", rows=view, available=ok,
+        "elections.html", rows=view, available=ok, history=history,
         next_up=shown[0] if shown else None,
         verified_count=sum(1 for r in view if r["status"] != "unverified"),
         total=len(view))

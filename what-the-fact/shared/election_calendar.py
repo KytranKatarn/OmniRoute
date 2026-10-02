@@ -78,3 +78,50 @@ def problems(rows: list[dict], today: dt.date) -> list[str]:
             msgs.append("election_calendar: %s verified %s, > %dd ago — re-verify"
                         % (c["code"], _d(r["verified_at"]), VERIFY_STALE_DAYS))
     return msgs
+
+
+# ── Federal election history ────────────────────────────────────────────────
+# Polling day per general election — historical fact, NOT derivable from the results
+# tables and left absent for any election not listed (never guessed). ONE definition:
+# the ingest (ingest/elections/results.py) and the /elections history both read it.
+FEDERAL_ELECTION_DATES = {
+    45: "2025-04-28",
+    44: "2021-09-20",
+    43: "2019-10-21",
+    42: "2015-10-19",
+    41: "2011-05-02",
+    40: "2008-10-14",
+    39: "2006-01-23",
+    38: "2004-06-28",
+}
+
+
+def federal_history(db_rows: list[dict], last_n: int = 5, known: dict | None = None) -> list[dict]:
+    """The last ``last_n`` federal elections, each marked held / not_held.
+
+    ``db_rows``: (ge_number, election_date, party, seats) — ELECTED candidates only,
+    one row per party per election. An election with no rows is ``not_held`` and is
+    still listed: a gap the reader can see beats a table that silently starts later.
+    Nothing here is typed in; seats come from the ingested results.
+    """
+    known = known or FEDERAL_ELECTION_DATES
+    by: dict[int, dict] = {}
+    for r in db_rows:
+        g = int(r["ge_number"])
+        e = by.setdefault(g, {"date": _d(r.get("election_date")), "parties": []})
+        if r.get("party"):
+            e["parties"].append((r["party"], int(r["seats"])))
+    nums = sorted(set(known) | set(by), reverse=True)[:last_n]
+    out = []
+    for g in nums:
+        e = by.get(g)
+        parties = sorted(e["parties"], key=lambda x: (-x[1], x[0])) if e else []
+        iso = known.get(g)
+        out.append({
+            "ge": g,
+            "date": (e["date"] if e and e["date"] else (dt.date.fromisoformat(iso) if iso else None)),
+            "status": "held" if parties else "not_held",
+            "seats": sum(n for _, n in parties),
+            "parties": parties,
+        })
+    return out

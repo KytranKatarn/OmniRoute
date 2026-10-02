@@ -52,6 +52,21 @@
 {# The first tile MUST be the QUALIFYING COUNT, not blindspots|length — that
    is the page size (20). The population inside the window can run far
    larger; see _blindspot_total()'s own docstring. #}
+{# Design's five-tile row (called / balanced / left / right / too thin) — counted over
+   EVERY cluster in the window by shared.blindspot_rules, the same rule the ingest
+   applies. If that query could not run, the original two tiles render instead: the
+   page never shows a zero it did not measure. #}
+{% if breakdown %}
+{{ stat_tiles([
+     {'label': 'Blindspots called', 'value': '{:,}'.format(total_in_window),
+      'detail': 'last ' ~ days ~ ' day' ~ ('' if days == 1 else 's') ~ ' · showing ' ~ blindspots|length ~ ' most recent'},
+     {'label': 'Balanced', 'value': '{:,}'.format(breakdown.balanced), 'detail': 'enough coverage on both sides'},
+     {'label': 'Left-side gaps', 'value': '{:,}'.format(breakdown.left), 'detail': 'left outlets quiet'},
+     {'label': 'Right-side gaps', 'value': '{:,}'.format(breakdown.right), 'detail': 'right outlets quiet'},
+     {'label': 'Too thin to call', 'value': '{:,}'.format(breakdown.thin),
+      'detail': 'under 4 articles, or under 4 partisan ones'},
+]) }}
+{% else %}
 {{ stat_tiles([
      {'label': 'Blind spots in window', 'value': '{:,}'.format(total_in_window),
       'detail': 'last ' ~ days ~ ' day' ~ ('' if days == 1 else 's') ~
@@ -60,6 +75,7 @@
       'detail': 'and at least 3 articles behind, of 4+ total'},
 ]) }}
 
+{% endif %}
 <div class="wtf-a-layers wtf-bs-window" role="group" aria-label="Time window">
   {% for w in windows %}{{ segment(w ~ ' days', '/blindspot?days=' ~ w, active=(w == days)) }}{% endfor %}
 </div>

@@ -801,8 +801,11 @@
   var cbToggleEl = document.getElementById("wtf-wx-cb-toggle");
   if (cbToggleEl) cbToggleEl.checked = cbOn;
 
-  var FIRE_STOPS = [[0,"#1e3a5a","0"],[10,"#78350f","10+"],[100,"#b45309","100+"],
-                    [500,"#ea580c","500+"],[2000,"#dc2626","2,000+"],[1e9,"#7f1d1d","5,000+"]];
+  // Legend labels describe the UPPER-bound ramp semantics (WTFMap.ramp: first stop whose
+  // threshold >= v). They read "10+", "100+", "5,000+" before, which named the wrong end of
+  // each interval: 11 hotspots drew in the colour labelled "100+".
+  var FIRE_STOPS = [[0,"#1e3a5a","0"],[10,"#78350f","1\u201310"],[100,"#b45309","11\u2013100"],
+                    [500,"#ea580c","101\u2013500"],[2000,"#dc2626","501\u20132,000"],[1e9,"#7f1d1d","2,000+"]];
   var FWI_STOPS  = [[5,"#1d4ed8","FWI 0-5"],[11,"#0891b2","5-11"],[21,"#ca8a04","11-21"],
                     [38,"#ea580c","21-38"],[1e9,"#dc2626","38+"]];
   // Air temperature. Wider span than the fire ramps because Canadian city obs
@@ -821,8 +824,8 @@
   var FWI_STOPS_DEFAULT  = FWI_STOPS;
   var TEMP_STOPS_DEFAULT = TEMP_STOPS;
 
-  var FIRE_STOPS_CB = [[0,"#1e1b4b","0"],[10,"#1e40af","10+"],[100,"#0369a1","100+"],
-                    [500,"#0891b2","500+"],[2000,"#ca8a04","2,000+"],[1e9,"#eab308","5,000+"]];
+  var FIRE_STOPS_CB = [[0,"#1e1b4b","0"],[10,"#1e40af","1\u201310"],[100,"#0369a1","11\u2013100"],
+                    [500,"#0891b2","101\u2013500"],[2000,"#ca8a04","501\u20132,000"],[1e9,"#eab308","2,000+"]];
   var FWI_STOPS_CB  = [[5,"#1e3a8a","FWI 0-5"],[11,"#1d4ed8","5-11"],[21,"#0891b2","11-21"],
                     [38,"#ca8a04","21-38"],[1e9,"#eab308","38+"]];
   var TEMP_STOPS_CB = [[-20,"#1e1b4b","-20 °C"],[-10,"#312e81","-10"],[0,"#1d4ed8","0"],
@@ -837,8 +840,21 @@
   // Standard AQHI health-message bands (1-10+): Low(1-3)/Moderate(4-6)/
   // High(7-10)/Very High(10+) — the same 4-band convention Canadian AQHI
   // reporting uses everywhere, not a scale invented for this page.
-  var AQHI_STOPS = [[1,"#10b981","1"],[4,"#f59e0b","4"],[7,"#ef4444","7"],
-                     [10,"#7c3aed","10+"]];
+  // ⚠️ WTFMap.ramp() treats each stop's number as an UPPER bound ("first stop
+  // whose threshold >= v"). These were written as band STARTS (1/4/7/10), which
+  // shifted every reading up a band: an AQHI of 3 (Low) drew as Moderate, a 5
+  // (Moderate) as High, an 8 (High) as Very high. Thresholds are now the
+  // rounding boundaries of the published bands (the index is a whole number, so
+  // 3.4 is a 3 and 3.6 is a 4): Low 1-3, Moderate 4-6, High 7-10, Very high 10+.
+  // Colours follow the design's AQHI ramp (wtf-weather.html AQHI_STOPS).
+  var AQHI_STOPS = [[3.5,"#38bdf8","Low risk (1\u20133)"],[6.5,"#f59e0b","Moderate (4\u20136)"],
+                    [10.5,"#e05252","High (7\u201310)"],[1e9,"#7f1d1d","Very high (10+)"]];
+  var AQHI_NAMES = ["Low", "Moderate", "High", "Very high"];
+  /** Published risk-band name for an AQHI value, from the same stops as the colour. */
+  function aqhiBandName(v) {
+    for (var i = 0; i < AQHI_STOPS.length; i++) if (v <= AQHI_STOPS[i][0]) return AQHI_NAMES[i];
+    return AQHI_NAMES[AQHI_NAMES.length - 1];
+  }
 
   function cityIsFresh(c) {
     return c.temp !== null && c.status === "ok"
@@ -936,7 +952,7 @@
     return (AQHI || []).filter(function (s) {
       return s.lat !== null && s.lon !== null && s.aqhi_value !== null;
     }).map(function (s) {
-      var lines = [s.location_name || s.location_id, "AQHI " + s.aqhi_value];
+      var lines = [s.location_name || s.location_id, "AQHI " + s.aqhi_value + " \u00b7 " + aqhiBandName(s.aqhi_value) + " risk"];
       if (s.age_min !== null && s.age_min > 180) {
         lines.push("reading " + Math.round(s.age_min / 60) + "h old — shown as stale");
       }
@@ -1060,7 +1076,7 @@
         .map(function (s) {
           return {
             prov: "", name: s.location_name || s.location_id,
-            v: s.aqhi_value, txt: "AQHI " + s.aqhi_value,
+            v: s.aqhi_value, txt: "AQHI " + s.aqhi_value + " \u00b7 " + aqhiBandName(s.aqhi_value),
             col: WTFMap.ramp(AQHI_STOPS, s.aqhi_value)
           };
         });

@@ -489,8 +489,18 @@ function worldTip(cc) {
   return worldName(cc) + " · " + (cd && cd.count ? cd.count.toLocaleString() + " stories" : "no stories in this window");
 }
 
+/* On-map counter (design: province code + story count at each province's centre).
+   Canada scope only — wtf-map.js skips labels elsewhere. Unmeasured = no number,
+   never 0. */
+function mapLabel(pc) {
+  if (mapMode === 'world') return null;
+  var c = provCount(pc);
+  if (c === null || c === undefined) { var pd = mapProvinces[pc]; c = pd ? pd.articles : null; }
+  return c ? c.toLocaleString() : null;
+}
 var LAYERS = [
   { id: 'lean',
+    outline: true, fillOpacity: 0.4, label: mapLabel,
     metric: function(pc) {
       if (mapMode === 'world') {
         // Band is computed server-side per country; unmeasured = no data, never a guess.
@@ -520,6 +530,7 @@ var LAYERS = [
     }
   },
   { id: 'volume',
+    outline: true, fillOpacity: 0.4, label: mapLabel,
     metric: function(pc) {
       if (mapMode === 'world') {
         var wc = (geoCounts[pc] || {}).count || 0, wcol = volColour(wc, worldMax());

@@ -43,15 +43,7 @@ _TIMEOUT = 120
 
 # Polling day per general election. Historical fact, not derivable from Table 12,
 # and left NULL rather than guessed for any election not listed here.
-_ELECTION_DATES = {
-    44: "2021-09-20",
-    43: "2019-10-21",
-    42: "2015-10-19",
-    41: "2011-05-02",
-    40: "2008-10-14",
-    39: "2006-01-23",
-    38: "2004-06-28",
-}
+from shared.election_calendar import FEDERAL_ELECTION_DATES as _ELECTION_DATES  # one definition (shared/)
 
 
 def _get(url: str) -> bytes:
@@ -178,14 +170,24 @@ def _heartbeat(engine, task: str, result: dict, exc: Exception | None) -> None:
         logger.exception("%s heartbeat write failed", task)
 
 
-def run_election_results(engine, ge_number: int = 44, dry_run: bool = False) -> dict:
-    """Ingest one general election. Never raises."""
+def run_election_results(engine, ge_number: int = 44, dry_run: bool = False,
+                         optional: bool = False) -> dict:
+    """Ingest one general election. Never raises.
+
+    ``optional=True`` is for an election that may simply not be published (or not on a
+    fetchable host) yet: that is reported as ``skipped`` and does NOT write an error
+    heartbeat — otherwise one unpublished election would fail the shared
+    ``elections_results`` task and page the owner daily over a condition no fix can
+    clear. A genuine parse/persist failure still alarms."""
     task = "elections_results"
     out: dict = {"ge": ge_number}
     exc: Exception | None = None
     try:
         loc = find_table(ge_number, "table 12")
-        if loc.get("error"):
+        if loc.get("error") and optional and (
+                "no table 12 resource" in loc["error"] or "not fetchable" in loc["error"]):
+            out["skipped"] = loc["error"]
+        elif loc.get("error"):
             out.update(loc)
         else:
             # The party vocabulary is derived from Table 12 itself — Table 9

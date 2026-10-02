@@ -935,7 +935,14 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
   </div>
   {% endif %}
 
+  {# excerpt-block-start #}
   <!-- Article Body / Excerpt -->
+  {# We LINK, we do not republish (design wtf-article.html): the full captured text
+     stays in our database for analysis only. What a reader sees is a SHORT excerpt
+     of the cleaned text (`excerpt`, from ingest.content_kind.clean_body — page
+     furniture such as sidebars, rails and timestamps removed, verbatim sentences
+     only). If the capture is too contaminated to isolate the article, `excerpt` is
+     empty and the reader gets the link-out alone — never the raw stored text. #}
   {% if is_limited_body %}
   <div class="wtf-art-limitedbody-panel">
     <div class="wtf-art-limitedbody-icon">📰</div>
@@ -952,24 +959,34 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: var(--wtf-develo
     </a>
     {% endif %}
   </div>
-  {% elif a.body %}
-  <div class="wtf-art-bodyexcerpt-panel">
-    <div class="wtf-art-panel-heading-lg">Article Excerpt</div>
-    {# 2,500 chars, cut on a WORD boundary (truncate killwords=False) rather than
-       mid-word as the old a.body[:600] slice did. The stored body is untouched
-       and complete — this caps DISPLAY only, so the full text stays available
-       for analysis and for retrieving detail later.
-
-       white-space: pre-line renders the paragraph breaks the capture skill now
-       preserves. It is CSS, not markup, so autoescaping still applies and no
-       HTML from the publisher can execute. ⚠️ Bodies captured before that skill
-       fix hold ZERO newlines (the old " ".join(text.split()) collapsed them),
-       so those still render as one block until re-captured — pre-line is
-       forward-looking, not retroactive. #}
-    <div class="wtf-art-body wtf-art-body-text">{{ a.body|truncate(2500, False, '…') }}</div>
+  {% elif excerpt %}
+  <div class="wtf-art-bodyexcerpt-panel" id="art-excerpt">
+    <div class="wtf-art-panel-heading-lg">Excerpt from {{ a.source_name or 'the source' }}</div>
+    {# white-space: pre-line (in .wtf-art-body-text) renders paragraph breaks. It is
+       CSS, not markup, so autoescaping still applies and no publisher HTML can run. #}
+    <div class="wtf-art-body wtf-art-body-text">{{ excerpt }}{% if excerpt_truncated %}…{% endif %}</div>
+    <p class="wtf-art-body-note" style="font-size:12px;color:var(--wtf-text-muted,#8a94a3);margin:10px 0 0;">
+      What The Fact analyses coverage; it does not republish it. This is a short excerpt &mdash; the article stays with {{ a.source_name or 'the publisher' }}.
+    </p>
     {% if a.url %}
     <a href="{{ a.url }}" target="_blank" rel="noopener" class="wtf-art-blue-link">Read full article at {{ a.source_name or 'source' }} ↗</a>
     {% endif %}
+  </div>
+  {% elif a.body %}
+  <div class="wtf-art-limitedbody-panel" id="art-linkout">
+    <div class="wtf-art-limitedbody-icon">📰</div>
+    <div class="wtf-art-limitedbody-text">
+      We could not isolate this article's text from the source page, so no excerpt is shown.
+      Read the original for the story.
+    </div>
+    {% if a.url %}
+    <a href="{{ a.url }}" target="_blank" rel="noopener" class="wtf-art-readfull-btn">
+      Read full article at {{ a.source_name or 'source' }} ↗
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+  {# excerpt-block-end #}
   </div>
   {% endif %}
 

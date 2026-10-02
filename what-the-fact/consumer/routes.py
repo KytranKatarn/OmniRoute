@@ -3790,6 +3790,20 @@ def article(article_id: int):
     except Exception:
         pass
 
+    # Reader-facing excerpt: SHORT and cleaned (page furniture removed, verbatim
+    # sentences). The stored body is untouched and still feeds analysis. "" means the
+    # capture was too contaminated to isolate the article — the template then shows
+    # the link-out only, never the raw body.
+    excerpt, excerpt_truncated = "", False
+    try:
+        from ingest.content_kind import clean_body
+        if not is_paywalled and not is_limited_body:
+            excerpt = clean_body(a.get("body"), max_chars=_ARTICLE_EXCERPT_CHARS)
+            # An ellipsis is only honest when something was actually cut.
+            excerpt_truncated = bool(excerpt) and len(clean_body(a.get("body"))) > len(excerpt)
+    except Exception:
+        excerpt, excerpt_truncated = "", False
+
     # "Back to News" replays whatever filter querystring the reader arrived
     # with, IF the caller supplied one (?back=<news querystring>) — a plain
     # passthrough, not a re-derivation of /news' own filter logic, so this
@@ -3801,6 +3815,7 @@ def article(article_id: int):
     return render_template("article.html", a=a,
                            article_entities=article_entities,
                            key_figures=key_figures,
+                           excerpt=excerpt, excerpt_truncated=excerpt_truncated,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
                            is_limited_body=is_limited_body,
@@ -8691,6 +8706,11 @@ def map_page():
 # codes (KY, NY), and one row even carries 'CA', a COUNTRY code in the province
 # column. Deriving "Canadian" from "has a province_code" would therefore file
 # Kentucky under Canada.
+# Reader-facing article excerpt length (characters). Deliberately short: the page
+# links to the original rather than republishing it. Was an uncleaned 2,500-char
+# slice of the stored body before 2026-10-02; the stored body itself is unchanged.
+_ARTICLE_EXCERPT_CHARS = 600
+
 _CA_PROVINCES = frozenset(
     ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]
 )

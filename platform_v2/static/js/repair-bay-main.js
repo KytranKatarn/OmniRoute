@@ -381,7 +381,7 @@ function _buildReviewCard(pr) {
                 (coverage ? '#f59e0b' : '#22c55e') +
                 '; color:#0a0e1a; border:none; border-radius:3px; cursor:pointer; font-weight:700; white-space:nowrap;',
             text: coverage ? ('Merge (' + nDropped + ' unread)') : 'Merge ✓',
-            onclick: function() { _mergePr(pr.number, mergeBtn); }
+            onclick: function() { _mergePr(pr.number, mergeBtn, pr.repo); }
         });
         if (ms.hint) mergeBtn.title = ms.hint;
         actions.appendChild(mergeBtn);
@@ -821,17 +821,22 @@ function _rbLcarsAlert(opts) {
     });
 }
 
-function _mergePr(prNumber, btn) {
+function _mergePr(prNumber, btn, repo) {
+    // Name the repo in the confirm itself. A PR number is not an identity:
+    // #61 exists in archie-code, archie-platform AND kytran-business-suite, so
+    // "merge PR #61" is ambiguous until the repo is on screen.
+    var where = repo ? repo.replace('KytranKatarn/', '') : 'archie-platform';
     _rbLcarsConfirm({
         title: 'APPROVE & MERGE PR #' + prNumber,
-        message: 'This will squash-merge PR #' + prNumber + ' via the F.O.R.G.E. pipeline and deploy to main.\n\nProceed?',
+        message: 'This will squash-merge PR #' + prNumber + ' in ' + where +
+            ' via the F.O.R.G.E. pipeline and deploy to main.\n\nProceed?',
         confirmText: 'Merge',
         cancelText: 'Cancel',
         accent: '#22c55e',
         accentRgb: '34,197,94'
     }).then(function(ok) {
         if (!ok) return;
-        _doMergePr(prNumber, btn);
+        _doMergePr(prNumber, btn, false, repo);
     });
 }
 
@@ -847,13 +852,19 @@ function _rbCoverageAckPrompt(prNumber, files) {
         + 'Cancel to re-review instead.';
 }
 
-function _doMergePr(prNumber, btn, coverageAck) {
+function _doMergePr(prNumber, btn, coverageAck, repo) {
     btn.disabled = true;
     btn.textContent = 'Merging…';
+    // `repo` MUST travel with the click (2026-09-11 cross-repo fix, client half).
+    // Both /forge/prs/<n>/merge and /forge/pr-reviews/<n>/merge resolve the row by
+    // (pr_number, repo); omit it and they fall back to archie-platform, which for
+    // KBS #61 meant asking GitHub to merge archie-platform #61 — a PR merged back
+    // in April, hence the bare 404. The routes documented the hazard; this caller
+    // never sent the field.
     _rbFetchJson(RB_API + '/forge/prs/' + prNumber + '/merge', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({method: 'squash', coverage_ack: !!coverageAck})
+        body: JSON.stringify({method: 'squash', coverage_ack: !!coverageAck, repo: repo || null})
     })
     .then(function(data) {
         if (data.success) {
@@ -868,7 +879,7 @@ function _doMergePr(prNumber, btn, coverageAck) {
             btn.disabled = false;
             btn.textContent = 'Merge';
             if (confirm(_rbCoverageAckPrompt(prNumber, data.dropped_files))) {
-                _doMergePr(prNumber, btn, true);   // one retry only, guarded by coverageAck
+                _doMergePr(prNumber, btn, true, repo);   // one retry only, guarded by coverageAck
             }
         } else {
             btn.disabled = false;

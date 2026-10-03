@@ -52,13 +52,35 @@ error — it just writes to a database nobody serves from.
 3. Rebuild: `what-the-fact/deploy.sh` — `rsync --delete` from the hub, then
    `docker compose up --build`. `.env` is excluded; Citadel keeps its own secrets.
 
-## These migrations are not re-runnable
+## These migrations ARE re-runnable
 
-085 and 086 both `INSERT` into `parliament.election_calendar` and **neither has
-`ON CONFLICT`**, so a second run violates the `jurisdiction_code` primary key.
-The `CREATE TABLE` / `ADD COLUMN` statements are guarded with `IF NOT EXISTS`;
-the seed rows are not. If a migration fails partway, check what landed before
-retrying.
+An earlier version of this file claimed 085/086 could not be re-run because
+their `INSERT`s into `parliament.election_calendar` lacked `ON CONFLICT` and
+would violate the `jurisdiction_code` primary key. **That was wrong** — both
+statements end in `ON CONFLICT (jurisdiction_code) DO NOTHING`. The claim was
+false when it was written; the SQL has never lacked the guard.
+
+085, 086 and 087 are idempotent. Every statement is guarded:
+
+| Statement | Guard |
+|---|---|
+| `CREATE TABLE` (085, 086) | `IF NOT EXISTS` |
+| `CREATE INDEX` (086) | `IF NOT EXISTS` |
+| `ADD COLUMN` (086 ×3, 087) | `IF NOT EXISTS` |
+| `INSERT` seeds (085, 086) | `ON CONFLICT (jurisdiction_code) DO NOTHING` |
+| `level` CHECK swap (086) | `DROP CONSTRAINT IF EXISTS` then `ADD CONSTRAINT` |
+| `GRANT`s (085, 086) | wrapped in `DO $$ IF EXISTS (role) $$` |
+
+Verified by running all three **three times** against a clean
+`postgres:16-alpine` with `ON_ERROR_STOP=1`: no errors, and
+`election_calendar` held steady at 39 rows across every pass. As a control, the
+same test with 085's `ON CONFLICT` stripped out *does* fail, with
+`duplicate key value violates unique constraint "election_calendar_pkey"` —
+so the test is capable of detecting the failure it claims is absent.
+
+So a failed migration can simply be re-run. Note what re-running does *not*
+fix: if a run died partway, re-running replays the whole file from the top,
+and the `GRANT`s are conditional on the `wtfuser` role existing at that moment.
 
 ## Seeding policy
 

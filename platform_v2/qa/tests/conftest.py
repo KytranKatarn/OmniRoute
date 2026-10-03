@@ -87,6 +87,12 @@ async def authenticated_page(auth_context):
     page = await auth_context.new_page()
     page._console_errors = []
     page.on("console", lambda msg: (page._console_errors.append(msg.text) if msg.type == "error" else None))
+    # Uncaught exceptions surface as "pageerror", NOT "console" — a console-only
+    # listener silently misses every TypeError/ReferenceError that kills a render.
+    # Real example: wtf-map.js threw "def.label is not a function" from an onResize
+    # handler, so it only fired on a viewport transition. A console-only listener saw
+    # an empty list and the suite passed.
+    page.on("pageerror", lambda exc: page._console_errors.append(f"Uncaught {exc}"))
     yield page
     await page.close()
 

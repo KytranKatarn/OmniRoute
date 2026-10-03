@@ -38,6 +38,36 @@ auto/short-description    — AI/automation-initiated changes
 - Emergency hotfixes with explicit user approval
 - Trivial one-line fixes (typos, version bumps) with user approval
 
+### ⚠️ Never commit a partially-staged file
+
+A file that is staged and then modified again (`git status` shows `AM` or `MM`)
+**deadlocks the fixer hooks.** Reproduced deterministically:
+
+```
+$ git status --short script.sh
+AM script.sh                        # staged, then edited again
+$ git commit -m "..."
+[WARNING] Unstaged files detected.
+fix end of files................Failed
+- files were modified by this hook
+[WARNING] Stashed changes conflicted with hook auto-fixes... Rolling back fixes...
+```
+
+What happens: pre-commit stashes the unstaged delta, runs the fixer over the
+staged content, then the stash pop collides with the fix it just made and rolls
+everything back. The commit aborts with a message that does not name the real
+cause.
+
+Fix — stage the file *again* so index and worktree agree, then retry:
+
+```bash
+git add <file> && git commit -m "..."
+```
+
+Never reach for `--no-verify` here. Every hook still passes; it is the stash
+ordering that fails, not the checks. If a hook legitimately rewrites your file,
+re-stage it and commit again.
+
 **On failure:**
 ```
 □ Attempt 1 fails → Understand WHY (read code, check logs, verify state)

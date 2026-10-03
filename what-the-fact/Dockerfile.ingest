@@ -21,6 +21,15 @@ pipeline('zero-shot-classification', model='valhalla/distilbart-mnli-12-3')" && 
 COPY shared/ /app/shared/
 COPY ingest/ /app/ingest/
 COPY migrations/ /app/migrations/
+# Ops/admin CLIs. These are the documented way to inspect and repair the database
+# in place — `docker exec wtf-ingest python scripts/migrations_admin.py status`
+# reads the migration ledger without a hub round-trip, and elections_admin.py
+# verifies election rows. The ingest image is where they belong: it already carries
+# migrations/ (which migrations_admin.py resolves as its sibling), already has
+# WTF_DATABASE_URL and sqlalchemy, and runs on the same compose network as
+# wtf-postgres. Without this COPY the scripts exist only in the git tree and are
+# unreachable on the box they exist to inspect.
+COPY scripts/ /app/scripts/
 ENV PYTHONPATH=/app
 USER nobody
 CMD ["python", "-m", "ingest.run"]

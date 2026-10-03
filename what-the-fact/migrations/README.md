@@ -28,6 +28,50 @@ cat what-the-fact/migrations/0NN_xxx.sql | \
   "docker exec -i what-the-fact-wtf-postgres-1 psql -U wtfuser -d wtf -v ON_ERROR_STOP=1"
 ```
 
+Then check what the database thinks it has, rather than assuming the pipe landed:
+
+```bash
+WTF_DATABASE_URL=... python3 what-the-fact/scripts/migrations_admin.py status
+```
+
+## Migration ledger (from 088 onward)
+
+As of **088** there is a `public.schema_migrations` table on Citadel recording which
+migrations have been applied. Until then nothing did, so the only way to check was to
+look for the tables each file creates — which is how the wrong-target incident above
+slipped through.
+
+| | |
+|---|---|
+| 001–087 | **Not in the ledger.** A single `000-baseline` row records that they were applied before it existed, with `applied_at` deliberately NULL. Treat as *unverified*, not as a record of 87 applications. |
+| 088+ | Log themselves in the same transaction as their DDL, so "recorded" and "applied" cannot drift. |
+
+Each new migration must end with its own log line, or it will be reported as
+`NOT APPLIED`:
+
+```sql
+INSERT INTO public.schema_migrations (version, filename, description, applied_at)
+VALUES ('0NN', '0NN_xxx.sql', 'One line saying what it did', now())
+ON CONFLICT (version) DO NOTHING;
+```
+
+That `ON CONFLICT DO NOTHING` is what keeps 088 itself re-runnable, matching the
+verified behaviour of 085–087 below. (The "not re-runnable" heading further down is
+about **085/086 only**, and that claim is being corrected separately in PR #3608 — do
+not resolve the two here, or the edits will collide.)
+
+`migrations_admin.py status` is **read-only** and exits non-zero in the two cases where a
+report would mislead you: the ledger is the platform's rather than WTF's, or the ledger
+disagrees with the files on disk.
+
+⚠️ **Do not "fix" the error you will get if you apply 088 to the hub.** The hub's
+`archie` database also has a `public.schema_migrations` — the platform's own history.
+`CREATE TABLE IF NOT EXISTS` no-ops there and the INSERT then fails on the unknown
+`filename` column, aborting the file under `ON_ERROR_STOP=1` before writing anything.
+That is the wrong-target guard firing. It leaves the platform's ledger untouched, which
+was verified: misapplying 088 to a platform-shaped ledger exits non-zero and writes zero
+rows. Dropping `filename` to silence it would destroy that protection.
+
 ## Why the general rule misleads here
 
 `.claude/rules/database.md` gives one command for all migrations:

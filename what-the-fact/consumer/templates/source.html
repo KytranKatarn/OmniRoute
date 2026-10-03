@@ -252,8 +252,8 @@
       {% if coverage.main_region %}
       <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Main Region</span>{{ coverage.main_region }}</span>
       {% endif %}
-      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Fact-Check Rate</span>{{ (((fact_checked_count / src.total_articles * 100) | round | int) ~ '%') if src.total_articles else '—' }}</span>
-      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Filed First</span>{{ (((filed_first_count / src.total_articles * 100) | round | int) ~ '%') if src.total_articles else '—' }}</span>
+      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Fact-Check Rate</span>{{ (((fact_checked_count | default(0)) / src.total_articles * 100) | round | int ~ '%') if src.total_articles else '—' }}</span>
+      <span class="wtf-src-cov-item"><span class="wtf-src-cov-label">Filed First</span>{{ (((filed_first_count | default(0)) / src.total_articles * 100) | round | int ~ '%') if src.total_articles else '—' }}</span>
     </div>
     <div class="wtf-src-foot-note">&ldquo;Filed first&rdquo; counts stories where this outlet led the cluster — the closest proxy the corpus has for original reporting rather than pickup.</div>
   </div>

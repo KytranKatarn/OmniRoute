@@ -135,7 +135,10 @@ def test_coverage_profile_renders_main_beat_and_region():
 
 
 def test_coverage_profile_absent_when_nothing_known():
-    html = _render(_src(), coverage={"main_beat": None, "main_region": None})
+    # The panel gate was widened in batch 11 round 2 to also fire on total_articles, so the
+    # two rate items are not hidden behind an unknown beat/region. "Nothing known" therefore
+    # means no articles to compute a rate from, not merely a missing beat/region.
+    html = _render(_src(total_articles=0), coverage={"main_beat": None, "main_region": None})
     assert "Coverage Profile" not in html
 
 

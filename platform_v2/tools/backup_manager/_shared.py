@@ -1062,14 +1062,20 @@ STANDALONE_PRODUCTS = [
         "name": "wtf",
         "display_name": "What The Fact",
         "code_path": "/mnt/archie_brain/what-the-fact",
-        # WTF DB = a separate Postgres DATABASE on the hub named "wtf" — but it is NOT
-        # WTF-only. It holds 8 schemas (wtf, parliament, shared, gov_watch, legal_watch,
-        # market_watch, securities, public) — "shared" is the cross-product entity graph
-        # that gov/legal/market-watch push into over HTTP via wtf-ingest. A single-schema
-        # dump (the old "-n wtf" behaviour) silently missed 7 of them. db_schema is
-        # intentionally ABSENT so backup_standalone() dumps the WHOLE database.
-        "db_kind": "hub_schema",
-        "db_name": "wtf",  # separate postgres DB — connect: psql -U archie -d wtf
+        # LIVE DB = Postgres container `what-the-fact-wtf-postgres-1` on boston-2
+        # (citadel). Migrated off the hub 2026-10-02: the hub `wtf` database was a stale
+        # local copy with no writer, and was dropped after being archived to
+        # /mnt/data2/backups/20261002_165214_hub_wtf_pre-drop.dump. Pointing at
+        # db_name "wtf" now fails outright — the hub database no longer exists.
+        # The old hub DB held 8 schemas (wtf, parliament, shared, gov_watch,
+        # legal_watch, market_watch, securities, public); "shared" is the
+        # cross-product entity graph. A single-schema dump (the old "-n wtf"
+        # behaviour) silently missed 7 of them, so db_schema stays ABSENT and the
+        # remote dump below takes the whole database.
+        "db_kind": "pg_container",
+        "db_node": "100.64.0.10",  # citadel (mesh)
+        "db_ssh_user": "root",
+        "db_container": "what-the-fact-wtf-postgres-1",
         "backup_type": "full",
     },
 ]

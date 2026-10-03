@@ -92,7 +92,12 @@ EXTERNAL_SCAN_SOURCES = [
     ("website_what_the_fact", "/mnt/standalone/websites/what-the-fact.com", None),
     ("product_what_the_fact", "/mnt/archie_brain/what-the-fact", None),
     # ── KBS ──
-    ("product_business_suite", "/mnt/standalone/kytran-business-suite", None),
+    # Live KBS code is /mnt/archie_brain/kytran-business-suite -- that is what the running
+    # kbs_app container mounts (-> /app). The /mnt/standalone spelling is a SEPARATE stale
+    # clone, not a symlink (unlike kytran-creed, where both names are the same inode).
+    # Scanning it found 42 js/html files against the live tree's 81, so coverage was
+    # computed against code that is not what ships. Repointed 2026-10-02.
+    ("product_business_suite", "/mnt/archie_brain/kytran-business-suite", None),
     # ── C.R.E.E.D. Governance (AI wellness standalone, creed.kytranempowerment.com:8086) ──
     ("product_creed_governance", "/mnt/standalone/kytran-creed", None),
 ]

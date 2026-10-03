@@ -259,6 +259,23 @@ if [[ "${DR_STATUS:-failed}" == "success" ]]; then
     fi
 fi
 
+# ----- Local Daily_Triage prune (the GFS engine below skips these; see note) -----
+# retention_prune.py explicitly skips *_Daily_Triage (_shared.py: "Skip Daily_Triage
+# dirs -- managed by scripts/backup_triage.sh"), and the DR prune above only trims
+# the remote copies on the DR node. Nothing ever removed the LOCAL copies, so
+# /mnt/data2/backups accumulated one set per run forever: 30 sets / ~120 GB on
+# 2026-10-02, with /mnt/data2 at 96% (82 GB free). Keep LOCAL_KEEP in step with
+# DR_KEEP so both tiers retain the same window.
+LOCAL_KEEP=7
+log "Pruning local Daily_Triage sets (keep ${LOCAL_KEEP})..."
+PRUNED=$(ls -td /mnt/data2/backups/*_Daily_Triage 2>/dev/null | tail -n +$((LOCAL_KEEP+1)) | wc -l)
+if [[ "$PRUNED" -gt 0 ]]; then
+    ls -td /mnt/data2/backups/*_Daily_Triage 2>/dev/null | tail -n +$((LOCAL_KEEP+1)) | xargs -r rm -rf
+    log "  pruned ${PRUNED} local Daily_Triage set(s)"
+else
+    log "  nothing to prune"
+fi
+
 # ----- Retention: canonical GFS engine (per-component daily/weekly/monthly, all tiers) -----
 # Single source of truth = scripts/backup/retention_prune.py. The old inline keep-14 and the
 # weekly module job backup_retention_prune are RETIRED — #4051. retention_prune.py keeps the DB

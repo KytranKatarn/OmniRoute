@@ -56,9 +56,7 @@ ON CONFLICT (version) DO NOTHING;
 ```
 
 That `ON CONFLICT DO NOTHING` is what keeps 088 itself re-runnable, matching the
-verified behaviour of 085–087 below. (The "not re-runnable" heading further down is
-about **085/086 only**, and that claim is being corrected separately in PR #3608 — do
-not resolve the two here, or the edits will collide.)
+verified behaviour of 085–087 described below.
 
 `migrations_admin.py status` is **read-only** and exits non-zero in the two cases where a
 report would mislead you: the ledger is the platform's rather than WTF's, or the ledger

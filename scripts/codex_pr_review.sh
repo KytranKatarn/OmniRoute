@@ -154,6 +154,7 @@ fi
 TITLE=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["title"])')
 AUTHOR=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["author"])')
 HEADREF=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["head"])')
+BASEREF=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["base"])')
 STATE=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["state"])')
 STATS=$(printf '%s' "$META" | python3 -c 'import sys,json;d=json.load(sys.stdin);print("%s files, +%s/-%s"%(d["files"],d["additions"],d["deletions"]))')
 
@@ -186,10 +187,19 @@ if [ ! -d "$WORKTREE" ]; then
 fi
 
 DIFF_FILE=$(mktemp)
-git -C "$WORKTREE" diff --no-color "origin/${HEADREF}...HEAD" > "$DIFF_FILE" 2>/dev/null || true
-# Fall back to the GitHub-provided diff — works even for cross-repo PRs.
-if [ ! -s "$DIFF_FILE" ]; then
-  gh api "repos/$REPO/pulls/$PR/files" --jq '.[] | "--- \(.filename)\n@@ \(.patch // "(binary or too large)")"' > "$DIFF_FILE" 2>/dev/null || true
+# GitHub is the AUTHORITATIVE diff. Do not lead with local git: `origin/$HEADREF...HEAD`
+# used the PR's own branch as its base, so a stale-but-non-empty remote-tracking ref (a
+# force-push or rebase in flight) yields a NON-EMPTY diff that silently attributes other
+# PRs' changes to this one — measured at 17 files/383 lines for a 1-file PR, including
+# already-merged work. The empty-diff guard cannot catch that; it is not empty, it is wrong.
+# Local git is kept only as a fallback for when `gh` is unavailable.
+if ! gh api "repos/$REPO/pulls/$PR/files" --jq '.[] | "--- \(.filename)\n@@ \(.patch // "(binary or too large)")"' > "$DIFF_FILE" 2>/dev/null; then
+  : > "$DIFF_FILE"
+fi
+if [ ! -s "$DIFF_FILE" ] && [ -n "$BASEREF" ] && [ "$BASEREF" != "$HEADREF" ]; then
+  git -C "$REPO" fetch -q origin "$BASEREF:refs/codex-review/$PR-base" 2>/dev/null || true
+  git -C "$WORKTREE" diff --no-color "refs/codex-review/$PR-base...HEAD" > "$DIFF_FILE" 2>/dev/null || true
+  git -C "$REPO" update-ref -d "refs/codex-review/$PR-base" 2>/dev/null || true
 fi
 
 DIFF_SIZE=$(wc -c < "$DIFF_FILE" | tr -d ' ')

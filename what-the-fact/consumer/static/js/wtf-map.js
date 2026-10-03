@@ -266,7 +266,13 @@
      *  a label keeps its row in the index list — it is skipped, never crowded. */
     function drawLabels(def) {
       gLab.textContent = "";
-      if (scope !== "canada" || !geo || !path || !def || !def.label) return;
+      /* `typeof`, not truthiness: `label` is overloaded. weather.html uses it as
+         a layer's DISPLAY NAME ({ id:"fire", label:"Fire activity" }, read at
+         weather.html:1103 for the heading); this function wants an opt-in
+         label(code) -> string|null callback. A truthiness guard let the string
+         through and then called it, throwing "def.label is not a function" out of
+         restyle/onResize (weather page only — index.html passes a real function). */
+      if (scope !== "canada" || !geo || !path || !def || typeof def.label !== "function") return;
       var wh = size();
       var k = (wh[0] * wh[1]) / (1000 * 352);
       geo.features.forEach(function (f) {

@@ -10,7 +10,12 @@ HOME = (C / "templates/index.html").read_text(encoding="utf-8")
 
 def test_labels_are_opt_in_canada_only_and_never_pointer_blocking():
     assert "function drawLabels(def)" in MAP
-    assert 'scope !== "canada"' in MAP and "!def.label" in MAP
+    # Must be a TYPE check, not truthiness: `label` is overloaded. weather.html
+    # passes a display-name string ({ id:"fire", label:"Fire activity" }), which is
+    # truthy, so a `!def.label` guard let it through and drawLabels then called it —
+    # "TypeError: def.label is not a function" out of restyle/onResize.
+    assert 'scope !== "canada"' in MAP and 'typeof def.label !== "function"' in MAP
+    assert "!def.label" not in MAP, "truthiness guard reintroduced — string labels will throw"
     assert '"pointer-events": "none"' in MAP  # labels must not eat province clicks
 
 

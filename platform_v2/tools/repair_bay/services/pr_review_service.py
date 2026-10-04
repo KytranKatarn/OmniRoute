@@ -1698,7 +1698,16 @@ def count_reviews(state: str = None, review_status: str = None) -> int:
     with get_db_cursor() as (conn, cur):
         cur.execute(query, params)
         row = cur.fetchone()
-    return int(row["n"] if row and "n" in row else 0)
+    if row is None:
+        return 0
+    # RealDictCursor gives a mapping; a plain cursor gives a 1-tuple. Both occur in this
+    # codebase, so accept either rather than reporting 0 for a populated table.
+    if isinstance(row, dict):
+        return int(row.get("n") or 0)
+    try:
+        return int(row[0])
+    except (TypeError, IndexError, KeyError, ValueError):
+        return 0
 
 
 def list_reviews(state: str = None, review_status: str = None, limit: int = 50) -> list:

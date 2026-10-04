@@ -39,7 +39,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const BASE = (process.env.ARCHIE_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
+// Default to `localhost`, NOT 127.0.0.1. The platform's own security layer serves an
+// "ACCESS DENIED / BLOCKED DOMAIN" page for the 127.0.0.1 literal (a threat-intel
+// false positive on loopback), while `localhost` and the LAN IP both work. Measured
+// 2026-10-04; using the literal made every probe look like a broken app.
+const BASE = (process.env.ARCHIE_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
 const CREDS = process.env.ARCHIE_CRED_FILE || '/mnt/archie_brain/credentials/agent_passwords.env';
 const USER = 'claude';
 const FILTERS = ['open', 'merged'];
@@ -145,6 +149,15 @@ async function login(page, password) {
       });
 
       const errs = pageErrors.slice();
+      // A sub-fetch that FAILS must be visible AS a failure. #3621 made the panes surface
+      // backend errors instead of implying "no review exists" — and that is exactly how a
+      // NameError in the CodeRabbit endpoint (502 on every PR since #3620) was caught.
+      // Without this assertion the pane just said "(No CodeRabbit review)" and the
+      // breakage was invisible. Assert the absence of a load failure explicitly.
+      const loadFailures = await page.evaluate(() => {
+        const t = document.getElementById('prReviewDetail').innerText || '';
+        return t.match(/Could not load[^\n]*/g) || [];
+      });
       if (pane.missing) {
         console.log('  FAIL  ' + filter + ': #prReviewDetail is missing from the DOM');
         failures++;
@@ -155,6 +168,9 @@ async function login(page, password) {
         failures++;
       } else if (pane.bytes < MIN_PANE_BYTES) {
         console.log('  FAIL  ' + filter + ': pane rendered only ' + pane.bytes + ' bytes (below ' + MIN_PANE_BYTES + ') — likely truncated');
+        failures++;
+      } else if (loadFailures.length) {
+        console.log('  FAIL  ' + filter + ': a pane reported a load failure -> "' + loadFailures[0].slice(0, 70) + '"');
         failures++;
       } else if (errs.length) {
         console.log('  FAIL  ' + filter + ': pane rendered but JS threw: ' + errs[0].slice(0, 80));

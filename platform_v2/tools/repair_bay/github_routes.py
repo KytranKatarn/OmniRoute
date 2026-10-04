@@ -1234,6 +1234,53 @@ def register_github_routes(bp, admin_required):
             202,
         )
 
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/codex-review", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_codex_review(pr_number):
+        """Queue a CODEX (CLI) review of this PR.
+
+        Codex is invoked as a CLI on the HOST, not dispatched through DHQ: there is no
+        `codex` row in contractor_providers and the codex_cli lane has never run a
+        bridge job, so a dispatch would resolve no provider and fail at execution. The
+        platform container also cannot ssh to its own host (its mounted key is
+        unauthorized) and cannot write to the repo (read-only mount), so the request
+        goes through the shared spool at /mnt/archie_sandbox and the host-side
+        scripts/codex_review_queue.sh picks it up.
+
+        Returns 202: a full-diff review is minutes of work and must not block the web
+        thread. Poll the GET side of this route for the outcome.
+        """
+        from .services.codex_review_service import enqueue_codex_review
+
+        body = request.get_json(silent=True) or {}
+        result = enqueue_codex_review(
+            pr_number,
+            repo=body.get("repo"),
+            # Posting to GitHub is the default; `dry_run` rehearses without writing.
+            dry_run=bool(body.get("dry_run")),
+        )
+        if not result.get("success"):
+            code = 409 if result.get("request_id") else 400
+            if "queue not available" in str(result.get("error", "")):
+                code = 503
+            return jsonify(result), code
+        return jsonify(result), 202
+
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/codex-review", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_pr_codex_review_status(pr_number):
+        """Outcome of the newest CODEX review requested for this PR."""
+        from .services.codex_review_service import (
+            codex_review_status as _status,
+            read_review_log,
+        )
+
+        out = _status(pr_number)
+        out["log"] = read_review_log(pr_number)
+        return jsonify(out)
+
     @bp.route("/api/forge/review-scope", methods=["GET"])
     @login_required
     @admin_required

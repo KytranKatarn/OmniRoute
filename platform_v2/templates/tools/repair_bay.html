@@ -4186,6 +4186,13 @@ function showPRDetail(pr) {
         var reSel = _prReviewerSelect();
         reSel.setAttribute('data-pr-reviewer', '1');
         reBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, covActions); };
+        var codexBtn = document.createElement('button');
+        codexBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
+        codexBtn.textContent = 'CODEX review';
+        codexBtn.title = 'Queue a CODEX (CLI) review of this PR. Runs on the host, not in the '
+            + 'dispatcher: minutes of work, and the result appears as a PR comment.';
+        codexBtn.onclick = function(){ queueCodexReview(pr.pr_number, pr.repo, false); };
+        covActions.appendChild(codexBtn);
         covActions.appendChild(reSel);
         covActions.appendChild(reBtn);
         if (pr.diff_url) {
@@ -4211,6 +4218,12 @@ function showPRDetail(pr) {
         var genSel = _prReviewerSelect();
         genSel.setAttribute('data-pr-reviewer', '1');
         generalReBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, reviewActions); };
+        var codexBtn2 = document.createElement('button');
+        codexBtn2.style.cssText = codexBtn.style.cssText;
+        codexBtn2.textContent = 'CODEX review';
+        codexBtn2.title = codexBtn.title;
+        codexBtn2.onclick = function(){ queueCodexReview(pr.pr_number, pr.repo, false); };
+        reviewActions.appendChild(codexBtn2);
         reviewActions.appendChild(genSel);
         reviewActions.appendChild(generalReBtn);
         wrap.appendChild(reviewActions);
@@ -4386,6 +4399,49 @@ function _prScopeBody(extra) {
 
   // The reviewer the operator picked, for THIS row. Stored on the row wrapper so the
   // value cannot leak between PRs — the same reason the server override is thread-local.
+  // ── CODEX review ────────────────────────────────────────────────────────────
+  // Codex is invoked as a CLI on the HOST, not dispatched through DHQ (there is no
+  // `codex` row in contractor_providers and the codex_cli lane has never run a job).
+  // The platform container cannot ssh to its host and /mnt/archie_brain is read-only
+  // in there, so the request is dropped in a shared spool and scripts/codex_review_queue.sh
+  // picks it up. That means the button QUEUES work — it is not synchronous, and it says so.
+  function queueCodexReview(prNumber, repo, dryRun) {
+      if (!prNumber) { return; }
+      var label = dryRun ? 'CODEX dry run queued' : 'CODEX review queued';
+      _rbLcarsAlert({
+          title: label.toUpperCase(),
+          message: 'PR #' + prNumber + ' added to the CODEX queue.\n\n'
+              + 'A full-diff review takes minutes. Nothing appears on the PR until it '
+              + 'finishes, and the request is picked up by codex_review_queue.sh on the host.\n\n'
+              + (dryRun ? 'Dry run: the review is produced but NOT posted to GitHub.\n\n' : '')
+              + 'This panel does not live-update — reopen the PR to see the result.',
+          okText: 'OK',
+          accent: '#22d3ee',
+          accentRgb: '34,211,238'
+      });
+      fetch(API + '/forge/pr-reviews/' + prNumber + '/codex-review', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({repo: repo || null, dry_run: !!dryRun})
+      }).then(function(r){ return r.json().then(function(d){
+          return {ok: r.ok, status: r.status, data: d};
+      }); }).then(function(res){
+          if (!res.ok) {
+              _rbLcarsAlert({
+                  title: 'CODEX REVIEW NOT QUEUED',
+                  message: String((res.data && res.data.error) || ('HTTP ' + res.status)),
+                  okText: 'CLOSE', accent: '#ef4444', accentRgb: '239,68,68'
+              });
+          }
+      }).catch(function(err){
+          _rbLcarsAlert({
+              title: 'CODEX REVIEW FAILED',
+              message: String(err && err.message || err),
+              okText: 'CLOSE', accent: '#ef4444', accentRgb: '239,68,68'
+          });
+      });
+  }
+
   function _prSelectedReviewer(scopeEl) {
       var sel = scopeEl && scopeEl.querySelector('select[data-pr-reviewer]');
       return (sel && sel.value) || '';

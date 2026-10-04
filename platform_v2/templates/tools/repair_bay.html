@@ -4320,6 +4320,15 @@ function showPRDetail(pr) {
     fetch(API + '/forge/pr-reviews/' + pr.pr_number + '/coderabbit')
         .then(function(r){ return r.json(); })
         .then(function(d) {
+            // A failed fetch returns {error: ...} with HTTP 502, and r.json() still
+            // RESOLVES, so .catch() never fires. Without this check an expired
+            // GITHUB_TOKEN renders as "(No CodeRabbit review on this PR)" - the pane
+            // reporting a failure as absence. Measured during the stale-token incident;
+            // mirrors the CODEX branch below, which already had this guard.
+            if (d.error) {
+              crBody.textContent = 'Could not load the CodeRabbit review (' + d.error + ').';
+              return;
+            }
             crBody.textContent = d.coderabbit || '(No CodeRabbit review on this PR)';
         })
         .catch(function(){ crBody.textContent = 'Could not load CodeRabbit review.'; });

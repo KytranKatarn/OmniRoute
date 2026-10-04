@@ -181,6 +181,18 @@ check('handles a review with no VERDICT line',
 check('empty comment list', extract([]).codex, null);
 
 // The pane must label the verdict as the MODEL's, never as merge authority.
+// A 502 resolves r.json(), so .catch() never fires. Both panes must check d.error
+// explicitly or a failed fetch is displayed as "no review exists".
+const tplHtml = require('fs').readFileSync(
+  __dirname + '/../../templates/tools/repair_bay.html', 'utf8');
+const crFetch = tplHtml.slice(html.indexOf("/coderabbit'"), html.indexOf("/coderabbit'") + 900);
+const cxFetch = tplHtml.slice(html.indexOf("/codex'"), html.indexOf("/codex'") + 900);
+check('CodeRabbit pane checks d.error', /if \(d\.error\)/.test(crFetch), true);
+check('CODEX pane checks d.error', /if \(d\.error\)/.test(cxFetch), true);
+check('CodeRabbit pane does not report a fetch failure as "no review"',
+  crFetch.indexOf('if (d.error)') > -1
+  && crFetch.indexOf('if (d.error)') < crFetch.indexOf('d.coderabbit ||'), true);
+
 check('pane labels the verdict advisory',
   /model says APPROVE \(advisory\)/.test(src), true);
 check('pane names the endpoint it fetches', /pr-reviews\/' \+ pr\.pr_number \+ '\/codex/.test(src), true);

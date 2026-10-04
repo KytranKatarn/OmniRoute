@@ -61,9 +61,60 @@ from contextvars import ContextVar
 _REVIEW_HEAD_BRANCH: ContextVar[str] = ContextVar("_review_head_branch", default="")
 _MACHINE_BRANCH_PREFIXES = ("archie/forge/", "engine/")
 
+# ── Reviewer selector (#3613 follow-up) ─────────────────────────────────────────
+# The PR Review tab can send a review to a named reviewer instead of default routing.
+# `prefer_agent` is only ever set from THIS tuple — never from raw request input. That
+# is the whole safety property: the endpoint validates the name against this allowlist
+# before it reaches a dispatch, so a caller cannot aim a review at an arbitrary agent
+# (or at themselves, which is the self-review class #2458/#6040 exist to prevent).
+#
+# Membership is deliberately a short, hand-checked list of PROVEN reviewers rather than
+# a live DB query of "anyone with a code_review skill". Codex (CLI) is registered and
+# active but has no skills and has never been dispatched (0 bridge_jobs, ever), so
+# adding it here before its worker is verified would make the first PR review its first
+# execution of all time. Add it only after it has passed a real dispatch.
+REVIEWER_ALLOWLIST = ("F.O.R.G.E.", "P.R.O.B.E.")
+
+# threading.local(), not contextvars: each review runs in its own daemon thread and
+# threading.Thread does not copy the caller's context — same reason as _scope_local.
+_reviewer_local = _threading.local()
+
+
+class reviewer_override:  # noqa: N801 — used as a context manager, not a type
+    """Pin the reviewing agent for the duration of a ``with`` block.
+
+    ``with reviewer_override("P.R.O.B.E."): ...``
+
+    An unknown or empty name means "leave routing alone", so a bad value degrades to
+    default routing rather than to a surprising reviewer. Restore rather than clear:
+    nesting must not wipe an outer override.
+    """
+
+    def __init__(self, agent: Optional[str] = None):
+        self._agent = agent if agent in REVIEWER_ALLOWLIST else None
+        self._prev: Optional[str] = None
+
+    def __enter__(self):
+        self._prev = getattr(_reviewer_local, "agent", None)
+        if self._agent is not None:
+            _reviewer_local.agent = self._agent
+        return self
+
+    def __exit__(self, *exc):
+        _reviewer_local.agent = self._prev
+        return False
+
 
 def _review_prefer_agent() -> str | None:
-    """P.R.O.B.E. for machine-authored PRs; None (default routing) otherwise."""
+    """P.R.O.B.E. for machine-authored PRs; None (default routing) otherwise.
+
+    An operator-chosen reviewer (the PR Review tab's agent selector) wins over the
+    machine-branch rule: the tab exists precisely so a human can move the seat, and a
+    default that silently overrode the choice would make the control a lie.
+    """
+    forced = getattr(_reviewer_local, "agent", None)
+    if forced and forced in REVIEWER_ALLOWLIST:
+        return forced
     branch = _REVIEW_HEAD_BRANCH.get() or ""
     if any(branch.startswith(p) for p in _MACHINE_BRANCH_PREFIXES):
         return "P.R.O.B.E."

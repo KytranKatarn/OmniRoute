@@ -4181,9 +4181,12 @@ function showPRDetail(pr) {
         covActions.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
         var reBtn = document.createElement('button');
         reBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.45);color:#fbbf24;border-radius:4px;cursor:pointer;';
-        reBtn.textContent = 'F.O.R.G.E. re-review — full diff';
+        reBtn.textContent = 're-review — full diff';
         reBtn.title = 'Re-run the review with the whole diff shown to the full-window reviewer. Slower, but it reads the files above.';
-        reBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo); };
+        var reSel = _prReviewerSelect();
+        reSel.setAttribute('data-pr-reviewer', '1');
+        reBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, covActions); };
+        covActions.appendChild(reSel);
         covActions.appendChild(reBtn);
         if (pr.diff_url) {
             var fullDiff = document.createElement('a');
@@ -4203,9 +4206,12 @@ function showPRDetail(pr) {
         reviewActions.style.cssText = 'display:flex;gap:8px;margin:0 0 12px 0;';
         var generalReBtn = document.createElement('button');
         generalReBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
-        generalReBtn.textContent = 'F.O.R.G.E. re-review — full diff';
+        generalReBtn.textContent = 're-review — full diff';
         generalReBtn.title = 'Run a fresh full-diff review of this PR head.';
-        generalReBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo); };
+        var genSel = _prReviewerSelect();
+        genSel.setAttribute('data-pr-reviewer', '1');
+        generalReBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, reviewActions); };
+        reviewActions.appendChild(genSel);
         reviewActions.appendChild(generalReBtn);
         wrap.appendChild(reviewActions);
     }
@@ -4343,35 +4349,76 @@ function _prScopeBody(extra) {
     return body;
 }
 
-function _prScopeLabel() {
-    var b = _prScopeBody({});
-    if (!b.plan && !b.max_files) { return 'server default scope'; }
-    return (b.plan || 'default plan') + (b.max_files ? ', max ' + b.max_files + ' files' : '');
-}
+  function _prScopeLabel() {
+      var b = _prScopeBody({});
+      if (!b.plan && !b.max_files) { return 'server default scope'; }
+      return (b.plan || 'default plan') + (b.max_files ? ', max ' + b.max_files + ' files' : '');
+  }
 
-function triggerPRReReview(prNumber, repo) {
-    // #6769 — re-review with the WHOLE diff routed through the coverage-aware
-    // full-window reviewer, so the files the last pass never saw get read this time.
-    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
-          {method:'POST', headers:{'Content-Type':'application/json'},
-           // #6776 — the ROW's repo, never the number alone. archie-code #71 and
-           // archie-platform #71 are different PRs; sending only the number had the
-           // server re-review a Dependabot bump while this pane showed an engine PR.
-           body: JSON.stringify(_prScopeBody({wide: true, repo: repo || null}))})
-        .then(function(r){ return r.json(); }).then(function(d) {
-            if (d.error) {
-                _rbLcarsAlert({
-                    title: 'F.O.R.G.E. RE-REVIEW FAILED',
-                    message: d.error,
-                    okText: 'CLOSE',
-                    accent: '#ef4444',
-                    accentRgb: '239,68,68'
-                });
-                return;
-            }
-            _rbLcarsAlert({
-                title: 'F.O.R.G.E. RE-REVIEW DISPATCHED',
-                message: 'Full diff review started (' + _prScopeLabel() + ').\n\nThe Reviews list refreshes when it lands.',
+  // Reviewer selector — CodeRabbit reviews 1 PR/hour and this platform ships more than
+  // that, so an operator needs to be able to move the seat to another proven reviewer
+  // (P.R.O.B.E. is already the designated machine-PR reviewer, #6040).
+  //
+  // Mirrors REVIEWER_ALLOWLIST in services/pr_diff_analyzer.py, which is the authority:
+  // the server 400s on anything not in that tuple, so this list is convenience, not the
+  // gate. Keep the two in step when a reviewer is added.
+  var PR_REVIEWERS = ['F.O.R.G.E.', 'P.R.O.B.E.'];
+
+  function _prReviewerSelect() {
+      var sel = document.createElement('select');
+      sel.style.cssText = 'font-size:0.65rem;padding:3px 6px;background:rgba(15,23,42,0.9);'
+          + 'border:1px solid rgba(148,163,184,0.4);color:#cbd5e1;border-radius:4px;';
+      sel.title = 'Which agent reviews this PR. Codex (CLI) is not listed: it has no skills '
+          + 'and has never been dispatched, so it cannot yet be routed a review.';
+      PR_REVIEWERS.forEach(function(name) {
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          sel.appendChild(opt);
+      });
+      // Set the select's own value rather than only option.selected. A browser does
+      // propagate selected -> select.value, but relying on that makes the default
+      // invisible to anything reading .value directly, and "" would silently fall
+      // through to server default routing instead of the reviewer shown on screen.
+      sel.value = PR_REVIEWERS[0];
+      return sel;
+  }
+
+  // The reviewer the operator picked, for THIS row. Stored on the row wrapper so the
+  // value cannot leak between PRs — the same reason the server override is thread-local.
+  function _prSelectedReviewer(scopeEl) {
+      var sel = scopeEl && scopeEl.querySelector('select[data-pr-reviewer]');
+      return (sel && sel.value) || '';
+  }
+
+
+  function triggerPRReReview(prNumber, repo, scopeEl) {
+      var body = _prScopeBody({wide: true, repo: repo || null});
+      var who = _prSelectedReviewer(scopeEl);
+      if (who) { body.reviewer = who; }
+      // #6769 — re-review with the WHOLE diff routed through the coverage-aware
+      // full-window reviewer, so the files the last pass never saw get read this time.
+      fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
+            {method:'POST', headers:{'Content-Type':'application/json'},
+             // #6776 — the ROW's repo, never the number alone. archie-code #71 and
+             // archie-platform #71 are different PRs; sending only the number had the
+             // server re-review a Dependabot bump while this pane showed an engine PR.
+             body: JSON.stringify(body)})
+          .then(function(r){ return r.json(); }).then(function(d) {
+              if (d.error) {
+                  _rbLcarsAlert({
+                      title: 'RE-REVIEW FAILED',
+                      message: d.error,
+                      okText: 'CLOSE',
+                      accent: '#ef4444',
+                      accentRgb: '239,68,68'
+                  });
+                  return;
+              }
+              _rbLcarsAlert({
+                  title: (d.reviewer && d.reviewer !== 'default' ? d.reviewer : 'F.O.R.G.E.')
+                         + ' RE-REVIEW DISPATCHED',
+                  message: 'Full diff review started (' + _prScopeLabel() + ').\n\nThe Reviews list refreshes when it lands.',
                 okText: 'OK',
                 accent: '#fbbf24',
                 accentRgb: '251,191,36'

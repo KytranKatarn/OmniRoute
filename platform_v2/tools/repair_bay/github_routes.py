@@ -1055,11 +1055,13 @@ def register_github_routes(bp, admin_required):
             repos_for_pr_number,
         )
         from .services.pr_diff_analyzer import (
+            REVIEWER_ALLOWLIST,
             _fetch_diff,
             _build_prompt,
             _run_forge_review,
             _obtain_review_summary,
             _notify_pr_reviewed,
+            reviewer_override,
             review_scope_override,
         )
 
@@ -1155,12 +1157,28 @@ def register_github_routes(bp, admin_required):
         except (TypeError, ValueError):
             _max_files = None
 
+        # Reviewer selector. Validated against the allowlist HERE, before any thread
+        # starts, so an unknown name is a clear 400 rather than a silently-ignored
+        # field that leaves the operator believing the review moved seats.
+        _reviewer = str(_body.get("reviewer") or "").strip() or None
+        if _reviewer and _reviewer not in REVIEWER_ALLOWLIST:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"unknown reviewer {_reviewer!r}",
+                        "allowed": list(REVIEWER_ALLOWLIST),
+                    }
+                ),
+                400,
+            )
+
         def _run_in_background():
             # The override is THREAD-LOCAL, so it has to be entered inside the
             # thread. Wrapping the Thread(...) construction instead would set it
             # on the request thread and this review would never see it.
             try:
-                with review_scope_override(plan=_plan, max_files=_max_files):
+                with review_scope_override(plan=_plan, max_files=_max_files), reviewer_override(_reviewer):
                     _do_review()
             except Exception as exc:
                 logger.error("[PRAnalyze] PR #%s failed: %s", pr_number, exc)
@@ -1201,7 +1219,16 @@ def register_github_routes(bp, admin_required):
                     "success": True,
                     "status": "analyzing",
                     "pr_number": pr_number,
-                    "message": "F.O.R.G.E. review dispatched — auto-refreshes in 60s",
+                    # Echo the reviewer so the UI states who was actually dispatched.
+                    # "default" is honest rather than a guess: with no override the
+                    # dispatcher picks, and _review_prefer_agent may still move the
+                    # seat for a machine-authored branch.
+                    "reviewer": _reviewer or "default",
+                    "message": (
+                        f"{_reviewer} review dispatched — auto-refreshes in 60s"
+                        if _reviewer
+                        else "F.O.R.G.E. review dispatched — auto-refreshes in 60s"
+                    ),
                 }
             ),
             202,

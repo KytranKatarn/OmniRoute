@@ -185,6 +185,8 @@ check('empty comment list', extract([]).codex, null);
 // explicitly or a failed fetch is displayed as "no review exists".
 const tplHtml = require('fs').readFileSync(
   __dirname + '/../../templates/tools/repair_bay.html', 'utf8');
+const routeSrc = require('fs').readFileSync(
+  __dirname + '/../../tools/repair_bay/github_routes.py', 'utf8');
 const crFetch = tplHtml.slice(html.indexOf("/coderabbit'"), html.indexOf("/coderabbit'") + 900);
 const cxFetch = tplHtml.slice(html.indexOf("/codex'"), html.indexOf("/codex'") + 900);
 check('CodeRabbit pane checks d.error', /if \(d\.error\)/.test(crFetch), true);
@@ -211,6 +213,19 @@ check('CODEX button title is hoisted above both branches',
 check('both CODEX buttons use the hoisted constants',
   (detail.match(/CODEX_BTN_CSS;/g) || []).length >= 2
   && (detail.match(/CODEX_BTN_TITLE;/g) || []).length >= 2, true);
+
+// A silently LIMIT-capped list is indistinguishable from data loss. The server now
+// returns total/truncated and the pane must SAY the cap rather than implying the list
+// is complete.
+check('PR list records the server total', /_prReviewTotal = /.test(tplHtml), true);
+check('PR list records the truncated flag', /_prReviewTruncated = !!d\.truncated/.test(tplHtml), true);
+check('PR list banner states how many are hidden',
+  /most recent of/.test(tplHtml) && /still on record/.test(tplHtml), true);
+check('PR count badge marks a capped list',
+  /list capped/.test(tplHtml), true);
+check('route sends total/truncated to the pane',
+  /"truncated": total > len\(result\)/.test(routeSrc), true);
+check('route sends the true total', /"total": total/.test(routeSrc), true);
 
 check('pane labels the verdict advisory',
   /model says APPROVE \(advisory\)/.test(src), true);

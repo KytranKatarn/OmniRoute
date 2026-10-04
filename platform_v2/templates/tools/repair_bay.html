@@ -3726,6 +3726,7 @@ window.loadPRReviews = function(state) {
     var list = document.getElementById('prReviewList');
     if (!list) return;
     var url = API + '/forge/pr-reviews?limit=200';
+    window._prReviewLimit = 200;
     if (state && state !== 'all') url += '&state=' + encodeURIComponent(state);
     list.textContent = '';
     var loading = document.createElement('div');
@@ -3735,12 +3736,35 @@ window.loadPRReviews = function(state) {
     list.appendChild(loading);
     fetch(url).then(function(r) { return r.json(); }).then(function(d) {
         var reviews = d.reviews || [];
+        // The list is LIMIT-capped server-side. Say so, and say how much is hidden -
+        // a bare "200" is indistinguishable from "all 200", which is how a capped
+        // list got read as data loss on 2026-10-04 (3,364 PRs are archived; the tab
+        // showed 200 with nothing saying anything was hidden).
+        window._prReviewTotal = (typeof d.total === 'number') ? d.total : reviews.length;
+        window._prReviewTruncated = !!d.truncated;
         // Stamped on SUCCESS only — a failed refresh must leave the previous timestamp
         // standing so the rows correctly go stale instead of looking freshly confirmed.
         window._prReviewFetchedAt = Date.now();
         var countEl = document.getElementById('prReviewCount');
-        if (countEl) countEl.textContent = reviews.length + ' PR' + (reviews.length !== 1 ? 's' : '');
-        list.textContent = '';
+        var _shown = reviews.length, _total = window._prReviewTotal;
+        if (countEl) {
+          countEl.textContent = window._prReviewTruncated
+            ? (_shown + ' of ' + _total + ' PRs - list capped')
+            : (_shown + ' PR' + (_shown !== 1 ? 's' : ''));
+        }
+        if (window._prReviewTruncated) {
+          var cap = document.createElement('div');
+          // Its own class: this is a NOTE, not a row. It originally reused
+          // 'dp-pr-empty-state', which made it indistinguishable from a clickable PR
+          // row to anything walking the list's children.
+          cap.className = 'dp-pr-cap-note';
+          cap.style.color = '#fbbf24';
+          cap.style.opacity = '0.85';
+          cap.textContent = 'Showing the ' + _shown + ' most recent of ' + _total +
+            ' tracked PRs (the server caps this list at ' + (window._prReviewLimit || '?') +
+            '). The older ones are still on record - page the API with a higher limit.';
+          list.insertBefore(cap, list.firstChild);
+        }
         if (!reviews.length) {
             var empty = document.createElement('div');
             empty.className = 'dp-pr-empty-state';
@@ -3751,6 +3775,7 @@ window.loadPRReviews = function(state) {
         reviews.forEach(function(pr) {
             var card = document.createElement('div');
             card.style.cssText = 'padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;transition:background 0.15s;';
+            card.setAttribute('data-pr-row', '1');
             card.onmouseenter = function(){ this.style.background='rgba(255,255,255,0.04)'; };
             card.onmouseleave = function(){ this.style.background=''; };
 

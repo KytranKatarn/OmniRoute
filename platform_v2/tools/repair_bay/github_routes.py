@@ -876,8 +876,13 @@ def register_github_routes(bp, admin_required):
     @login_required
     @admin_required
     def forge_pr_reviews_list():
-        """List tracked PR reviews with optional state/review_status filters."""
-        from .services.pr_review_service import list_reviews
+        """List tracked PR reviews with optional state/review_status filters.
+
+        Returns `total` and `truncated` alongside the rows. The listing is LIMIT-capped,
+        so without them the UI cannot tell "capped" from "complete" — it only ever
+        receives rows, and a silent cap is indistinguishable from data loss.
+        """
+        from .services.pr_review_service import count_reviews, list_reviews
 
         state = request.args.get("state")
         review_status = request.args.get("review_status")
@@ -887,9 +892,9 @@ def register_github_routes(bp, admin_required):
         cache_key = f"{state}:{review_status}:{limit}"
         now = time.time()
         if not bust and cache_key in _pr_reviews_cache:
-            ts, data = _pr_reviews_cache[cache_key]
+            ts, payload = _pr_reviews_cache[cache_key]
             if now - ts < _PR_REVIEWS_CACHE_TTL:
-                return jsonify({"reviews": data, "cached": True})
+                return jsonify({**payload, "cached": True})
 
         result = list_reviews(state=state, review_status=review_status, limit=limit)
         # MERGE ORDER (2026-09-11): rows carry `repo`; open rows are ranked per repo.
@@ -899,8 +904,22 @@ def register_github_routes(bp, admin_required):
             stamp_merge_order(result)
         except Exception as exc:
             logger.warning("forge_pr_reviews_list: merge_order stamping failed: %s", exc)
-        _pr_reviews_cache[cache_key] = (now, result)
-        return jsonify({"reviews": result})
+
+        # Same WHERE clause as the listing, so the count cannot disagree with the rows.
+        try:
+            total = count_reviews(state=state, review_status=review_status)
+        except Exception as exc:  # noqa: BLE001 - a count must never fail the listing
+            logger.warning("forge_pr_reviews_list: count failed: %s", exc)
+            total = len(result)
+
+        payload = {
+            "reviews": result,
+            "total": total,
+            "limit": limit,
+            "truncated": total > len(result),
+        }
+        _pr_reviews_cache[cache_key] = (now, payload)
+        return jsonify(payload)
 
     @bp.route("/api/forge/pr-reviews/<int:pr_number>", methods=["GET"])
     @login_required

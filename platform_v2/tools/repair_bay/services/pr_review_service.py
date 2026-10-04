@@ -1678,6 +1678,29 @@ def _summary_after_dismissals(pr_number, repo, summary, head_sha=None, cache=Non
         return summary
 
 
+def count_reviews(state: str = None, review_status: str = None) -> int:
+    """Total rows matching the same filters as `list_reviews`, ignoring `limit`.
+
+    The listing is LIMIT-capped, so the UI could only tell "truncated" by comparing the
+    row count to the limit — which cannot say HOW MANY are hidden. With 3,000+ closed
+    reviews a silently capped list is indistinguishable from data loss, which is exactly
+    what it was mistaken for on 2026-10-04. Same WHERE clause as the listing, so the
+    number cannot drift from the rows it describes.
+    """
+    query = "SELECT COUNT(*) AS n FROM pr_reviews WHERE 1=1"
+    params: list = []
+    if state:
+        query += " AND state = %s"
+        params.append(state)
+    if review_status:
+        query += " AND review_status = %s"
+        params.append(review_status)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(query, params)
+        row = cur.fetchone()
+    return int(row["n"] if row and "n" in row else 0)
+
+
 def list_reviews(state: str = None, review_status: str = None, limit: int = 50) -> list:
     """List PR reviews with optional filters."""
     query = "SELECT * FROM pr_reviews WHERE 1=1"

@@ -72,6 +72,27 @@ app.config.from_object(Config)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 app.config["PREFERRED_URL_SCHEME"] = "https"  # Behind NPM SSL proxy
 app.config["SANDBOX_MODE"] = os.getenv("SANDBOX_MODE", "false").lower() == "true"
+
+# Template auto-reload. Flask defaults TEMPLATES_AUTO_RELOAD to app.debug, and this app
+# runs under gunicorn with FLASK_ENV=production (debug False), so Jinja cached every
+# template in EACH of the 4 workers — indefinitely.
+#
+# That is a trap here specifically because platform_v2 is bind-mounted: editing a
+# template in the live tree looks live (the file IS current) while the running process
+# keeps serving the old bytes. Measured on 2026-10-04: a fix to repair_bay.html was
+# verified on disk, in the container, and by md5 — and the running page still threw on
+# the deleted line. Only a restart applied it.
+#
+# The cost is one stat() per template per render, which is nothing at this traffic level,
+# and it makes the bind mount behave the way the deploy docs already promise ("volume-
+# mounted hub code runs whatever branch is checked out").
+#
+# CAVEAT, and it is the reason this comment exists: this covers TEMPLATES ONLY. Python
+# modules are imported once per worker, so editing a route or service still needs a
+# restart. Auto-reload removes one silent-staleness trap; it does not make the platform
+# hot-reloadable. Set TEMPLATES_AUTO_RELOAD=false to turn it off.
+app.config["TEMPLATES_AUTO_RELOAD"] = os.getenv("TEMPLATES_AUTO_RELOAD", "true").lower() == "true"
+
 if app.config["SANDBOX_MODE"]:
     import logging as _logging
 

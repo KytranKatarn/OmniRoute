@@ -98,6 +98,19 @@ check("the server's own message is echoed", /body\.message/.test(fn), true);
 // The endpoint is Python, so this re-implements the same parse to pin the RULES the
 // endpoint must follow. It is a specification test, not a duplicate of the impl.
 const markerRe = /=+\s*CODEX REVIEW\s*=+/i;
+
+// The REAL posted body, captured from PR #3618. Note: NO banner — codex_pr_review.sh
+// echoes "==== CODEX REVIEW ====" to the terminal but pipes only $BODY to
+// `gh pr review --comment`. Matching the banner therefore finds nothing, ever.
+const REAL_POSTED = [
+  'VERDICT: REQUEST_CHANGES',
+  'The pane can display an outdated review and remove meaningful text from findings.',
+  '- [medium] routes.py:1062 - Only the first 100 comments are fetched.',
+  '- [medium] routes.py:1091 - A finding containing `/api/items/<int:item_id>` loses its parameter, and `x < 0 or x > 100` becomes `x  100`.',
+].join('\n');
+check('detects the REAL posted body (no banner)', markerRe.test(REAL_POSTED) || /^\s*VERDICT:/.test(REAL_POSTED), true);
+check('banner is genuinely absent from a real post', markerRe.test(REAL_POSTED), false);
+
 const verdictRe = /^\s*VERDICT:\s*([A-Z_]+)/m;
 
 function extract(comments) {
@@ -146,6 +159,23 @@ check('rejects a CodeRabbit heading that merely says "Codex review"',
   null);
 check('rejects "codex review" with no delimiters',
   extract([{body: 'I looked at the codex review and it seems fine'}]).codex, null);
+
+// Stripping tags must NOT eat code spans — measured: a blanket <[^>]+> turned
+// `/items/<int:item_id>` into `/items/` and `x < 0 or x > 100` into `x  100`.
+function stripTags(html) {
+  const spans = [];
+  // `m` IS the match here (no capture group), so push `m` — m[0] would be its
+  // first character. Mirrors Python's mo.group(0).
+  const stash = (m) => { spans.push(m); return '\u0000' + (spans.length - 1) + '\u0000'; };
+  let out = String(html).replace(/`[^`]+`/g, stash).replace(/<[^>]+>/g, '');
+  return out.replace(/\u0000(\d+)\u0000/g, (m, i) => spans[+i]);
+}
+check('code span with an angle bracket survives tag stripping',
+  stripTags('a `/items/<int:item_id>` b'), 'a `/items/<int:item_id>` b');
+check('comparison operator in a code span survives',
+  stripTags('`x < 0 or x > 100` becomes `x  100`'),
+  '`x < 0 or x > 100` becomes `x  100`');
+check('a bare tag IS still stripped', stripTags('<!-- x --><b>bold</b>'), 'bold');
 check('handles a review with no VERDICT line',
   extract([{body: '==== CODEX REVIEW ====\nnothing conclusive'}]).verdict, null);
 check('empty comment list', extract([]).codex, null);

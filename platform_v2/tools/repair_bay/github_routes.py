@@ -1006,9 +1006,21 @@ def register_github_routes(bp, admin_required):
             # Skip "Review triggered" action replies
             if "Actions performed" in body or "Review triggered" in body:
                 continue
-            clean = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
-            clean = re.sub(r"<[^>]+>", "", clean)
-            clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+                clean = re.sub(r"<!--.*?-->", "", clean, flags=re.DOTALL)
+                # Hide inline code spans before stripping tags, then restore them.
+                # A blanket <[^>]+> delete CORRUPTS findings: codex cites real paths and
+                # expressions, so `/items/<int:item_id>` loses its parameter and
+                # `x < 0 or x > 100` silently becomes `x  100` — measured on the first
+                # real review this endpoint displayed.
+                spans: list = []
+
+                def _stash(mo):
+                    spans.append(mo.group(0))
+                    return "\x00%d\x00" % (len(spans) - 1)
+
+                clean = re.sub(r"`[^`]+`", _stash, clean)
+                clean = re.sub(r"<[^>]+>", "", clean)
+                clean = re.sub(r"\x00(\d+)\x00", lambda m: spans[int(m.group(1))], clean)
             if "walkthrough" in body.lower() or "Walkthrough" in body:
                 walkthrough = clean
                 break
@@ -1059,7 +1071,13 @@ def register_github_routes(bp, admin_required):
 
         token = os.getenv("GITHUB_TOKEN", "")
         repo = "KytranKatarn/archie-platform"
-        url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments?per_page=100"
+        # CODEX posts with `gh pr review --comment`, which lands in the PULL REQUEST
+        # REVIEWS collection — NOT /issues/N/comments. Reading issue comments (right
+        # for CodeRabbit, which posts a comment) silently finds nothing: the first real
+        # end-to-end run posted a review and this pane reported none. Unit tests missed
+        # it because the fixture was a fabricated issue comment — the exact shape the
+        # code wrongly assumed.
+        url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews?per_page=100"
         try:
             req = urllib.request.Request(
                 url,
@@ -1074,24 +1092,45 @@ def register_github_routes(bp, admin_required):
         except Exception as exc:
             return jsonify({"error": str(exc), "codex": None}), 502
 
-        marker = re.compile(r"=+\s*CODEX REVIEW\s*=+", re.IGNORECASE)
+        # The POSTED body starts with "VERDICT: ...". The "==== CODEX REVIEW ====" banner
+        # is only echo'd to the operator's terminal — codex_pr_review.sh pipes just $BODY
+        # to `gh pr review --comment` — so matching the banner finds nothing, ever.
+        # Measured: the first real posting produced a review this pane could not see.
+        #
+        # A leading VERDICT is the reliable signal, and cannot fire on an ordinary PR
+        # comment because the line must START the body.
+        banner = re.compile(r"=+\s*CODEX REVIEW\s*=+", re.IGNORECASE)
         verdict = re.compile(r"^\s*VERDICT:\s*([A-Z_]+)", re.MULTILINE)
         newest = None
         newest_verdict = None
         newest_at = None
         for c in comments:
             body = c.get("body") or ""
-            m = marker.search(body)
-            if not m:
+            if not verdict.search(body) and not banner.search(body):
                 continue
-            clean = body[m.start() :]
+            # Prefer the banner as a start offset when present, else the top of the body.
+            bm = banner.search(body)
+            clean = body[bm.start() :] if bm else body.lstrip()
             clean = re.sub(r"<!--.*?-->", "", clean, flags=re.DOTALL)
+            # Hide inline code spans before stripping tags, then restore them.
+            # A blanket <[^>]+> delete CORRUPTS findings: codex cites real paths and
+            # expressions, so `/items/<int:item_id>` loses its parameter and
+            # `x < 0 or x > 100` silently becomes `x  100` — measured on the first real
+            # review this endpoint displayed.
+            spans: list = []
+
+            def _stash(mo):
+                spans.append(mo.group(0))
+                return "\x00%d\x00" % (len(spans) - 1)
+
+            clean = re.sub(r"`[^`]+`", _stash, clean)
             clean = re.sub(r"<[^>]+>", "", clean)
+            clean = re.sub(r"\x00(\d+)\x00", lambda m: spans[int(m.group(1))], clean)
             clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
             vm = verdict.search(clean)
             newest = clean
             newest_verdict = vm.group(1) if vm else None
-            newest_at = c.get("created_at")
+            newest_at = c.get("submitted_at") or c.get("created_at")
 
         result = {
             "codex": newest,

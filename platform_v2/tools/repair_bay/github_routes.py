@@ -1025,21 +1025,26 @@ def register_github_routes(bp, admin_required):
             # Skip "Review triggered" action replies
             if "Actions performed" in body or "Review triggered" in body:
                 continue
-                clean = re.sub(r"<!--.*?-->", "", clean, flags=re.DOTALL)
-                # Hide inline code spans before stripping tags, then restore them.
-                # A blanket <[^>]+> delete CORRUPTS findings: codex cites real paths and
-                # expressions, so `/items/<int:item_id>` loses its parameter and
-                # `x < 0 or x > 100` silently becomes `x  100` — measured on the first
-                # real review this endpoint displayed.
-                spans: list = []
+            clean = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+            # Hide inline code spans before stripping tags, then restore them afterwards.
+            # A blanket <[^>]+> delete CORRUPTS content: `/items/<int:item_id>` loses its
+            # parameter and `x < 0 or x > 100` silently becomes `x  100`.
+            #
+            # The source is `body`, NEVER `clean`. #3620 wrote `clean` on the line above,
+            # a self-reference: `clean` was never assigned, so this raised NameError on
+            # EVERY request and the CodeRabbit pane 502'd for every PR. It stayed invisible
+            # because the pane rendered a failed fetch as "(No CodeRabbit review)" — #3621
+            # fixed that lie and this regression surfaced through it immediately.
+            spans: list = []
 
-                def _stash(mo):
-                    spans.append(mo.group(0))
-                    return "\x00%d\x00" % (len(spans) - 1)
+            def _stash(mo):
+                spans.append(mo.group(0))
+                return "\x00%d\x00" % (len(spans) - 1)
 
-                clean = re.sub(r"`[^`]+`", _stash, clean)
-                clean = re.sub(r"<[^>]+>", "", clean)
-                clean = re.sub(r"\x00(\d+)\x00", lambda m: spans[int(m.group(1))], clean)
+            clean = re.sub(r"`[^`]+`", _stash, clean)
+            clean = re.sub(r"<[^>]+>", "", clean)
+            clean = re.sub(r"\x00(\d+)\x00", lambda m: spans[int(m.group(1))], clean)
+            clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
             if "walkthrough" in body.lower() or "Walkthrough" in body:
                 walkthrough = clean
                 break

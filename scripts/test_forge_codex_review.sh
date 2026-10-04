@@ -177,5 +177,42 @@ run_stubbed >/dev/null 2>&1
 [ ! -s "$LOG" ] && ok "plain sweep with an empty queue still reviews nothing" \
                  || bad "plain sweep reviewed $(wc -l < "$LOG") PRs with an empty queue"
 
+# ── 13. the count line must not claim "open PR(s)" for a targeted non-open PR ────
+# The discriminator used to be a grep for the PR number inside the list, but a
+# SYNTHESISED entry is literally that number — so the test always matched and the honest
+# "not in the open list" message never printed. An explicit flag fixes it.
+printf '1001\tshaA\tone\n' > "$STUB_DIR/prs.tsv"
+: > "$STATE"; : > "$LOG"
+out="$(PR_FIXTURE="$STUB_DIR/prs.tsv" run_stubbed --pr 1001)"
+grep -q '1 open PR(s)' <<< "$out" \
+  && ok "a genuinely open PR still reports the open count" \
+  || bad "open PR count lost for a real open PR" "$out"
+
+: > "$STUB_DIR/empty.tsv"; : > "$LOG"; : > "$STATE"
+out="$(PR_FIXTURE="$STUB_DIR/empty.tsv" run_stubbed --pr 4242)"
+grep -q 'open PR(s)' <<< "$out" \
+  && bad "claims 'open PR(s)' for a PR that is not open" "$out" \
+  || ok "does not claim 'open PR(s)' for a targeted non-open PR"
+grep -q 'not in the open list' <<< "$out" \
+  && ok "says the targeted PR is not in the open list" \
+  || bad "missing the honest not-in-open-list message" "$out"
+
+# ── 14. the shipped scripts must be executable ──────────────────────────────────
+# Both merged as mode 100644 even though they carry shebangs and are documented as
+# `scripts/X --once` entry points. A runner invoked that way fails "Permission denied",
+# which reads as a broken queue rather than a missing exec bit. Same defect class as
+# #3612's driver. git ls-tree is the check: the mode is recorded in the TREE, so this
+# catches it regardless of the local filesystem.
+REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$REPO_ROOT" ]; then
+  ok "exec-bit check skipped (not inside a git work tree)"
+else
+  for f in forge_codex_review.sh codex_review_queue.sh; do
+    mode=$(git -C "$REPO_ROOT" ls-tree HEAD "scripts/$f" | awk '{print $1}')
+    [ "$mode" = "100755" ] && ok "scripts/$f is executable in the tree ($mode)" \
+                           || bad "scripts/$f merged as $mode — run it via 'bash' or fix the mode"
+  done
+fi
+
 printf '\n  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

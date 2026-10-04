@@ -43,6 +43,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REVIEWER="$SCRIPT_DIR/codex_pr_review.sh"
 
 DRY_RUN=0
+TARGETED_NOT_OPEN=0
 FORCE=0
 ONLY_PR=""
 LIMIT=0
@@ -134,16 +135,20 @@ fi
     # disables the unchanged-skip check for this one run — correct, because we have not
     # seen this head before.
     printf '    no open PRs — reviewing PR #%s directly\n' "$ONLY_PR"
+    TARGETED_NOT_OPEN=1
     PR_LIST="$ONLY_PR"$'\t''(targeted)'
   fi
 
 OPEN_COUNT=$(printf '%s\n' "$PR_LIST" | grep -c . || true)
-  if [ -n "$ONLY_PR" ] && ! printf '%s\n' "$PR_LIST" | grep -q "$ONLY_PR$(printf '\t')"; then
+  # A synthesised entry MATCHES the old grep test (it is literally the PR number in
+  # the list), so that test could never tell 'targeted and not open' from 'open'. Use an
+  # explicit flag instead.
+  if [ "$TARGETED_NOT_OPEN" -eq 1 ]; then
     # The targeted PR was not in the open list — it is merged or otherwise closed.
     # Printing "1 open PR(s)" here would be a small lie about what was reviewed.
     printf '    reviewing PR #%s directly (not in the open list)\n' "$ONLY_PR"
   else
-printf '    %s open PR(s)\n' "$OPEN_COUNT"
+    printf '    %s open PR(s)\n' "$OPEN_COUNT"
   fi
 
 reviewed=0; skipped=0; failed=0

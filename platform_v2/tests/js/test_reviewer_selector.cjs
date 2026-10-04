@@ -67,5 +67,32 @@ check('row A choice not read for row B', _prSelectedReviewer(other), 'F.O.R.G.E.
 const empty = mkEl('div');
 check('no selector -> empty (server default)', _prSelectedReviewer(empty), '');
 
+// ── CODEX button: the success dialog must follow the server's answer ────────────
+// It used to fire BEFORE the fetch, so a duplicate, an unavailable spool, or a network
+// failure all showed "queued" first and the error second — a false success, then a
+// correction. Assert ORDER, not just that the strings exist.
+const src = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'templates', 'tools', 'repair_bay.html'), 'utf8');
+const fnStart = src.indexOf('function queueCodexReview');
+const fnEnd = src.indexOf('\n  }', fnStart);
+const fn = src.slice(fnStart, fnEnd);
+
+check('queueCodexReview is defined', fn.length > 0, true);
+const fetchAt = fn.indexOf('fetch(');
+const firstAlert = fn.indexOf('_rbLcarsAlert');
+// The opening dialog is legitimately before the fetch; what must NOT happen is a
+// QUEUED/success dialog before it.
+const preFetch = fn.slice(0, fetchAt);
+check('no success/queued title before the fetch',
+  !/CODEX REVIEW QUEUED|CODEX DRY RUN QUEUED/.test(preFetch), true);
+check('no false-success wording before the fetch',
+  !/added to the CODEX queue/.test(preFetch), true);
+check('the pending dialog is shown before the fetch', /REQUESTED/.test(preFetch), true);
+check('success title appears only after the fetch',
+  fn.indexOf('CODEX REVIEW QUEUED') > fetchAt, true);
+check('a failure path exists', /CODEX REVIEW NOT QUEUED/.test(fn), true);
+check('a non-JSON body is handled', /non-JSON response/.test(fn), true);
+check("the server's own message is echoed", /body\.message/.test(fn), true);
+
 console.log('  FAILURES:', fails.length ? fails.join(', ') : 'none');
 process.exit(fails.length ? 1 : 0);

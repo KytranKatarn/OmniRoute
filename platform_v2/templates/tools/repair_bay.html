@@ -4407,14 +4407,13 @@ function _prScopeBody(extra) {
   // picks it up. That means the button QUEUES work — it is not synchronous, and it says so.
   function queueCodexReview(prNumber, repo, dryRun) {
       if (!prNumber) { return; }
-      var label = dryRun ? 'CODEX dry run queued' : 'CODEX review queued';
+      // CODEX REVIEW FIX: the success dialog used to be shown BEFORE the fetch, so a
+      // duplicate submission, an unavailable spool, or a network failure all displayed
+      // "queued" first and the real error arrived afterwards — a false success followed
+      // by a correction. Report only what the server actually said.
       _rbLcarsAlert({
-          title: label.toUpperCase(),
-          message: 'PR #' + prNumber + ' added to the CODEX queue.\n\n'
-              + 'A full-diff review takes minutes. Nothing appears on the PR until it '
-              + 'finishes, and the request is picked up by codex_review_queue.sh on the host.\n\n'
-              + (dryRun ? 'Dry run: the review is produced but NOT posted to GitHub.\n\n' : '')
-              + 'This panel does not live-update — reopen the PR to see the result.',
+          title: (dryRun ? 'CODEX DRY RUN' : 'CODEX REVIEW') + ' REQUESTED',
+          message: 'Sending the request for PR #' + prNumber + '\u2026',
           okText: 'OK',
           accent: '#22d3ee',
           accentRgb: '34,211,238'
@@ -4423,21 +4422,43 @@ function _prScopeBody(extra) {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({repo: repo || null, dry_run: !!dryRun})
-      }).then(function(r){ return r.json().then(function(d){
-          return {ok: r.ok, status: r.status, data: d};
+      }).then(function(r){ return r.json().catch(function(){
+          // A non-JSON body (proxy error, 502 HTML) must not surface as a parse crash.
+          return {error: 'HTTP ' + r.status + ' (non-JSON response)'};
+      }).then(function(d){
+          return {ok: r.ok, status: r.status, data: d || {}};
       }); }).then(function(res){
-          if (!res.ok) {
+          var body = res.data || {};
+          if (!res.ok || body.success === false) {
               _rbLcarsAlert({
                   title: 'CODEX REVIEW NOT QUEUED',
-                  message: String((res.data && res.data.error) || ('HTTP ' + res.status)),
-                  okText: 'CLOSE', accent: '#ef4444', accentRgb: '239,68,68'
+                  message: String(body.error || ('The server refused the request (HTTP '
+                      + res.status + ').')),
+                  okText: 'CLOSE',
+                  accent: '#ef4444',
+                  accentRgb: '239,68,68'
               });
+              return;
           }
+          // Echo the server's own message rather than asserting success from the browser.
+          _rbLcarsAlert({
+              title: (dryRun ? 'CODEX DRY RUN QUEUED' : 'CODEX REVIEW QUEUED'),
+              message: String(body.message || ('PR #' + prNumber + ' queued.'))
+                  + '\n\nA full-diff review takes minutes, and the request is picked up by '
+                  + 'codex_review_queue.sh on the host \u2014 not by this page.'
+                  + (dryRun ? '\n\nDry run: the review is produced but NOT posted to GitHub.' : '')
+                  + '\n\nThis panel does not live-update \u2014 reopen the PR to see the result.',
+              okText: 'OK',
+              accent: '#22d3ee',
+              accentRgb: '34,211,238'
+          });
       }).catch(function(err){
           _rbLcarsAlert({
               title: 'CODEX REVIEW FAILED',
-              message: String(err && err.message || err),
-              okText: 'CLOSE', accent: '#ef4444', accentRgb: '239,68,68'
+              message: String((err && err.message) || err),
+              okText: 'CLOSE',
+              accent: '#ef4444',
+              accentRgb: '239,68,68'
           });
       });
   }

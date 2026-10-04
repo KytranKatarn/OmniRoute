@@ -156,5 +156,26 @@ out="$(PR_FIXTURE="$STUB_DIR/empty.tsv" run_stubbed)"; rc=$?
 [ "$rc" -eq 0 ] && ok "empty queue exits 0 (a quiet repo is healthy, not an error)" \
                 || bad "empty queue exited $rc — would page on every scheduled run"
 
+# ── 11. --pr is honoured even when the open list is empty ───────────────────────
+# Regression (2026-10-04): the empty-queue early-exit ran BEFORE the --pr filter, so
+# `--pr N` on a repo with no open PRs printed "no open PRs — nothing to review", exited
+# 0, and the queue runner recorded status:"ok" for a review that never happened. Found by
+# running the real Repair Bay button path against a just-merged PR.
+: > "$STUB_DIR/empty.tsv"; : > "$LOG"; : > "$STATE"
+out="$(PR_FIXTURE="$STUB_DIR/empty.tsv" run_stubbed --pr 4242)"
+calls=$(wc -l < "$LOG")
+[ "$calls" -eq 1 ] && grep -q '^4242 --post$' "$LOG" \
+  && ok "--pr reviews the named PR even with no open PRs" \
+  || bad "--pr was swallowed by the empty-queue exit ($calls calls)" "$out"
+grep -q 'nothing to review' <<< "$out" \
+  && bad "still reports 'nothing to review' for a targeted run" \
+  || ok "does not claim 'nothing to review' for a targeted run"
+
+# ── 12. ...but a plain sweep with an empty queue still reviews nothing ───────────
+: > "$STUB_DIR/empty.tsv"; : > "$LOG"; : > "$STATE"
+run_stubbed >/dev/null 2>&1
+[ ! -s "$LOG" ] && ok "plain sweep with an empty queue still reviews nothing" \
+                 || bad "plain sweep reviewed $(wc -l < "$LOG") PRs with an empty queue"
+
 printf '\n  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

@@ -114,16 +114,37 @@ if ! PR_LIST="$(list_prs)"; then
   die "gh could not list open PRs in $REPO (auth, network, or repo name?). Nothing was run."
 fi
 
-if [ -z "$PR_LIST" ]; then
-  # A quiet queue is the normal state of a healthy repo, not an error. Exiting non-zero
-  # here would make every scheduled run look like a failure.
-  printf '    no open PRs — nothing to review\n'
-  printf '==> 0 reviewed, 0 unchanged-skipped, 0 failed\n'
-  exit 0
-fi
+# An EMPTY open list is only "nothing to do" when we were asked to sweep the queue.
+  # With --pr N the caller named the target explicitly, and it must be honoured even when
+  # that PR is not in the open list — a just-merged PR, or one reviewed the moment after
+  # it closed. Short-circuiting here made `--pr 999999` print "no open PRs — nothing to
+  # review", exit 0, and the queue runner record status:"ok" for a review that never
+  # ran. A silent success is worse than a failure; the Repair Bay button reports on it.
+  if [ -z "$PR_LIST" ] && [ -z "$ONLY_PR" ]; then
+    # A quiet queue is the normal state of a healthy repo, not an error. Exiting non-zero
+    # here would make every scheduled run look like a failure.
+    printf '    no open PRs — nothing to review\n'
+    printf '==> 0 reviewed, 0 unchanged-skipped, 0 failed\n'
+    exit 0
+  fi
+
+  if [ -z "$PR_LIST" ]; then
+    # Targeted run with an empty open list: synthesise a single-entry list so the loop
+    # below reviews exactly what was asked for. The head SHA is unknown here, which
+    # disables the unchanged-skip check for this one run — correct, because we have not
+    # seen this head before.
+    printf '    no open PRs — reviewing PR #%s directly\n' "$ONLY_PR"
+    PR_LIST="$ONLY_PR"$'\t''(targeted)'
+  fi
 
 OPEN_COUNT=$(printf '%s\n' "$PR_LIST" | grep -c . || true)
+  if [ -n "$ONLY_PR" ] && ! printf '%s\n' "$PR_LIST" | grep -q "$ONLY_PR$(printf '\t')"; then
+    # The targeted PR was not in the open list — it is merged or otherwise closed.
+    # Printing "1 open PR(s)" here would be a small lie about what was reviewed.
+    printf '    reviewing PR #%s directly (not in the open list)\n' "$ONLY_PR"
+  else
 printf '    %s open PR(s)\n' "$OPEN_COUNT"
+  fi
 
 reviewed=0; skipped=0; failed=0
 printf '\n'

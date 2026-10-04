@@ -207,12 +207,47 @@ REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || true)"
 if [ -z "$REPO_ROOT" ]; then
   ok "exec-bit check skipped (not inside a git work tree)"
 else
-  for f in forge_codex_review.sh codex_review_queue.sh; do
+  for f in forge_codex_review.sh codex_review_queue.sh codex_pr_review.sh; do
     mode=$(git -C "$REPO_ROOT" ls-tree HEAD "scripts/$f" | awk '{print $1}')
     [ "$mode" = "100755" ] && ok "scripts/$f is executable in the tree ($mode)" \
                            || bad "scripts/$f merged as $mode — run it via 'bash' or fix the mode"
   done
 fi
+
+# ── 15. a targeted PR outside the OPEN list is still reviewed ────────────────────
+# Measured live: with #3619 open, `--pr 3618` (merged) reviewed NOTHING while another PR
+# was open. #3615 synthesised the entry only for an EMPTY list, so this case slipped
+# through — and it first surfaced as {"rc":0,"status":"ok"} for a review that never ran.
+printf '1001\tshaA\tone\n1002\tshaB\ttwo\n' > "$STUB_DIR/prs.tsv"
+: > "$STATE"; : > "$LOG"
+out="$(PR_FIXTURE="$STUB_DIR/prs.tsv" run_stubbed --pr 4242)"; rc=$?
+[ "$rc" -eq 0 ] && ok "targeted PR absent from a non-empty list still exits 0" \
+                || bad "refused a PR the operator explicitly named" "$out"
+[ "$(wc -l < "$LOG")" -eq 1 ] && grep -q '^4242 --post$' "$LOG" \
+  && ok "  and reviews exactly that PR" \
+  || bad "reviewed $(wc -l < "$LOG") PRs, expected 1: $(cat "$LOG")"
+grep -q 'not in the open list' <<< "$out" \
+  && ok "  and says it is not in the open list" || bad "no explanation given" "$out"
+
+# The other PRs in the list must NOT be dragged along by the synthesis.
+: > "$STATE"; : > "$LOG"
+run_stubbed --pr 4242 >/dev/null 2>&1
+grep -q '^1001 ' "$LOG" && bad "also reviewed #1001 — synthesis widened the sweep" \
+                       || ok "  the open PRs are left alone"
+
+# A targeted PR that IS in the list behaves as before.
+: > "$STATE"; : > "$LOG"
+run_stubbed --pr 1002 >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && [ "$(wc -l < "$LOG")" -eq 1 ] \
+  && ok "a targeted PR that IS in the list still reviews exactly that one" \
+  || bad "in-list targeting broke (rc=$rc)"
+
+# An untargeted sweep must NOT synthesise anything.
+: > "$STUB_DIR/empty.tsv"; : > "$STATE"; : > "$LOG"
+run_stubbed >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && [ ! -s "$LOG" ] \
+  && ok "an untargeted sweep with an empty queue still reviews nothing" \
+  || bad "empty-queue sweep changed (rc=$rc)"
 
 printf '\n  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

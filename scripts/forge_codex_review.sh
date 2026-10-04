@@ -129,14 +129,20 @@ fi
     exit 0
   fi
 
-  if [ -z "$PR_LIST" ]; then
-    # Targeted run with an empty open list: synthesise a single-entry list so the loop
-    # below reviews exactly what was asked for. The head SHA is unknown here, which
-    # disables the unchanged-skip check for this one run — correct, because we have not
-    # seen this head before.
-    printf '    no open PRs — reviewing PR #%s directly\n' "$ONLY_PR"
+  # CODEX REVIEW FIX: a targeted PR that is not in the OPEN list is still what the caller
+  # asked for — merged, closed, or past the first page. Synthesise the entry so the loop
+  # reviews it directly.
+  #
+  # #3615 did this only for an EMPTY list, so `--pr <merged>` worked while nothing else
+  # was open and then silently reviewed NOTHING as soon as another PR was open. The
+  # silence was the worse bug; this general case is the one actually hit in practice.
+  if [ -n "$ONLY_PR" ] && ! printf '%s\n' "$PR_LIST" | grep -q "^$ONLY_PR$(printf '\t')"; then
+    printf '    PR #%s is not in the open list — reviewing it directly\n' "$ONLY_PR"
     TARGETED_NOT_OPEN=1
-    PR_LIST="$ONLY_PR"$'\t''(targeted)'
+    # Head SHA unknown, so the unchanged-skip check is disabled for this run — correct,
+    # because this head has not been seen before.
+    PR_LIST="${PR_LIST:+$PR_LIST$'
+'}$ONLY_PR$(printf '\t')(targeted)"
   fi
 
 OPEN_COUNT=$(printf '%s\n' "$PR_LIST" | grep -c . || true)
@@ -151,13 +157,20 @@ OPEN_COUNT=$(printf '%s\n' "$PR_LIST" | grep -c . || true)
     printf '    %s open PR(s)\n' "$OPEN_COUNT"
   fi
 
-reviewed=0; skipped=0; failed=0
+reviewed=0; skipped=0; failed=0; matched_target=0
 printf '\n'
 
 while IFS=$'\t' read -r pr sha title; do
   [ -n "${pr:-}" ] || continue
 
-  if [ -n "$ONLY_PR" ] && [ "$pr" != "$ONLY_PR" ]; then continue; fi
+  if [ -n "$ONLY_PR" ]; then
+    # CODEX REVIEW FIX: a non-match used to `continue` silently, so `--pr N` against a
+    # list that does not contain N reviewed NOTHING and still exited 0 — the queue
+    # recorded status:"ok" for a review that never ran. Same silent-success class as
+    # #3615, in the branch that fix did not cover (it only handled an EMPTY list).
+    [ "$pr" = "$ONLY_PR" ] || continue
+    matched_target=1
+  fi
   if [ "$LIMIT" -gt 0 ] && [ "$reviewed" -ge "$LIMIT" ]; then break; fi
 
   prev="$(last_sha_for "$pr")"
@@ -190,6 +203,13 @@ while IFS=$'\t' read -r pr sha title; do
     failed=$((failed + 1))
   fi
 done <<< "$PR_LIST"
+
+if [ -n "$ONLY_PR" ] && [ "$matched_target" -eq 0 ]; then
+  c_red "FATAL: PR #$ONLY_PR was not in the list this run reviewed" >&2
+  c_red "       (open PRs: $OPEN_COUNT). Nothing was reviewed." >&2
+  printf '\n==> 0 reviewed, %s unchanged-skipped, %s failed\n' "$skipped" "$failed" >&2
+  exit 1
+fi
 
 printf '\n==> %s reviewed, %s unchanged-skipped, %s failed\n' "$reviewed" "$skipped" "$failed"
 printf '    Findings land as PR comments. They do NOT satisfy branch protection and\n'

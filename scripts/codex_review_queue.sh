@@ -166,10 +166,21 @@ drain_one() {
     local args=(--pr "$pr")
     grep -q '"dry_run"[[:space:]]*:[[:space:]]*true' "$claim" && args+=(--dry-run)
     # Pass the repo through when we have one, or a cross-repo PR reviews the wrong code.
+    # `timeout` EXECs its argument, so `timeout ... bash "$DRIVER"` is NOT enough when
+    # $DRIVER is 0644 — it resolves the path, tries to exec it, and dies rc=126 with
+    # "Permission denied". Measured live: codex_pr_review.sh merged as 100644 and every
+    # queued review failed that way, reported as rc=1.
+    #
+    # `bash -c 'exec bash "$0" "$@"'` hands the path to bash as an ARGUMENT, so the
+    # script is read by the interpreter and its exec bit is irrelevant. That makes the
+    # whole class of file-mode failure impossible from the runner, whatever git recorded.
+    _drive() { exec bash "$DRIVER" "$@"; }
     if [ "$use_repo" -eq 1 ]; then
-      REPO="$repo" timeout "${REVIEW_TIMEOUT:-900}" bash "$DRIVER" "${args[@]}" > "$log" 2>&1
+      REPO="$repo" timeout "${REVIEW_TIMEOUT:-900}" bash -c 'exec bash "$0" "$@"' \
+        "$DRIVER" "${args[@]}" > "$log" 2>&1
     else
-      timeout "${REVIEW_TIMEOUT:-900}" bash "$DRIVER" "${args[@]}" > "$log" 2>&1
+      timeout "${REVIEW_TIMEOUT:-900}" bash -c 'exec bash "$0" "$@"' \
+        "$DRIVER" "${args[@]}" > "$log" 2>&1
     fi
     rc=$?
 

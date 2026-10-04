@@ -4324,6 +4324,40 @@ function showPRDetail(pr) {
         })
         .catch(function(){ crBody.textContent = 'Could not load CodeRabbit review.'; });
 
+    // CODEX section — same shape as CodeRabbit, because CODEX also posts its verdict
+    // as a PR comment. Without it the CODEX button queues work whose findings are
+    // readable only on GitHub, i.e. invisible in the tool that asked for it.
+    var cxSection = document.createElement('div');
+    cxSection.style.cssText = crSection.style.cssText;
+    var cxLabel = document.createElement('div');
+    cxLabel.style.cssText = crLabel.style.cssText;
+    cxLabel.textContent = 'CODEX (CLI)';
+    var cxVerdict = document.createElement('span');
+    cxVerdict.style.cssText = 'font-size:0.6rem;letter-spacing:0.5px;';
+    cxLabel.appendChild(cxVerdict);
+    var cxBody = document.createElement('div');
+    cxBody.style.cssText = crBody.style.cssText;
+    cxBody.textContent = 'Loading\u2026';
+    cxSection.appendChild(cxLabel);
+    cxSection.appendChild(cxBody);
+    wrap.appendChild(cxSection);
+
+    fetch(API + '/forge/pr-reviews/' + pr.pr_number + '/codex')
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+            if (d.error) { cxBody.textContent = 'Could not load the CODEX review (' + d.error + ').'; return; }
+            // A model-emitted VERDICT is advisory only. It is labelled as such so it can
+            // never be read as Repair Bay's own merge authority — the merge gate reads
+            // pr_reviews.ai_summary, never this comment.
+            var v = d.codex_verdict;
+            if (v === 'APPROVE') { cxVerdict.textContent = '\u2014 model says APPROVE (advisory)'; cxVerdict.style.color = '#4ade80'; }
+            else if (v === 'REQUEST_CHANGES') { cxVerdict.textContent = '\u2014 model says REQUEST_CHANGES'; cxVerdict.style.color = '#ef4444'; }
+            else if (v) { cxVerdict.textContent = '\u2014 ' + v; cxVerdict.style.color = '#fbbf24'; }
+            cxBody.textContent = d.codex
+                || '(No CODEX review on this PR \u2014 use the CODEX review button to queue one)';
+        })
+        .catch(function(){ cxBody.textContent = 'Could not load the CODEX review.'; });
+
     detail.appendChild(wrap);
 }
 

@@ -94,5 +94,66 @@ check('a failure path exists', /CODEX REVIEW NOT QUEUED/.test(fn), true);
 check('a non-JSON body is handled', /non-JSON response/.test(fn), true);
 check("the server's own message is echoed", /body\.message/.test(fn), true);
 
+// ── the CODEX pane: extraction rules mirrored in JS ────────────────────────────
+// The endpoint is Python, so this re-implements the same parse to pin the RULES the
+// endpoint must follow. It is a specification test, not a duplicate of the impl.
+const markerRe = /=+\s*CODEX REVIEW\s*=+/i;
+const verdictRe = /^\s*VERDICT:\s*([A-Z_]+)/m;
+
+function extract(comments) {
+  // Newest wins: a re-review supersedes the one before it. Rendering a stale verdict as
+  // current is the exact defect class this platform refuses merges over.
+  let newest = null, newestVerdict = null, newestAt = null;
+  for (const c of comments) {
+    const body = c.body || '';
+    const m = markerRe.exec(body);
+    if (!m) continue;
+    newest = body.slice(m.index);
+    const vm = verdictRe.exec(newest);
+    newestVerdict = vm ? vm[1] : null;
+    newestAt = c.created_at;
+  }
+  return {codex: newest, verdict: newestVerdict, at: newestAt};
+}
+
+const withReview = (v, at, extra) => Object.assign({
+  user: {login: 'KytranKatarn'},
+  created_at: at,
+  body: '============ CODEX REVIEW ================\nVERDICT: ' + v + '\n- finding\n=============================================='
+}, extra || {});
+
+// Author-independent: the login varies with whoever's token ran it.
+const r1 = extract([withReview('REQUEST_CHANGES', '2026-10-04T01:00:00Z')]);
+check('finds a CODEX review regardless of author', r1.codex !== null, true);
+check('extracts REQUEST_CHANGES', r1.verdict, 'REQUEST_CHANGES');
+check('author really did vary', r1.codex.indexOf('KytranKatarn') === -1, true);
+
+const r2 = extract([Object.assign(withReview('REQUEST_CHANGES', '2026-10-04T01:00:00Z'),
+                                  {user: {login: 'forge-review[bot]'}})]);
+check('finds it under a bot author too', r2.verdict, 'REQUEST_CHANGES');
+
+const r3 = extract([withReview('REQUEST_CHANGES', '2026-10-04T01:00:00Z'),
+                    withReview('APPROVE', '2026-10-04T09:00:00Z')]);
+check('newest review wins', r3.verdict, 'APPROVE');
+check('  and carries its timestamp', r3.at, '2026-10-04T09:00:00Z');
+
+check('ignores comments without the marker', extract([{body: 'just a comment'}]).codex, null);
+// Real false positive, measured on PR #3616: a CodeRabbit comment whose body contains
+// "**Codex review queue**" as a heading. A loose substring match for "codex review"
+// picks it up; the equals-delimited marker must not.
+check('rejects a CodeRabbit heading that merely says "Codex review"',
+  extract([{body: '## Walkthrough\n**Codex review queue**\n- platform_v2/.../codex_review_service.py'}]).codex,
+  null);
+check('rejects "codex review" with no delimiters',
+  extract([{body: 'I looked at the codex review and it seems fine'}]).codex, null);
+check('handles a review with no VERDICT line',
+  extract([{body: '==== CODEX REVIEW ====\nnothing conclusive'}]).verdict, null);
+check('empty comment list', extract([]).codex, null);
+
+// The pane must label the verdict as the MODEL's, never as merge authority.
+check('pane labels the verdict advisory',
+  /model says APPROVE \(advisory\)/.test(src), true);
+check('pane names the endpoint it fetches', /pr-reviews\/' \+ pr\.pr_number \+ '\/codex/.test(src), true);
+
 console.log('  FAILURES:', fails.length ? fails.join(', ') : 'none');
 process.exit(fails.length ? 1 : 0);

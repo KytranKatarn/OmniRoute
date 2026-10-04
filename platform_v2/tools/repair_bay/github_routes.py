@@ -1023,6 +1023,84 @@ def register_github_routes(bp, admin_required):
         _coderabbit_cache[pr_number] = (now, result)
         return jsonify(result)
 
+    _codex_cache: dict = {}
+    _CODEX_CACHE_TTL = 300
+
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/codex", methods=["GET"])
+    @login_required
+    @admin_required
+    def forge_pr_codex(pr_number):
+        """Fetch the CODEX (CLI) review comment for a PR, for the PR Review pane.
+
+        CODEX posts its verdict as a PR comment (codex_pr_review.sh, comment mode),
+        so without this the button queues a review whose findings are only readable
+        on GitHub — invisible in the tool that requested it. The CodeRabbit endpoint
+        above already does exactly this for CodeRabbit; this is the same shape.
+
+        Two deliberate differences from CodeRabbit:
+
+        * Match on the CONTENT MARKER, not the author. The comment is posted under
+          whichever token ran the review (this lane's, or the runner's), so the
+          login varies while "==== CODEX REVIEW ====" does not.
+        * Take the NEWEST match, not the first. A re-review supersedes the one
+          before it, and a stale verdict rendered as current would be the exact
+          class of defect this platform keeps refusing merges over.
+        """
+        import json as _json
+        import os
+        import re
+        import urllib.request
+
+        now = time.time()
+        if pr_number in _codex_cache:
+            ts, data = _codex_cache[pr_number]
+            if now - ts < _CODEX_CACHE_TTL:
+                return jsonify({**data, "cached": True})
+
+        token = os.getenv("GITHUB_TOKEN", "")
+        repo = "KytranKatarn/archie-platform"
+        url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments?per_page=100"
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                comments = _json.loads(resp.read().decode())
+        except Exception as exc:
+            return jsonify({"error": str(exc), "codex": None}), 502
+
+        marker = re.compile(r"=+\s*CODEX REVIEW\s*=+", re.IGNORECASE)
+        verdict = re.compile(r"^\s*VERDICT:\s*([A-Z_]+)", re.MULTILINE)
+        newest = None
+        newest_verdict = None
+        newest_at = None
+        for c in comments:
+            body = c.get("body") or ""
+            m = marker.search(body)
+            if not m:
+                continue
+            clean = body[m.start() :]
+            clean = re.sub(r"<!--.*?-->", "", clean, flags=re.DOTALL)
+            clean = re.sub(r"<[^>]+>", "", clean)
+            clean = re.sub(r"\n{3,}", "\n\n", clean).strip()
+            vm = verdict.search(clean)
+            newest = clean
+            newest_verdict = vm.group(1) if vm else None
+            newest_at = c.get("created_at")
+
+        result = {
+            "codex": newest,
+            "codex_verdict": newest_verdict,
+            "codex_posted_at": newest_at,
+        }
+        _codex_cache[pr_number] = (now, result)
+        return jsonify(result)
+
     @bp.route("/api/forge/pr-reviews/poll", methods=["POST"])
     @login_required
     @admin_required

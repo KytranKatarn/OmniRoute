@@ -38,6 +38,7 @@ import logging
 import os
 import re
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -53,6 +54,22 @@ DONE_DIR = QUEUE_DIR / "done"
 STALE_AFTER_SECONDS = 1200
 
 _DIGITS = re.compile(r"^[0-9]+$")
+
+
+def _read_object(path: Path):
+    """Parse a spool file, returning None unless it is a JSON *object*.
+
+    CODEX REVIEW FIX: a file containing `[]`, `"x"` or `5` is valid JSON, so the
+    old `json.loads(...)` succeeded and the very next line, `data.get(...)`,
+    raised AttributeError — which aborted the whole directory scan and hid
+    every valid result that sorted after it. A spool can also be written by
+    hand or by an older version, so a non-object entry is expected, not fatal.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — malformed files are skipped, not fatal
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _valid_pr(pr_number: Any) -> Optional[int]:
@@ -107,11 +124,8 @@ def pending_request_for(pr: int) -> Optional[str]:
     """id of an un-processed request for this PR, if one is already queued."""
     try:
         for path in sorted(PENDING_DIR.glob("*.json")):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001 — a half-written file is not ours to judge
-                continue
-            if data.get("pr") == pr:
+            data = _read_object(path)
+            if data is not None and data.get("pr") == pr:
                 return path.stem
     except Exception:  # noqa: BLE001
         return None
@@ -133,23 +147,26 @@ def enqueue_codex_review(pr_number: Any, repo: Optional[str] = None, dry_run: bo
             "request_id": existing,
         }
 
-    # Create the spool only now — after the cheap checks — so a missing mount costs
-    # nothing and reports the deployment problem instead of half-working.
-    try:
-        PENDING_DIR.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:  # noqa: BLE001
-        return {
-            "success": False,
-            "error": f"codex review queue not available at {QUEUE_DIR}: {exc}",
-        }
+    # CODEX REVIEW FIX: `mkdir(parents=True)` CREATED the whole path when the shared
+    # mount was absent, and the writability probe then passed — so enqueue reported
+    # success for a directory that existed only inside the container's filesystem and
+    # which the host runner could never see. Reproduced live: the container created the
+    # spool root-owned 0755, and the host runner then failed with "cannot create ...
+    # need write access". The spool must PRE-EXIST; creating it is a deployment step,
+    # not something a request handler should do on the platform's filesystem.
     if not queue_dir_available():
         return {
             "success": False,
-            "error": f"codex review queue not available at {QUEUE_DIR} "
-            f"(is /mnt/archie_sandbox mounted into the platform container?)",
+            "error": f"codex review queue not available at {QUEUE_DIR}. Create the spool "
+            f"on the HOST first, writable by both the platform container and the "
+            f"runner user: mkdir -p {QUEUE_DIR}/pending {QUEUE_DIR}/done && "
+            f"chmod 1777 {QUEUE_DIR}/pending {QUEUE_DIR}/done",
         }
 
-    request_id = f"{int(time.time())}-{pr}"
+    # CODEX REVIEW FIX: int(time.time()) has 1-second resolution, so two submissions for
+    # the same PR inside one second produced the SAME request_id — the second overwrote
+    # the first (or failed to rename onto it). uid + monotonic ns makes it unique.
+    request_id = f"{int(time.time())}-{pr}-{uuid.uuid4().hex[:8]}"
     request = {
         "kind": "codex_review",
         "pr": pr,
@@ -188,11 +205,8 @@ def codex_review_status(pr_number: Any) -> Dict[str, Any]:
     newest_id: Optional[str] = None
     try:
         for path in sorted(DONE_DIR.glob("*.json")):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001
-                continue
-            if data.get("pr") != pr:
+            data = _read_object(path)
+            if data is None or data.get("pr") != pr:
                 continue
             # Sorted by filename (timestamp-prefixed), so the last match is the newest.
             newest, newest_id = data, path.stem
@@ -202,7 +216,11 @@ def codex_review_status(pr_number: Any) -> Dict[str, Any]:
     if pending:
         return {"status": "pending", "request_id": pending, "pr": pr}
     if newest is None:
-        return {"status": "none", "pr": pr, "message": "no CODEX review requested for this PR yet"}
+        return {
+            "status": "none",
+            "pr": pr,
+            "message": "no CODEX review requested for this PR yet",
+        }
     out = dict(newest)
     out["request_id"] = newest_id
     if newest.get("status") == "ok" and newest.get("log"):
@@ -223,12 +241,12 @@ def read_review_log(pr_number: Any, max_chars: int = 8000) -> Optional[str]:
     newest_log: Optional[str] = None
     try:
         for path in sorted(DONE_DIR.glob("*.json")):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except Exception:  # noqa: BLE001
+            data = _read_object(path)
+            if data is None:
                 continue
-            if data.get("pr") == pr and data.get("log"):
-                newest_log = data["log"]
+            log_ref = data.get("log")
+            if data.get("pr") == pr and isinstance(log_ref, str) and log_ref:
+                newest_log = log_ref
     except Exception:  # noqa: BLE001
         return None
     if not newest_log:

@@ -31,6 +31,7 @@ set -uo pipefail
 
 QUEUE="${CODEX_REVIEW_QUEUE:-/mnt/archie_sandbox/.codex-review-queue}"
 PENDING="$QUEUE/pending"
+RUNNING="$QUEUE/running"
 DONE="$QUEUE/done"
 POLL_SECONDS="${POLL_SECONDS:-60}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -48,19 +49,22 @@ esac
 if [ "$MODE" = "status" ]; then
   printf 'queue:   %s\n' "$QUEUE"
   printf 'pending: %s\n' "$(ls -1 "$PENDING" 2>/dev/null | grep -c '\.json$')"
+  # CODEX REVIEW FIX: claimed-but-unfinished requests live in running/; without this the
+  # count was invisible and a stuck review looked like an empty queue.
+  printf 'running: %s\n' "$(ls -1 "$RUNNING" 2>/dev/null | grep -c '\.json$')"
   printf 'done:    %s\n' "$(ls -1 "$DONE" 2>/dev/null | grep -c '\.json$')"
   exit 0
 fi
 
 [ -f "$DRIVER" ] || { echo "FATAL: driver not found at $DRIVER" >&2; exit 1; }
 
-mkdir -p "$PENDING" "$DONE" 2>/dev/null || {
+mkdir -p "$PENDING" "$RUNNING" "$DONE" 2>/dev/null || {
   echo "FATAL: cannot create $QUEUE (need write access)" >&2; exit 1; }
 
 # Read one field out of a flat JSON request as its RAW value (surrounding quotes
 # stripped, surrounding whitespace trimmed). Deliberately not a general JSON parser: the
-# platform writes these, and the only value that reaches a shell command downstream is
-# the PR number, which _valid_pr then requires to be pure digits.
+# platform writes these, and the only values that reach a shell command downstream are
+# the PR number and the repo, which _valid_pr / _valid_repo then judge.
 #
 # Capturing the WHOLE value matters. An earlier version matched only the leading digits
 # after the colon, so `"pr":"12; rm -rf /"` yielded `12` and the request was ACCEPTED —
@@ -71,6 +75,21 @@ _field() {
   sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*\("[^"]*"\|[^,}]*\).*/\1/p' "$1" \
     | head -1 \
     | sed 's/^"//; s/"$//; s/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+# CODEX REVIEW FIX: the queued `repo` was written by the service and then ignored — the
+# driver was always invoked with the PR number alone, so a PR from another repository was
+# reviewed against the driver's DEFAULT repo: the wrong code entirely, or a "no such PR"
+# if the number does not exist there. Validate it here and pass it through.
+_valid_repo() {
+  # owner/name, no shell metacharacters, no leading dash (would read as a flag).
+  case "$1" in
+    ''|-*) return 1 ;;
+    *[!A-Za-z0-9._/-]*) return 1 ;;
+    */*/*) return 1 ;;
+    */*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 _valid_pr() {
@@ -93,36 +112,71 @@ drain_one() {
     return 0
   fi
 
-  pr="$(_field "$req" pr)"
-  if ! _valid_pr "$pr"; then
-    printf '{"id":"%s","status":"refused","error":"missing or non-numeric pr"}\n' "$id" \
-      > "$DONE/$id.json"
-    mv "$req" "$DONE/$id.json.bad" 2>/dev/null
-    echo "  refused $id (bad pr)" >&2
-    return 0
-  fi
+# CODEX REVIEW FIX (atomic claim): the request used to stay in pending/ for the whole
+    # review, so two overlapping runners both picked it up and both posted a comment, and
+    # a runner killed after posting but before the cleanup `mv` repeated the whole review
+    # on its next tick. Claim it FIRST by renaming into running/ — rename is atomic on the
+    # same filesystem, so exactly one runner can win. A crash mid-review now leaves the
+    # file in running/ rather than re-running it, which is the safe direction to fail.
+    local claim="$RUNNING/$id.json"
+    if ! mv "$req" "$claim" 2>/dev/null; then
+      echo "  [$id] claimed by another runner — skipping" >&2
+      return 0
+    fi
 
-  echo "  [$id] reviewing PR #$pr ..."
-  local log="$DONE/$id.log"
-  # --post is the driver's own default. `dry_run` in the request is honoured so an
-  # operator can rehearse from the UI without writing to GitHub.
-  local args=(--pr "$pr")
-  grep -q '"dry_run"[[:space:]]*:[[:space:]]*true' "$req" && args+=(--dry-run)
+    pr="$(_field "$claim" pr)"
+    if ! _valid_pr "$pr"; then
+      printf '{"id":"%s","status":"refused","error":"missing or non-numeric pr"}\n' "$id" \
+        > "$DONE/$id.json"
+      mv "$claim" "$DONE/$id.json.bad" 2>/dev/null
+      echo "  refused $id (bad pr)" >&2
+      return 0
+    fi
 
-  # Invoked via `bash` deliberately, not executed directly. The driver merged as mode
-  # 100644 (its exec bit was never recorded), so calling it directly fails rc=126 —
-  # "permission denied" — and every queued review would report an error that looks like
-  # a codex failure rather than a file-mode one. `bash` on the path removes that whole
-  # class of problem. The exec bit is fixed too; this is the belt to that braces.
-  timeout "${REVIEW_TIMEOUT:-900}" bash "$DRIVER" "${args[@]}" > "$log" 2>&1
-  rc=$?
+    repo="$(_field "$claim" repo)"
+    # The service serialises an absent repo as JSON null (`repo or None`), so `null`
+    # must mean "not supplied" rather than being treated as a malformed repo name.
+    [ "$repo" = "null" ] && repo=""
+    # CODEX REVIEW FIX: `repo` was written by the platform and then ignored entirely, so a
+    # PR from another repository was reviewed against the driver's DEFAULT repo — the wrong
+    # code, or "no such PR" if the number does not exist there. It is OPTIONAL: absent or
+    # null means "the driver's default repo", which is the common single-repo case and
+    # must keep working. When present it must be a safe owner/name or the request is
+    # refused rather than passed to the driver.
+    use_repo=0
+    if [ -n "$repo" ]; then
+      if ! _valid_repo "$repo"; then
+        printf '{"id":"%s","status":"refused","error":"unsafe repo"}\n' "$id" \
+          > "$DONE/$id.json"
+        mv "$claim" "$DONE/$id.json.bad" 2>/dev/null
+        echo "  refused $id (bad repo)" >&2
+        return 0
+      fi
+      use_repo=1
+    fi
 
-  # Move the request out of pending FIRST so a crash cannot double-run it on the next
-  # tick, then write the result the platform polls for.
-  mv "$req" "$DONE/$id.json.req" 2>/dev/null
-  {
-    printf '{"id":"%s","pr":%s,"rc":%s,"status":"' "$id" "$pr" "$rc"
-    if [ "$rc" -eq 0 ]; then printf 'ok'; else printf 'error'; fi
+    if [ "$use_repo" -eq 1 ]; then
+      echo "  [$id] reviewing $repo PR #$pr ..."
+    else
+      echo "  [$id] reviewing PR #$pr (driver default repo) ..."
+    fi
+    local log="$DONE/$id.log"
+    # --post is the driver's own default. `dry_run` in the request is honoured so an
+    # operator can rehearse from the UI without writing to GitHub.
+    local args=(--pr "$pr")
+    grep -q '"dry_run"[[:space:]]*:[[:space:]]*true' "$claim" && args+=(--dry-run)
+    # Pass the repo through when we have one, or a cross-repo PR reviews the wrong code.
+    if [ "$use_repo" -eq 1 ]; then
+      REPO="$repo" timeout "${REVIEW_TIMEOUT:-900}" bash "$DRIVER" "${args[@]}" > "$log" 2>&1
+    else
+      timeout "${REVIEW_TIMEOUT:-900}" bash "$DRIVER" "${args[@]}" > "$log" 2>&1
+    fi
+    rc=$?
+
+    mv "$claim" "$DONE/$id.json.req" 2>/dev/null
+    {
+      printf '{"id":"%s","pr":%s,"repo":"%s","rc":%s,"status":"' "$id" "$pr" "$repo" "$rc"
+      if [ "$rc" -eq 0 ]; then printf 'ok'; else printf 'error'; fi
     printf '","finished":"%s","log":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$log"
   } > "$DONE/$id.json"
 

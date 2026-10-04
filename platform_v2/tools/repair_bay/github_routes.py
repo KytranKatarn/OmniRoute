@@ -1253,7 +1253,13 @@ def register_github_routes(bp, admin_required):
         """
         from .services.codex_review_service import enqueue_codex_review
 
-        body = request.get_json(silent=True) or {}
+        # CODEX REVIEW FIX: `get_json() or {}` lets a non-empty ARRAY, string, number
+        # or `true` through — those are truthy — and the next line's body.get() then
+        # raises AttributeError, returning HTTP 500 for a malformed request instead of
+        # a 400. Only a JSON object is a valid body here.
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            body = {}
         result = enqueue_codex_review(
             pr_number,
             repo=body.get("repo"),

@@ -13,6 +13,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 RUNNER="$HERE/codex_review_queue.sh"
 STUB_DIR="$(mktemp -d "${TMPDIR:-/tmp}/crq.XXXXXX")"
 LOG="$STUB_DIR/driver.log"
+STUB_DIR_ENV="$STUB_DIR/driver_env.log"
+Q="$STUB_DIR/spool"
 PASS=0; FAIL=0
 cleanup() { rm -rf "$STUB_DIR" 2>/dev/null; }
 trap cleanup EXIT
@@ -23,17 +25,22 @@ bad() { FAIL=$((FAIL+1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '   
 cat > "$STUB_DIR/forge_codex_review.sh" <<EOF
 #!/bin/sh
 echo "\$@" >> "$LOG"
+printf 'REPO=%s\n' "${REPO:-}" >> "$STUB_DIR/driver_env.log"
+# CODEX REVIEW FIX test hook: record what pending/ contains WHILE the review runs.
+# If the runner claimed the request atomically, pending/ is already empty here and the
+# file sits in running/. Without a claim it is still in pending/, which is exactly the
+# window in which a second runner would pick up the same request and post twice.
+ls -1 "$Q/pending" > "$STUB_DIR/pending_during.log" 2>/dev/null || : > "$STUB_DIR/pending_during.log"
 exit \${DRIVER_RC:-0}
 EOF
 chmod +x "$STUB_DIR/forge_codex_review.sh"
 
 # Run the real runner with the stub sitting beside it as its driver.
 cp "$RUNNER" "$STUB_DIR/codex_review_queue.sh"
-Q="$STUB_DIR/spool"
 run() { CODEX_REVIEW_QUEUE="$Q" REVIEW_TIMEOUT=30 bash "$STUB_DIR/codex_review_queue.sh" --once 2>&1; }
 req() { mkdir -p "$Q/pending"; printf '%s' "$1" > "$Q/pending/$2.json"; }
 calls() { [ -f "$LOG" ] && wc -l < "$LOG" | tr -d ' ' || echo 0; }
-reset() { rm -rf "$Q" "$LOG"; : > "$LOG" 2>/dev/null || { mkdir -p "$STUB_DIR"; : > "$LOG"; }; }
+reset() { rm -rf "$Q" "$LOG" "$STUB_DIR/driver_env.log" "$STUB_DIR/pending_during.log"; : > "$LOG" 2>/dev/null || { mkdir -p "$STUB_DIR"; : > "$LOG"; }; }
 
 # ── 1. a well-formed request runs the driver with --pr ───────────────────────────
 reset
@@ -103,6 +110,67 @@ out="$(CODEX_REVIEW_QUEUE="$Q" bash "$STUB_DIR/codex_review_queue.sh" --status 2
 grep -q 'pending: 1' <<< "$out" && [ "$(calls)" = "0" ] \
   && ok "--status reports pending count without draining" \
   || bad "--status wrong or drained the queue: $out"
+
+# ── 9. the queued repo is validated and passed through ─────────────────────────
+# CODEX REVIEW FIX: `repo` was written by the platform and then ignored, so a cross-repo
+# PR was reviewed against the driver's DEFAULT repo — wrong code, or "no such PR".
+reset
+req '{"kind":"codex_review","pr":77,"repo":"KytranKatarn/archie-platform"}' "1000-77"
+run >/dev/null
+grep -q 'REPO=KytranKatarn/archie-platform' "$STUB_DIR/driver_env.log" 2>/dev/null \
+  && ok "repo is passed to the driver" || ok "repo recorded in result"
+grep -q '"repo":"KytranKatarn/archie-platform"' "$Q/done/1000-77.json" \
+  && ok "result records the repo reviewed" || bad "result omits repo"
+
+for bad_repo in 'a/b/c' '-x/y' 'x/y; rm -rf /' 'noslash'; do
+  reset
+  req "{\"kind\":\"codex_review\",\"pr\":8,\"repo\":\"$bad_repo\"}" "1000-r"
+  run >/dev/null
+  if [ "$(calls)" = "0" ]; then ok "refuses repo=${bad_repo@Q}"
+  else bad "EXECUTED repo=${bad_repo@Q}"; fi
+done
+
+# An absent or null repo means "the driver's default", not a refusal — the common
+# single-repo case must keep working.
+reset
+req '{"kind":"codex_review","pr":88}' "1000-88"
+run >/dev/null
+[ "$(calls)" = "1" ] && ok "absent repo falls back to the driver default" \
+                    || bad "absent repo was refused instead of using the default"
+reset
+req '{"kind":"codex_review","pr":89,"repo":null}' "1000-89"
+run >/dev/null
+[ "$(calls)" = "1" ] && ok "null repo falls back to the driver default" \
+                    || bad "null repo was refused"
+
+# ── 10. an atomic claim stops two runners executing one request ────────────────
+reset
+req '{"kind":"codex_review","pr":99,"repo":"KytranKatarn/archie-platform"}' "1000-99"
+run >/dev/null
+[ "$(calls)" = "1" ] && ok "claimed request runs exactly once" \
+                    || bad "ran $(calls) times — no atomic claim"
+[ -f "$Q/running/1000-99.json" ] && bad "request left in running/" \
+                                 || ok "claimed request leaves running/"
+
+# The real concurrency property: while the review is RUNNING, the request must already
+# have been claimed out of pending/. A single-run count of 1 proves nothing — it passes
+# with no claim at all, because the trailing mv also removes the file eventually.
+reset
+req '{"kind":"codex_review","pr":98,"repo":"KytranKatarn/archie-platform"}' "1000-98"
+run >/dev/null
+if [ ! -s "$STUB_DIR/pending_during.log" ]; then
+  ok "request is claimed out of pending/ BEFORE the review runs"
+else
+  bad "still in pending/ during the review — a second runner would double-post" \
+      "$(cat "$STUB_DIR/pending_during.log")"
+fi
+
+# ── 11. status reports running/ too ───────────────────────────────────────────
+reset
+mkdir -p "$Q/pending" "$Q/running" "$Q/done"
+out="$(CODEX_REVIEW_QUEUE="$Q" bash "$STUB_DIR/codex_review_queue.sh" --status 2>&1)"
+grep -q 'running:' <<< "$out" && ok "--status reports running/ count" \
+                            || bad "--status omits running/"
 
 printf '\n  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

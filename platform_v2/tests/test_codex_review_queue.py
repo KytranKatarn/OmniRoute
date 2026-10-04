@@ -61,6 +61,12 @@ class QueueTestBase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.spool = Path(self._tmp.name) / "queue"
         self.svc = _load_service(self.spool)
+        # CODEX REVIEW FIX: enqueue no longer CREATES the spool — it refuses when the
+        # directory is absent, because mkdir(parents=True) used to fabricate a spool that
+        # existed only inside the container and that the host runner could never see.
+        # Creating it is a deployment step, so the tests stand it up explicitly.
+        (self.spool / "pending").mkdir(parents=True)
+        (self.spool / "done").mkdir(parents=True)
 
     def tearDown(self):
         self._tmp.cleanup()
@@ -142,19 +148,41 @@ class TestEnqueue(QueueTestBase):
         self.assertTrue(self.svc.enqueue_codex_review(2)["success"])
         self.assertEqual(len(list(self.svc.PENDING_DIR.glob("*.json"))), 2)
 
-    def test_queue_becomes_available_once_the_spool_exists(self):
-        self.assertFalse(self.svc.queue_dir_available())
-        self.svc.enqueue_codex_review(5)
-        self.assertTrue(self.svc.queue_dir_available())
+    def test_missing_spool_is_refused_not_created(self):
+        """The regression this pins: a missing mount must NOT be papered over.
 
-    def test_unavailable_queue_returns_an_error_not_an_exception(self):
-        """A 500 traceback from a missing mount would be the wrong failure mode."""
-        blocked = Path(self._tmp.name) / "blocked"
-        blocked.write_text("not a directory", encoding="utf-8")
-        svc = _load_service(blocked / "queue")
+        Before the fix, enqueue ran mkdir(parents=True) and then probed writability, so
+        it reported success for a directory that existed only inside the container's own
+        filesystem. Reproduced live: the container created the spool root-owned 0755 and
+        the host runner then died with "cannot create ... need write access".
+        """
+        absent = Path(self._tmp.name) / "never-created"
+        svc = _load_service(absent)
+        self.assertFalse(svc.queue_dir_available())
         result = svc.enqueue_codex_review(3613)
-        self.assertFalse(result["success"])
+        self.assertFalse(result["success"], "a missing spool must not report success")
         self.assertIn("queue not available", result["error"])
+        self.assertFalse(absent.exists(), "enqueue must NOT create the spool itself")
+
+    def test_queue_dir_available_is_true_for_a_real_spool(self):
+        self.assertTrue(self.svc.queue_dir_available())
+        self.assertTrue(self.svc.enqueue_codex_review(5)["success"])
+
+    def test_unwritable_queue_returns_an_error_not_an_exception(self):
+        """A 500 traceback from an unwritable path would be the wrong failure mode."""
+        import stat
+
+        blocked = Path(self._tmp.name) / "ro"
+        (blocked / "pending").mkdir(parents=True)
+        (blocked / "done").mkdir(parents=True)
+        os.chmod(blocked / "pending", stat.S_IRUSR | stat.S_IXUSR)  # r-x, no write
+        try:
+            svc = _load_service(blocked)
+            result = svc.enqueue_codex_review(3613)
+            self.assertFalse(result["success"])
+            self.assertIn("queue not available", result["error"])
+        finally:
+            os.chmod(blocked / "pending", stat.S_IRWXU)
 
 
 class TestStatus(QueueTestBase):
@@ -191,7 +219,8 @@ class TestStatus(QueueTestBase):
         """A fresh request must not be reported as finished because an older one was."""
         self.svc.DONE_DIR.mkdir(parents=True, exist_ok=True)
         (self.svc.DONE_DIR / "1000-3613.json").write_text(
-            json.dumps({"id": "1000-3613", "pr": 3613, "rc": 0, "status": "ok"}), encoding="utf-8"
+            json.dumps({"id": "1000-3613", "pr": 3613, "rc": 0, "status": "ok"}),
+            encoding="utf-8",
         )
         self.svc.enqueue_codex_review(3613)
         self.assertEqual(self.svc.codex_review_status(3613)["status"], "pending")
@@ -199,7 +228,8 @@ class TestStatus(QueueTestBase):
     def test_results_for_other_prs_are_ignored(self):
         self.svc.DONE_DIR.mkdir(parents=True, exist_ok=True)
         (self.svc.DONE_DIR / "1000-99.json").write_text(
-            json.dumps({"id": "1000-99", "pr": 99, "rc": 0, "status": "ok"}), encoding="utf-8"
+            json.dumps({"id": "1000-99", "pr": 99, "rc": 0, "status": "ok"}),
+            encoding="utf-8",
         )
         self.assertEqual(self.svc.codex_review_status(3613)["status"], "none")
 
@@ -228,6 +258,80 @@ class TestStatus(QueueTestBase):
         text = self.svc.read_review_log(42, max_chars=1000)
         self.assertIsNotNone(text)
         self.assertEqual(len(text), 1000)  # bounded, never the whole file
+
+    def test_non_object_json_in_the_spool_is_skipped_not_fatal(self):
+        """CODEX REVIEW FIX: `[]`, `"x"` and `5` are valid JSON.
+
+        json.loads() succeeded on them and the very next line, data.get(), raised
+        AttributeError — aborting the whole directory scan, so every valid result that
+        sorted after the bad file became invisible.
+        """
+        for payload, label in (
+            ("[]", "array"),
+            ('"x"', "string"),
+            ("5", "number"),
+            ("null", "null"),
+            ("true", "bool"),
+        ):
+            with self.subTest(payload=payload):
+                self.svc.DONE_DIR.mkdir(parents=True, exist_ok=True)
+                # Sorts BEFORE the valid result, which is the ordering that hid it.
+                (self.svc.DONE_DIR / "0000-bad.json").write_text(payload, encoding="utf-8")
+                (self.svc.DONE_DIR / "9000-good.json").write_text(
+                    json.dumps({"id": "9000-good", "pr": 3613, "rc": 0, "status": "ok"}),
+                    encoding="utf-8",
+                )
+                status = self.svc.codex_review_status(3613)
+                self.assertEqual(status["status"], "ok", f"a {label} entry hid the real result")
+
+    def test_non_object_json_in_pending_does_not_break_duplicate_detection(self):
+        for payload in ("[]", '"x"', "5"):
+            with self.subTest(payload=payload):
+                # Clear between iterations: the previous one's real request would
+                # otherwise be (correctly) refused as a duplicate and mask the result.
+                for stale in self.svc.PENDING_DIR.glob("*.json"):
+                    stale.unlink()
+                (self.svc.PENDING_DIR / "0000-bad.json").write_text(payload, encoding="utf-8")
+                second = self.svc.enqueue_codex_review(3613)
+                self.assertTrue(second["success"])
+                self.assertFalse(
+                    self.svc.enqueue_codex_review(3613)["success"],
+                    f"a {payload} entry defeated duplicate detection",
+                )
+
+    def test_non_string_log_value_is_ignored_not_raised(self):
+        """CODEX REVIEW FIX: {"pr":42,"log":123} raised TypeError in Path(log).
+
+        The handler caught OSError only, so the GET endpoint returned HTTP 500.
+        """
+        self.svc.DONE_DIR.mkdir(parents=True, exist_ok=True)
+        (self.svc.DONE_DIR / "1000-42.json").write_text(
+            json.dumps(
+                {
+                    "id": "1000-42",
+                    "pr": 42,
+                    "rc": 0,
+                    "status": "ok",
+                    "log": 123,
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertIsNone(self.svc.read_review_log(42))
+        self.assertEqual(self.svc.codex_review_status(42)["status"], "ok")
+
+    def test_request_ids_are_unique_within_one_second(self):
+        """CODEX REVIEW FIX: int(time.time()) has 1-second resolution.
+
+        Two submissions for the same PR inside one second produced the SAME id, so the
+        second overwrote the first. Distinctness matters because the second is refused as
+        a duplicate — but only if the first is still identifiable.
+        """
+        a = self.svc.enqueue_codex_review(4242)["request_id"]
+        # Bypass the duplicate guard to prove id generation itself is unique.
+        self.svc.PENDING_DIR.joinpath(f"{a}.json").unlink()
+        b = self.svc.enqueue_codex_review(4242)["request_id"]
+        self.assertNotEqual(a, b, "request_id collided within the same second")
 
     def test_invalid_pr_status_is_reported_not_raised(self):
         self.assertEqual(self.svc.codex_review_status("nope")["status"], "invalid")

@@ -193,6 +193,25 @@ check('CodeRabbit pane does not report a fetch failure as "no review"',
   crFetch.indexOf('if (d.error)') > -1
   && crFetch.indexOf('if (d.error)') < crFetch.indexOf('d.coderabbit ||'), true);
 
+// The detail pane built codexBtn2 in the "reviewed" branch but copied its styling off
+// codexBtn, which is declared in the MUTUALLY EXCLUSIVE coverage branch. On any cleanly
+// reviewed PR that branch never runs, so codexBtn hoisted as undefined and
+// `codexBtn.style` threw — blanking the entire right-hand report pane. Both branches now
+// read hoisted constants instead. These guard the coupling from coming back.
+const detail = tplHtml.slice(tplHtml.indexOf('function showPRDetail('),
+                             tplHtml.indexOf('function showPRDetail(') + 20000);
+check('detail pane does not read codexBtn from the other branch',
+  /codexBtn2\.style\.cssText = codexBtn\.style\.cssText/.test(detail), false);
+check('detail pane does not read codexBtn.title cross-branch',
+  /codexBtn2\.title = codexBtn\.title/.test(detail), false);
+check('CODEX button css is hoisted above both branches',
+  /var CODEX_BTN_CSS =/.test(detail), true);
+check('CODEX button title is hoisted above both branches',
+  /var CODEX_BTN_TITLE =/.test(detail), true);
+check('both CODEX buttons use the hoisted constants',
+  (detail.match(/CODEX_BTN_CSS;/g) || []).length >= 2
+  && (detail.match(/CODEX_BTN_TITLE;/g) || []).length >= 2, true);
+
 check('pane labels the verdict advisory',
   /model says APPROVE \(advisory\)/.test(src), true);
 check('pane names the endpoint it fetches', /pr-reviews\/' \+ pr\.pr_number \+ '\/codex/.test(src), true);

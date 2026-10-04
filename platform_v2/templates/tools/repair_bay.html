@@ -4177,7 +4177,13 @@ function showPRDetail(pr) {
         // capped window and drop the same files). If anything still falls out, the gate
         // re-flags it honestly — a re-review can never read as a clean approval of a
         // diff the model did not actually see.
-        var covActions = document.createElement('div');
+        // Shared by BOTH action rows below. They used to be read off `codexBtn`, which is
+// declared inside the coverage branch only: on any cleanly reviewed PR that branch
+// does not run, so `codexBtn` hoists as undefined and `codexBtn.style` threw,
+// blanking the whole right-hand detail pane. Declared here instead.
+var CODEX_BTN_CSS = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
+var CODEX_BTN_TITLE = 'Queue a CODEX (CLI) review of this PR. Runs on the host, not in the dispatcher: minutes of work, and the result appears as a PR comment.';
+var covActions = document.createElement('div');
         covActions.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
         var reBtn = document.createElement('button');
         reBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.45);color:#fbbf24;border-radius:4px;cursor:pointer;';
@@ -4187,10 +4193,9 @@ function showPRDetail(pr) {
         reSel.setAttribute('data-pr-reviewer', '1');
         reBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, covActions); };
         var codexBtn = document.createElement('button');
-        codexBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
+        codexBtn.style.cssText = CODEX_BTN_CSS;
         codexBtn.textContent = 'CODEX review';
-        codexBtn.title = 'Queue a CODEX (CLI) review of this PR. Runs on the host, not in the '
-            + 'dispatcher: minutes of work, and the result appears as a PR comment.';
+        codexBtn.title = CODEX_BTN_TITLE;
         codexBtn.onclick = function(){ queueCodexReview(pr.pr_number, pr.repo, false); };
         covActions.appendChild(codexBtn);
         covActions.appendChild(reSel);
@@ -4219,9 +4224,9 @@ function showPRDetail(pr) {
         genSel.setAttribute('data-pr-reviewer', '1');
         generalReBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, reviewActions); };
         var codexBtn2 = document.createElement('button');
-        codexBtn2.style.cssText = codexBtn.style.cssText;
+        codexBtn2.style.cssText = CODEX_BTN_CSS;
         codexBtn2.textContent = 'CODEX review';
-        codexBtn2.title = codexBtn.title;
+        codexBtn2.title = CODEX_BTN_TITLE;
         codexBtn2.onclick = function(){ queueCodexReview(pr.pr_number, pr.repo, false); };
         reviewActions.appendChild(codexBtn2);
         reviewActions.appendChild(genSel);

@@ -7,9 +7,22 @@ generated media. KB #367081/#367082, task #7067.
 """
 
 import re
-from pathlib import Path
 
-COMPOSE = (Path(__file__).resolve().parent.parent.parent / "docker-compose.yml").read_text()
+from tests.repo_root import repo_path
+
+# Was `Path(__file__).resolve().parent.parent.parent / "docker-compose.yml"`, which is
+# correct on the host and resolves to `/docker-compose.yml` inside the test container,
+# where `platform_v2` is bind-mounted AS `/app`. The module-level `.read_text()` then
+# raised FileNotFoundError during COLLECTION, which took the whole file down with it —
+# the one collection error in a 6,281-test run. This is the bug tests/repo_root.py
+# exists to stop; its docstring names this file as one of the stragglers that carried a
+# comment about the bug instead of the fix.
+COMPOSE_PATH = repo_path("docker-compose.yml")
+assert COMPOSE_PATH.exists(), (
+    "docker-compose.yml not reachable via tests.repo_root "
+    f"(looked at {COMPOSE_PATH}); the compose contract cannot be verified."
+)
+COMPOSE = COMPOSE_PATH.read_text()
 
 
 def _service(name):

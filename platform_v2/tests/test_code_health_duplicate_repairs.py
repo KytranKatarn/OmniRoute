@@ -54,18 +54,18 @@ def run(monkeypatch, records, dry_run=False):
 def test_alias_twins_keep_oldest_and_cancel_duplicate_card(monkeypatch):
     result, retired, cards = run(monkeypatch, [record(1), record(2, "[APP_CORE]/tools/department_hq/jobs.py")])
     assert retired == [2] and cards == ["2"]
-    assert result["superseded"] == 1
+    assert result["archived"] == 1
 
 
 def test_prepared_fix_wins_and_is_never_retired(monkeypatch):
     result, retired, _ = run(monkeypatch, [record(1), record(2, status="ready_for_review", code_changes="patch")])
     assert retired == [1]
-    assert result["superseded"] == 1
+    assert result["archived"] == 1
 
 
 def test_two_patches_are_preserved_for_review(monkeypatch):
     result, retired, _ = run(monkeypatch, [record(1, code_changes="a"), record(2, code_changes="b")])
-    assert retired == [] and result["superseded"] == 0
+    assert retired == [] and result["archived"] == 0
 
 
 def test_static_symbols_and_other_modules_are_preserved(monkeypatch):
@@ -84,7 +84,7 @@ def test_static_symbols_and_other_modules_are_preserved(monkeypatch):
 def test_dry_run_has_no_writes(monkeypatch):
     result, retired, cards = run(monkeypatch, [record(1), record(2)], dry_run=True)
     assert result["duplicates"] == 1
-    assert result["superseded"] == 0 and retired == cards == []
+    assert result["archived"] == 0 and retired == cards == []
 
 
 def test_active_work_survives_unworked_duplicate(monkeypatch):

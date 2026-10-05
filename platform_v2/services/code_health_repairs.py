@@ -15,7 +15,7 @@ def reconcile_duplicate_proposals(module_name, dry_run=True):
     Scope by path ownership, preserve the original paths, and never treat a
     duplicate as a completed repair. Run inside one transaction with row locks.
     """
-    stats = {"duplicates": 0, "superseded": 0, "cards_cancelled": 0, "dry_run": dry_run}
+    stats = {"duplicates": 0, "archived": 0, "cards_cancelled": 0, "dry_run": dry_run}
     escaped = module_name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     with get_db_cursor(commit=not dry_run) as (_, cur):
         cur.execute(
@@ -58,7 +58,7 @@ def reconcile_duplicate_proposals(module_name, dry_run=True):
                 continue
             cur.execute(
                 """UPDATE improvement_proposals
-                   SET status = 'superseded', metadata = COALESCE(metadata, '{}'::jsonb) ||
+                   SET status = 'archived', metadata = COALESCE(metadata, '{}'::jsonb) ||
                        jsonb_build_object('superseded_by', %s, 'archive_reason',
                                           'duplicate:file_finding', 'archived_at', NOW()::text)
                    WHERE id = ANY(%s) AND status IN ('pending', 'approved')
@@ -67,7 +67,7 @@ def reconcile_duplicate_proposals(module_name, dry_run=True):
                 (keeper["id"], duplicates),
             )
             retired = [r["id"] for r in cur.fetchall()]
-            stats["superseded"] += len(retired)
+            stats["archived"] += len(retired)
             if retired:
                 cur.execute(
                     """UPDATE autonomy_approval_queue SET status = 'cancelled',

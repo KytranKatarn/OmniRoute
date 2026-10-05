@@ -5,6 +5,7 @@
 <meta name="description" content="Canada's 8 Officers of Parliament — independent accountability watchdogs including the Auditor General, Ethics Commissioner, and Commissioner of Lobbying.">
 {% endblock %}
 {% block content %}
+<div class="wtf-pg-container">
 <style>
 {# Design-handoff Phase 6 scoping: own <style> block. Zero hex-color literals
    anywhere on this page — every value already routes through a --wtf-*
@@ -110,5 +111,6 @@
   {{ record_links([
        ('← Members of Parliament', '/mps', False),
        ('Media Owners →', '/owners', False)]) }}
+</div>
 </div>
 {% endblock %}

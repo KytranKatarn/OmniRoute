@@ -1969,6 +1969,14 @@ p { text-wrap: pretty; }
    left-aligned headers that sat flush to the page edge. .wtf-pg-* is generic on purpose so
    the remaining data pages adopt it without a new class each. */
 .wtf-pg-wrap { max-width:1080px; margin:0 auto; padding:0 20px 40px; }
+
+/* Page container — the design shell's `.wrap` (design-handoff/wtf-shell.css L42): content
+   centres at 1180px with the shared --gut gutter. <main> in base.html is a bare element, so
+   a page that does not wrap itself runs edge to edge: left-aligned title flush at x=0,
+   cards touching the viewport edge, and (on /weather) a horizontal scrollbar. Found by a
+   live layout audit 2026-10-05 across 41 pages; 13 had no container at all.
+   Distinct from .wtf-pg-wrap above (1080px, no --gut) which five pages already use. */
+.wtf-pg-container { max-width:1180px; margin:0 auto; padding:26px var(--gut) 60px; }
 .wtf-pg-head { max-width:760px; margin:0 auto; padding:44px 0 22px; text-align:center;
   border-bottom:1px solid var(--wtf-border, #1f2937); margin-bottom:22px; }
 .wtf-pg-eyebrow { font-family:var(--wtf-font-mono, monospace); font-size:11px; letter-spacing:.16em;

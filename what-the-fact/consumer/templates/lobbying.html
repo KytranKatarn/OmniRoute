@@ -5,6 +5,7 @@
 <meta name="description" content="{% if detail %}Who {{ detail.org_label }} lobbies in Parliament — {{ detail.contacts }} registered communications with {{ detail.mps }} MPs.{% else %}Who lobbies Canadian MPs — {{ '{:,}'.format(stats.contacts or 0) }} registered communications from the federal Lobbying Registry, by organization and by MP.{% endif %}">
 {% endblock %}
 {% block content %}
+<div class="wtf-pg-container">
 <style>
 /* Extracted 14 inline style="..." attributes into namespaced classes —
    value-preserving, same hex literals throughout (confirmed: no exact
@@ -245,5 +246,6 @@
   Source: Office of the Commissioner of Lobbying of Canada — Monthly Communication Reports ·
   <a href="https://lobbycanada.gc.ca/en/open-data/" target="_blank" rel="noopener" class="wtf-lob-source-link">lobbycanada.gc.ca</a>
   {% if stats.synced_at %} · registry last pulled {{ stats.synced_at.strftime('%Y-%m-%d') }}{% endif %}
+</div>
 </div>
 {% endblock %}

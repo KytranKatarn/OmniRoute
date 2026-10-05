@@ -5,6 +5,7 @@
 <meta name="description" content="Who owns Canadian news outlets? Ownership map, bias profiles, and outlet counts for every media owner tracked by What The Fact.">
 {% endblock %}
 {% block content %}
+<div class="wtf-pg-container">
 {# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY). A CORRECTNESS fix, not a restyle.
 
    This page defined its OWN lean ramp with GREEN AT THE MIDPOINT (the retired
@@ -211,5 +212,6 @@
   {{ record_links([
        ('Browse all sources →', '/sources', False),
        ('How we score bias', 'https://what-the-fact.tech/transparency', True)]) }}
+</div>
 </div>
 {% endblock %}

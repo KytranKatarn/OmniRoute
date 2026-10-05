@@ -7,6 +7,7 @@
 <meta property="og:url" content="https://what-the-fact.com/journalists">
 {% endblock %}
 {% block content %}
+<div class="wtf-pg-container">
 {# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY): search + filter row, then a card grid.
    Was a bespoke .wtf-jr-* block with 11 hardcoded hexes, an 'Orbitron' heading
    (a font the site never loaded, so it rendered as generic sans) and an emoji
@@ -133,4 +134,5 @@
 {% else %}
 <p class="wtf-a-nodata" style="padding:24px 0;">No journalists match &ldquo;{{ q }}&rdquo;.</p>
 {% endif %}
+</div>
 {% endblock %}

@@ -15,6 +15,7 @@
 <meta property="og:url" content="https://what-the-fact.com/elections">
 {% endblock %}
 {% block content %}
+<div class="wtf-pg-container">
 <div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
   <div class="wtf-a-tile-l" style="margin-bottom:8px;">Federal &middot; provincial &middot; territorial &middot; municipal</div>
   <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Elections</h1>
@@ -146,4 +147,5 @@
 {% if not curated_history %}<p class="wtf-a-tile-d">Provincial, territorial and municipal election history has not been published yet; it is added only with a source, one election at a time.</p>{% endif %}
 
 {% endif %}
+</div>
 {% endblock %}

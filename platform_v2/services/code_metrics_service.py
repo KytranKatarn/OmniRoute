@@ -1728,11 +1728,20 @@ def _audit_module_python(module_name, module_path):
             if "compliance" in fname or "deploy_routes" in fname:
                 pass
             else:
-                if "call_ollama(" in content and "bridge" not in fpath:
-                    _add_issue("DIRECT_OLLAMA", fname)
+                from services.code_health_checks import direct_call_present
 
-                if ("call_claude_api(" in content or "call_openai_api(" in content) and "bridge" not in fpath:
-                    _add_issue("DIRECT_CLOUD", fname)
+                ollama_call = direct_call_present(content, ("call_ollama",))
+                cloud_call = direct_call_present(content, ("call_claude_api", "call_openai_api"))
+                # Invalid Python retains the old conservative text detection;
+                # a parse failure must never manufacture a clean result.
+                if "bridge" not in fpath:
+                    if ollama_call or (ollama_call is None and "call_ollama(" in content):
+                        _add_issue("DIRECT_OLLAMA", fname)
+                    if cloud_call or (
+                        cloud_call is None
+                        and any(name + "(" in content for name in ("call_claude_api", "call_openai_api"))
+                    ):
+                        _add_issue("DIRECT_CLOUD", fname)
 
             # Check 3: Bare except
             if re.search(r"\bexcept\s*:", content):

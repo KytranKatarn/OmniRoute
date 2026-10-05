@@ -137,6 +137,34 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
         # The stored detail is a historical size, not the current threshold.
         return (file_text or "").count("\n") + 1 > 600
 
+    if (message or "").startswith(("DIRECT_OLLAMA", "DIRECT_CLOUD")):
+        from services.code_health_checks import direct_call_present
+
+        names = ("call_ollama",) if message.startswith("DIRECT_OLLAMA") else ("call_claude_api", "call_openai_api")
+        return direct_call_present(file_text, names)
+
+    # Interface-sweep proposals often survive a corrected import because the
+    # generic checker cannot recognize them. Only prove REMOVAL here: keeping
+    # the same import means unknown, not a claim that runtime resolution works.
+    import_match = re.match(
+        r"^(?:WRONG_ROOT_IMPORT|WRONG_SUBMODULE_IMPORT) import (?:from )?'([^']+)'",
+        message or "",
+    )
+    symbol_match = re.match(r"^MISSING_SYMBOL '([^']+)' is not exported by '([^']+)'", message or "")
+    if import_match or symbol_match:
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        module = import_match.group(1) if import_match else symbol_match.group(2)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module == module:
+                if import_match or any(alias.name == symbol_match.group(1) for alias in node.names):
+                    return None
+            if import_match and isinstance(node, ast.Import):
+                if any(alias.name == module for alias in node.names):
+                    return None
+        return False
+
     m = _LINE_LEN_RE.search(message or "")
     if m:
         try:

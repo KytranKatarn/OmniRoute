@@ -157,7 +157,7 @@ def _on_node_approved(node_id):
         assigned = 0
         for model_name in models:
             try:
-                from services.agent_service import auto_assign_agents_for_model
+                from .fleet_helpers import auto_assign_agents_for_model
 
                 auto_assign_agents_for_model(node_id, model_name)
                 assigned += 1
@@ -2296,7 +2296,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
                 agent_welfare = data.get("agent_welfare", {})
                 if agent_welfare:
                     try:
-                        from tools.department_hq.services.bridge_dispatcher import (
+                        from tools.department_hq.services.department_dispatcher import (
                             get_dispatcher,
                         )
 
@@ -4444,7 +4444,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
         if not command:
             return jsonify({"error": "Command not found"}), 404
 
-        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
 
@@ -4818,7 +4818,6 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
                 # Fallback: generate a .bat wrapper with embedded PowerShell
                 ps1_script = _generate_setup_ps1(hub_url, node_id, setup_token, node_name)
                 safe_name = node_name.replace(" ", "-")
-                ps1_path = f"%TEMP%\\archie-node-{safe_name}.ps1"
                 bat = "@echo off\r\n"
                 bat += "title A.R.C.H.I.E. Starship Node Setup\r\n"
                 bat += "echo.\r\n"

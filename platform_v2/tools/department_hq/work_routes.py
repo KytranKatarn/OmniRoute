@@ -911,7 +911,6 @@ def register_work_routes(bp, admin_required):
                 """
                 )
                 scores = cur.fetchall()
-                score_map = {r["department"]: r for r in scores}
 
                 # Recent governance events (last 7 days)
                 cur.execute(

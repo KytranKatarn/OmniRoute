@@ -854,15 +854,7 @@ class OrchestrationEngine:
                 }
 
             # --- Build messages list ---
-            try:
-                from tools.archie_core.ai_chat import ArchieAI as ArchieAI_cls
-            except ImportError:
-                ArchieAI_cls = None  # archie_core migrated — use fallback prompting
-
             system_prompt = "You are A.R.C.H.I.E., a helpful AI assistant."
-            if ArchieAI_cls:
-                ai = ArchieAI_cls()
-                system_prompt = ai._build_system_prompt(user_context or {})
 
             history = self._load_conversation_history(user_id, conversation_id, user_context)
 
@@ -1864,10 +1856,8 @@ Please try again or use the Team Management module directly.""",
         bio = params.get("bio", f"AI agent powered by {model}.")
         capabilities = params.get("capabilities", [])
         if isinstance(capabilities, list):
-            capabilities_json = json.dumps(capabilities)
             capabilities_str = ", ".join(capabilities) if capabilities else "general"
         else:
-            json.dumps([capabilities])
             capabilities_str = str(capabilities)
 
         name = f"{first_name} {last_name}".strip()
@@ -2460,42 +2450,28 @@ You can ask me to:
         user_context: Optional[Dict],
     ) -> tuple:
         """Execute via local Ollama (dolphin3 or whatever is loaded)"""
-        try:
-            # Use ArchieAI for personality-enriched responses
-            try:
-                from tools.archie_core.ai_chat import ArchieAI
-            except ImportError:
-                ArchieAI = None  # archie_core migrated — use fallback prompting
+        from .department_dispatcher import get_dispatcher
 
-            if ArchieAI is None:
-                raise ImportError("Could not find ai_chat module")
-
-            ai = ArchieAI()
-            context = user_context or {}
-            if voice_mode:
-                context["voice_mode"] = True
-
-            # Load conversation history
-            history = self._load_conversation_history(user_id, conversation_id, user_context)
-
-            result = ai.chat(message, context, history)
-            if result.get("success"):
-                return result["response"], result.get("model", model_name)
-            else:
-                raise RuntimeError(result.get("error", "ArchieAI chat failed"))
-        except ImportError:
-            # Fall back to direct Ollama call
-            from archie_bridge import call_ollama
-
-            system_prompt = "You are A.R.C.H.I.E., a helpful AI assistant."
-            if voice_mode:
-                system_prompt += " Keep responses concise and conversational. No markdown."
-
-            result = call_ollama(message, model=model_name, system_prompt=system_prompt)
-            if result.get("success"):
-                return result["response"], result.get("model", model_name)
-            else:
-                raise RuntimeError(result.get("error", "Ollama call failed"))
+        context = dict(user_context or {})
+        context["conversation_history"] = self._load_conversation_history(user_id, conversation_id, user_context)
+        if voice_mode:
+            context["voice_mode"] = True
+        system_prompt = "You are A.R.C.H.I.E., a helpful AI assistant."
+        if voice_mode:
+            system_prompt += " Keep responses concise and conversational. No markdown."
+        result = get_dispatcher().request_work(
+            capability="conversation",
+            prompt=message,
+            module_id="orchestration_engine",
+            user_id=user_id,
+            context=context,
+            system_prompt=system_prompt,
+            timeout=120,
+            local_only=True,
+        )
+        if not result.success or not result.response:
+            raise RuntimeError(result.error or "Conversation dispatch failed")
+        return result.response, result.model_used or model_name
 
     def _execute_claude_proxy(self, message: str, model_name: str, voice_mode: bool) -> tuple:
         """Execute via Claude CLI proxy (port 7682, Max subscription)"""

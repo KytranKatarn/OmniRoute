@@ -36,7 +36,7 @@ def register_crew_routes(bp, admin_required):
             # Hardware capacity (cached — nvidia-smi + psutil + Ollama model breakdown)
             capacity = None
             try:
-                from tools.fleet.helpers import _get_cached_hw_capacity
+                from .fleet_helpers import _get_cached_hw_capacity
 
                 capacity = _get_cached_hw_capacity()
             except Exception as cap_err:

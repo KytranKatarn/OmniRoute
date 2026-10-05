@@ -6587,9 +6587,6 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[ClusterOrchestration] crashed: %s", exc)
 
-    # Expose for manual /trigger endpoint (used by fleet_orchestration_routes.py)
-    _run_cluster_orchestration_worker_fn = _run_cluster_orchestration_worker
-
     scheduler.add_job(
         with_ctx(_run_cluster_orchestration_worker),
         trigger=CronTrigger(second="0", timezone="America/Toronto"),

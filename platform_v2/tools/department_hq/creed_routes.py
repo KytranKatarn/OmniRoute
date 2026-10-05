@@ -2539,15 +2539,15 @@ def _load_agent_skills(agent_ids: list) -> dict:
     """Return {agent_id: [{skill_name, proficiency_level, skill_category, can_escalate_to}]}."""
     if not agent_ids:
         return {}
-    placeholders = ",".join(str(i) for i in agent_ids)
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            f"""
+            """
             SELECT agent_id, skill_name, skill_category, proficiency_level, can_escalate_to
             FROM agent_skills
-            WHERE agent_id IN ({placeholders})
+            WHERE agent_id = ANY(%s)
             ORDER BY agent_id, proficiency_level DESC
-            """
+            """,
+            (agent_ids,),
         )
         rows = cur.fetchall() or []
     result: dict = {}
@@ -2567,10 +2567,9 @@ def _load_agent_welfare(agent_ids: list) -> dict:
     """Return {agent_id: {stress_level, energy_level, current_mood, in_rest}}."""
     if not agent_ids:
         return {}
-    placeholders = ",".join(str(i) for i in agent_ids)
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            f"""
+            """
             SELECT DISTINCT ON (ae.agent_id)
                    ae.agent_id,
                    ae.stress_level, ae.energy_level, ae.current_mood,
@@ -2579,9 +2578,10 @@ def _load_agent_welfare(agent_ids: list) -> dict:
                        WHERE rc.agent_id = ae.agent_id AND rc.ended_at IS NULL
                    ) AS in_rest
             FROM agent_emotional_state ae
-            WHERE ae.agent_id IN ({placeholders})
+            WHERE ae.agent_id = ANY(%s)
             ORDER BY ae.agent_id, ae.id DESC
-            """
+            """,
+            (agent_ids,),
         )
         rows = cur.fetchall() or []
     return {
@@ -3241,7 +3241,6 @@ def _execute_erasure(request_id: int) -> dict:
     deleted_tables: list = []
     anonymized_tables: list = []
     anon_email = f"deleted_{user_id}@redacted.invalid"
-    fatal_error = None
 
     try:
         # ── 3. Hard-delete user-scoped personal data ──────────────────────────
@@ -3427,7 +3426,6 @@ def _execute_erasure(request_id: int) -> dict:
         }
 
     except Exception as e:
-        fatal_error = e
         logger.error(
             "Erasure request %s fatal error — rolling back to approved: %s",
             request_id,

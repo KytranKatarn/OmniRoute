@@ -155,7 +155,7 @@ def _audit_one(key, mod_data):
     try:
         duplicates = reconcile_duplicate_proposals(key, dry_run=False)
         reconciliation = reconcile_open_proposals(
-            dry_run=False, statuses=("approved", "ready_for_review"), module_name=key
+            dry_run=False, statuses=("approved", "ready_for_review", "fix_requested"), module_name=key
         )
         pending_repairs = open_proposal_counts().get(key, 0)
     except Exception:

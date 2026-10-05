@@ -5,9 +5,11 @@ exact normalized-name dedup (owner decision 2026-06-15, option B):
 
   1. BLOCKING — populate shared.entity_blocks (block_kind='norm_name') for person+org
      (foundation for phase-2 fuzzy/trigram candidate generation).
-  2. ORGANIZATIONS with identical normalized names -> AUTO-MERGE (revertable). Orgs rarely
-     share an exact official name, so this is high-confidence; it also resolves the
-     slug-convention split (e.g. 'canada-revenue-agency' vs 'org-canada-revenue-agency').
+  2. ORGANIZATIONS whose names have the same LETTERS AND DIGITS (spacing, punctuation, case and
+     accents ignored) -> AUTO-MERGE (revertable) when the group is safe (key >= 6 chars, <= 6
+     members, no comma, no recorded 'distinct'); otherwise the pairs go to the review queue.
+     It also resolves the slug-convention split (e.g. 'canada-revenue-agency' vs
+     'org-canada-revenue-agency').
   3. PERSONS with identical normalized names -> shared.merge_review_queue (pending). People
      DO share names (namesakes), so these are reviewed, never auto-merged. Restricted to
      pairs where one side is a CANONICAL (non-donor) person — i.e. the high-value
@@ -19,7 +21,8 @@ review_threshold/auto_merge_threshold), fuzzy auto-merge at >=0.92, donor<->dono
 and a revert helper (entity_merge_log already snapshots each merge for manual revert).
 
 Excludes legislation (dedup_config.legislation_fuzzy_enabled=0) and merged/suppressed rows.
-Normalized name = lower(unaccent(btrim(canonical_name))).
+Person key = lower(unaccent(btrim(canonical_name))); organisation key = the same with every
+non-alphanumeric character removed (_NORM_ORG).
 
 Env:  WTF_DATABASE_URL
 Run:  python -m ingest.entity_graph_dedup --dry-run
@@ -36,6 +39,36 @@ logger = logging.getLogger("entity_graph_dedup")
 
 # normalized-name SQL expression (matchable key)
 _NORM = "lower(unaccent(btrim({col})))"
+
+# Organisation key: letters and digits only. `_NORM` keeps internal spaces and punctuation, so
+# "LEVITT SAFETY LIMITED" and "LEVITTSAFETYLIMITED" never matched exactly and only the fuzzy scan
+# (a review queue nobody reads) could find them. Measured 2026-10-05: 4,092 active-organisation
+# groups (8,457 entities) differed ONLY in spacing/punctuation/case/accents, and every sample read
+# was one business. Persons keep `_NORM`: people share names, and "Last, First" order matters.
+_NORM_ORG = "regexp_replace(lower(unaccent(btrim({col}))), '[^a-z0-9]', '', 'g')"
+_ORG_MIN_KEY_LEN = 6      # shorter keys are too generic to merge on letters alone
+_ORG_AUTO_MAX_GROUP = 6   # a bigger group is more likely a template than a typo — a human looks
+
+
+def classify_org_group(key, members, distinct_pairs):
+    """Decide what to do with one same-key organisation group. PURE (no DB) so it can be tested.
+
+    members: [(entity_id, canonical_name), ...] survivor-first.
+    Returns 'auto' (merge into the first member), 'review' (queue the pairs for a human) or
+    'skip' (a human already ruled two of them distinct — never touch the group).
+    A comma means a "Last, First" name stored as an organisation: people share names, so those go
+    to review rather than being merged on letters alone.
+    """
+    ids = [m[0] for m in members]
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            if (a, b) in distinct_pairs or (b, a) in distinct_pairs:
+                return "skip"
+    if len(key) < _ORG_MIN_KEY_LEN or len(members) > _ORG_AUTO_MAX_GROUP:
+        return "review"
+    if any("," in (m[1] or "") for m in members):
+        return "review"
+    return "auto"
 
 
 def _engine():
@@ -400,11 +433,18 @@ def run(dry_run=False):
                   AND btrim(canonical_name) <> ''
             """)).rowcount
 
-        # 2) organizations: exact normalized-name groups -> auto-merge (survivor = most-connected)
+        # 2) organizations: same letters/digits (spacing, punctuation, case, accents ignored).
+        #    Safe groups auto-merge (survivor = most-connected); comma / short-key / oversized
+        #    groups go to the review queue; a group with a recorded 'distinct' is left alone.
+        norm_org = _NORM_ORG.format(col="e.canonical_name")
         groups = conn.execute(text(f"""
-            SELECT {norm_c} AS norm, array_agg(e.id ORDER BY (
+            SELECT {norm_org} AS norm,
+                   array_agg(e.id ORDER BY (
                        SELECT count(*) FROM shared.entity_relationships r
-                       WHERE r.from_entity_id=e.id OR r.to_entity_id=e.id) DESC, e.id ASC) AS ids
+                       WHERE r.from_entity_id=e.id OR r.to_entity_id=e.id) DESC, e.id ASC) AS ids,
+                   array_agg(e.canonical_name ORDER BY (
+                       SELECT count(*) FROM shared.entity_relationships r
+                       WHERE r.from_entity_id=e.id OR r.to_entity_id=e.id) DESC, e.id ASC) AS names
             FROM shared.entities e
             WHERE e.status='active' AND e.entity_type='organization' AND btrim(e.canonical_name) <> ''
             GROUP BY 1 HAVING count(*) > 1
@@ -417,15 +457,29 @@ def run(dry_run=False):
                 "WHERE decision='distinct'")).fetchall()
         }
         for g in groups:
-            ids = g["ids"]
-            survivor = ids[0]
-            for merged in ids[1:]:
-                pair = (survivor, merged) if survivor < merged else (merged, survivor)
-                if pair in distinct_pairs:
-                    totals["org_skipped_distinct"] = totals.get("org_skipped_distinct", 0) + 1
-                    continue
+            members = list(zip(g["ids"], g["names"]))
+            verdict = classify_org_group(g["norm"], members, distinct_pairs)
+            survivor = members[0][0]
+            if verdict == "skip":
+                totals["org_skipped_distinct"] = totals.get("org_skipped_distinct", 0) + 1
+                continue
+            if verdict == "review":
+                totals["org_review_groups"] = totals.get("org_review_groups", 0) + 1
                 if not dry_run:
-                    _merge(conn, survivor, merged, "exact_name_org")
+                    for other, _ in members[1:]:
+                        a_, b_ = (survivor, other) if survivor < other else (other, survivor)
+                        totals["org_review_queued"] = totals.get("org_review_queued", 0) + conn.execute(text("""
+                            INSERT INTO shared.merge_review_queue
+                                (entity_id_a, entity_id_b, similarity, block_key, features, status)
+                            VALUES (:a, :b, 1.0, :k,
+                                    jsonb_build_object('match','squash_name','entity_type','organization'),
+                                    'pending')
+                            ON CONFLICT (entity_id_a, entity_id_b) DO NOTHING
+                        """), {"a": a_, "b": b_, "k": g["norm"]}).rowcount
+                continue
+            for merged, _ in members[1:]:
+                if not dry_run:
+                    _merge(conn, survivor, merged, "squash_name_org")
                 totals["org_merges"] += 1
 
         # 3) persons: exact normalized-name -> review queue (canonical-anchored, capped)

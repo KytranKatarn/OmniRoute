@@ -25,7 +25,7 @@ TPL = ROOT / "consumer" / "templates"
 CSS = (ROOT / "consumer" / "static" / "style.css").read_text(encoding="utf-8")
 DESIGN_SHELL = (ROOT / "design-handoff" / "wtf-shell.css").read_text(encoding="utf-8")
 
-WRAPPED = ["weather", "divergence", "lobbying", "gic", "ethics", "officers", "elections",
+WRAPPED = ["municipal", "economy", "weather", "divergence", "lobbying", "gic", "ethics", "officers", "elections",
            "rates", "markets", "owners", "journalists", "crtc", "cross_watch"]
 
 _OPEN = re.compile(r"\{%-?\s*block content\s*-?%\}")
@@ -126,3 +126,17 @@ def test_pages_that_already_had_a_wrapper_were_not_double_wrapped():
     for name in ("blindspot", "echo", "clusters", "debt", "global"):
         src = (TPL / f"{name}.html").read_text(encoding="utf-8")
         assert "wtf-pg-wrap" in src and 'class="wtf-pg-container"' not in src, name
+
+
+class TestTeamKeepsItsFullBleedHero:
+    """/team has a deliberately full-bleed hero band; only what FOLLOWS it is contained. Wrapping the
+    whole block would shrink the hero, and wrapping nothing left the section label at x=0 while the
+    card grid sat inset (seen live 2026-10-05)."""
+
+    def test_container_opens_after_the_hero_and_closes_at_the_end(self):
+        src = _content_block("team")
+        hero = re.search(r'<div class="wtf-team-hero">.*?\n</div>\n', src, re.S)
+        assert hero, "team hero block not found"
+        assert "wtf-pg-container" not in src[: hero.end()], "the hero must stay outside the container"
+        assert src[hero.end():].lstrip().startswith('<div class="wtf-pg-container">')
+        assert src.rstrip().endswith("</div>"), "container must close at the end of the content block"

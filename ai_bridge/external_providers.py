@@ -6,6 +6,7 @@ Legacy constants kept as fallback if DB is unreachable.
 All functions return: {success, response, model, provider, prompt_tokens, completion_tokens, cost_usd}
 """
 
+import calendar
 import json
 import logging
 import os
@@ -286,6 +287,82 @@ DEFAULT_MONTHLY_BUDGET_USD = 10.0
 BUDGET_UNKNOWN = "unknown"
 
 
+def _budget_period_start(reset_day, now=None):
+    """Start of the budget period containing `now`, per `budget_reset_day`.
+
+    A budget period runs from its reset day-of-month to the day before the next one. So the
+    start is the most recent occurrence of that day at or before `now`; if this month's has
+    not arrived yet, the period began last month.
+
+    Clamped to the length of the month. `budget_reset_day = 31` in February is the case that
+    breaks naive construction — `replace(day=31)` raises ValueError, and a helper that raises
+    inside the budget read takes the fail-open path and silently disables the guard. That is
+    the same failure this module already documents for a broken query.
+
+    Naive local time, deliberately. `budget_reset_day` is an operator setting with no timezone
+    and the only comparable column (`last_reset_at`) is timestamptz; reading both in the same
+    naive frame keeps the comparison meaningful instead of correct-but-confusing.
+    """
+    from datetime import datetime
+
+    if now is None:
+        now = datetime.now()
+    try:
+        day = int(reset_day)
+    except (TypeError, ValueError):
+        day = 1
+    # Above 31 is not a day of any month, so it is a configuration error rather than an end-of-
+    # month request. Falls back to the 1st, matching the fail-safe default used everywhere else
+    # in this module. Within 1..31 a short month clamps, which is the case day=31 exists for.
+    if day < 1 or day > 31:
+        day = 1
+
+    this_month_len = calendar.monthrange(now.year, now.month)[1]
+    start = now.replace(day=min(day, this_month_len), hour=0, minute=0, second=0, microsecond=0)
+    if start > now:
+        year, month = (now.year, now.month - 1) if now.month > 1 else (now.year - 1, 12)
+        prev_len = calendar.monthrange(year, month)[1]
+        start = now.replace(
+            year=year,
+            month=month,
+            day=min(day, prev_len),
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+    # Attach the local offset when naive, so the result compares against a TIMESTAMPTZ column.
+    return start.astimezone() if start.tzinfo is None else start
+
+
+def _budget_used_for_current_period(used, last_reset_at, reset_day, now=None) -> float:
+    """The spend that counts against the CURRENT period.
+
+    Zero once the period has rolled over. The stored counter is deliberately NOT zeroed here:
+    reading should not write, and `_update_cost` performs the reset on the next accumulate.
+    Until then the stale total is simply not counted, which is what lets the bands recover.
+    """
+    # Both sides must be timezone-COMPARABLE. `last_reset_at` is TIMESTAMPTZ, so psycopg2
+    # returns an aware datetime, while the period start is derived from operator-configured
+    # local-time day-of-month and is naive. Comparing the two raises TypeError, which is caught
+    # one frame up and fails OPEN — silently disabling the whole budget guard.
+    #
+    # This is not hypothetical: it is exactly what happened on the first live run against the
+    # real column, after every unit test had passed. Those tests all used naive datetimes, so
+    # the mismatch was invisible until a real TIMESTAMPTZ met a naive boundary.
+    if last_reset_at is not None and last_reset_at.tzinfo is None:
+        last_reset_at = last_reset_at.astimezone()
+    if last_reset_at is None:
+        # No period stamp: the period is UNKNOWN, not empty. Counting the stored total is the
+        # conservative reading — treating it as zero would report $0.00 for a provider that had
+        # genuinely spent, and under-reporting spend is the one direction a money guard must
+        # never be wrong in. Migration 489 stamps existing rows so this stops being reachable.
+        return float(used or 0.0)
+    if last_reset_at < _budget_period_start(reset_day, now):
+        return 0.0
+    return float(used or 0.0)
+
+
 def monthly_budget_status(provider: str) -> dict:
     """Three-state monthly budget read: ok / warn / block.
 
@@ -305,7 +382,8 @@ def monthly_budget_status(provider: str) -> dict:
             cur = conn.cursor()
             cur.execute(
                 """
-                SELECT monthly_budget_usd, current_month_cost_usd
+                SELECT monthly_budget_usd, current_month_cost_usd,
+                       budget_reset_day, last_reset_at
                   FROM external_api_keys
                  WHERE provider = %s
                 """,
@@ -325,9 +403,12 @@ def monthly_budget_status(provider: str) -> dict:
                 "reason": "no budget row — allowed",
             }
 
-        raw_limit, raw_used = row[0], row[1]
+        raw_limit, raw_used, reset_day, last_reset_at = row[0], row[1], row[2], row[3]
         limit = float(raw_limit) if raw_limit is not None else DEFAULT_MONTHLY_BUDGET_USD
-        used = float(raw_used or 0)
+        # Only the CURRENT period's spend counts. Before this the counter was monotonic for the
+        # life of the install, so a provider that once crossed 95% stayed `block` forever — the
+        # bands could warn but never recover, which is not a budget guard.
+        used = _budget_used_for_current_period(raw_used, last_reset_at, reset_day)
         fraction = (used / limit) if limit > 0 else 0.0
 
         if fraction >= BUDGET_BLOCK_FRACTION:
@@ -397,6 +478,37 @@ def _calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> f
     return (prompt_tokens * rates["input"] / 1000) + (completion_tokens * rates["output"] / 1000)
 
 
+def _reset_day_for(provider: str) -> int:
+    """This provider's configured reset day, defaulting to the 1st.
+
+    Read separately so the cost UPDATE stays one atomic statement. Fails soft to day 1: an
+    unreadable reset day must not stop cost being recorded, which is the one thing this
+    function cannot afford to lose.
+    """
+    try:
+        from database import get_db
+
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT budget_reset_day FROM external_api_keys WHERE provider = %s",
+                (provider,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+        return int(row[0]) if row and row[0] is not None else 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "reset-day lookup failed for %s (%s: %s) — defaulting to the 1st",
+            provider,
+            exc.__class__.__name__,
+            exc,
+        )
+        return 1
+
+
 def _update_cost(provider: str, cost: float):
     """Add cost to current month tracking."""
     try:
@@ -404,9 +516,32 @@ def _update_cost(provider: str, cost: float):
 
         conn = get_db()
         cur = conn.cursor()
+        # Reset-and-set or accumulate, decided INSIDE the statement so there is no
+        # read-then-write race between concurrent dispatches both judging the period current.
+        #
+        #   period rolled  -> the new cost IS the period total, and the stamp moves to now
+        #   period current -> accumulate onto the running total, stamp untouched
+        #
+        # A stale counter is never carried forward, which is what lets a provider that hit
+        # `block` last month come back this month.
+        period_start = _budget_period_start(_reset_day_for(provider))
         cur.execute(
-            "UPDATE external_api_keys SET current_month_cost_usd = current_month_cost_usd + %s, updated_at = NOW() WHERE provider = %s",
-            (cost, provider),
+            """
+            UPDATE external_api_keys
+               SET current_month_cost_usd = CASE
+                       WHEN last_reset_at IS NULL OR last_reset_at < %(period)s
+                       THEN %(cost)s
+                       ELSE current_month_cost_usd + %(cost)s
+                   END,
+                   last_reset_at = CASE
+                       WHEN last_reset_at IS NULL OR last_reset_at < %(period)s
+                       THEN NOW()
+                       ELSE last_reset_at
+                   END,
+                   updated_at = NOW()
+             WHERE provider = %(provider)s
+            """,
+            {"period": period_start, "cost": cost, "provider": provider},
         )
         conn.commit()
         cur.close()

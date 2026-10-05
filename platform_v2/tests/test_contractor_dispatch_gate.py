@@ -21,8 +21,10 @@ No database. `get_db` is patched to a fake, so these are hermetic and assert the
 function rather than the plumbing.
 """
 
+import datetime as _dt
 import sys
 import types
+import pathlib
 import unittest
 from unittest import mock
 
@@ -70,8 +72,15 @@ def patch_db(row):
 class TestBudgetBands(unittest.TestCase):
     """The 80 / 95 thresholds and the fail-open contract."""
 
-    def _status(self, limit, used, row=True):
-        payload = (limit, used) if row else None
+    def _status(self, limit, used, row=True, reset_day=1, last_reset_at=None):
+        """Fake a budget row.
+
+        Now four columns, matching the SELECT: the period columns came with the monthly reset,
+        and a double that still returns two makes `row[2]` raise IndexError — which the module
+        catches and fails OPEN, so every band test silently asserted "unknown" and passed for
+        the wrong reason. Kept in one place so the shape cannot drift again.
+        """
+        payload = (limit, used, reset_day, last_reset_at) if row else None
         with patch_db(payload):
             return ep.monthly_budget_status("groq")
 
@@ -101,7 +110,8 @@ class TestBudgetBands(unittest.TestCase):
             self.assertTrue(ep._check_budget("groq"))
 
     def test_block_band_refuses(self):
-        with patch_db((100.0, 96.0)):
+        # four columns, like every other row double — see TestBudgetRowShape
+        with patch_db((100.0, 96.0, 1, _dt.datetime.now())):
             self.assertFalse(ep._check_budget("groq"))
 
     def test_thresholds_are_the_agreed_values(self):
@@ -309,3 +319,252 @@ class TestSelectorGate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBudgetRowShape(unittest.TestCase):
+    """The band tests above are only meaningful if the fake row matches the real SELECT.
+
+    A two-column double raises IndexError inside `monthly_budget_status`, which is caught and
+    fails open as `unknown`. Every band assertion then "passes" against the wrong value, which
+    is how a whole class of budget test can be green while testing nothing.
+    """
+
+    def test_a_current_period_row_reports_a_real_band_not_unknown(self):
+        from datetime import datetime
+
+        ep = _load_ep()
+        payload = (100.0, 80.0, 1, datetime.now())
+        with patch_db(payload):
+            self.assertEqual(ep.monthly_budget_status("groq")["band"], "warn")
+
+    def test_a_rolled_period_row_recovers_to_ok(self):
+        """The end-to-end recovery: last month's block, this month fine."""
+        from datetime import datetime, timedelta
+
+        ep = _load_ep()
+        stale = datetime.now() - timedelta(days=45)
+        with patch_db((100.0, 99.0, 1, stale)):
+            st = ep.monthly_budget_status("groq")
+        self.assertEqual(st["band"], "ok")
+        self.assertEqual(st["used"], 0.0, "a stale total must not count against this period")
+
+
+def _load_ep():
+    import importlib.util
+
+    here = pathlib.Path(__file__).resolve()
+    for rel in (
+        here.parents[2] / "ai_bridge" / "external_providers.py",
+        pathlib.Path("/mnt/archie_brain/ai_bridge/external_providers.py"),
+    ):
+        if rel.exists():
+            spec = importlib.util.spec_from_file_location("ep_shape", str(rel))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+    raise unittest.SkipTest("external_providers.py not reachable from this layout")
+
+
+class TestBudgetPeriodReset(unittest.TestCase):
+    """The monthly budget counter must reset, or the bands become a one-way ratchet.
+
+    `current_month_cost_usd` had exactly one writer and it only ever accumulated
+    (`SET current_month_cost_usd = current_month_cost_usd + %s`). `budget_reset_day` was
+    displayed and read by no logic; `last_reset_at` existed only in migration 106's CREATE TABLE.
+    So once a provider crossed 95% it stayed `block` for the lifetime of the install, with no
+    way back — a slow-motion lockout wearing the costume of a budget guard.
+    """
+
+    def _ep(self):
+        """Load external_providers from wherever it lives.
+
+        The repo-relative path resolves to "/" inside the container, so the bind-mounted copy
+        is listed explicitly. Without it every test here errors on a missing file rather than
+        on a real assertion, which reads like a broken suite instead of a broken lookup.
+        """
+        import importlib.util
+
+        here = pathlib.Path(__file__).resolve()
+        for rel in (
+            here.parents[2] / "ai_bridge" / "external_providers.py",
+            pathlib.Path("/mnt/archie_brain/ai_bridge/external_providers.py"),
+            pathlib.Path("/app/../ai_bridge/external_providers.py"),
+        ):
+            if rel.exists():
+                spec = importlib.util.spec_from_file_location("ep_budget", str(rel))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                return mod
+        raise unittest.SkipTest("external_providers.py not reachable from this layout")
+
+    def test_an_unknown_period_counts_rather_than_reports_zero(self):
+        """NULL `last_reset_at` means UNKNOWN, not EMPTY.
+
+        Reporting $0.00 for a provider that had genuinely spent is the one direction a money
+        guard must never be wrong in, so an unstamped row counts its stored total.
+        """
+        from datetime import datetime
+
+        ep = self._ep()
+        self.assertEqual(ep._budget_used_for_current_period(7.5, None, 1, datetime(2026, 10, 20)), 7.5)
+
+    def test_an_aware_timestamp_still_compares(self):
+        """The bug that every other test here missed.
+
+        `last_reset_at` is TIMESTAMPTZ, so psycopg2 hands back an AWARE datetime. The period
+        start is derived from a local-time day-of-month and was NAIVE. Comparing them raises
+        TypeError, the caller catches it, and the budget guard fails OPEN — silently
+        disabled, which is the worst possible outcome for a money limit.
+
+        Every other test in this file used naive datetimes and passed, so the mismatch only
+        appeared on the first live run against the real column. This test pins the aware case
+        explicitly, and asserts on the BAND rather than the helper, because the helper working
+        in isolation proves nothing about whether the guard survives.
+        """
+        from datetime import datetime, timezone
+
+        ep = self._ep()
+        aware_stamp = datetime(2026, 9, 1, 0, 0, tzinfo=timezone.utc)
+        # must not raise, and must read as a rolled period
+        self.assertEqual(
+            ep._budget_used_for_current_period(99.0, aware_stamp, 1, datetime(2026, 10, 20)),
+            0.0,
+        )
+
+    def test_a_stale_aware_row_recovers_the_band_end_to_end(self):
+        """An aware stale stamp must yield `ok`, not the `unknown` that fail-open produces."""
+        from datetime import datetime, timedelta, timezone
+
+        ep = self._ep()
+        stale = datetime.now(timezone.utc) - timedelta(days=45)
+        with patch_db((100.0, 99.0, 1, stale)):
+            st = ep.monthly_budget_status("groq")
+        self.assertNotEqual(st["band"], "unknown", "fail-open hid a real recovery")
+        self.assertEqual(st["band"], "ok")
+        self.assertEqual(st["used"], 0.0)
+
+    def test_a_rolled_period_reports_zero_spend(self):
+        """The recovery path. Without it there is none."""
+        from datetime import datetime
+
+        ep = self._ep()
+        now = datetime(2026, 10, 20, 12, 0)
+        # stamp is last month; today is the 20th with reset_day=1
+        self.assertEqual(
+            ep._budget_used_for_current_period(99.0, datetime(2026, 9, 1, 0, 5), 1, now),
+            0.0,
+        )
+
+    def test_a_current_period_reports_the_stored_total(self):
+        from datetime import datetime
+
+        ep = self._ep()
+        now = datetime(2026, 10, 20, 12, 0)
+        self.assertEqual(
+            ep._budget_used_for_current_period(4.25, datetime(2026, 10, 1, 0, 5), 1, now),
+            4.25,
+        )
+
+    def test_the_reset_boundary_is_inclusive_of_the_new_period(self):
+        """A stamp exactly AT the period start means the period began then, so it is current.
+
+        I initially asserted the opposite and was wrong. `<` not `<=` is the correct operator:
+        a counter stamped at the boundary belongs to the period that just started, and only
+        becomes stale strictly after. Resetting early by one instant would forgive spend.
+        """
+        from datetime import datetime
+
+        ep = self._ep()
+        self.assertEqual(
+            ep._budget_used_for_current_period(50.0, datetime(2026, 10, 1, 0, 0), 1, datetime(2026, 10, 1, 0, 1)),
+            50.0,
+            "a stamp exactly at the boundary is the new period, not a stale one",
+        )
+        # one second later it is unambiguously stale
+        from datetime import timedelta
+
+        self.assertEqual(
+            ep._budget_used_for_current_period(
+                50.0, datetime(2026, 9, 30, 23, 59, 59), 1, datetime(2026, 10, 1, 0, 0, 1)
+            ),
+            0.0,
+        )
+
+    def test_a_reset_day_of_31_does_not_explode_in_february(self):
+        """The case that takes the fail-open path and silently disables the guard.
+
+        `now.replace(day=31)` in February raises ValueError. A helper that raises inside the
+        budget read lands in the `except Exception` fail-open branch — the same failure this
+        module already documents for a broken query.
+        """
+        from datetime import datetime
+
+        ep = self._ep()
+        # Feb 15 with reset_day=31: February has no 31st, so it clamps to Feb 28 — which has
+        # NOT happened yet. The period therefore began on Jan 31, last month. Getting this
+        # wrong in the other direction (clamping INTO the current month) would reset a budget
+        # up to a month early, which is the costly error.
+        start = ep._budget_period_start(31, datetime(2026, 2, 15, 9, 30))
+        self.assertEqual((start.year, start.month, start.day), (2026, 1, 31))
+        # the clamp itself is real: on the 28th the period DOES start in February
+        start = ep._budget_period_start(31, datetime(2026, 2, 28, 9, 30))
+        self.assertEqual((start.year, start.month, start.day), (2026, 2, 28))
+        # and it must not raise for any month length
+        for m in range(1, 13):
+            ep._budget_period_start(31, datetime(2026, m, 15))
+
+    def test_period_start_before_the_reset_day_belongs_to_last_month(self):
+        from datetime import datetime
+
+        ep = self._ep()
+        # reset_day=15, but it is the 3rd -> the period began on the 15th of LAST month
+        start = ep._budget_period_start(15, datetime(2026, 10, 3, 8, 0))
+        self.assertEqual((start.year, start.month, start.day), (2026, 9, 15))
+
+    def test_january_rolls_back_into_december_without_month_zero(self):
+        from datetime import datetime
+
+        ep = self._ep()
+        start = ep._budget_period_start(15, datetime(2026, 1, 3, 8, 0))
+        self.assertEqual((start.year, start.month, start.day), (2025, 12, 15))
+
+    def test_a_nonsense_reset_day_falls_back_to_the_first(self):
+        from datetime import datetime
+
+        ep = self._ep()
+        for bad in (None, 0, -5, "not-a-day", 99):
+            start = ep._budget_period_start(bad, datetime(2026, 10, 20))
+            self.assertEqual((start.month, start.day), (10, 1), f"reset_day={bad!r}")
+
+    def test_the_accumulate_resets_rather_than_adding_when_the_period_rolled(self):
+        """The write path, as SQL. Asserted on the statement text because the CASE is the
+        behaviour — an unconditional `+ %s` is the bug this whole change removes."""
+        src = pathlib.Path(self._ep().__file__).read_text(encoding="utf-8")
+        block = src[src.index("def _update_cost") :]
+        self.assertIn("THEN %(cost)s", block, "a rolled period must SET, not add")
+        self.assertIn("ELSE current_month_cost_usd + %(cost)s", block)
+        self.assertNotIn(
+            "current_month_cost_usd = current_month_cost_usd + %s",
+            block,
+            "the unconditional accumulate is exactly what never reset",
+        )
+        self.assertIn("last_reset_at", block, "the stamp must move when the period rolls")
+
+    def test_the_read_counts_only_the_current_period(self):
+        src = pathlib.Path(self._ep().__file__).read_text(encoding="utf-8")
+        self.assertIn("budget_reset_day, last_reset_at", src, "the read needs the period columns")
+        self.assertIn("_budget_used_for_current_period(raw_used, last_reset_at, reset_day)", src)
+
+    def test_the_backfill_migration_declares_the_period(self):
+        for rel in (
+            "database/migrations/489_budget_period_backfill.sql",
+            "/mnt/archie_brain/database/migrations/489_budget_period_backfill.sql",
+        ):
+            fp = pathlib.Path(rel)
+            if fp.exists():
+                sql = fp.read_text(encoding="utf-8")
+                break
+        else:
+            self.skipTest("migration 489 not reachable from this layout")
+        self.assertIn("SET last_reset_at = NOW()", sql)
+        self.assertIn("WHERE last_reset_at IS NULL", sql)

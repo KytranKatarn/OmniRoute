@@ -132,6 +132,11 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
     Mirrors archie_engine/fix_efficacy.py (#5003). The platform cannot import from the
     archie-code repo, so the rules are restated. KEEP THE TWO IN STEP.
     """
+    if (message or "").startswith("LARGE_FILE "):
+        # Match the Python-module scanner's threshold and newline counting.
+        # The stored detail is a historical size, not the current threshold.
+        return (file_text or "").count("\n") + 1 > 600
+
     m = _LINE_LEN_RE.search(message or "")
     if m:
         try:
@@ -261,7 +266,7 @@ def _read_proposal_file(runtime_file: str, file_path: str):
     return text
 
 
-def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=("approved",)) -> dict:
+def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=("approved",), module_name=None) -> dict:
     """Archive code-health proposals whose finding provably no longer reproduces.
 
     Same conservative contract as reconcile_open_issues: a proposal is archived ONLY when the
@@ -284,9 +289,19 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
         "samples": [],
     }
 
+    module_filter = ""
+    params = [list(statuses)]
+    if module_name:
+        module_filter = """AND (module_name = %s OR metadata->>'module_name' = %s
+                            OR metadata->>'file_path' LIKE %s
+                            OR metadata->>'file_path' LIKE %s)"""
+        # Escape LIKE metacharacters in module keys (e.g. family_tree).
+        escaped = module_name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params.extend([module_name, module_name, f"platform_v2/tools/{escaped}/%", f"[APP_CORE]/tools/{escaped}/%"])
+    params.append(limit)
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
-            """SELECT id,
+            f"""SELECT id,
                       metadata->>'issue_code'   AS issue_code,
                       metadata->>'detail'       AS detail,
                       metadata->>'runtime_file' AS runtime_file,
@@ -295,9 +310,10 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
                FROM improvement_proposals
                WHERE status = ANY(%s)
                  AND metadata->>'source' = 'code_health_audit'
+                 {module_filter}
                ORDER BY id
                LIMIT %s""",
-            (list(statuses), limit),
+            tuple(params),
         )
         rows = cur.fetchall()
 

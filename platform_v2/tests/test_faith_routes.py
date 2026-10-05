@@ -450,19 +450,21 @@ def test_faith_scripture_search_uses_profile_tradition(faith_client):
 
     captured = {}
 
-    def fake_bridge(prompt, system_prompt):
+    def fake_bridge(prompt, system_prompt, *, user_id):
         captured["prompt"] = prompt
         captured["system_prompt"] = system_prompt
+        captured["user_id"] = user_id
         return {"success": True, "response": "Qur'an reference", "model_used": "dhq", "agent": "F.A.I.T.H."}
 
     _login(faith_client)
     with patch("tools.faith.routes.archie_bridge", side_effect=fake_bridge), patch(
         "tools.faith.routes._get_user_faith_profile",
         return_value={"tradition_preference": "muslim", "prayer_style": "guided", "scripture_translation": "web"},
-    ):
+    ), _patched_db():
         resp = faith_client.post("/tools/faith/api/faith/scripture-search", json={"query": "mercy"})
 
     assert resp.status_code == 200
+    assert captured["user_id"] == 1
     assert "Muslim user" in captured["prompt"]
     assert "Tradition preference: Muslim" in captured["system_prompt"]
 
@@ -472,19 +474,21 @@ def test_faith_devotional_uses_multi_tradition_reflection_prompt(faith_client):
 
     captured = {}
 
-    def fake_bridge(prompt, system_prompt):
+    def fake_bridge(prompt, system_prompt, *, user_id):
         captured["prompt"] = prompt
         captured["system_prompt"] = system_prompt
+        captured["user_id"] = user_id
         return {"success": True, "response": "A Dhammapada reflection", "model_used": "dhq", "agent": "F.A.I.T.H."}
 
     _login(faith_client)
     with patch("tools.faith.routes.archie_bridge", side_effect=fake_bridge), patch(
         "tools.faith.routes._get_user_faith_profile",
         return_value={"tradition_preference": "buddhist", "prayer_style": "meditation", "scripture_translation": "web"},
-    ):
+    ), _patched_db():
         resp = faith_client.get("/tools/faith/api/faith/devotional")
 
     assert resp.status_code == 200
+    assert captured["user_id"] == 1
     assert "daily spiritual reflection" in captured["prompt"]
     assert "Buddhist user" in captured["prompt"]
     assert "Prayer/meditation style: meditation" in captured["system_prompt"]

@@ -146,6 +146,18 @@ def _audit_one(key, mod_data):
             proposals_skipped = repair_result.get("skipped_duplicates", 0)
         except Exception as repair_err:
             logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
+    from services.code_issue_reconciler import reconcile_open_proposals
+    from services.code_health_repairs import open_proposal_counts
+
+    reconciliation = None
+    pending_repairs = None
+    try:
+        reconciliation = reconcile_open_proposals(
+            dry_run=False, statuses=("approved", "ready_for_review"), module_name=key
+        )
+        pending_repairs = open_proposal_counts().get(key, 0)
+    except Exception:
+        logger.warning("Repair reconciliation failed for %s", key, exc_info=True)
     return {
         "module": key,
         "profile": profile,
@@ -160,6 +172,8 @@ def _audit_one(key, mod_data):
         "status": status,
         "proposals_created": proposals_created,
         "proposals_skipped": proposals_skipped,
+        "pending_repairs": pending_repairs,
+        "repair_reconciliation": reconciliation,
     }
 
 
@@ -1165,30 +1179,17 @@ def register_code_health_routes(bp, admin_required):
             last_scan_date = scan_row["scanned_at"].isoformat() if scan_row else None
 
             # Get pending proposal counts per module (active proposals in pipeline)
-            proposal_counts = {}
-            try:
-                cur.execute(
-                    """SELECT metadata->>'file_path' as fp, COUNT(*) as cnt
-                       FROM improvement_proposals
-                       WHERE metadata->>'source' = 'code_health_audit'
-                         AND status NOT IN ('archived', 'rejected', 'deployed')
-                       GROUP BY metadata->>'file_path'"""
-                )
-                for pr in cur.fetchall():
-                    fp = pr["fp"] or ""
-                    mod = _module_from_proposal_fp(fp)
-                    if mod:
-                        proposal_counts[mod] = proposal_counts.get(mod, 0) + pr["cnt"]
-            except Exception:
-                pass
+            from services.code_health_repairs import open_proposal_counts
+
+            proposal_counts = open_proposal_counts()
 
             for name in sorted(module_names):
                 audit = audits.get(name)
                 has_proposals = proposal_counts.get(name, 0) > 0
                 if not audit:
                     status = "red"  # never audited
-                elif audit["status"] == "violations_found" and has_proposals:
-                    status = "purple"  # issues submitted to Repair Bay
+                elif has_proposals:
+                    status = "purple"  # a clean audit does not close another scanner's findings
                 elif audit["status"] == "violations_found":
                     status = "orange"  # audited but issues not submitted yet
                 elif audit["status"] == "findings_open":

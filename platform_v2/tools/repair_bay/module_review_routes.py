@@ -9,6 +9,7 @@ import logging
 
 from flask import jsonify, request
 from flask_login import login_required
+from services.code_health_repairs import TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -171,17 +172,9 @@ def register_module_review_routes(bp, admin_required):
                 )
                 metrics_rows = cur.fetchall() or []
 
-                # Open improvement proposals per module (from code health scans)
-                cur.execute(
-                    """
-                    SELECT module_name, COUNT(*) AS open_count
-                    FROM improvement_proposals
-                    WHERE module_name IS NOT NULL
-                      AND status NOT IN ('implemented', 'rejected', 'deployed')
-                    GROUP BY module_name
-                    """
-                )
-                proposals_rows = cur.fetchall() or []
+                from services.code_health_repairs import open_proposal_counts
+
+                proposals_by_module = open_proposal_counts(code_health_only=False)
 
                 # KB vault notes per module (tags match module key)
                 cur.execute(
@@ -235,8 +228,6 @@ def register_module_review_routes(bp, admin_required):
             }
             for row in metrics_rows
         }
-
-        proposals_by_module = {row["module_name"]: row["open_count"] for row in proposals_rows}
 
         # Build KB lookup: tag → {note_count, latest_at}
         kb_by_tag: dict = {}
@@ -317,16 +308,19 @@ def register_module_review_routes(bp, admin_required):
         module_key = (data.get("module_key") or "").strip()
         if not module_key:
             return jsonify({"success": False, "error": "module_key required"}), 400
+        escaped = module_key.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
                     """SELECT id, title, description, priority
                        FROM improvement_proposals
-                       WHERE module_name = %s
-                         AND status NOT IN ('implemented', 'rejected', 'deployed')
+                       WHERE (COALESCE(NULLIF(module_name, ''), metadata->>'module_name') = %s
+                              OR metadata->>'file_path' LIKE %s
+                              OR metadata->>'file_path' LIKE %s)
+                         AND status NOT IN %s
                        ORDER BY proposed_at DESC""",
-                    (module_key,),
+                    (module_key, f"platform_v2/tools/{escaped}/%", f"[APP_CORE]/tools/{escaped}/%", TERMINAL_STATUSES),
                 )
                 open_proposals = cur.fetchall() or []
 
@@ -338,9 +332,9 @@ def register_module_review_routes(bp, admin_required):
                     """SELECT 1 FROM improvement_proposals
                        WHERE module_name = %s
                          AND proposal_source = 'bundled'
-                         AND status NOT IN ('implemented', 'rejected', 'deployed', 'superseded')
+                         AND status NOT IN %s
                        LIMIT 1""",
-                    (module_key,),
+                    (module_key, TERMINAL_STATUSES),
                 )
                 if cur.fetchone():
                     return (

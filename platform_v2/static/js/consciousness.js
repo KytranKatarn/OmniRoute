@@ -4298,7 +4298,8 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
         if (d.success && d.results && d.results[0]) {
           var r = d.results[0];
           if (r.status === "completed") {
-            btn.textContent = "\u2713 clean";
+            btn.textContent = r.pending_repairs == null ? "Audit clean; repairs unverified" :
+              r.pending_repairs > 0 ? "Audit clean; " + r.pending_repairs + " repairs pending" : "\u2713 clean";
             btn.style.background = "rgba(34,197,94,0.2)";
             btn.style.color = "#22c55e";
             btn.style.borderColor = "#22c55e";

@@ -125,6 +125,47 @@ def _follow_merges(cur, slug_to_id):
                 slug_to_id[slug] = moved[eid]
     return slug_to_id
 
+
+def _apply_slug_remap(remap, inline, mention_rows, rel_rows):
+    """Rename slugs in-place across the three collected structures (pure; no DB).
+
+    ``remap`` maps old slug -> new slug. Pointer refs are deliberately NOT remapped: a pointer
+    names an existing node explicitly, so it must keep meaning exactly that node.
+    """
+    if not remap:
+        return
+    for old, new in remap.items():
+        if old in inline:
+            inline[new] = inline.pop(old)
+    for key in list(mention_rows):
+        slug, ctype, cid = key
+        if slug in remap:
+            row = mention_rows.pop(key)
+            mention_rows[(remap[slug], ctype, cid)] = (remap[slug],) + tuple(row[1:])
+    for key in list(rel_rows):
+        f, t, rtype, sid = key
+        if f in remap or t in remap:
+            row = rel_rows.pop(key)
+            nf, nt = remap.get(f, f), remap.get(t, t)
+            rel_rows[(nf, nt, rtype, sid)] = (nf, nt) + tuple(row[2:])
+
+
+def _journalist_slug_clashes(cur, inline):
+    """Slugs of non-journalist inline entities that would land on an existing JOURNALIST row.
+
+    Slugs are one namespace across node types, and the upsert is ON CONFLICT (slug) which keeps
+    the EXISTING type. A vendor or contracting contact who shares a name with a byline journalist
+    therefore latched onto the journalist: 41 journalists (Nick Perry 50 awards, Susan O'Brien 44,
+    University of Calgary 58, ...) carried gov-watch edges, and a data split would have been undone
+    by the next nightly push. Such an entity gets its own node, slug "<slug>-<entity_type>".
+    """
+    cand = [s for s, e in inline.items() if e["etype"] != "journalist"]
+    if not cand:
+        return {}
+    cur.execute("SELECT slug FROM shared.entities "
+                "WHERE slug = ANY(%s) AND entity_type = 'journalist' AND status <> 'merged'", (cand,))
+    return {slug: f"{slug}-{inline[slug]['etype']}" for (slug,) in cur.fetchall()}
+
 _MENTION_UPSERT = """
     INSERT INTO shared.entity_mentions
         (entity_id, product, content_type, content_id, mention_context, confidence)
@@ -348,6 +389,13 @@ def ingest_entity_graph():
         with _eng().begin() as conn:
             cur = conn.connection.cursor()
             slug_to_id = {}
+
+            # 0) A non-journalist must not latch onto a same-slug JOURNALIST (see helper).
+            if inline:
+                remap = _journalist_slug_clashes(cur, inline)
+                if remap:
+                    _apply_slug_remap(remap, inline, mention_rows, rel_rows)
+                    stats["journalist_slug_remapped"] = len(remap)
 
             # 1) Entities — bulk upsert (roles/aliases merged in SQL).
             if inline:

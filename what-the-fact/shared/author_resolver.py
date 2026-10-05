@@ -75,18 +75,54 @@ def clean_byline(raw: str) -> list:
     return [p for p in parts if len(p) >= 2 and not is_wire_service(p)]
 
 
+def _find_journalist(conn, s, slug):
+    """The ACTIVE journalist row for ``slug``, following merges; None if there is none.
+
+    Returns (row, taken): ``row`` is {"id", "metadata"} for the journalist; ``taken`` is True
+    when the slug is held by something that is NOT a live journalist (a vendor, a contact, an
+    institution, a suppressed row), in which case the caller must use a journalist-specific slug
+    rather than attach the byline to that node.
+    """
+    cur_slug_row = conn.execute(
+        text(f"SELECT id, metadata, entity_type, status, merged_into FROM {s}.entities WHERE slug=:slug"),
+        {"slug": slug},
+    ).mappings().first()
+    for _ in range(5):                       # a merged row keeps its slug: follow it to the survivor
+        if not cur_slug_row:
+            return None, False
+        if cur_slug_row["status"] == "merged" and cur_slug_row["merged_into"] is not None:
+            cur_slug_row = conn.execute(
+                text(f"SELECT id, metadata, entity_type, status, merged_into FROM {s}.entities WHERE id=:i"),
+                {"i": cur_slug_row["merged_into"]},
+            ).mappings().first()
+            continue
+        break
+    if not cur_slug_row:
+        return None, False
+    if cur_slug_row["entity_type"] == "journalist" and cur_slug_row["status"] == "active":
+        return cur_slug_row, False
+    return None, True
+
+
 def resolve_byline(conn, raw_byline, source_slug, shared_schema=None):
     """Clean a raw byline → find-or-create one journalist entity per name; append the
-    outlet slug to metadata.outlets. Returns the list of entity_ids (co-bylines → many)."""
+    outlet slug to metadata.outlets. Returns the list of entity_ids (co-bylines → many).
+
+    Slugs are ONE namespace across node types, so the lookup must not assume the slug holds a
+    journalist: a vendor or contact named "Nick Perry" owns slug ``nick-perry`` and attaching the
+    byline there put news articles (and an outlet list) on a procurement node — the mirror of the
+    ingest-side collision. A byline whose slug belongs to a non-journalist uses ``<slug>-journalist``.
+    """
     s = _shared_schema(shared_schema)
     out = []
     for name in clean_byline(raw_byline):
         slug = normalize_name(name)
         if not slug:
             continue
-        row = conn.execute(
-            text(f"SELECT id, metadata FROM {s}.entities WHERE slug=:slug"), {"slug": slug}
-        ).mappings().first()
+        row, taken = _find_journalist(conn, s, slug)
+        if taken:
+            slug = f"{slug}-journalist"
+            row, _ = _find_journalist(conn, s, slug)
         if row:
             eid = row["id"]
             outlets = (row["metadata"] or {}).get("outlets", [])

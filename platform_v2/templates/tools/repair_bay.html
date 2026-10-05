@@ -380,6 +380,25 @@
                   </label>
                   <span id="prScopeNote" style="color:rgba(255,255,255,0.35);"></span>
                 </div>
+                <!-- REVIEWER — tab level, beside REVIEW SCOPE, and LABELLED.
+                     It used to live only inside the PR detail pane as an unlabelled
+                     dropdown next to "re-review", while a big labelled REVIEW SCOPE control
+                     sat up here controlling something else entirely. Measured: two clicks
+                     meant to reach P.R.O.B.E. dispatched to F.O.R.G.E., because the default
+                     is F.O.R.G.E. and the control you actually wanted was somewhere else.
+                     Two controls for one setting is worse than one obvious one. -->
+                <div class="dp-filter-row" id="prReviewerRow"
+                     style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+                            font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+                            color:rgba(255,255,255,0.55);">
+                  <span style="letter-spacing:0.08em;">REVIEWER</span>
+                  <select id="prReviewerPick" title="Which agent reviews this PR when you analyze or re-review. F.O.R.G.E. owns the merge verdict; P.R.O.B.E. is a QA opinion and is recorded separately, so it cannot gate a merge. Codex (CLI) is not listed: it has no skills and has never been dispatched."
+                          style="background:rgba(255,255,255,0.06);color:#e6edf3;
+                                 border:1px solid rgba(255,255,255,0.15);border-radius:3px;padding:2px 5px;
+                                 font-family:'IBM Plex Mono',monospace;font-size:0.62rem;">
+                  </select>
+                  <span id="prReviewerNote" style="color:rgba(255,255,255,0.35);"></span>
+                </div>
                 <div class="dp-pr-split" style="width:100%;max-width:none;">
                   <div class="dp-pr-list" id="prReviewList">
                     <div class="dp-pr-empty-state">No PRs tracked yet. Click Poll GitHub to sync.</div>
@@ -3722,6 +3741,7 @@ window.loadPRReviews = function(state) {
     // tab. Without this the control renders with no stated default, and an
     // operator cannot tell what "server default" actually means.
     if (_prScopeDefaults === null) { _prScopeDefaults = undefined; _prScopeInit(); }
+    if (typeof _prInitReviewerPick === 'function') _prInitReviewerPick();
     if (state === undefined) state = _prStateFilter;
     var list = document.getElementById('prReviewList');
     if (!list) return;
@@ -3816,6 +3836,57 @@ window.loadPRReviews = function(state) {
             else if (_stale) badge.title = 'This row has not refreshed in over a minute.';
 
             header.appendChild(num); header.appendChild(title); header.appendChild(badge);
+
+            // CODEX (CLI) verdict — ADVISORY, rendered as its own badge and never folded into
+            // merge_state. It sits beside F.O.R.G.E.'s state, not inside it, because it must never
+            // gate a merge. The pairing worth noticing is F.O.R.G.E. APPROVE + CODEX REQUEST_CHANGES:
+            // that is a disagreement a human should see, and until now the row showed only the
+            // green APPROVED badge — on #3627 while CODEX held an open [high] finding.
+            var cx = pr.codex || null;
+            if (cx && cx.verdict) {
+            var cxB = document.createElement('span');
+            var cxBlocks = cx.verdict === 'REQUEST_CHANGES';
+            var cxApproves = cx.verdict === 'APPROVE';
+            cxB.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;'
+            + 'border:1px solid ' + (cxBlocks ? 'rgba(248,113,113,0.55)' : 'rgba(103,232,249,0.45)')
+            + ';color:' + (cxBlocks ? '#f87171' : '#67e8f9')
+            + ';background:' + (cxBlocks ? 'rgba(248,113,113,0.10)' : 'rgba(34,211,238,0.08)')
+            + (cx.stale ? ';opacity:0.55' : '');
+            var cxTxt = (cxBlocks ? 'CHANGES' : cxApproves ? 'APPROVE' : cx.verdict) + (cx.stale ? ' (old)' : '');
+            cxB.textContent = 'CODEX ' + cxTxt + (cx.finding_count ? ' \u00b7 ' + cx.finding_count : '');
+            cxB.title = 'Second opinion from a PR review whose body begins VERDICT: — almost always '
+            + 'CODEX (CLI). ADVISORY ONLY: it does not gate merges and is not part of the merge '
+            + 'decision.'
+            + (cx.finding_count ? ' Findings: ' + cx.finding_count + '.' : '')
+            + (cx.reviewed_at ? ' Reviewed ' + cx.reviewed_at + '.' : '')
+            + (cx.stale ? ' STALE: the PR has moved on since this review, so it describes an older commit.' : '');
+            // Its OWN line, not the header's. The header row already carries the number,
+            // title, F.O.R.G.E. badge and the merge-order badge, and the card is narrow
+            // enough that the last of those is CLIPPED at the edge — so a fifth item put the
+            // CODEX verdict outside the visible area entirely. Found by screenshot: the
+            // served HTML contained the badge and the row carried the data, yet nothing
+            // appeared. Layout, not data.
+            var cxRow = document.createElement('div');
+            cxRow.style.cssText = 'display:flex;gap:6px;align-items:center;margin:-2px 0 6px 0;flex-wrap:wrap;';
+            cxRow.appendChild(cxB);
+            card.appendChild(cxRow);
+
+            // P.R.O.B.E. (QA) verdict — advisory, its own badge, never the merge gate's.
+            var pb = pr.probe || null;
+            if (pb && pb.verdict) {
+              var pbB = document.createElement('span');
+              var pbBlocks = pb.verdict === 'REQUEST_CHANGES';
+              pbB.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;'
+                + 'border:1px solid ' + (pbBlocks ? 'rgba(251,191,36,0.55)' : 'rgba(148,163,184,0.45)')
+                + ';color:' + (pbBlocks ? '#fbbf24' : '#94a3b8')
+                + ';background:' + (pbBlocks ? 'rgba(251,191,36,0.10)' : 'rgba(148,163,184,0.08)');
+              pbB.textContent = 'P.R.O.B.E. ' + (pbBlocks ? 'ISSUES' : (pb.verdict === 'APPROVE' ? 'PASS' : pb.verdict));
+              pbB.title = 'P.R.O.B.E. — QA opinion, ADVISORY ONLY. Stored apart from the merge'
+                + ' verdict and cannot gate a merge.'
+                + (pb.reviewed_at ? ' Reviewed ' + pb.reviewed_at + '.' : '');
+              cxRow.appendChild(pbB);
+            }
+            }
             // MERGE ORDER — server-computed (merge_order_service), rendered only. ① ② ③ with
             // "after #N" for a declared dependency and "shares files with #N" for overlap.
             var _mo = pr.merge_order || null;
@@ -4537,8 +4608,35 @@ function _prScopeBody(extra) {
   }
 
   function _prSelectedReviewer(scopeEl) {
+      // Tab-level control is authoritative. The per-row dropdowns that used to carry this
+      // are gone — see the note on #prReviewerRow.
+      var top = document.getElementById('prReviewerPick');
+      if (top && top.value) return top.value;
       var sel = scopeEl && scopeEl.querySelector('select[data-pr-reviewer]');
       return (sel && sel.value) || '';
+  }
+
+  function _prInitReviewerPick() {
+      var sel = document.getElementById('prReviewerPick');
+      if (!sel || sel.dataset.ready) return;
+      PR_REVIEWERS.forEach(function(name) {
+          var o = document.createElement('option');
+          o.value = name; o.textContent = name; sel.appendChild(o);
+      });
+      sel.value = PR_REVIEWERS[0];
+      sel.dataset.ready = '1';
+      var note = document.getElementById('prReviewerNote');
+      if (note) {
+          note.textContent = sel.value === 'F.O.R.G.E.'
+              ? 'owns the merge verdict'
+              : 'advisory QA opinion — recorded separately, cannot gate a merge';
+      }
+      sel.addEventListener('change', function() {
+          if (!note) return;
+          note.textContent = sel.value === 'F.O.R.G.E.'
+              ? 'owns the merge verdict'
+              : 'advisory QA opinion — recorded separately, cannot gate a merge';
+      });
   }
 
 

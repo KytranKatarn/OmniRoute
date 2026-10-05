@@ -40,7 +40,14 @@ function mkEl(tag) {
   };
   return el;
 }
-global.document = { createElement: mkEl };
+// `_prSelectedReviewer` reads the TAB-LEVEL picker via getElementById before falling
+// back to the row's own select. The stub needs that method or the eval throws — which is
+// how this spec caught the move before it shipped.
+let topPick = null;
+global.document = {
+  createElement: mkEl,
+  getElementById: (id) => (id === 'prReviewerPick' ? topPick : null),
+};
 
 const PR_REVIEWERS = ['F.O.R.G.E.','P.R.O.B.E.'];
 let sel = null;
@@ -59,6 +66,19 @@ const row = mkEl('div'); sel.setAttribute('data-pr-reviewer','1'); row.appendChi
 check('reads selected reviewer', _prSelectedReviewer(row), 'F.O.R.G.E.');
 sel.value = 'P.R.O.B.E.';
 check('reads changed reviewer', _prSelectedReviewer(row), 'P.R.O.B.E.');
+
+// Tab-level picker wins over the row's select — that is the whole point of the move.
+const rowSel = _prReviewerSelect();
+rowSel.value = 'F.O.R.G.E.';
+check('falls back to the row select when no tab picker exists',
+  _prSelectedReviewer({ querySelector: () => rowSel }), 'F.O.R.G.E.');
+topPick = { value: 'P.R.O.B.E.' };
+check('tab-level picker overrides the row select',
+  _prSelectedReviewer({ querySelector: () => rowSel }), 'P.R.O.B.E.');
+topPick = { value: '' };
+check('an empty tab picker falls back rather than sending nothing',
+  _prSelectedReviewer({ querySelector: () => rowSel }), 'F.O.R.G.E.');
+topPick = null;
 
 const other = mkEl('div'); const sel2 = _prReviewerSelect(); sel2.setAttribute('data-pr-reviewer','1'); other.appendChild(sel2);
 sel2.value = 'F.O.R.G.E.';
@@ -226,6 +246,24 @@ check('PR count badge marks a capped list',
 check('route sends total/truncated to the pane',
   /"truncated": total > len\(result\)/.test(routeSrc), true);
 check('route sends the true total', /"total": total/.test(routeSrc), true);
+
+// The reviewer picker moved to TAB LEVEL beside REVIEW SCOPE, labelled. It used to live
+// only inside the PR detail pane as an unlabelled dropdown while a big labelled
+// REVIEW SCOPE control sat above it controlling something else. Measured: two clicks
+// meant to reach P.R.O.B.E. dispatched to F.O.R.G.E., because the default is F.O.R.G.E.
+// and the wanted control was somewhere else entirely.
+check('reviewer picker exists at tab level', /id="prReviewerPick"/.test(tplHtml), true);
+check('reviewer picker is LABELLED', /REVIEWER<\/span>\s*<select id="prReviewerPick"/.test(tplHtml), true);
+check('reviewer picker lives beside REVIEW SCOPE',
+  tplHtml.indexOf('id="prScopeRow"') < tplHtml.indexOf('id="prReviewerPick"')
+  && tplHtml.indexOf('id="prReviewerPick"') < tplHtml.indexOf('id="prReviewerRow"') + 400, true);
+check('reviewer note explains who owns the merge verdict',
+  /owns the merge verdict/.test(tplHtml), true);
+check('reviewer note explains QA cannot gate',
+  /advisory QA opinion/.test(tplHtml), true);
+check('_prSelectedReviewer prefers the tab-level control',
+  /document\.getElementById\('prReviewerPick'\)/.test(tplHtml), true);
+check('P.R.O.B.E. badge rendered on the row', /P\.R\.O\.B\.E\. /.test(tplHtml), true);
 
 check('pane labels the verdict advisory',
   /model says APPROVE \(advisory\)/.test(src), true);

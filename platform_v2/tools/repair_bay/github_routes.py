@@ -1173,7 +1173,25 @@ def register_github_routes(bp, admin_required):
 
         poll_result = poll_open_prs()
         closed = sync_closed_prs()
-        return jsonify({**poll_result, "closed_synced": closed})
+
+        # CODEX (CLI) verdicts, ingested here because this is the one moment we already
+        # know the open PRs. Without it a CODEX REQUEST_CHANGES is invisible in the list:
+        # F.O.R.G.E.'s ai_summary is all a row carries, so on 2026-10-05 #3627 showed a
+        # green APPROVED row while CODEX held an open [high] finding on it.
+        #
+        # Open PRs only, by decision — history is backfilled on demand rather than
+        # sweeping every merged row on every poll. Advisory only: this never touches
+        # review_status or merge_state.
+        codex = {"checked": 0, "recorded": 0, "reasons": ["skipped: nothing to check"]}
+        try:
+            from .services.codex_verdicts import ingest_for_open_prs
+
+            codex = ingest_for_open_prs()
+        except Exception as exc:  # noqa: BLE001 - never fail the poll over an advisory side-channel
+            logger.warning("forge_pr_reviews_poll: codex ingest failed: %s", exc)
+            codex = {"checked": 0, "recorded": 0, "reasons": [f"error: {exc}"]}
+
+        return jsonify({**poll_result, "closed_synced": closed, "codex": codex})
 
     @bp.route("/api/forge/pr-reviews/<int:pr_number>/analyze", methods=["POST"])
     @login_required
@@ -1314,6 +1332,8 @@ def register_github_routes(bp, admin_required):
                 400,
             )
 
+        _who = _reviewer or "F.O.R.G.E."
+
         def _run_in_background():
             # The override is THREAD-LOCAL, so it has to be entered inside the
             # thread. Wrapping the Thread(...) construction instead would set it
@@ -1343,7 +1363,11 @@ def register_github_routes(bp, admin_required):
                     # DHQ dispatch — goes through queue+orchestration pipeline
                     summary = _run_forge_review(prompt)
                 if summary:
-                    mark_review_done(pr_number, summary, repo)
+                    # `reviewer` decides WHERE the verdict lands: F.O.R.G.E. owns ai_summary
+                    # (the merge gate's field); any other reviewer is stored apart and cannot
+                    # gate. Passing it is what stops a QA verdict from overwriting the code
+                    # review's verdict with no attribution — measured on #3627.
+                    mark_review_done(pr_number, summary, repo, reviewer=_who)
                     _notify_pr_reviewed(pr_number, repo, review.get("title", ""), summary)
                 else:
                     mark_review_pending(pr_number, repo)

@@ -1,0 +1,87 @@
+# Repair Bay — CODEX review queue drainer.
+#
+# WHAT THIS DOES
+#   The Repair Bay "CODEX review" button does not run a review. It drops a JSON request
+#   into /mnt/archie_sandbox/.codex-review-queue/pending/ and returns. codex itself only
+#   ever runs on the HOST, where the binary and the git credentials live, so something has
+#   to pick the spool up. That something was missing: the button enqueued work that only
+#   ever drained when an operator ran the runner by hand. Two requests queued from the UI
+#   on 2026-10-05 sat untouched for hours.
+#
+#   This is that missing drainer. It runs codex_review_queue.sh --once, which claims one
+#   request, runs forge_codex_review.sh --pr N, and writes the result (including the
+#   reviewer's exit code) to done/.
+#
+# WHY EVERY 5 MINUTES
+#   A real posting review takes ~2 minutes (measured: 2m07s end to end). Every 5 gives
+#   comfortable headroom without leaving a queued click looking ignored for long.
+#
+# WHY flock
+#   A review can outlast the interval. Without the lock two ticks would claim the same
+#   request and post the same review twice. flock -n makes the overlapping tick a no-op.
+#
+# WHY PATH IS PINNED EXPLICITLY
+#   cron runs with a minimal PATH — /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:
+#   /sbin:/bin — and BOTH tools this job needs live outside it:
+#       gh    /home/kytran/.local/bin/gh
+#       codex /home/kytran/.local/bin/codex
+#   Measured on 2026-10-05: with the inherited PATH the runner failed instantly because it
+#   could not find `gh` to resolve a write token, and would not have found `codex` either.
+#   A scheduled job that silently fails on PATH is worse than no job, because the queue
+#   still looks wired up. Pin it here rather than relying on a profile that cron never
+#   reads. node is on the same list because the codex CLI is a node package.
+#
+# WHY NO TOKEN IN THIS FILE
+#   Posting needs a GitHub write token. forge_codex_review.sh resolves it from the host's
+#   own `gh auth login` when CODEX_REVIEW_WRITE_TOKEN is unset, so the credential is never
+#   written into a versioned file. Keep it that way.
+#
+# ⚠️ ON THIS HOST, INSTALL IT INTO THE USER CRONTAB, NOT /etc/cron.d.
+#
+# Measured 2026-10-05: this exact entry installed to /etc/cron.d/codex-review-queue NEVER
+# FIRED. The file was present with mode 644 root:root, `systemctl restart cron` succeeded,
+# crond was SIGHUP'd (its PID changed, so it did reload), and the schedule was even
+# temporarily widened to `* * * * *` — zero executions in 5.5 minutes each time. The
+# sibling /etc/cron.d/codex-delegation-worker DOES fire every minute, so cron.d is read in
+# general, but something about a drop-in added after crond's start is not honoured here.
+# The cause is unresolved and is an ops question, not a code one.
+#
+# The SAME line in the USER crontab fired within 20 seconds. So that is what is installed,
+# and this file is the versioned definition of it:
+#
+#   ( crontab -l 2>/dev/null | grep -v codex_review_queue.sh; cat <<'EOF'
+#   */5 * * * * PATH=/home/kytran/.local/bin:/home/kytran/.nvm/versions/node/v24.13.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/flock -n /tmp/codex-review-queue.lock /mnt/archie_brain/scripts/codex_review_queue.sh --once >> /tmp/codex-review-queue.log 2>&1
+#   EOF
+#   ) | crontab -
+#
+# Keep this file as the single source of truth for the schedule. If /etc/cron.d ever starts
+# working for late-added files, moving it is a one-line change.
+#
+# INSTALL AS A DROP-IN (works on a normal vixie-cron host):
+#   sudo cp /mnt/archie_brain/scripts/agents/codex-review-queue.cron /etc/cron.d/codex-review-queue
+#   sudo chmod 644 /etc/cron.d/codex-review-queue
+#   sudo chown root:root /etc/cron.d/codex-review-queue
+#   sudo systemctl restart cron
+#
+# VERIFY IT IS ACTUALLY FIRING (do not trust the file being present):
+#   ls -l /etc/cron.d/codex-review-queue
+#   tail -f /tmp/codex-review-queue.log
+#   # then queue a throwaway request and confirm the log moves with no manual run:
+#   printf '{"kind":"codex_review","pr":<N>,"repo":"KytranKatarn/archie-platform","dry_run":true,"requested_at":"%s"}\n' \
+#     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /mnt/archie_sandbox/.codex-review-queue/pending/$(date +%s)-verify.json
+#
+# REMOVE:
+#   sudo rm -f /etc/cron.d/codex-review-queue && sudo systemctl restart cron
+#
+# RUNS AS 'kytran' — needs the codex CLI, gh auth, and write access to the shared spool.
+
+# NOTE: PATH is set as a COMMAND PREFIX, not as a `PATH=` crontab env line.
+# This host runs BUSYBOX crond, not vixie cron, and a drop-in file whose first lines are
+# `SHELL=`/`PATH=` env assignments is silently ignored by it — measured: the file was
+# installed, `ls` showed it, `systemctl restart cron` succeeded, and the job never ran
+# once in 5.5 minutes. The same file as a user crontab entry fired in 20 seconds.
+# cron hands the command line to a shell, so a shell-level prefix works everywhere and
+# does not depend on the daemon's crontab parser.
+#
+# Do not "simplify" this back into a `PATH=` line above the schedule.
+*/5 * * * * kytran PATH=/home/kytran/.local/bin:/home/kytran/.nvm/versions/node/v24.13.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/flock -n /tmp/codex-review-queue.lock /mnt/archie_brain/scripts/codex_review_queue.sh --once >> /tmp/codex-review-queue.log 2>&1

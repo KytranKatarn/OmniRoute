@@ -104,11 +104,33 @@ printf '%s\n' "==> CODEX review driver — repo $REPO"
 c_dim "    state: $STATE_FILE"
 [ "$DRY_RUN" -eq 1 ] && c_dim "    DRY RUN — nothing will be reviewed or posted"
 
+# Credential fallback: the host's own `gh` login.
+#
+# Without this, the Repair Bay button enqueued a review that could only ever fail.
+# Two requests queued from the UI on 2026-10-05 both died in 0.07s with
+# "CODEX_REVIEW_WRITE_TOKEN is unset" — the refusal was CORRECT (posting needs a
+# token) but it made the button useless, because nothing in the queue path ever
+# supplied one. The manual run that proved this integration worked had exported the
+# token by hand, which is exactly why the gap survived.
+#
+# Any write token is fine for COMMENT mode: only self-APPROVAL is refused by
+# GitHub. The token is read into the environment only — never printed, never on a
+# command line.
 if [ "$DRY_RUN" -ne 1 ] && [ -z "${CODEX_REVIEW_WRITE_TOKEN:-}" ]; then
-  die "CODEX_REVIEW_WRITE_TOKEN is unset. Posting needs a write token.
-     Any write token works for COMMENT mode — the PR author's own token is fine,
-     because only self-APPROVAL is refused by GitHub.
-     Use --dry-run to rehearse the plan without one."
+  if command -v gh >/dev/null 2>&1; then
+    CODEX_REVIEW_WRITE_TOKEN="$(gh auth token 2>/dev/null || true)"
+    if [ -n "$CODEX_REVIEW_WRITE_TOKEN" ]; then
+      export CODEX_REVIEW_WRITE_TOKEN
+      c_dim "    write token: resolved from the host gh login (value not shown)"
+    fi
+  fi
+fi
+
+if [ "$DRY_RUN" -ne 1 ] && [ -z "${CODEX_REVIEW_WRITE_TOKEN:-}" ]; then
+  die "CODEX_REVIEW_WRITE_TOKEN is unset and no gh login is available. Posting needs a write token.
+       Any write token works for COMMENT mode — the PR author's own token is fine,
+       because only self-APPROVAL is refused by GitHub.
+       Run 'gh auth login' on this host, export the variable, or use --dry-run to rehearse."
 fi
 
 if ! PR_LIST="$(list_prs)"; then

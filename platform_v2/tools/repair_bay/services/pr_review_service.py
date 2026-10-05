@@ -908,7 +908,33 @@ def pr_head_sha(pr_number: int, repo: str = None) -> str:
     return ""
 
 
-def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge: bool = True) -> None:
+#: Reviewers whose verdict F.O.R.G.E. owns. Anything else is advisory and is stored apart
+#: from `ai_summary`. Set by decision, 2026-10-05: F.O.R.G.E. is the merge authority, and a
+#: QA agent's opinion must never become the gate's verdict — a failed test would block a
+#: merge as if a code reviewer objected, and a passing one would render a green badge that
+#: is not a code review at all.
+GATE_REVIEWERS = ("F.O.R.G.E.",)
+
+
+def mark_review_done(
+    pr_number: int,
+    summary: str,
+    repo: str = None,
+    auto_merge: bool = True,
+    reviewer: str = None,
+) -> None:
+    """Record a completed review.
+
+    `reviewer` decides WHERE the verdict lands. F.O.R.G.E. (the default) writes
+    `ai_summary`, which is what `merge_state` reads. Any other reviewer writes
+    `metadata->'probe'` and leaves `ai_summary` alone, so an advisory opinion is visible
+    without being able to gate.
+
+    Before this, the reviewer was recorded nowhere: all 3,370 rows had
+    `metadata->>'reviewer'` unset, so a P.R.O.B.E. run silently overwrote F.O.R.G.E.'s
+    `ai_summary` with no attribution. Measured on #3627, where a F.O.R.G.E. APPROVE was
+    about to be replaced by a QA verdict that read as a code review.
+    """
     # Stamp WHICH COMMIT this verdict covers (#5646). Without it the gate could only
     # ask "is there an approval?", never "does it cover the code being merged?" — and
     # the ordinary workflow (open PR -> review -> address feedback -> push -> merge)
@@ -916,17 +942,43 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     # 02:38:36Z predated commit c787958fc at 02:41:41Z and had never seen the file that
     # commit changed, yet the gate reported a clean approval.
     _head = pr_head_sha(pr_number, repo)
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            """
-            UPDATE pr_reviews
-            SET review_status='reviewed', ai_summary=%s, ai_review_at=NOW(), updated_at=NOW(),
-                metadata = COALESCE(metadata, '{}'::jsonb)
-                           || jsonb_build_object('reviewed_head_sha', %s::text)
-            WHERE pr_number=%s AND repo=%s
-            """,
-            (summary, _head, pr_number, repo or _DEFAULT_REPO),
-        )
+    _who = reviewer or "F.O.R.G.E."
+    _gating = _who in GATE_REVIEWERS
+
+    if _gating:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE pr_reviews
+                SET review_status='reviewed', ai_summary=%s, ai_review_at=NOW(), updated_at=NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb)
+                               || jsonb_build_object('reviewed_head_sha', %s::text)
+                               || jsonb_build_object('reviewer', %s::text)
+                WHERE pr_number=%s AND repo=%s
+                """,
+                (summary, _head, _who, pr_number, repo or _DEFAULT_REPO),
+            )
+    else:
+        # Advisory. Deliberately does NOT write ai_summary, ai_review_at, or
+        # reviewed_head_sha — all three belong to the gating review. review_status moves to
+        # 'reviewed' only so this run cannot leave the row stuck in 'in_progress'.
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE pr_reviews
+                SET review_status='reviewed', updated_at=NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb)
+                               || jsonb_build_object(
+                                      'probe', jsonb_build_object(
+                                          'reviewer', %s::text,
+                                          'verdict', %s::text,
+                                          'summary', %s::text,
+                                          'head_sha', %s::text,
+                                          'at', NOW()::text))
+                WHERE pr_number=%s AND repo=%s
+                """,
+                (_who, parse_verdict(summary) or "UNKNOWN", summary[:600], _head, pr_number, repo or _DEFAULT_REPO),
+            )
 
     # ST-4: persist which review path produced this verdict + emit a telemetry line, so the
     # structured-vs-freeform ratio is observable (a silent drop to ~100% freeform = a regression).
@@ -1735,6 +1787,19 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
         _dis_cache = all_active_dismissals()
     except Exception:  # noqa: BLE001 — a listing must render even if dismissals cannot be read
         _dis_cache = {}
+    for row in rows:
+        # CODEX (CLI) verdict, projected for the list. ADVISORY: it is returned as its own
+        # field and is deliberately NOT folded into review_status/ai_summary, because those
+        # drive merge_state and CODEX must never gate a merge. See codex_verdicts.
+        try:
+            from .codex_verdicts import probe_for_row, verdict_for_row
+
+            row["codex"] = verdict_for_row(row.get("metadata"))
+            row["probe"] = probe_for_row(row.get("metadata"))
+        except Exception as exc:  # noqa: BLE001 - a listing must render regardless
+            logger.warning("list_reviews: codex projection failed: %s", exc)
+            row["codex"] = {}
+
     for row in rows:
         _meta = row.get("metadata") or {}
         if not isinstance(_meta, dict):

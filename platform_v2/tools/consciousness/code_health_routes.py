@@ -147,11 +147,13 @@ def _audit_one(key, mod_data):
         except Exception as repair_err:
             logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
     from services.code_issue_reconciler import reconcile_open_proposals
-    from services.code_health_repairs import open_proposal_counts
+    from services.code_health_repairs import open_proposal_counts, reconcile_duplicate_proposals
 
     reconciliation = None
     pending_repairs = None
+    duplicates = None
     try:
+        duplicates = reconcile_duplicate_proposals(key, dry_run=False)
         reconciliation = reconcile_open_proposals(
             dry_run=False, statuses=("approved", "ready_for_review"), module_name=key
         )
@@ -169,11 +171,14 @@ def _audit_one(key, mod_data):
         # 2 info). Both numbers are now reported, neither is inferred.
         "issues": len(issues_list),
         "issues_red": issues_found,
+        "issues_actionable": sum(issue.get("severity") in ("red", "yellow") for issue in issues_list),
+        "issues_informational": sum(issue.get("severity") not in ("red", "yellow") for issue in issues_list),
         "status": status,
         "proposals_created": proposals_created,
         "proposals_skipped": proposals_skipped,
         "pending_repairs": pending_repairs,
         "repair_reconciliation": reconciliation,
+        "duplicate_reconciliation": duplicates,
     }
 
 
@@ -474,7 +479,7 @@ def compute_orchestration():
                       COUNT(*) AS cnt
                FROM improvement_proposals
                WHERE metadata->>'source' = 'code_health_audit'
-                 AND LOWER(COALESCE(status, '')) NOT IN ('rejected', 'archived')
+                 AND LOWER(COALESCE(status, '')) NOT IN ('rejected', 'archived', 'superseded')
                GROUP BY 1, 2"""
         )
         rows = cur.fetchall()
@@ -1871,6 +1876,27 @@ def register_code_health_routes(bp, admin_required):
                 )
                 proposals_by_status = {r["status"]: r["count"] for r in cur.fetchall()}
 
+                # This panel also includes incident repairs and non-audit
+                # proposals. Expose the audit subset separately, including why
+                # approved work is deliberately excluded from automatic fixing.
+                from services.audit_pipeline import _AUTO_FIX_EXCLUDED_ISSUE_CODES
+                from services.code_health_repairs import TERMINAL_STATUSES
+
+                cur.execute(
+                    """SELECT COUNT(*) AS active,
+                              COUNT(*) FILTER (WHERE status = 'approved' AND
+                                  metadata->>'issue_code' = ANY(%s)) AS manual_review,
+                              COUNT(*) FILTER (WHERE status = 'ready_for_review') AS ready_for_review,
+                              COUNT(*) FILTER (WHERE status IN ('pending', 'pending_approval')) AS pending_approval,
+                              COUNT(*) FILTER (WHERE status IN ('approved', 'fix_requested') AND
+                                  metadata->>'dispatch_attempted' IS NOT NULL) AS dispatch_attempted
+                       FROM improvement_proposals
+                       WHERE metadata->>'source' = 'code_health_audit'
+                         AND status NOT IN %s""",
+                    (list(_AUTO_FIX_EXCLUDED_ISSUE_CODES), TERMINAL_STATUSES),
+                )
+                code_health = dict(cur.fetchone())
+
                 # Recent governance actions (self-healing)
                 cur.execute(
                     """
@@ -1906,6 +1932,7 @@ def register_code_health_routes(bp, admin_required):
                         "total": sum(proposals_by_status.values()),
                     },
                     "governance": governance,
+                    "code_health": code_health,
                     "repair_bay_url": "/tools/repair-bay",
                 }
             )

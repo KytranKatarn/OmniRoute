@@ -91,6 +91,7 @@ def faith_path(monkeypatch, tmp_path):
         yield None, Cursor()
 
     monkeypatch.setattr(repairs, "get_db_cursor", cursor)
+    monkeypatch.setattr(repairs, "reconcile_duplicate_proposals", lambda *a, **kw: {"superseded": 0})
     monkeypatch.setattr(reconciler, "get_db_cursor", cursor)
     monkeypatch.setattr(reconciler, "_read_proposal_file", lambda *args: source.read_text())
     audit = metrics.audit_single_module

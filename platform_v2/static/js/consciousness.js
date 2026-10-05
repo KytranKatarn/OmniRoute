@@ -3621,6 +3621,20 @@ function _renderRepairBayPipeline(data) {
   });
   el.appendChild(summaryBar);
 
+  var auditFlow = data.code_health;
+  if (auditFlow) {
+    var nextSteps = document.createElement("div");
+    nextSteps.className = "ch-pipeline-detail";
+    nextSteps.textContent = "Code Health: " + auditFlow.active + " active repair records; " +
+      auditFlow.manual_review + " approved refactor/security findings need manual review; " +
+      auditFlow.ready_for_review + " fixes ready for review; " +
+      auditFlow.pending_approval + " pending proposals/approvals; " +
+      auditFlow.dispatch_attempted + " attempted dispatches need outcome review. " +
+      "Queue and proposal totals below cover all Repair Bay work. Approval permits work; " +
+      "completion requires a reviewed PR, deployment, and re-verification.";
+    el.appendChild(nextSteps);
+  }
+
   // Pipeline flow cards
   var flow = document.createElement("div");
   flow.className = "ch-pipeline-flow";
@@ -4305,8 +4319,10 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
             btn.style.borderColor = "#22c55e";
           } else {
             var msg = r.issues + " issues";
-            if (r.proposals_created > 0) msg += ", " + r.proposals_created + " sent to repair";
-            else if (r.proposals_skipped > 0) msg += ", all in repair";
+            if (r.issues_informational > 0) msg += " (" + r.issues_informational + " informational)";
+            if (r.proposals_created > 0) msg += "; " + r.proposals_created + " new repairs";
+            if (r.pending_repairs != null) msg += "; " + r.pending_repairs + " repair records pending";
+            else msg += "; repairs unverified";
             btn.textContent = msg;
             btn.style.background = "rgba(167,139,250,0.2)";
             btn.style.color = "#a78bfa";
@@ -5063,7 +5079,7 @@ function _renderAuditTable(entries) {
     + '<span style="font-size:0.7rem;font-weight:600;color:' + auditBarColor + ';">' + auditedCount + '/' + totalModules + ' (' + auditPct + '%)</span>'
     + '</div>'
     + '<div style="display:flex;align-items:center;gap:8px;">'
-    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:55px;">Clean</span>'
+    + '<span style="font-size:0.7rem;color:rgba(255,255,255,0.5);min-width:55px;" title="Latest audit has no actionable findings; separate scanners may still have repair proposals">Audit clean</span>'
     + '<div style="width:140px;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">'
     + '<div style="height:100%;width:' + cleanPct + '%;background:' + cleanBarColor + ';border-radius:4px;transition:width 0.5s;"></div></div>'
     + '<span style="font-size:0.7rem;font-weight:600;color:' + cleanBarColor + ';">' + cleanCount + '/' + totalModules + ' (' + cleanPct + '%)</span>'

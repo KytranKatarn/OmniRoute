@@ -62,7 +62,9 @@ def run(dry_run=False):
             WITH vend AS (
                 SELECT e.id AS vendor_id, e.canonical_name AS vendor_name, {_norm("e.canonical_name")} AS nm
                 FROM shared.entities e
-                WHERE e.entity_type = 'organization'
+                -- active only: a merged entity keeps its slug/name but its edges moved to the
+                -- survivor, so matching it would strand new edges on a dead row (2026-10-05, #3650)
+                WHERE e.entity_type = 'organization' AND e.status = 'active'
                   AND EXISTS (SELECT 1 FROM shared.entity_relationships r
                               WHERE r.to_entity_id = e.id
                                 AND r.relationship_type = 'awarded_to'
@@ -102,8 +104,10 @@ def run(dry_run=False):
                    jsonb_build_object('ticker', m.ticker, 'exchange', m.exchange,
                                       'reaction', 'structural', 'match', 'exact_norm')
             FROM _matched m
-            JOIN shared.entities se ON se.slug = 'security-' || {_tslug("m.ticker")}
-                                   AND se.entity_type = 'organization'
+            JOIN shared.entities se ON se.id = (
+                    SELECT coalesce(s0.merged_into, s0.id) FROM shared.entities s0
+                    WHERE s0.slug = 'security-' || {_tslug("m.ticker")}
+                      AND s0.entity_type = 'organization')
             ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
             DO NOTHING
         """)).rowcount

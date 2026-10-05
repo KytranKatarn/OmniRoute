@@ -35,16 +35,18 @@ from ingest.shared.entity_graph import _upsert_entity, normalize_name, name_to_s
 
 logger = logging.getLogger("wtf.entity_graph_reconcile")
 
+# Both joins require status='active': a merged person/outlet keeps its slug/name, so matching it would
+# attach new covered_by edges to a dead row instead of its survivor (2026-10-05, #3650).
 _COVERED_BY_SQL = text("""
     INSERT INTO shared.entity_relationships
         (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
     SELECT DISTINCT emp.id, eo.id, 'covered_by', 'wtf', amt.article_id::text
     FROM wtf.article_mp_tags amt
     JOIN parliament.mps m       ON m.id = amt.mp_id
-    JOIN shared.entities emp    ON emp.slug = m.slug AND emp.entity_type = 'person'
+    JOIN shared.entities emp    ON emp.slug = m.slug AND emp.entity_type = 'person' AND emp.status = 'active'
     JOIN wtf.articles a         ON a.id = amt.article_id AND a.source_id IS NOT NULL
     JOIN wtf.sources s          ON s.id = a.source_id
-    JOIN shared.entities eo     ON eo.canonical_name = s.name AND eo.entity_type = 'organization'
+    JOIN shared.entities eo     ON eo.canonical_name = s.name AND eo.entity_type = 'organization' AND eo.status = 'active'
     ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
     DO NOTHING
 """)
@@ -99,10 +101,10 @@ def run(dry_run=False):
                   SELECT DISTINCT emp.id, eo.id, amt.article_id
                   FROM wtf.article_mp_tags amt
                   JOIN parliament.mps m    ON m.id = amt.mp_id
-                  JOIN shared.entities emp ON emp.slug = m.slug AND emp.entity_type='person'
+                  JOIN shared.entities emp ON emp.slug = m.slug AND emp.entity_type='person' AND emp.status = 'active'
                   JOIN wtf.articles a      ON a.id = amt.article_id AND a.source_id IS NOT NULL
                   JOIN wtf.sources s       ON s.id = a.source_id
-                  JOIN shared.entities eo  ON eo.canonical_name = s.name AND eo.entity_type='organization'
+                  JOIN shared.entities eo  ON eo.canonical_name = s.name AND eo.entity_type='organization' AND eo.status = 'active'
                 ) x
             """)).scalar_one()
             totals["covered_by_edges"] = int(cnt)

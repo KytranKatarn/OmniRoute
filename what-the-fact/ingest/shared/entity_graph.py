@@ -90,6 +90,27 @@ def _get_engine():
 
 # ── Upsert helper ─────────────────────────────────────────────────────────────
 
+def _live_entity_row(conn, slug: str):
+    """The row for `slug`, following dedup merges to the surviving entity.
+
+    A merged entity keeps its slug, so a lookup by slug lands on the OLD row; anything attached to
+    its id (appointed_to edges, roles, aliases) is stranded there — the site follows a merge only one
+    hop. See consumer.entity_graph_routes._follow_merges for the incident (122,660 stranded edges).
+    """
+    row = conn.execute(
+        text("SELECT id, roles, aliases, status, merged_into FROM shared.entities WHERE slug = :slug"),
+        {"slug": slug},
+    ).mappings().fetchone()
+    for _ in range(5):
+        if row is None or row["status"] != "merged" or not row["merged_into"]:
+            break
+        row = conn.execute(
+            text("SELECT id, roles, aliases, status, merged_into FROM shared.entities WHERE id = :id"),
+            {"id": row["merged_into"]},
+        ).mappings().fetchone()
+    return row
+
+
 def _upsert_entity(conn, *, canonical_name: str, slug: str,
                    entity_type: str, role: dict, raw_name: str,
                    dry_run: bool = False) -> tuple:
@@ -103,10 +124,7 @@ def _upsert_entity(conn, *, canonical_name: str, slug: str,
     Returns (entity_id, action) where action is 'created' | 'updated' | 'noop'.
     """
     if dry_run:
-        row = conn.execute(
-            text("SELECT id, roles, aliases FROM shared.entities WHERE slug = :slug"),
-            {"slug": slug},
-        ).mappings().fetchone()
+        row = _live_entity_row(conn, slug)
         if row is None:
             return -1, "would_create"
         existing_roles = row["roles"] if isinstance(row["roles"], list) else json.loads(row["roles"])
@@ -141,10 +159,7 @@ def _upsert_entity(conn, *, canonical_name: str, slug: str,
         return created[0], "created"
 
     # Conflict: row exists (ours from earlier, or a concurrent txn's). Read + merge.
-    row = conn.execute(
-        text("SELECT id, roles, aliases FROM shared.entities WHERE slug = :slug"),
-        {"slug": slug},
-    ).mappings().fetchone()
+    row = _live_entity_row(conn, slug)
     entity_id = row["id"]
     existing_roles = row["roles"] if isinstance(row["roles"], list) else json.loads(row["roles"])
     existing_aliases = list(row["aliases"] or [])

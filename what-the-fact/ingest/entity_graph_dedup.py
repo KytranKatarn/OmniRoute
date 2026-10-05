@@ -40,6 +40,12 @@ logger = logging.getLogger("entity_graph_dedup")
 # normalized-name SQL expression (matchable key)
 _NORM = "lower(unaccent(btrim({col})))"
 
+# Tables that point at shared.entities(id) and are READ by edge writers (EC donor->MP edges, cast_vote,
+# member_of, article mentions all go through <table>.entity_id). `_merge` used to leave these pointing
+# at the dead row, so merging a person who is an MP would have stranded every edge written afterwards.
+# Whitelisted — table names are interpolated into SQL.
+_ENTITY_REF_TABLES = ("parliament.mps", "parliament.senators", "parliament.officers")
+
 # Organisation key: letters and digits only. `_NORM` keeps internal spaces and punctuation, so
 # "LEVITT SAFETY LIMITED" and "LEVITTSAFETYLIMITED" never matched exactly and only the fuzzy scan
 # (a review queue nobody reads) could find them. Measured 2026-10-05: 4,092 active-organisation
@@ -161,6 +167,14 @@ def _merge(conn, survivor, merged, reason, by="dedup_engine"):
     conn.execute(text("UPDATE shared.entities SET merged_into=:s WHERE merged_into=:m AND status='merged'"),
                  {"s": survivor, "m": merged})
 
+    # parliament.mps/senators/officers.entity_id: repoint, remembering the row ids so revert() can undo
+    refs = {}
+    for tbl in _ENTITY_REF_TABLES:
+        refs[tbl] = conn.execute(text(
+            f"SELECT coalesce(json_agg(id), '[]'::json) FROM {tbl} WHERE entity_id=:m"), {"m": merged}).scalar()
+        conn.execute(text(f"UPDATE {tbl} SET entity_id=:s WHERE entity_id=:m"), {"s": survivor, "m": merged})
+    snap["parliament_refs"] = refs
+
     # drop merged's blocks, mark merged, log (revertable)
     conn.execute(text("DELETE FROM shared.entity_blocks WHERE entity_id=:m"), {"m": merged})
     conn.execute(text("UPDATE shared.entities SET status='merged', merged_into=:s WHERE id=:m"),
@@ -221,6 +235,12 @@ def revert(merge_log_id, by="dedup_revert"):
                 "UPDATE shared.entities SET merged_into=:m "
                 "WHERE id = ANY(:ids) AND merged_into=:s AND status='merged'"),
                 {"m": merged, "s": survivor, "ids": list(children)}).rowcount
+
+        # parliament.mps/senators/officers rows that followed `merged` to `survivor` go back
+        for tbl, ids in (snap.get("parliament_refs") or {}).items():
+            if tbl in _ENTITY_REF_TABLES and ids:
+                conn.execute(text(f"UPDATE {tbl} SET entity_id=:m WHERE id = ANY(:ids) AND entity_id=:s"),
+                             {"m": merged, "s": survivor, "ids": list(ids)})
 
         restored_edges, reinserted_edges = 0, 0
         for r in rels:
@@ -450,6 +470,10 @@ def repoint_stranded_edges(conn):
                       WHERE s.entity_id = e.merged_into AND s.product = m.product
                         AND s.content_type = m.content_type AND s.content_id = m.content_id)
     """))
+    for tbl in _ENTITY_REF_TABLES:
+        out[tbl] = conn.execute(text(
+            f"UPDATE {tbl} t SET entity_id = e.merged_into FROM shared.entities e "
+            f"WHERE t.entity_id = e.id AND e.status = 'merged' AND e.merged_into IS NOT NULL")).rowcount
     out["mentions"] = conn.execute(text("""
         UPDATE shared.entity_mentions m SET entity_id = e.merged_into
         FROM shared.entities e

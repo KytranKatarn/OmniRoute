@@ -102,7 +102,9 @@ class TestRepointStranded:
         rel = [c for c in conn.calls if "entity_relationships" in c]
         kinds = [("DEL" if c.startswith("DELETE") else "UPD", "from" if "r.from_entity_id" in c.split("WHERE")[1] else "to") for c in rel]
         assert kinds == [("DEL", "from"), ("UPD", "from"), ("DEL", "to"), ("UPD", "to")]
-        assert out == {"relationships": 6, "mentions": 3}
+        assert out["relationships"] == 6 and out["mentions"] == 3
+        for tbl in ("parliament.mps", "parliament.senators", "parliament.officers"):
+            assert out[tbl] == 3, "self-heal must repoint the parliament tables too"
 
     def test_only_merged_entities_with_a_survivor_are_touched(self):
         conn = _Conn()

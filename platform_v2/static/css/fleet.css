@@ -3761,6 +3761,43 @@ body.light-mode .bridge-zone-unstaffed {
     color: var(--archie-text-muted);
     border-color: rgba(255,255,255,0.1) !important;
 }
+/* Switch state (DS9 PR 5). Two switches share one row, so text alone cannot carry the
+   state: "ROUTING OFF" and "Disable" were the same grey, and on a paid provider the
+   difference between them is the difference between spending money and not. Colours follow
+   the convention already used by .fleet-prov-toggle.active in this file, so the Fleet and
+   Contractors tabs read identically.
+   Green = the switch is ON. Grey = OFF. The routing switch is the one that can cost money,
+   so it gets the stronger treatment: a filled background, not just a coloured border. */
+.contractor-routing-toggle.on,
+.contractor-active-toggle.on {
+    color: #10b981;
+    border-color: #10b981 !important;
+}
+.contractor-routing-toggle.on {
+    background: rgba(16, 185, 129, 0.2) !important;
+    font-weight: bold;
+}
+.contractor-routing-toggle.off,
+.contractor-active-toggle.off {
+    color: #6b7280;
+    border-color: #6b7280 !important;
+}
+/* Belt and braces for anyone who cannot rely on hue: the ON state is also bold. */
+.contractor-routing-toggle.on,
+.contractor-active-toggle.on {
+    font-weight: bold;
+}
+body.light-mode .contractor-routing-toggle.on,
+[data-theme="light"] .contractor-routing-toggle.on {
+    color: #047857;
+    border-color: #047857 !important;
+    background: rgba(16, 185, 129, 0.28) !important;
+}
+body.light-mode .contractor-routing-toggle.off,
+[data-theme="light"] .contractor-routing-toggle.off {
+    color: #6b7280;
+    border-color: #9ca3af !important;
+}
 .contractor-btn-toggle:hover {
     background: rgba(255,255,255,0.05) !important;
 }

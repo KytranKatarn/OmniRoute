@@ -456,7 +456,23 @@ def register_fleet_routes(bp, auth_decorator):
     @bp.route("/api/providers/<provider_key>/toggle", methods=["POST"])
     @auth_decorator
     def api_toggle_provider(provider_key):
-        """Toggle a provider active/inactive."""
+        """Toggle a provider active/inactive — and keep the legacy key table in step.
+
+        `contractor_providers.is_active` is the authority the tab now renders. But
+        `external_providers._get_api_key` still gates key material on
+        `external_api_keys.is_active = TRUE`, so flipping only the authority column would
+        leave a trap: re-enable a provider whose legacy row says inactive and the selector
+        happily picks it, then finds no key to call it with. That is a silent failure at the
+        worst moment — the moment an operator deliberately switched a contractor back on.
+
+        So both are written, in the same transaction, from the same computed value. A
+        provider with no legacy row simply has nothing to update, which is the normal case
+        for anything registered after the DS9 migration.
+
+        (The older POST /api/external-providers/<provider>/toggle still flips only the legacy
+        column. Nothing in the Contractors tab calls it; it should be deprecated rather than
+        left as a second way to desync the pair.)
+        """
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -471,11 +487,23 @@ def register_fleet_routes(bp, auth_decorator):
                 row = cur.fetchone()
                 if not row:
                     return jsonify({"error": "Provider not found"}), 404
+
+                cur.execute(
+                    """
+                    UPDATE external_api_keys
+                    SET is_active = %s, updated_at = NOW()
+                    WHERE provider = %s
+                    """,
+                    (row["is_active"], provider_key),
+                )
+                synced = cur.rowcount
+
                 return jsonify(
                     {
                         "success": True,
                         "provider_key": provider_key,
                         "is_active": row["is_active"],
+                        "legacy_rows_synced": synced,
                     }
                 )
         except Exception as e:
@@ -1632,20 +1660,24 @@ def register_fleet_routes(bp, auth_decorator):
                     rate_limits = rate_limits_def.get(account_tier, rate_limits_def.get("free", {}))
 
                     if cp.get("is_cloud_proxy"):
-                        is_active = (
-                            db_row["is_active"] if db_row else (cp.get("is_active", False) and ollama_api_key_set)
-                        )
+                        is_active = bool(cp.get("is_active", False)) and ollama_api_key_set
                         auth_method = "OLLAMA_API_KEY env var"
                         source = "cloud_config"
                     else:
-                        # Fall back to contractor_providers when there is no legacy
-                        # external_api_keys row. Hardcoding False here reported 22 of 30
-                        # contractors as INACTIVE even when they are configured: the legacy
-                        # row simply does not exist for anything registered after the DS9
-                        # migration, and absence of the OLD table's row is not absence of
-                        # configuration in the CURRENT one. Keyless and free-tier providers
-                        # need no key row at all, so they always rendered INACTIVE.
-                        is_active = db_row["is_active"] if db_row else bool(cp.get("is_active", False))
+                        # contractor_providers.is_active is the ONLY authority here.
+                        #
+                        # This used to read external_api_keys.is_active whenever a legacy row
+                        # existed, which made the tab contradict itself: the Disable button
+                        # writes contractor_providers (POST /api/providers/<key>/toggle), so
+                        # clicking it flipped one table while the badge kept rendering the
+                        # other. Measured on the live roster — 4 of the 8 providers with a
+                        # legacy key row disagreed with themselves, and cerebras showed
+                        # INACTIVE while its own column said active.
+                        #
+                        # external_api_keys is pre-DS9 state and is still consulted for the
+                        # things only it knows: the budget, the account tier and the key hint.
+                        # It is no longer consulted for whether the contractor is configured.
+                        is_active = bool(cp.get("is_active", False))
                         auth_method = (cp.get("auth_method") or "api_key").replace("_", " ").title()
                         source = "db"
 

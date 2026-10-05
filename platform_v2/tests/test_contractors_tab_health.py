@@ -44,6 +44,17 @@ def _js() -> str:
     return ""
 
 
+def _css() -> str:
+    for rel in (
+        "platform_v2/static/css/fleet.css",
+        "/app/static/css/fleet.css",
+    ):
+        p = pathlib.Path(rel) if rel.startswith("/") else REPO_ROOT / rel
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+    return ""
+
+
 def _routes() -> str:
     if ROUTES_PATH.exists():
         return ROUTES_PATH.read_text(encoding="utf-8")
@@ -369,26 +380,109 @@ class TestNoSilentRegressions(unittest.TestCase):
         if not cls.js:
             raise unittest.SkipTest("department-hq.js not reachable from this layout")
 
-    def test_is_active_falls_back_to_the_contractor_config(self):
-        """Absence of a LEGACY row is not absence of configuration in the CURRENT table.
+    def test_is_active_never_reads_the_legacy_key_table(self):
+        """contractor_providers.is_active is the only authority for "configured".
 
-        22 of 30 contractors rendered INACTIVE because the branch hardcoded False whenever
-        `external_api_keys` had no row for them. Keyless and free-tier providers need no key
-        row at all, so they could never look configured.
+        This is the bug that made the tab argue with itself. The Disable button POSTs to
+        /api/providers/<key>/toggle, which writes `contractor_providers.is_active`. The badge
+        used to render `external_api_keys.is_active` whenever a pre-DS9 key row existed — so
+        clicking Disable flipped one table while the badge kept showing the other, and the
+        button appeared broken. Measured live: 4 of the 8 providers with a legacy key row
+        disagreed with themselves, and cerebras read INACTIVE while its own column said
+        active.
+
+        external_api_keys is still read for what only it knows — budget, account tier, key
+        hint. It must not decide whether the contractor is configured.
         """
-        # Matched without embedded quotes: a quote inside the pattern is a delimiter hazard
-        # when the pattern is built from adjacent string literals.
+        # Asserted as a bare absence, not as a pattern on the assignment. A pattern like
+        # `is_active = db_row[...]` misses `is_active = bool(db_row[...]) if db_row else
+        # False`, which is the same bug wearing a cast — verified by mutation.
+        self.assertNotIn(
+            'db_row["is_active"]',
+            self.src,
+            "is_active must not be sourced from the legacy external_api_keys row — that is "
+            "the table the Disable button does NOT write",
+        )
         self.assertRegex(
             self.src,
-            r"else bool\(cp\.get\(.is_active., False\)\)",
-            "without a legacy external_api_keys row, is_active must fall back to "
-            "contractor_providers.is_active, not to False",
+            r"is_active = bool\(cp\.get\(.is_active., False\)\)",
+            "is_active must be read from contractor_providers for the non-cloud branch",
         )
-        self.assertNotRegex(
+
+    def test_the_toggle_syncs_the_legacy_key_table(self):
+        """Re-enabling must actually work, not just look like it did.
+
+        `external_providers._get_api_key` gates key material on
+        `external_api_keys.is_active = TRUE`. If the toggle only wrote the authority column,
+        re-enabling a provider whose legacy row said inactive would let the selector pick it
+        and then find no key to call it with — a silent failure at exactly the moment an
+        operator deliberately switched a contractor back on. 6 providers were in that state
+        on the live roster.
+        """
+        block = re.search(
+            r"def api_toggle_provider\(provider_key\):(.*?)(?=\n    # ---|\n    @bp\.route)",
             self.src,
-            r"is_active = db_row\[.is_active.\] if db_row else False",
-            "hardcoding False when the legacy row is missing is the 22-of-30 INACTIVE bug",
+            re.S,
         )
+        self.assertIsNotNone(block, "the toggle handler must exist")
+        body = block.group(1)
+        self.assertIn("UPDATE external_api_keys", body)
+        self.assertIn("SET is_active = %s", body, "it must take the value just computed")
+        self.assertIn(
+            'row["is_active"]',
+            body,
+            "the legacy row must be written from the SAME computed value, not re-derived",
+        )
+
+    def test_the_active_switch_is_strict_not_a_default(self):
+        """`!== false` treats a missing field as enabled.
+
+        If the server ever omits `is_active`, the honest reading is "we were not told", and
+        defaulting that to enabled paints a green switch nobody can justify.
+        """
+        self.assertIn("p.is_active === true", self.js)
+        self.assertNotIn("p.is_active !== false", self.js)
+
+    def test_both_switches_carry_their_state_as_a_class(self):
+        """Text alone cannot carry it: two switches, one row, both reading "off".
+
+        The state goes on the element as `.on` / `.off`, matching the convention
+        .fleet-prov-toggle.active already uses in fleet.css, and is mirrored to assistive
+        tech via aria-pressed.
+        """
+        self.assertIn("contractor-routing-toggle ", self.js)
+        self.assertIn("contractor-active-toggle ", self.js)
+        for sw in ("contractor-routing-toggle", "contractor-active-toggle"):
+            self.assertRegex(
+                self.js,
+                sw + r"\s*'\s*\+\s*\([A-Za-z_]\w*\s*\?\s*'on'\s*:\s*'off'\)",
+                f"{sw} must resolve its own on/off class from state",
+            )
+        # BOTH switches, not one: a bare `assertIn` passed while the routing switch had lost
+        # its aria-pressed, because the other button still had one. Verified by mutation.
+        self.assertGreaterEqual(
+            self.js.count("aria-pressed="),
+            2,
+            "each switch must expose its own state to assistive tech — a screen reader " "cannot see the CSS class",
+        )
+
+    def test_the_switches_are_visually_distinct_from_each_other(self):
+        """The routing switch is the one that can cost money, so it gets the stronger fill."""
+        css = _css()
+        if not css:
+            self.skipTest("fleet.css not reachable from this layout")
+        # Anchored to line start so it matches the BASE dark-theme rule. Unanchored, it
+        # happily matched the body.light-mode override instead and passed even with the
+        # base fill deleted — verified by mutation.
+        self.assertRegex(
+            css,
+            r"(?m)^\.contractor-routing-toggle\.on\s*\{[^}]*background:",
+            "ROUTING ON needs a filled background in the base rule, not only a coloured "
+            "border — it is the switch that spends money and must read as live at a glance",
+        )
+        self.assertIn(".contractor-routing-toggle.off", css)
+        self.assertIn(".contractor-active-toggle.on", css)
+        self.assertIn(".contractor-active-toggle.off", css)
 
     def test_the_existing_active_toggle_is_untouched(self):
         """It writes is_active. If that were rewritten to dispatchable the two would merge."""

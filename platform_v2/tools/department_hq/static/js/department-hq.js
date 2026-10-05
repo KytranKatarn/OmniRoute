@@ -7873,7 +7873,10 @@ function renderContractors(providers, routingMode, creedData) {
         var tierPositions = p.tier_positions || {};
         var tierPosVals = Object.values(tierPositions);
         var tierPos = tierPosVals.length > 0 ? Math.min.apply(null, tierPosVals) : '--';
-        var isEnabled = p.is_active !== false;
+        // Strictly === true, not `!== false`. If the server ever omits the field, the
+        // honest reading is "we were not told it is configured", and defaulting that to
+        // enabled would show a green switch we cannot justify.
+        var isEnabled = p.is_active === true;
         var accountTier = p.account_tier || 'free';
         var tierLabel = accountTier.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
         var tierColor = accountTier === 'enterprise' ? '#a855f7' : accountTier === 'pro' ? '#f59e0b' : accountTier === 'pay_as_you_go' ? '#3b82f6' : '#6b7280';
@@ -7919,12 +7922,26 @@ function renderContractors(providers, routingMode, creedData) {
         // DS9 PR 4 — the second switch. `is_active` says CONFIGURED; this says
         // "route here". A provider can hold a key and pass its probe while still
         // receiving nothing, and that state has to be expressible.
-        html += '<button class="contractor-btn-toggle" title="'
+        //
+        // Both switches now carry their state as a CLASS, not only as text. Two buttons on
+        // one row both reading "OFF"/"Disable" with identical grey styling is genuinely
+        // unreadable — you cannot tell which switch you are about to throw, and on a paid
+        // provider the difference is the difference between spending money and not.
+        // `.on` / `.off` follow the convention already in fleet.css (.fleet-prov-toggle.active
+        // is green, :not(.active) is grey) so the Fleet and Contractors tabs look identical.
+        // aria-pressed carries the same state to a screen reader.
+        html += '<button class="contractor-btn-toggle contractor-routing-toggle ' + (_disp ? 'on' : 'off')
+            + '" aria-pressed="' + _disp + '" title="'
             + (_disp ? 'Routing is ON — the dispatcher may send work here.'
                      : 'Routing is OFF — configured, but nothing is dispatched here.')
             + '" onclick="event.stopPropagation();toggleDispatchable(\'' + providerKey + '\')">'
             + (_disp ? 'ROUTING ON' : 'ROUTING OFF') + '</button>';
-        html += '<button class="contractor-btn-toggle" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">' + (isEnabled ? 'Disable' : 'Enable') + '</button>';
+        html += '<button class="contractor-btn-toggle contractor-active-toggle ' + (isEnabled ? 'on' : 'off')
+            + '" aria-pressed="' + isEnabled + '" title="'
+            + (isEnabled ? 'Configured — this contractor is set up. Click to disable it.'
+                         : 'Not configured — clicks enable it.')
+            + '" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">'
+            + (isEnabled ? 'Disable' : 'Enable') + '</button>';
         html += '</div>';
         html += '</div>'; // header
 

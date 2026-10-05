@@ -55,6 +55,17 @@
   <p class="wtf-pg-lede">How often a slogan or phrase repeats across Canadian news coverage, and which words the corpus cannot stop using. Counts of usage, never of merit &mdash; a phrase that echoes is not a phrase that is true. Slogan counts cover the last {{ window_weeks }} weeks; word counts cover the last {{ word_window_days }} days.</p>
 </header>
 
+{# Precomputed counts (migration 089 + ingest/echo/phrase_counts.py). `is defined` keeps
+   callers that render this template without the flags working. Not ready means the daily
+   run has not filled the window yet: say so rather than show an empty page as if it were data. #}
+{% if counts_ready is defined %}
+  {% if not counts_ready %}
+  <p class="wtf-eh-note" style="font-size:12px;color:#f59e0b;margin:0 0 14px">Counts are being refreshed &mdash; this page fills in once the daily count run completes. Check back shortly.</p>
+  {% elif counts_as_of %}
+  <p class="wtf-eh-note" style="font-size:11px;color:#6b7280;margin:0 0 14px">Counts as of {{ counts_as_of.strftime('%b %-d') }} &middot; refreshed daily.</p>
+  {% endif %}
+{% endif %}
+
 <div class="wtf-eh-stats">
   <div class="wtf-eh-stat">
     <div class="wtf-eh-stat-n">{{ slogans|length }}</div>

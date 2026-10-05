@@ -1,10 +1,11 @@
 """Real phrase- and word-frequency data for /echo.
 
-Backed entirely by `wtf.articles`' existing full-text-search index
-(`idx_articles_fts`, a GIN index over `to_tsvector('english', title || ' ' || body)`)
-— no new ingest pipeline. `phraseto_tsquery` drops English stopwords and matches
-adjacent lexemes, which is a reasonable approximation of "this phrase, as written"
-without needing a second exact-substring index.
+Counts are PRECOMPUTED. ingest/echo/phrase_counts.py runs the full-text phrase queries
+(`phraseto_tsquery` over `wtf.articles`' `idx_articles_fts` expression — it drops English
+stopwords and matches adjacent lexemes, a reasonable approximation of "this phrase, as
+written") once a day and stores the result in `wtf.echo_phrase_counts` (migration 089).
+This module only READS that table. It used to run the 14 queries per request, which
+measured ~42 s on Citadel (2026-10-05) and held a gunicorn worker the whole time.
 
 Deliberately dropped vs. the design-handoff mockup (wtf-echo.html):
   - "Pickup" (outlet-vs-speaker share) — no primary-source distinction exists in
@@ -27,79 +28,107 @@ import datetime
 
 from sqlalchemy import text
 
-# (phrase, associated_with, colour) — colour reused from the design mockup's
-# real party/leader palette (not invented). Candidates without meaningful
-# 90-day volume (< 20 mentions) were dropped after checking live counts —
-# e.g. "Axe the tax" (1 mention — the carbon tax it targeted was repealed) and
-# "Build, baby, build" (3 mentions) are real slogans but too thin to chart.
-SLOGANS = [
-    ("Elbows up", "Mark Carney / Canada", "#d71920"),
-    ("Made in Canada", "multiple", "#929aa5"),
-    ("Team Canada", "multiple", "#929aa5"),
-    ("Nation building", "Mark Carney", "#d71920"),
-    ("Get it done", "Doug Ford", "#1a4782"),
-    ("Canada Strong", "Mark Carney", "#d71920"),
-    ("Bring it home", "Pierre Poilievre", "#1a4782"),
-    ("Alberta first", "Danielle Smith", "#1a4782"),
-]
-
-# (label, tsquery phrase, colour)
-WORDS = [
-    ("Trump", "trump", "#e5484d"),
-    ("Tariffs", "tariffs", "#f5a623"),
-    ("Affordability", "affordability", "#3d9b35"),
-    ("Carbon tax", "carbon tax", "#929aa5"),
-    ("Carney", "carney", "#d71920"),
-    ("Poilievre", "poilievre", "#1a4782"),
-]
-
-SLOGAN_WINDOW_WEEKS = 13
-WORD_WINDOW_DAYS = 30
+# The phrase lists and windows live in shared/echo_phrases.py so the page and the job
+# that precomputes the counts cannot disagree about them. Re-exported here because the
+# page, its tests and the template wiring refer to echo_data.SLOGANS / WORDS / windows.
+from shared.echo_phrases import (  # noqa: E402,F401
+    SLOGANS,
+    SLOGAN_WINDOW_WEEKS,
+    WORDS,
+    WORD_WINDOW_DAYS,
+    day_starts,
+    week_starts,
+)
 
 
-def _fts_match_clause() -> str:
-    return (
-        "to_tsvector('english', coalesce(title,'') || ' ' || coalesce(body,'')) "
-        "@@ phraseto_tsquery('english', :phrase)"
-    )
-
-
-def fetch_weekly_counts(conn, schema: str, phrase: str, weeks: int = SLOGAN_WINDOW_WEEKS) -> dict:
-    """Real per-ISO-week match counts for `phrase`, over the last `weeks` weeks."""
+def fetch_weekly_counts(conn, schema: str, phrase: str, weeks: int = SLOGAN_WINDOW_WEEKS,
+                        end: datetime.date | None = None) -> dict:
+    """Stored per-ISO-week counts for `phrase`, over the `weeks` weeks ending at `end`."""
+    since = week_starts(end, weeks)[0]
     rows = conn.execute(
         text(
             f"""
-            SELECT date_trunc('week', published_at)::date AS wk, COUNT(*) AS n
-            FROM {schema}.articles
-            WHERE published_at >= now() - (:weeks || ' weeks')::interval
-              AND suppressed_reason IS NULL
-              AND {_fts_match_clause()}
-            GROUP BY 1
+            SELECT bucket_start AS wk, n
+            FROM {schema}.echo_phrase_counts
+            WHERE kind = 'slogan' AND phrase = :phrase AND bucket_start >= :since
             ORDER BY 1
             """
         ),
-        {"phrase": phrase, "weeks": weeks},
+        {"phrase": phrase, "since": since},
     ).mappings().all()
     return {r["wk"]: r["n"] for r in rows}
 
 
-def fetch_daily_counts(conn, schema: str, phrase: str, days: int = WORD_WINDOW_DAYS) -> dict:
-    """Real per-day match counts for `phrase`, over the last `days` days."""
+def fetch_daily_counts(conn, schema: str, phrase: str, days: int = WORD_WINDOW_DAYS,
+                       end: datetime.date | None = None) -> dict:
+    """Stored per-day counts for `phrase`, over the `days` days ending at `end`."""
+    since = day_starts(end, days)[0]
     rows = conn.execute(
         text(
             f"""
-            SELECT date_trunc('day', published_at)::date AS d, COUNT(*) AS n
-            FROM {schema}.articles
-            WHERE published_at >= now() - (:days || ' days')::interval
-              AND suppressed_reason IS NULL
-              AND {_fts_match_clause()}
-            GROUP BY 1
+            SELECT bucket_start AS d, n
+            FROM {schema}.echo_phrase_counts
+            WHERE kind = 'word' AND phrase = :phrase AND bucket_start >= :since
             ORDER BY 1
             """
         ),
-        {"phrase": phrase, "days": days},
+        {"phrase": phrase, "since": since},
     ).mappings().all()
     return {r["d"]: r["n"] for r in rows}
+
+
+def counts_status(conn, schema: str, today: datetime.date | None = None) -> dict:
+    """Is the precomputed table complete enough to render? Never raises.
+
+    -> {"ready": bool, "as_of": datetime|None, "slogan_end": date|None, "word_end": date|None}
+
+    Each window is anchored on the NEWEST bucket the job has computed for every phrase —
+    not on today — so the page keeps showing the last complete data, labelled with its
+    date, instead of flipping to "not ready" for the stretch between a UTC midnight and
+    the daily run. It is `ready` only when EVERY phrase has EVERY bucket of its window.
+    Anything less (table absent because migration 089 is not applied, first run still
+    backfilling, a gap) is NOT ready: an unfilled table must never render as zeros.
+    """
+    today = today or datetime.date.today()
+    floor = today - datetime.timedelta(days=SLOGAN_WINDOW_WEEKS * 7 + 28)
+    try:
+        rows = conn.execute(
+            text(
+                f"""
+                SELECT kind, phrase, bucket_start, computed_at
+                FROM {schema}.echo_phrase_counts
+                WHERE bucket_start >= :floor
+                """
+            ),
+            {"floor": floor},
+        ).mappings().all()
+    except Exception:  # noqa: BLE001 — a missing table is a "not ready" state, not a 500
+        return {"ready": False, "as_of": None, "slogan_end": None, "word_end": None}
+
+    have: dict = {}
+    stamped: dict = {}
+    for r in rows:
+        key = (r["kind"], r["phrase"])
+        have.setdefault(key, set()).add(r["bucket_start"])
+        if r.get("computed_at") is not None:
+            stamped[key] = max(stamped.get(key, r["computed_at"]), r["computed_at"])
+
+    def _anchor(kind, phrases):
+        sets = [have.get((kind, p), set()) for p in phrases]
+        common = set.intersection(*sets) if sets else set()
+        return max(common) if common else None
+
+    s_phr = [p for p, _w, _c in SLOGANS]
+    w_phr = [p for _l, p, _c in WORDS]
+    slogan_end, word_end = _anchor("slogan", s_phr), _anchor("word", w_phr)
+    if slogan_end is None or word_end is None:
+        return {"ready": False, "as_of": None, "slogan_end": slogan_end, "word_end": word_end}
+    s_ok = all(set(week_starts(slogan_end)) <= have.get(("slogan", p), set()) for p in s_phr)
+    w_ok = all(set(day_starts(word_end)) <= have.get(("word", p), set()) for p in w_phr)
+    stamps = [stamped[("slogan", p)] for p in s_phr if ("slogan", p) in stamped] + \
+             [stamped[("word", p)] for p in w_phr if ("word", p) in stamped]
+    return {"ready": bool(s_ok and w_ok), "as_of": min(stamps) if stamps else None,
+            "slogan_end": slogan_end, "word_end": word_end}
 
 
 def densify_weekly(counts_by_week: dict, weeks: int = SLOGAN_WINDOW_WEEKS, today: datetime.date | None = None) -> list:
@@ -185,12 +214,12 @@ def first_seen_in_window(series: list, weeks: int = SLOGAN_WINDOW_WEEKS) -> int:
     return weeks
 
 
-def build_slogan_rows(conn, schema: str) -> list:
+def build_slogan_rows(conn, schema: str, end: datetime.date | None = None) -> list:
     """One row per SLOGANS entry, all counts real. Zero-use slogans included
     (so the table is honest about a phrase that's gone quiet), never hidden."""
     rows = []
     for phrase, who, colour in SLOGANS:
-        weekly = densify_weekly(fetch_weekly_counts(conn, schema, phrase))
+        weekly = densify_weekly(fetch_weekly_counts(conn, schema, phrase, end=end), today=end)
         rows.append(
             {
                 "phrase": phrase,
@@ -206,10 +235,10 @@ def build_slogan_rows(conn, schema: str) -> list:
     return rows
 
 
-def build_word_rows(conn, schema: str) -> list:
+def build_word_rows(conn, schema: str, end: datetime.date | None = None) -> list:
     rows = []
     for label, phrase, colour in WORDS:
-        daily = densify_daily(fetch_daily_counts(conn, schema, phrase))
+        daily = densify_daily(fetch_daily_counts(conn, schema, phrase, end=end), today=end)
         rows.append(
             {
                 "label": label,

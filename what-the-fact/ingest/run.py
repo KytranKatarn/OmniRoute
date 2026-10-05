@@ -400,6 +400,7 @@ def main():
     _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
     _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
     _last_boc_week = None        # BoC overnight rate decisions (weekly) — #6272, Batch 9
+    _last_echo_day = None        # /echo phrase & word counts precompute (daily) — replaces ~42 s of per-request FTS
     _last_fiscal_week = None     # federal fiscal aggregates, StatCan (weekly) — /debt
     _last_oda_week = None        # Canada ODA, OECD DAC1 (weekly) — /global
     _last_fx_week = None          # CAD/USD daily exchange rate (weekly fetch of daily obs) — Batch 12
@@ -675,6 +676,23 @@ def main():
             except Exception:
                 log.exception("boc rates crashed")
             _last_boc_week = _elec_week
+
+        # /echo phrase & word counts — DAILY. The words panel is per-DAY, so a weekly job
+        # would leave "today" up to a week stale. Replaces ~42 s of per-request full-text
+        # search (measured 2026-10-05). The first run backfills the 13-week / 30-day
+        # window (~30-40 s, once); after that only the newest two buckets are recomputed.
+        # Never raises and writes its own parliament.ingest_log heartbeat on both paths.
+        #
+        # ⚠️ This schedule and drift_guard's WTF_DRIFT_ECHO_DAYS are ONE decision — change
+        # the cadence here and change the window there with it.
+        _echo_day = datetime.date.today().isoformat()
+        if _last_echo_day != _echo_day:
+            try:
+                from ingest.echo.phrase_counts import run_echo_phrase_counts
+                log.info("echo phrase counts: %s", run_echo_phrase_counts(engine))
+            except Exception:
+                log.exception("echo phrase counts crashed")
+            _last_echo_day = _echo_day
 
         # Federal fiscal aggregates (StatCan 10-10-0172-01 + GDP) — WEEKLY for /debt.
         # The annual table moves a few times a year, so weekly is ample; the point

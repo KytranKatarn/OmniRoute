@@ -141,7 +141,7 @@ class _FakeConn:
         phrase = params.get("phrase")
         self.calls.append(phrase)
         sql = str(stmt)
-        if "date_trunc('week'" in sql:
+        if "kind = 'slogan'" in sql:  # the reader selects the stored slogan (weekly) rows
             rows = [{"wk": wk, "n": n} for wk, n in self.weekly_by_phrase.get(phrase, {}).items()]
         else:
             rows = [{"d": d, "n": n} for d, n in self.daily_by_phrase.get(phrase, {}).items()]

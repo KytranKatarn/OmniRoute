@@ -112,6 +112,11 @@ _MAX_AGE_DAYS = {
     # Valet API still fetching/parsing, not data freshness per se. 10 days
     # for the same reason as elections_results — weekly cadence plus slack.
     "boc_rates": int(os.environ.get("WTF_DRIFT_BOC_DAYS", "10")),
+    # /echo phrase & word counts (precomputed). A DAILY job in ingest/run.py, so the window
+    # is days not weeks: 3 = one missed day plus slack. It measures the job still firing and
+    # the table still being refreshed; the page itself degrades to "being refreshed" rather
+    # than showing stale zeros if this ever lapses long enough to leave a gap.
+    "echo_phrase_counts": int(os.environ.get("WTF_DRIFT_ECHO_DAYS", "3")),
     # CAD/USD daily exchange rate (Batch 12, #6523). Same weekly-job shape as
     # boc_rates — this measures the WEEKLY job in ingest/run.py still firing
     # and the Valet API still reachable, not day-to-day FX freshness (a
@@ -168,6 +173,9 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    # same reason as weekly_digest: a puller that never fires must
                    # alarm, not report green-by-omission forever.
                    "boc_rates",
+                   # echo_phrase_counts — brand-new job with zero prior rows; required so a
+                   # job that never fires alarms instead of reading "not yet tracked" forever.
+                   "echo_phrase_counts",
                    # gic_appointments (#6632) — same reasoning as boc_rates: a
                    # brand-new puller with zero prior ingest_log rows. Required,
                    # or a scraper that silently stops running again reads as

@@ -9664,9 +9664,20 @@ def echo():
     docstring for why each was cut rather than shipped with invented values.
     """
     S = _schema()
-    with _db().begin() as c:
-        slogans = _echo_data.build_slogan_rows(c, S)
-        words = _echo_data.build_word_rows(c, S)
+    # The counts are PRECOMPUTED daily by ingest/echo/phrase_counts.py into
+    # wtf.echo_phrase_counts (migration 089); this route only reads them. It used to run
+    # the 14 full-text phrase queries per request — ~42 s on Citadel (2026-10-05), holding
+    # a gunicorn worker the whole time. Status is read on its OWN connection: a missing
+    # table (migration not applied yet) aborts that transaction, and must not poison the
+    # one that builds the rows. Not ready => empty states + a notice, never invented zeros.
+    with _db().connect() as _c0:
+        counts = _echo_data.counts_status(_c0, S)
+    if counts["ready"]:
+        with _db().begin() as c:
+            slogans = _echo_data.build_slogan_rows(c, S, end=counts["slogan_end"])
+            words = _echo_data.build_word_rows(c, S, end=counts["word_end"])
+    else:
+        slogans, words = [], []
 
     slogans_sorted_by_uses = sorted(slogans, key=lambda r: r["uses"], reverse=True)
     most_used = slogans_sorted_by_uses[0] if slogans_sorted_by_uses else None
@@ -9683,6 +9694,8 @@ def echo():
         total_uses=total_uses,
         window_weeks=_echo_data.SLOGAN_WINDOW_WEEKS,
         word_window_days=_echo_data.WORD_WINDOW_DAYS,
+        counts_ready=counts["ready"],
+        counts_as_of=counts["as_of"],
         is_subscriber=is_subscriber(),
     )
 

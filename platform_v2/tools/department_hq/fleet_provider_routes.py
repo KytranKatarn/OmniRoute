@@ -550,6 +550,7 @@ def register_fleet_routes(bp, auth_decorator):
     # POST /api/providers/<key>/dispatchable — toggle the ROUTING switch (DS9 PR 1)
     # ------------------------------------------------------------------ #
     @bp.route("/api/providers/<provider_key>/switch-history")
+    @auth_decorator
     def api_provider_switch_history(provider_key):
         """Recent operator switch changes for one provider, newest first.
 

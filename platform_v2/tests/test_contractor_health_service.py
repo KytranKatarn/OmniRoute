@@ -86,9 +86,20 @@ class TestClassifyStatus(unittest.TestCase):
         """Distinct because it is transient: waiting helps, re-keying does not."""
         self.assertEqual(chs.classify_status(http_status=429), "rate_limited")
 
-    def test_no_key_beats_every_other_signal(self):
-        """A provider with no credential cannot be judged on what it answered."""
-        self.assertEqual(chs.classify_status(http_status=200, has_key=False), "no_key")
+    def test_a_success_is_ok_even_without_a_credential(self):
+        """A 2xx settles the question whether or not a key was sent.
+
+        This check used to sit BEHIND `not has_key`, so a provider that served the request
+        without a credential was reported `no_key` — and `keyless` was a class no probe could
+        ever reach, because the success that would prove it was unreachable code.
+        """
+        self.assertEqual(chs.classify_status(http_status=200, has_key=False), "ok")
+
+    def test_no_key_beats_every_other_failure_signal(self):
+        """With no credential there is nothing to judge, so nothing else decides it."""
+        self.assertEqual(chs.classify_status(http_status=401, has_key=False), "no_key")
+        self.assertEqual(chs.classify_status(http_status=403, has_key=False), "no_key")
+        self.assertEqual(chs.classify_status(http_status=500, has_key=False), "no_key")
 
     def test_unreachable_when_no_response(self):
         self.assertEqual(chs.classify_status(reached=False), "unreachable")
@@ -123,11 +134,14 @@ class TestClassifyProviderClass(unittest.TestCase):
         )
 
     def test_no_key_and_no_answer_is_not_keyless(self):
-        """A provider that failed for want of a credential is not keyless."""
-        self.assertEqual(
-            chs.classify_provider_class(has_key=False, status="unreachable", is_cloud_proxy=False),
-            "local",
-        )
+        """A provider that failed for want of a credential is not keyless.
+
+        It used to be filed as `local` on the strength of one failure, which is a guess: a
+        remote API with no key configured and an internal service with no key configured are
+        indistinguishable from a failed probe alone, and deepseek is the first while
+        ollama_diffuser is the second.
+        """
+        self.assertIsNone(chs.classify_provider_class(has_key=False, status="unreachable", is_cloud_proxy=False))
 
     def test_a_credential_requiring_provider_is_not_called_paid_on_the_key_alone(self):
         """The six keyed providers span free-tier and metered; a key says neither.
@@ -140,11 +154,24 @@ class TestClassifyProviderClass(unittest.TestCase):
             "free_tier",
         )
 
-    def test_failing_providers_are_not_reclassified(self):
-        self.assertEqual(
-            chs.classify_provider_class(has_key=True, status="auth_error", is_cloud_proxy=True),
-            "free_tier",
-        )
+    def test_a_failure_never_claims_a_cost_class(self):
+        """The bug this whole change exists to close.
+
+        `classify_provider_class` used to end in `return "free_tier"`, so a provider
+        answering 401/403/500/timeout was filed under `free_tier` — the bucket that IS
+        auto-eligible. Run against the real roster that stamps `free_tier` on 13 of the 18
+        unmeasured contractors, turning "we could not measure this" into "safe to dispatch",
+        after which the routing switch would happily enable providers that do not serve.
+
+        A probe that was not served knows what the provider costs not at all.
+        """
+        for status in ("auth_error", "unreachable", "error", "rate_limited", "no_key"):
+            for has_key in (True, False):
+                for cloud in (True, False):
+                    self.assertIsNone(
+                        chs.classify_provider_class(has_key=has_key, status=status, is_cloud_proxy=cloud),
+                        f"status={status} has_key={has_key} cloud={cloud} must stay unmeasured",
+                    )
 
 
 class TestScanIsolation(unittest.TestCase):
@@ -452,12 +479,91 @@ class TestProbeOne(unittest.TestCase):
             chs._probe_one(self._provider(), "health", 5)
         self.assertEqual(post.call_args.kwargs["json"]["max_tokens"], 1)
 
-    def test_a_403_on_health_is_reported_as_auth_error_not_ok(self):
-        """The exact OmniRoute failure: 200 on /models, 403 on a completion."""
-        mod, get, post = self._patch_requests(self._resp(403))
-        with mock.patch.dict(sys.modules, {"requests": mod}):
-            out = chs._probe_one(self._provider(), "health", 5)
+    def test_a_403_with_a_credential_is_auth_error(self):
+        """The exact OmniRoute failure: 200 on /models, 403 on a completion.
+
+        `auth_error` has to mean "the credential we presented was refused". With a
+        credential present that is what happened.
+        """
+        with mock.patch.dict("os.environ", {"PROBE_KEY_XYZ": "sk-secret"}, clear=False):
+            out = self._run(self._resp(403), self._provider(auth_env_var="PROBE_KEY_XYZ"))
         self.assertEqual(out["status"], "auth_error")
+
+    def test_a_403_with_no_credential_is_no_key_not_auth_error(self):
+        """The two are different problems with different fixes.
+
+        `auth_error` says re-key it. `no_key` says there was never a key to reject — which is
+        the honest reading for deepseek, openrouter and replicate, none of which have an
+        auth_env_var configured. Reporting them as auth_error sends an operator to rotate a
+        credential that does not exist.
+
+        The probe still has to be sent: a provider that answers 2xx with no credential is
+        genuinely keyless, and skipping the request would make that undetectable.
+        """
+        mod, _get, post = self._patch_requests(self._resp(403))
+        with mock.patch.dict(sys.modules, {"requests": mod}):
+            out = chs._probe_one(self._provider(auth_env_var=None), "health", 5)
+        self.assertTrue(post.called, "the request must still be sent — a 2xx proves keyless")
+        self.assertEqual(out["status"], "no_key")
+
+    def test_a_rejection_records_the_upstreams_own_explanation(self):
+        """The column exists for this and was empty for 20 of 30 contractors.
+
+        Measured 2026-10-05: gemini returns 403 with a body saying the API method "has been
+        disabled" for this project. That sentence IS the diagnosis. `detail` was only ever
+        read for the 400 image-generation case, so every 401/403/429/5xx recorded NULL and
+        the operator had nothing to read.
+        """
+        body = '{"error":{"code":403,"message":"Requests to this API method has been disabled"}}'
+        out = self._run(self._resp(403, text=body), self._provider(auth_env_var=None))
+        self.assertIsNotNone(out["detail"], "a 403 must record why")
+        self.assertIn("has been disabled", out["detail"])
+
+    def test_detail_is_recorded_for_every_non_ok_status_not_just_400(self):
+        for status in (401, 403, 429, 500, 502):
+            out = self._run(self._resp(status, text="upstream said no"), self._provider())
+            self.assertEqual(
+                out["detail"],
+                "upstream said no",
+                f"HTTP {status} discarded the upstream's explanation",
+            )
+
+    def test_detail_redacts_the_credential_if_the_upstream_echoes_it(self):
+        """`detail` is rendered into the Contractors tab tooltip.
+
+        An upstream that reflects the Authorization header would otherwise persist a live key
+        into a history table and then into the DOM.
+
+        The credential literal is deliberately NOT key-shaped: redaction replaces the exact
+        secret substring whatever its shape, and an `sk-live-…` here trips the repo's
+        `generic-api-key` scanner. A fake secret in a test is still a secret-shaped string in
+        the history.
+        """
+        secret = "ZZ-TEST-CREDENTIAL-ZZ"
+        body = f'{{"error":"invalid token: Bearer {secret} (truncated)"}}'
+        with mock.patch.dict("os.environ", {"PROBE_KEY_XYZ": secret}, clear=False):
+            out = self._run(self._resp(401, text=body), self._provider(auth_env_var="PROBE_KEY_XYZ"))
+        self.assertNotIn(secret, out["detail"], "a live key reached the history table")
+        self.assertIn("***", out["detail"])
+        self.assertIn("invalid token", out["detail"], "the diagnosis must survive redaction")
+
+    def test_a_success_records_no_detail(self):
+        """Nothing failed, so there is nothing to explain."""
+        out = self._run(self._resp(200, text='{"choices":[]}'), self._provider())
+        self.assertIsNone(out["detail"])
+
+    def test_keyless_is_reachable_through_a_real_probe(self):
+        """End-to-end: a provider that answers with no credential is keyless.
+
+        `keyless` could not be produced before, because `_probe_one` hardcoded has_key=True
+        into the classifier and the success check sat behind the no-key branch.
+        """
+        out = self._run(self._resp(200, payload={"model": "flux"}), self._provider())
+        self.assertEqual(out["status"], "ok")
+        self.assertEqual(
+            chs.classify_provider_class(has_key=False, status=out["status"], is_cloud_proxy=False),
+            "keyless",
+        )
 
 
 if __name__ == "__main__":

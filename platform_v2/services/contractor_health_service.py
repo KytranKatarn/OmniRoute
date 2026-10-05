@@ -75,6 +75,22 @@ DEFAULT_LATENCY_TIMEOUT_S = 45
 LATENCY_CEILING_MS = 60_000
 
 
+def _redact(text: str, secret: Optional[str]) -> str:
+    """Blank out the credential if the upstream echoed it back into an error body.
+
+    Error bodies get stored in `contractor_health.detail` and rendered into the Contractors
+    tab's tooltip. An upstream that reflects the Authorization header — some gateways do,
+    and a malformed-token error frequently quotes it — would otherwise persist a live key
+    into a history table and then into the DOM.
+
+    Only the exact secret is replaced, so ordinary prose containing the word "Bearer" or a
+    substring of the key is left readable.
+    """
+    if not text or not secret:
+        return text or ""
+    return text.replace(secret, "***")
+
+
 def classify_status(
     *,
     http_status: Optional[int] = None,
@@ -87,53 +103,71 @@ def classify_status(
     Split out from the probe itself so the classification is testable without a network,
     and so the ordering of the checks is explicit rather than emergent.
     """
-    if not has_key:
-        return "no_key"
-    if not reached:
-        return "unreachable"
     if unsupported:
         # Checked before the status code because the gateway answers an image model on a
         # chat request with 400 plus an explanatory body — a 400 that is information, not
         # failure, and lumping it in with generic errors is what hid pollinations.
         return "unsupported"
+    if reached and http_status is not None and 200 <= http_status < 300:
+        # A 2xx settles the question whether or not a credential was sent. This check has to
+        # come BEFORE the `not has_key` branch, because a provider that served this request
+        # without a key has demonstrated it needs none — and while `not has_key` came first,
+        # that success was unreachable, so `keyless` could never be detected at all.
+        return "ok"
+    if not has_key:
+        # Nothing was sent, so a rejection is not evidence of a bad credential. `no_key` means
+        # "no credential available", `auth_error` means "the credential we had was refused".
+        # Collapsing them is what reported deepseek, openrouter and replicate as auth_error
+        # when the honest answer is that no key is configured for them at all.
+        return "no_key"
+    if not reached:
+        return "unreachable"
     if http_status in (401, 403):
         return "auth_error"
     if http_status == 429:
         return "rate_limited"
-    if http_status is not None and 200 <= http_status < 300:
-        return "ok"
     if http_status is not None:
         return "error"
     return "unreachable"
 
 
-def classify_provider_class(*, has_key: bool, status: str, is_cloud_proxy: bool) -> str:
-    """Assign `provider_class` from what the probe observed.
+def classify_provider_class(
+    *,
+    has_key: bool,
+    status: str,
+    is_cloud_proxy: bool,
+) -> Optional[str]:
+    """Assign `provider_class` from what the probe observed, or None for "still unmeasured".
 
-    Deliberately narrow. It will only claim `keyless` or `image_only` from direct evidence
-    and leaves everything else alone, because a wrong guess here changes dispatch
-    eligibility:
+    Deliberately narrow, because a wrong guess here changes dispatch eligibility:
 
       keyless     no credential is required AND the provider answered
       image_only  the provider answered, but refused to chat
       paid        a credential is required — whether it costs money is the operator's
                   decision about the key they hold, not something a probe can infer
-      NULL        anything else, meaning "not yet measured"
+      free_tier   the same: a probe cannot tell a free allowance from a metered one
+      None        every failure. A probe that did NOT get served knows nothing about what
+                  the provider would charge; it only knows it is not answering now.
 
-    A provider that requires a key is NOT called `paid` on the strength of holding one:
-    the six keyed providers in this table span free-tier and metered, and only real usage
-    data distinguishes them.
+    That last line is the one that matters. This function used to end in
+    `return "free_tier"`, which meant a provider returning 401/403/500/timeout was filed
+    under `free_tier` — the bucket that IS auto-eligible. Against the real roster that
+    would have stamped `free_tier` on 13 of the 18 unmeasured contractors, converting "we
+    could not measure this" into "safe to dispatch", and the routing switch would then have
+    let an operator enable providers that do not serve. A failure is not evidence of cost.
+
+    `paid` is likewise never asserted from a probe. The six keyed providers in this table
+    span free-tier and metered, and only real usage data distinguishes them.
     """
     if status == "unsupported":
         return "image_only"
-    if not has_key:
-        # No credential. If it still answered, it is genuinely keyless.
-        return "keyless" if status == "ok" else "local"
     if status == "ok":
-        # Credential required and the call succeeded. paid vs free_tier needs usage data,
-        # which this probe does not gather — leave it unclaimed rather than guess.
+        if not has_key:
+            # It answered with no credential, so it needs none. That is direct evidence.
+            return "keyless"
         return "paid" if is_cloud_proxy else "free_tier"
-    return "free_tier"
+    # Everything below is a failure or a non-answer: no class is claimed.
+    return None
 
 
 def record_observation(
@@ -441,16 +475,31 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     unsupported = False
     observed = None
     detail = None
+
+    # Read the body whenever there is one to read. It used to be read ONLY for the 400
+    # image-generation case, so every 401/403/429/5xx recorded detail=NULL and the column
+    # the migration was written for — "the upstream's own words ... without anyone having to
+    # guess at it again" — was empty for 20 of the 30 contractors on the first real run.
+    # gemini's 403 says "Requests to this API ... has been disabled"; that is the entire
+    # diagnosis, and it was being thrown away.
+    body = ""
+    try:
+        body = resp.text or ""
+    except Exception:  # noqa: BLE001 - a body we cannot read is not a body
+        body = ""
+
     if resp.status_code == 400:
         # An image-only model refuses a chat request with 400 AND says so. Reading the
         # body is what separates "unsupported" from "broken".
-        try:
-            body = resp.text or ""
-        except Exception:  # noqa: BLE001
-            body = ""
         if "image" in body.lower() and "generation" in body.lower():
             unsupported = True
-            detail = body[:300]
+
+    if not resp.ok:
+        # Truncated, and with the credential redacted: this body is rendered into the
+        # Contractors tab's tooltip, and an upstream that echoes the Authorization header
+        # would otherwise persist a live key into a history table.
+        detail = _redact(body, api_key)[:300] or None
+
     if payload is not None and resp.ok:
         try:
             observed = (resp.json() or {}).get("model")
@@ -460,7 +509,12 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     return {
         "status": classify_status(
             http_status=resp.status_code,
-            has_key=True,  # a missing key was handled above, not here
+            # The REAL value, not a hardcoded True. With `True` here, a provider with no
+            # configured credential came back `auth_error` — as if a key had been rejected
+            # when none was ever sent — and `no_key` was dead code that no probe could
+            # reach. Three contractors (deepseek, openrouter, replicate) have no
+            # auth_env_var at all, so all three were mislabelled that way.
+            has_key=bool(api_key),
             reached=True,
             unsupported=unsupported,
         ),

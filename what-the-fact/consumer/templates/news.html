@@ -2,6 +2,10 @@
 {% from "_archetypes.html" import paywall, lean_token, stat_tiles %}
 {% block title %}Latest News — What The Fact{% endblock %}
 {% block content %}
+{% set window_filter = window_filter | default('all') %}
+{# '&window=7d' only when a window is chosen, '' otherwise: every existing URL stays
+   byte-identical and a clean /news stays clean (the crawler guards key on "has a query string"). #}
+{% set _wq = ('&window=' ~ window_filter) if window_filter != 'all' else '' %}
 
 <header class="wtf-nw-head">
   <div class="wtf-nw-eyebrow">Every story, every lean</div>
@@ -48,7 +52,7 @@
        left-leaning article from any source, not CBC's own articles. Toggle:
        clicking the already-active outlet clears back to all outlets. #}
     <div class="wtf-nw-src-item{% if outlet_filter == s.name %} wtf-nw-src-item--active{% endif %}"
-         onclick="window.location='/news?outlet={{ ('' if outlet_filter == s.name else s.name) | urlencode }}&page=1'"
+         onclick="window.location='/news?outlet={{ ('' if outlet_filter == s.name else s.name) | urlencode }}&page=1{{ _wq }}'"
          title="{{ s.name }}{% if outlet_filter == s.name %} — showing only this outlet, click to clear{% endif %}">
       <div class="wtf-news-favicon" style="border-color:{{ col }};">
         {# ⚠️ SERVED LOCALLY. This used to be google.com/s2/favicons?domain=… — one
@@ -85,7 +89,7 @@
      inside the zero-results empty state; a narrowed-but-nonempty feed had no
      one-click way back to the unfiltered page. Covers every axis (the
      collapsed-panel four PLUS band/outlet, which sit outside that panel). #}
-  {% set _any_filter_active = band_filter != 'all' or outlet_filter != 'all' or province_filter != 'all' or beat_filter != 'all' or scope_filter != 'all' or riding_filter != 'all' or verdict_filter != 'all' %}
+  {% set _any_filter_active = window_filter != 'all' or band_filter != 'all' or outlet_filter != 'all' or province_filter != 'all' or beat_filter != 'all' or scope_filter != 'all' or riding_filter != 'all' or verdict_filter != 'all' %}
   <div class="wtf-nw-toprow">
     <div class="wtf-nw-count-label">
       {{ total }} articles &middot; page {{ page }} / {{ total_pages }}
@@ -102,11 +106,22 @@
          6th value not worth a separate query for this pass — see routes.py). #}
       {% for val, label, col in bands %}
       {% set _n = band_facets.get(val) if val != 'all' else None %}
-      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
+      <a href="/news?band={{ val }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
          class="wtf-act-filter wtf-nw-nodeco {% if band_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
          {% if col %}style="color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
       {% endfor %}
     </div>
+  </div>
+
+  {# Time window (design wtf-news "Window"). Closed set — see shared/news_window.py. Each pill
+     keeps every other filter and replaces only the window; "All time" drops the parameter. #}
+  <div class="wtf-nw-band-row wtf-nw-window-row" role="group" aria-label="Time window">
+    <span class="wtf-nw-window-label">Window</span>
+    {% for wval, wlabel in (window_meta | default([('all','All time'),('24h','24 hours'),('7d','7 days'),('30d','30 days')])) %}
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ ('&window=' ~ wval) if wval != 'all' else '' }}"
+       class="wtf-act-filter wtf-nw-nodeco {% if window_filter == wval %}wtf-act-filter--active{% endif %}"
+       {% if window_filter == wval %}aria-current="true"{% endif %}>{{ wlabel }}</a>
+    {% endfor %}
   </div>
 
   {# Lean-mix bar — segmented bar + NAMED index (five bare percentages are not
@@ -163,7 +178,7 @@
     {% set provinces = [('all','All'), ('AB','AB'), ('BC','BC'), ('MB','MB'), ('NB','NB'), ('NL','NL'), ('NS','NS'), ('ON','ON'), ('PE','PE'), ('QC','QC'), ('SK','SK'), ('YT','YT'), ('NT','NT'), ('NU','NU')] %}
     {% for val, label in provinces %}
     {% set _n = province_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ val }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if province_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -173,7 +188,7 @@
     <span class="wtf-nw-chip-label">SCOPE</span>
     {% for val, label in [('all','🌐 All'), ('national','🇨🇦 National'), ('provincial','📍 Provincial'), ('international','🌍 International')] %}
     {% set _n = scope_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ val }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if scope_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -183,7 +198,7 @@
     <span class="wtf-nw-chip-label">BEAT</span>
     {% for val, label, col in beat_meta %}
     {% set _n = beat_facets.get(val) if val != 'all' else None %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ val }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if beat_filter == val %}wtf-act-filter--active{% endif %}{% if _n is not none and _n == 0 %} wtf-act-filter--empty{% endif %}"
        {% if col and beat_filter == val %}style="color:{{ col }};border-color:{{ col }};"{% endif %}>{{ label }}{% if _n is not none %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
@@ -193,10 +208,10 @@
   {% if ridings %}
   <div class="wtf-nw-chiprow-riding">
     <span class="wtf-nw-chip-label">RIDING</span>
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding=all&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
     {% for r in ridings %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ r.riding_name | urlencode }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if riding_filter == r.riding_name %}wtf-act-filter--active{% endif %}"
        title="{{ r.riding_name }} ({{ r.province_code }}) — {{ r.article_count }} articles">{{ r.riding_name }}</a>
     {% endfor %}
@@ -209,11 +224,11 @@
      no count, same reasoning as every other row's 'all'. #}
   <div class="wtf-nw-chiprow-c">
     <span class="wtf-nw-chip-label">VERDICT</span>
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict=all&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict=all&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if verdict_filter == 'all' %}wtf-act-filter--active{% endif %}">All</a>
     {% for val, label in verdict_meta %}
     {% set _n = verdict_facets.get(val) %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ val }}&outlet={{ outlet_filter | urlencode }}&page=1"
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ val }}&outlet={{ outlet_filter | urlencode }}&page=1{{ _wq }}"
        class="wtf-act-filter wtf-nw-chip-link {% if verdict_filter == val %}wtf-act-filter--active{% endif %}{% if not _n %} wtf-act-filter--empty{% endif %}">{{ label }}{% if _n %} <span class="wtf-act-filter-n">{{ _n }}</span>{% endif %}</a>
     {% endfor %}
   </div>
@@ -325,11 +340,11 @@
   {% if total_pages > 1 %}
   <div class="wtf-nw-pager">
     {% if page > 1 %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page={{ page - 1 }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page={{ page - 1 }}{{ _wq }}" class="wtf-act-filter wtf-nw-nodeco">← Prev</a>
     {% endif %}
     <span class="wtf-nw-pager-label">Page {{ page }} of {{ total_pages }} &middot; {{ total }} articles</span>
     {% if page < total_pages %}
-    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page={{ page + 1 }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
+    <a href="/news?band={{ band_filter }}&province={{ province_filter }}&beat={{ beat_filter }}&scope={{ scope_filter }}&riding={{ riding_filter }}&verdict={{ verdict_filter }}&outlet={{ outlet_filter | urlencode }}&page={{ page + 1 }}{{ _wq }}" class="wtf-act-filter wtf-nw-nodeco">Next →</a>
     {% endif %}
   </div>
   {% endif %}
@@ -349,6 +364,8 @@
 .wtf-nw-toprow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
 .wtf-nw-count-label { color: #6b7280; font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; }
 .wtf-nw-band-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.wtf-nw-window-row { margin: 0 0 14px; align-items: center; }
+.wtf-nw-window-label { font-family: var(--wtf-font-mono); font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--wtf-text-muted); margin-right: 4px; }
 .wtf-nw-nodeco { text-decoration: none; }
 .wtf-nw-chiprow { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
 .wtf-nw-chip-link { text-decoration: none; font-size: 0.62rem; }

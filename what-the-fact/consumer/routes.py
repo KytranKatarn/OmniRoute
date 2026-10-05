@@ -517,6 +517,7 @@ VERDICT_META = [
 @bp.get("/news")
 def news():
     from flask import request as _req
+    from shared.news_window import WINDOW_META as _WINDOW_META, normalize_window as _normalize_window, window_hours as _window_hours
     S = _schema()
     PAGE_SIZE = 50
     page = max(1, int(_req.args.get("page", 1)))
@@ -528,6 +529,9 @@ def news():
     scope_filter = _req.args.get("scope", "all")
     riding_filter = (_req.args.get("riding") or "all").strip()
     verdict_filter = _req.args.get("verdict", "all")
+    # Closed set (shared/news_window.py): an unknown value collapses to "all" rather than
+    # minting a new cache key / DB query per distinct string.
+    window_filter = _normalize_window(_req.args.get("window"))
     # Outlet filter (design handoff #6149 batch 11) — the source bar previously
     # linked each icon to `?band=<that outlet's own aggregate lean>`, which
     # filters by band, not by the outlet itself, so clicking (say) CBC's icon
@@ -585,7 +589,7 @@ def news():
     yesterday_str = (_now_utc - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
 
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter,
-           verdict_filter, outlet_filter, page)
+           verdict_filter, outlet_filter, window_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
         (source_count, total, rows, sources, ridings, band_mix,
@@ -599,6 +603,7 @@ def news():
                                beat_filter=beat_filter, scope_filter=scope_filter,
                                riding_filter=riding_filter, ridings=ridings,
                                outlet_filter=outlet_filter,
+                               window_filter=window_filter, window_meta=_WINDOW_META,
                                verdict_filter=verdict_filter, verdict_meta=VERDICT_META,
                                beat_meta=BEAT_META, sources=sources,
                                band_mix=band_mix, band_facets=band_facets,
@@ -673,6 +678,14 @@ def news():
             # `s` is already joined into top_recent below.
             filter_clauses["outlet"] = "s.name = :outlet"
             params["outlet"] = outlet_filter
+        if _window_hours(window_filter) is not None:
+            # published_at is the column this route already orders and pages on. The hours
+            # come from a closed table and are BOUND, never interpolated. Joining the
+            # filter_clauses dict means total, band_mix, every facet and the row query all
+            # honour it with no per-query edit — _where_except() does the rest. Deliberately
+            # no facet of its own: the design's window chips carry no counts.
+            filter_clauses["window"] = "a.published_at >= NOW() - make_interval(hours => :window_hours)"
+            params["window_hours"] = _window_hours(window_filter)
 
         def _where_except(*exclude_axes):
             clauses = [c for k, c in filter_clauses.items() if k not in exclude_axes]
@@ -899,6 +912,7 @@ def news():
                            beat_filter=beat_filter, scope_filter=scope_filter,
                            riding_filter=riding_filter, ridings=ridings,
                            outlet_filter=outlet_filter,
+                           window_filter=window_filter, window_meta=_WINDOW_META,
                            verdict_filter=verdict_filter, verdict_meta=VERDICT_META,
                            beat_meta=BEAT_META, sources=sources,
                            band_mix=band_mix, band_facets=band_facets,

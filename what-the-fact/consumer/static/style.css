@@ -788,6 +788,13 @@ a { color: inherit; }
    (annotation a2-note + the lean-scale rule) */
 .wtf-a-spine { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; background: var(--wtf-center); }
 .wtf-a-pcard .wtf-a-ph { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; }
+/* avatar: initials always present, the photo (when any) sits over them */
+.wtf-a-ph-avatar { display: flex; align-items: center; justify-content: center; }
+.wtf-a-ph-init {
+  font-family: var(--wtf-font-serif); font-weight: 600; font-size: 16px;
+  letter-spacing: 0.02em; color: var(--wtf-text-muted); user-select: none;
+}
+.wtf-a-ph-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .wtf-a-pname { font-family: var(--wtf-font-serif); font-size: 20px; font-weight: 600; line-height: 1.2; color: var(--wtf-text); }
 .wtf-a-prow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 

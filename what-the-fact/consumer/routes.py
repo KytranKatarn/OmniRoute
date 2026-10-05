@@ -7006,7 +7006,8 @@ def journalists_listing():
         # (~1.9s here measured via EXPLAIN ANALYZE).
         rows = c.execute(text(f"""
             WITH candidates AS (
-                SELECT e.id, e.canonical_name, e.slug, e.aliases
+                SELECT e.id, e.canonical_name, e.slug, e.aliases,
+                       e.metadata->>'image_url' AS image_url
                   FROM {SH}.entities e
                  WHERE e.entity_type='journalist'
             ),
@@ -7042,7 +7043,7 @@ def journalists_listing():
                 FROM outlet_counts
                 ORDER BY entity_id, n DESC
             )
-            SELECT c.id, c.canonical_name, c.slug,
+            SELECT c.id, c.canonical_name, c.slug, c.image_url,
                    COALESCE(vc.article_count, 0) AS article_count,
                    t.outlet_name, t.outlet_lean
               FROM candidates c

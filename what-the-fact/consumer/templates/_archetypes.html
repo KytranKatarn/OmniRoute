@@ -161,10 +161,26 @@
    `spine_token` colours the left rule; it MUST be accompanied by the text in
    `sub` naming the affiliation — colour alone is never the signal. #}
 
-{% macro person_card(name, sub=None, href="#", spine_token=None, right=None) -%}
+{# AVATAR — a round initials badge, with the photo laid over it when there is one.
+   The initials are ALWAYS rendered underneath, so a missing, slow or broken image (onerror
+   removes the <img>) falls back to them with no JS state. Only https:// and /media/ sources
+   are accepted: photo_url comes from a database field, never from page markup.
+   alt is empty on purpose — the person's name is the adjacent text, so a repeated alt would
+   make a screen reader say every name twice. #}
+{% macro avatar(name, photo_url=None) -%}
+{%- set ok = photo_url and (photo_url.startswith('https://') or photo_url.startswith('/media/')) -%}
+{%- set parts = (name or '').split() -%}
+{%- set ini = ((parts[0][0] ~ parts[-1][0]) if parts|length > 1 else (parts[0][:2] if parts else '?'))|upper -%}
+<span class="wtf-a-ph wtf-a-ph-avatar">
+  {%- if ok %}<img class="wtf-a-ph-img" src="{{ photo_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif -%}
+  <span class="wtf-a-ph-init" aria-hidden="true">{{ ini }}</span>
+</span>
+{%- endmacro %}
+
+{% macro person_card(name, sub=None, href="#", spine_token=None, right=None, photo_url=None) -%}
 <a class="wtf-a-pcard" href="{{ href }}">
   <span class="wtf-a-spine"{% if spine_token %} style="background:var({{ spine_token }});"{% endif %} aria-hidden="true"></span>
-  {{ photo() }}
+  {{ avatar(name, photo_url) }}
   <span style="flex:1;min-width:0;">
     <span class="wtf-a-prow">
       <span class="wtf-a-pname">{{ name }}</span>

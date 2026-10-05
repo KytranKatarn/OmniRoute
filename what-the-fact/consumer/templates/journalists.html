@@ -88,6 +88,7 @@
        name=j.canonical_name,
        sub=sub,
        href='/journalist/' ~ j.id,
+       photo_url=j.image_url,
        spine_token=('--wtf-' ~ j.outlet_lean) if j.outlet_lean else None,
        right=(j.outlet_lean | replace('-', ' ') | title) if j.outlet_lean else None) }}
   {% endfor %}

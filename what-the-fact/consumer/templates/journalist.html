@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall, lean_pill, lean_token %}
+{% from "_archetypes.html" import paywall, lean_pill, lean_token, avatar %}
 {% block title %}{{ j.canonical_name }} — Journalist · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{{ j.canonical_name }} — outlets, beats, and coverage analysis by What The Fact.">
@@ -41,11 +41,17 @@
 .wtf-jr-paywall-cta { display:inline-block; background:#ef4444; color:#fff; font-size:12px; font-weight:700; padding:10px 24px; border-radius:4px; text-decoration:none; }
 .wtf-jr-paywall-plans { margin-top:12px; }
 .wtf-jr-paywall-plans-link { font-size:11px; color:#6b7280; text-decoration:none; }
+.wtf-jr-head { display:flex; align-items:center; gap:14px; }
+.wtf-jr-head .wtf-a-ph { width:64px; height:64px; flex-shrink:0; border-radius:50%; }
+.wtf-jr-head .wtf-a-ph-init { font-size:22px; }
 .wtf-jr-footnote { font-size:9px; color:#374151; margin-top:18px; }
 </style>
 
 <div class="wtf-jr-crumb">← <a href="/journalists" class="wtf-jr-crumb-link">All journalists</a></div>
-<h1 class="wtf-jr-title">📝 {{ j.canonical_name }}</h1>
+<div class="wtf-jr-head">
+  {{ avatar(j.canonical_name, (j.metadata or {}).get('image_url')) }}
+  <h1 class="wtf-jr-title">{{ j.canonical_name }}</h1>
+</div>
 {% set declared = (j.metadata or {}).get('outlets') %}
 {% if declared %}<div class="wtf-jr-declared">Declared outlets: {{ declared | join(', ') }}</div>{% endif %}
 

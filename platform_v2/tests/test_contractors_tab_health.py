@@ -44,10 +44,82 @@ def _js() -> str:
     return ""
 
 
+def _called_names(src: str) -> set:
+    """Function names actually CALLED in `src`, via the AST.
+
+    Text scanning cannot answer "is record_observation used here" because the module's own
+    docstrings name it while explaining why it is NOT used — which produced both a false
+    failure and, one revision earlier, a false pass. The AST sees calls, not prose.
+    """
+    import ast as _ast
+
+    try:
+        tree = _ast.parse(src)
+    except SyntaxError:
+        return set()
+    names = set()
+    for node in _ast.walk(tree):
+        if isinstance(node, _ast.Call):
+            f = node.func
+            if isinstance(f, _ast.Name):
+                names.add(f.id)
+            elif isinstance(f, _ast.Attribute):
+                names.add(f.attr)
+    return names
+
+
+def _switch_names_recorded(src: str) -> set:
+    """The switch_name literal passed to each `_record_switch(...)` call.
+
+    Matching this by regex fails in a way that looks like a pass: the call's own arguments
+    include `row["dispatchable"]` and `row["is_active"]`, so a pattern for the switch name
+    matches the DICT KEY instead, and renaming the switch to "dispatchable_x" goes unnoticed.
+    Only the AST can tell which string is the switch and which is a column name.
+    """
+    import ast as _ast
+
+    try:
+        tree = _ast.parse(src)
+    except SyntaxError:
+        return set()
+    found = set()
+    for node in _ast.walk(tree):
+        if not isinstance(node, _ast.Call):
+            continue
+        fn = node.func
+        name = fn.id if isinstance(fn, _ast.Name) else getattr(fn, "attr", None)
+        if name != "_record_switch":
+            continue
+        args = node.args
+        # signature: (cur, provider_key, switch_name, from_value, to_value)
+        if len(args) >= 3 and isinstance(args[2], _ast.Constant):
+            found.add(args[2].value)
+    return found
+
+
+def _migration(name: str) -> str:
+    """Locate a migration file from either the repo checkout or inside the container.
+
+    The bind-mounted repo is listed explicitly because in-container `parents[2]` of the test
+    file resolves to "/", so the repo-relative path silently misses — and a test that quietly
+    skips protects nothing. Verified by running the suite in-container, where this path is
+    the only one that resolves.
+    """
+    for rel in (
+        f"database/migrations/{name}",
+        f"/mnt/archie_brain/database/migrations/{name}",
+    ):
+        p = pathlib.Path(rel) if rel.startswith("/") else REPO_ROOT / rel
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+    return ""
+
+
 def _css() -> str:
     for rel in (
         "platform_v2/static/css/fleet.css",
         "/app/static/css/fleet.css",
+        "/mnt/archie_brain/platform_v2/static/css/fleet.css",
     ):
         p = pathlib.Path(rel) if rel.startswith("/") else REPO_ROOT / rel
         if p.exists():
@@ -208,6 +280,71 @@ class TestTwoSwitches(unittest.TestCase):
         )
 
 
+class TestOperatorSwitchAudit(unittest.TestCase):
+    """An operator decision is not a probe observation, and must be recorded as one.
+
+    #3653 removed a fabricated `contractor_health` write (probe_kind='health', status='ok')
+    that the routing toggle used to "record" its decision — it made a broken provider look
+    healthy to the badge and the ranking. That left the decision itself unrecorded. This is the
+    honest home it needed: a separate table, written by the toggle, readable from the tab.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = _routes()
+        if not cls.src:
+            raise unittest.SkipTest("fleet_provider_routes.py not reachable from this layout")
+
+    def test_the_migration_exists_and_separates_decisions_from_observations(self):
+        sql = _migration("488_contractor_switch_audit.sql")
+        if not sql:
+            self.skipTest("migration 488 not reachable from this layout")
+        self.assertIn("CREATE TABLE IF NOT EXISTS contractor_switch_audit", sql)
+        self.assertIn("switch_name", sql)
+        # a closed vocabulary, for the same reason contractor_health constrains its own:
+        # an unconstrained column eventually carries a typo and becomes a third thing
+        self.assertRegex(sql, r"CHECK\s*\(switch_name IN \('is_active', 'dispatchable'\)\)")
+        self.assertIn("actor", sql)
+
+    def test_both_switches_are_recorded(self):
+        recorded = _switch_names_recorded(self.src)
+        for switch in ("is_active", "dispatchable"):
+            self.assertIn(
+                switch,
+                recorded,
+                f"the {switch} switch must pass its own name to _record_switch; "
+                f"recorded so far: {sorted(recorded)}",
+            )
+
+    def test_the_record_carries_the_before_and_after_values(self):
+        """A log of "something changed" cannot answer "what did it change from"."""
+        block = re.search(r"def api_toggle_provider_dispatchable.*?(?=\n    @bp\.route)", self.src, re.S)
+        self.assertIsNotNone(block)
+        self.assertIn('row["dispatchable"]', block.group(0), "the pre-toggle value is required")
+        self.assertIn('updated["dispatchable"]', block.group(0), "and the post-toggle value")
+
+    def test_it_still_never_writes_to_contractor_health(self):
+        """The fix from #3653 must not creep back while the audit table is added."""
+        self.assertNotIn(
+            "record_observation",
+            _called_names(self.src),
+            "an operator decision must never be recorded as a probe observation",
+        )
+
+    def test_a_failed_audit_write_cannot_roll_back_the_decision(self):
+        """Losing the flip because the record failed is worse than losing the record."""
+        helper = re.search(r"def _record_switch\(.*?\n(?=    @bp\.route)", self.src, re.S)
+        self.assertIsNotNone(helper, "the recorder must exist")
+        self.assertIn("except Exception", helper.group(0))
+        self.assertIn("logger.warning", helper.group(0))
+
+    def test_the_history_is_readable_somewhere(self):
+        """A write-only audit table answers nothing."""
+        self.assertIn("/api/providers/<provider_key>/switch-history", self.src)
+        self.assertIn("SELECT switch_name, from_value, to_value, actor", self.src)
+        self.assertIn("ORDER BY created_at DESC", self.src)
+
+
 class TestRouteContract(unittest.TestCase):
     """The server side: the field is exposed and the switch is guarded.
 
@@ -344,7 +481,7 @@ class TestRouteContract(unittest.TestCase):
         """
         self.assertNotIn(
             "record_observation",
-            self.src,
+            _called_names(self.src),
             "the routing toggle must not write probe history — an operator decision is not "
             "an observation, and status='ok' would report a provider healthy that never "
             "answered",

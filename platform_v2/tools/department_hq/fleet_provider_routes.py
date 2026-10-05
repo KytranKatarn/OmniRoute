@@ -453,6 +453,34 @@ def register_fleet_routes(bp, auth_decorator):
     # ------------------------------------------------------------------ #
     # POST /api/providers/<key>/toggle — toggle provider active/inactive
     # ------------------------------------------------------------------ #
+    def _record_switch(cur, provider_key, switch_name, from_value, to_value):
+        """Append one row to the operator audit trail. Never raises.
+
+        A failed audit write must not roll back the operator's actual decision. Losing the flip
+        because the record failed would be a worse outcome than losing the record, so this
+        swallows and logs — the same trade `record_observation` makes in the health service.
+        """
+        try:
+            actor = None
+            if current_user and getattr(current_user, "is_authenticated", False):
+                actor = getattr(current_user, "username", None)
+            cur.execute(
+                """
+                INSERT INTO contractor_switch_audit
+                    (provider_key, switch_name, from_value, to_value, actor)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (provider_key, switch_name, from_value, to_value, actor),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "contractor switch audit: write failed for %s/%s (%s: %s) — " "the switch itself still moved",
+                provider_key,
+                switch_name,
+                exc.__class__.__name__,
+                exc,
+            )
+
     @bp.route("/api/providers/<provider_key>/toggle", methods=["POST"])
     @auth_decorator
     def api_toggle_provider(provider_key):
@@ -476,6 +504,14 @@ def register_fleet_routes(bp, auth_decorator):
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
+                    "SELECT is_active FROM contractor_providers WHERE provider_key = %s",
+                    (provider_key,),
+                )
+                before = cur.fetchone()
+                if before is None:
+                    return jsonify({"error": "Provider not found"}), 404
+
+                cur.execute(
                     """
                     UPDATE contractor_providers
                     SET is_active = NOT is_active
@@ -487,6 +523,7 @@ def register_fleet_routes(bp, auth_decorator):
                 row = cur.fetchone()
                 if not row:
                     return jsonify({"error": "Provider not found"}), 404
+                _record_switch(cur, provider_key, "is_active", before["is_active"], row["is_active"])
 
                 cur.execute(
                     """
@@ -512,6 +549,61 @@ def register_fleet_routes(bp, auth_decorator):
     # ------------------------------------------------------------------ #
     # POST /api/providers/<key>/dispatchable — toggle the ROUTING switch (DS9 PR 1)
     # ------------------------------------------------------------------ #
+    @bp.route("/api/providers/<provider_key>/switch-history")
+    def api_provider_switch_history(provider_key):
+        """Recent operator switch changes for one provider, newest first.
+
+        Read side of `contractor_switch_audit`. Written without this, the table would be a log
+        nobody can open — and the question it exists to answer ("who turned routing on for this
+        paid provider, and when") is only useful if the answer is reachable from the tab.
+
+        Degrades to an empty list if the table is absent, for the same reason the listing's
+        health read does: the audit trail is observability, and observability must not be the
+        thing that takes the tab down.
+        """
+        try:
+            limit = min(max(request.args.get("limit", 20, type=int), 1), 200)
+        except Exception:  # noqa: BLE001
+            limit = 20
+
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT switch_name, from_value, to_value, actor, created_at
+                      FROM contractor_switch_audit
+                     WHERE provider_key = %s
+                     ORDER BY created_at DESC, id DESC
+                     LIMIT %s
+                    """,
+                    (provider_key, limit),
+                )
+                rows = cur.fetchall()
+            return jsonify(
+                {
+                    "success": True,
+                    "provider_key": provider_key,
+                    "events": [
+                        {
+                            "switch": r["switch_name"],
+                            "from": r["from_value"],
+                            "to": r["to_value"],
+                            "actor": r["actor"],
+                            "at": r["created_at"].isoformat() if r["created_at"] else None,
+                        }
+                        for r in rows
+                    ],
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "contractor switch history: read failed for %s (%s: %s)",
+                provider_key,
+                exc.__class__.__name__,
+                exc,
+            )
+            return jsonify({"success": True, "provider_key": provider_key, "events": []})
+
     @bp.route("/api/providers/<provider_key>/dispatchable", methods=["POST"])
     @auth_decorator
     def api_toggle_provider_dispatchable(provider_key):
@@ -567,6 +659,13 @@ def register_fleet_routes(bp, auth_decorator):
                     (now, provider_key),
                 )
                 updated = cur.fetchone()
+                _record_switch(
+                    cur,
+                    provider_key,
+                    "dispatchable",
+                    row["dispatchable"],
+                    updated["dispatchable"],
+                )
 
             # NOTE: this deliberately writes NO row to contractor_health.
             #

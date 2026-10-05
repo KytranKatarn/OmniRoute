@@ -48,7 +48,7 @@ from psycopg2.extras import execute_values
 
 # The ONE slug algorithm — derive slugs server-side so the same name from any of the
 # 5 products resolves to one node (ADR-EG-001 §3).
-from ingest.shared.entity_graph import normalize_name, name_to_slug
+from ingest.shared.entity_graph import normalize_name, name_to_slug, is_placeholder_name
 
 logger = logging.getLogger("wtf-consumer.entity_graph_ingest")
 
@@ -178,6 +178,8 @@ def _eng():
 def _register_ref(ref, inline, pointers):
     """Register an <entity ref>; return its slug.
 
+    Returns None for a PLACEHOLDER ("N/A", "unknown", ...): it must not become a node.
+
     Inline (has canonical_name) -> derive slug + collect for bulk upsert (dedup by
     slug, merging roles/aliases within the batch — a bulk statement can't touch the
     same conflict row twice). Pointer ({"slug": "..."}) -> collect slug for lookup.
@@ -186,6 +188,8 @@ def _register_ref(ref, inline, pointers):
         raise ValueError("entity reference must be an object")
 
     canonical_name = (ref.get("canonical_name") or "").strip()
+    if canonical_name and is_placeholder_name(canonical_name):
+        return None          # "N/A" is not an entity; the caller drops whatever referenced it
     if canonical_name:
         slug = name_to_slug(normalize_name(canonical_name))
         if not slug:
@@ -240,6 +244,8 @@ def _register_ref(ref, inline, pointers):
     slug = (ref.get("slug") or "").strip()
     if not slug:
         raise ValueError("entity reference needs canonical_name or slug")
+    if is_placeholder_name(slug.replace("-", " ")):
+        return None
     pointers.add(slug)
     return slug
 
@@ -291,7 +297,8 @@ def ingest_entity_graph():
 
     stats = {"product": product, "entities_created": 0, "entities_updated": 0,
              "external_ids_upserted": 0,
-             "mentions_upserted": 0, "relationships_upserted": 0}
+             "mentions_upserted": 0, "relationships_upserted": 0,
+             "skipped_placeholder": 0}
 
     try:
         # ── Phase 0: collect + validate everything UP FRONT (no DB writes yet) ──
@@ -304,6 +311,9 @@ def ingest_entity_graph():
         mention_rows = {}  # (slug, ctype, cid) -> (slug, ctype, cid, ctx, conf)  (dedup within batch)
         for m in mentions:
             slug = _register_ref(m.get("entity") or {}, inline, pointers)
+            if slug is None:
+                stats["skipped_placeholder"] += 1
+                continue
             ctype = (m.get("content_type") or "").strip()
             cid = m.get("content_id")
             cid = str(cid).strip() if cid is not None else ""
@@ -321,6 +331,9 @@ def ingest_entity_graph():
                 )
             fslug = _register_ref(r.get("from") or {}, inline, pointers)
             tslug = _register_ref(r.get("to") or {}, inline, pointers)
+            if fslug is None or tslug is None:
+                stats["skipped_placeholder"] += 1
+                continue
             sid = str(r["source_id"]).strip() if r.get("source_id") is not None else None
             rel_rows[(fslug, tslug, rtype, sid)] = (
                 fslug, tslug, rtype, sid, r.get("valid_from"), r.get("valid_to"),

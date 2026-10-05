@@ -79,6 +79,22 @@ def name_to_slug(normalized: str) -> str:
     return slug
 
 
+# Names that mean "no value", not an entity. Matched on letters+digits only, so "N/A", ".N/A .",
+# "#N/A", "n-a" and "NA" are all the same key. 2026-10: one entity, "NA", held 116,602 gov-watch
+# awarded_to edges to 22,955 unrelated counterparties — every award whose vendor field was blank
+# or "N/A" — making it ~200x the most-connected node in the graph and linking everyone to everyone.
+PLACEHOLDER_KEYS = frozenset({
+    "na", "nan", "nil", "null", "none", "tbd", "tba", "unknown", "various", "undisclosed",
+    "notapplicable", "notavailable", "notprovided", "notspecified",
+})
+
+
+def is_placeholder_name(name) -> bool:
+    """True when name carries no identity: a "no value" marker, or no letters/digits at all."""
+    key = re.sub(r"[^a-z0-9]", "", normalize_name(str(name or "")))
+    return key == "" or key in PLACEHOLDER_KEYS
+
+
 # ── Engine ────────────────────────────────────────────────────────────────────
 
 def _get_engine():

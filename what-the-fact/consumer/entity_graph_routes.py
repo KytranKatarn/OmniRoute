@@ -102,6 +102,29 @@ _ENTITY_UPSERT = """
 """
 _ENTITY_TPL = "(%s, %s, %s, %s::text[], %s::jsonb, %s::jsonb)"
 
+
+def _follow_merges(cur, slug_to_id):
+    """Rewrite slug_to_id so every id points at the live (non-merged) entity.
+
+    A merged entity keeps its slug, so an upsert/lookup by slug lands on the OLD row. Attaching
+    edges, mentions or external ids to it strands them there: 20 merged entities (one with
+    122,253 elections_canada edges) were still gaining edges every run on 2026-10-05. Chains are
+    flattened by the dedup engine, but follow up to a few hops anyway.
+    """
+    for _ in range(5):
+        ids = list(set(slug_to_id.values()))
+        if not ids:
+            return slug_to_id
+        cur.execute("SELECT id, merged_into FROM shared.entities "
+                    "WHERE id = ANY(%s) AND status = 'merged' AND merged_into IS NOT NULL", (ids,))
+        moved = {eid: into for eid, into in cur.fetchall()}
+        if not moved:
+            return slug_to_id
+        for slug, eid in list(slug_to_id.items()):
+            if eid in moved:
+                slug_to_id[slug] = moved[eid]
+    return slug_to_id
+
 _MENTION_UPSERT = """
     INSERT INTO shared.entity_mentions
         (entity_id, product, content_type, content_id, mention_context, confidence)
@@ -323,6 +346,7 @@ def ingest_entity_graph():
                 for eid, slug, created in res:
                     slug_to_id[slug] = eid
                     stats["entities_created" if created else "entities_updated"] += 1
+                _follow_merges(cur, slug_to_id)
 
             # 1b) External ids — stable cross-product keys (ADR-EG-001 amendment).
             #     Only inline (this-batch) entities carry them; pointer refs do not.
@@ -342,6 +366,7 @@ def ingest_entity_graph():
                 cur.execute("SELECT id, slug FROM shared.entities WHERE slug = ANY(%s)", (missing,))
                 for eid, slug in cur.fetchall():
                     slug_to_id[slug] = eid
+                _follow_merges(cur, slug_to_id)
                 still = [s for s in missing if s not in slug_to_id]
                 if still:
                     raise ValueError(f"entity slug(s) not found: {still[:5]}")

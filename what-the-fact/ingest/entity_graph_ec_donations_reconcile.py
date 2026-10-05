@@ -166,9 +166,10 @@ def run(dry_run=False):
                                       'first', d.first_d, 'last', d.last_d)
             FROM _dp d
             JOIN _donor x          ON x.donor_slug = d.donor_slug
-            JOIN shared.entities de ON de.slug = d.donor_slug
+            JOIN shared.entities de ON de.slug = d.donor_slug AND de.status = 'active'
             JOIN shared.entities pe ON lower(pe.canonical_name) = lower(d.party)
                                    AND pe.entity_type = 'organization'
+                                   AND pe.status = 'active'
             ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
             DO NOTHING
         """)).rowcount

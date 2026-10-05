@@ -413,6 +413,51 @@ def fuzzy_candidates(dry_run=False):
     return result
 
 
+def repoint_stranded_edges(conn):
+    """Move relationships/mentions still attached to MERGED entities onto their survivor.
+
+    `_merge` repoints everything at merge time, but ingest writers that resolve an entity by slug
+    or by name can attach NEW edges to the old merged row afterwards (fixed at the source, but
+    idempotent self-heal here too). Collision-safe against the entity_relationships and
+    entity_mentions unique keys. Returns {"relationships": n, "mentions": n}.
+    """
+    out = {"relationships": 0, "mentions": 0}
+    # edges: drop the stranded row where the survivor already has the identical edge, then repoint
+    for col, other in (("from_entity_id", "to_entity_id"), ("to_entity_id", "from_entity_id")):
+        conn.execute(text(f"""
+            DELETE FROM shared.entity_relationships r
+            USING shared.entities e
+            WHERE r.{col} = e.id AND e.status = 'merged' AND e.merged_into IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM shared.entity_relationships s
+                WHERE s.id <> r.id
+                  AND s.relationship_type = r.relationship_type
+                  AND s.source_product = r.source_product
+                  AND coalesce(s.source_id,'') = coalesce(r.source_id,'')
+                  AND s.{col} = e.merged_into
+                  AND s.{other} = r.{other})
+        """))
+        out["relationships"] += conn.execute(text(f"""
+            UPDATE shared.entity_relationships r SET {col} = e.merged_into
+            FROM shared.entities e
+            WHERE r.{col} = e.id AND e.status = 'merged' AND e.merged_into IS NOT NULL
+        """)).rowcount
+    conn.execute(text("""
+        DELETE FROM shared.entity_mentions m
+        USING shared.entities e
+        WHERE m.entity_id = e.id AND e.status = 'merged' AND e.merged_into IS NOT NULL
+          AND EXISTS (SELECT 1 FROM shared.entity_mentions s
+                      WHERE s.entity_id = e.merged_into AND s.product = m.product
+                        AND s.content_type = m.content_type AND s.content_id = m.content_id)
+    """))
+    out["mentions"] = conn.execute(text("""
+        UPDATE shared.entity_mentions m SET entity_id = e.merged_into
+        FROM shared.entities e
+        WHERE m.entity_id = e.id AND e.status = 'merged' AND e.merged_into IS NOT NULL
+    """)).rowcount
+    return out
+
+
 def run(dry_run=False):
     totals = {"blocks": 0, "org_groups": 0, "org_merges": 0, "person_review_queued": 0}
     eng = _engine()
@@ -481,6 +526,10 @@ def run(dry_run=False):
                 if not dry_run:
                     _merge(conn, survivor, merged, "squash_name_org")
                 totals["org_merges"] += 1
+
+        # 2b) self-heal: edges/mentions stranded on merged entities move to their survivor
+        if not dry_run:
+            totals["stranded_repointed"] = repoint_stranded_edges(conn)
 
         # 3) persons: exact normalized-name -> review queue (canonical-anchored, capped)
         if not dry_run:

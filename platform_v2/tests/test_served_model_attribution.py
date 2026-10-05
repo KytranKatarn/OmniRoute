@@ -75,7 +75,17 @@ class _Resp:
 
 def _neutralise(monkeypatch, served):
     monkeypatch.setattr(
-        ep, "_get_provider_config", lambda p: {"base_url": "http://omniroute:20128/v1", "default_model": "auto/coding"}
+        ep,
+        "_get_provider_config",
+        lambda p: {
+            "base_url": "http://omniroute:20128/v1",
+            "default_model": "auto/coding",
+            # DS9: the call site refuses any provider whose dispatchable switch is
+            # off, and every contractor row defaults FALSE. A stub that omits the key
+            # makes these white-box tests assert the refusal instead of the quota gate
+            # they exist to cover.
+            "dispatchable": True,
+        },
     )
     monkeypatch.setattr(ep, "_get_api_key", lambda p: "k")
     monkeypatch.setattr(ep, "_check_budget", lambda p: True)
@@ -226,7 +236,9 @@ def test_gate_ignores_non_omniroute_providers(monkeypatch):
 def test_gate_refuses_exhausted_upstream_before_the_post(monkeypatch):
     _neutralise(monkeypatch, served="deepseek/deepseek-chat")
     monkeypatch.setattr(
-        ep, "_omniroute_quota_gate", lambda model, base_url: {"allow": False, "reason": "upstream opencode exhausted", "status": "exhausted"}
+        ep,
+        "_omniroute_quota_gate",
+        lambda model, base_url: {"allow": False, "reason": "upstream opencode exhausted", "status": "exhausted"},
     )
     r = ep._call_openai_compatible("omniroute", "hi", model="auto/coding")
     assert r["success"] is False

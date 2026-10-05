@@ -61,7 +61,8 @@ def _load_all_providers() -> Dict[str, Dict]:
             """
             SELECT provider_key, display_name, base_url, default_model,
                    auth_method, auth_env_var, is_cloud_proxy, tier_position,
-                   models, rate_limits, is_active, capabilities
+                   models, rate_limits, is_active, capabilities,
+                   dispatchable, provider_class
             FROM contractor_providers
             ORDER BY tier_position
             """
@@ -169,7 +170,10 @@ def get_providers_with_capability(capability: str) -> List[Dict]:
     results = []
     for key, provider in _provider_cache.items():
         caps = provider.get("capabilities", ["text_chat"])
-        if capability in caps and provider.get("is_active", False):
+        # Both switches required. `is_active` = configured; `dispatchable` = the operator
+        # has allowed routing here. The second is the one that makes "never dispatch a
+        # paid provider unless enabled" true in code rather than by habit.
+        if capability in caps and provider.get("is_active", False) and provider.get("dispatchable", False):
             results.append(
                 {
                     "provider_key": key,
@@ -180,6 +184,8 @@ def get_providers_with_capability(capability: str) -> List[Dict]:
                     "tier_position": provider.get("tier_position", 99),
                     "models": provider.get("models", []),
                     "base_url": provider.get("base_url", ""),
+                    "provider_class": provider.get("provider_class"),
+                    "dispatchable": bool(provider.get("dispatchable", False)),
                 }
             )
     results.sort(key=lambda p: p["tier_position"])
@@ -196,6 +202,12 @@ def get_all_capabilities() -> Dict[str, List[Dict]]:
     caps_map: Dict[str, List[Dict]] = {}
     for key, provider in _provider_cache.items():
         if not provider.get("is_active", False):
+            continue
+        # `dispatchable` is the separate operator switch: a provider can be fully
+        # configured (key present, probe passing) and still receive nothing. Until it is
+        # flipped, it must not appear as a routing candidate at all — otherwise "never
+        # dispatch unless enabled" is only true by convention.
+        if not provider.get("dispatchable", False):
             continue
         for cap in provider.get("capabilities", ["text_chat"]):
             if cap not in caps_map:
@@ -251,25 +263,119 @@ def _get_api_key(provider: str) -> Optional[str]:
     return None
 
 
-def _check_budget(provider: str) -> bool:
-    """Check if provider is within monthly budget."""
+#: Monthly-budget bands, as a fraction of the configured limit.
+#:
+#:   warn  — dispatch continues, but the operator is told. Without this the only signal was
+#:           the refusal at 100%, i.e. the budget was already spent before anyone heard.
+#:   block — dispatch stops with headroom still intact, so an in-flight task can finish and
+#:           the month does not overshoot. At 100% there is nothing left to protect.
+#:
+#: The stop is 95% rather than 100% deliberately. Combined with `check_weekly_budget`'s 10%
+#: safety margin (#3659), that leaves roughly 15% visible when a warning fires.
+BUDGET_WARN_FRACTION = 0.80
+BUDGET_BLOCK_FRACTION = 0.95
+
+#: Used when a provider has no configured budget. Matches the historical default this
+#: function has always applied, named explicitly so it is a decision and not an accident.
+DEFAULT_MONTHLY_BUDGET_USD = 10.0
+
+#: Returned when the budget query itself fails. Fail-OPEN is correct — a database blip must
+#: not block a provider that would otherwise work — but it used to be indistinguishable from
+#: "no budget configured", which meant a broken query silently disabled the budget entirely.
+#: Logging makes the difference visible.
+BUDGET_UNKNOWN = "unknown"
+
+
+def monthly_budget_status(provider: str) -> dict:
+    """Three-state monthly budget read: ok / warn / block.
+
+    Returns ``{provider, band, limit, used, fraction, reason}``.
+
+    ``band`` is one of ``ok`` | ``warn`` | ``block`` | ``unknown`` | ``unconfigured``.
+
+    Fail-open by design. A provider with no budget row is ``unconfigured`` and allowed; a
+    provider whose budget query raises is ``unknown`` and allowed, but the failure is logged
+    so a persistently broken query cannot masquerade as an unlimited budget.
+    """
     try:
         from database import get_db
 
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT monthly_budget_usd, current_month_cost_usd FROM external_api_keys WHERE provider = %s",
-            (provider,),
-        )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT monthly_budget_usd, current_month_cost_usd
+                  FROM external_api_keys
+                 WHERE provider = %s
+                """,
+                (provider,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+
         if not row:
-            return True
-        return float(row[1] or 0) < float(row[0] or 10)
-    except Exception:
-        return True
+            return {
+                "provider": provider,
+                "band": "unconfigured",
+                "limit": None,
+                "used": None,
+                "fraction": None,
+                "reason": "no budget row — allowed",
+            }
+
+        raw_limit, raw_used = row[0], row[1]
+        limit = float(raw_limit) if raw_limit is not None else DEFAULT_MONTHLY_BUDGET_USD
+        used = float(raw_used or 0)
+        fraction = (used / limit) if limit > 0 else 0.0
+
+        if fraction >= BUDGET_BLOCK_FRACTION:
+            band = "block"
+        elif fraction >= BUDGET_WARN_FRACTION:
+            band = "warn"
+        else:
+            band = "ok"
+
+        return {
+            "provider": provider,
+            "band": band,
+            "limit": limit,
+            "used": used,
+            "fraction": round(fraction, 4),
+            "reason": (
+                f"{fraction * 100:.1f}% of ${limit:.2f} used" if band != "unconfigured" else "no budget row — allowed"
+            ),
+        }
+    except Exception as exc:  # noqa: BLE001 - fail-open, but never silently
+        logger.warning(
+            "monthly_budget_status(%s): budget query failed, allowing fail-open (%s: %s)",
+            provider,
+            exc.__class__.__name__,
+            exc,
+        )
+        return {
+            "provider": provider,
+            "band": BUDGET_UNKNOWN,
+            "limit": None,
+            "used": None,
+            "fraction": None,
+            "reason": f"budget query failed ({exc.__class__.__name__}) — allowed",
+        }
+
+
+def _check_budget(provider: str) -> bool:
+    """True unless the provider is in the `block` band.
+
+    Everything not ``block`` is allowed, including ``warn`` and ``unknown`` — the warn band
+    is a notification, not a refusal.
+
+    This remains the seam the call site goes through on purpose. Tests neutralise it with
+    `monkeypatch.setattr(ep, "_check_budget", lambda p: True)` to stay hermetic; had the
+    call site switched to calling `monthly_budget_status` directly, those patches would have
+    become silent no-ops and the tests would have quietly started hitting a real database.
+    """
+    return monthly_budget_status(provider)["band"] != "block"
 
 
 def _calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
@@ -414,12 +520,39 @@ def _call_openai_compatible(
         base_url = legacy["base_url"]
         model = model or legacy["default_model"]
 
+    # The operator's routing switch, enforced at the CALL SITE as well as in the selector.
+    # Gating only the selector would leave `call_external(provider=...)` — which callers do
+    # use directly — as an open door to any configured provider, and "never dispatch a paid
+    # provider unless enabled" would be true only of the path someone remembered to check.
+    _cfg = _get_provider_config(provider)
+    if _cfg is not None and not _cfg.get("dispatchable", False):
+        return {
+            "success": False,
+            "error": (
+                f"Provider {provider} is configured but not enabled for dispatch "
+                "(contractor_providers.dispatchable is false)"
+            ),
+            "provider": provider,
+            "dispatchable": False,
+        }
+
     api_key = _get_api_key(provider)
     if not api_key:
         return {"success": False, "error": f"No API key for {provider}", "provider": provider}
 
+    # Through `_check_budget`, not `monthly_budget_status`, so the existing monkeypatch
+    # seam stays load-bearing. The detail dict is fetched separately and only for the
+    # message — on the happy path that is one extra query, which is the cost of being able
+    # to say WHY rather than just that it failed.
     if not _check_budget(provider):
-        return {"success": False, "error": f"Monthly budget exceeded for {provider}", "provider": provider}
+        _budget = monthly_budget_status(provider)
+        return {
+            "success": False,
+            "error": f"Monthly budget {BUDGET_BLOCK_FRACTION:.0%} reached for {provider} "
+            f"({_budget['reason']}) — dispatch blocked with headroom intact",
+            "provider": provider,
+            "budget": _budget,
+        }
 
     # #3658: per-provider WEEKLY free-tier request cap (rate_limits.free.weekly_limit).
     # Fail-open, and a no-op for providers without a free weekly_limit configured.

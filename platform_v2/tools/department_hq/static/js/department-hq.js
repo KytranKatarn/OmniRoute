@@ -7766,6 +7766,76 @@ async function setCloudMaster(turnOn) {
     }
 }
 
+// DS9 PR 4 — class badges, measured health, and the second switch.
+//
+// Everything here reads fields the PR 3 probe writes. A provider that has never been
+// probed has health_status === null, which renders as "unknown" and NEVER as a number:
+// an unmeasured provider is not a fast one, and inventing a latency is how a fabricated
+// figure becomes the ranking.
+
+var CONTRACTOR_CLASS_META = {
+    paid:       { label: 'PAID',       color: '#f59e0b', title: 'Requires a paid key. Never auto-dispatched unless you enable routing below.' },
+    free_tier:  { label: 'FREE TIER',  color: '#38bdf8', title: 'No paid key, but the upstream imposes real limits.' },
+    keyless:    { label: 'KEYLESS',    color: '#4ade80', title: 'No API key required. Convenient, often capability-limited.' },
+    image_only: { label: 'IMAGE ONLY', color: '#a78bfa', title: 'Serves image generation, not text. Cannot back a roster agent.' },
+    local:      { label: 'LOCAL',      color: '#94a3b8', title: 'Runs on the mesh.' }
+};
+
+var CONTRACTOR_HEALTH_META = {
+    ok:           { label: 'OK',         color: '#4ade80' },
+    rate_limited: { label: 'RATE LIM',   color: '#fbbf24', title: 'Refused for volume (429). Transient.' },
+    auth_error:   { label: 'AUTH ERR',   color: '#f87171', title: 'The credential was refused (401/403). Fix the key or disable it.' },
+    no_key:       { label: 'NO KEY',     color: '#f87171', title: 'Configured but no credential is available.' },
+    unsupported:  { label: 'UNSUPPORTED', color: '#a78bfa', title: 'Answered, but not for this capability.' },
+    unreachable:  { label: 'UNREACHABLE', color: '#f87171', title: 'No response at all.' },
+    error:        { label: 'ERROR',      color: '#f87171' }
+};
+
+function contractorClassBadge(p) {
+    var meta = CONTRACTOR_CLASS_META[p.provider_class];
+    if (!meta) {
+        return '<span class="contractor-meta-badge" style="border-color:rgba(148,163,184,0.45);color:#94a3b8"'
+            + ' title="Not yet classified — the health probe has not measured this provider yet.">UNMEASURED</span>';
+    }
+    return '<span class="contractor-meta-badge" style="border-color:' + meta.color + '55;color:' + meta.color + '"'
+        + ' title="' + escapeHtml(meta.title) + '">' + meta.label + '</span>';
+}
+
+function contractorHealthBadge(p) {
+    var st = p.health_status;
+    if (st === null || st === undefined) {
+        return '<span class="contractor-meta-badge" style="border-color:rgba(148,163,184,0.35);color:#64748b"'
+            + ' title="Never probed. Unknown is not the same as fast.">UNKNOWN</span>';
+    }
+    var meta = CONTRACTOR_HEALTH_META[st];
+    if (!meta) meta = { label: String(st).toUpperCase(), color: '#94a3b8', title: '' };
+    var ms = p.health_latency_ms;
+    var suffix = (ms !== null && ms !== undefined) ? ' · ' + ms + 'ms' : '';
+    var title = meta.title || ('Last probe: ' + st);
+    if (p.health_observed_model) title += ' · served ' + p.health_observed_model;
+    return '<span class="contractor-meta-badge" style="border-color:' + meta.color + '55;color:' + meta.color + '"'
+        + ' title="' + escapeHtml(title) + '">' + meta.label + suffix + '</span>';
+}
+
+// The second switch. Separate from toggleProvider because `is_active` means configured
+// and `dispatchable` means "route here" — a provider can be set up, holding a key and
+// passing its probe, while still receiving nothing.
+async function toggleDispatchable(key) {
+    try {
+        var res = await fetch('/tools/department-hq/api/providers/' + key + '/dispatchable', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }, body: '{}'
+        });
+        var data = await res.json();
+        if (!res.ok || data.success === false) {
+            showToast(data.error || 'Could not change routing switch', 'error');
+        }
+        loadContractors();
+    } catch (e) {
+        console.error('Toggle dispatchable failed:', e);
+    }
+}
+
 function renderContractors(providers, routingMode, creedData) {
     routingMode = routingMode || 'full';
     creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
@@ -7839,9 +7909,21 @@ function renderContractors(providers, routingMode, creedData) {
         html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
         html += '<span style="font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;">' + escapeHtml(tierLabel) + '</span>';
         html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
+        // DS9 PR 4 — what the probe measured, and what kind of provider this is.
+        html += contractorHealthBadge(p);
+        html += contractorClassBadge(p);
         html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
         html += '<div class="contractor-firm-actions">';
         html += '<button class="contractor-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
+        var _disp = p.dispatchable === true;
+        // DS9 PR 4 — the second switch. `is_active` says CONFIGURED; this says
+        // "route here". A provider can hold a key and pass its probe while still
+        // receiving nothing, and that state has to be expressible.
+        html += '<button class="contractor-btn-toggle" title="'
+            + (_disp ? 'Routing is ON — the dispatcher may send work here.'
+                     : 'Routing is OFF — configured, but nothing is dispatched here.')
+            + '" onclick="event.stopPropagation();toggleDispatchable(\'' + providerKey + '\')">'
+            + (_disp ? 'ROUTING ON' : 'ROUTING OFF') + '</button>';
         html += '<button class="contractor-btn-toggle" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">' + (isEnabled ? 'Disable' : 'Enable') + '</button>';
         html += '</div>';
         html += '</div>'; // header

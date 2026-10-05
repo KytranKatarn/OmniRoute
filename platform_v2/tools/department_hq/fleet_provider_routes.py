@@ -36,6 +36,10 @@ from .fleet_helpers import (
 
 logger = logging.getLogger(__name__)
 
+#: Cap on a usable latency sample. Measured cold, a 16b model took ~70s for twelve
+#: tokens; allowing that into an average would let one outlier define the ranking.
+_HEALTH_LATENCY_CEILING_MS = 60_000
+
 VALID_NODE_TYPES = ("outpost", "starship", "satellite")
 CATALOG_DIR = os.environ.get(
     "FLEET_CATALOG_DIR",
@@ -476,6 +480,89 @@ def register_fleet_routes(bp, auth_decorator):
                 )
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    # ------------------------------------------------------------------ #
+    # POST /api/providers/<key>/dispatchable — toggle the ROUTING switch (DS9 PR 1)
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/providers/<provider_key>/dispatchable", methods=["POST"])
+    @auth_decorator
+    def api_toggle_provider_dispatchable(provider_key):
+        """Flip `dispatchable`, the switch that means "the dispatcher may route here".
+
+        Separate from `is_active` on purpose. `is_active` says the provider is CONFIGURED —
+        key present, endpoint reachable, probe passing. `dispatchable` says an operator has
+        allowed traffic. A paid provider must never be dispatched unless this is flipped, so
+        the two states have to be distinguishable in the UI: otherwise "configured but idle"
+        cannot be expressed, and enabling one is indistinguishable from setting it up.
+
+        Guarded: a paid provider cannot be switched on while its class is unmeasured, because
+        the class is what makes "paid" a policy rather than a label.
+        """
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT provider_class, dispatchable
+                      FROM contractor_providers
+                     WHERE provider_key = %s
+                    """,
+                    (provider_key,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return jsonify({"success": False, "error": "Provider not found"}), 404
+
+                now = not bool(row["dispatchable"])
+                cls = row["provider_class"]
+                if now and cls is None:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": (
+                                    "provider_class is unmeasured — the health probe has not "
+                                    "classified this provider yet, so it cannot be enabled "
+                                    "safely"
+                                ),
+                            }
+                        ),
+                        409,
+                    )
+
+                cur.execute(
+                    """
+                    UPDATE contractor_providers
+                       SET dispatchable = %s, updated_at = NOW()
+                     WHERE provider_key = %s
+                     RETURNING dispatchable
+                    """,
+                    (now, provider_key),
+                )
+                updated = cur.fetchone()
+
+            # NOTE: this deliberately writes NO row to contractor_health.
+            #
+            # It did once, as probe_kind='health', status='ok'. That was wrong twice over:
+            # contractor_health is a history of PROBE OBSERVATIONS, and an operator flipping a
+            # routing switch is not one. So flipping the switch on a provider whose last real
+            # probe was `unreachable` replaced that finding with 'ok' — the tab showed a green
+            # badge and the ranking counted a healthy provider that had never answered. The
+            # schema agrees: probe_kind is CHECK-constrained to ('health','latency','full'), so
+            # there is no honest way to record an operator action here either.
+            #
+            # The decision is not lost: it is the column itself, visible in this tab, and it
+            # only takes effect through the selector gate. A real operator audit trail needs a
+            # separate table with an 'operator' kind — not a forged probe.
+            return jsonify(
+                {
+                    "success": True,
+                    "provider_key": provider_key,
+                    "dispatchable": updated["dispatchable"],
+                    "provider_class": cls,
+                }
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
 
     # ------------------------------------------------------------------ #
     # POST /api/providers/<key>/budget — update provider budget
@@ -1351,6 +1438,59 @@ def register_fleet_routes(bp, auth_decorator):
     def fleet_get_external_providers():
         """List external AI providers with 24h stats, model breakdowns, and tier positions.
         All provider metadata now comes from the contractor_providers table (dynamic)."""
+        # Latest probe per provider (DS9 PR 3).
+        #
+        # Hoisted ABOVE the main query and wrapped in its own try, deliberately. It was
+        # originally inside the listing's try block, where its guard caught the missing
+        # table, logged it, and then let the OUTER handler return 500 anyway — verified:
+        # `health read unavailable (UndefinedTable ...)` in the log and a 500 on the wire,
+        # with zero rows rendered. A guard that logs and then fails the request is not a
+        # guard. This tab is where an operator looks to find out whether something is
+        # wrong; it must survive its own observability table being absent.
+        _health_status = {}
+        _health_latency = {}
+        _health_observed = {}
+        _health_checked = {}
+        try:
+            with get_db_cursor(commit=False) as (_hc, hcur):
+                hcur.execute(
+                    """
+                    SELECT DISTINCT ON (provider_key)
+                           provider_key, status, observed_model, created_at
+                      FROM contractor_health
+                     ORDER BY provider_key, created_at DESC
+                    """
+                )
+                for _h in hcur.fetchall():
+                    _k = _h["provider_key"]
+                    _health_status[_k] = _h["status"]
+                    _health_observed[_k] = _h["observed_model"]
+                    _health_checked[_k] = _h["created_at"]
+
+                # Latency has its own read, restricted to rows that HAVE one. The most
+                # recent row is usually a 1-token health probe whose latency says nothing
+                # useful about the provider, so ranking must not pick that up.
+                hcur.execute(
+                    """
+                    SELECT DISTINCT ON (provider_key)
+                           provider_key, latency_ms
+                      FROM contractor_health
+                     WHERE latency_ms IS NOT NULL
+                       AND latency_ms <= %s
+                     ORDER BY provider_key, created_at DESC
+                    """,
+                    (_HEALTH_LATENCY_CEILING_MS,),
+                )
+                for _h in hcur.fetchall():
+                    _health_latency[_h["provider_key"]] = _h["latency_ms"]
+        except Exception as _exc:  # noqa: BLE001 - observability must not break listing
+            logger.warning(
+                "external-providers: health read unavailable (%s: %s) — "
+                "the tab will show UNKNOWN until the probe table exists",
+                _exc.__class__.__name__,
+                _exc,
+            )
+
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
@@ -1359,7 +1499,7 @@ def register_fleet_routes(bp, auth_decorator):
                     """
                     SELECT provider_key, display_name, base_url, default_model,
                            auth_method, auth_env_var, is_cloud_proxy, tier_position,
-                           models, rate_limits, is_active
+                           models, rate_limits, is_active, dispatchable, provider_class
                     FROM contractor_providers
                     ORDER BY tier_position
                 """
@@ -1498,7 +1638,14 @@ def register_fleet_routes(bp, auth_decorator):
                         auth_method = "OLLAMA_API_KEY env var"
                         source = "cloud_config"
                     else:
-                        is_active = db_row["is_active"] if db_row else False
+                        # Fall back to contractor_providers when there is no legacy
+                        # external_api_keys row. Hardcoding False here reported 22 of 30
+                        # contractors as INACTIVE even when they are configured: the legacy
+                        # row simply does not exist for anything registered after the DS9
+                        # migration, and absence of the OLD table's row is not absence of
+                        # configuration in the CURRENT one. Keyless and free-tier providers
+                        # need no key row at all, so they always rendered INACTIVE.
+                        is_active = db_row["is_active"] if db_row else bool(cp.get("is_active", False))
                         auth_method = (cp.get("auth_method") or "api_key").replace("_", " ").title()
                         source = "db"
 
@@ -1596,6 +1743,19 @@ def register_fleet_routes(bp, auth_decorator):
                             "avg_latency_ms": avg_latency,
                         },
                         "models": models_out,
+                        # DS9 PR 1+3 — the operator switch and what the probe measured.
+                        # `dispatchable` is deliberately separate from `is_active`: a
+                        # provider can be configured, holding a key and passing its probe
+                        # while still receiving nothing. Collapsing them would make
+                        # "never dispatch a paid provider unless enabled" unrepresentable.
+                        "dispatchable": bool(cp.get("dispatchable", False)),
+                        "provider_class": cp.get("provider_class"),
+                        # None means "never probed" and is NOT the same as 0. The tab shows
+                        # unknown rather than inventing a latency.
+                        "health_status": _health_status.get(provider_key),
+                        "health_latency_ms": _health_latency.get(provider_key),
+                        "health_observed_model": _health_observed.get(provider_key),
+                        "health_checked_at": _health_checked.get(provider_key),
                     }
                     result.append(entry)
 

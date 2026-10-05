@@ -32,47 +32,43 @@ chmod 600 "$CODEX_HOME/auth.json" 2>/dev/null || true
 
 # Codex config: trust the workspace + wire the read-only KB MCP gateway (bearer only).
 cat > "$CODEX_HOME/config.toml" <<EOF
-# Model provider — OmniRoute, the self-hosted OpenAI-compatible gateway (#6653).
 #
-# Added 2026-09-13. Until then this file declared NO provider at all, so codex fell back
-# to its built-in OpenAI/ChatGPT default whose auth is dead (auth.json.dead) — the lane
-# could reach the platform but could not run a single inference. It also could not have
-# reached omniroute if it tried: the service was on opencode's network and not codex's,
-# so the hostname was ENOTFOUND. Both halves are fixed; neither alone was enough.
+# ⚠️ NO MODEL PROVIDER IS DECLARED ON PURPOSE. Codex therefore uses its own built-in
+# OpenAI/ChatGPT provider, authenticated by running "codex login" in the lane. Do NOT
+# re-add an OmniRoute provider block here without the owner's go-ahead — it is being
+# rebuilt to its DeepSpace9 design and must not take on tokens or inference until that
+# lands. Removed 2026-10-05; the block it replaced is in git log for this file.
 #
-# ⚠️ The key is read from the ENVIRONMENT by name and is never written into this file.
-# opencode stores the same credential inline in opencode.json; do not copy that here.
-# auto/coding:free keeps the lane on the FREE tier per the standing no-paid-keys rule.
-model_provider = "omniroute"
-model = "${OMNIROUTE_MODEL:-auto/coding:free}"
-
+# Why it was removed (it had degraded to a hard failure on two axes, verified live):
+#   1. Model: OMNIROUTE_MODEL resolved auto/coding:free to north-mini-code-free, which the
+#      gateway rejects — "Model north-mini-code-free is not supported".
+#   2. Upstream auth: every provider in the combo pool (oc/big-*, oc/muse-*, oc/mimo,
+#      oc/nemo) was skipped on token-refresh failure until OmniRoute logged
+#      "All models failed". The lane had no working backend at all.
+# A third, separate defect: the container published 20128 to 192.168.1.200 only, so the
+# HOST install's base_url of 127.0.0.1:20128 could never connect even when OmniRoute was
+# healthy. The HOST install had the same unreachable base_url and the same provider; it was
+# corrected the same day (2026-10-05) but lives outside this repo, in ~/.codex/config.toml.
+#
+# The 28 archie-* skills are NOT declared here and do not need to be: Codex discovers
+# skills by model invocation, so archie-boot and friends are used by naming them in a
+# prompt. They are not slash commands, which is why /archie-boot will never appear.
+#
 # ⚠️ NO BACKTICKS ANYWHERE BELOW — this heredoc is <<EOF (UNQUOTED) because it must
-# expand $OMNIROUTE_*. That also makes a backtick COMMAND SUBSTITUTION, even inside a
-# comment: on 2026-09-13 a comment reading "caught by <backtick>codex doctor<backtick>"
+# expand $ARCHIE_KB_GATEWAY. That also makes a backtick COMMAND SUBSTITUTION, even inside
+# a comment: on 2026-09-13 a comment reading "caught by <backtick>codex doctor<backtick>"
 # executed codex doctor and pasted its output into this file, and codex then refused it
 # with "key with no value" on a line of that output. Use plain words, never backticks.
 #
 # ⚠️ ROOT KEYS MUST STAY ABOVE EVERY [table] HEADER. In TOML a bare key after a header
-# belongs to THAT table — placing model_provider/model below [projects."/work/..."] put
-# them INSIDE the projects table and codex refused the whole file ("failed to load Codex
-# config", caught by codex doctor on 2026-09-13). Anything added below is a table.
+# belongs to THAT table — placing a bare key below [projects."/work/..."] put it INSIDE
+# the projects table and codex refused the whole file ("failed to load Codex config",
+# caught by codex doctor on 2026-09-13). Anything added below is a table.
 [projects."/work"]
 trust_level = "trusted"
 
 [projects."/work/archie-platform"]
 trust_level = "trusted"
-
-[model_providers.omniroute]
-name = "OmniRoute"
-base_url = "${OMNIROUTE_BASE_URL:-http://omniroute:20128/v1}"
-env_key = "OMNIROUTE_API_KEY"
-# codex 0.154.0 REMOVED wire_api="chat" ("no longer supported", openai/codex#7782), so a
-# chat-completions provider must be declared as "responses" here. Verified against this
-# gateway with an AUTHENTICATED probe: /v1/responses answers 400 on an empty body while a
-# bogus /v1/... path answers 404, so the route genuinely exists. An UNauthenticated probe
-# cannot tell you this — omniroute runs auth BEFORE routing and 401s every /v1/ path,
-# including ones that do not exist.
-wire_api = "responses"
 
 # Live read-only knowledge access — the container holds ONLY this bearer (no DB creds).
 [mcp_servers.archie_kb]

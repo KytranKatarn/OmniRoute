@@ -38,6 +38,9 @@
 .wtf-wxc-fc-pop { font-family:var(--wtf-font-mono); font-size:11px; color:#38bdf8; min-width:44px; }
 .wtf-wxc-fc-summary { font-size:12px; color:#9ca3af; flex:1; min-width:180px; }
 .wtf-wxc-note { font-size:11px; color:#6b7280; line-height:1.6; margin-top:18px; }
+.wtf-wxc-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+button.wtf-wxc-back { cursor:pointer; }
+.wtf-wxc-back.is-on { border-color:#38bdf8; color:#38bdf8; }
 .wtf-wxc-badge { font-size:9.5px; padding:2px 8px; border-radius:10px; background:#78350f22; color:#f59e0b; border:1px solid #78350f44; margin-left:8px; vertical-align:middle; }
 </style>
 
@@ -50,7 +53,14 @@
       {% endfor %}
     </select>
   </label>
-  <a href="/weather" class="wtf-wxc-back">All of Canada &rarr;</a>
+  <div class="wtf-wxc-actions">
+    {# Home city: the SAME localStorage key /weather and the homepage read
+       (wtf.homeCity). The design mock also wrote 'wtf-default-city', which
+       nothing on the live site reads — deliberately not written here. The
+       label is set by the script below; without JS it stays a plain button. #}
+    <button type="button" id="wtf-wxc-home" class="wtf-wxc-back" data-city="{{ city.name }}" aria-pressed="false">Set as my city</button>
+    <a href="/weather" class="wtf-wxc-back">All of Canada &rarr;</a>
+  </div>
 </div>
 
 <div class="wtf-wxc-hero">
@@ -114,4 +124,35 @@
   issue. For the national wildfire and fire-weather picture, coverage sources, and every
   province's station count, see <a href="/weather" style="color:#38bdf8">the full weather &amp; climate page &rarr;</a>.
 </p>
+
+<script>
+(function () {
+  var btn = document.getElementById("wtf-wxc-home");
+  if (!btn) return;
+  var KEY = "wtf.homeCity";
+  var city = btn.getAttribute("data-city");
+  function read() {
+    try { return localStorage.getItem(KEY) || null; } catch (e) { return null; }
+  }
+  function paint() {
+    var on = read() === city;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.classList.toggle("is-on", on);
+    btn.textContent = on ? "★ My city — click to unset" : "Set as my city";
+  }
+  btn.addEventListener("click", function () {
+    try {
+      if (read() === city) localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, city);
+    } catch (e) {}
+    paint();
+  });
+  // Another tab changed (or cleared) the home city: repaint so this button
+  // does not keep showing a stale state. e.key is null when storage was cleared.
+  window.addEventListener("storage", function (e) {
+    if (e.key === null || e.key === KEY) paint();
+  });
+  paint();
+})();
+</script>
 {% endblock %}

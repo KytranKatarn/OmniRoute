@@ -197,3 +197,133 @@ class TestWeatherCityRouteWiring:
             "could disagree with what /weather's own cards show for the "
             "same city"
         )
+
+
+class TestHomeCityButton:
+    """PORT-STATUS 9a — the design's "set home" control, ported to the key the
+    live site actually reads.
+
+    /weather ("My city" select) and the homepage weather strip both use
+    localStorage key ``wtf.homeCity`` and compare it to the city's DISPLAY NAME.
+    The design mock also wrote ``wtf-default-city``, which nothing reads, so a
+    button that wrote only that key would look like it worked and change
+    nothing. These tests pin the key, the value, and the toggle behaviour.
+    """
+
+    def _script(self, html):
+        # The inline script that owns the button — the only <script> that
+        # mentions wtf-wxc-home. Asserting it was FOUND keeps every check below
+        # from passing on an empty string.
+        blocks = [b.split("</script>")[0] for b in html.split("<script>")[1:]]
+        mine = [b for b in blocks if "wtf-wxc-home" in b]
+        assert len(mine) == 1, "expected exactly one inline script owning the home button"
+        return mine[0]
+
+    def test_button_carries_the_city_display_name(self, env):
+        html = _render(env, FRESH_CITY)
+        assert 'id="wtf-wxc-home"' in html
+        assert 'data-city="Toronto"' in html
+        # plain button, not a submit — it must never navigate or post
+        assert '<button type="button" id="wtf-wxc-home"' in html
+
+    def test_a_name_with_an_apostrophe_cannot_break_out_of_the_attribute(self, env):
+        city = dict(FRESH_CITY, name="St. John's \"x\" <b>")
+        html = _render(env, city, cities=[city])
+        assert 'data-city="St. John&#39;s &#34;x&#34; &lt;b&gt;"' in html
+        assert "<b>" not in html.split('id="wtf-wxc-home"')[1].split(">")[0]
+
+    def test_it_uses_the_key_the_rest_of_the_site_reads(self, env):
+        js = self._script(_render(env, FRESH_CITY))
+        assert '"wtf.homeCity"' in js
+        assert "wtf-default-city" not in js, (
+            "the design mock's second key is read by nothing on the live site — "
+            "do not write it"
+        )
+
+    def test_value_is_written_with_textcontent_not_innerhtml(self, env):
+        js = self._script(_render(env, FRESH_CITY))
+        assert "innerHTML" not in js
+        assert "textContent" in js
+
+    def test_the_toggle_sets_and_unsets_the_key_in_a_real_run(self, env, tmp_path):
+        import json, shutil, subprocess
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("node not installed — behaviour is covered statically above")
+        js = self._script(_render(env, FRESH_CITY))
+        harness = tmp_path / "run.js"
+        harness.write_text("""
+const store = {};
+global.localStorage = {
+  getItem: k => (k in store ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v); },
+  removeItem: k => { delete store[k]; },
+};
+const attrs = { "data-city": "Toronto" };
+let handler = null; const classes = new Set();
+const btn = {
+  getAttribute: k => attrs[k], setAttribute: (k, v) => { attrs[k] = v; },
+  classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) },
+  addEventListener: (ev, fn) => { if (ev === "click") handler = fn; },
+  textContent: "",
+};
+global.document = { getElementById: id => (id === "wtf-wxc-home" ? btn : null) };
+global.window = { addEventListener: () => {} };
+eval(process.argv[2]);
+const out = [];
+const snap = () => out.push({ store: JSON.stringify(store), label: btn.textContent,
+  pressed: attrs["aria-pressed"], on: classes.has("is-on") });
+snap();            // fresh load, nothing stored
+handler(); snap(); // click -> set
+handler(); snap(); // click again -> unset
+store["wtf.homeCity"] = "Regina"; handler(); snap(); // different home -> replaced, not toggled off
+console.log(JSON.stringify(out));
+""", encoding="utf-8")
+        r = subprocess.run([node, str(harness), js], capture_output=True, text=True, timeout=30)
+        assert r.returncode == 0, r.stderr
+        s0, s1, s2, s3 = json.loads(r.stdout)
+        assert s0["store"] == "{}" and s0["label"] == "Set as my city" and s0["pressed"] == "false"
+        assert s1["store"] == '{"wtf.homeCity":"Toronto"}' and s1["pressed"] == "true" and s1["on"] is True
+        assert "unset" in s1["label"]
+        assert s2["store"] == "{}" and s2["label"] == "Set as my city" and s2["on"] is False
+        assert s3["store"] == '{"wtf.homeCity":"Toronto"}', "another city was home: click must make THIS city home"
+
+    def test_another_tab_changing_the_key_repaints_this_button(self, env, tmp_path):
+        """A `storage` event fires in OTHER tabs when the key changes. Without a
+        listener this page's button keeps a stale label until clicked."""
+        import json, shutil, subprocess
+        node = shutil.which("node")
+        if node is None:
+            pytest.skip("node not installed")
+        js = self._script(_render(env, FRESH_CITY))
+        assert "storage" in js, "no storage listener: cross-tab changes would be invisible"
+        harness = tmp_path / "xtab.js"
+        harness.write_text("""
+const store = {};
+global.localStorage = { getItem: k => (k in store ? store[k] : null),
+  setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+const attrs = { "data-city": "Toronto" }; let label = "";
+const btn = { getAttribute: k => attrs[k], setAttribute: (k, v) => { attrs[k] = v; },
+  classList: { toggle: () => {} }, addEventListener: () => {},
+  get textContent() { return label; }, set textContent(v) { label = v; } };
+global.document = { getElementById: () => btn };
+const listeners = {};
+global.window = { addEventListener: (ev, fn) => { listeners[ev] = fn; } };
+eval(process.argv[2]);
+const out = [label];
+store["wtf.homeCity"] = "Toronto"; listeners.storage({ key: "wtf.homeCity" }); out.push(label);   // another tab made Toronto home
+store["wtf.homeCity"] = "Regina";  listeners.storage({ key: "wtf.homeCity" }); out.push(label);   // ...then Regina
+store["wtf.homeCity"] = "Toronto"; listeners.storage({ key: "unrelated" });     out.push(label);   // unrelated key: ignored
+store["wtf.homeCity"] = "Toronto"; listeners.storage({ key: "wtf.homeCity" }); out.push(label);   // on again, so the clear below is observable
+delete store["wtf.homeCity"];      listeners.storage({ key: null });            out.push(label);   // storage cleared
+console.log(JSON.stringify(out));
+""", encoding="utf-8")
+        r = subprocess.run([node, str(harness), js], capture_output=True, text=True, timeout=30)
+        assert r.returncode == 0, r.stderr
+        a, b, c, d, on_again, e = json.loads(r.stdout)
+        assert a == "Set as my city"
+        assert "unset" in b, "another tab set THIS city as home: button must show it"
+        assert c == "Set as my city", "another tab chose a different home: button must reset"
+        assert c == d, "an unrelated key must not repaint"
+        assert "unset" in on_again, "precondition: button must be ON before the clear, or the check below proves nothing"
+        assert e == "Set as my city", "storage cleared (key null) must repaint"

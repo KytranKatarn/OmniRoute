@@ -1668,6 +1668,23 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Repair Bay PR Review pane smoke check — 04:15 UTC, after the dep-drift and
+        # fleet-capacity windows. Catches the class of defect string-assertion tests
+        # cannot: a page that renders nothing, throws on click, or reports a backend
+        # error as "no review". Four such bugs shipped through review and merge in that
+        # window on 2026-10-04, one a NameError that 502'd every CodeRabbit fetch and
+        # stayed invisible precisely because the pane rendered the failure as absence.
+        # Pure read: it clicks, reads, closes. Changes no state.
+        self.scheduler.add_job(
+            with_app_context(self._run_pr_review_pane_smoke),
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 04:35:00"),
+            id="repair_bay_pane_smoke",
+            name="Agent Loop: Repair Bay PR Review Pane Smoke Check",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # F.O.R.G.E. — daily dep drift audit (Project #272 Phase 2 / Task #2109).
         # 03:15 UTC — after S.P.E.C.T.R.A. and K.I.N. digest windows.
         self.scheduler.add_job(
@@ -9400,6 +9417,98 @@ class AgentLoop:
                 logger.warning("[ProbeBriefingHealth] %s", format_alert_message(result))
         except Exception as e:
             logger.error("[ProbeBriefingHealth] check failed: %s", e)
+
+    def _run_pr_review_pane_smoke(self):
+        """Daily end-to-end check that the Repair Bay PR Review pane actually renders.
+
+        Delegates to ``tools.repair_bay.services.pane_smoke.check_pr_review_pane``
+        (single source of truth, shared with the Node smoke script). Surfaces via
+        autonomy_loop_log (always) and system_notifications (severity >= warning).
+
+        A check that cannot RUN reports "skipped", never green — an unrunnable check that
+        reads as a pass is worse than no check at all.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            if "/mnt/archie_brain/platform_v2" not in sys.path:
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.repair_bay.services.pane_smoke import (
+                check_pr_review_pane,
+                format_alert_message,
+            )
+        except Exception as e:
+            # Still record a cycle. Returning without one leaves the job's history SILENT,
+            # which is indistinguishable from a job that never existed — the monitoring
+            # check would have no monitoring record precisely when it is broken.
+            logger.warning("[RepairBayPaneSmoke] imports unavailable, skipping (%s)", e)
+            self._log_cycle(
+                job_name="repair_bay_pane_smoke",
+                items_processed=0,
+                items_failed=1,
+                duration_ms=int((time.time() - start) * 1000),
+                details={
+                    "severity": "error",
+                    "summary_metrics": {"checked": 0, "failed": 1, "skipped": 0},
+                    "reasons": [f"import failure: {e.__class__.__name__}: {str(e)[:140]}"],
+                    "skipped_reason": None,
+                },
+            )
+            return
+
+        try:
+            result = check_pr_review_pane()
+        except Exception as e:  # noqa: BLE001 - the harness failing IS a finding
+            logger.error("[RepairBayPaneSmoke] check failed: %s", e)
+            return
+
+        severity = result.get("severity", "info")
+        metrics = result.get("summary_metrics", {})
+        duration_ms = int((time.time() - start) * 1000)
+
+        self._log_cycle(
+            job_name="repair_bay_pane_smoke",
+            items_processed=metrics.get("checked", 0),
+            items_failed=metrics.get("failed", 0),
+            duration_ms=duration_ms,
+            details={
+                "severity": severity,
+                "summary_metrics": metrics,
+                "reasons": result.get("reasons", []),
+                "skipped_reason": result.get("skipped_reason"),
+            },
+        )
+
+        if severity in ("warning", "error"):
+            try:
+                from database import get_db_cursor
+
+                body = format_alert_message(result)
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "alert" if severity == "error" else "warning",
+                            f"Repair Bay PR pane smoke check — {severity}",
+                            body,
+                            "repair_bay",
+                            "high" if severity == "error" else "medium",
+                            "alert-triangle",
+                            "/tools/repair-bay/?tab=pr-review",
+                            "admin",
+                            None,
+                            None,
+                        ),
+                    )
+            except Exception as e:  # noqa: BLE001 - never fail the job over reporting
+                logger.warning("[RepairBayPaneSmoke] notification failed: %s", e)
 
     def _run_dep_drift_audit(self):
         """Daily drift audit — requirements.txt vs running container pip freeze.

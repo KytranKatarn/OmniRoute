@@ -1251,6 +1251,53 @@ def omniroute_quota_scan_job():
         logger.exception("omniroute_quota_scan failed")
 
 
+def contractor_health_job():
+    """Probe every contractor and record one observation each. Never re-routes.
+
+    The cadence is chosen inside the job from a rotating bucket, so the three tiers cannot
+    collide. Registering three separate jobs would have made the outbound cost a scheduling
+    accident rather than a decision.
+    """
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("contractor_health", default=True):
+        return
+    try:
+        from services.contractor_health_service import prune, scan
+
+        kind = _health_probe_kind()
+        out = scan(probe_kind=kind)
+        if not out.get("ok"):
+            logger.warning("contractor_health: scan failed: %s", out.get("error"))
+            return
+        logger.info(
+            "contractor_health[%s]: %s",
+            kind,
+            ", ".join("%s=%s" % kv for kv in sorted(out.get("summary", {}).items())) or "none",
+        )
+        if kind == "full":
+            prune(days=30)
+    except Exception:
+        logger.exception("contractor_health failed")
+
+
+def _health_probe_kind() -> str:
+    """Rotate health -> latency -> full, weighted toward health.
+
+    Every 15 minutes is 96 cycles a day. Probing all three tiers that fast would be roughly
+    96x the outbound cost for a latency number nobody reads hourly. So: health by default,
+    latency on odd hours, and the expensive full enumeration once a day.
+    """
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    if now.minute < 15 and now.hour % 24 == 0:
+        return "full"
+    if now.minute < 15 and now.hour % 2 == 1:
+        return "latency"
+    return "health"
+
+
 def family_research_worker(flask_app=None):
     """#5343 (#5211): scheduled drain for family_research_queue.
 
@@ -2163,6 +2210,23 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
         id="omniroute_quota_scan",
         name="Agent Loop: OmniRoute Quota Scan",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Contractor health (DS9 PR 3) — replaces the hand-typed tier_position with what the
+    # providers actually do. Three cadences, because probing is not free and several
+    # upstreams are rate-limited: opencode-zen refuses third-party gateways outright
+    # ("can only be used from within OpenCode"), so probing it hard is how a free tier is
+    # withdrawn. Health and latency BOTH spend a 1-token completion — a /models GET is not
+    # enough, measured 2026-10-05: all five omniroute rows answer 200 there while three of
+    # them 403/502 a real completion, which ranked the broken ones first.
+    scheduler.add_job(
+        with_ctx(contractor_health_job),
+        trigger=IntervalTrigger(minutes=15),
+        id="contractor_health",
+        name="Agent Loop: Contractor Health Probe",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

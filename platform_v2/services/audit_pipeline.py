@@ -603,7 +603,7 @@ def _has_open_audit_proposal(file_path, issue_code, detail=None):
         cur.execute(
             """
             SELECT id FROM improvement_proposals
-            WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed')
+            WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed', 'superseded')
               AND metadata->>'source' = 'code_health_audit'
               AND metadata->>'file_path' = ANY(%s)
               AND metadata->>'issue_code' = %s
@@ -626,7 +626,7 @@ def _has_open_audit_proposal(file_path, issue_code, detail=None):
             """
             SELECT metadata->>'issue_code' AS code, metadata->>'detail' AS detail
             FROM improvement_proposals
-            WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed')
+            WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed', 'superseded')
               AND metadata->>'source' = 'code_health_audit'
               AND metadata->>'file_path' = ANY(%s)
               AND metadata->>'issue_code' <> %s

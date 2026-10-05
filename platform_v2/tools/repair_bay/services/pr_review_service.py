@@ -391,7 +391,30 @@ def poll_open_prs(repo: str = None) -> dict:
                         # what makes the tier worker's skip cost ZERO extra API
                         # calls — the alternative, asking GitHub per tick, is the
                         # quota burn this fix exists to remove.
-                        _Json({"draft": bool(pr.get("draft"))}),
+                        # `head_sha` is the branch tip at poll time. Recording it here is
+                        # what lets staleness be computed with ZERO extra GitHub calls —
+                        # `pr_head_sha()` is one request PER PR, unaffordable for a
+                        # 200-row list render. The JSONB `||` in the ON CONFLICT clause is
+                        # right-biased PER KEY, so this refreshes exactly one key and leaves
+                        # reviewed_head_sha / codex / probe untouched. See
+                        # services/verdict_staleness.py.
+                        #
+                        # ⚠️ The sha is FLAT (`pr["head_sha"]`), not nested. The poll's
+                        # payload comes from `list_all_prs_enriched`, which normalises
+                        # GraphQL's nested `head { sha }` into a top-level key alongside
+                        # `head_ref` — there is no `head` dict at all on a polled PR.
+                        # Reading `pr["head"]["sha"]` here yields None and writes "", and
+                        # because this is a right-biased merge, a "" ERECTS any head_sha a
+                        # review had already stamped. Every verdict then reads as unprovable
+                        # and staleness never fires. Found by running the job, not by
+                        # reading it: the service tests passed because they test the
+                        # comparison, not the feed.
+                        _Json(
+                            {
+                                "draft": bool(pr.get("draft")),
+                                "head_sha": (pr.get("head_sha") or ""),
+                            }
+                        ),
                     ),
                 )
                 row = cur.fetchone()
@@ -1793,12 +1816,17 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
         # drive merge_state and CODEX must never gate a merge. See codex_verdicts.
         try:
             from .codex_verdicts import probe_for_row, verdict_for_row
+            from .verdict_staleness import staleness_for
 
             row["codex"] = verdict_for_row(row.get("metadata"))
             row["probe"] = probe_for_row(row.get("metadata"))
+            # Which verdicts no longer cover the branch tip. Computed from the sha the poll
+            # stored, so the list pays nothing for it.
+            row["staleness"] = staleness_for(row.get("metadata"))
         except Exception as exc:  # noqa: BLE001 - a listing must render regardless
             logger.warning("list_reviews: codex projection failed: %s", exc)
             row["codex"] = {}
+            row["staleness"] = {"head": "", "stale": [], "unproven": [], "current": []}
 
     for row in rows:
         _meta = row.get("metadata") or {}

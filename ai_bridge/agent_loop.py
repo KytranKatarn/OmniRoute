@@ -1668,6 +1668,28 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Stale review verdicts — every 30 min. A review is a statement about a COMMIT;
+        # push a new one and every verdict on that PR describes code that is no longer
+        # there. The merge gate already refuses a stale F.O.R.G.E. approval, so this is
+        # NOT the safety mechanism — it is the warning that used to arrive only at merge
+        # time, and it now covers the CODEX and P.R.O.B.E. verdicts too (added #3628, which
+        # no staleness check had ever looked at).
+        #
+        # DETECTS AND SURFACES ONLY. It does not re-review: every push to a WIP branch
+        # would fire a model review, burning budget and flooding dispatch for work nobody
+        # intends to land, and it would remove the human's judgement call ("this push is a
+        # rebase, the verdict still stands"). Deduplicated per (PR, head) via
+        # `stale_notified_head`, so one forgotten re-review does not re-alert 48x a day.
+        self.scheduler.add_job(
+            with_app_context(self._run_stale_verdict_scan),
+            trigger=IntervalTrigger(minutes=30),
+            id="repair_bay_stale_verdicts",
+            name="Agent Loop: Repair Bay Stale Review Verdicts",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # Repair Bay PR Review pane smoke check — 04:15 UTC, after the dep-drift and
         # fleet-capacity windows. Catches the class of defect string-assertion tests
         # cannot: a page that renders nothing, throws on click, or reports a backend
@@ -9417,6 +9439,95 @@ class AgentLoop:
                 logger.warning("[ProbeBriefingHealth] %s", format_alert_message(result))
         except Exception as e:
             logger.error("[ProbeBriefingHealth] check failed: %s", e)
+
+    def _run_stale_verdict_scan(self):
+        """Every 30 min: find open PRs whose stored verdicts no longer cover the tip.
+
+        Logs every cycle; files a notification only for newly-stale (PR, head) pairs.
+        Pure read plus one dedupe key per reported row.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            if "/mnt/archie_brain/platform_v2" not in sys.path:
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.repair_bay.services.verdict_staleness import (
+                find_stale_open_prs,
+                format_alert_message,
+            )
+        except Exception as e:
+            logger.warning("[StaleVerdicts] imports unavailable, skipping (%s)", e)
+            self._log_cycle(
+                job_name="repair_bay_stale_verdicts",
+                items_processed=0,
+                items_failed=1,
+                duration_ms=int((time.time() - start) * 1000),
+                details={
+                    "severity": "error",
+                    "summary_metrics": {"checked": 0, "stale": 0, "skipped": 0},
+                    "reasons": [f"import failure: {e.__class__.__name__}"],
+                },
+            )
+            return
+
+        try:
+            result = find_stale_open_prs()
+        except Exception as e:  # noqa: BLE001 - harness failure IS a finding
+            logger.error("[StaleVerdicts] scan failed: %s", e)
+            return
+
+        found = int(result.get("stale") or 0)
+        checked = int(result.get("checked") or 0)
+        severity = "warning" if found else "info"
+
+        self._log_cycle(
+            job_name="repair_bay_stale_verdicts",
+            items_processed=checked,
+            items_failed=found,
+            duration_ms=int((time.time() - start) * 1000),
+            details={
+                "severity": severity,
+                "summary_metrics": {"checked": checked, "stale": found},
+                "reasons": [r.get("summary", "") for r in (result.get("reported") or [])][:15],
+            },
+        )
+
+        if found:
+            try:
+                from database import get_db_cursor
+
+                body = format_alert_message(result)
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "warning",
+                            f"Stale review verdicts — {found} PR(s)",
+                            body,
+                            "repair_bay",
+                            "medium",
+                            "history",
+                            "/tools/repair-bay/?tab=pr-review",
+                            "admin",
+                            None,
+                            # `metadata` — the column list above names it but the tuple
+                            # had no value for it, so psycopg2 raised "tuple index out of
+                            # range" on every run and the notification was swallowed by
+                            # the except below. The scan worked the whole time; only the
+                            # ALERT was lost. Found by running the handler and reading the
+                            # warning instead of trusting the log line.
+                            None,
+                        ),
+                    )
+            except Exception as e:  # noqa: BLE001 - never fail the job over reporting
+                logger.warning("[StaleVerdicts] notification failed: %s", e)
 
     def _run_pr_review_pane_smoke(self):
         """Daily end-to-end check that the Repair Bay PR Review pane actually renders.

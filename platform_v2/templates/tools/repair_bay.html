@@ -3753,8 +3753,17 @@ window.loadPRReviews = function(state) {
     loading.className = 'dp-pr-empty-state';
     loading.style.opacity = '0.5';
     loading.textContent = 'Loading...';
+    loading.id = 'prReviewLoading';
     list.appendChild(loading);
     fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+        // Drop the placeholder before rendering anything. It was appended and then never
+        // removed — no .remove(), no reassignment — so "Loading..." stayed as the list's
+        // first child on EVERY successful load. On the Open sub-tab that is the whole
+        // visible result: the rows render below it and the tab reads "Loading" forever,
+        // while the sibling tabs look right only because they show a count or a cap note.
+        // The id also makes it assertable from a test.
+        var _ld = document.getElementById('prReviewLoading');
+        if (_ld) _ld.remove();
         var reviews = d.reviews || [];
         // The list is LIMIT-capped server-side. Say so, and say how much is hidden -
         // a bare "200" is indistinguishable from "all 200", which is how a capped
@@ -3887,6 +3896,42 @@ window.loadPRReviews = function(state) {
               cxRow.appendChild(pbB);
             }
             }
+
+            // STALE — a verdict that no longer describes the branch tip.
+            //
+            // Why this needs its OWN row, outside the `if (cx && cx.verdict)` block above:
+            // staleness is a property of the PR, not of CODEX. The three reviewers keep
+            // independent metadata, so the stale one can be F.O.R.G.E. or P.R.O.B.E. on a row
+            // with no CODEX verdict at all — and from inside that block the badge would never
+            // render for exactly those rows, which are the common case. Verified in a browser:
+            // a stale row with a CODEX verdict showed the badge; the same row with CODEX
+            // removed showed nothing.
+            //
+            // It must NOT reuse cxRow either. cxRow is declared inside that block; hoisting
+            // the declaration out to reach it leaves cxRow undefined on every row without a
+            // CODEX verdict, the read below throws, and because the throw escapes the forEach
+            // it hits the promise catch and blanks the ENTIRE PR list — all 200 rows, from one
+            // row's missing badge. Guarded by test_repair_bay_badge_row_scope.py.
+            //
+            // This DETECTS AND SURFACES. It does not re-review: a push to a WIP branch would
+            // otherwise fire a model review per push, and the merge gate already refuses a
+            // stale F.O.R.G.E. approval, so merging unreviewed work is already prevented.
+            var _stl = (pr.staleness && pr.staleness.stale) || [];
+            if (_stl.length) {
+              var _stlNames = {forge: 'F.O.R.G.E.', codex: 'CODEX', probe: 'P.R.O.B.E.'};
+              var _stRow = document.createElement('div');
+              _stRow.style.cssText = 'display:flex;gap:6px;align-items:center;margin:-2px 0 6px 0;flex-wrap:wrap;';
+              var _stB = document.createElement('span');
+              _stB.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;'
+                + 'border:1px solid rgba(248,113,113,0.6);color:#fca5a5;background:rgba(248,113,113,0.12);';
+              _stB.textContent = 'STALE VERDICT \u00b7 re-review';
+              _stB.title = 'This review covers an OLDER commit \u2014 the branch has moved on since. '
+                + 'Affected: ' + _stl.map(function(k) { return _stlNames[k] || k; }).join(', ')
+                + '. The merge gate will refuse a stale approval; this is the early warning.';
+              _stRow.appendChild(_stB);
+              card.appendChild(_stRow);
+            }
+
             // MERGE ORDER — server-computed (merge_order_service), rendered only. ① ② ③ with
             // "after #N" for a declared dependency and "shares files with #N" for overlap.
             var _mo = pr.merge_order || null;

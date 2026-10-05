@@ -16,14 +16,15 @@ def test_known_dates():
            "BC": ("2024-10-19", "2028-10-21"), "QC": ("2022-10-03", "2026-10-05"),
            "MB": ("2023-10-03", "2027-10-05"), "SK": ("2024-10-28", "2028-10-30"),
            "NB": ("2024-10-21", "2028-10-16"), "PE": ("2023-04-03", "2027-10-04"),
-           "NL": ("2025-10-14", "2029-10-09")}
+           "NL": ("2025-10-14", "2029-10-09"),
+           "NU": ("2025-10-27", "2029-10-29")}
     for c, (last, nxt) in exp.items():
         assert next_latest_date(c, last) == D(nxt), c
     assert set(exp) == set(RULES)
 
 
 def test_no_rule_no_date():
-    for c in ("AB", "NS", "NT", "YT", "NU"):
+    for c in ("AB", "NS", "NT", "YT"):
         assert next_latest_date(c, "2024-01-01") is None
 
 
@@ -64,3 +65,7 @@ if __name__ == "__main__":
     for n, f in list(globals().items()):
         if n.startswith("test_"):
             f(); print("ok", n)
+
+
+def test_nu_rule_is_labelled_unchecked():
+    assert "unchecked" in RULES["NU"][4]

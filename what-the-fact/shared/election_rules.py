@@ -9,7 +9,7 @@ forward by itself once a newer election date is known.
 Honesty rules (same as shared/election_calendar.py):
   * a computed date is "projected", never "verified" — verified_at stays NULL until a
     human checks the statute (scripts/elections_admin.py verify);
-  * a jurisdiction whose rule is NOT fixed-date (AB, NS, NT, YT, NU) has NO entry here
+  * a jurisdiction whose rule is NOT fixed-date (AB, NS, NT, YT) has NO entry here
     and stays manual — we never invent a rule to fill a cell;
   * ANCHORS are the last general-election dates used ONLY when nothing ingested is
     newer; they are typed-in reference values and are labelled as such.
@@ -41,6 +41,10 @@ RULES = {
            "https://www.electionspei.ca/"),
     "NL": (10, TUE, 2, 4, "House of Assembly Act (Newfoundland and Labrador): second Tuesday in October in the 4th calendar year after the last general election",
            "https://www.elections.gov.nl.ca/"),
+    # UNCHECKED: typed from memory (Nunavut Elections Act), not read from the statute.
+    # The rule text says so because it is shown on the page. Verify, then drop "unchecked".
+    "NU": (10, MON, LAST, 4, "Nunavut Elections Act (unchecked, from memory): last Monday in October in the 4th calendar year after the last general election",
+           "https://www.elections.nu.ca/"),
 }
 
 # Last general election per jurisdiction — a typed-in reference, used only when the
@@ -48,7 +52,7 @@ RULES = {
 ANCHORS = {
     "CA": "2025-04-28", "ON": "2025-02-27", "BC": "2024-10-19", "QC": "2022-10-03",
     "MB": "2023-10-03", "SK": "2024-10-28", "NB": "2024-10-21", "PE": "2023-04-03",
-    "NL": "2025-10-14",
+    "NL": "2025-10-14", "NU": "2025-10-27",
 }
 
 

@@ -61,6 +61,11 @@ def _merge(conn, survivor, merged, reason, by="dedup_engine"):
         "mentions": conn.execute(text(
             "SELECT coalesce(json_agg(row_to_json(em)), '[]'::json) "
             "FROM shared.entity_mentions em WHERE em.entity_id=:m"), {"m": merged}).scalar(),
+        # entities previously merged INTO `merged`: they are about to be repointed (below) and
+        # revert() must be able to point them back.
+        "repointed_children": conn.execute(text(
+            "SELECT coalesce(json_agg(id), '[]'::json) FROM shared.entities "
+            "WHERE merged_into=:m AND status='merged'"), {"m": merged}).scalar(),
     }
 
     # edges: drop merged-side edges that would duplicate a survivor edge post-repoint, then repoint
@@ -116,6 +121,13 @@ def _merge(conn, survivor, merged, reason, by="dedup_engine"):
         "UPDATE shared.entities SET aliases=:a, roles=CAST(:r AS jsonb), updated_at=now() WHERE id=:s"),
         {"a": aliases, "r": json.dumps(roles), "s": survivor})
 
+    # Entities that were already merged INTO `merged` must follow it to the survivor. The site
+    # resolves a merged slug exactly ONE hop (chain_routes), so leaving them pointing at an
+    # entity that is itself now merged resolves to an empty page. Without this every re-merge of
+    # a survivor silently strands its earlier merge children.
+    conn.execute(text("UPDATE shared.entities SET merged_into=:s WHERE merged_into=:m AND status='merged'"),
+                 {"s": survivor, "m": merged})
+
     # drop merged's blocks, mark merged, log (revertable)
     conn.execute(text("DELETE FROM shared.entity_blocks WHERE entity_id=:m"), {"m": merged})
     conn.execute(text("UPDATE shared.entities SET status='merged', merged_into=:s WHERE id=:m"),
@@ -167,6 +179,15 @@ def revert(merge_log_id, by="dedup_revert"):
             WHERE id=:m
         """), {"m": merged, "cn": ent.get("canonical_name"),
                "al": ent.get("aliases") or [], "roles": json.dumps(ent.get("roles") or [])})
+
+        # point the merge children that followed `merged` to `survivor` back at `merged`
+        children = snap.get("repointed_children") or []
+        restored_children = 0
+        if children:
+            restored_children = conn.execute(text(
+                "UPDATE shared.entities SET merged_into=:m "
+                "WHERE id = ANY(:ids) AND merged_into=:s AND status='merged'"),
+                {"m": merged, "s": survivor, "ids": list(children)}).rowcount
 
         restored_edges, reinserted_edges = 0, 0
         for r in rels:
@@ -229,7 +250,8 @@ def revert(merge_log_id, by="dedup_revert"):
 
     result = {"reverted": True, "merge_log_id": merge_log_id, "survivor": survivor,
               "merged": merged, "restored_edges": restored_edges,
-              "reinserted_edges": reinserted_edges, "restored_mentions": restored_mentions}
+              "reinserted_edges": reinserted_edges, "restored_mentions": restored_mentions,
+              "restored_children": restored_children}
     logger.info("revert done: %s", result)
     return result
 

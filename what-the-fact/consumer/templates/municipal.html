@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import icon %}
 {% block title %}Municipal Intelligence — L.O.C.A.L. · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Local government coverage across Canadian cities, from What The Fact.">
@@ -78,6 +79,7 @@
 .wtf-mu-stats-row { gap:10px }
 .wtf-mu-band { color:#6b7280 }
 .wtf-mu-cluster-link { color:#0af;font-size:9px;text-decoration:none }
+.wtf-mu-page-title svg, .wtf-mu-stat-lbl svg, .wtf-mu-cluster-link svg, .wtf-mu-city-pill svg { vertical-align:-.15em }
 .wtf-mu-back-link { color:#0ea5e9 }
 .wtf-mu-footer { margin-top:20px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center }
 .wtf-mu-all-link { color:#0ea5e9;font-size:10px;letter-spacing:1px;text-decoration:none }
@@ -88,7 +90,7 @@
 
 <div class="wtf-mu-page-header">
     <div class="wtf-mu-muni-label">L.O.C.A.L. · Local Observation, Coverage & Accountability Layer</div>
-    <div class="wtf-mu-page-title">🏙 MUNICIPAL &amp; LOCAL GOVERNMENT</div>
+    <div class="wtf-mu-page-title">{{ icon('parliament', 20) }} MUNICIPAL &amp; LOCAL GOVERNMENT</div>
     <p class="wtf-mu-page-desc">
       City hall, council decisions, and local-government coverage from 46 Canadian outlets —
       bias-scored and fact-checked. Coverage is growing as municipal geo-tagging expands.
@@ -98,7 +100,7 @@
   <div class="wtf-mu-stats-row">
     <div class="wtf-mu-stat-box">
       <div class="wtf-mu-stat-num">{{ total }}</div>
-      <div class="wtf-mu-stat-lbl">🏙 Municipal stories</div>
+      <div class="wtf-mu-stat-lbl">{{ icon('pin', 11) }} Municipal stories</div>
     </div>
     <div class="wtf-mu-stat-box">
       <div class="wtf-mu-stat-num">{{ cities|length }}</div>
@@ -137,7 +139,7 @@
     {% for a in articles %}
     <div class="wtf-mu-article-card">
       <div class="wtf-mu-card-meta">
-        {% if a.city %}<span class="wtf-mu-city-pill">📍 {{ a.city }}</span>{% endif %}
+        {% if a.city %}<span class="wtf-mu-city-pill">{{ icon('pin', 10) }} {{ a.city }}</span>{% endif %}
         <a href="#" class="wtf-mu-outlet-link">{{ a.source or '' }}</a>
         {% if a.province_code %}<span class="wtf-mu-province-tag">{{ a.province_code }}</span>{% endif %}
         <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
@@ -146,7 +148,7 @@
       <a href="/article/{{ a.id }}" class="wtf-mu-card-title">{{ a.title }}</a>
       {% if a.cluster_size and a.cluster_size > 1 %}
       <div class="wtf-mu-card-footer">
-        <a href="/cluster/{{ a.cluster_id }}" class="wtf-mu-cluster-link">📰 {{ a.cluster_size }} outlets covering this</a>
+        <a href="/cluster/{{ a.cluster_id }}" class="wtf-mu-cluster-link">{{ icon('news', 11) }} {{ a.cluster_size }} outlets covering this</a>
       </div>
       {% endif %}
     </div>

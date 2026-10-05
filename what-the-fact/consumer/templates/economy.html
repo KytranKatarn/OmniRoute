@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import icon %}
 {% block title %}Economy &amp; Markets — M.A.R.K.E.T. · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Economy, business and foreign-policy coverage from What The Fact.">
@@ -36,6 +37,7 @@
 .wtf-ec-article-card { background:var(--wtf-bg);border:1px solid #1f2937;border-left:3px solid var(--wtf-developing);border-radius:6px;padding:12px 16px }
 .wtf-ec-card-meta { display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;font-size:9px;color:#6b7280 }
 .wtf-ec-band { color:#6b7280 }
+.wtf-ec-page-title svg, .wtf-ec-stat-lbl svg, .wtf-ec-beat-pill svg, .wtf-ec-cluster-link svg { vertical-align:-.15em }
 .wtf-ec-beat-pill { padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase }
 .wtf-ec-beat-economy { background:#1a0e00;color:var(--wtf-developing);border:1px solid #f59e0b30 }
 .wtf-ec-beat-business { background:#052e1a;color:#34d399;border:1px solid #34d39930 }
@@ -86,7 +88,7 @@
 
 <div class="wtf-ec-page-header">
     <div class="wtf-ec-market-label">M.A.R.K.E.T. · Market Analysis, Research &amp; Knowledge for Economic Tracking</div>
-    <div class="wtf-ec-page-title">💰 ECONOMY &amp; MARKETS</div>
+    <div class="wtf-ec-page-title">{{ icon('money', 20) }} ECONOMY &amp; MARKETS</div>
     <p class="wtf-ec-page-desc">
       Business, economy, and foreign-policy stories from 46 Canadian outlets — bias-scored and geo-mapped.
       Follow the money behind the headlines.
@@ -97,15 +99,15 @@
   <div class="wtf-ec-stats-row">
     <div class="wtf-ec-stat-box">
       <div class="wtf-ec-stat-num">{{ economy_count }}</div>
-      <div class="wtf-ec-stat-lbl">📈 Economy stories</div>
+      <div class="wtf-ec-stat-lbl">{{ icon('chart', 11) }} Economy stories</div>
     </div>
     <div class="wtf-ec-stat-box">
       <div class="wtf-ec-stat-num">{{ business_count }}</div>
-      <div class="wtf-ec-stat-lbl">💼 Business stories</div>
+      <div class="wtf-ec-stat-lbl">{{ icon('data', 11) }} Business stories</div>
     </div>
     <div class="wtf-ec-stat-box">
       <div class="wtf-ec-stat-num">{{ foreign_count }}</div>
-      <div class="wtf-ec-stat-lbl">🌍 Foreign policy</div>
+      <div class="wtf-ec-stat-lbl">{{ icon('globe', 11) }} Foreign policy</div>
     </div>
     <div class="wtf-ec-stat-box">
       <div class="wtf-ec-stat-num">46</div>
@@ -159,11 +161,11 @@
     <div class="wtf-ec-article-card">
       <div class="wtf-ec-card-meta">
         {% if a.beat == 'economy' %}
-        <span class="wtf-ec-beat-pill wtf-ec-beat-economy">📈 Economy</span>
+        <span class="wtf-ec-beat-pill wtf-ec-beat-economy">{{ icon('chart', 11) }} Economy</span>
         {% elif a.beat == 'business' %}
-        <span class="wtf-ec-beat-pill wtf-ec-beat-business">💼 Business</span>
+        <span class="wtf-ec-beat-pill wtf-ec-beat-business">{{ icon('data', 11) }} Business</span>
         {% else %}
-        <span class="wtf-ec-beat-pill wtf-ec-beat-foreign">🌍 Foreign Policy</span>
+        <span class="wtf-ec-beat-pill wtf-ec-beat-foreign">{{ icon('globe', 11) }} Foreign Policy</span>
         {% endif %}
         <a href="#" class="wtf-ec-outlet-link">{{ a.source or '' }}</a>
         {% if a.province_code %}<span class="wtf-ec-province-tag">{{ a.province_code }}</span>{% endif %}
@@ -173,7 +175,7 @@
       <a href="/article/{{ a.id }}" class="wtf-ec-card-title">{{ a.title }}</a>
       {% if a.cluster_size and a.cluster_size > 1 %}
       <div class="wtf-ec-card-footer">
-        <a href="/cluster/{{ a.cluster_id }}" class="wtf-ec-cluster-link">📰 {{ a.cluster_size }} outlets covering this</a>
+        <a href="/cluster/{{ a.cluster_id }}" class="wtf-ec-cluster-link">{{ icon('news', 11) }} {{ a.cluster_size }} outlets covering this</a>
       </div>
       {% endif %}
     </div>

@@ -43,12 +43,7 @@ from pathlib import Path
 # and indented forms get caught (the original audit missed three such sites
 # during Tracks C.1-C.3).
 AGENTS_WRITE_RE = re.compile(
-    r"(?ix)"
-    r"(?:"
-    r"  UPDATE\s+agents\s+SET"
-    r"| INSERT\s+INTO\s+agents\s*\("
-    r"| DELETE\s+FROM\s+agents\s+WHERE"
-    r")"
+    r"(?ix)" r"(?:" r"  UPDATE\s+agents\s+SET" r"| INSERT\s+INTO\s+agents\s*\(" r"| DELETE\s+FROM\s+agents\s+WHERE" r")"
 )
 
 # ---- Check 2: stale ai_bridge dispatcher imports ----------------------------
@@ -111,6 +106,15 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # Health-ping loop — passes explicit num_gpu=0 for non-GPU models;
     # not a user-facing dispatch path.
     "ai_bridge/agent_loop.py",
+    # Contractor health probe (DS9) — the same category as the health-ping loop above,
+    # and for the same reason: a monitoring check, never inference on a user's behalf.
+    # It spends a 1-token generate against ollama.com to answer "can this contractor
+    # serve at all", for the two rows whose base_url is the `ollama_cloud_proxy` sentinel
+    # and which are therefore reached through Ollama Cloud rather than their own
+    # endpoint. Cloud models are not GPU-placed — there is no local GPU in the path — so
+    # build_options() has nothing to say about them. It deliberately does NOT go through
+    # call_ollama_cloud, which would log usage and bill the weekly free allowance.
+    "platform_v2/services/contractor_health_service.py",
     # Legacy pre-migration sites — covered by follow-up tasks in the
     # ai_bridge → department_hq migration backlog.
     "ai_bridge/archie_bridge.py",
@@ -220,11 +224,7 @@ def _check_raw_api_generate(paths: list) -> list:
         # tmp_path directories (e.g. /tmp/pytest-.../test_xxx/) don't
         # accidentally exempt production files.
         basename = Path(p).name
-        if (
-            basename.endswith("_test.py")
-            or basename.startswith("test_")
-            or "/tests/" in rel
-        ):
+        if basename.endswith("_test.py") or basename.startswith("test_") or "/tests/" in rel:
             continue
         # Skip non-Python files.
         if not rel.endswith(".py"):
@@ -315,9 +315,7 @@ def main(argv: list[str]) -> int:
     # ---- Render agents-write violations ----
     if agents_total:
         sys.stderr.write(
-            "\n\033[1;31m"
-            "K.I.N. single-writer guardrail: raw agents-table mutation detected"
-            "\033[0m\n"
+            "\n\033[1;31m" "K.I.N. single-writer guardrail: raw agents-table mutation detected" "\033[0m\n"
         )
         sys.stderr.write("".join(f"{line}\n" for line in agents_report))
         sys.stderr.write(
@@ -340,11 +338,7 @@ def main(argv: list[str]) -> int:
 
     # ---- Render dispatcher-import violations ----
     if dispatcher_total:
-        sys.stderr.write(
-            "\n\033[1;31m"
-            "K.I.N. architecture guardrail: stale ai_bridge dispatcher import"
-            "\033[0m\n"
-        )
+        sys.stderr.write("\n\033[1;31m" "K.I.N. architecture guardrail: stale ai_bridge dispatcher import" "\033[0m\n")
         sys.stderr.write("".join(f"{line}\n" for line in dispatcher_report))
         sys.stderr.write(
             "\n\033[1;33m"
@@ -367,9 +361,7 @@ def main(argv: list[str]) -> int:
     # ---- Render api/generate violations ----
     if api_generate_violations:
         sys.stderr.write(
-            "\n\033[1;31m"
-            "K.I.N. GPU-placement guardrail: raw api/generate or api/chat detected"
-            "\033[0m\n"
+            "\n\033[1;31m" "K.I.N. GPU-placement guardrail: raw api/generate or api/chat detected" "\033[0m\n"
         )
         for v in api_generate_violations:
             sys.stderr.write(f"  {v}\n")

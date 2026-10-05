@@ -22,6 +22,7 @@ Three decisions carry most of the weight and are pinned individually:
 No network: `requests` is patched. No database: `database` is patched with a recording fake.
 """
 
+import pathlib
 import sys
 import types
 import unittest
@@ -123,13 +124,13 @@ class TestClassifyProviderClass(unittest.TestCase):
 
     def test_image_only_when_unsupported(self):
         self.assertEqual(
-            chs.classify_provider_class(has_key=True, status="unsupported", is_cloud_proxy=False),
+            chs.classify_provider_class(has_key=True, status="unsupported"),
             "image_only",
         )
 
     def test_keyless_only_when_it_actually_answered(self):
         self.assertEqual(
-            chs.classify_provider_class(has_key=False, status="ok", is_cloud_proxy=False),
+            chs.classify_provider_class(has_key=False, status="ok"),
             "keyless",
         )
 
@@ -141,17 +142,22 @@ class TestClassifyProviderClass(unittest.TestCase):
         indistinguishable from a failed probe alone, and deepseek is the first while
         ollama_diffuser is the second.
         """
-        self.assertIsNone(chs.classify_provider_class(has_key=False, status="unreachable", is_cloud_proxy=False))
+        self.assertIsNone(chs.classify_provider_class(has_key=False, status="unreachable"))
 
     def test_a_credential_requiring_provider_is_not_called_paid_on_the_key_alone(self):
         """The six keyed providers span free-tier and metered; a key says neither.
 
         Claiming `paid` because a credential exists would put a free-tier provider into the
         paid bucket — and the whole point of the paid bucket is that it is opt-in.
+
+        It does not earn `free_tier` either. This used to assert `free_tier` here, on the
+        strength of "not paid". That is the same mistake pointed the other way: holding a key
+        is not evidence of a free allowance, it is evidence of nothing at all about cost. Only
+        a DECLARED allowance earns free_tier, so this is now None.
         """
-        self.assertEqual(
-            chs.classify_provider_class(has_key=True, status="ok", is_cloud_proxy=False),
-            "free_tier",
+        self.assertIsNone(
+            chs.classify_provider_class(has_key=True, status="ok"),
+            "a key alone says nothing about cost; only a declared allowance earns free_tier",
         )
 
     def test_a_failure_never_claims_a_cost_class(self):
@@ -167,11 +173,88 @@ class TestClassifyProviderClass(unittest.TestCase):
         """
         for status in ("auth_error", "unreachable", "error", "rate_limited", "no_key"):
             for has_key in (True, False):
-                for cloud in (True, False):
+                for allowance in (None, 0, 7000):
                     self.assertIsNone(
-                        chs.classify_provider_class(has_key=has_key, status=status, is_cloud_proxy=cloud),
-                        f"status={status} has_key={has_key} cloud={cloud} must stay unmeasured",
+                        chs.classify_provider_class(has_key=has_key, status=status, free_allowance=allowance),
+                        f"status={status} has_key={has_key} allowance={allowance} must stay unmeasured",
                     )
+
+
+class TestCloudProxyIsNotAPaidSignal(unittest.TestCase):
+    """`is_cloud_proxy` says how a provider is REACHED. It says nothing about cost.
+
+    The classifier used to end in `return "paid" if is_cloud_proxy else "free_tier"`, which
+    contradicted its own docstring and was wrong on the live roster: minimax_cloud and
+    qwen3_cloud both declare `rate_limits.free.weekly_limit = 7000`, neither has ever been
+    dispatched, and `pick_free_text_provider` rotates against exactly those allowances.
+    Filing them as `paid` would have put the platform's own free-tier providers in the
+    money bucket.
+    """
+
+    def test_the_routing_flag_is_not_even_a_parameter(self):
+        """Removed, not merely ignored — so it cannot be passed in and used again."""
+        import inspect
+
+        params = inspect.signature(chs.classify_provider_class).parameters
+        self.assertNotIn(
+            "is_cloud_proxy",
+            params,
+            "the flag that was mistaken for a cost signal must not be an input at all",
+        )
+        self.assertIn("free_allowance", params)
+
+    def test_a_declared_free_allowance_makes_a_keyed_provider_free_tier(self):
+        self.assertEqual(
+            chs.classify_provider_class(has_key=True, status="ok", free_allowance=7000),
+            "free_tier",
+        )
+
+    def test_no_declared_allowance_means_cost_unknown_not_free_and_not_paid(self):
+        """The live cloud-proxy case exactly: keyed, answered, no allowance declared."""
+        for allowance in (None, 0):
+            self.assertIsNone(
+                chs.classify_provider_class(has_key=True, status="ok", free_allowance=allowance),
+                f"allowance={allowance!r}: a probe cannot tell free from metered, so claim nothing",
+            )
+
+    def test_paid_is_never_returned(self):
+        """Exhaustive, so a future branch cannot quietly reintroduce it."""
+        for has_key in (True, False):
+            for status in ("ok", "unsupported", "auth_error", "unreachable", "error"):
+                for allowance in (None, 7000):
+                    got = chs.classify_provider_class(has_key=has_key, status=status, free_allowance=allowance)
+                    self.assertNotEqual(
+                        got,
+                        "paid",
+                        f"has_key={has_key} status={status} allowance={allowance} " "must never yield paid",
+                    )
+
+
+class TestDeclaredFreeAllowance(unittest.TestCase):
+    """Cost comes from declared config, read tolerantly."""
+
+    def test_reads_the_weekly_limit_from_the_free_block(self):
+        self.assertEqual(chs.declared_free_allowance({"free": {"weekly_limit": 7000}}), 7000)
+
+    def test_accepts_a_json_string(self):
+        """The column is JSONB, but a hand-edited row can hold text."""
+        self.assertEqual(chs.declared_free_allowance('{"free": {"weekly_limit": 7000}}'), 7000)
+
+    def test_absent_or_unusable_means_unknown(self):
+        for bad in (
+            None,
+            "",
+            "{}",
+            "not json",
+            [],
+            {"free": None},
+            {"free": {}},
+            {"free": {"weekly_limit": 0}},
+            {"free": {"weekly_limit": None}},
+            {"free": {"weekly_limit": "7000"}},
+            {"free": {"weekly_limit": True}},
+        ):
+            self.assertIsNone(chs.declared_free_allowance(bad), f"{bad!r} must read as unknown")
 
 
 class TestScanIsolation(unittest.TestCase):
@@ -479,6 +562,113 @@ class TestProbeOne(unittest.TestCase):
             chs._probe_one(self._provider(), "health", 5)
         self.assertEqual(post.call_args.kwargs["json"]["max_tokens"], 1)
 
+    def _cloud_provider(self, **over):
+        """The live shape: base_url is a SENTINEL, not a URL. See fleet_service.py."""
+        base = {
+            "provider_key": "qwen3_cloud",
+            "base_url": "ollama_cloud_proxy",
+            "default_model": "qwen3-coder-next",
+            "auth_env_var": "CLOUD_KEY_XYZ",
+            "is_cloud_proxy": True,
+        }
+        base.update(over)
+        return base
+
+    def test_a_cloud_proxy_is_probed_at_ollama_not_at_its_sentinel(self):
+        """The bug: `ollama_cloud_proxy/chat/completions` is a DNS failure, not a verdict.
+
+        Both cloud contractors reported `unreachable` — a manufactured diagnosis. They were
+        reachable; the probe had asked the wrong question of them. `call_external` has always
+        branched on is_cloud_proxy first and delegated to call_ollama_cloud.
+        """
+        with mock.patch.dict("os.environ", {"CLOUD_KEY_XYZ": "k"}, clear=False):
+            mod, _get, post = self._patch_requests(self._resp(200, payload={"model": "m"}))
+            with mock.patch.dict(sys.modules, {"requests": mod}):
+                chs._probe_one(self._cloud_provider(), "health", 5)
+        url = post.call_args.args[0]
+        self.assertEqual(url, chs.OLLAMA_CLOUD_GENERATE_URL)
+        self.assertNotIn(
+            "ollama_cloud_proxy",
+            url,
+            "the sentinel string must never reach the network layer",
+        )
+        self.assertIn("ollama.com", url)
+
+    def test_a_cloud_proxy_uses_ollamas_native_payload_not_openai_chat(self):
+        """ollama.com/api/generate takes `prompt` and `num_predict`, not `messages`."""
+        with mock.patch.dict("os.environ", {"CLOUD_KEY_XYZ": "k"}, clear=False):
+            mod, _get, post = self._patch_requests(self._resp(200, payload={"model": "m"}))
+            with mock.patch.dict(sys.modules, {"requests": mod}):
+                chs._probe_one(self._cloud_provider(), "health", 5)
+        body = post.call_args.kwargs["json"]
+        self.assertIn("prompt", body)
+        self.assertEqual(body["options"]["num_predict"], 1)
+        self.assertNotIn("messages", body, "this is not a /chat/completions endpoint")
+        self.assertFalse(body["stream"], "stream must be off so the body is complete")
+
+    def test_a_cloud_proxy_sends_bearer_auth(self):
+        with mock.patch.dict("os.environ", {"CLOUD_KEY_XYZ": "sk-test-value"}, clear=False):
+            mod, _get, post = self._patch_requests(self._resp(200, payload={"model": "m"}))
+            with mock.patch.dict(sys.modules, {"requests": mod}):
+                chs._probe_one(self._cloud_provider(), "health", 5)
+        self.assertEqual(post.call_args.kwargs["headers"]["Authorization"], "Bearer sk-test-value")
+
+    def test_a_cloud_proxy_with_no_key_is_no_key_without_a_request(self):
+        """No credential means nothing to present, so do not spend a request discovering that."""
+        with mock.patch.dict("os.environ", {}, clear=True):
+            mod, _get, post = self._patch_requests(self._resp(200))
+            with mock.patch.dict(sys.modules, {"requests": mod}):
+                out = chs._probe_one(self._cloud_provider(auth_env_var="CLOUD_KEY_ABSENT"), "health", 5)
+        self.assertEqual(out["status"], "no_key")
+        self.assertFalse(post.called, "no credential means no request")
+
+    def test_a_retired_cloud_model_is_reported_as_an_error_not_unreachable(self):
+        """Live 2026-10-05: both cloud models 410 Gone.
+
+        `qwen3-coder-next` retired 2026-07-15, `minimax-m2.5` retired 2026-07-31. The probe
+        must surface that as an error carrying Ollama's own explanation, not as the DNS
+        failure it used to manufacture.
+        """
+        body = '{"error":"qwen3-coder-next was retired at 2026-07-15"}'
+        with mock.patch.dict("os.environ", {"CLOUD_KEY_XYZ": "k"}, clear=False):
+            out = self._run(self._resp(410, text=body), self._cloud_provider())
+        self.assertEqual(out["status"], "error")
+        self.assertIn("retired", out["detail"])
+
+    def test_a_402_on_a_cloud_proxy_keeps_the_upstream_explanation(self):
+        """`minimax-m2.7` answers 402 "not in the Free plan" — a plan fact, not a fault."""
+        body = '{"error":"This model is not in the Free plan."}'
+        with mock.patch.dict("os.environ", {"CLOUD_KEY_XYZ": "k"}, clear=False):
+            out = self._run(self._resp(402, text=body), self._cloud_provider())
+        self.assertEqual(out["status"], "error")
+        self.assertIn("Free plan", out["detail"])
+
+    def test_the_probe_does_not_go_through_call_ollama_cloud(self):
+        """That path calls _log_cloud_usage, which would bill the weekly free allowance.
+
+        These rows declare 7000 requests/week. At one probe per 15 min that is ~672/week —
+        roughly a tenth of the free tier, spent watching it.
+        """
+        src = pathlib.Path(chs.__file__).read_text(encoding="utf-8")
+        probe = src[src.index("def _probe_one") :]
+        # Comments stripped first: this function's own docstring NAMES call_ollama_cloud to
+        # explain why it is bypassed, so a raw substring scan fails on the explanation.
+        code = "\n".join(ln for ln in probe.split("\n") if not ln.strip().startswith("#"))
+        self.assertNotIn(
+            "call_ollama_cloud",
+            code,
+            "the probe must post directly, never through a path that logs usage",
+        )
+        self.assertNotIn("_log_cloud_usage", code)
+        self.assertNotIn("archie_bridge", code)
+
+    def test_an_image_body_from_ollama_is_not_read_as_image_only(self):
+        """ollama.com has no image model behind this key, so a 400 there means something else."""
+        body = '{"error":"image generation is not supported for this model"}'
+        with mock.patch.dict("os.environ", {"CLOUD_KEY_XYZ": "k"}, clear=False):
+            out = self._run(self._resp(400, text=body), self._cloud_provider())
+        self.assertNotEqual(out["status"], "unsupported")
+
     def test_a_403_with_a_credential_is_auth_error(self):
         """The exact OmniRoute failure: 200 on /models, 403 on a completion.
 
@@ -561,7 +751,7 @@ class TestProbeOne(unittest.TestCase):
         out = self._run(self._resp(200, payload={"model": "flux"}), self._provider())
         self.assertEqual(out["status"], "ok")
         self.assertEqual(
-            chs.classify_provider_class(has_key=False, status=out["status"], is_cloud_proxy=False),
+            chs.classify_provider_class(has_key=False, status=out["status"]),
             "keyless",
         )
 

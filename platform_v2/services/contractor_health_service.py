@@ -50,6 +50,7 @@ here: it is how `pollinations` is correctly identified without being called brok
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from typing import Any, Optional
@@ -73,6 +74,11 @@ DEFAULT_LATENCY_TIMEOUT_S = 45
 #: cold and idle, `deepseek-coder-v2:16b` took ~70s for twelve tokens; under load that is
 #: worse, and a number that large would otherwise dominate any average it entered.
 LATENCY_CEILING_MS = 60_000
+
+#: Ollama Cloud's NATIVE generate endpoint. Not an OpenAI-compatible /chat/completions — the
+#: two cloud-proxy contractors carry the sentinel base_url "ollama_cloud_proxy" precisely
+#: because they are reached through here instead of their own HTTP endpoint.
+OLLAMA_CLOUD_GENERATE_URL = "https://ollama.com/api/generate"
 
 
 def _redact(text: str, secret: Optional[str]) -> str:
@@ -135,7 +141,7 @@ def classify_provider_class(
     *,
     has_key: bool,
     status: str,
-    is_cloud_proxy: bool,
+    free_allowance: Optional[int] = None,
 ) -> Optional[str]:
     """Assign `provider_class` from what the probe observed, or None for "still unmeasured".
 
@@ -143,21 +149,31 @@ def classify_provider_class(
 
       keyless     no credential is required AND the provider answered
       image_only  the provider answered, but refused to chat
-      paid        a credential is required — whether it costs money is the operator's
-                  decision about the key they hold, not something a probe can infer
-      free_tier   the same: a probe cannot tell a free allowance from a metered one
-      None        every failure. A probe that did NOT get served knows nothing about what
-                  the provider would charge; it only knows it is not answering now.
+      free_tier   the provider answered AND its config DECLARES a free allowance
+      paid        never assigned here — see below
+      None        everything else, including every failure
 
-    That last line is the one that matters. This function used to end in
-    `return "free_tier"`, which meant a provider returning 401/403/500/timeout was filed
-    under `free_tier` — the bucket that IS auto-eligible. Against the real roster that
-    would have stamped `free_tier` on 13 of the 18 unmeasured contractors, converting "we
-    could not measure this" into "safe to dispatch", and the routing switch would then have
-    let an operator enable providers that do not serve. A failure is not evidence of cost.
+    `paid` is never inferred. This function used to end in
 
-    `paid` is likewise never asserted from a probe. The six keyed providers in this table
-    span free-tier and metered, and only real usage data distinguishes them.
+        return "paid" if is_cloud_proxy else "free_tier"
+
+    which asserted `paid` from `is_cloud_proxy` — a flag that says how a provider is REACHED
+    ("delegate to Ollama Cloud"), not what it costs. It contradicted this very docstring, and
+    it was wrong on the live roster: minimax_cloud and qwen3_cloud both declare
+    `rate_limits.free.weekly_limit = 7000`, they have never been dispatched, and the weekly
+    rotation in `pick_free_text_provider` is built around exactly those allowances. Filing
+    them as `paid` would have put the platform's own free-tier providers in the money bucket.
+    The parameter is gone rather than ignored, so the same mistake cannot be re-made by
+    passing the flag again.
+
+    Cost now comes from `free_allowance` — the provider's own DECLARED allowance, which is
+    config intent rather than a guess. Absent that, a keyed provider that answered stays
+    unmeasured: a probe genuinely cannot tell a free allowance from a metered one.
+
+    A failure is never evidence of cost. This function used to end in `return "free_tier"`,
+    which filed a provider returning 401/403/500/timeout under the bucket that IS
+    auto-eligible. Against the real roster that stamped `free_tier` on 13 of the 18
+    unmeasured contractors, converting "we could not measure this" into "safe to dispatch".
     """
     if status == "unsupported":
         return "image_only"
@@ -165,9 +181,40 @@ def classify_provider_class(
         if not has_key:
             # It answered with no credential, so it needs none. That is direct evidence.
             return "keyless"
-        return "paid" if is_cloud_proxy else "free_tier"
-    # Everything below is a failure or a non-answer: no class is claimed.
+        if free_allowance:
+            # The config declares a free allowance, so this is not a metered provider.
+            return "free_tier"
+    # No allowance declared, or the probe failed: claim nothing.
     return None
+
+
+def declared_free_allowance(rate_limits: Any) -> Optional[int]:
+    """The provider's own declared free weekly allowance, if it has one.
+
+    Read from config rather than inferred, because this is a statement of intent by whoever
+    configured the contractor — not something a probe can discover. Returns None when
+    nothing is declared, which the classifier treats as "cost unknown".
+
+    Tolerant of the three shapes this arrives in: a dict, a JSON string (the column is
+    JSONB but a hand-edited row can hold text), or None.
+    """
+    if not rate_limits:
+        return None
+    data = rate_limits
+    if isinstance(data, (str, bytes)):
+        try:
+            data = json.loads(data)
+        except (ValueError, TypeError):
+            return None
+    if not isinstance(data, dict):
+        return None
+    free = data.get("free")
+    if not isinstance(free, dict):
+        return None
+    limit = free.get("weekly_limit")
+    if isinstance(limit, bool) or not isinstance(limit, int):
+        return None
+    return limit if limit > 0 else None
 
 
 def record_observation(
@@ -432,20 +479,52 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     key = provider.get("provider_key") or ""
     base_url = (provider.get("base_url") or "").rstrip("/")
     model = provider.get("default_model")
+    is_cloud_proxy = bool(provider.get("is_cloud_proxy"))
 
     env_var = provider.get("auth_env_var")
     api_key = os.environ.get(env_var) if env_var else None
 
-    if not base_url:
-        # No key is the more actionable of the two problems, so report that one.
-        return {
-            "status": classify_status(has_key=bool(api_key), reached=False),
-            "detail": "no base_url",
-        }
-
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
+
+    if is_cloud_proxy:
+        # A cloud proxy's base_url is NOT a URL. minimax_cloud and qwen3_cloud both carry the
+        # literal string "ollama_cloud_proxy", which fleet_service.py already documents as a
+        # "sentinel value that is not a URL at all ... external by definition".
+        #
+        # Appending /chat/completions to it produced "ollama_cloud_proxy/chat/completions",
+        # which is a DNS failure, so BOTH cloud contractors reported `unreachable` — a
+        # manufactured diagnosis. They were not unreachable; the probe had asked the wrong
+        # question of them. `call_external` has always branched on is_cloud_proxy first and
+        # delegated to call_ollama_cloud, which posts to ollama.com's NATIVE generate API.
+        #
+        # Deliberately NOT routed through call_ollama_cloud: that function calls
+        # _log_cloud_usage, so probing through it would charge every health check against the
+        # weekly free allowance these rows declare (7000/wk). At one probe per 15 min that is
+        # ~672/week — roughly a tenth of the free tier, spent on watching it.
+        if not api_key:
+            return {"status": "no_key", "detail": "cloud proxy needs OLLAMA_API_KEY"}
+        url = OLLAMA_CLOUD_GENERATE_URL
+        payload = {
+            "model": model or "unknown",
+            "prompt": "Reply with exactly: OK",
+            "stream": False,
+            "options": {"num_predict": 1},
+        }
+    else:
+        if not base_url:
+            # No key is the more actionable of the two problems, so report that one.
+            return {
+                "status": classify_status(has_key=bool(api_key), reached=False),
+                "detail": "no base_url",
+            }
+        url = f"{base_url}/chat/completions"
+        payload = {
+            "model": model or "unknown",
+            "max_tokens": 1,
+            "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
+        }
 
     # BOTH cadences spend a minimal completion. A `/models` GET is not enough, and that is
     # not a theoretical concern — measured 2026-10-05 against the five OmniRoute rows:
@@ -458,12 +537,6 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     # the provider to actually generate — which is the only thing that distinguishes "lists
     # models" from "can serve one". A provider that answers `/models` but 403s a completion
     # is exactly the case this ranking exists to surface.
-    url = f"{base_url}/chat/completions"
-    payload = {
-        "model": model or "unknown",
-        "max_tokens": 1,
-        "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
-    }
 
     try:
         resp = requests.post(url, json=payload, headers=headers, timeout=timeout_s)
@@ -488,9 +561,11 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     except Exception:  # noqa: BLE001 - a body we cannot read is not a body
         body = ""
 
-    if resp.status_code == 400:
+    if resp.status_code == 400 and not is_cloud_proxy:
         # An image-only model refuses a chat request with 400 AND says so. Reading the
-        # body is what separates "unsupported" from "broken".
+        # body is what separates "unsupported" from "broken". Skipped for cloud proxies:
+        # ollama.com has no image-generation model behind this key, so a 400 there means
+        # something else entirely and reading it as "image only" would be a guess.
         if "image" in body.lower() and "generation" in body.lower():
             unsupported = True
 

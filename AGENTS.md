@@ -1,7 +1,7 @@
 # AGENTS.md — coder-lane operating guide (A.R.C.H.I.E. platform)
 
-You are a coding agent contributing to the A.R.C.H.I.E. platform, working on the
-**Applications & Concepts** modules.
+You are a coding agent contributing to the A.R.C.H.I.E. platform. Determine your
+lane and read its current scope configuration before claiming a path is out of scope.
 
 **Two lanes read this file, and they are NOT interchangeable.** Work out which one
 you are before you rely on anything below — the wrong answer sends you to the wrong
@@ -22,9 +22,9 @@ fault. See "Workflow" below.
 **Kytran Empowerment Inc.** runs A.R.C.H.I.E., a self-hosted platform (a hub + a small
 fleet of mesh nodes; ~34 AI agents across departments). The **Applications & Concepts**
 category you own is the **personal wellness + life-tools suite** — caring, practical
-consumer apps for the owner and users. (Media Studio is NOT yours — out of scope.)
+consumer apps for the owner and users. This overview is not an edit allowlist.
 
-**Your six modules and their goal (one line each):**
+**The wellness and life-tools modules and their goals (one line each):**
 - **faith** (`/tools/faith`, agent F.A.I.T.H.) — spiritual-care companion: daily
   devotionals, guided prayer, scripture/Lectio, journaling, mood check-ins, crisis
   detection, connect-a-chaplain. Goal: gentle, grounded spiritual support.
@@ -56,9 +56,16 @@ In the interactive terminal, the human states the goal; if it's unclear, ask bef
 
 You may ONLY edit paths in **your own lane's** `allowed_paths` —
 `config/agents/codex.yaml` for codex, `config/agents/opencode.yaml` for opencode. They
-are similar but NOT identical, so read yours; the other lane's list is not a licence.
-Both cover the Applications/Concepts modules + their templates/static +
-`platform_v2/tests/`.
+are NOT interchangeable, so read yours; the other lane's list is not a licence.
+Read both `allowed_paths` and `blocked_globs` before making a scope decision.
+Codex's configuration was expanded to platform-wide scope on 2026-09-14:
+`platform_v2/` includes Repair Bay, Consciousness, Faith, shared services, templates,
+static assets, and tests. Other allowed roots are listed in that configuration.
+Do not infer Codex's scope from the six-module overview or apply it to opencode.
+The current lane configuration governs path eligibility; explicit task instructions
+and the hard rules below still constrain what work is authorized. If a future
+configuration differs from this summary, use the configuration and report the drift.
+Never change `config/agents/*` to widen your own scope.
 
 The same deny-by-default guard (`services/agents/codex_scope.check_diff_paths`) enforces
 both — it is agent-agnostic, and anything not explicitly allowed is refused. Always

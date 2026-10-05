@@ -1,0 +1,102 @@
+{
+  "news/home live": {
+    "url": "https://what-the-fact.com/",
+    "status": 200,
+    "height": 2233,
+    "errors": []
+  },
+  "news/home design": {
+    "url": "http://127.0.0.1:8799/wtf-home.html",
+    "status": 200,
+    "height": 2195,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  },
+  "news/archive live": {
+    "url": "https://what-the-fact.com/archive",
+    "status": 200,
+    "height": 2007,
+    "errors": []
+  },
+  "news/archive design": {
+    "url": "http://127.0.0.1:8799/wtf-archive.html",
+    "status": 200,
+    "height": 2286,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  },
+  "news/activity live": {
+    "url": "https://what-the-fact.com/activity",
+    "status": 200,
+    "height": 1083,
+    "errors": []
+  },
+  "news/activity design": {
+    "url": "http://127.0.0.1:8799/wtf-activity.html",
+    "status": 200,
+    "height": 4856,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  },
+  "news/weather live": {
+    "url": "https://what-the-fact.com/weather",
+    "status": 200,
+    "height": 8887,
+    "errors": [
+      "PAGEERROR TypeError: def.label is not a function"
+    ]
+  },
+  "news/weather design": {
+    "url": "http://127.0.0.1:8799/wtf-weather.html",
+    "status": 200,
+    "height": 9391,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  },
+  "news/blindspot live": {
+    "url": "https://what-the-fact.com/blindspot",
+    "status": 200,
+    "height": 4903,
+    "errors": []
+  },
+  "news/blindspot design": {
+    "url": "http://127.0.0.1:8799/wtf-blindspot.html",
+    "status": 200,
+    "height": 3026,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  },
+  "news/divergence live": {
+    "url": "https://what-the-fact.com/divergence",
+    "status": 200,
+    "height": 7285,
+    "errors": []
+  },
+  "news/divergence design": {
+    "url": "http://127.0.0.1:8799/wtf-divergence.html",
+    "status": 200,
+    "height": 2283,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  },
+  "news/clusters live": {
+    "url": "https://what-the-fact.com/clusters",
+    "status": 200,
+    "height": 8290,
+    "errors": []
+  },
+  "news/clusters design": {
+    "url": "http://127.0.0.1:8799/wtf-clusters.html",
+    "status": 200,
+    "height": 3588,
+    "errors": [
+      "Failed to load resource: the server responded with a status of 404 (File not found)"
+    ]
+  }
+}

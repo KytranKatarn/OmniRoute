@@ -1107,6 +1107,42 @@ def generate_media(provider_key: str, request: dict) -> dict:
     Returns:
         {success: bool, file_path: str, metadata: dict, error: str}
     """
+    # The operator's two switches, enforced HERE and not only in the text selector.
+    #
+    # `_call_openai_compatible` — the shared text egress — already does this, and explains why in
+    # its own comment: gating only the selector leaves any caller that names a provider directly as
+    # an open door. Media was exactly that open door. The Media Studio cloud path checks the master cloud toggle, the capability
+    # allowlist and the weekly free budget — three real gates — and then walked straight past the
+    # per-provider switch an operator flips in the Contractors tab. Turning routing OFF for
+    # `gemini` or `together` changed the text fleet and left media spending.
+    #
+    # Deliberately first, before the adapter lookup: the refusal should name the switch the
+    # operator just changed, not "no media adapter", and either way nothing is dispatched.
+    #
+    # A provider with NO row is not gated, matching `_call_openai_compatible`. `local_tts` is the
+    # case that
+    # matters: it is local, free, and was never a contractor. Gating it on a config that does not
+    # exist would break local text-to-speech to enforce a switch it was never subject to.
+    _cfg = _get_provider_config(provider_key)
+    if _cfg is not None:
+        if not _cfg.get("is_active", False):
+            return {
+                "success": False,
+                "error": (f"Provider {provider_key} is not configured " "(contractor_providers.is_active is false)"),
+                "provider": provider_key,
+                "is_active": False,
+            }
+        if not _cfg.get("dispatchable", False):
+            return {
+                "success": False,
+                "error": (
+                    f"Provider {provider_key} is configured but not enabled for dispatch "
+                    "(contractor_providers.dispatchable is false)"
+                ),
+                "provider": provider_key,
+                "dispatchable": False,
+            }
+
     adapters = {
         "gemini": _gemini_media_adapter,
         "openai": _openai_image_adapter,

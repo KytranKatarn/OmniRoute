@@ -7817,6 +7817,80 @@ function contractorHealthBadge(p) {
         + ' title="' + escapeHtml(title) + '">' + meta.label + suffix + '</span>';
 }
 
+// Which switch a `switch_name` refers to, and what its states MEAN. `is_active` is CONFIGURED
+// and `dispatchable` is "route here" — rendering both as a bare ON/OFF is what made the tab
+// ambiguous in the first place.
+var SWITCH_LABELS = {
+    is_active: { label: 'Configured', on: 'On', off: 'Off' },
+    dispatchable: { label: 'Routing', on: 'Routing on', off: 'Routing off' }
+};
+
+function switchHistoryRow(ev) {
+    var meta = SWITCH_LABELS[ev.switch] || { label: ev.switch, on: 'on', off: 'off' };
+    var toOn = ev.to === true;
+    var fromLabel = ev.from === true ? meta.on : meta.off;
+    var toLabel = toOn ? meta.on : meta.off;
+    // Colour the DESTINATION, not the row. A switch turning ON on a paid provider is the event
+    // an operator is hunting for; making both states neutral would bury it.
+    var col = toOn ? '#22c55e' : '#94a3b8';
+    return '<div class="contractor-history-row">'
+        + '<span class="contractor-history-switch">' + escapeHtml(meta.label) + '</span>'
+        + '<span class="contractor-history-arrow">'
+        + '<span style="color:var(--archie-text-muted)">' + escapeHtml(fromLabel) + '</span>'
+        + ' &rarr; '
+        + '<span style="color:' + col + ';font-weight:600">' + escapeHtml(toLabel) + '</span>'
+        + '</span>'
+        + '<span class="contractor-history-meta">'
+        + escapeHtml(ev.actor || 'unknown') + ' &middot; ' + escapeHtml(fmtTime(ev.at))
+        + '</span>'
+        + '</div>';
+}
+
+async function toggleSwitchHistory(key, btn) {
+    var panel = document.getElementById('history-' + key);
+    if (panel) {                      // second click closes it
+        panel.remove();
+        return;
+    }
+    panel = document.createElement('div');
+    panel.id = 'history-' + key;
+    panel.className = 'contractor-history-panel';
+    panel.innerHTML = '<div class="contractor-history-row" style="color:var(--archie-text-muted)">'
+        + 'Loading switch history&hellip;</div>';
+    var card = btn.closest('.contractor-firm') || btn.parentElement;
+    card.appendChild(panel);
+    try {
+        var res = await fetch('/tools/department-hq/api/providers/' + encodeURIComponent(key) + '/switch-history', {
+            credentials: 'include'
+        });
+        var data = await res.json();
+        if (!res.ok || data.success === false) {
+            panel.innerHTML = '<div class="contractor-history-row" style="color:#f87171">'
+                + 'Could not load switch history: ' + escapeHtml(data.error || ('HTTP ' + res.status))
+                + '</div>';
+            return;
+        }
+        // A degraded read returns an empty list on purpose, so "could not read" and "never
+        // switched" must not render identically. The first is a lie an operator would act on.
+        if (data.degraded) {
+            panel.innerHTML = '<div class="contractor-history-row" style="color:#fbbf24">'
+                + 'Switch history is temporarily unavailable &mdash; that is NOT the same as '
+                + '&#8220;no changes recorded&#8221;.</div>';
+            return;
+        }
+        var events = data.events || [];
+        if (!events.length) {
+            panel.innerHTML = '<div class="contractor-history-row" style="color:var(--archie-text-muted)">'
+                + 'No switch changes recorded yet.</div>';
+            return;
+        }
+        panel.innerHTML = events.map(switchHistoryRow).join('');
+    } catch (e) {
+        panel.innerHTML = '<div class="contractor-history-row" style="color:#f87171">'
+            + 'Could not load switch history.</div>';
+    }
+}
+
 // Force one probe now, ignoring the backoff window. Synchronous on purpose: the operator is
 // watching a button and wants an answer in this click, not a poll loop. One probe is bounded
 // by its own timeout, so this is not the long-inference case the 202+poll rule is about.
@@ -7962,6 +8036,12 @@ function renderContractors(providers, routingMode, creedData) {
         html += contractorClassBadge(p);
         html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
         html += '<div class="contractor-firm-actions">';
+        // Switch audit trail. Written by both switches since #3659 and readable since
+        // #3662, but nothing displayed it — so "who turned routing on for this paid provider,
+        // and when" was answerable only with curl.
+        html += '<button class="contractor-btn-history" title="Switch history"'
+            + ' onclick="event.stopPropagation();toggleSwitchHistory(\'' + escapeHtml(providerKey) + '\', this)">'
+            + '<i data-lucide="history" style="width:13px;height:13px"></i></button>';
         html += '<button class="contractor-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
         var _disp = p.dispatchable === true;
         // DS9 PR 4 — the second switch. `is_active` says CONFIGURED; this says

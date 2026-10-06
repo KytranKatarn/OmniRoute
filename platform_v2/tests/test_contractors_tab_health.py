@@ -683,6 +683,172 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class TestSwitchHistoryUI(unittest.TestCase):
+    """The switch audit trail, finally visible.
+
+    #3659 made both switches write `contractor_switch_audit`. #3662 made it readable. Nothing
+    rendered it, so "who turned routing on for this paid provider, and when" was answerable only
+    by curling an endpoint an operator has to know exists.
+    """
+
+    def setUp(self):
+        self.src = _js()
+        self.routes = _routes()
+
+    def _js_block(self, start_marker: str, end_marker: str) -> str:
+        i = self.src.index(start_marker)
+        return self.src[i : self.src.index(end_marker, i)]
+
+    # ---- the payload contract -------------------------------------------------
+
+    def test_a_degraded_read_is_distinguishable_from_a_genuine_empty_one(self):
+        """THE point of this PR.
+
+        The endpoint's failure path returns `success: True` with an empty list. Without a
+        separate flag, "the audit table could not be read" and "this provider has never been
+        switched" are byte-identical payloads — and the UI would confidently print "no changes
+        recorded yet" about the exact thing the operator opened the panel to find out.
+        """
+        self.assertIn('"degraded": True', self.routes)
+
+    def test_the_success_path_never_says_degraded(self):
+        """A real read must not be able to look degraded, or the panel cries wolf."""
+        i = self.routes.index("def api_provider_switch_history")
+        body = self.routes[i : self.routes.index("@bp.route", i + 10)]
+        self.assertNotIn("degraded", body.split('"events": [')[0], "success payload must not set degraded")
+
+    # ---- the panel must not lie ----------------------------------------------
+
+    def test_the_panel_distinguishes_degraded_from_empty(self):
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        self.assertIn("if (data.degraded)", block)
+        self.assertIn("temporarily unavailable", block)
+        # and the honest-empty string must be a SEPARATE branch
+        self.assertIn("No switch changes recorded yet.", block)
+
+    def test_a_degraded_read_never_renders_the_empty_message(self):
+        """The two branches must not be reachable from each other."""
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        deg = block.index("if (data.degraded)")
+        emp = block.index("No switch changes recorded yet.")
+        self.assertGreater(deg, 0, "degraded branch missing")
+        self.assertGreater(emp, deg, "the empty-state message must come AFTER the degraded early-return")
+        self.assertLess(block.index("return", deg), emp)
+
+    def test_a_failed_fetch_is_reported_not_swallowed(self):
+        """Must check the CATCH block's own text.
+
+        A mutation that emptied the catch body left the panel stuck on "Loading…", but this test
+        still passed: the string "Could not load switch history" also appears in the !res.ok
+        branch above. It was proving the message exists somewhere in the function, not that the
+        network-failure path produces it.
+        """
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        self.assertIn("} catch (e) {", block)
+        catch = block[block.index("} catch (e) {") :][:260]
+        self.assertIn(
+            "Could not load switch history",
+            catch,
+            "the catch block must replace the panel, not leave it on the loading text",
+        )
+
+    def test_a_non_ok_response_surfaces_the_server_error(self):
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        self.assertIn("if (!res.ok || data.success === false)", block)
+
+    # ---- reading the two switches correctly -----------------------------------
+
+    def test_both_switches_have_distinct_meaningful_labels(self):
+        """`is_active` and `dispatchable` both rendering as bare ON/OFF is the ambiguity
+        #3653 was written to remove. The history must not reintroduce it."""
+        block = self._js_block("var SWITCH_LABELS", "function switchHistoryRow")
+        self.assertIn("Configured", block)
+        self.assertIn("Routing", block)
+
+    def test_an_unrecognised_switch_name_still_renders(self):
+        """A new switch column must not make the whole panel blank."""
+        self.assertIn("|| { label: ev.switch, on: 'on', off: 'off' }", self.src)
+
+    def test_a_null_actor_does_not_render_the_word_null(self):
+        self.assertIn("ev.actor || 'unknown'", self.src)
+
+    def test_the_destination_colour_carries_the_meaning(self):
+        """A switch turning ON is the event being hunted for."""
+        block = self._js_block("function switchHistoryRow", "async function toggleSwitchHistory")
+        self.assertIn("toOn ? '#22c55e'", block)
+
+    def test_timestamps_go_through_the_tabs_existing_helper(self):
+        """Never raw UTC. `fmtTime` already parses offset-bearing ISO and renders browser-local
+        (EDT for the owner), so reusing it is both correct and consistent."""
+        block = self._js_block("function switchHistoryRow", "async function toggleSwitchHistory")
+        self.assertIn("fmtTime(ev.at)", block)
+        self.assertNotIn("ev.at", block.split("fmtTime")[0])
+
+    # ---- escaping --------------------------------------------------------------
+
+    def test_actor_is_escaped(self):
+        """`actor` is operator-supplied text from the auth layer."""
+        block = self._js_block("function switchHistoryRow", "async function toggleSwitchHistory")
+        self.assertIn("escapeHtml(ev.actor", block)
+
+    def test_the_switch_name_is_escaped(self):
+        block = self._js_block("function switchHistoryRow", "async function toggleSwitchHistory")
+        self.assertIn("escapeHtml(meta.label)", block)
+
+    def test_the_request_path_is_uri_encoded(self):
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        self.assertIn("encodeURIComponent(key)", block)
+
+    # ---- the control itself ----------------------------------------------------
+
+    def test_the_button_stops_the_row_from_opening_the_edit_modal(self):
+        """Check THIS button's own markup, not a character window.
+
+        The original version searched 120 chars before / 320 after the marker, which happily
+        picked up the Edit button's `event.stopPropagation()` a few characters away. Deleting the
+        history button's own call left the assertion green.
+        """
+        # The button is built by ONE `html += '<button ...'` statement that spans several lines, so
+        # take that whole statement (marker to its closing </button>), not a single line.
+        i = self.src.index('<button class="contractor-btn-history"')
+        statement = self.src[i : self.src.index("</button>", i)]
+        self.assertIn("onclick=", statement)
+        self.assertIn("event.stopPropagation()", statement)
+
+    def test_the_button_is_an_action_not_a_bare_badge(self):
+        """It lives with Edit, because opening a log is an action. #3669 puts a refresh button
+        beside the health badge; this is deliberately not there — two adjacent icon buttons with
+        different meanings is its own ambiguity."""
+        i = self.src.index("contractor-firm-actions")
+        block = self.src[i : i + 700]
+        self.assertIn("contractor-btn-history", block)
+
+    def test_clicking_twice_closes_the_panel(self):
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        self.assertIn("panel.remove()", block)
+
+    def test_the_panel_id_is_namespaced_by_provider(self):
+        """Two providers on screen must not share a panel.
+
+        Asserts the getElementById CALL specifically, not the substring: the assignment
+        `panel.id = 'history-' + key` also contains it, so a mutation that hardcoded the lookup
+        to a shared id still satisfied a plain `assertIn`.
+        """
+        block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
+        self.assertIn("document.getElementById('history-' + key)", block)
+        self.assertIn("panel.id = 'history-' + key;", block)
+
+    def test_the_history_read_is_authenticated(self):
+        i = self.routes.index('@bp.route("/api/providers/<provider_key>/switch-history")')
+        self.assertIn("@auth_decorator", self.routes[i : i + 200])
+
+    def test_the_css_does_not_reuse_the_purple_of_edit(self):
+        css = _css()
+        i = css.index(".contractor-btn-history {")
+        block = css[i : css.index("}", i)]
+        self.assertNotIn("#a855f7", block)
+
+
 class TestProbeNowControl(unittest.TestCase):
     """The operator's escape hatch from the backoff window.
 

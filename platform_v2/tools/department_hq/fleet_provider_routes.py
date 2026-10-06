@@ -676,7 +676,19 @@ def register_fleet_routes(bp, auth_decorator):
                 exc.__class__.__name__,
                 exc,
             )
-            return jsonify({"success": True, "provider_key": provider_key, "events": []})
+            # `degraded` is load-bearing. Without it, a read failure and "this provider has
+            # never been switched" are the SAME payload — and the UI would print "no switch
+            # changes recorded yet", which is a confident lie about the one thing an operator
+            # opened this panel to find out. Degrading must stay graceful; degrading must not
+            # become indistinguishable from a real empty answer.
+            return jsonify(
+                {
+                    "success": True,
+                    "provider_key": provider_key,
+                    "events": [],
+                    "degraded": True,
+                }
+            )
 
     @bp.route("/api/providers/<provider_key>/dispatchable", methods=["POST"])
     @auth_decorator

@@ -3757,6 +3757,45 @@ body.light-mode .bridge-zone-unstaffed {
 .contractor-btn-edit:hover {
     background: rgba(168, 85, 247, 0.1) !important;
 }
+/* Switch-history control and its inline panel. Muted amber rather than the purple of
+   Edit: this is a read-only log, and an operator should not expect it to change anything. */
+.contractor-btn-history {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3) !important;
+    padding: 2px 5px !important;
+}
+.contractor-btn-history:hover {
+    background: rgba(251, 191, 36, 0.12) !important;
+}
+.contractor-history-panel {
+    margin-top: 6px;
+    padding: 6px 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 3px;
+    max-height: 210px;
+    overflow-y: auto;
+}
+.contractor-history-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.62rem;
+    padding: 2px 0;
+    flex-wrap: wrap;
+}
+.contractor-history-switch {
+    min-width: 62px;
+    color: var(--archie-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.contractor-history-arrow { flex: 1; min-width: 150px; }
+.contractor-history-meta {
+    color: rgba(255, 255, 255, 0.4);
+    min-width: 128px;
+    text-align: right;
+}
 /* Probe-now. Neutral cyan so it reads as an ACTION on the badge beside it, not as a switch.
    Deliberately not green: green means "routing is on" everywhere else on this row, and this
    button has nothing to do with routing. */

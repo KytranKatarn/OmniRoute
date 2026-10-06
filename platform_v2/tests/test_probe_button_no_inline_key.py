@@ -26,7 +26,7 @@ class TestProbeButtonKeyHandling(unittest.TestCase):
 
     def test_the_key_is_carried_in_a_data_attribute(self):
         self.assertIn("data-provider-key=", self.btn)
-        self.assertIn("escapeHtml(p.provider_key)", self.btn)
+        self.assertIn("providerKey", self.btn)
 
     def test_the_handler_reads_the_dataset(self):
         self.assertIn("probeProviderNow(this.dataset.providerKey, this)", self.btn)
@@ -42,6 +42,14 @@ class TestProbeButtonKeyHandling(unittest.TestCase):
 
     def test_the_old_splice_is_gone_from_the_file(self):
         self.assertNotIn("probeProviderNow(\\'' + escapeHtml", self.src)
+
+    def test_the_key_comes_from_the_rows_own_key_not_a_field_the_payload_lacks(self):
+        """The list payload names the provider `p.provider`; the row derives `providerKey` from it
+        and the other buttons use that. `p.provider_key` does not exist there, so the probe button
+        shipped with an EMPTY key on all 30 rows (found live, not by a source-text test)."""
+        self.assertIn("data-provider-key=\"' + providerKey + '\"", self.btn)
+        self.assertNotIn("p.provider_key", self.btn)
+        self.assertRegex(self.src, r"var providerKey = escapeHtml\(p\.provider \|\| p\.name \|\| ''\);")
 
 
 if __name__ == "__main__":

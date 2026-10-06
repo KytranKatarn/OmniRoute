@@ -8028,9 +8028,9 @@ function renderContractors(providers, routingMode, creedData) {
         // on a timer — only a person can fix it, by pasting a key. Without this button the
         // 120-minute window is the operator's only refresh, so fixing the config and reloading
         // shows the OLD `no_key` and reads as "the fix didn't work".
-        // Key via data attribute, never spliced into the onclick JS (&#39; decodes back to ' first).
+        // Key via data attribute (not spliced into the onclick JS); `providerKey`, NOT p.provider_key.
         html += '<button class="contractor-btn-probe" title="Probe now (ignore the backoff window)"'
-            + ' data-provider-key="' + escapeHtml(p.provider_key) + '"'
+            + ' data-provider-key="' + providerKey + '"'
             + ' onclick="event.stopPropagation();probeProviderNow(this.dataset.providerKey, this)">'
             + '<i data-lucide="refresh-cw" style="width:12px;height:12px"></i></button>';
         html += contractorClassBadge(p);

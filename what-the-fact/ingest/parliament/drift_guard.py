@@ -47,6 +47,10 @@ _MAX_AGE_DAYS = {
     "minister_travel": int(os.environ.get("WTF_DRIFT_MIN_DAYS", "21")),
     "ec_contributions": int(os.environ.get("WTF_DRIFT_EC_DAYS", "21")),
     "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
+    # Itemized Senate travel (ingest/parliament/senate_travel.py) — weekly. NOT in _REQUIRED_TASKS yet: a
+    # task that has never logged is "not tracked", so a deploy before the first run cannot page. Add it
+    # to _REQUIRED_TASKS once the backfill has run.
+    "senate_travel": int(os.environ.get("WTF_DRIFT_SENTRAVEL_DAYS", "21")),
     "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
     "issuer_contracts": int(os.environ.get("WTF_DRIFT_ISSUERC_DAYS", "21")),
     # ENTITY-GRAPH PUSH RECEIPTS (ingest/shared/entity_push_receipts.py). Written by the RECEIVER on

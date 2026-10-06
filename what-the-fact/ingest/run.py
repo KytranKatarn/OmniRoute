@@ -489,6 +489,14 @@ def main():
             except Exception:
                 log.exception("senator_expenses sync crashed")
 
+            # Itemized Senate travel — one row per trip leg, reconciled against the Senate's own grand
+            # total (task='senate_travel', self-logs). Latest 2 quarters weekly; backfill is a one-off CLI.
+            try:
+                from ingest.parliament.senate_travel import run_senate_travel_sync
+                log.info("senate_travel sync: %s", run_senate_travel_sync(engine))
+            except Exception:
+                log.exception("senate_travel sync crashed")
+
             # Entity graph: refresh cast_vote edges (Link 3) now that new votes synced (#373)
             try:
                 from ingest.entity_graph_parliament_reconcile import run as _parl_eg

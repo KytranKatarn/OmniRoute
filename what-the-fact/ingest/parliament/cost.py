@@ -94,15 +94,128 @@ def _current_partial_year(conn):
     return window_years(_year_quarters(conn))[1]
 
 
+def _prorate(annual, quarters):
+    """A year's base salary / top-up (an ANNUAL amount) scaled to the quarters actually disclosed.
+
+    A partial year carries only its disclosed quarters of office expenses, so its salary must be the same
+    fraction of a year — otherwise the year-to-date total mixes 2 quarters of expenses with 4 quarters of
+    salary and _project() (which annualizes by 4/quarters) would then count the salary twice over. Complete
+    years (4 quarters) are unchanged."""
+    q = max(0, min(int(quarters or 0), 4))
+    return round(float(annual or 0) * q / 4)
+
+
+PROJECTION_MIN_QUARTERS = 2
+SEASONAL_MIN_PRIOR_YEARS = 2          # prior COMPLETE years needed to use seasonal shares (else plain annualizing)
+# Order quarters are DISCLOSED in within a year label: Q4 = Jan-Mar, Q1 = Apr-Jun, Q2 = Jul-Sep, Q3 = Oct-Dec
+# (the "<year>-Q<fiscal quarter>" scheme), so the first two disclosed are Q4 + Q1 and the third is Q2.
+QUARTER_ORDER = ("Q4", "Q1", "Q2", "Q3")
+
+
 def _project(ytd, quarters):
-    """Annualized full-year projection from a partial year, or None when there isn't enough
-    signal. Only projects from >= 2 disclosed quarters — a single quarter is far too noisy to
-    annualize honestly (one heavy quarter would 4x into an absurd number). Refines automatically
-    as more quarters land."""
+    """Plain annualizing (ytd / quarters x 4) — the FALLBACK when there are too few prior complete years to know
+    how a year is distributed. None below PROJECTION_MIN_QUARTERS or once the year is complete."""
     q = int(quarters or 0)
-    if q < 2 or q >= 4 or not ytd:
+    if q < PROJECTION_MIN_QUARTERS or q >= 4 or not ytd:
         return None
     return round(float(ytd) / q * 4)
+
+
+def _median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def seasonal_projection(series: dict, year: int, disclosed=None):
+    """Full-year projection of ONE expense series from the quarters disclosed so far, or None.
+
+    series     {year: {"Q1": amount, ...}}
+    disclosed  the quarter labels on file for `year` (default: all that the series has for it)
+
+    Method: expenses are strongly seasonal, so ytd / 4 x ... is the wrong question. Instead take the SAME quarters'
+    share of the full year in each of the last (up to 5) prior COMPLETE years and divide: projected = ytd / share.
+    The MEDIAN share is used, so one disrupted year (2025: an April election, MPs 222 -> 339) cannot drag the
+    estimate; the lowest and highest share give the range. Measured over 2021-2024 the Jan-Jun quarters were
+    50.5-52.4% of the year's MP office expenses and the first three quarters 75-76%, so this is tight in a normal
+    year. With fewer than SEASONAL_MIN_PRIOR_YEARS prior years it falls back to plain annualizing (no range).
+    """
+    year_q = series.get(year, {})
+    disclosed = set(disclosed if disclosed is not None else year_q) & set(year_q)
+    n = len(disclosed)
+    ytd = sum(year_q[q] for q in disclosed)
+    if n < PROJECTION_MIN_QUARTERS or n >= 4 or not ytd:
+        return None
+    prior = [y for y in sorted(series) if y < year and len(series[y]) >= 4][-5:]
+    shares = []
+    for y in prior:
+        total = sum(series[y].values())
+        part = sum(series[y].get(q, 0) for q in disclosed)
+        if total > 0 and part > 0:
+            shares.append(part / total)
+    if len(shares) >= SEASONAL_MIN_PRIOR_YEARS:
+        share = _median(shares)
+        return {"projected": round(ytd / share), "low": round(ytd / max(shares)), "high": round(ytd / min(shares)),
+                "share": share, "share_low": min(shares), "share_high": max(shares), "n_prior": len(shares),
+                "method": "seasonal", "ytd": round(ytd)}
+    flat = round(ytd / n * 4)
+    return {"projected": flat, "low": flat, "high": flat, "share": n / 4, "share_low": n / 4, "share_high": n / 4,
+            "n_prior": len(shares), "method": "annualized", "ytd": round(ytd)}
+
+
+def projection_backtest(series_by_kind: dict, stages=(2, 3)) -> list:
+    """What the seasonal method WOULD have projected for each past complete year after `stages` quarters, against
+    what that year turned out to be. MP office expenses only: they are ~95% of the projected expense line and have
+    five complete years of history (senators have too few to back-test), and salary is a known rate, not projected.
+    Uses only years BEFORE the one being projected for its shares, so it is an honest out-of-sample test.
+    [{year, stage_quarters, projected, actual, error_pct}]"""
+    out = []
+    kinds = [k for k in ("mp",) if series_by_kind.get(k)]
+    if not kinds:
+        return out
+    years = sorted(y for y in series_by_kind[kinds[0]] if len(series_by_kind[kinds[0]][y]) >= 4)
+    for y in years:
+        for stage in stages:
+            disclosed = QUARTER_ORDER[:stage]
+            projected = actual = 0
+            ok = True
+            for k in kinds:
+                ser = series_by_kind[k]
+                if y not in ser or len(ser[y]) < 4:
+                    continue
+                r = seasonal_projection({yy: v for yy, v in ser.items() if yy <= y}, y, disclosed)
+                if not r or r["method"] != "seasonal":
+                    ok = False
+                    break
+                projected += r["projected"]
+                actual += sum(ser[y].values())
+            if ok and actual:
+                out.append({"year": y, "stage_quarters": stage, "projected": projected, "actual": round(actual),
+                            "error_pct": round((projected - actual) / actual * 100, 1)})
+    return out
+
+
+def _quarter_series(conn) -> dict:
+    """{kind: {year: {quarter: amount}}} for the three expense series that get projected."""
+    queries = {
+        "mp": "/* quarter_series:mp */ SELECT LEFT(period, 4)::int, RIGHT(period, 2), "
+              "COALESCE(SUM(travel_cad + hospitality_cad + contracts_cad + salaries_cad), 0) "
+              "FROM parliament.mp_expenses GROUP BY 1, 2",
+        "senator": "/* quarter_series:senator */ SELECT LEFT(period, 4)::int, RIGHT(period, 2), "
+                   "COALESCE(SUM(COALESCE(travel_cad, 0) + COALESCE(hospitality_cad, 0) + COALESCE(contracts_cad, 0) "
+                   "+ COALESCE(office_cad, 0) + COALESCE(living_cad, 0)), 0) "
+                   "FROM parliament.senator_expenses GROUP BY 1, 2",
+        "ministerial": "/* quarter_series:ministerial */ SELECT LEFT(period, 4)::int, RIGHT(period, 2), "
+                       "COALESCE(SUM(total_cad), 0) FROM parliament.minister_travel GROUP BY 1, 2",
+    }
+    out: dict = {}
+    for kind, sql in queries.items():
+        ser: dict = {}
+        for yr, q, amt in conn.execute(text(sql)).fetchall():
+            ser.setdefault(int(yr), {})[str(q)] = float(amt or 0)
+        out[kind] = ser
+    return out
+
 
 def _all_rates(conn) -> dict:
     """{fiscal_year: {role: amount_float}} from the sourced reference table (one query)."""
@@ -306,31 +419,44 @@ def _current_year_block(conn, core, table: str, id_col: str, sid: int, rates_by_
     """One member's CURRENT partial-year cost (year-to-date) + a projected full year, or None
     if they have no current-year disclosure. `core` = _mp_cost/_senator_cost; `table`/`id_col`
     (hardcoded constants — never user input) locate the member's rows to count disclosed
-    quarters. The projection is annualized from >=2 quarters (see _project), refining over time."""
+    quarters. The projection uses the national seasonal share of the quarters on file (see seasonal_projection), refining as quarters land."""
     cur = _current_partial_year(conn)
     if cur is None:
         return None
     c = core(conn, int(sid), cur, rates_by_year)
     if not c["served"]:
         return None
-    nq = conn.execute(
-        text(
-            "SELECT COUNT(DISTINCT RIGHT(period, 2)) FROM " + table
-            + " WHERE " + id_col + " = :sid AND LEFT(period, 4) = :yr"
-        ),
-        {"sid": int(sid), "yr": str(cur)},
-    ).scalar()
-    nq = int(nq or 0)
+    quarters = {
+        str(r[0]) for r in conn.execute(
+            text("SELECT DISTINCT RIGHT(period, 2) FROM " + table + " WHERE " + id_col + " = :sid AND LEFT(period, 4) = :yr"),
+            {"sid": int(sid), "yr": str(cur)},
+        ).fetchall()
+    }
+    nq = len(quarters)
+    indemnity_annual, top_up_annual = c["indemnity"], c.get("top_up", 0)
+    indemnity = _prorate(indemnity_annual, nq)            # the core returns ANNUAL salary/top-up; this is a partial year
+    top_up = _prorate(top_up_annual, nq)
+    total = c["office_total"] + indemnity + top_up
+    projected = None
+    if nq >= PROJECTION_MIN_QUARTERS and nq < 4:
+        # Office expenses: this member's year-to-date over the NATIONAL median share those same quarters make of a
+        # year (a single member's own history is far too erratic); salary is the known annual rate, counted once.
+        kind = "mp" if table.endswith("mp_expenses") else "senator"
+        r = seasonal_projection(_quarter_series(conn).get(kind, {}), cur, quarters)
+        if r and r["method"] == "seasonal":
+            projected = round(c["office_total"] / r["share"]) + indemnity_annual + top_up_annual
+        else:
+            projected = _project(total, nq)
     return {
         "year": cur,
         "quarters": nq,
-        "total": c["total"],
+        "total": total,
         "office_total": c["office_total"],
-        "indemnity": c["indemnity"],
-        "top_up": c.get("top_up", 0),
-        "projected_full_year": _project(c["total"], nq),
+        "indemnity": indemnity,
+        "top_up": top_up,
+        "projected_full_year": projected,
         "_note": (
-            "year-to-date — {0} quarter(s) disclosed so far; projected = annualized estimate, "
+            "year-to-date — {0} quarter(s) disclosed so far; projected = estimate from the usual seasonal pattern, "
             "actuals will differ".format(nq)
         ),
     }
@@ -531,6 +657,38 @@ def senator_cost_5yr(engine, senator_id: int) -> dict:
     }
 
 
+def _year_projection(series, yr, mp_salary_annual, sen_base_annual, mp_total, senator_total, total,
+                     ministerial_total, mp_q):
+    """The `projected` block for the current partial year. Office expenses come from seasonal_projection per
+    series; base salary is the annual rate x members (known, so never extrapolated). Falls back to plain
+    annualizing of the year-to-date figures when there is no expense history to take shares from."""
+    mp_p = seasonal_projection(series.get("mp", {}), yr)
+    sen_p = seasonal_projection(series.get("senator", {}), yr)
+    min_p = seasonal_projection(series.get("ministerial", {}), yr)
+    if not mp_p:
+        return {"mp": _project(mp_total, mp_q), "senator": _project(senator_total, mp_q),
+                "parliamentary": _project(total, mp_q), "ministerial": _project(ministerial_total, mp_q),
+                "combined": _project(total + ministerial_total, mp_q), "from_quarters": mp_q,
+                "method": "annualized", "low": None, "high": None, "combined_low": None, "combined_high": None}
+
+    def part(r, ytd_fallback):
+        return (r["projected"], r["low"], r["high"]) if r else (ytd_fallback, ytd_fallback, ytd_fallback)
+
+    mp_o, mp_lo, mp_hi = part(mp_p, 0)
+    sn_o, sn_lo, sn_hi = part(sen_p, 0)
+    mn, mn_lo, mn_hi = part(min_p, ministerial_total)
+    mp_full = mp_o + mp_salary_annual
+    sen_full = sn_o + sen_base_annual
+    parl = mp_full + sen_full
+    parl_lo = mp_lo + mp_salary_annual + sn_lo + sen_base_annual
+    parl_hi = mp_hi + mp_salary_annual + sn_hi + sen_base_annual
+    return {
+        "mp": mp_full, "senator": sen_full, "parliamentary": parl, "ministerial": mn, "combined": parl + mn,
+        "low": parl_lo, "high": parl_hi, "combined_low": parl_lo + mn_lo, "combined_high": parl_hi + mn_hi,
+        "from_quarters": mp_q, "method": mp_p["method"], "share": mp_p["share"], "n_prior": mp_p["n_prior"],
+    }
+
+
 def parliament_cost_summary(engine) -> dict:
     """National "cost of Parliament" per year + the 5-year grand total (MPs; senators = Phase 2).
 
@@ -607,6 +765,7 @@ def parliament_cost_summary(engine) -> dict:
                 "FROM parliament.mp_expenses GROUP BY 1"
             )
         ).fetchall()
+        series = _quarter_series(conn)      # per-quarter expense history: drives the seasonal projection + backtest
 
     quarters_by_year: dict = {int(yr): list(qs) for yr, qs in cov_rows}
     senator_by_year: dict = {
@@ -661,19 +820,21 @@ def parliament_cost_summary(engine) -> dict:
             # A disclosed year OUTSIDE the complete window — always PARTIAL (< 4 quarters).
             # Reported as an addendum beneath the headline, NEVER folded into the totals above:
             # split by chamber (MP / Senate / ministerial) + quarters, and for the CURRENT year a
-            # projected full-year (annualized from >= 2 quarters, else null — honest + auto-refining).
-            mp_total = office_total + mp_indemnity_total
+            # projected full-year (annualized from >= PROJECTION_MIN_QUARTERS quarters, else null — honest + auto-refining).
             mp_q = len(quarters_by_year.get(yr, []))
+            # Salary is an ANNUAL rate: scale it to the quarters disclosed (see _prorate) so the year-to-date
+            # figure does not mix a full year of salary with part a year of expenses. The PROJECTION below uses the
+            # annual figures (salary is a known rate, not something to extrapolate).
+            mp_indemnity_annual = mp_indemnity_total
+            sen_base_annual = round(rates.get(yr, {}).get("senator", 0.0)) * sen_count
+            mp_indemnity_total = _prorate(mp_indemnity_annual, mp_q)
+            senator_total = round(sen_office) + _prorate(sen_base_annual, mp_q)
+            total = office_total + mp_indemnity_total + senator_total
+            mp_total = office_total + mp_indemnity_total
             projected = None
-            if yr == current_year and mp_q >= 2:
-                projected = {
-                    "mp": _project(mp_total, mp_q),
-                    "senator": _project(senator_total, mp_q),
-                    "parliamentary": _project(total, mp_q),
-                    "ministerial": _project(ministerial_total, mp_q),
-                    "combined": _project(total + ministerial_total, mp_q),
-                    "from_quarters": mp_q,
-                }
+            if yr == current_year and mp_q >= PROJECTION_MIN_QUARTERS:
+                projected = _year_projection(series, yr, mp_indemnity_annual, sen_base_annual,
+                                             mp_total, senator_total, total, ministerial_total, mp_q)
             addenda.append({
                 "year": yr,
                 "quarters": quarters_by_year.get(yr, []),
@@ -711,6 +872,7 @@ def parliament_cost_summary(engine) -> dict:
         # as addenda (e.g. 2026 year-to-date, split by chamber + projected), NEVER summed into the
         # totals above.
         "addenda": addenda,
+        "projection_track_record": _projection_track_record(engine, series, by_year, current_year),
         "_note": (
             _NOTE
             + "; headline totals cover the {0} COMPLETE fiscal years {1}-{2} only (partial "
@@ -722,6 +884,81 @@ def parliament_cost_summary(engine) -> dict:
             "proactive disclosure), reported separately, NOT part of grand_total_5yr"
         ).format(len(complete_years), complete_years[0], complete_years[-1]),
     }
+
+
+def _projection_track_record(engine, series, by_year, current_year) -> dict:
+    """How the projection has performed. `backtest` = what the method WOULD have projected for past complete years
+    (out-of-sample); `snapshots` = what we ACTUALLY published for the current / since-completed years, each compared
+    with the actual once that year is complete. The snapshots table is read in its own connection and a missing table
+    (migration 093 not applied yet) just means no history."""
+    backtest = projection_backtest(series)
+    errs = {}
+    for stage in (2, 3):
+        e = [abs(r["error_pct"]) for r in backtest if r["stage_quarters"] == stage]
+        errs[str(stage)] = round(_median(e), 1) if e else None
+    actual = {r["year"]: r["total"] for r in by_year}
+    snaps = []
+    try:
+        with engine.connect() as c:
+            rows = c.execute(text(
+                "SELECT year, quarters_key, as_of, parliamentary_cad, combined_cad, low_cad, high_cad, method "
+                "FROM parliament.cost_projection_snapshots ORDER BY year, as_of")).fetchall()
+        for yr, qk, as_of, parl, comb, lo, hi, method in rows:
+            yr = int(yr)
+            row = {"year": yr, "quarters": qk.split(","), "as_of": as_of.isoformat() if hasattr(as_of, "isoformat") else str(as_of),
+                   "parliamentary": float(parl), "combined": float(comb), "low": float(lo) if lo is not None else None,
+                   "high": float(hi) if hi is not None else None, "method": method}
+            if yr in actual and actual[yr]:       # the year is complete: show how far off this snapshot was
+                row["actual"] = actual[yr]
+                row["error_pct"] = round((float(parl) - actual[yr]) / actual[yr] * 100, 1)
+            snaps.append(row)
+    except Exception:  # noqa: BLE001 — no table / no history yet: the page just shows the backtest
+        snaps = []
+    return {"backtest": backtest, "typical_error_pct": errs, "snapshots": snaps}
+
+
+def snapshot_projection(engine) -> dict:
+    """Record the CURRENT year's projection once per disclosed-quarter set (idempotent), so the page can later show
+    what we projected at each stage and how far off it was. Run weekly: the first run after a new quarter lands
+    writes the new row; every other run is a no-op."""
+    d = parliament_cost_summary(engine)
+    ytd = [a for a in d["addenda"] if a["kind"] == "latest_ytd" and a.get("projected")]
+    if not ytd or not ytd[-1]["projected"].get("parliamentary"):
+        return {"recorded": False, "reason": "no projection available"}
+    a = ytd[-1]
+    p = a["projected"]
+    key = ",".join(sorted(a["quarters"]))
+    with engine.begin() as c:
+        n = c.execute(text("""
+            INSERT INTO parliament.cost_projection_snapshots
+                (year, quarters_key, parliamentary_cad, combined_cad, low_cad, high_cad, method)
+            VALUES (:y, :k, :p, :c, :lo, :hi, :m)
+            ON CONFLICT (year, quarters_key) DO NOTHING"""),
+            {"y": a["year"], "k": key, "p": p["parliamentary"], "c": p["combined"], "lo": p.get("low"),
+             "hi": p.get("high"), "m": p.get("method")}).rowcount
+    return {"recorded": bool(n), "year": a["year"], "quarters": key, "parliamentary": p["parliamentary"]}
+
+
+def run_cost_projection_snapshot(engine) -> dict:
+    """Weekly entry point; self-logs to parliament.ingest_log (task='cost_projection') like the other syncs."""
+    import time as _t
+    t0 = _t.time()
+    try:
+        result = snapshot_projection(engine)
+    except Exception as exc:  # noqa: BLE001
+        result = {"error": str(exc)}
+    try:
+        with engine.begin() as c:
+            if result.get("error"):
+                c.execute(text("INSERT INTO parliament.ingest_log (task, error) VALUES ('cost_projection', :e)"),
+                          {"e": str(result["error"])[:500]})
+            else:
+                c.execute(text("INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                               "VALUES ('cost_projection', 1, :u)"), {"u": 1 if result.get("recorded") else 0})
+    except Exception:  # noqa: BLE001
+        pass
+    result["elapsed_s"] = round(_t.time() - t0, 1)
+    return result
 
 
 def officials_cost(engine, officials) -> list:

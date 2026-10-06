@@ -49,9 +49,11 @@ setTimeout(() => {
   const walk = (n, out) => { out.push(n); n.children.forEach(c => walk(c, out)); return out; };
   const chart = walk(parts['[data-cost-chart]'], []);
   const head = walk(parts['[data-cost-headline]'], []);
+  const add = walk(parts['[data-cost-addenda]'], []);
   console.log(JSON.stringify({
     chartTexts: chart.map(n => n.textContent).filter(Boolean),
     headTexts: head.map(n => n.textContent).filter(Boolean),
+    addTexts: add.map(n => n.textContent).filter(Boolean),
     dimmed: chart.filter(n => n.style.opacity === '0.55').length,
     dashed: chart.filter(n => (n.style.outline || '').indexOf('dashed') >= 0).length,
   }));
@@ -131,3 +133,73 @@ def test_after_the_2027_roll_the_row_is_2022_to_2026_plus_a_2027_star():
     r = _render(api)
     assert "2021" not in r["chartTexts"] and "2026" in r["chartTexts"] and "2027*" in r["chartTexts"]
     assert "1 quarter so far" in r["chartTexts"]
+
+
+# ------------------------------------------------------------------ projection + track record (the addenda block)
+
+PROJ = {"mp": 290_000_000, "senator": 27_000_000, "parliamentary": 317_000_000, "ministerial": 2_300_000,
+        "combined": 319_300_000, "low": 300_000_000, "high": 380_000_000, "combined_low": 302_000_000,
+        "combined_high": 383_000_000, "from_quarters": 2, "method": "seasonal", "share": 0.509, "n_prior": 5}
+TRACK = {
+    "typical_error_pct": {"2": 11.2, "3": 5.0},
+    "backtest": [
+        {"year": 2024, "stage_quarters": 2, "projected": 131_868_037, "actual": 130_568_215, "error_pct": 1.0},
+        {"year": 2024, "stage_quarters": 3, "projected": 129_412_173, "actual": 130_568_215, "error_pct": -0.9},
+        {"year": 2025, "stage_quarters": 2, "projected": 123_126_229, "actual": 156_567_838, "error_pct": -21.4},
+    ],
+    "snapshots": [],
+}
+
+
+def _with(proj=PROJ, track=TRACK):
+    ytd = dict(_ytd(), projected=proj)
+    return dict(API, addenda=[a for a in API["addenda"] if a["kind"] != "latest_ytd"] + [ytd],
+                projection_track_record=track)
+
+
+def test_the_projection_shows_its_range_its_method_and_how_often_it_has_missed():
+    t = _render(_with())["addTexts"]
+    assert any("projected full year ≈ $319,300,000" in x and "range $302.0M–$383.0M" in x for x in t)
+    assert any("same 2 quarters' share of the year in each of the last 5 complete years (median 51%)" in x for x in t)
+    assert any("Revised each time a new quarter is released" in x for x in t)
+    assert any("typically off by about ±11.2% at this stage" in x for x in t)
+
+
+def test_the_track_record_lists_what_the_method_would_have_said_and_how_wrong_it_was():
+    t = _render(_with())["addTexts"]
+    assert "How these projections have performed" in t
+    assert any(x.startswith("2024: after 2 quarters ≈ $131.9M (+1.0%) · after 3 quarters ≈ $129.4M (-0.9%)") and "actual $130.6M" in x for x in t)
+    assert any(x.startswith("2025: after 2 quarters ≈ $123.1M (-21.4%)") for x in t)
+    assert any("election" in x for x in t)            # the disrupted-year caveat is stated, not hidden
+
+
+def test_a_published_projection_is_compared_with_the_actual_once_the_year_is_complete():
+    track = dict(TRACK, snapshots=[
+        {"year": 2026, "quarters": ["Q1", "Q4"], "as_of": "2026-10-06T14:00:00+00:00", "parliamentary": 317_000_000,
+         "combined": 319_300_000, "low": None, "high": None, "method": "seasonal", "actual": 330_000_000, "error_pct": -3.9},
+        {"year": 2026, "quarters": ["Q1", "Q2", "Q4"], "as_of": "2026-11-20T14:00:00+00:00", "parliamentary": 325_000_000,
+         "combined": 327_000_000, "low": None, "high": None, "method": "seasonal", "actual": 330_000_000, "error_pct": -1.5}])
+    t = _render(_with(track=track))["addTexts"]
+    line = [x for x in t if x.startswith("2026 — ")][0]
+    assert "after 2 quarters (2026-10-06): ≈ $317.0M (-3.9% vs actual $330.0M)" in line
+    assert "after 3 quarters (2026-11-20): ≈ $325.0M (-1.5% vs actual $330.0M)" in line
+
+
+def test_a_live_year_snapshot_shows_the_projection_on_record_without_an_error():
+    track = dict(TRACK, snapshots=[{"year": 2026, "quarters": ["Q1", "Q4"], "as_of": "2026-10-06T14:00:00+00:00",
+                                    "parliamentary": 317_000_000, "combined": 319_300_000, "low": None, "high": None, "method": "seasonal"}])
+    line = [x for x in _render(_with(track=track))["addTexts"] if x.startswith("2026 — ")][0]
+    assert "after 2 quarters (2026-10-06): ≈ $317.0M" in line and "vs actual" not in line
+
+
+def test_without_history_the_page_still_renders_and_says_when_a_projection_will_appear():
+    r = _render(dict(API, projection_track_record={"backtest": [], "snapshots": [], "typical_error_pct": {}}))
+    assert not any("How these projections have performed" in x for x in r["addTexts"])
+    assert any("a full-year projection appears here once ≥2 quarters are disclosed" in x for x in r["addTexts"])
+
+
+def test_an_annualized_fallback_says_so_instead_of_claiming_a_seasonal_basis():
+    p = dict(PROJ, method="annualized", combined_low=None, combined_high=None)
+    t = _render(_with(proj=p))["addTexts"]
+    assert any("Annualized from 2 quarters (not enough history yet for a seasonal estimate)" in x for x in t)
+    assert not any("range $" in x for x in t)

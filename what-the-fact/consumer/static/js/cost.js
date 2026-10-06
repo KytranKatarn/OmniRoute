@@ -182,6 +182,45 @@
     });
   }
 
+  // --- projection track record: what we projected, and how far off it was ----------------------------------
+  function renderTrackRecord(box, tr) {
+    if (!tr) return;
+    var bt = tr.backtest || [], snaps = tr.snapshots || [];
+    if (!bt.length && !snaps.length) return;
+    var wrap = el("div", { css: "margin-top:12px;padding-top:10px;border-top:1px solid rgba(148,163,184,0.1);" });
+    wrap.appendChild(el("div", { text: "How these projections have performed", css: "font-size:11px;font-weight:700;color:" + C.text + ";text-transform:uppercase;letter-spacing:.06em;" }));
+    function sgn(x) { return (x > 0 ? "+" : "") + num(x).toFixed(1) + "%"; }
+    // (1) projections we PUBLISHED, once the year is complete: projected vs actual
+    var byYear = {};
+    snaps.forEach(function (r) { (byYear[r.year] = byYear[r.year] || []).push(r); });
+    Object.keys(byYear).sort().forEach(function (y) {
+      var rows = byYear[y];
+      var line = y + " — " + rows.map(function (r) {
+        var q = (r.quarters || []).length;
+        return "after " + q + " quarter" + (q === 1 ? "" : "s") + " (" + String(r.as_of).slice(0, 10) + "): ≈ " + fmtCompact(r.parliamentary)
+          + (r.error_pct != null ? " (" + sgn(r.error_pct) + " vs actual " + fmtCompact(r.actual) + ")" : "");
+      }).join(" · ");
+      wrap.appendChild(el("div", { text: line, css: "font-size:11px;color:" + C.subtle + ";margin-top:5px;line-height:1.5;" }));
+    });
+    // (2) what the method WOULD have said in past years (out-of-sample), office expenses only
+    var years = {};
+    bt.forEach(function (r) { (years[r.year] = years[r.year] || {})[r.stage_quarters] = r; });
+    var ys = Object.keys(years).sort();
+    if (ys.length) {
+      wrap.appendChild(el("div", { text: "Back-test — MP office expenses, projected using only earlier years:", css: "font-size:10px;color:" + C.muted + ";margin-top:8px;" }));
+      ys.forEach(function (y) {
+        var parts = [2, 3].filter(function (st) { return years[y][st]; }).map(function (st) {
+          var r = years[y][st];
+          return "after " + st + " quarters ≈ " + fmtCompact(r.projected) + " (" + sgn(r.error_pct) + ")";
+        });
+        var any = years[y][2] || years[y][3];
+        wrap.appendChild(el("div", { text: y + ": " + parts.join(" · ") + " — actual " + fmtCompact(any.actual), css: "font-size:11px;color:" + C.subtle + ";margin-top:3px;padding-left:14px;" }));
+      });
+      wrap.appendChild(el("div", { text: "A year that departs from the usual pattern (e.g. 2025, when an April election disrupted spending) is projected less well; the range above reflects that.", css: "font-size:10px;color:" + C.muted + ";margin-top:5px;line-height:1.5;" }));
+    }
+    box.appendChild(wrap);
+  }
+
   // --- national "Cost of Parliament" -----------------------------------------
   function renderSummary(root) {
     if (!root) return;
@@ -236,13 +275,21 @@
           if (num(a.ministerial) > 0) splitTxt += "  ·  ministerial " + fmtFull(a.ministerial);
           split.appendChild(el("span", { text: splitTxt }));
           wrap.appendChild(split);
-          // projected full year — only for the current year; annualized once >=2 quarters land
+          // projected full year — only for the current year, from >=2 quarters. Revised every time a quarter lands.
           if (a.projected && a.projected.combined) {
-            var fq = a.projected.from_quarters;
+            var pj = a.projected, fq = pj.from_quarters;
+            var rng = (pj.combined_low && pj.combined_high && pj.combined_high > pj.combined_low)
+              ? " (range " + fmtCompact(pj.combined_low) + "–" + fmtCompact(pj.combined_high) + ")" : "";
             wrap.appendChild(el("div", {
-              text: "↗ projected full year ≈ " + fmtFull(a.projected.combined) + " (House " + fmtFull(a.projected.parliamentary) + " + ministerial " + fmtFull(a.projected.ministerial) + ") — annualized from " + fq + " quarter" + (fq === 1 ? "" : "s") + "; estimate, actuals will differ",
+              text: "↗ projected full year ≈ " + fmtFull(pj.combined) + rng + " (House + Senate " + fmtFull(pj.parliamentary) + " + ministerial " + fmtFull(pj.ministerial) + ")",
               css: "font-size:11px;color:" + C.topup + ";margin-top:3px;padding-left:14px;line-height:1.5;"
             }));
+            var how = pj.method === "seasonal"
+              ? "Based on the same " + fq + " quarter" + (fq === 1 ? "" : "s") + "' share of the year in each of the last " + pj.n_prior + " complete years (median " + Math.round(num(pj.share) * 100) + "%); base salaries are the known annual rates. Revised each time a new quarter is released."
+              : "Annualized from " + fq + " quarter" + (fq === 1 ? "" : "s") + " (not enough history yet for a seasonal estimate). Revised each time a new quarter is released.";
+            var te = ((data.projection_track_record || {}).typical_error_pct || {})[String(fq)];
+            if (te != null) how += " In past years this method was typically off by about ±" + te + "% at this stage (see below).";
+            wrap.appendChild(el("div", { text: how, css: "font-size:10px;color:" + C.muted + ";margin-top:2px;padding-left:14px;line-height:1.5;" }));
           } else if (a.kind === "latest_ytd") {
             wrap.appendChild(el("div", {
               text: "↗ a full-year projection appears here once ≥2 quarters are disclosed",
@@ -251,6 +298,7 @@
           }
           addBox.appendChild(wrap);
         });
+        renderTrackRecord(addBox, data.projection_track_record);
       }
 
       // stat tiles: latest-year total, trend, per-member avg, member counts
@@ -524,7 +572,7 @@
       box.appendChild(dl("The window (tracked automatically)",
         "The headline covers the " + (d.window ? d.window.label : "5 complete fiscal years") + " — every year with all four quarters on file. This window is computed from the data and advances on its own: a year rolls into the headline the moment its fourth quarter is disclosed, and an incomplete year can never inflate it. Partial years (shown above the chart) are disclosed for completeness but never summed into the headline."));
       box.appendChild(dl("Current year & projections",
-        "The current year to date is shown separately — split by chamber (House of Commons vs Senate) plus ministerial — as quarters are published. A projected full year is annualized once at least two quarters are on file (a single quarter is too noisy to project honestly); it is always labelled an estimate and refines as more data lands. Projections are never part of the official total."));
+        "The current year to date is shown separately — split by chamber (House of Commons vs Senate) plus ministerial — as quarters are published. A projected full year is estimated once at least two quarters are on file, from the share those same quarters make of a year in earlier years (with a range); it is always labelled an estimate and refines as more data lands. Projections are never part of the official total."));
       box.appendChild(dl("How members are matched",
         "Every disclosed record is name-matched to the Library of Parliament roster. A public figure is never guessed — an official we cannot confidently match is simply not counted, so the total is a floor, not an over-count."));
 

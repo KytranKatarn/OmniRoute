@@ -506,6 +506,14 @@ def main():
             except Exception:
                 log.exception("intl_travel sync crashed")
 
+            # /cost: record this year's full-year projection once per newly disclosed quarter set, so the page can
+            # later show projected-vs-actual (task='cost_projection', self-logs). A no-op unless a new quarter landed.
+            try:
+                from ingest.parliament.cost import run_cost_projection_snapshot
+                log.info("cost_projection snapshot: %s", run_cost_projection_snapshot(engine))
+            except Exception:
+                log.exception("cost_projection snapshot crashed")
+
             # Entity graph: refresh cast_vote edges (Link 3) now that new votes synced (#373)
             try:
                 from ingest.entity_graph_parliament_reconcile import run as _parl_eg

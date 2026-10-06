@@ -137,6 +137,11 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
         # The stored detail is a historical size, not the current threshold.
         return (file_text or "").count("\n") + 1 > 600
 
+    if (message or "").startswith("SQL_INJECTION_RISK"):
+        from services.code_health_checks import sql_finding_present
+
+        return sql_finding_present(file_text)
+
     if (message or "").startswith(("DIRECT_OLLAMA", "DIRECT_CLOUD")):
         from services.code_health_checks import direct_call_present
 

@@ -1762,10 +1762,14 @@ def _audit_module_python(module_name, module_path):
             if line_count > 600:
                 _add_issue("LARGE_FILE", fname, f"{line_count} lines")
 
-            # Check 6: SQL injection risk — f-string or % formatting in execute()
-            if re.search(r'\.execute\(\s*f["\']', content) or re.search(
+            # Check 6: share the conservative SQL verifier with repair reconciliation.
+            from services.code_health_checks import sql_finding_present
+
+            sql_finding = sql_finding_present(content)
+            legacy_sql_finding = re.search(r'\.execute\(\s*f["\']', content) or re.search(
                 r'\.execute\(\s*["\'].*%s.*["\']\s*%\s*[^(]', content
-            ):
+            )
+            if sql_finding is True or sql_finding is None and legacy_sql_finding:
                 _add_issue("SQL_INJECTION_RISK", fname)
 
             # Check 7: Debug leftovers — print(), breakpoint(), pdb

@@ -159,7 +159,18 @@ def register_social_routes(bp, admin_required):
             return jsonify({"error": "nothing to update (daily_action_budget / voice_key)"}), 400
         params.append(account_key)
         with get_db_cursor(commit=True) as (_conn, cur):
-            cur.execute(f"UPDATE agent_platform_accounts SET {', '.join(sets)} WHERE account_key = %s", params)
+            # Keep all three supported updates literal; bind values and the account key.
+            if len(sets) == 2:
+                cur.execute(
+                    "UPDATE agent_platform_accounts SET daily_action_budget = %s, voice_key = %s WHERE account_key = %s",
+                    params,
+                )
+            elif "daily_action_budget" in body:
+                cur.execute(
+                    "UPDATE agent_platform_accounts SET daily_action_budget = %s WHERE account_key = %s", params
+                )
+            else:
+                cur.execute("UPDATE agent_platform_accounts SET voice_key = %s WHERE account_key = %s", params)
             updated = cur.rowcount
         if not updated:
             return jsonify({"error": f"no account '{account_key}'"}), 404

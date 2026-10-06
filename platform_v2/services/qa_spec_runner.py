@@ -108,10 +108,23 @@ def execute_spec(spec, session=None, suite_id=None, run_id=None, skip_auth=False
     if session is None:
         session = http_requests.Session()
 
+    # `auth.mode: browser` — the site signs in through a REDIRECT (what-the-fact.com/login -> the platform's
+    # OAuth / Account Center), not a form this HTTP session can POST to: WTF's /login answers a POST with 405,
+    # so the HTTP pre-login below failed 3x and errored every test before the browser runner — which CAN follow
+    # the redirect and has its own login (qa_e2e_runner.authenticate) — was ever reached (run 3994, 2026-10-06).
+    # Opt-in per suite; nothing else sets it, so every existing suite behaves exactly as before. Only `e2e`
+    # tests authenticate in the browser: any other test type in the same suite would run UNAUTHENTICATED.
+    browser_auth = str(auth.get("mode", "")).strip().lower() == "browser"
+    if browser_auth and any(t.get("type") != "e2e" for t in tests):
+        logger.warning(
+            "suite %s sets auth.mode=browser but has non-e2e tests; those run without a session",
+            suite.get("name", "?"),
+        )
+
     # Authenticate if credentials provided — retry up to 3 times with short
     # backoff. Previous policy (6×30s) ate 150s per flaky suite during bulk
     # scheduled runs and crowded out real diagnostics.
-    if not skip_auth and auth.get("username") and auth.get("password"):
+    if not skip_auth and not browser_auth and auth.get("username") and auth.get("password"):
         auth_error = None
         max_attempts = 3
         for attempt in range(max_attempts):

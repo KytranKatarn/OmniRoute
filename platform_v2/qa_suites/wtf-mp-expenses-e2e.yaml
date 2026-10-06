@@ -16,6 +16,10 @@ suite:
     were treated as free, the paywall would hide the table and that assertion fails (it cannot pass vacuously).
   base_url: "https://what-the-fact.com"
   auth:
+    # mode: browser — sign in IN THE BROWSER, skipping qa_spec_runner's HTTP pre-login. WTF's /login is a
+    # redirect to the platform's OAuth page and answers a POST with 405, so the HTTP pre-login failed 3x and
+    # errored every test before any assertion ran (run 3994, 2026-10-06). Every test in this suite is e2e.
+    mode: browser
     # The harness's own platform login — the same variables the other 18 suites use. Unresolved
     # placeholders fail the run loudly (the runner refuses to type a literal "${...}").
     username: "${ARCHIE_TEST_USERNAME}"

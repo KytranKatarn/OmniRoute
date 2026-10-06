@@ -286,6 +286,27 @@
             ]
           };
         });
+        // The current partial year (year to date) goes IN THE ROW next to the full years, dimmed + dashed +
+        // starred like the member panels do — it must never be mistaken for a complete year, and it is never
+        // part of the headline total (that is the complete-years window only).
+        var ytd = null;
+        (data.addenda || []).forEach(function (a) { if (a.kind === "latest_ytd") ytd = a; });
+        var partialCol = null;
+        if (ytd && num(ytd.parliamentary) > 0) {
+          var yq = (ytd.quarters || []).length;
+          partialCol = {
+            label: String(ytd.year) + "*",
+            total: num(ytd.parliamentary),
+            partial: true,
+            sub: yq + " quarter" + (yq === 1 ? "" : "s") + " so far",
+            segs: [
+              { value: num(ytd.mp_indemnity), color: C.indemnity, label: "MP salary + top-ups" },
+              { value: num(ytd.mp_office), color: C.office, label: "MP office expenses" },
+              { value: num(ytd.senator), color: C.senator, label: "Senators" }
+            ]
+          };
+          cols.push(partialCol);
+        }
         chartBox.appendChild(el("div", { text: "Cost to taxpayers per year", css: "font-size:11px;color:" + C.subtle + ";text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;" }));
         chartBox.appendChild(stackedChart(cols));
         var hasSen = years.some(function (y) { return num(y.senator_total) > 0; });
@@ -294,6 +315,7 @@
           { color: C.office, label: "MP office expenses" }
         ];
         if (hasSen) leg.push({ color: C.senator, label: "Senators" });
+        if (partialCol) leg.push({ color: C.muted, label: "* " + ytd.year + " year to date — partial, not in the total above" });
         chartBox.appendChild(legend(leg));
       }
 

@@ -58,23 +58,40 @@ def _year_quarters(conn) -> dict:
     return out
 
 
+WINDOW_SIZE = 5   # the headline is a TRAILING window of at most this many complete years
+
+
+def window_years(quarters_by_year: dict):
+    """-> (window, current_year, retired).
+
+    window       the last WINDOW_SIZE years with all 4 quarters on file (falls back to YEARS if none).
+    current_year the latest disclosed year NEWER than the window that is still partial, else None.
+    retired      complete years that have rolled OFF the front of the window.
+
+    Capping the window is what keeps every "5-year" key and label (grand_total_5yr, five_year_total, "5-year
+    cost" copy, the public /api/cost/summary contract that civic-watch also reads) TRUE. Uncapped, the year
+    2026 completing (~Feb 2027, once its Q2+Q3 are disclosed) would silently turn the headline into SIX
+    years under a 5-year name. Capped, 2027 rolls the window to 2022-2026 and 2021 drops out.
+    """
+    complete = sorted(y for y, qs in quarters_by_year.items() if len(qs) >= 4)
+    window = tuple(complete[-WINDOW_SIZE:]) or YEARS
+    newer = [y for y in quarters_by_year if y > window[-1]]
+    retired = tuple(y for y in complete if y < window[0])
+    return window, (max(newer) if newer else None), retired
+
+
 def _complete_years(conn) -> tuple:
-    """Fiscal years with all 4 quarters on file — the headline window. DYNAMIC: auto-advances
-    as quarters are disclosed; an incomplete year is never counted in the headline (it drops to
-    an addendum). Falls back to the static YEARS only if the table is unexpectedly empty."""
-    yq = _year_quarters(conn)
-    complete = tuple(sorted(y for y, qs in yq.items() if len(qs) >= 4))
-    return complete or YEARS
+    """The headline window (see window_years): the trailing <=5 years with all 4 quarters on file. DYNAMIC —
+    auto-advances as quarters are disclosed; an incomplete year is never counted in the headline (it drops
+    to an addendum). Falls back to the static YEARS only if the table is unexpectedly empty."""
+    return window_years(_year_quarters(conn))[0]
 
 
 def _current_partial_year(conn):
-    """The latest disclosed year NEWER than the complete window that is still partial (< 4
-    quarters) — i.e. 'the current year, to date'. Returns the int year or None. This is the year
-    we surface as a live addendum + project a full-year estimate for."""
-    yq = _year_quarters(conn)
-    latest_complete = _complete_years(conn)[-1]
-    newer = sorted(y for y in yq if y > latest_complete)
-    return newer[-1] if newer else None
+    """The latest disclosed year NEWER than the window that is still partial (< 4 quarters) — i.e. 'the
+    current year, to date'. Returns the int year or None. This is the year we surface as a live addendum +
+    chart bar and project a full-year estimate for."""
+    return window_years(_year_quarters(conn))[1]
 
 
 def _project(ytd, quarters):
@@ -606,8 +623,7 @@ def parliament_cost_summary(engine) -> dict:
     # DYNAMIC window: the COMPLETE fiscal years (>= 4 quarters on file) drive the headline; it
     # auto-advances as new quarters are disclosed. current_year = the latest partial year beyond
     # the window (the "current year, to date"). Falls back to the static YEARS if the table is empty.
-    complete_years = tuple(sorted(y for y, qs in quarters_by_year.items() if len(qs) >= 4)) or YEARS
-    current_year = max((y for y in quarters_by_year if y > complete_years[-1]), default=None)
+    complete_years, current_year, retired_years = window_years(quarters_by_year)
 
     by_year = []          # the COMPLETE fiscal years — drive the headline + chart
     addenda = []          # disclosed years OUTSIDE the window (partial quarters) — addenda only
@@ -639,6 +655,8 @@ def parliament_cost_summary(engine) -> dict:
             by_year.append(row)
             grand_total_5yr += total
             ministerial_grand_5yr += ministerial_total
+        elif yr in retired_years:
+            continue   # a COMPLETE year that rolled off the trailing window: not partial, so no addendum
         else:
             # A disclosed year OUTSIDE the complete window — always PARTIAL (< 4 quarters).
             # Reported as an addendum beneath the headline, NEVER folded into the totals above:

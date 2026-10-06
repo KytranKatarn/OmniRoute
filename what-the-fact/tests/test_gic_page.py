@@ -43,6 +43,8 @@ def _render(**ctx):
         DictLoader({"base.html": _BASE_STUB}),
         FileSystemLoader(str(TPL_DIR)),
     ]))
+    # the route always passes total_appointments; the template formats it with {:,}
+    ctx.setdefault("total_appointments", len(ctx.get("appointments", [])))
     return env.get_template("gic.html").render(**ctx)
 
 

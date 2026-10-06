@@ -183,7 +183,7 @@ def _base_ctx(**over):
     f = {"days": 7, "sort": "spread", "q": "", "beat": "all", "size": "all", "median": "all"}
     f.update(over)
     return dict(
-        clusters=[], totals={"qualifying": 0, "with_spread": 0, "widest": 0},
+        clusters=[], totals={"qualifying": 0, "with_spread": 0, "blindspot_seeds": 0, "widest": 0},
         f=f, days=f["days"], windows=_CLUSTER_WINDOWS,
         # VALID_BEATS contains "all" as a literal member — excluded the same
         # way the route does, or this fixture would mask the route's own

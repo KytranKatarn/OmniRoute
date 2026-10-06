@@ -25,6 +25,8 @@ import re
 import pytest
 from jinja2 import ChoiceLoader, DictLoader, Environment, FileSystemLoader, select_autoescape
 
+from tests._render_ctx import fake_request
+
 TPL = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "templates"
 
 # base.html pulls the whole site shell (nav, context processors). These pages
@@ -35,10 +37,12 @@ _STUB = ("{% block title %}{% endblock %}{% block meta %}{% endblock %}"
 
 @pytest.fixture(scope="module")
 def env():
-    return Environment(
+    e = Environment(
         loader=ChoiceLoader([DictLoader({"base.html": _STUB}), FileSystemLoader(str(TPL))]),
         autoescape=select_autoescape(["html"]),
     )
+    e.globals["request"] = fake_request()   # owners.html reads request.args
+    return e
 
 
 OFFICERS = [
@@ -122,7 +126,8 @@ def gic_html(env, *, subscriber):
     # 1 distinct non-null organization, 2 departments.
     return env.get_template("gic.html").render(
         appointments=GIC, depts=["Justice", "Finance"], dept="all", q="",
-        organisations_count=1, departments_count=2, is_subscriber=subscriber)
+        organisations_count=1, departments_count=2, total_appointments=len(GIC),
+        is_subscriber=subscriber)
 
 
 class TestSubscriberBranchRenders:

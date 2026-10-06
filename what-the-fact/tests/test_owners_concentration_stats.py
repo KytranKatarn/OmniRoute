@@ -19,6 +19,8 @@ import pathlib
 
 from jinja2 import ChoiceLoader, DictLoader, Environment, FileSystemLoader
 
+from tests._render_ctx import fake_request
+
 TPL_DIR = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "templates"
 _BASE_STUB = "{% block meta %}{% endblock %}{% block content %}{% endblock %}"
 
@@ -28,6 +30,7 @@ def _render(owners, source_count, unattributed=0):
         DictLoader({"base.html": _BASE_STUB}),
         FileSystemLoader(str(TPL_DIR)),
     ]))
+    env.globals["request"] = fake_request()   # owners.html reads request.args
     return env.get_template("owners.html").render(
         owners=owners, source_count=source_count, unattributed=unattributed, is_subscriber=True,
     )

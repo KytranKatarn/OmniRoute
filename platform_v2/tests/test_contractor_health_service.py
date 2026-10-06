@@ -357,6 +357,95 @@ class TestScanIsolation(unittest.TestCase):
         self.assertEqual(out["probed"], 2)
 
 
+class TestLatencyCadenceFilter(unittest.TestCase):
+    """A health probe's latency must not become a provider's ranking latency.
+
+    The query carried a comment promising exactly this and no filter to keep the promise, so
+    every row with a latency qualified — including the 1-token health probes, which run every
+    15 minutes under an 8s timeout and so land 6x more often than the hourly latency cadence.
+
+    The existing TestRanking could never have caught it: it replaces the cursor wholesale, so
+    it exercises the SORT and never the SQL. These assert on the statement itself, because the
+    statement is the part that was wrong.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = pathlib.Path(chs.__file__).read_text(encoding="utf-8")
+
+    def _best_latency_sql(self):
+        """The best_latency CTE, captured whole.
+
+        Slicing to the next ")" truncates inside `DISTINCT ON (provider_key)` — the closing
+        paren of the function call comes long before the WHERE clause being asserted on.
+        """
+        import re as _re
+
+        m = _re.search(r"best_latency AS \((.*?)\n\s*\)", self.src, _re.S)
+        self.assertIsNotNone(m, "best_latency CTE not found")
+        return m.group(1)
+
+    def test_ranking_excludes_health_probes(self):
+        sql = self._best_latency_sql()
+        self.assertIn("probe_kind", sql, "the filter the comment promised is missing")
+        self.assertRegex(
+            sql,
+            r"probe_kind IN \('latency', 'full'\)",
+            "ranking latency must come from the sampling cadences only",
+        )
+        self.assertNotIn(
+            "'health'",
+            sql,
+            "health rows are exactly what must be excluded",
+        )
+
+    def test_the_health_read_in_the_listing_filters_too(self):
+        """The Contractors tab has its own copy of the query, with the same comment.
+
+        Fixing only the ranking would leave the badge showing a health-probe latency while the
+        ranking used a real one — two numbers for one provider, on the same screen.
+        """
+        routes = pathlib.Path(__file__).resolve().parents[1] / "tools" / "department_hq" / "fleet_provider_routes.py"
+        if not routes.exists():
+            routes = pathlib.Path("/mnt/archie_brain/platform_v2/tools/department_hq/fleet_provider_routes.py")
+        self.assertTrue(routes.exists(), "fleet_provider_routes.py not reachable")
+        src = routes.read_text(encoding="utf-8")
+        # anchored on the comment that introduces this read, not on the constant's DEFINITION
+        # (which sits near the top of the module, before the handler that uses it)
+        anchor = src.index("Latency has its own read")
+        block = src[anchor : anchor + 900]
+        self.assertIn(
+            "probe_kind IN ('latency', 'full')",
+            block,
+            "the listing's latency read must apply the same filter as the ranking",
+        )
+
+    def test_the_ceiling_is_still_applied(self):
+        """The new filter must not have displaced the outlier guard."""
+        self.assertIn("latency_ms <= %s", self._best_latency_sql())
+
+    def test_ranking_still_orders_by_a_real_sample_when_one_exists(self):
+        """The filter must not empty the ranking for a provider that IS being sampled."""
+        out_rows = [
+            {"provider_key": "sampled", "display_name": "s", "provider_class": None, "status": "ok", "best_ms": 250},
+            {"provider_key": "unsampled", "display_name": "u", "provider_class": None, "status": "ok", "best_ms": None},
+        ]
+        cursor = types.SimpleNamespace(fetchall=lambda: out_rows, fetchone=lambda: None, execute=lambda *a, **k: None)
+        module = types.ModuleType("database")
+
+        class _CM:
+            def __enter__(self):
+                return (None, cursor)
+
+            def __exit__(self, *exc):
+                return False
+
+        module.get_db_cursor = lambda commit=False: _CM()
+        with mock.patch.dict(sys.modules, {"database": module}):
+            out = chs.rank_providers()
+        self.assertEqual([r["provider_key"] for r in out], ["sampled", "unsampled"])
+
+
 class TestRanking(unittest.TestCase):
     """Rank by observation. Absent data must never become a number."""
 

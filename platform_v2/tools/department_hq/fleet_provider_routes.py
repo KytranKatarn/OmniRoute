@@ -1604,6 +1604,7 @@ def register_fleet_routes(bp, auth_decorator):
                            provider_key, latency_ms
                       FROM contractor_health
                      WHERE latency_ms IS NOT NULL
+                       AND probe_kind IN ('latency', 'full')
                        AND latency_ms <= %s
                      ORDER BY provider_key, created_at DESC
                     """,

@@ -327,6 +327,21 @@ def rank_providers() -> list[dict[str, Any]]:
                            provider_key, latency_ms
                       FROM contractor_health
                      WHERE latency_ms IS NOT NULL
+                    -- Restricted to the sampling cadences, NOT health.
+                    --
+                    -- The comment above this CTE promised exactly this filter and the query did not
+                    -- have it, so every row carrying a latency qualified -- including the 1-token
+                    -- health probes, which run every 15 minutes under an 8s timeout and therefore land
+                    -- six times more often than the hourly latency cadence. A health number and a
+                    -- ranking sample are different measurements of different things.
+                    --
+                    -- It bites hardest on a provider that flaps: one good health probe between two
+                    -- failures becomes its 'best' latency, which is the opposite of what a ranking is for.
+                    --
+                    -- Barely changes anything today, because latency_ms is only recorded on an `ok` row
+                    -- and only 2 of 30 contractors serve at all. It is the difference between a ranking
+                    -- and a coin toss as soon as more of them do.
+                       AND probe_kind IN ('latency', 'full')
                        AND latency_ms <= %s
                      ORDER BY provider_key, created_at DESC
                 )

@@ -118,31 +118,56 @@ def register_orchestration_routes(bp, admin_required):
         if not updates:
             return jsonify({"error": "no valid fields to update"}), 400
 
-        set_clause = ", ".join(f"{k} = %({k})s" for k in updates)
-        updates.update(
-            {
-                "scope": scope,
-                "agent_id": agent_id,
-                "capability": capability,
-                "node_id": node_id,
-            }
-        )
+        # Bind both field presence and values: omitted fields preserve existing values.
+        defaults = {
+            "idle_threshold_minutes": 5,
+            "utilization_threshold_pct": 60.0,
+            "queue_pressure_threshold": 10,
+            "idle_weight": 0.3,
+            "utilization_weight": 0.3,
+            "queue_pressure_weight": 0.4,
+            "overflow_enabled": True,
+            "overflow_paused": False,
+            "priority_boost": 0,
+            "max_overflow_concurrent": 3,
+        }
+        params = {
+            "scope": scope,
+            "agent_id": agent_id,
+            "capability": capability,
+            "node_id": node_id,
+        }
+        for field, default in defaults.items():
+            params[field] = updates.get(field, default)
+            params["has_" + field] = field in updates
 
         try:
             with get_db_cursor(commit=True) as (_, cur):
-                # UPDATE first — avoids duplicate rows from INSERT+ON CONFLICT DO NOTHING
-                # (ON CONFLICT DO NOTHING only fires on PK conflict, never on scope/agent/etc.)
+                # UPDATE first, matching nullable selectors without changing other rows.
                 cur.execute(
-                    f"UPDATE cluster_orchestration_config "
-                    f"SET {set_clause}, updated_at=NOW() "
-                    f"WHERE scope=%(scope)s "
-                    f"AND (agent_id IS NOT DISTINCT FROM %(agent_id)s) "
-                    f"AND (capability IS NOT DISTINCT FROM %(capability)s) "
-                    f"AND (node_id IS NOT DISTINCT FROM %(node_id)s)",
-                    updates,
+                    """
+                    UPDATE cluster_orchestration_config
+                    SET
+                        idle_threshold_minutes = CASE WHEN %(has_idle_threshold_minutes)s THEN %(idle_threshold_minutes)s ELSE idle_threshold_minutes END,
+                        utilization_threshold_pct = CASE WHEN %(has_utilization_threshold_pct)s THEN %(utilization_threshold_pct)s ELSE utilization_threshold_pct END,
+                        queue_pressure_threshold = CASE WHEN %(has_queue_pressure_threshold)s THEN %(queue_pressure_threshold)s ELSE queue_pressure_threshold END,
+                        idle_weight = CASE WHEN %(has_idle_weight)s THEN %(idle_weight)s ELSE idle_weight END,
+                        utilization_weight = CASE WHEN %(has_utilization_weight)s THEN %(utilization_weight)s ELSE utilization_weight END,
+                        queue_pressure_weight = CASE WHEN %(has_queue_pressure_weight)s THEN %(queue_pressure_weight)s ELSE queue_pressure_weight END,
+                        overflow_enabled = CASE WHEN %(has_overflow_enabled)s THEN %(overflow_enabled)s ELSE overflow_enabled END,
+                        overflow_paused = CASE WHEN %(has_overflow_paused)s THEN %(overflow_paused)s ELSE overflow_paused END,
+                        priority_boost = CASE WHEN %(has_priority_boost)s THEN %(priority_boost)s ELSE priority_boost END,
+                        max_overflow_concurrent = CASE WHEN %(has_max_overflow_concurrent)s THEN %(max_overflow_concurrent)s ELSE max_overflow_concurrent END,
+                        updated_at=NOW()
+                    WHERE scope=%(scope)s
+                      AND (agent_id IS NOT DISTINCT FROM %(agent_id)s)
+                      AND (capability IS NOT DISTINCT FROM %(capability)s)
+                      AND (node_id IS NOT DISTINCT FROM %(node_id)s)
+                    """,
+                    params,
                 )
                 if cur.rowcount == 0:
-                    # No existing row — insert defaults then apply the requested fields
+                    # New rows receive the requested values plus defaults for omitted fields.
                     cur.execute(
                         """
                         INSERT INTO cluster_orchestration_config
@@ -152,9 +177,12 @@ def register_orchestration_routes(bp, admin_required):
                              queue_pressure_weight, overflow_enabled, overflow_paused,
                              priority_boost, max_overflow_concurrent)
                         VALUES (%(scope)s, %(agent_id)s, %(capability)s, %(node_id)s,
-                                5, 60.0, 10, 0.3, 0.3, 0.4, true, false, 0, 3)
+                                %(idle_threshold_minutes)s, %(utilization_threshold_pct)s,
+                                %(queue_pressure_threshold)s, %(idle_weight)s, %(utilization_weight)s,
+                                %(queue_pressure_weight)s, %(overflow_enabled)s, %(overflow_paused)s,
+                                %(priority_boost)s, %(max_overflow_concurrent)s)
                         """,
-                        updates,
+                        params,
                     )
             return jsonify({"ok": True})
         except Exception as e:

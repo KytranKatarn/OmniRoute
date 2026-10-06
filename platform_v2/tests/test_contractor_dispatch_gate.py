@@ -804,3 +804,81 @@ def _db_that_raises_on_insert():
 
     module.get_db_cursor = lambda commit=False: _Cur()
     return module
+
+
+class TestOmniRouteCostClass(unittest.TestCase):
+    """A row must not claim to be free when its own gateway asks for payment.
+
+    Five contractor rows share one OmniRoute gateway with different `auto/*` aliases. A
+    verification pass found the gateway UP (HTTP 200, 540 models) and every configured alias
+    present — so the failures are upstream model availability, not stale configuration, and
+    nothing should be retired. But two rows were labelled `free_tier` while the gateway answered
+    `402 "This model requires an opencode API key"`. `omniroute_coding_free` is the sharpest: the
+    alias literally says `:free`.
+    """
+
+    MIGRATION_492 = "database/migrations/492_omniroute_paid_reclassification.sql"
+    REPO_ROOTS = (
+        pathlib.Path(__file__).resolve().parents[2],
+        pathlib.Path("/mnt/archie_brain"),
+    )
+
+    def _sql(self) -> str:
+        for root in self.REPO_ROOTS:
+            cand = root / self.MIGRATION_492
+            if cand.exists():
+                return cand.read_text(encoding="utf-8")
+        self.fail(f"could not locate {self.MIGRATION_492}")
+
+    def test_it_reclassifies_exactly_the_two_that_402(self):
+        sql = self._sql()
+        block = sql[sql.index("targets text[]") : sql.index("];", sql.index("targets text[]"))]
+        targets = set(re.findall(r"'([a-z0-9_]+)'", block))
+        self.assertEqual(targets, {"omniroute_coding", "omniroute_coding_free"}, targets)
+
+    def test_it_leaves_the_three_free_rows_alone(self):
+        """`omniroute` is genuinely free but client-restricted; `best_free` and `reasoning` fail
+        on upstream availability, not cost. Neither is a known-false free claim."""
+        sql = self._sql()
+        for keep in ("omniroute_best_free", "omniroute_reasoning"):
+            self.assertNotIn(f"'{keep}'", sql.split("targets text[]")[1].split("];")[0])
+
+    def test_it_writes_paid(self):
+        """Not just WHICH rows — the value.
+
+        A mutation turning the target back to 'free_tier' left every other test green: the list was
+        still the right two, the guard was still there, the evidence was still quoted. Only the
+        correction itself would have silently not happened.
+        """
+        sql = self._sql()
+        self.assertIn("SET provider_class = 'paid'", sql)
+        self.assertNotIn("SET provider_class = 'free_tier'", sql)
+
+    def test_it_deletes_nothing(self):
+        """Retiring a row whose alias is valid, because the model behind it is unavailable this
+        afternoon, is the same category error as deleting a provider that is merely down."""
+        self.assertNotIn("DELETE", self._sql().upper())
+
+    def test_the_guard_only_rewrites_free_tier(self):
+        """So a hand correction is not stomped, and a re-run is a no-op."""
+        self.assertIn("AND provider_class = 'free_tier'", self._sql())
+
+    def test_it_records_why_paid_is_operator_assigned(self):
+        """`classify_provider_class` deliberately cannot return paid — a probe sees a 402 but
+        cannot prove the price behind it. This file is that operator decision, so the reasoning
+        must travel with it."""
+        self.assertIn("classify_provider_class", self._sql())
+
+    def test_the_evidence_is_quoted(self):
+        self.assertIn("requires an opencode API key", self._sql())
+
+    def test_the_classifier_still_cannot_infer_paid(self):
+        """If this ever changes, the migration stops being an operator decision and becomes a
+        guess — which is what #3651 removed."""
+        import ai_bridge.external_providers  # noqa: F401
+        from services.contractor_health_service import classify_provider_class
+
+        for status in ("error", "unreachable", "rate_limited", "auth_error", "no_key", "ok"):
+            with mock.patch.dict(sys.modules, {"database": types.ModuleType("database")}):
+                got = classify_provider_class(has_key=True, status=status)
+            self.assertNotEqual(got, "paid", f"status {status} must not infer paid")

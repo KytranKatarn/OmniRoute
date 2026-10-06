@@ -831,3 +831,53 @@ hr {
 /* ═══════════════════════════════════════════════════════════════════════════
    EOF - A.R.C.H.I.E. Theme System v1.0.0
    ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ==========================================================================
+   Palette + category tokens extracted from lcars-tokens.css (DS9 criterion 5)
+   ==========================================================================
+   lcars-tokens.css is 233/239 IDENTICAL to this file, and all 6 differences are type-scale
+   (--archie-text-base, -2xl..-4xl, two spacing tokens) — none are colour. Linking it
+   wholesale would be a near no-op that also adds a second source for those 6.
+
+   The 10 --frame-* tokens it also defines were deliberately NOT copied: they already exist
+   in lcars-frames.css, which loads AFTER this file, so values written here would be
+   overridden anyway. Copying them would have been a silent no-op.
+
+   These 29 are what fleet.css's hardcoded hex literals should reference instead of
+   repeating #f59e0b / #10b981 / #22c55e and friends.
+
+   NOTE: these must live INSIDE a rule. Appended bare at the end of the file they sit at
+   file scope, which is invalid CSS — the parser discards them silently and every var()
+   reference falls back to the inherited value. It looks like it works.
+   ========================================================================== */
+:root {
+    --archie-palette-amber-500:      #f59e0b;
+    --archie-palette-amber-600:      #d97706;
+    --archie-palette-blue-500:       #3b82f6;
+    --archie-palette-blue-600:       #2563eb;
+    --archie-palette-cyan-400:       #00d4ff;
+    --archie-palette-emerald-500:    #10b981;
+    --archie-palette-green-500:      #22c55e;
+    --archie-palette-green-600:      #16a34a;
+    --archie-palette-orange-500:     #f97316;
+    --archie-palette-orange-600:     #ea580c;
+    --archie-palette-pink-500:       #ec4899;
+    --archie-palette-pink-600:       #db2777;
+    --archie-palette-purple-600:     #7c3aed;
+    --archie-palette-red-500:        #ef4444;
+    --archie-palette-red-600:        #dc2626;
+    --archie-palette-teal-500:       #14b8a6;
+    --archie-palette-teal-600:       #0d9488;
+    --cat-admin-ops:                 #ef4444;
+    --cat-ai-command:                #00ffff;
+    --cat-applications:              #10b981;
+    --cat-creative-studios:          #ec4899;
+    --cat-crypto:                    #eab308;
+    --cat-media-home:                #0ea5e9;
+    --cat-placeholders:              #6b7280;
+    --cat-project-knowledge:         #00ff41;
+    --cat-saas-services:             #f59e0b;
+    --lcars-accent:                  #00ff41;
+    --lcars-accent-dim:              #00cc34;
+    --lcars-accent-rgb:              0, 255, 65;
+}

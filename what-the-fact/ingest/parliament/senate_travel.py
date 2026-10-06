@@ -218,6 +218,25 @@ def _store(engine, sid: int, period: str, parsed: dict, check: dict, source_url:
 
 # ------------------------------------------------------------------------------------------- sync
 
+def reclassify(engine) -> dict:
+    """Re-run the classifier over every stored itinerary (no network). Needed when shared/travel_places.py is
+    extended: the stored is_international/intl_basis otherwise stay as the older rules left them. Changes only
+    those two columns, only where the answer differs. Returns counts by transition."""
+    changed: dict[str, int] = {}
+    with engine.begin() as c:
+        rows = c.execute(text("SELECT id, itinerary, is_international, intl_basis "
+                              "FROM parliament.senate_travel_trips")).fetchall()
+        for rid, itin, old, old_basis in rows:
+            new, basis = classify_itinerary(itin)
+            if new == old and basis == old_basis:
+                continue
+            c.execute(text("UPDATE parliament.senate_travel_trips SET is_international=:i, intl_basis=:b "
+                           "WHERE id=:id"), {"i": new, "b": basis, "id": rid})
+            key = f"{old}->{new}"
+            changed[key] = changed.get(key, 0) + 1
+    return changed
+
+
 def _sync(engine, max_quarters: int, since_year: int | None) -> dict:
     first = se._fetch_fragment()
     quarters = se._available_quarters(first)
@@ -303,6 +322,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--quarters", type=int, default=2)
     ap.add_argument("--since-year", type=int, default=None)
+    ap.add_argument("--reclassify", action="store_true",
+                    help="re-run the place classifier over stored itineraries (no network) and exit")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if args.reclassify:
+        print(reclassify(se._get_engine()))
+        raise SystemExit(0)
     print(run_senate_travel_sync(se._get_engine(), max_quarters=args.quarters, since_year=args.since_year))

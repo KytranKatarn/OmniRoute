@@ -264,3 +264,56 @@ def test_drift_guard_watches_it_but_does_not_require_it_before_the_first_run():
 def test_weekly_run_calls_it_after_the_senator_expenses_sync():
     run = _read("ingest/run.py")
     assert run.index("run_senator_expenses_sync(engine)") < run.index("run_senate_travel_sync(engine)")
+
+
+# ------------------------------------------------------------------ classifier extension (2026-10-06 backfill)
+
+@pytest.mark.parametrize("itinerary, expected", [
+    ("Ottawa - Jackson, USA - Halifax", True),                  # a country tail beats an ambiguous name
+    ("Toronto – London, England – Belfast, Northern Ireland – London, England – Toronto", True),
+    ("Charlottetown, PE - Siem Reap, KH - Charlottetown, PE", True),
+    ("Ottawa - Sydney, NS - Ottawa", False),                    # a Canadian province tail RESOLVES an ambiguous name
+    ("Ottawa - Victoria, BC - Ottawa", False),
+    ("Ottawa - Sydney - Ottawa", None),                         # no tail: still never auto-classified
+    ("Halifax - Boise, USA - Halifax", True),
+    ("Ottawa - Bozeman, MT, USA - Ottawa", True),
+    ("Whitehorse - Haines Junction - Whitehorse - Carcross - Skagway - Whitehorse", True),
+    ("Cheticamp - Personal - Ottawa - Montreal - Ottawa - Cheticamp", False),   # "Personal" is not a place
+    ("Personal", None),                                         # nothing but a marker: nothing to classify
+    ("Ottawa -", False),                                        # trailing separator artefact
+    ("Halifax - Fergus - Halifax", False),                      # small Canadian town from the real backfill
+    ("Ottawa - Xyzville - Ottawa", None),                       # still unrecognised -> review
+    ("Saskatoon - Muenster - Saskatoon", None),                 # exists in SK AND Germany, no tail
+])
+def test_extended_classifier(itinerary, expected):
+    assert classify_itinerary(itinerary)[0] is expected
+
+
+def test_extension_adds_no_place_to_two_lists():
+    """A name in CANADIAN_TOWNS that is also AMBIGUOUS or foreign would be classified by whichever rule runs first."""
+    from shared import travel_places as tp
+    assert not (tp.CANADIAN_TOWNS & tp.AMBIGUOUS)
+    assert not (tp.CANADIAN_TOWNS & (tp.FOREIGN | tp.FOREIGN_EXTRA))
+    assert not (tp.FOREIGN_EXTRA & tp.AMBIGUOUS)
+
+
+def test_reclassify_updates_only_what_changed():
+    class _R:
+        def fetchall(self):
+            return [(1, "Halifax - Fergus - Halifax", None, "unreviewed:Fergus"),            # now False
+                    (2, "Ottawa - Strasbourg - Ottawa", True, "foreign:Strasbourg"),         # unchanged
+                    (3, "Ottawa - Jackson, USA - Halifax", None, "unreviewed:Jackson")]      # now True
+    class _C:
+        def __init__(self): self.updates = []
+        def execute(self, sql, params=None):
+            if params: self.updates.append(params)
+            return _R()
+    class _E:
+        def __init__(self): self.c = _C()
+        def begin(self):
+            import contextlib
+            return contextlib.nullcontext(self.c)
+    e = _E()
+    out = st.reclassify(e)
+    assert out == {"None->False": 1, "None->True": 1}
+    assert sorted(u["id"] for u in e.c.updates) == [1, 3]

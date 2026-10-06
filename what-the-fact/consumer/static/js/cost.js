@@ -87,6 +87,13 @@
       var pctTotal = Math.max(2, Math.round((num(col.total) / max) * 100));
       var stack = el("div", { css: "width:100%;display:flex;flex-direction:column;justify-content:flex-end;" });
       stack.style.height = pctTotal + "%";
+      // A PARTIAL year (e.g. the current year to date) sits in the same row as the full years but is
+      // dimmed + dashed so nobody reads it as a complete year.
+      if (col.partial) {
+        stack.style.opacity = "0.55";
+        track.style.outline = "1px dashed " + C.muted;
+        track.style.outlineOffset = "-1px";
+      }
 
       (col.segs || []).forEach(function (seg) {
         var v = num(seg.value);
@@ -331,6 +338,24 @@
           ]
         };
       });
+      // The current partial year (year to date) goes IN THE ROW next to the full years — marked partial,
+      // and still NEVER part of the 5-year total above (the dashed box below carries the projection).
+      var curYtd = data.current, partialCol = null;
+      if (curYtd && num(curYtd.total) > 0) {
+        var q = num(curYtd.quarters);
+        partialCol = {
+          label: String(curYtd.year) + "*",
+          total: num(curYtd.total),
+          partial: true,
+          sub: q + " quarter" + (q === 1 ? "" : "s") + " so far",
+          segs: [
+            { value: num(curYtd.indemnity), color: C.indemnity, label: "Salary / indemnity" },
+            { value: num(curYtd.top_up), color: C.topup, label: "Role top-up" },
+            { value: num(curYtd.office_total), color: C.office, label: "Office expenses" }
+          ]
+        };
+        cols.push(partialCol);
+      }
       container.appendChild(stackedChart(cols));
 
       var hasTop = years.some(function (y) { return num(y.top_up) > 0; });
@@ -339,6 +364,7 @@
       ];
       if (hasTop) leg.push({ color: C.topup, label: "Role top-up" });
       leg.push({ color: C.office, label: "Office (travel · hospitality · contracts · staff)" });
+      if (partialCol) leg.push({ color: C.muted, label: "* year to date — partial, not in the 5-year total" });
       container.appendChild(legend(leg));
 
       // latest served year component breakdown

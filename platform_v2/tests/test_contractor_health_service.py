@@ -23,6 +23,7 @@ No network: `requests` is patched. No database: `database` is patched with a rec
 """
 
 import pathlib
+import re
 import sys
 import types
 import unittest
@@ -769,9 +770,16 @@ class TestProbeBackoff(unittest.TestCase):
         start = src.index("def scan(")
         block = src[start : src.index("def _latest_observations")]
         self.assertIn("skipped.append", block)
+
+        # Find the skip branch by its EFFECT, not by an exact string. An earlier version of this
+        # test split on the literal "if not probe_now:" and therefore broke the moment the
+        # condition legitimately grew an `and not force` — it was asserting on syntax, not on
+        # behaviour, and would have blocked the feature rather than the bug.
+        branch = re.search(r"skipped\.append\(.*?\n\s*continue", block, re.S)
+        self.assertIsNotNone(branch, "could not locate the skip branch")
         self.assertNotIn(
             "record_observation(",
-            block.split("if not probe_now:")[1].split("continue")[0],
+            branch.group(0),
             "a skip must not write an observation",
         )
 

@@ -7817,6 +7817,42 @@ function contractorHealthBadge(p) {
         + ' title="' + escapeHtml(title) + '">' + meta.label + suffix + '</span>';
 }
 
+// Force one probe now, ignoring the backoff window. Synchronous on purpose: the operator is
+// watching a button and wants an answer in this click, not a poll loop. One probe is bounded
+// by its own timeout, so this is not the long-inference case the 202+poll rule is about.
+async function probeProviderNow(key, btn) {
+    var original = btn ? btn.innerHTML : null;
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" style="width:12px;height:12px"></i>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+    try {
+        var res = await fetch('/tools/department-hq/api/providers/' + encodeURIComponent(key) + '/probe', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }, body: '{}'
+        });
+        var data = await res.json();
+        if (!res.ok || data.success === false) {
+            showToast((data.error || 'Probe failed') + ' — ' + key, 'error');
+        } else {
+            var st = (data.result && data.result.status) || 'unknown';
+            showToast(key + ': ' + st, st === 'ok' ? 'success' : 'warning');
+        }
+        loadContractors();
+    } catch (e) {
+        showToast('Probe request failed: ' + key, 'error');
+    } finally {
+        // loadContractors() re-renders the row, so this button is usually already gone. Restore
+        // anyway for the failure path where the re-render may not have happened.
+        if (btn && document.body.contains(btn)) {
+            btn.disabled = false;
+            btn.innerHTML = original;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+}
+
 // The second switch. Separate from toggleProvider because `is_active` means configured
 // and `dispatchable` means "route here" — a provider can be set up, holding a key and
 // passing its probe, while still receiving nothing.
@@ -7914,6 +7950,15 @@ function renderContractors(providers, routingMode, creedData) {
         html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
         // DS9 PR 4 — what the probe measured, and what kind of provider this is.
         html += contractorHealthBadge(p);
+        // The escape hatch from the backoff window. A `no_key` provider cannot become healthy
+        // on a timer — only a person can fix it, by pasting a key. Without this button the
+        // 120-minute window is the operator's only refresh, so fixing the config and reloading
+        // shows the OLD `no_key` and reads as "the fix didn't work".
+        // Key via data attribute, never spliced into the onclick JS (&#39; decodes back to ' first).
+        html += '<button class="contractor-btn-probe" title="Probe now (ignore the backoff window)"'
+            + ' data-provider-key="' + escapeHtml(p.provider_key) + '"'
+            + ' onclick="event.stopPropagation();probeProviderNow(this.dataset.providerKey, this)">'
+            + '<i data-lucide="refresh-cw" style="width:12px;height:12px"></i></button>';
         html += contractorClassBadge(p);
         html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
         html += '<div class="contractor-firm-actions">';

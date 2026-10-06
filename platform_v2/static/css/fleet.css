@@ -3757,6 +3757,21 @@ body.light-mode .bridge-zone-unstaffed {
 .contractor-btn-edit:hover {
     background: rgba(168, 85, 247, 0.1) !important;
 }
+/* Probe-now. Neutral cyan so it reads as an ACTION on the badge beside it, not as a switch.
+   Deliberately not green: green means "routing is on" everywhere else on this row, and this
+   button has nothing to do with routing. */
+.contractor-btn-probe {
+    color: var(--archie-cyan, #22d3ee);
+    border-color: rgba(34, 211, 238, 0.3) !important;
+    padding: 2px 5px !important;
+}
+.contractor-btn-probe:hover {
+    background: rgba(34, 211, 238, 0.12) !important;
+}
+.contractor-btn-probe:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
 .contractor-btn-toggle {
     color: var(--archie-text-muted);
     border-color: rgba(255,255,255,0.1) !important;

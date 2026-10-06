@@ -32,6 +32,20 @@ sys.path.insert(0, "/app")
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 JS_PATH = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "static" / "js" / "department-hq.js"
 ROUTES_PATH = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "fleet_provider_routes.py"
+SVC_PATH = REPO_ROOT / "platform_v2" / "services" / "contractor_health_service.py"
+CSS_PATH = REPO_ROOT / "platform_v2" / "static" / "css" / "fleet.css"
+JOBS_PATH = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "jobs.py"
+
+
+def _read(path: pathlib.Path, container_rel: str) -> str:
+    """Read a repo file, falling back to the in-container location.
+
+    The repo root is not mounted into the container; platform_v2 lives at /app there.
+    """
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    alt = pathlib.Path("/app") / container_rel
+    return alt.read_text(encoding="utf-8") if alt.exists() else ""
 
 
 def _js() -> str:
@@ -667,3 +681,122 @@ class TestNoSilentRegressions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProbeNowControl(unittest.TestCase):
+    """The operator's escape hatch from the backoff window.
+
+    Backoff (#3668) stops the scheduler re-probing failures that re-probing cannot fix. But a
+    `no_key` provider can only be fixed BY a person, and the 120-minute window would otherwise
+    be the operator's only refresh — so they paste a key, reload, see the old `no_key`, and
+    conclude the fix failed.
+    """
+
+    def setUp(self):
+        self.src = _read(JS_PATH, "tools/department_hq/static/js/department-hq.js")
+        self.routes = _read(ROUTES_PATH, "tools/department_hq/fleet_provider_routes.py")
+        self.svc = _read(SVC_PATH, "services/contractor_health_service.py")
+
+    def _route_body(self) -> str:
+        """The probe route's source, from `def` to the next route decorator.
+
+        A fixed character window silently rots the moment the handler grows — which it did, and
+        the assertion failed for the wrong reason. Slice to the next decorator instead.
+        """
+        i = self.routes.index("def api_probe_provider_now")
+        rest = self.routes[i:]
+        j = rest.find("@bp.route(", 1)
+        return rest if j == -1 else rest[:j]
+
+    def test_the_endpoint_exists_and_is_post_only(self):
+        self.assertIn('@bp.route("/api/providers/<provider_key>/probe", methods=["POST"])', self.routes)
+
+    def test_the_endpoint_is_authenticated(self):
+        """An unauthenticated probe endpoint hands anyone with a session the ability to make
+        the platform spend money against paid keys. Every sibling route uses @auth_decorator."""
+        i = self.routes.index('@bp.route("/api/providers/<provider_key>/probe", methods=["POST"])')
+        self.assertIn("@auth_decorator", self.routes[i : i + 300])
+
+    def test_unknown_provider_is_a_404_not_a_silent_success(self):
+        """Probing a key that does not exist must not report 'success' with no provider."""
+        i = self.routes.index("def api_probe_provider_now")
+        block = self.routes[i : i + 2600]
+        self.assertIn("Provider not found", block)
+        self.assertIn("404", block)
+
+    def test_kind_is_validated_rather_than_trusted(self):
+        i = self.routes.index("def api_probe_provider_now")
+        self.assertIn('kind not in ("health", "latency", "full")', self.routes[i : i + 2600])
+
+    def test_force_bypasses_the_backoff_window(self):
+        """The whole point. If force did nothing, the button would just re-run the scheduler."""
+        self.assertIn("def scan(", self.svc)
+        i = self.svc.index("def scan(")
+        block = self.svc[i : i + 3000]
+        self.assertIn("force: bool = False", block)
+        self.assertIn("if not probe_now and not force:", block)
+
+    def test_force_is_not_reachable_from_the_scheduler(self):
+        """The scheduler must keep its hands off; only the operator route may pass force.
+
+        Scoped to `scan(` on purpose. `jobs.py` has an unrelated `force=True` at line ~4269 —
+        that is A.R.C.H.I.E.'s own dispatch throttle, a different function's parameter. Asserting
+        the bare string flagged a false positive, so this checks the CALL, not the word.
+        """
+        jobs = _read(JOBS_PATH, "tools/department_hq/jobs.py")
+        for m in re.finditer(r"scan\((?:[^()\n]|\n)*?\)", jobs):
+            self.assertNotIn("force=", m.group(0), f"scheduler bypasses backoff: {m.group(0)[:80]}")
+
+    def test_every_exception_path_in_the_probe_route_returns_an_error_status(self):
+        """No `except` in this route may return 2xx.
+
+        An earlier version asserted the literal `"error": str(e)}), 500` appears in the route —
+        and a mutation swapping the *scan* handler for a 200 still passed, because the identical
+        string also appears on the earlier DB-lookup handler. The test proved the route contained
+        that line somewhere, which is not the same claim at all.
+
+        So: split on every `except` and check the status code each one returns.
+        """
+        body = self._route_body()
+        paths = [m.group(1) for m in re.finditer(r"except[^\n]*:\n\s*return jsonify\(.*?\) ?, ?(\d{3})", body, re.S)]
+        self.assertGreaterEqual(len(paths), 3, f"expected several guarded paths in the probe route, saw {len(paths)}")
+        for status in paths:
+            self.assertGreaterEqual(int(status), 400, f"an exception path returns HTTP {status}")
+
+    def test_a_broken_health_service_is_reported_as_unavailable(self):
+        """Import failure is a 503, not a 500 — the service is down, not the request."""
+        self.assertIn('"error": f"health service unavailable', self._route_body())
+
+    def test_the_button_sits_beside_the_reading_it_refreshes(self):
+        """Not buried in the action group: the reason to press it is the stale badge."""
+        i = self.src.index("contractorHealthBadge(p);")
+        after = self.src[i : i + 700]
+        self.assertIn("contractor-btn-probe", after)
+
+    def test_the_button_stops_the_row_from_opening_the_edit_modal(self):
+        """Every other control in this row calls event.stopPropagation() for exactly this."""
+        i = self.src.index("contractor-btn-probe")
+        self.assertIn("event.stopPropagation()", self.src[i - 200 : i + 400])
+
+    def test_the_button_shows_progress_and_always_re_enables(self):
+        js = self.src[self.src.index("async function probeProviderNow") :][:2400]
+        self.assertIn("btn.disabled = true", js)
+        self.assertIn("btn.disabled = false", js)
+        self.assertIn("finally", js)
+
+    def test_the_toast_reports_the_actual_status_not_a_generic_success(self):
+        js = self.src[self.src.index("async function probeProviderNow") :][:2400]
+        self.assertIn("data.result && data.result.status", js)
+
+    def test_the_provider_key_is_uri_encoded_in_the_request(self):
+        """Provider keys are operator-supplied free text."""
+        js = self.src[self.src.index("async function probeProviderNow") :][:2400]
+        self.assertIn("encodeURIComponent(key)", js)
+
+    def test_the_css_does_not_reuse_green(self):
+        """Green means "routing on" everywhere else in this row. This button is not routing."""
+        css = _read(CSS_PATH, "static/css/fleet.css")
+        i = css.index(".contractor-btn-probe {")
+        block = css[i : css.index("}", i)]
+        self.assertNotIn("#10b981", block)
+        self.assertNotIn("#22c55e", block)

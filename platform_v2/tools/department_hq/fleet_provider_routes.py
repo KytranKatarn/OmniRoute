@@ -547,7 +547,80 @@ def register_fleet_routes(bp, auth_decorator):
             return jsonify({"error": str(e)}), 500
 
     # ------------------------------------------------------------------ #
-    # POST /api/providers/<key>/dispatchable — toggle the ROUTING switch (DS9 PR 1)
+    # POST /api/providers/<key>/probe — force one probe now
+    # ------------------------------------------------------------------ #
+    @bp.route("/api/providers/<provider_key>/probe", methods=["POST"])
+    @auth_decorator
+    def api_probe_provider_now(provider_key):
+        """Probe one contractor immediately, ignoring the backoff window.
+
+        Backoff exists so the scheduler stops re-probing failures that re-probing cannot fix.
+        But a `no_key` provider cannot become healthy on a timer — only a person can fix it,
+        by pasting a key. Without this endpoint the 120-minute window is the operator's ONLY
+        refresh: they fix the config, reload, see the old `no_key`, and conclude the fix
+        failed. That is a support question, and it is entirely self-inflicted.
+
+        `kind` defaults to `health`. An operator fixing credentials wants a liveness answer,
+        not a ranking sample. `full` is accepted for the case where the thing they just fixed
+        is a *model* name — only that cadence enumerates and reports drift.
+        """
+        data = request.get_json(silent=True) or {}
+        kind = data.get("kind", "health")
+        if kind not in ("health", "latency", "full"):
+            return (
+                jsonify({"error": "kind must be one of: health, latency, full"}),
+                400,
+            )
+
+        try:
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute(
+                    """
+                    SELECT provider_key, base_url, default_model,
+                           auth_env_var, is_cloud_proxy, capabilities
+                      FROM contractor_providers
+                     WHERE provider_key = %s
+                    """,
+                    (provider_key,),
+                )
+                provider = cur.fetchone()
+            if provider is None:
+                return jsonify({"error": "Provider not found"}), 404
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        # Imported here, not at module top: the service pulls in probe machinery the rest of
+        # this file has no reason to load, and a broken health service must not stop the
+        # provider listing from rendering.
+        try:
+            from services.contractor_health_service import scan
+        except Exception as e:
+            return jsonify({"error": f"health service unavailable: {e}"}), 503
+
+        # Synchronous and deliberately so. An operator watching a button needs an answer now,
+        # and a single probe is bounded by its own timeout — the guidance against blocking the
+        # web thread applies to long LLM inference, not to one 8-second liveness ping.
+        try:
+            result = scan(
+                probe_kind=kind,
+                providers=[dict(provider)],
+                force=True,
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+        outcomes = result.get("results") or []
+        return jsonify(
+            {
+                "success": True,
+                "provider_key": provider_key,
+                "kind": kind,
+                "forced": True,
+                "probed": result.get("probed", 0),
+                "result": outcomes[0] if outcomes else None,
+            }
+        )
+
     # ------------------------------------------------------------------ #
     @bp.route("/api/providers/<provider_key>/switch-history")
     @auth_decorator

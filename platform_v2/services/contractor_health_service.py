@@ -498,11 +498,18 @@ def scan(
     probe_kind: str = "health",
     providers: Optional[list[dict[str, Any]]] = None,
     timeout_s: Optional[int] = None,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Probe each provider once and record the outcome.
 
     `providers` defaults to every configured contractor. `timeout_s` is per provider and
     deliberately short — see DEFAULT_HEALTH_TIMEOUT_S for why.
+
+    `force` ignores the backoff window. It exists for one caller: the operator pressing
+    "probe now" in the Contractors tab after fixing a credential. Without it the 120-minute
+    `no_key` window becomes the operator's only refresh, which turns "I pasted a working
+    key" into a two-hour wait and a support question. It is deliberately NOT exposed on any
+    scheduled path — the scheduler must keep its hands off.
 
     A provider that raises is recorded as `error` with the exception text and the scan
     CONTINUES. One wedged contractor must never prevent the other twenty-nine from being
@@ -536,7 +543,7 @@ def scan(
     for provider in providers:
         key = provider.get("provider_key") or ""
         probe_now, why = due_for_probe(latest_by_key.get(key))
-        if not probe_now:
+        if not probe_now and not force:
             skipped.append({"provider_key": key, "reason": why})
             continue
         started = time.time()

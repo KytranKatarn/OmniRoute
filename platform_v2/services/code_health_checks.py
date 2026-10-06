@@ -48,7 +48,7 @@ def sql_finding_present(source):
     try:
         tree = ast.parse(source)
         compile(tree, "<sql-finding>", "exec")
-    except (SyntaxError, ValueError, TypeError):
+    except (SyntaxError, ValueError, TypeError, RecursionError):
         return None
     nodes = list(ast.walk(tree))
     dynamic_names = {"exec", "eval", "compile", "getattr", "setattr", "globals", "locals", "vars"}

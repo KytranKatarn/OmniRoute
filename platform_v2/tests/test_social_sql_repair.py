@@ -229,3 +229,14 @@ def test_real_audit_shares_verification_and_preserves_unknown_fallback(tmp_path,
     assert results[0] == results[1]
     findings = results[0][2]
     assert any(finding["code"] == "SQL_INJECTION_RISK" for finding in findings) is flagged
+
+
+def test_compiler_recursion_failure_keeps_the_legacy_security_finding(tmp_path):
+    from services.code_metrics_service import _audit_module_python
+
+    source = "x = " + "+".join(["1"] * 1500) + '\ncur.execute(f"SELECT {value}")\n'
+    assert sql_finding_present(source) is not False
+    (tmp_path / "__init__.py").write_text("")
+    (tmp_path / "queries.py").write_text(source)
+    findings = _audit_module_python("test", str(tmp_path))[2]
+    assert any(finding["code"] == "SQL_INJECTION_RISK" for finding in findings)

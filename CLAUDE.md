@@ -242,7 +242,20 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 ## Critical Technical Rules
 
 1. **Read before modify** — Check existing code patterns first
-2. **Two .env files** — Root `.env` and `platform_v2/.env` must match
+2. **Two `.env` sources, both LIVE — a variable can have TWO different values at once.**
+   Root `.env` is injected as **process env** by compose (`env_file: - .env`, read at *container
+   create*). `platform_v2/.env` is visible inside the same container at **`/app/.env`**, and code
+   loads it with dotenv. So `os.getenv("X")` and `load_dotenv("/app/.env")["X"]` can disagree.
+
+   As of 2026-10-06 they **do** disagree for 7 shared vars — `ARCHIE_CLAUDE_PASSWORD`,
+   `CANLII_API_KEY` (absent from the mirror), `GDRIVE_ENCRYPTION_PASSPHRASE_HASH` (absent from
+   root), `GITHUB_REPOS`, `GITHUB_TOKEN`, `INTERNAL_API_KEY`, `NTOPNG_ADMIN_PASSWORD` — and the
+   files are not even the same shape (49 vars only in root, 17 only in the mirror). **Do not
+   "fix" this by copying one over the other**; each side may be correct for its own consumer.
+   Resolve a given variable's source deliberately before trusting it.
+
+   Verify with fingerprints, never by printing a value:
+   `sed -n 's/^VAR=//p' .env | tr -d '"\''\r' | sha256sum | cut -c1-12`
 3. **Module perms** — Add to BOTH `rbac.py` AND `module_registry.py`
 4. **Keep indexes in sync** — Memory files → MEMORY.md. Architecture changes → rules files + CLAUDE.md
 5. **Dev HQ after every commit+push**:
@@ -260,6 +273,8 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 | `TemplateNotFound` | Use `tools/` prefix in path |
 | Module not showing | Check both `rbac.py` + `module_registry.py` |
 | Ollama resource contention | Unload non-essential models before inference |
+| Changed a var in `.env` but the container ignores it | `docker restart` does **NOT** re-read `env_file`. It is applied at container **create**. Use `docker compose up -d --force-recreate <svc>` |
+| A rotated secret looks half-applied | Same cause. Confirm with `docker exec <svc> sh -lc 'printf "%s" "$VAR" \| sha256sum \| cut -c1-12'` — the **process env** hash, not the file's |
 | Agent column errors | `current_mood` (not mood), `skill_category` (not category), `proficiency_level` (not level) |
 
 ## Commands

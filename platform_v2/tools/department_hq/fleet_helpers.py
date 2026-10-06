@@ -6,13 +6,17 @@ Merged from starbase/helpers.py and starship/helpers.py during Fleet migration.
 
 import json
 import os
-import subprocess
 import time
 import logging
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from database import get_db_cursor
 import requests
+from .services import fleet_hardware_capacity as _hardware_capacity
+from .services import fleet_node_store as _node_store
+
+# Preserve the legacy module reference used by hardware probes and test overrides.
+subprocess = _hardware_capacity.subprocess
 
 try:
     from ai_bridge import agent_performance_tracker as _performance_tracker
@@ -156,219 +160,10 @@ _hw_capacity_cache = {"data": None, "time": 0}
 
 
 def _get_cached_hw_capacity():
-    """Get hardware capacity info with 30s cache (GPU, RAM, model breakdown)."""
-    now = time.time()
-    if _hw_capacity_cache["data"] and (now - _hw_capacity_cache["time"]) < _OLLAMA_CACHE_TTL:
-        return _hw_capacity_cache["data"]
-
-    import psutil
-
-    mem = psutil.virtual_memory()
-    total_gb = round(mem.total / (1024**3), 1)
-    available_gb = round(mem.available / (1024**3), 1)
-    usage_pct = round(mem.percent, 1)
-    # RAM budget: 70% LLM / 15% host / 15% security services (ADR-078 updated)
-    reserve_gb = round(total_gb * 0.15, 1)  # 15% host reserve (OS, Docker, platform, DB)
-    security_gb = round(total_gb * 0.15, 1)  # 15% security services (Frigate, CrowdSec, Suricata, etc.)
-
-    # Ollama loaded models — categorize GPU vs CPU
-    ps_models = _get_cached_ollama_ps()
-    models_loaded = len(ps_models)
-    models_ram_gb = round(sum(m.get("size", 0) for m in ps_models) / (1024**3), 1)
-    gpu_models = []
-    cpu_models = []
-    for pm in ps_models:
-        pm_name = pm.get("name", "").replace(":latest", "")
-        pm_total = pm.get("size", 0) or 0
-        pm_size = round(pm_total / (1024**3), 1)
-        pm_vram = pm.get("size_vram", 0) or 0
-        # `size` vs `size_vram` is exactly what `ollama ps` uses to compute its
-        # PROCESSOR column, so the GPU/CPU split is derivable here and needs no
-        # second source. It was being discarded: the panel printed a GB figure
-        # when vram>0 and the bare word "CPU" otherwise, so GPU residency was
-        # implied by the PRESENCE of a number and never actually stated.
-        if pm_vram <= 0:
-            processor, gpu_pct = "cpu", 0
-        elif pm_vram >= pm_total:
-            processor, gpu_pct = "gpu", 100
-        else:
-            processor, gpu_pct = "split", int(round(pm_vram / pm_total * 100)) if pm_total else 0
-        entry = {
-            "name": pm_name,
-            "size_gb": pm_size,
-            "vram_gb": round(pm_vram / (1024**3), 1),
-            "processor": processor,
-            "gpu_pct": gpu_pct,
-        }
-        (gpu_models if pm_vram > 0 else cpu_models).append(entry)
-
-    # GPU info from nvidia-smi (may fail inside Docker without GPU passthrough)
-    gpu_info = None
-    try:
-        result = subprocess.run(
-            [
-                "nvidia-smi",
-                # uuid is the JOIN KEY to --query-compute-apps, which is the only
-                # way to say which card carries which model (/api/ps does not say).
-                # Index is NOT usable for that join and is misleading besides: the
-                # TITAN is index 1, not 0, and ai-bridge.md warns to identify these
-                # cards by UUID precisely because an index assumption was wrong once.
-                "--query-gpu=name,memory.total,memory.used,memory.free,uuid",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            # ONE LINE PER GPU. Splitting the whole payload on "," merged the rows:
-            # measured 2026-09-20 on the hub, parts became
-            #   ['Quadro M4000','8192','4','8116\nNVIDIA TITAN X (Pascal)','12288',...]
-            # so parts[1]/parts[2] described GPU 0 ALONE -> the platform reported a
-            # single 8GB card with 0.0GB used while a 12GB TITAN held 4.9GB. The
-            # identical bug was found and fixed in scripts/host_monitor.py (KSO's
-            # collector) on 2026-07-26; this copy was never fixed.
-            cards = []
-            for line in result.stdout.strip().splitlines():
-                parts = [c.strip() for c in line.split(",")]
-                if len(parts) < 4:
-                    continue
-                try:
-                    c_total = round(float(parts[1]) / 1024, 1)
-                    c_used = round(float(parts[2]) / 1024, 1)
-                    c_free = round(float(parts[3]) / 1024, 1)
-                except ValueError:
-                    continue
-                cards.append(
-                    {
-                        "index": len(cards),
-                        "name": parts[0],
-                        # Absent on older nvidia-smi builds; consumers must treat a
-                        # missing uuid as "cannot join", not as a blank that matches.
-                        "uuid": parts[4] if len(parts) > 4 else None,
-                        "vram_total_gb": c_total,
-                        "vram_used_gb": c_used,
-                        "vram_free_gb": c_free,
-                        "usage_pct": round(c_used / c_total * 100, 1) if c_total > 0 else 0,
-                    }
-                )
-            if cards:
-                vram_total = round(sum(c["vram_total_gb"] for c in cards), 1)
-                vram_used = round(sum(c["vram_used_gb"] for c in cards), 1)
-                vram_free = round(sum(c["vram_free_gb"] for c in cards), 1)
-                largest_free = max(c["vram_free_gb"] for c in cards)
-                gpu_info = {
-                    "name": " + ".join(c["name"] for c in cards),
-                    "gpus": cards,
-                    "gpu_count": len(cards),
-                    "vram_total_gb": vram_total,
-                    "vram_used_gb": vram_used,
-                    "vram_free_gb": vram_free,
-                    "largest_free_gb": largest_free,
-                    "total_known": True,
-                    "usage_pct": round(vram_used / vram_total * 100, 1) if vram_total > 0 else 0,
-                    # Keyed on the LARGEST SINGLE card, not the sum: a model has to
-                    # fit on one card, so 2GB free spread over two cards is not 2GB
-                    # of capacity. Same rule as remote_nodes.gpu_vram_gb (fleet.md).
-                    "status": "red" if largest_free < 1.0 else ("amber" if largest_free < 2.0 else "green"),
-                    "models": gpu_models,
-                }
-    except Exception as e:
-        logger.warning("nvidia-smi query failed (expected in Docker without GPU passthrough): %s", e)
-
-    # Fallback: build GPU info from Ollama VRAM data if nvidia-smi unavailable
-    if gpu_info is None and gpu_models:
-        vram_used = round(sum(m["vram_gb"] for m in gpu_models), 1)
-        # No nvidia-smi: we know what Ollama placed on a GPU but NOT how much VRAM
-        # exists, so the total is reported as unknown rather than assumed. This
-        # previously hardcoded 8.0 ("Quadro M4000") and computed a usage percentage
-        # against it -- on a 20GB two-card host that is a confident wrong number.
-        # An unknown capacity is reported as unknown (ADR-017).
-        gpu_info = {
-            "name": "GPU (via Ollama)",
-            "gpus": [],
-            "gpu_count": 0,
-            "vram_total_gb": None,
-            "vram_used_gb": vram_used,
-            "vram_free_gb": None,
-            "largest_free_gb": None,
-            "total_known": False,
-            "usage_pct": None,
-            "status": "unknown",
-            "models": gpu_models,
-        }
-
-    # ComfyUI VRAM usage (loads SDXL on-demand, torch_vram_total > 0 when active)
-    comfyui_vram_gb = 0
-    comfyui_status = "idle"
-    comfyui_reserved_gb = 0
-    try:
-        comfyui_host = os.getenv("COMFYUI_HOST", "http://archie_comfyui:8188")
-        _cfu_resp = requests.get(f"{comfyui_host}/system_stats", timeout=3)
-        if _cfu_resp.status_code == 200:
-            for dev in _cfu_resp.json().get("devices", []):
-                if dev.get("type") == "cuda":
-                    torch_vram = dev.get("torch_vram_total", 0)
-                    comfyui_vram_gb = round(torch_vram / (1024**3), 1)
-                    comfyui_status = "loaded" if torch_vram > 0 else "idle"
-    except Exception as e:
-        logger.warning("ComfyUI system_stats fetch failed: %s", e)
-    # Estimate reserved VRAM for the configured checkpoint (SDXL ~6.5GB)
-    if comfyui_status == "idle":
-        try:
-            with get_db_cursor(commit=False) as (_cconn, _ccur):
-                _ccur.execute(
-                    "SELECT image_model FROM agents WHERE image_model IS NOT NULL AND status = 'active' LIMIT 1"
-                )
-                _crow = _ccur.fetchone()
-                if _crow:
-                    ckpt = _crow["image_model"]
-                    # Estimate VRAM from checkpoint name
-                    if "xl" in ckpt.lower():
-                        comfyui_reserved_gb = 6.5
-                    else:
-                        comfyui_reserved_gb = 4.0
-        except Exception:
-            comfyui_reserved_gb = 6.5  # Default SDXL estimate
-    if gpu_info:
-        gpu_info["comfyui_vram_gb"] = comfyui_vram_gb
-        gpu_info["comfyui_status"] = comfyui_status
-        gpu_info["comfyui_reserved_gb"] = comfyui_reserved_gb
-
-    llm_budget_gb = round(total_gb * 0.70, 1)  # 70% for LLM agents
-    agent_budget_gb = round(llm_budget_gb * 0.90, 1)  # 90% of LLM budget for active agents
-    swap_buffer_gb = round(llm_budget_gb * 0.10, 1)  # 10% swap buffer for model rotation
-    # Status: red if eating into reserve+security, amber if swap depleted, green if within budget
-    swap_used_gb = max(0, models_ram_gb - agent_budget_gb)
-    min_free = reserve_gb + security_gb  # Total non-LLM allocation
-    if available_gb <= reserve_gb:
-        ram_status = "red"
-    elif available_gb <= min_free or swap_used_gb >= swap_buffer_gb:
-        ram_status = "amber"
-    else:
-        ram_status = "green"
-
-    capacity = {
-        "ram": {
-            "total_gb": total_gb,
-            "available_gb": available_gb,
-            "usage_pct": usage_pct,
-            "reserve_gb": reserve_gb,
-            "security_gb": security_gb,
-            "llm_budget_gb": llm_budget_gb,
-            "agent_budget_gb": agent_budget_gb,
-            "swap_buffer_gb": swap_buffer_gb,
-            "status": ram_status,
-        },
-        "gpu": gpu_info,
-        "models_loaded": models_loaded,
-        "models_ram_gb": models_ram_gb,
-        "gpu_models": gpu_models,
-        "cpu_models": cpu_models,
-    }
-    _hw_capacity_cache["data"] = capacity
-    _hw_capacity_cache["time"] = now
-    return capacity
+    """Get hardware capacity with the existing shared 30-second cache."""
+    return _hardware_capacity.get_cached_capacity(
+        _get_cached_ollama_ps, get_db_cursor, cache=_hw_capacity_cache, ttl=_OLLAMA_CACHE_TTL
+    )
 
 
 # --- SSE Activity Event Queue ---
@@ -553,141 +348,23 @@ def _compute_node_health(node):
 
 
 def _get_user_nodes(user_id, is_admin=False):
-    """Get all starship nodes owned by or visible to this user.
-    Admins see all nodes. Nodes with NULL registered_by are visible to all."""
-    with get_db_cursor() as (conn, cur):
-        if is_admin:
-            cur.execute(
-                """
-                SELECT id, node_id, node_name, deployment_mode, hostname, port,
-                       status, is_active, bridge_enabled, bridge_priority,
-                       gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
-                       approval_status, last_heartbeat, client_version,
-                       -- #5218: node_role + mesh_status are what let the caller tell
-                       -- "an agent phoned home" apart from "this node is reachable".
-                       -- Without them _compute_node_health() degrades to the old
-                       -- heartbeat-only verdict.
-                       COALESCE(node_role, 'agent') AS node_role,
-                       mesh_status, mesh_last_seen, mesh_latency_ms, reachable_port,
-                       COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
-                FROM remote_nodes
-                ORDER BY bridge_priority DESC, node_name
-                """
-            )
-        else:
-            cur.execute(
-                """
-                SELECT id, node_id, node_name, deployment_mode, hostname, port,
-                       status, is_active, bridge_enabled, bridge_priority,
-                       gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
-                       approval_status, last_heartbeat, client_version,
-                       -- #5218: node_role + mesh_status are what let the caller tell
-                       -- "an agent phoned home" apart from "this node is reachable".
-                       -- Without them _compute_node_health() degrades to the old
-                       -- heartbeat-only verdict.
-                       COALESCE(node_role, 'agent') AS node_role,
-                       mesh_status, mesh_last_seen, mesh_latency_ms, reachable_port,
-                       COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
-                FROM remote_nodes
-                WHERE registered_by = %s OR registered_by IS NULL
-                ORDER BY bridge_priority DESC, node_name
-                """,
-                (user_id,),
-            )
-        return cur.fetchall()
+    """Compatibility entry point; retain the caller's database override."""
+    return _node_store.get_user_nodes(user_id, is_admin, db_cursor=get_db_cursor)
 
 
 def _get_node_for_user(node_id, user_id, require_owner=True):
-    """Get a specific node, verifying ownership.
-    Nodes with NULL registered_by are atomically claimed on first access."""
-    with get_db_cursor(commit=True) as (conn, cur):
-        if require_owner:
-            # Try to claim orphan nodes atomically
-            cur.execute(
-                """UPDATE remote_nodes SET registered_by = %s
-                   WHERE node_id = %s AND registered_by IS NULL""",
-                (user_id, node_id),
-            )
-            cur.execute(
-                """SELECT * FROM remote_nodes
-                   WHERE node_id = %s AND registered_by = %s""",
-                (node_id, user_id),
-            )
-        else:
-            cur.execute("SELECT * FROM remote_nodes WHERE node_id = %s", (node_id,))
-        return cur.fetchone()
+    """Compatibility entry point; retain the caller's database override."""
+    return _node_store.get_node_for_user(node_id, user_id, require_owner, db_cursor=get_db_cursor)
 
 
 def _get_node_for_user_by_int_id(int_id, user_id):
-    """Get a node by its integer DB id, verifying ownership."""
-    with get_db_cursor(commit=True) as (conn, cur):
-        # Claim orphan if needed
-        cur.execute(
-            """UPDATE remote_nodes SET registered_by = %s
-               WHERE id = %s AND registered_by IS NULL""",
-            (user_id, int_id),
-        )
-        cur.execute(
-            """SELECT * FROM remote_nodes
-               WHERE id = %s AND registered_by = %s""",
-            (int_id, user_id),
-        )
-        return cur.fetchone()
+    """Compatibility entry point; retain the caller's database override."""
+    return _node_store.get_node_for_user_by_int_id(int_id, user_id, db_cursor=get_db_cursor)
 
 
 def auto_assign_agents_for_model(node_id_str: str, model_name: str) -> int:
-    """Auto-assign hub AI agents whose model matches to a fleet node.
-
-    Called after a model becomes available on a node (heartbeat model sync or
-    OTA model_pull ack). Inserts into node_agents with auto_assigned=TRUE.
-    Skips agents already assigned to this node. Returns count assigned.
-    """
-    import logging
-
-    logger = logging.getLogger(__name__)
-    try:
-        with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute(
-                """
-                INSERT INTO node_agents
-                    (node_id, source_agent_id, hub_agent_id, name, display_name,
-                     model, department, status, auto_assigned)
-                SELECT
-                    rn.id,
-                    a.id, a.id,
-                    a.name, COALESCE(a.display_name, a.name),
-                    a.model, a.department,
-                    'active', TRUE
-                FROM agents a
-                JOIN remote_nodes rn ON rn.node_id = %s
-                WHERE a.model = %s
-                  AND a.worker_type = 'ai'
-                  AND a.shift_state IN ('active', 'barracked')
-                  AND NOT EXISTS (
-                      SELECT 1 FROM node_agents na2
-                      WHERE na2.hub_agent_id = a.id
-                        AND na2.node_id = rn.id
-                  )
-                ON CONFLICT (node_id, name)
-                DO UPDATE SET status = 'active', auto_assigned = TRUE
-                RETURNING id
-                """,
-                (node_id_str, model_name),
-            )
-            count = len(cur.fetchall())
-            if count:
-                logger.info(
-                    "fleet: auto-assigned %d agent(s) with model %s to node %s",
-                    count,
-                    model_name,
-                    node_id_str,
-                )
-            return count
-    except Exception as exc:
-        logging.getLogger(__name__).warning(
-            "auto_assign_agents_for_model failed for %s/%s: %s", node_id_str, model_name, exc
-        )
-        return 0
+    """Compatibility entry point; retain the caller's database override."""
+    return _node_store.auto_assign_agents_for_model(node_id_str, model_name, db_cursor=get_db_cursor)
 
 
 # ── Hardware Rest Mode ────────────────────────────────────────────────────────

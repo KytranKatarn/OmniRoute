@@ -1,0 +1,54 @@
+suite:
+  name: "wtf-mp-expenses-e2e"
+  description: >-
+    What The Fact MP page, subscriber-only "Quarterly expenses" table (PR #3682). Logs in as a subscriber
+    and asserts the quarters are listed newest-first IN DATE ORDER, with a screenshot as evidence.
+    The period label is "<calendar year>-Q<fiscal quarter>" with Q4 = Jan-Mar, so the real order within a
+    year is Q4, Q1, Q2, Q3 — as text, 2025-Q4 (Jan-Mar 2025) sorts above 2025-Q3 (Oct-Dec 2025).
+    AUTH: WTF has no /api/qa/auth (404, verified 2026-10-06 — only Media Hub has one) and does not need one.
+    Like every Kytran site it signs in through the platform: /login -> platform.kytranempowerment.com
+    OAuth (Account Center) -> /auth/callback. The e2e runner's form-login fallback goes to {base_url}/login,
+    follows that redirect, fills the platform's sign-in form with the harness login and checks it left
+    /login. Same identity as the other suites. WTF takes the session tier from the Account Center user's
+    subscription_tier (product_tiers is keyed by entitlement names for admins, not "wtf"), and
+    consumer/tiers.SUBSCRIBED_TIERS includes kytran/owner/admin/business — read from the code, NOT yet
+    confirmed by a real run. The first run's "table visible" assertion is what confirms it: if the account
+    were treated as free, the paywall would hide the table and that assertion fails (it cannot pass vacuously).
+  base_url: "https://what-the-fact.com"
+  auth:
+    # The harness's own platform login — the same variables the other 18 suites use. Unresolved
+    # placeholders fail the run loudly (the runner refuses to type a literal "${...}").
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "ted-falk expenses quarters are in date order"
+    type: e2e
+    path: /mp/ted-falk
+    wait_until: load
+    actions:
+      - scroll_to: ".wtf-mp-table"
+      - screenshot: "wtf-mp-ted-falk-expenses"
+    expect:
+      selector_visible: { ".wtf-mp-table": true }
+      js_eval:
+        - name: quarters_listed_newest_first_in_date_order
+          # key = year*10 + (Q4 -> 0, Q1..Q3 -> 1..3): Jan-Mar sorts BEFORE Apr-Jun of the same label year.
+          # Needs >=2 rows, so an empty or single-row table cannot pass vacuously.
+          expr: "(()=>{const ps=[...document.querySelectorAll('.wtf-mp-td-period')].map(e=>e.textContent.trim());const k=p=>{const a=p.split('-Q');if(a.length!==2)return -1;return (+a[0])*10+(a[1]==='4'?0:+a[1]);};if(ps.length<2)return false;for(let i=1;i<ps.length;i++){if(k(ps[i-1])<k(ps[i]))return false;}return true;})()"
+          equals: true
+          # Deliberately NOT pinning "row 0 == 2026-Q1": that goes red the day the next quarter is published.
+
+  - name: "richard-bragdon expenses quarters are in date order"
+    type: e2e
+    path: /mp/richard-bragdon
+    wait_until: load
+    actions:
+      - scroll_to: ".wtf-mp-table"
+      - screenshot: "wtf-mp-richard-bragdon-expenses"
+    expect:
+      selector_visible: { ".wtf-mp-table": true }
+      js_eval:
+        - name: quarters_listed_newest_first_in_date_order
+          expr: "(()=>{const ps=[...document.querySelectorAll('.wtf-mp-td-period')].map(e=>e.textContent.trim());const k=p=>{const a=p.split('-Q');if(a.length!==2)return -1;return (+a[0])*10+(a[1]==='4'?0:+a[1]);};if(ps.length<2)return false;for(let i=1;i<ps.length;i++){if(k(ps[i-1])<k(ps[i]))return false;}return true;})()"
+          equals: true

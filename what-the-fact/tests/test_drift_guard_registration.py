@@ -76,3 +76,10 @@ def test_the_new_elections_task_is_wired_end_to_end():
     # and it must actually be scheduled, or the window measures nothing
     run_py = (ROOT / "ingest" / "run.py").read_text(encoding="utf-8")
     assert "run_election_results" in run_py, "registered but never scheduled"
+
+
+def test_the_senate_travel_feeds_are_required():
+    """Both feed the senators' international-travel figures. Each logged a clean run on 2026-10-06, so a missing
+    ingest_log row from now on means the weekly schedule stopped — it must alarm, not read 'not yet tracked'."""
+    assert {"senate_travel", "intl_travel"} <= _REQUIRED_TASKS
+    assert {"senate_travel", "intl_travel"} <= set(_MAX_AGE_DAYS)

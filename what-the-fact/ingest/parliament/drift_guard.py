@@ -47,11 +47,11 @@ _MAX_AGE_DAYS = {
     "minister_travel": int(os.environ.get("WTF_DRIFT_MIN_DAYS", "21")),
     "ec_contributions": int(os.environ.get("WTF_DRIFT_EC_DAYS", "21")),
     "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
-    # Itemized Senate travel (ingest/parliament/senate_travel.py) — weekly. NOT in _REQUIRED_TASKS yet: a
-    # task that has never logged is "not tracked", so a deploy before the first run cannot page. Add it
-    # to _REQUIRED_TASKS once the backfill has run.
+    # Itemized Senate travel (ingest/parliament/senate_travel.py) — weekly. In _REQUIRED_TASKS since the
+    # 2026-10-06 backfill logged its first clean run.
     "senate_travel": int(os.environ.get("WTF_DRIFT_SENTRAVEL_DAYS", "21")),
-    # Committee + IIA international travel (ingest/parliament/intl_travel.py) — weekly; same not-yet-required rule.
+    # Committee + IIA international travel (ingest/parliament/intl_travel.py) — weekly; required since its
+    # 2026-10-06 backfill logged a clean run.
     "intl_travel": int(os.environ.get("WTF_DRIFT_INTLTRAVEL_DAYS", "21")),
     "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
     "issuer_contracts": int(os.environ.get("WTF_DRIFT_ISSUERC_DAYS", "21")),
@@ -213,6 +213,11 @@ _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
                    "fiscal_federal",
                    # oda_canada — brand-new puller (/global), zero prior rows.
                    "oda_canada",
+                   # senate_travel / intl_travel — SCHEDULED weekly in ingest/run.py and each has logged a
+                   # clean run (2026-10-06 backfills), so zero rows from here on means the schedule stopped.
+                   # Both are the data behind the senators' international-travel figures: a feed that quietly
+                   # dies would let a published total go stale while reading green.
+                   "senate_travel", "intl_travel",
                    # gov_contracts_bridge — a host cron outside the ingest loop; required so a
                    # bridge that never runs alarms instead of reading green-by-omission.
                    "gov_contracts_bridge",

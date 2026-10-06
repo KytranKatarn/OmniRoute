@@ -49,6 +49,16 @@ _MAX_AGE_DAYS = {
     "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
     "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
     "issuer_contracts": int(os.environ.get("WTF_DRIFT_ISSUERC_DAYS", "21")),
+    # ENTITY-GRAPH PUSH RECEIPTS (ingest/shared/entity_push_receipts.py). Written by the RECEIVER on
+    # every batch that carries data, so a sender that is dead, mis-pointed (gov-watch's URL named the
+    # hub for ~17 days, 61,022 failed batches, nobody told), or running stale code is caught here
+    # instead of by its own monitor. gov-watch pushes nightly; the others on slower, unconfirmed
+    # cadences, so they get a wide window and are NOT required (a product never seen is "not yet
+    # tracked", not an alarm).
+    "entity_push_gov-watch": int(os.environ.get("WTF_DRIFT_PUSH_GOV_DAYS", "3")),
+    "entity_push_legal-watch": int(os.environ.get("WTF_DRIFT_PUSH_OTHER_DAYS", "10")),
+    "entity_push_civic-watch": int(os.environ.get("WTF_DRIFT_PUSH_OTHER_DAYS", "10")),
+    "entity_push_market-watch": int(os.environ.get("WTF_DRIFT_PUSH_OTHER_DAYS", "10")),
     # Elections Canada results. The DATA is static — GE44's official results
     # will never change — so this window is not measuring data freshness, it is
     # measuring that the WEEKLY job in ingest/run.py is still running and the
@@ -153,6 +163,9 @@ _MAX_AGE_DAYS = {
 # predates ingest_log — but for a NEW puller it means one that never runs at all
 # reports green forever. Anything listed here alarms on absence instead.
 _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
+                   # gov-watch pushes NIGHTLY, so zero receipts means the feed is not running. Required
+                   # for the same reason as every entry below: absence must alarm, not read green.
+                   "entity_push_gov-watch",
                    "aurora_city_obs", "aurora_city_forecast",
                    # elections_results is SCHEDULED (weekly, ingest/run.py), so
                    # zero rows does not mean "not tracked yet" — it means the

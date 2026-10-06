@@ -49,6 +49,7 @@ from psycopg2.extras import execute_values
 # The ONE slug algorithm — derive slugs server-side so the same name from any of the
 # 5 products resolves to one node (ADR-EG-001 §3).
 from ingest.shared.entity_graph import normalize_name, name_to_slug, is_placeholder_name
+from ingest.shared.entity_push_receipts import record_push
 
 logger = logging.getLogger("wtf-consumer.entity_graph_ingest")
 
@@ -445,6 +446,14 @@ def ingest_entity_graph():
                          for (f, t, rtype, sid, vf, vt, meta) in rel_rows.values()]
                 execute_values(cur, _REL_UPSERT, rrows, template=_REL_TPL, page_size=1000)
                 stats["relationships_upserted"] = len(rrows)
+
+            # 5) Receipt: this product just delivered data (drift_guard watches for silence).
+            record_push(
+                conn, product,
+                stats["entities_created"] + stats["entities_updated"] + stats["mentions_upserted"]
+                + stats["relationships_upserted"],
+                stats["entities_created"] + stats["mentions_upserted"] + stats["relationships_upserted"],
+            )
 
             cur.close()
     except ValueError as exc:

@@ -966,3 +966,62 @@ class TestProbeNowControl(unittest.TestCase):
         block = css[i : css.index("}", i)]
         self.assertNotIn("#10b981", block)
         self.assertNotIn("#22c55e", block)
+
+
+class TestNarrowWidthActionsRemainReachable(unittest.TestCase):
+    """The action buttons were being clipped off the right edge of narrow rows.
+
+    `.contractor-firm` is `overflow: hidden` and `.contractor-firm-actions` is
+    `flex-shrink: 0`, so when a header row ran out of room the actions overflowed the card and
+    were silently truncated — no scrollbar, no ellipsis, just a missing button.
+
+    Measured against the shipped `fleet.css` in a real browser, comparing the last button's right
+    edge to the card's right edge (positive = clipped), at a 430px viewport:
+
+        before   short name  +62px clipped    long name  +390px clipped
+        after    short name  -13px (inside)   long name  -13px (inside)
+
+    and clipping began at 800px for a 36-character provider name. After the fix, every width from
+    1280 down to 320 measures -13px: the full 13px card padding, nothing cut.
+
+    These assertions pin the two declarations that fix it. They cannot re-measure the layout —
+    that needs a browser — so the numbers above live here as the recorded evidence.
+    """
+
+    def _block(self, selector: str) -> str:
+        css = _css()
+        i = css.index(selector)
+        return css[i : css.index("}", i)]
+
+    def test_the_name_is_allowed_to_shrink(self):
+        """`min-width: 0` is load-bearing.
+
+        A flex item defaults to `min-width: auto`, which refuses to shrink below its content. So
+        `flex: 1` on the name could NOT absorb the overflow — the widest fixed items overflowed
+        instead, and the card hid them.
+        """
+        block = self._block(".contractor-firm-name {")
+        self.assertIn("min-width: 0", block)
+
+    def test_an_over_long_name_truncates_rather_than_overflowing(self):
+        block = self._block(".contractor-firm-name {")
+        self.assertIn("text-overflow: ellipsis", block)
+        self.assertIn("white-space: nowrap", block)
+        self.assertIn("overflow: hidden", block)
+
+    def test_the_header_wraps_instead_of_clipping(self):
+        """Below ~800px the badges, two switches and icon buttons cannot share the line. Wrapping
+        drops them to a second line where they are reachable; truncating them into a clipped
+        sliver is what made them unclickable."""
+        self.assertIn("flex-wrap: wrap", self._block(".contractor-firm-header {"))
+
+    def test_the_actions_still_do_not_shrink_when_there_is_room(self):
+        """The fix must not have broken the wide-viewport layout: at 1280px the measurement is
+        identical before and after (-13px), so wrapping never engages unnecessarily."""
+        self.assertIn("flex-shrink: 0", self._block(".contractor-firm-actions {"))
+
+    def test_the_card_still_clips(self):
+        """Deliberately unchanged. The card's overflow rule is what made the bug INVISIBLE rather
+        than obvious; if someone 'fixes' the symptom by removing it, the buttons would spill over
+        neighbouring cards instead. The fix belongs at the flex level."""
+        self.assertIn("overflow: hidden", self._block(".contractor-firm {"))

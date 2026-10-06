@@ -3663,6 +3663,11 @@ body.light-mode .bridge-zone-unstaffed {
 .contractor-firm-header {
     display: flex;
     align-items: center;
+    /* Wrap rather than clip. Below ~800px the badges, the two switches and the icon buttons no
+       longer fit beside the name; with `flex-shrink: 0` on the actions they used to be pushed
+       past the card's `overflow: hidden` edge. Wrapping drops them to a second line, where they
+       are reachable, instead of truncating them into something unclickable. */
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 12px;
     cursor: pointer;
@@ -3687,7 +3692,17 @@ body.light-mode .bridge-zone-unstaffed {
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--archie-text-primary);
-    flex: 1;
+    flex: 1 1 auto;
+    /* `min-width: 0` is load-bearing, not tidiness. A flex item defaults to `min-width: auto`,
+       which refuses to shrink below its content — so `flex: 1` alone could NOT absorb the
+       overflow, and the widest fixed items (the actions) overflowed the card instead. The card
+       is `overflow: hidden`, so the overflow was invisible: the rightmost button was simply
+       gone. Measured at 800px with a 36-char provider name, 20px of the ROUTING button was
+       already outside the card; at 400px it was 420px. */
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .contractor-tier-badge {
     font-size: 0.55rem;

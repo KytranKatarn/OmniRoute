@@ -3337,7 +3337,6 @@ def _register_own_jobs(scheduler, flask_app):
             # nothing is filtered out — deprioritised work still drains, just after.
             # On 'auto' the term is omitted entirely, so ordering stays byte-identical
             # to pre-profile behaviour.
-            boost_sql = ""
             boost_params: list = []
             try:
                 from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
@@ -3356,30 +3355,41 @@ def _register_own_jobs(scheduler, flask_app):
                     # producer. Both signals are needed — `classify` (the largest news
                     # block) maps to Analytics & Intelligence, so capability alone would
                     # mark WTF work as platform work and boost exactly the wrong rows.
-                    boost_sql = (
-                        "(CASE WHEN (capability = ANY(%s) "
-                        "OR lower(coalesce(module_id,'')) LIKE ANY(%s)) = %s "
-                        "THEN 1 ELSE 0 END) DESC, "
-                    )
                     boost_params = [_news_caps, _news_like, _mode == "news"]
             except Exception:  # noqa: BLE001 — a routing preference must never stop the drain
-                boost_sql = ""
                 boost_params = []
 
             with get_db_cursor(commit=False) as (_, cur):
-                cur.execute(
-                    f"""
-                    SELECT id, capability, prompt, system_prompt, json_mode,
-                           module_id, source_product, priority
-                    FROM dispatch_pending_queue
-                    WHERE status = 'queued'
-                      AND queued_at < NOW() - INTERVAL '10 minutes'
-                      AND queued_at > NOW() - INTERVAL '2 hours'
-                    ORDER BY {boost_sql}priority DESC, queued_at ASC
-                    LIMIT 5
-                    """,
-                    boost_params,
-                )
+                if boost_params:
+                    cur.execute(
+                        """
+                        SELECT id, capability, prompt, system_prompt, json_mode,
+                               module_id, source_product, priority
+                        FROM dispatch_pending_queue
+                        WHERE status = 'queued'
+                          AND queued_at < NOW() - INTERVAL '10 minutes'
+                          AND queued_at > NOW() - INTERVAL '2 hours'
+                        ORDER BY (CASE WHEN (capability = ANY(%s)
+                              OR lower(coalesce(module_id,'')) LIKE ANY(%s)) = %s
+                              THEN 1 ELSE 0 END) DESC, priority DESC, queued_at ASC
+                        LIMIT 5
+                        """,
+                        boost_params,
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id, capability, prompt, system_prompt, json_mode,
+                               module_id, source_product, priority
+                        FROM dispatch_pending_queue
+                        WHERE status = 'queued'
+                          AND queued_at < NOW() - INTERVAL '10 minutes'
+                          AND queued_at > NOW() - INTERVAL '2 hours'
+                        ORDER BY priority DESC, queued_at ASC
+                        LIMIT 5
+                        """,
+                        [],
+                    )
                 stuck_items = cur.fetchall() or []
 
             if not stuck_items:

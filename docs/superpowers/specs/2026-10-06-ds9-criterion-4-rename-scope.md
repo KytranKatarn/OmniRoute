@@ -182,15 +182,31 @@ routing fix"*, and by the same reasoning it should not ride with a schema migrat
 
 ---
 
-## 7. Decisions required before any of this is attempted
+## 7. Decisions — RESOLVED 2026-10-06
 
-1. **Route URLs — change or keep?** (§4a recommends **keep all 7**.)
-2. **Is `engineer` still the right word?** 147 files already use it and `archie_engine_staging/`
-   exists. Confirming this is cheap now and expensive after 1134 edits.
-3. **Sense-A DB objects: rename or not?** The user-visible rebrand is the tab and the labels. If the
-   schema is internal plumbing, renaming it is cost with no user benefit — the same argument as the
-   routes, applied to tables.
-4. **Does `contractor_providers_backup_pre486` stay?** It is the rollback for DS9 PR 1.
+| # | Question | Decision |
+|---|---|---|
+| 1 | Route URLs — change or keep? | **Keep all 7 unchanged** |
+| 2 | Is `engineer` still the right word? | **Yes — keep `engineer`** |
+| 3 | Sense-A DB objects — rename? | **Do not rename the schema** |
+| 4 | Does `backup_pre486` stay? | **Keep it** (30 rows; the rollback for DS9 PR 1) |
+
+### What these decisions collapse the work to
+
+Decisions 1 and 3 together remove the overwhelming majority of the scope measured in §1. There is no
+identifier rename, no schema rename, and no URL change. **The rename is a UI-label change** — the
+strings an operator actually reads in the Contractors tab.
+
+The 1134 Python occurrences, 7 tables, 2 views, 10 columns and 7 routes in §1 are now explicitly
+**out of scope**. They stay recorded here so a future session does not re-derive them as pending work:
+they are the *measured surface of a rename that is no longer happening*. Deleting this section's
+original framing would lose the measurement, which is the expensive part to rebuild.
+
+`engineer` is confirmed as the word for those labels. The caveat from §2 stands — 147 files already
+use it — but since only labels change, that is a wording preference rather than a migration
+constraint.
+
+**Remaining work from criterion 4: the label strings in the Contractors tab, and nothing else.**
 
 ---
 

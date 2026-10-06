@@ -157,15 +157,56 @@ Steps 3–5 are separable PRs. Step 1 is a decision, not a task.
 
 ---
 
-## 7. Decisions required
+## 7. Decisions — RESOLVED 2026-10-06
 
-1. **Is `lcars-tokens.css` authoritative — loaded and adopted, or deleted?** The 2026-03-31 review
-   says it was meant to be. Wiring it up honours that; deleting it means writing a supersession.
-2. **Until that is decided, is `--archie-*` acceptable for DS9?** It is what resolves today, but it
-   is a 58-token light-palette set, not the 7-colour × variants design the review describes.
-3. **Who owns a dark variant**, and is that in scope for DS9 or a separate piece of work?
-4. **Which of the three LCARS implementations is canonical** once the byte-identical copies are
-   collapsed?
+| # | Question | Decision |
+|---|---|---|
+| 1 | `lcars-tokens.css` — adopt or delete? | **Adopt it — wire it up** |
+| 2 | Is `--archie-*` acceptable meanwhile? | Follows from #1; see the correction below |
+| 3 | Who owns a dark token variant? | **In scope for DS9** |
+| 4 | Which LCARS implementation is canonical? | **`ds-bundle/`** |
+
+### Correction: the dark variant already exists
+
+Decision 3 assumed a dark variant had to be *written*. It does not. `theme.css` — already loaded by
+`base.html` at line 22 — **is** the dark palette:
+
+```
+--archie-text-primary   theme.css #00ff41   (dark)   light-mode.css #111827  (light)
+--archie-bg-primary     theme.css #010409   (dark)   light-mode.css #ffffff  (light)
+--archie-cyan           theme.css #00ffff   (dark)   light-mode.css #00a0a0  (light)
+```
+
+`base.html` loads `theme.css` (line 22) then `light-mode.css` (line 30), so the light values win by
+cascade order — on **every** page, not just the Contractors tab. The muted dark rows are that
+ordering, not a missing file. The fix is to stop the blanket override, not to author a dark theme.
+
+### Correction: `lcars-tokens.css` is 233/239 identical to `theme.css`
+
+Measured before adopting:
+
+```
+lcars-tokens.css vs theme.css : 239 shared names, 233 IDENTICAL values, 6 differing
+```
+
+The 6 differences are all type-scale (`--archie-text-base`, `-2xl`..`-4xl`, two spacing tokens) —
+**none are colour**. So `lcars-tokens.css` is largely a near-duplicate of a file already in the page,
+carrying 39 palette props (`--archie-palette-*-500/600`) that `theme.css` lacks.
+
+**Loading it as-is is close to a no-op** for 233 tokens and would introduce a second source for the
+other 6. The value is the **39 `--archie-palette-*` props** — which happen to be exactly what the 436
+hardcoded hex values in `fleet.css` need. So adopt by *extracting those 39 into `theme.css`* (or a
+small companion), not by linking a 27KB near-duplicate.
+
+### Recommended sequence, given the decisions
+
+1. Extract the 39 `--archie-palette-*` props from `lcars-tokens.css` into `theme.css`; do NOT
+   `<link>` the whole file. Delete `lcars-tokens.css` afterwards, or reduce it to a pointer.
+2. Fix the `light-mode.css` blanket override so dark surfaces can use the dark palette.
+3. Point the byte-identical `media_hub` copies of `lcars-frames.css` / `lcars-header.css` at
+   `ds-bundle/` (decision 4).
+4. Tokenise `fleet.css`, most-repeated first.
+5. Fix the literals added in #3669 / #3670 / #3679.
 
 ---
 

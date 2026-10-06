@@ -1,0 +1,36 @@
+Committee Travel Expense Report
+Committee Name
+Trip N
+ame
+Star
+t Date
+End Da
+te
+Purpos
+e
+Desti
+nation
+Foreign Affairs and International Trade
+The Canadian Foreign Service
+ 2023-09-12
+2023-09-14
+Fact-Finding - Trip #2
+Oslo, Norway
+Participant: Accommodation Meals and Incidentals Other Expenses Transportation Grand Total
+Group Expenses $0.00 $465.67 $524.92 $522.
+50 $1,513.09
+Boehm
+, Peter $590.54 $191.87 $0.00 $287.24 $1,069.65
+Boniface, Gwenneth $590.54 $191.87 $0.00 $295.27 $1,077.68
+Deacon, Martha $590.54 $191.87 $0.00 $296.48 $1,078.89
+Gerba, Amina $590.54 $191.87 $0.00 $306.24 $1,088.65
+MacDonald, Michael $590.54 $191.87 $0.00 $292.46 $1,074.87
+Ravalia, Mohamed-Iqbal $590.54 $191.87 $0.00 $287.54 $1,069.95
+Woo, Yuen Pau $590.54 $191.87 $0.00 $287.54 $1,069.95
+Cail, Christina $590.54 $191.87 $0.00 $287.54 $1,069.95
+Cardinal, Chantal $590.54 $191.87 $0.00 $287.54 $1,069.95
+Faucher, Nadia $590.54 $191.87 $0.00 $287.54 $1,069.95
+Hermon, Brian $590.54 $191.87 $0.00 $287.54 $1,069.95
+Grand Total $6,495.94 $2,576.24 $524.92 $3,
+725.43 $13,322.53
+*"Group expenses" include working meals, meeting room rental and taxis.

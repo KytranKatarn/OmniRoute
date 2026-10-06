@@ -1,0 +1,34 @@
+Committee Travel Expense Report
+Committee Name
+Trip Name
+Start Date
+End Date
+Purpose
+Destination
+Participant: Accommodation  Meals and Incidentals Other Expenses Transportation Grand Total
+Group Expenses* $0.00 $794.65 $0.00 $1,768.93 $2,563.58
+$859.87 $327.72 $0.00 $3,824.11 $5,011.70
+$859.87 $463.77 $0.00 $2,719.05 $4,042.69
+$859.87 $463.77 $0.00 $3,986.00 $5,309.64
+$859.87 $463.77 $0.00 $2,642.72 $3,966.36
+$859.87 $327.72 $0.00 $2,394.51 $3,582.10
+$859.87 $416.83 $0.00 $5,030.29 $6,306.99
+Boehm, Peter M.
+Boniface, Gwen
+Deacon, Marty
+Gerba, Amina
+MacDonald, Michael L.
+Ravalia, Mohamed-Iqbal
+Woo, Yuen Pau $859.87 $463.77 $0.00 $2,602.31 $3,925.95
+Cail, Christina $859.87 $463.77 $0.00 $2,224.94 $3,548.58
+Cardinal, Chantal $859.87 $463.77 $0.00 $2,339.91 $3,663.55
+Faucher, Nadia $859.87 $463.77 $0.00 $2,195.13 $3,518.77
+Hermon, Brian $859.87 $463.77 $0.00 $2,225.05 $3,548.69
+Grand Total $9,458.57 $5,577.08 $0.00 $33,952.95 $48,988.60
+Foreign Affairs and International Trade
+The Canadian Foreign Service
+2023-09-14
+2023-09-16
+Fact-Finding - Trip #3
+Berlin, Germany
+*"Group expenses" include working meals, chartered ground travel and taxis.

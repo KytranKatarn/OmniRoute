@@ -1,0 +1,25 @@
+Committee Travel Expense Report
+Trip Name
+S
+tart Date
+E
+nd Date
+P
+urpose
+Destination
+Participant: Accommodation Meals and Incidentals         Other Expenses Transportation Gr and Total
+Group Expenses* $0.00 $344.86 $0.00 $1,005.21 $1,350.07
+Black, Robert $2,091.94 $1,066.98 $0.00 $4,957.92 $8,116.84
+Klyne, Martin $1,195.39 $570.86 $0.00 $4,320.05 $6,086.30
+Oh, Victor $2,091.94 $1,040.04 $0.00 $4,047.26 $7,179.24
+Simons,  Paula $2,091.94 $1,065.72 $0.00 $4,910.22 $8,067.88
+Markle LaMontagne, Joanne $1,878.48 $1,228.59 $0.00 $3,779.93 $6,887.00
+Simpson, Ferda $1,878.48 $1,228.59 $0.00 $3,721.21 $6,828.28
+Grand Total $11,228.17 $6,545.64 $0.00 $26,741.80 $44,515.61
+*“Group Expenses” include working meals, taxis and private van service.
+        Committee Name Agriculture and Forestry
+The status of soil health in Canada
+2023-07-10
+2023-07-18
+Fact-finding
+Rome, Italy

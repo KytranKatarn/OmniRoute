@@ -1,0 +1,22 @@
+Committee Travel Expense Report
+Trip Name AEFA - Examine and report on the Canadian foreign service
+Start Date 2022-12-04
+End Date 2022-12-06
+Purpose Fact-Finding
+Location Washington D.C.
+Participant: Accommodation Meals and Incidental Expenses Other Expenses Transportation Grand Total
+Group Expenses $0.00 $570.32 $132.21 $0.00 $702.53
+Boehm,  Hon. Peter $960.99 $405.92 $0.00 $1,568.14 $2,935.05
+Cail, Christina (office of the chair) $960.99 $444.73 $0.00 $837.45 $2,243.17
+Coyle, Hon. Mary $960.99 $235.82 $0.00 $1,904.77 $3,101.58
+Deacon, Hon. Martha $960.99 $374.92 $0.00 $1,753.63 $3,089.54
+Dumont, Marie Bernadette $960.99 $405.92 $0.00 $870.21 $2,237.12
+Faucher, Nadia $960.99 $405.92 $0.00 $1,185.17 $2,552.08
+Gerba, Hon. Amina $960.99 $374.16 $0.00 $1,302.40 $2,637.55
+Harder, Hon. Peter $960.99 $405.92 $0.00 $1,468.89 $2,835.80
+Lemay, Gaëtane $960.99 $405.92 $0.00 $1,244.02 $2,610.93
+Ravalia, Hon. Mohamed-Iqbal $960.99 $405.43 $0.00 $3,114.18 $4,480.60
+Richards, Hon. David Adams $0.00 $0.00 $0.00 $15.00 $15.00
+Willox, Martine $960.99 $437.15 $0.00 $1,194.82 $2,592.96
+Grand Total $10,570.89 $4,872.13 $132.21 $16,458.68 $32,033.91
+"Other Expenses" include wifi, exchange rate loss and working meals.

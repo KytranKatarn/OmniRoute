@@ -51,6 +51,8 @@ _MAX_AGE_DAYS = {
     # task that has never logged is "not tracked", so a deploy before the first run cannot page. Add it
     # to _REQUIRED_TASKS once the backfill has run.
     "senate_travel": int(os.environ.get("WTF_DRIFT_SENTRAVEL_DAYS", "21")),
+    # Committee + IIA international travel (ingest/parliament/intl_travel.py) — weekly; same not-yet-required rule.
+    "intl_travel": int(os.environ.get("WTF_DRIFT_INTLTRAVEL_DAYS", "21")),
     "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
     "issuer_contracts": int(os.environ.get("WTF_DRIFT_ISSUERC_DAYS", "21")),
     # ENTITY-GRAPH PUSH RECEIPTS (ingest/shared/entity_push_receipts.py). Written by the RECEIVER on

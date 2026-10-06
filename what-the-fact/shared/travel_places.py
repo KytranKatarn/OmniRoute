@@ -141,6 +141,7 @@ CANADIAN_TOWNS = frozenset(_norm(x) for x in [
 
 # Unambiguous foreign places found in real itineraries.
 FOREIGN_EXTRA = frozenset(_norm(x) for x in [
+    "Washington D.C.", "Washington, D.C.",
     "Baku", "Boise", "Bozeman", "Houlton", "Indianapolis", "Juno Beach", "San Juan", "Siem Reap", "Skagway",
     "Tromso", "Villers-Cotterets",
 

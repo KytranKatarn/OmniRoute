@@ -497,6 +497,15 @@ def main():
             except Exception:
                 log.exception("senate_travel sync crashed")
 
+            # Senators' international travel from the Senate COMMITTEE + IIA delegation reports, with overlap
+            # against the Travel rows above (task='intl_travel', self-logs). Looks back ~150 days weekly;
+            # the backfill is a one-off CLI (--since 2023-01-01).
+            try:
+                from ingest.parliament.intl_travel import run_intl_travel_sync
+                log.info("intl_travel sync: %s", run_intl_travel_sync(engine))
+            except Exception:
+                log.exception("intl_travel sync crashed")
+
             # Entity graph: refresh cast_vote edges (Link 3) now that new votes synced (#373)
             try:
                 from ingest.entity_graph_parliament_reconcile import run as _parl_eg

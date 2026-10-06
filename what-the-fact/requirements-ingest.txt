@@ -14,3 +14,7 @@ numpy<2
 transformers==5.10.1
 # transformers needs at least one tokenizer backend
 sentencepiece==0.2.1
+
+# PDF text extraction for the Senate committee + IIA travel reports (ingest/parliament/intl_travel.py, 2026-10-06).
+# Pure Python, no system libs. Imported lazily, so the parsers and their tests do not need it installed.
+pypdf>=5.0,<7

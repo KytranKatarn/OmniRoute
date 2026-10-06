@@ -1,0 +1,27 @@
+Committee Travel Expense Report
+Trip Name
+Start Date
+End Date
+Purpose
+Destination
+Participant: Accommodation    Meals and Incidentals   Other Expenses Transportation* Grand Total
+Group Expenses* $0.00 $0.00 $0.00 $0.00 $0.00
+Busson, Bev $0.00 $0.00 $0.00 $19.00 $19.00
+Carignan, Claude $0.00 $0.00 $0.00 $19.00 $19.00
+Cotter, Brent $0.00 $0.00 $0.00 $19.00 $19.00
+Harder, Peter $0.00 $0.00 $0.00 $19.00 $19.00
+Seidman, Judith $0.00 $0.00 $0.00 $19.00 $19.00
+Smith, Larry $0.00 $0.00 $0.00 $419.00 $419.00
+Anwar, Shaila $0.00 $0.00 $0.00 $419.00 $419.00
+Groves, David $0.00 $0.00 $0.00 $19.00 $19.00
+Roy, Marc-André $0.00 $0.00 $0.00 $419.00 $419.00
+Turcotte, Isabelle $0.00 $0.00 $0.00 $419.00 $419.00
+Grand Total $0.00 $0.00 $0.00 $1,790.00 $1,790.00
+Committee Name Ethics and Conflict of Interest for Senators
+General Mandate
+2024-07-13 - trip cancelled
+2024-07-19 - trip cancelled
+Fact-finding mission
+London, United Kingdom
+*Committee trip was cancelled due to UK election. Transportation costs were for non-refundable cancellation fees and travel agency
+fees.

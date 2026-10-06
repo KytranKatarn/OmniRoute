@@ -1,0 +1,18 @@
+Committee Travel Expense Report
+Trip Name AGFO - Fact Finding Trip to Guelph, On (Spring 2023)
+Start Date 4/24/2023
+End Date 4/26/2023
+Purpose Fact-Finding
+Location Guelph, On
+Participant: Accommodation Meals and Incidental Expenses Other Expenses Transportation Grand Total
+Group Expenses $0.00 $1,060.91 $0.00 $5,710.56 $6,771.47
+Black, Hon. Robert $353.60 $99.10 $0.00 $91.81 $544.51
+Burey, Hon. Sharon $176.80 $0.00 $0.00 $15.00 $191.80
+Duncan, Hon. Patricia $353.60 $172.82 $0.00 $431.83 $958.25
+Jaffer, Hon. Mobina $0.00 $0.00 $0.00 $15.00 $15.00
+Simons, Hon. Paula $353.60 $141.43 $0.00 $708.87 $1,203.90
+Markle LaMontagne, Joanne $353.60 $172.82 $0.00 $548.82 $1,075.24
+Scholey, Lucy Anne $353.60 $172.83 $0.00 $490.44 $1,016.87
+Simpson, Ferda $353.60 $172.82 $0.00 $464.28 $990.70
+Grand Total $2,298.40 $1,992.73 $0.00 $8,476.61 $12,767.74
+"Group Expenses" included working meals and chartered ground travel.

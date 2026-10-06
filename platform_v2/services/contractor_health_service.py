@@ -75,6 +75,83 @@ DEFAULT_LATENCY_TIMEOUT_S = 45
 #: worse, and a number that large would otherwise dominate any average it entered.
 LATENCY_CEILING_MS = 60_000
 
+#: Minutes to wait before re-probing a provider whose LAST observation was this status.
+#:
+#: This is not primarily about money — a 1-token probe costs a fraction of a cent. It is about
+#: two things that cost more:
+#:
+#:   1. Politeness, which is correctness here. `rate_limited` means the upstream asked us to
+#:      slow down. Continuing to probe every 15 minutes after a 429 is how a free tier gets
+#:      withdrawn — the DS9 spec says so explicitly. Backing off a rate-limited provider is not
+#:      thrift, it is obeying the response.
+#:   2. Signal. 15 of 30 contractors are `no_key` or `auth_error` — CONFIGURATION problems. No
+#:      quantity of re-probing installs a credential or fixes a rejected one, so those probes
+#:      cannot change the answer. They run 1,440 times a day and inform nobody.
+#:
+#: 0 means "probe every cycle". Deliberately NOT escalating with a consecutive-failure count:
+#: that needs extra state and a counter, and a flat window keyed on the failure CLASS already
+#: separates "this can change in minutes" from "this cannot".
+#:
+#: `unreachable` stays at 0 on purpose. It is the cheapest genuinely transient signal — a
+#: transient network blip should clear on the next cycle, not an hour later.
+PROBE_BACKOFF_MINUTES = {
+    "ok": 0,
+    "unreachable": 0,
+    "error": 60,
+    "rate_limited": 60,
+    # 2h, not 6h. There is no manual "probe now" endpoint on the Contractors tab, so this window
+    # IS the operator's refresh. An hour for someone who just pasted a working key is defensible;
+    # six hours means they fix the config, reload the page, see `no_key`, and conclude the fix
+    # failed. The difference is ~300 probes/day against contractors that cannot succeed either
+    # way — not worth a support question.
+    "auth_error": 120,
+    "no_key": 120,
+    "unsupported": 120,
+}
+
+#: Fallback for a status not in the table. Conservative rather than eager: an unrecognised
+#: status is an unknown, and re-probing hourly is cheap insurance against a vocabulary gap.
+DEFAULT_BACKOFF_MINUTES = 60
+
+
+def probe_backoff_minutes(status):
+    """How long to leave a provider alone after this status. 0 = probe next cycle."""
+    if not status:
+        return 0  # never observed — must be probed
+    return PROBE_BACKOFF_MINUTES.get(status, DEFAULT_BACKOFF_MINUTES)
+
+
+def due_for_probe(latest, now=None):
+    """Should this provider be probed now? Returns (probe, reason-if-not).
+
+    `latest` is the provider's most recent observation, or None if it has never been probed.
+
+    A skip writes NO row. That is deliberate: the observation's own `created_at` is what the
+    Contractors tab renders as "last checked", so a skipped provider shows an OLD timestamp
+    rather than a fresh-looking stale reading. Backdating a row to look current would be exactly
+    the absent-vs-zero mistake this service exists to avoid.
+    """
+    if not latest:
+        return True, ""
+    status = latest.get("status")
+    wait = probe_backoff_minutes(status)
+    if wait <= 0:
+        return True, ""
+    last = latest.get("created_at")
+    if last is None:
+        return True, ""
+
+    from datetime import datetime, timezone
+
+    now = now or datetime.now(timezone.utc)
+    if last.tzinfo is None:
+        last = last.astimezone()
+    waited = (now - last).total_seconds() / 60.0
+    if waited >= wait:
+        return True, ""
+    return False, "%s, %.0fm into a %dm backoff" % (status, waited, wait)
+
+
 #: Ollama Cloud's NATIVE generate endpoint. Not an OpenAI-compatible /chat/completions — the
 #: two cloud-proxy contractors carry the sentinel base_url "ollama_cloud_proxy" precisely
 #: because they are reached through here instead of their own HTTP endpoint.
@@ -451,9 +528,17 @@ def scan(
             logger.warning("contractor_health: could not list providers (%s)", exc)
             return {"ok": False, "error": str(exc), "probed": 0, "results": []}
 
+    # Latest observation per provider, for the backoff decision. One query, not N.
+    latest_by_key = _latest_observations([p.get("provider_key") or "" for p in providers])
+
     results: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
     for provider in providers:
         key = provider.get("provider_key") or ""
+        probe_now, why = due_for_probe(latest_by_key.get(key))
+        if not probe_now:
+            skipped.append({"provider_key": key, "reason": why})
+            continue
         started = time.time()
         try:
             outcome = _probe_one(provider, probe_kind, timeout_s)
@@ -484,13 +569,57 @@ def scan(
                 }
             )
 
+    if skipped:
+        # Never a silent skip. The log line the job prints includes this, so a provider that
+        # stops being probed is visible rather than merely absent from the data.
+        logger.info(
+            "contractor_health: skipped %d of %d (backoff): %s",
+            len(skipped),
+            len(providers),
+            ", ".join(f"{s['provider_key']} ({s['reason']})" for s in skipped[:6]),
+        )
+
     return {
         "ok": True,
         "probe_kind": probe_kind,
         "probed": len(results),
+        "skipped": len(skipped),
+        "skip_reasons": {s["provider_key"]: s["reason"] for s in skipped},
         "results": results,
         "summary": summarize(results),
     }
+
+
+def _latest_observations(provider_keys):
+    """Most recent observation per provider key. Empty dict if unavailable — never raises.
+
+    A failure here must not stop the scan. Worst case every provider looks never-probed and is
+    probed, which is the old behaviour: more traffic, not less. Failing the other way would
+    skip everything.
+    """
+    if not provider_keys:
+        return {}
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_conn, cur):
+            cur.execute(
+                """
+                SELECT DISTINCT ON (provider_key) provider_key, status, created_at
+                  FROM contractor_health
+                 WHERE provider_key = ANY(%s)
+                 ORDER BY provider_key, created_at DESC
+                """,
+                (list({k for k in provider_keys if k}),),
+            )
+            return {r["provider_key"]: dict(r) for r in cur.fetchall()}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "contractor_health: backoff lookup failed (%s: %s) — probing everything this cycle",
+            exc.__class__.__name__,
+            exc,
+        )
+        return {}
 
 
 def summarize(results: list[dict[str, Any]]) -> dict[str, int]:

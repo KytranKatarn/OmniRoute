@@ -685,6 +685,116 @@ class TestCadencesAreActuallyDifferent(unittest.TestCase):
         )
 
 
+class TestProbeBackoff(unittest.TestCase):
+    """Re-probing must not be the default response to a failure that cannot fix itself.
+
+    Not a money play — a 1-token probe costs a fraction of a cent. Two things matter more:
+
+      * `rate_limited` means the upstream asked us to slow down. Continuing every 15 minutes
+        after a 429 is how a free tier gets withdrawn. Backing off is obeying the response.
+      * 15 of 30 contractors are `no_key` or `auth_error`. No quantity of re-probing installs a
+        credential. Those probes run 1,440 times a day and cannot change the answer.
+    """
+
+    def _mins(self, status):
+        return chs.probe_backoff_minutes(status)
+
+    def test_healthy_and_unreachable_are_probed_every_cycle(self):
+        """`unreachable` is the cheapest genuinely transient signal — a blip must clear fast."""
+        self.assertEqual(self._mins("ok"), 0)
+        self.assertEqual(self._mins("unreachable"), 0)
+
+    def test_rate_limited_backs_off(self):
+        """The one that is correctness rather than thrift."""
+        self.assertGreaterEqual(self._mins("rate_limited"), 60)
+
+    def test_configuration_failures_back_off_hard(self):
+        for status in ("no_key", "auth_error", "unsupported"):
+            self.assertGreaterEqual(self._mins(status), 60, f"{status} cannot be fixed by re-probing")
+
+    def test_config_backoff_stays_under_two_hours(self):
+        """There is no manual probe endpoint, so this window IS the operator's refresh.
+
+        Six hours meant an operator who pasted a working key reloaded, saw `no_key`, and
+        concluded their fix had failed. A support question costs more than the ~300
+        probes/day this trades away.
+        """
+        for status in ("no_key", "auth_error", "unsupported"):
+            self.assertLessEqual(self._mins(status), 120, f"{status} staleness budget")
+
+    def test_a_never_probed_provider_is_always_probed(self):
+        self.assertEqual(self._mins(None), 0)
+        self.assertEqual(chs.due_for_probe(None), (True, ""))
+
+    def test_a_recent_no_key_is_skipped_with_a_reason(self):
+        from datetime import datetime, timedelta, timezone
+
+        latest = {"status": "no_key", "created_at": datetime.now(timezone.utc) - timedelta(minutes=5)}
+        probe, why = chs.due_for_probe(latest)
+        self.assertFalse(probe)
+        self.assertIn("no_key", why)
+        self.assertIn("120m", why)
+
+    def test_the_same_provider_is_probed_once_the_backoff_expires(self):
+        from datetime import datetime, timedelta, timezone
+
+        latest = {"status": "no_key", "created_at": datetime.now(timezone.utc) - timedelta(hours=3)}
+        self.assertEqual(chs.due_for_probe(latest)[0], True)
+
+    def test_healthy_providers_are_never_skipped(self):
+        from datetime import datetime, timezone
+
+        latest = {"status": "ok", "created_at": datetime.now(timezone.utc)}
+        self.assertEqual(chs.due_for_probe(latest)[0], True)
+
+    def test_an_unknown_status_is_conservative_not_eager(self):
+        """A vocabulary gap must not become 'probe everything'."""
+        self.assertGreaterEqual(self._mins("some_future_status"), 60)
+
+    def test_a_naive_timestamp_still_compares(self):
+        """`created_at` is TIMESTAMPTZ, but a naive value must not raise inside the scan."""
+        from datetime import datetime, timedelta
+
+        latest = {"status": "no_key", "created_at": datetime.now() - timedelta(minutes=5)}
+        probe, _ = chs.due_for_probe(latest)
+        self.assertFalse(probe)
+
+    def test_a_skip_writes_no_row_so_the_timestamp_stays_honestly_old(self):
+        """The tab renders `created_at` as "last checked".
+
+        Backdating a skipped provider's row to look current would be the absent-vs-zero mistake
+        this whole service exists to avoid. So a skip writes nothing at all.
+        """
+        src = pathlib.Path(chs.__file__).read_text(encoding="utf-8")
+        start = src.index("def scan(")
+        block = src[start : src.index("def _latest_observations")]
+        self.assertIn("skipped.append", block)
+        self.assertNotIn(
+            "record_observation(",
+            block.split("if not probe_now:")[1].split("continue")[0],
+            "a skip must not write an observation",
+        )
+
+    def test_skips_are_reported_not_silent(self):
+        src = pathlib.Path(chs.__file__).read_text(encoding="utf-8")
+        self.assertIn('"skipped": len(skipped)', src)
+        self.assertIn('"skip_reasons"', src)
+
+    def test_a_failed_lookup_probes_everything_rather_than_nothing(self):
+        """Fail toward MORE traffic, never less. Skipping everything would be the dangerous
+        direction: the table would stop updating and nothing would say so."""
+        import unittest.mock as _m
+
+        mod = types.ModuleType("database")
+
+        def _boom(*a, **k):
+            raise RuntimeError("db down")
+
+        mod.get_db_cursor = _boom
+        with _m.patch.dict(sys.modules, {"database": mod}):
+            self.assertEqual(chs._latest_observations(["a", "b"]), {})
+
+
 class TestProbeOne(unittest.TestCase):
     """The network call itself, with `requests` patched."""
 

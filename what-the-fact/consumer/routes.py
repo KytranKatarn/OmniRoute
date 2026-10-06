@@ -6842,12 +6842,15 @@ def mp_profile(slug: str):
                 LIMIT 25
             """), {"mp_id": mp["id"]}).mappings().all()
 
+            # The label is "<calendar year>-Q<fiscal quarter>" with Q4 = Jan-Mar, so `ORDER BY period
+            # DESC` put Jan-Mar above Apr-Jun of the same year and cut the LIMIT at the wrong quarter.
+            from shared.fiscal_quarters import CHRONO_DESC_SQL
             expense_periods = c.execute(text("""
                 SELECT period, travel_cad, hospitality_cad, contracts_cad,
                        salaries_cad, total_cad
                 FROM parliament.mp_expenses
                 WHERE mp_id = :mp_id
-                ORDER BY period DESC
+                ORDER BY """ + CHRONO_DESC_SQL + """
                 LIMIT 12
             """), {"mp_id": mp["id"]}).mappings().all()
 

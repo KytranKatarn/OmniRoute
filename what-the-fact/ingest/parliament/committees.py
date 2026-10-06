@@ -37,6 +37,8 @@ import urllib.request
 
 from sqlalchemy import create_engine, text
 
+from ingest.parliament._retry import fetch_with_retry
+
 logger = logging.getLogger("wtf-ingest.committees")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -54,9 +56,13 @@ _ROLE_MAP = {"chair": "chair", "vice-chairs": "vice-chair",
 
 
 def _fetch(url: str) -> str:
-    req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read().decode("utf-8", "replace")
+    def _once() -> str:
+        req = urllib.request.Request(url, headers=_HEADERS)
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.read().decode("utf-8", "replace")
+
+    # A short ourcommons.ca outage (403 on the list page, 2026-10-04) must not become a "last run FAILED" row.
+    return fetch_with_retry(_once, label="committees " + url[-40:])
 
 
 def _parse_committee_list(html: str) -> list[tuple[str, str]]:

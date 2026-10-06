@@ -32,6 +32,8 @@ import urllib.request
 
 from sqlalchemy import text
 
+from ingest.parliament._retry import fetch_with_retry
+
 logger = logging.getLogger("wtf-ingest.mp_expenses")
 
 _BASE = "https://www.ourcommons.ca/ProactiveDisclosure/en/members"
@@ -44,9 +46,13 @@ _GUID_RE = re.compile(r"/ProactiveDisclosure/en/members/([0-9a-f-]{36})/csv", re
 
 
 def _get(url: str, timeout: int = 25) -> bytes:
-    req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+    def _once() -> bytes:
+        req = urllib.request.Request(url, headers=_HEADERS)
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.read()
+
+    # A short ourcommons.ca outage (2026-10-04: "upserted 0 rows") must not become a "last run FAILED" row.
+    return fetch_with_retry(_once, label="mp_expenses " + url[-40:])
 
 
 def _parse_dollar(val):

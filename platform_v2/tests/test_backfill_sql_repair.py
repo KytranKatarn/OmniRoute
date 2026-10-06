@@ -133,8 +133,8 @@ def test_failed_dispatch_does_not_mark_item_completed(backfill, monkeypatch):
     assert len(queries) == 1
 
 
-def test_backfill_source_proves_literal_sql_without_hiding_full_file_uncertainty():
+def test_backfill_and_full_jobs_source_prove_literal_sql():
     tree = ast.parse(SOURCE_PATH.read_text())
     node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_run_dispatch_backfill")
     assert sql_finding_present(ast.unparse(node)) is False
-    assert sql_finding_present(SOURCE_PATH.read_text()) is None
+    assert sql_finding_present(SOURCE_PATH.read_text()) is False

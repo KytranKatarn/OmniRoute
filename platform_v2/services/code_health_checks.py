@@ -59,10 +59,44 @@ def sql_finding_present(source):
             for alias in node.names:
                 if alias.name in dynamic_names | {"execute", "executemany"}:
                     dynamic_names.add(alias.asname or alias.name)
+    # Literal metadata reads do not reflect SQL methods. Any rebinding or alias
+    # leaves getattr unknown, even when its field name looks harmless.
+    getattr_bound = any(
+        isinstance(node, ast.Name)
+        and node.id == "getattr"
+        and isinstance(node.ctx, ast.Store)
+        or isinstance(node, ast.arg)
+        and node.arg == "getattr"
+        or isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.name == "getattr"
+        or isinstance(node, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar))
+        and node.name == "getattr"
+        or isinstance(node, ast.MatchMapping)
+        and node.rest == "getattr"
+        or isinstance(node, ast.alias)
+        and (node.asname or node.name.split(".")[0]) == "getattr"
+        for node in nodes
+    )
+    metadata_reads = set()
+    if not getattr_bound:
+        for node in nodes:
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+                and not node.keywords
+                and len(node.args) in (2, 3)
+                and isinstance(node.args[0], ast.Name)
+                and isinstance(node.args[1], ast.Constant)
+                and node.args[1].value in ("agent_name", "tier")
+                and (len(node.args) == 2 or isinstance(node.args[2], ast.Constant) and node.args[2].value is None)
+            ):
+                metadata_reads.add(id(node.func))
     if any(
         isinstance(node, ast.Name)
         and isinstance(node.ctx, ast.Load)
         and node.id in dynamic_names
+        and id(node) not in metadata_reads
         or isinstance(node, ast.Attribute)
         and node.attr in dynamic_names
         for node in nodes

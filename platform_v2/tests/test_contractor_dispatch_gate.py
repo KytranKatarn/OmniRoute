@@ -25,12 +25,36 @@ import datetime as _dt
 import sys
 import types
 import pathlib
+import re
 import unittest
 from unittest import mock
 
 sys.path.insert(0, "/app")
 
 import ai_bridge.external_providers as ep  # noqa: E402
+
+#: Where the repo's own tree is visible from inside the platform container.
+#:
+#: NOT /app. `/app` is `platform_v2` (plus a build-time `database/` package with 80 migrations of
+#: its own), so `/app/database/migrations/490_...` does not exist and a lookup there fails for a
+#: reason that has nothing to do with the file being wrong. The repo's 411-migration
+#: `database/` tree is mounted at its real path.
+_REPO_ROOTS = (
+    pathlib.Path(__file__).resolve().parents[2],
+    pathlib.Path("/mnt/archie_brain"),
+)
+
+
+def _repo_file(rel: str) -> pathlib.Path:
+    """First existing candidate for a repo-relative file, or the last guess for a clear error."""
+    candidates = [root / rel for root in _REPO_ROOTS]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[-1]
+
+
+MIGRATION_490 = "database/migrations/490_budget_warn_once.sql"
 
 
 class FakeCursor:
@@ -568,3 +592,215 @@ class TestBudgetPeriodReset(unittest.TestCase):
             self.skipTest("migration 489 not reachable from this layout")
         self.assertIn("SET last_reset_at = NOW()", sql)
         self.assertIn("WHERE last_reset_at IS NULL", sql)
+
+
+class TestWarnOncePerPeriod(unittest.TestCase):
+    """A crossing is an EVENT; being at 85% is a STATE.
+
+    `monthly_budget_status` has returned `warn` at >= 80% since migration 106, and nothing ever
+    read it. #3661 made the band recoverable, which made the missing half of the feature visible:
+    the obvious way to surface a warn is to notify, and the obvious notification re-announces the
+    same provider on every dispatch for the rest of the month. One crossing, hundreds of alerts.
+
+    So the notification is claimed atomically in `_update_cost`, once per budget period.
+    """
+
+    # ------------------------------------------------------------------ #
+    # the claim statement
+    # ------------------------------------------------------------------ #
+
+    def test_the_claim_is_scoped_to_the_current_period(self):
+        """The whole mechanism. A stamp from last month must not silence this month."""
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        self.assertIn("budget_warned_at IS NULL OR budget_warned_at < %(period)s", src)
+
+    def test_null_counts_as_never_warned(self):
+        """A provider that crossed 80% with no prior stamp MUST be announced.
+
+        Treating NULL as 'already warned' would silently swallow the first, and often only,
+        crossing of a provider's month.
+        """
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        self.assertIn("budget_warned_at IS NULL", src)
+
+    def test_the_claim_and_the_increment_share_one_transaction(self):
+        """Two dispatches can cross 80% in the same instant.
+
+        If the claim commits separately, both can read 'not warned yet' and both notify — which is
+        the bug being fixed, just arriving faster. One transaction, one winner.
+        """
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        body = src[src.index("def _update_cost(") : src.index("def _log_usage(")]
+        self.assertLess(
+            body.index("SET budget_warned_at = NOW()"),
+            body.index("conn.commit()"),
+            "the claim must commit with the increment, not after it",
+        )
+        self.assertEqual(body.count("conn.commit()"), 1, "one transaction, one commit")
+
+    def test_only_the_winner_notifies(self):
+        """The notify is gated on the claim returning a row."""
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        body = src[src.index("def _update_cost(") : src.index("def _log_usage(")]
+        self.assertIn("if claimed:", body)
+        self.assertIn("_notify_budget_warn(provider", body.split("if claimed:")[1])
+
+    def test_the_claim_thresholds_on_the_warn_band_not_the_block_band(self):
+        """95% blocks traffic on its own — the gate does that, loudly, every time. The
+        notification exists for the 80% band that blocks nothing."""
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        self.assertIn("limit * BUDGET_WARN_FRACTION", src)
+        body = src[src.index("def _warn_threshold_for(") : src.index("def _notify_budget_warn(")]
+        self.assertNotIn("BUDGET_BLOCK_FRACTION", body)
+
+    def test_the_period_roll_does_not_clear_the_stamp(self):
+        """One mechanism, not two that can disagree.
+
+        The comparison against `period_start` already resets the warning. Clearing the column in
+        the roll as well would be redundant, and if the two ever disagreed about whether a period
+        rolled, the provider would either warn twice or never warn at all.
+        """
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        roll = src[src.index("last_reset_at = CASE") : src.index("updated_at = NOW()")]
+        self.assertNotIn("budget_warned_at", roll, "the comparison is the reset; do not clear")
+
+    def test_the_migration_adds_exactly_the_column_the_code_writes(self):
+        """The two can drift apart silently, and nothing else would notice.
+
+        A migration that adds `budget_warn_notified_at` while the code writes
+        `budget_warned_at` still applies cleanly, still lints, and still passes every other test
+        here. It fails at runtime, on the first provider that crosses 80%, as an undefined column.
+        """
+        mig = _repo_file(MIGRATION_490).read_text(encoding="utf-8")
+        code = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        added = re.search(r"ADD COLUMN IF NOT EXISTS\s+(\w+)", mig)
+        self.assertIsNotNone(added, "migration 490 must add a column")
+        self.assertEqual(
+            added.group(1),
+            "budget_warned_at",
+            "migration and code disagree on the column name",
+        )
+        self.assertIn(added.group(1) + " = NOW()", code)
+
+    def test_the_migration_backfills_nothing(self):
+        """Backfilling from last_reset_at would mean "already warned about a crossing we never
+        announced" — silencing the next real crossing."""
+        mig = _repo_file(MIGRATION_490).read_text(encoding="utf-8")
+        self.assertNotIn("UPDATE ", mig)
+        self.assertIn("Backfill: deliberately NONE", mig)
+
+    # ------------------------------------------------------------------ #
+    # the threshold read
+    # ------------------------------------------------------------------ #
+
+    def test_no_budget_row_means_no_warning_ever(self):
+        """There is no limit to be near, so there is nothing to announce."""
+        self.assertEqual(ep._warn_threshold_for.__doc__ is not None, True)
+        with mock.patch.dict(sys.modules, {"database": _db_with_limit(None)}):
+            limit, threshold = ep._warn_threshold_for("nobody")
+        self.assertEqual(limit, float("inf"))
+        self.assertEqual(threshold, float("inf"))
+
+    def test_a_zero_or_negative_limit_means_no_warning(self):
+        with mock.patch.dict(sys.modules, {"database": _db_with_limit(0)}):
+            self.assertEqual(ep._warn_threshold_for("p")[0], float("inf"))
+        with mock.patch.dict(sys.modules, {"database": _db_with_limit(-5)}):
+            self.assertEqual(ep._warn_threshold_for("p")[0], float("inf"))
+
+    def test_a_real_limit_produces_the_80_percent_threshold(self):
+        with mock.patch.dict(sys.modules, {"database": _db_with_limit(10.0)}):
+            limit, threshold = ep._warn_threshold_for("cohere")
+        self.assertEqual(limit, 10.0)
+        self.assertAlmostEqual(threshold, 8.0)
+
+    def test_a_broken_threshold_read_skills_the_warning_rather_than_raising(self):
+        """A dispatch must not fail because the warning could not be computed."""
+        with mock.patch.dict(sys.modules, {"database": _db_that_raises()}):
+            self.assertEqual(ep._warn_threshold_for("p"), (float("inf"), float("inf")))
+
+    # ------------------------------------------------------------------ #
+    # the notification itself
+    # ------------------------------------------------------------------ #
+
+    def test_a_failed_notification_is_logged_not_raised(self):
+        """Observability must never break the dispatch that paid for it."""
+        with mock.patch.object(ep, "logger") as log:
+            with mock.patch.dict(sys.modules, {"database": _db_that_raises_on_insert()}):
+                ep._notify_budget_warn("cohere", 8.5, 10.0)  # must not raise
+            self.assertTrue(log.warning.called)
+
+    def test_the_notification_says_traffic_is_still_allowed(self):
+        """An operator reading an 80% warning should not think requests are already being
+        refused — they are not, until 95%."""
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        self.assertIn("Traffic is still allowed", src)
+
+    def test_the_notification_is_announced_once_per_period(self):
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        self.assertIn("Announced once per budget period.", src)
+
+    def test_no_telegram_forward_on_a_budget_warning(self):
+        """These are informational. Paging the owner about a provider hitting 80% would train
+        them to ignore budget warnings, which is worse than not sending them.
+
+        Checks the params tuple by shape rather than by a bare substring: the earlier version
+        asserted `"True,"` appears somewhere near the INSERT, which proved nothing about which
+        column that value belonged to.
+        """
+        src = pathlib.Path(ep.__file__).read_text(encoding="utf-8")
+        block = src[src.index("def _notify_budget_warn(") : src.index("def _update_cost(")]
+        m = re.search(r'\(\s*"budget_warning".*?"high",\s*(\w+),', block, re.S)
+        self.assertIsNotNone(m, "could not locate the INSERT parameter tuple")
+        # The INSERT lists 7 columns and this is the 7th value: telegram_forwarded. Capturing the
+        # value that FOLLOWS the priority is what makes the claim specific — asserting `"True,"`
+        # appears nearby proved nothing about which column it belonged to.
+        self.assertEqual(m.group(1), "True", "telegram_forwarded must be True so the daemon skips it")
+
+
+def _db_with_limit(limit):
+    """A fake `database` module whose get_db_cursor yields one budget row."""
+    row = {"monthly_budget_usd": limit}
+
+    class _Cur:
+        def __enter__(self):
+            return None, self
+
+        def __exit__(self, *_a):
+            return False
+
+        def execute(self, *_a, **_k):
+            return None
+
+        def fetchone(self):
+            return row
+
+    module = types.ModuleType("database")
+    module.get_db_cursor = lambda commit=False: _Cur()
+    return module
+
+
+def _db_that_raises():
+    module = types.ModuleType("database")
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("db down")
+
+    module.get_db_cursor = _boom
+    return module
+
+
+def _db_that_raises_on_insert():
+    module = types.ModuleType("database")
+
+    class _Cur:
+        def __enter__(self):
+            return None, self
+
+        def __exit__(self, *_a):
+            return False
+
+        def execute(self, *_a, **_k):
+            raise RuntimeError("insert failed")
+
+    module.get_db_cursor = lambda commit=False: _Cur()
+    return module

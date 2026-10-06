@@ -509,6 +509,77 @@ def _reset_day_for(provider: str) -> int:
         return 1
 
 
+def _warn_threshold_for(provider: str) -> tuple[float, float]:
+    """(limit, warn_threshold_usd) for a provider, or (inf, inf) to disable the warning.
+
+    A provider with no budget row gets `inf` thresholds, so the claim can never fire. Failing
+    toward "no warning" is right: there is no limit to be near, so there is nothing to announce,
+    and an operator who has not configured a budget should not receive budget notifications.
+
+    A zero or negative limit also gets `inf`. Such a provider is governed entirely by the gate,
+    which already refuses its traffic; a warning about a budget that is already fully spent every
+    single cycle is pure noise.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_conn, cur):
+            cur.execute(
+                "SELECT monthly_budget_usd FROM external_api_keys WHERE provider = %s",
+                (provider,),
+            )
+            row = cur.fetchone()
+        if not row or row["monthly_budget_usd"] is None:
+            return float("inf"), float("inf")
+        limit = float(row["monthly_budget_usd"])
+        if limit <= 0:
+            return float("inf"), float("inf")
+        return limit, limit * BUDGET_WARN_FRACTION
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "budget warn threshold unavailable for %s (%s: %s) — skipping the warning this cycle",
+            provider,
+            exc.__class__.__name__,
+            exc,
+        )
+        return float("inf"), float("inf")
+
+
+def _notify_budget_warn(provider: str, used: float, limit: float) -> None:
+    """Announce that a provider entered the monthly warn band. Once per period.
+
+    Observability must never be the thing that breaks a dispatch, so every failure here is logged
+    and swallowed. The claim in `_update_cost` is already committed by this point, so a failure
+    means no repeat attempt — the trade is deliberate and documented there.
+    """
+    try:
+        from database import get_db_cursor
+
+        pct = (used / limit * 100.0) if limit > 0 else 0.0
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                INSERT INTO system_notifications
+                    (type, title, message, source, visibility, priority, telegram_forwarded)
+                VALUES (%s, %s, %s, 'contractor_budget', 'admin', %s, %s)
+                """,
+                (
+                    "budget_warning",
+                    f"Budget warning: {provider} at {pct:.0f}% of its monthly limit",
+                    (
+                        f"{provider} has used ${used:.2f} of its ${limit:.2f} monthly budget "
+                        f"({pct:.0f}%). Traffic is still allowed; requests will be refused at "
+                        f"{BUDGET_BLOCK_FRACTION * 100:.0f}%. Announced once per budget period."
+                    ),
+                    "high",
+                    True,
+                ),
+            )
+        logger.info("budget warning issued for %s at %.0f%% of limit", provider, pct)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("budget warn notification failed for %s (%s: %s)", provider, exc.__class__.__name__, exc)
+
+
 def _update_cost(provider: str, cost: float):
     """Add cost to current month tracking."""
     try:
@@ -525,6 +596,10 @@ def _update_cost(provider: str, cost: float):
         # A stale counter is never carried forward, which is what lets a provider that hit
         # `block` last month come back this month.
         period_start = _budget_period_start(_reset_day_for(provider))
+        # The limit decides whether this crossing deserves a warning at all, so it is read here
+        # rather than left to `monthly_budget_status` afterwards — the claim has to be part of
+        # this transaction, and the threshold has to be known before the UPDATE runs.
+        limit, warn_threshold = _warn_threshold_for(provider)
         cur.execute(
             """
             UPDATE external_api_keys
@@ -543,9 +618,47 @@ def _update_cost(provider: str, cost: float):
             """,
             {"period": period_start, "cost": cost, "provider": provider},
         )
+
+        # Claim the warn notification, atomically, in the SAME transaction as the increment.
+        #
+        # Two dispatches can cross 80% in the same instant. Without a claim, both read "not
+        # warned yet", both notify, and the operator gets the same alert twice — which is the
+        # entire problem this is solving, just faster. `WHERE budget_warned_at IS NULL OR <` makes
+        # exactly one UPDATE report rowcount 1, and that caller alone notifies.
+        #
+        # The period comparison IS the reset. A stamp from last month fails it and the next
+        # crossing warns again, so the period roll above deliberately does NOT clear the column:
+        # one mechanism, not two that can disagree.
+        #
+        # NULL is included because NULL means "never warned", and silently treating that as
+        # "already warned" would mean a provider that silently crossed 80% was never announced.
+        cur.execute(
+            """
+            UPDATE external_api_keys
+               SET budget_warned_at = NOW()
+             WHERE provider = %(provider)s
+               AND current_month_cost_usd >= %(threshold)s
+               AND (budget_warned_at IS NULL OR budget_warned_at < %(period)s)
+         RETURNING current_month_cost_usd
+            """,
+            {
+                "provider": provider,
+                "period": period_start,
+                "threshold": warn_threshold,
+            },
+        )
+        claimed = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
+
+        if claimed:
+            # After the commit on purpose: the claim is durable before the alert exists, so a
+            # failed notify cannot cause a repeat on the next dispatch. Failing toward silence
+            # is right here — a duplicate warning is noisier than a missed one, and the status
+            # function still reports `warn` so nothing is actually hidden from an operator who
+            # looks.
+            _notify_budget_warn(provider, float(claimed[0]), limit)
     except Exception as e:
         logger.warning(f"Failed to update cost for {provider}: {e}")
 

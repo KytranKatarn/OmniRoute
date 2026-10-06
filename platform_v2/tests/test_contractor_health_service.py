@@ -549,6 +549,142 @@ class TestRanking(unittest.TestCase):
         self.assertLessEqual(chs.LATENCY_CEILING_MS, 60_000)
 
 
+class TestCadencesAreActuallyDifferent(unittest.TestCase):
+    """Three cadences, three measurements — which is what migration 487 promised.
+
+    All three spent the identical 1-token completion, so `full` was a second copy of `health`
+    costing 30 extra requests a day to learn nothing, and `latency` measured time-to-first-byte
+    rather than anything a ranking could use. #3664 stopped the ranking reading health rows;
+    without this, that left it nothing better to read.
+
+    The design rule that matters most: `full` reports health from a COMPLETION, never from the
+    model list. All five OmniRoute rows answered `/v1/models` with 200 while three of them 403'd
+    or 502'd a completion — a `full` that trusted the enumeration would rank the dead rows first.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.src = pathlib.Path(chs.__file__).read_text(encoding="utf-8")
+
+    def _probe(self, kind, resp=None, enum=None, provider=None):
+        prov = provider or {
+            "provider_key": "p",
+            "base_url": "https://api.example.com/v1",
+            "default_model": "m1",
+            "auth_env_var": None,
+            "is_cloud_proxy": False,
+        }
+        completion = resp or self._resp(200, payload={"model": "m1"})
+        mod = types.ModuleType("requests")
+        mod.exceptions = types.SimpleNamespace(
+            Timeout=type("Timeout", (Exception,), {}),
+            RequestException=type("RequestException", (Exception,), {}),
+        )
+        mod.post = mock.Mock(return_value=completion)
+        if enum is None:
+            mod.get = mock.Mock(side_effect=AssertionError("full must enumerate"))
+        else:
+            mod.get = mock.Mock(return_value=enum)
+        with mock.patch.dict("os.environ", {"CADENCE_KEY_XYZ": "k"}, clear=False):
+            with mock.patch.dict(sys.modules, {"requests": mod}):
+                out = chs._probe_one(prov, kind, 5)
+        return out, mod
+
+    def _resp(self, status, text="", payload=None):
+        r = mock.Mock()
+        r.status_code = status
+        r.ok = 200 <= status < 300
+        r.text = text
+        r.json = lambda: (payload if payload is not None else {})
+        return r
+
+    def _models_resp(self, ids):
+        return self._resp(200, payload={"data": [{"id": i} for i in ids]})
+
+    def test_health_still_asks_for_one_token(self):
+        _, mod = self._probe("health")
+        self.assertEqual(mod.post.call_args.kwargs["json"]["max_tokens"], 1)
+
+    def test_latency_asks_for_a_real_completion(self):
+        """Otherwise it measures time-to-first-byte, same as health, and ranks nothing."""
+        _, mod = self._probe("latency")
+        self.assertEqual(mod.post.call_args.kwargs["json"]["max_tokens"], chs.LATENCY_SAMPLE_TOKENS)
+        self.assertGreater(chs.LATENCY_SAMPLE_TOKENS, 1)
+
+    def test_full_enumerates_and_also_completes(self):
+        out, mod = self._probe("full", enum=self._models_resp(["m1", "m2"]))
+        self.assertTrue(mod.get.called, "full must ask what the provider serves")
+        self.assertTrue(mod.post.called, "full must still prove the provider works")
+        self.assertEqual(out["status"], "ok")
+        self.assertIn("serves 2 model(s)", out["detail"])
+
+    def test_full_reports_health_from_the_completion_not_the_model_list(self):
+        """The OmniRoute lesson, as an assertion.
+
+        The enumeration succeeds; the completion 403s. The verdict must follow the completion.
+        """
+        # a credential IS present, so a 403 is a refused credential (auth_error) rather than
+        # the "nothing was sent" case (no_key) — the two are deliberately different
+        prov = {
+            "provider_key": "p",
+            "base_url": "https://api.example.com/v1",
+            "default_model": "m1",
+            "auth_env_var": "CADENCE_KEY_XYZ",
+            "is_cloud_proxy": False,
+        }
+        out, _ = self._probe(
+            "full",
+            resp=self._resp(403, text='{"error":"client scope refused"}'),
+            enum=self._models_resp(["m1", "m2", "m3"]),
+            provider=prov,
+        )
+        self.assertEqual(
+            out["status"],
+            "auth_error",
+            "a 200 from /models must never make a provider look healthy",
+        )
+        self.assertIn("serves 3 model(s)", out["detail"], "the enumeration is still reported")
+        self.assertIn("client scope refused", out["detail"], "and so is the real failure")
+
+    def test_full_flags_a_default_model_the_provider_does_not_serve(self):
+        out, _ = self._probe("full", enum=self._models_resp(["other", "another"]))
+        self.assertIn("default_model 'm1' NOT in list", out["detail"])
+
+    def test_full_truncates_a_long_model_list(self):
+        out, _ = self._probe("full", enum=self._models_resp([f"m{i}" for i in range(60)]))
+        self.assertIn("serves 60 model(s)", out["detail"])
+        self.assertIn("+48 more", out["detail"])
+
+    def test_a_failing_enumeration_does_not_break_the_probe(self):
+        out, _ = self._probe("full", enum=self._resp(500))
+        self.assertEqual(out["status"], "ok", "the completion still decided the verdict")
+        self.assertIn("/models -> HTTP 500", out["detail"])
+
+    def test_enumeration_never_mutates_the_configured_model_list(self):
+        """Drift is reported, not applied. The probe must not rewrite what dispatch routes to."""
+        self.assertNotIn(
+            "UPDATE contractor_providers",
+            self.src[self.src.index("def _enumerate_models") : self.src.index("def _full_detail")],
+            "enumeration must never write to contractor_providers",
+        )
+
+    def test_retention_no_longer_depends_on_a_cadence_that_may_never_arrive(self):
+        """`full` needs local hour 0 AND minute < 15 — unreachable on some scheduler starts."""
+        jobs = pathlib.Path(chs.__file__).resolve().parents[1] / "tools" / "department_hq" / "jobs.py"
+        if not jobs.exists():
+            jobs = pathlib.Path("/mnt/archie_brain/platform_v2/tools/department_hq/jobs.py")
+        self.assertTrue(jobs.exists(), "jobs.py not reachable")
+        body = jobs.read_text(encoding="utf-8")
+        start = body.index("def contractor_health_job")
+        block = body[start : body.index("def ", start + 10)]
+        self.assertIn("prune(days=30)", block)
+        self.assertNotIn(
+            'if kind == "full":',
+            block,
+            "retention must not hang off a bucket that may never be selected",
+        )
+
+
 class TestProbeOne(unittest.TestCase):
     """The network call itself, with `requests` patched."""
 

@@ -80,6 +80,22 @@ LATENCY_CEILING_MS = 60_000
 #: because they are reached through here instead of their own HTTP endpoint.
 OLLAMA_CLOUD_GENERATE_URL = "https://ollama.com/api/generate"
 
+#: Ollama Cloud's model-list endpoint, for the same reason as the generate URL above: cloud
+#: proxies are not reached through their own HTTP endpoint, so their "what can you serve"
+#: question is also asked of Ollama, not of the sentinel.
+OLLAMA_CLOUD_TAGS_URL = "https://ollama.com/api/tags"
+
+#: How many tokens the LATENCY cadence asks for. 1 is what a liveness check needs and is not
+#: what a latency number means: a one-token completion measures time-to-first-byte, which is
+#: why `pollinations` read 653ms as a health probe and 1288ms as a real sample (#3664). This
+#: is the smallest generation that includes actual decoding time while staying trivial to pay
+#: for. Still small enough that the hourly sweep costs less than a rounding error.
+LATENCY_SAMPLE_TOKENS = 32
+
+#: Model lists run to hundreds on some providers. The COUNT is the useful part; the names are
+#: only so an operator can eyeball drift, so they are truncated rather than stored whole.
+MAX_REPORTED_MODELS = 12
+
 
 def _redact(text: str, secret: Optional[str]) -> str:
     """Blank out the credential if the upstream echoed it back into an error body.
@@ -485,6 +501,84 @@ def summarize(results: list[dict[str, Any]]) -> dict[str, int]:
     return out
 
 
+def _enumerate_models(provider: dict[str, Any], api_key: Optional[str]) -> dict[str, Any]:
+    """Ask a provider what it can serve. Returns {ok, models, detail}.
+
+    Deliberately separate from the probe's VERDICT, because a `/models` answer is not evidence
+    that the provider works. Measured against the five OmniRoute rows on 2026-10-05:
+
+        GET /v1/models          -> 200 for ALL FIVE
+        POST /chat/completions  -> 502, 403, 403, 200, 200
+
+    All three broken ones listed models happily. So a `full` cadence that reported health from
+    this alone would reintroduce exactly the reachability-only lie that the 1-token completion
+    exists to prevent — ranking the dead rows first. The status still comes from a real
+    completion; this only ever contributes `detail`.
+
+    Never mutates `contractor_providers.models`. Drift is reported, not applied: the configured
+    model list is operator territory, and a probe silently rewriting it would change what the
+    dispatcher routes to.
+    """
+    import os
+
+    import requests
+
+    base_url = (provider.get("base_url") or "").rstrip("/")
+    is_cloud_proxy = bool(provider.get("is_cloud_proxy"))
+    env_var = provider.get("auth_env_var")
+    api_key = api_key or (os.environ.get(env_var) if env_var else None)
+
+    if is_cloud_proxy:
+        url = OLLAMA_CLOUD_TAGS_URL
+        headers = {}
+    else:
+        if not base_url:
+            return {"ok": False, "models": [], "detail": "no base_url to enumerate"}
+        url = f"{base_url}/models"
+        headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+    except Exception as exc:  # noqa: BLE001 - enumeration is never fatal to the probe
+        return {"ok": False, "models": [], "detail": f"enumeration failed: {exc.__class__.__name__}"}
+
+    if not getattr(resp, "ok", False):
+        return {"ok": False, "models": [], "detail": f"/models -> HTTP {getattr(resp, 'status_code', '?')}"}
+
+    try:
+        body = resp.json() or {}
+    except Exception:  # noqa: BLE001
+        return {"ok": False, "models": [], "detail": "/models returned a non-JSON body"}
+
+    # OpenAI shape is {"data": [{"id": ...}]}; ollama's native shape is {"models": [{"name":...}]}
+    entries = body.get("data") if isinstance(body, dict) else None
+    if entries is None and isinstance(body, dict):
+        entries = body.get("models")
+    ids = []
+    for e in entries or []:
+        if isinstance(e, dict):
+            ids.append(str(e.get("id") or e.get("name") or e.get("model") or ""))
+        elif isinstance(e, str):
+            ids.append(e)
+    ids = [i for i in ids if i]
+    return {"ok": True, "models": ids, "detail": ""}
+
+
+def _full_detail(models, default_model, enumeration_detail) -> str:
+    """One line describing what the provider serves vs what we think it serves."""
+    if not models:
+        return enumeration_detail or "enumeration returned no models"
+    total = len(models)
+    shown = ", ".join(sorted(models)[:MAX_REPORTED_MODELS])
+    more = f" (+{total - MAX_REPORTED_MODELS} more)" if total > MAX_REPORTED_MODELS else ""
+    drift = (
+        "" if (not default_model or default_model in models) else f"  !! default_model '{default_model}' NOT in list"
+    )
+    return f"serves {total} model(s): {shown}{more}{drift}"
+
+
 def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dict[str, Any]:
     """One provider, one request. Network lives here so `scan` stays testable."""
     import os
@@ -537,7 +631,11 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
         url = f"{base_url}/chat/completions"
         payload = {
             "model": model or "unknown",
-            "max_tokens": 1,
+            # A real completion for the latency cadence, a liveness ping otherwise. See
+            # LATENCY_SAMPLE_TOKENS: with max_tokens=1 both cadences measured the same thing,
+            # which is what made the ranking a coin toss until #3664 started excluding health
+            # rows — the rows were excluded, but there was still nothing else to rank on.
+            "max_tokens": LATENCY_SAMPLE_TOKENS if probe_kind == "latency" else 1,
             "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
         }
 
@@ -570,6 +668,7 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     # guess at it again" — was empty for 20 of the 30 contractors on the first real run.
     # gemini's 403 says "Requests to this API ... has been disabled"; that is the entire
     # diagnosis, and it was being thrown away.
+    detail_error = None
     body = ""
     try:
         body = resp.text or ""
@@ -588,7 +687,16 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
         # Truncated, and with the credential redacted: this body is rendered into the
         # Contractors tab's tooltip, and an upstream that echoes the Authorization header
         # would otherwise persist a live key into a history table.
-        detail = _redact(body, api_key)[:300] or None
+        detail_error = _redact(body, api_key)[:300] or None
+        detail = detail_error
+
+    if probe_kind == "full":
+        # Enumerate AND verify. The completion above decides the status; this only annotates.
+        # See _enumerate_models for why a /models 200 is not evidence of health — it is
+        # exactly what all three broken OmniRoute rows returned while refusing completions.
+        _enum = _enumerate_models(provider, api_key)
+        _enum_note = _full_detail(_enum["models"], model, _enum["detail"])
+        detail = f"{_enum_note} | {detail_error}" if detail_error else _enum_note
 
     if payload is not None and resp.ok:
         try:

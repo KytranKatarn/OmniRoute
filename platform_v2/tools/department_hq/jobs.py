@@ -1275,8 +1275,17 @@ def contractor_health_job():
             kind,
             ", ".join("%s=%s" % kv for kv in sorted(out.get("summary", {}).items())) or "none",
         )
-        if kind == "full":
-            prune(days=30)
+        # Retention runs EVERY cycle, not only on `full`.
+        #
+        # It used to hang off `if kind == "full"`, coupling pruning to a bucket that
+        # _health_probe_kind() only selects when the LOCAL hour is 0 AND minute < 15. With
+        # a 15-minute IntervalTrigger the fire minute depends on when the scheduler started,
+        # so on some starts `full` never fires at all — and then a table growing ~2,880 rows
+        # a day is never pruned. Retention must not depend on which bucket the clock landed in.
+        #
+        # A DELETE with a WHERE on an indexed created_at is cheap enough every 15 minutes;
+        # making it conditional bought nothing and risked never running at all.
+        prune(days=30)
     except Exception:
         logger.exception("contractor_health failed")
 

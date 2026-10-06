@@ -237,9 +237,28 @@ def delete_session_token(session_token):
 # ============================================================================
 
 
+def _as_utc(dt):
+    """An aware UTC datetime from a database timestamp.
+
+    ``failed_logins.attempted_at`` is ``timestamp WITHOUT time zone`` filled by ``CURRENT_TIMESTAMP`` in a UTC
+    session, so a naive value IS UTC (storage is UTC everywhere — see .claude/rules/timezone.md). An aware value
+    is converted, not merely stripped, so a non-UTC offset cannot shift the lockout window.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def is_account_locked(user_data):
     """Check if account is locked due to too many failed login attempts.
     Returns (is_locked, minutes_remaining) tuple.
+
+    2026-10-06: this used to strip the timezone off ``last_attempt`` and then compare it to an AWARE
+    ``datetime.now(timezone.utc)`` — Python raises ``TypeError: can't compare offset-naive and offset-aware
+    datetimes`` for that, on every call where it got that far (failed_login_count >= MAX_FAILED_ATTEMPTS). The login
+    route's catch-all turned it into "An error occurred. Please try again.", so an account with a stale count
+    could never sign in, a genuine lockout crashed instead of saying "locked for N minutes", and the
+    expired-lockout reset below was unreachable. ``probe`` (the QA harness) was stuck this way since June.
     """
     failed_count = user_data.get("failed_login_count", 0) or 0
     if failed_count < MAX_FAILED_ATTEMPTS:
@@ -255,10 +274,7 @@ def is_account_locked(user_data):
             )
             row = cur.fetchone()
             if row and row["last_attempt"]:
-                last_attempt = row["last_attempt"]
-                # Strip timezone if present for comparison
-                if hasattr(last_attempt, "tzinfo") and last_attempt.tzinfo:
-                    last_attempt = last_attempt.replace(tzinfo=None)
+                last_attempt = _as_utc(row["last_attempt"])
                 unlock_at = last_attempt + timedelta(minutes=LOCKOUT_MINUTES)
                 now = datetime.now(timezone.utc)
                 if now < unlock_at:

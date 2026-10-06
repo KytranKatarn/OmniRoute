@@ -2,7 +2,7 @@
 {% from "_archetypes.html" import stat_tiles %}
 {% block title %}Ethics Commissioner Rulings — Conflict of Interest Reports · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="All Ethics Commissioner investigation reports on Canadian MPs, ministers, and public officials. Conflict of interest findings 2015–2026.">
+<meta name="description" content="All Ethics Commissioner investigation reports on Canadian MPs, ministers, and public officials. Conflict of interest findings {{ year_span }}.">
 {% endblock %}
 {% block content %}
 <div class="wtf-pg-container">
@@ -57,7 +57,7 @@
 <div class="wtf-eth-header">
   <h1 class="wtf-eth-title">⚖️ Ethics Commissioner Reports</h1>
   <div class="wtf-eth-sub">
-    {{ rulings|length }} investigation reports · 2015–2026 · Conflict of Interest and Ethics Commissioner of Canada
+    {{ rulings|length }} investigation reports · {{ year_span }} · Conflict of Interest and Ethics Commissioner of Canada
   </div>
 </div>
 

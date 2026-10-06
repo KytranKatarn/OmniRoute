@@ -2,7 +2,7 @@
 {% from "_archetypes.html" import paywall, lean_pill %}
 {% block title %}CRTC Decisions — Broadcasting & Telecom Rulings · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="Canadian Radio-television and Telecommunications Commission decisions 2024–2026. Broadcasting licences, telecom rulings, and enforcement actions.">
+<meta name="description" content="Canadian Radio-television and Telecommunications Commission decisions {{ year_span }}. Broadcasting licences, telecom rulings, and enforcement actions.">
 {% endblock %}
 {% block content %}
 <div class="wtf-pg-container">
@@ -63,7 +63,7 @@
 <div class="wtf-crtc-header">
   <h1 class="wtf-crtc-title">📡 CRTC Decisions</h1>
   <div class="wtf-crtc-sub">
-    {{ total_rulings }} rulings · 2024–2026 · Canadian Radio-television and Telecommunications Commission
+    {{ total_rulings }} rulings · {{ year_span }} · Canadian Radio-television and Telecommunications Commission
   </div>
 </div>
 
@@ -157,7 +157,7 @@
 {% else %}
 {{ paywall(
      'CRTC Decisions — Starter+',
-     total_rulings ~ ' CRTC broadcasting and telecom rulings (2024–2026) with cross-links to WTF outlet profiles.',
+     total_rulings ~ ' CRTC broadcasting and telecom rulings (' ~ year_span ~ ') with cross-links to WTF outlet profiles.',
      '/crtc'
 ) }}
 {% endif %}

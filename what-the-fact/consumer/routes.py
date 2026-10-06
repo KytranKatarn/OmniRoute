@@ -5677,6 +5677,15 @@ def officers_of_parliament():
                            is_subscriber=is_subscriber())
 
 
+def _year_span(years) -> str:
+    """"2015–2026" / "2026" / "" from any iterable of years (ints, or None for gaps). Page labels that name the span
+    of the data must come from the data: a literal "2024–2026" is still there in 2027."""
+    ys = sorted({int(y) for y in years if y})
+    if not ys:
+        return ""
+    return str(ys[0]) if ys[0] == ys[-1] else "%d\u2013%d" % (ys[0], ys[-1])
+
+
 @bp.get("/crtc")
 def crtc_decisions():
     """CRTC rulings — broadcasting, telecom, compliance decisions."""
@@ -5705,6 +5714,9 @@ def crtc_decisions():
         total_rulings = c.execute(
             text("SELECT COUNT(*) FROM legal_watch.crtc_decisions")
         ).scalar()
+        yr0, yr1 = c.execute(
+            text("SELECT MIN(decision_year), MAX(decision_year) FROM legal_watch.crtc_decisions")
+        ).fetchone()
 
         # Ownership concentration data for the CRTC panel.
         # bias_band mirrors ingest/outlet_bias.py's _BANDS thresholds exactly
@@ -5741,6 +5753,7 @@ def crtc_decisions():
                            dtype=dtype,
                            source_count=source_count,
                            total_rulings=total_rulings,
+                           year_span=_year_span([yr0, yr1]) or "to date",
                            owners_summary=owners_summary,
                            concentration_badge=concentration_badge,
                            is_subscriber=is_subscriber())
@@ -5787,6 +5800,8 @@ def ethics_rulings():
                            act_count=act_count,
                            code_count=code_count,
                            mp_linked_count=mp_linked_count,
+                           year_span=_year_span(
+                               getattr(d.get("ruling_date"), "year", None) for d in rulings) or "to date",
                            source_count=source_count,
                            is_subscriber=is_subscriber())
 
@@ -6375,6 +6390,8 @@ def boc_rates():
                            current=dict(current) if current else {},
                            decisions=[dict(r) for r in decisions],
                            source_count=source_count,
+                           year_span=_year_span(
+                               getattr(h.get("decision_date"), "year", None) for h in history) or "to date",
                            chart=_boc_rate_chart(history),
                            eras=_boc_eras(history),
                            peak_stat=_boc_peak_since(history),

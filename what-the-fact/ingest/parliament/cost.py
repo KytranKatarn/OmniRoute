@@ -32,6 +32,8 @@ import unicodedata
 
 from sqlalchemy import text
 
+from shared.fiscal_quarters import CHRONO_DESC_SQL, CHRONO_KEY_SQL
+
 # Default/fallback window. The LIVE window is computed dynamically from the data by
 # _complete_years() so the model auto-advances as new quarters are disclosed — a year rolls
 # into the headline once its 4th quarter lands, an incomplete year never inflates it, and the
@@ -215,6 +217,33 @@ def _quarter_series(conn) -> dict:
             ser.setdefault(int(yr), {})[str(q)] = float(amt or 0)
         out[kind] = ser
     return out
+
+
+# A minister's CURRENT department = the owner_org of their most recent quarter. "Most recent" must be chronological:
+# the period label is "<calendar year>-Q<fiscal quarter>" with Q4 = Jan-Mar, so ORDER BY period DESC puts 2026-Q4
+# (Jan-Mar 2026) ABOVE 2026-Q1 (Apr-Jun 2026) and would pick the older department after a mid-year move.
+_LATEST_ORG_SQL = (
+    "SELECT owner_org FROM parliament.minister_travel "
+    "WHERE mp_id = :mid AND COALESCE(owner_org, '') <> '' "
+    "ORDER BY " + CHRONO_DESC_SQL + " LIMIT 1"
+)
+
+# Series whose labels use the House fiscal-quarter scheme above (mp_expenses, and minister_travel which mirrors it).
+# senator_expenses uses the Senate's own calendar quarters, where plain text order IS chronological.
+_FISCAL_LABEL_TABLES = frozenset({"parliament.mp_expenses", "parliament.minister_travel"})
+
+
+def series_coverage(conn, table: str) -> dict:
+    """{rows, first, last} for a table's `period` labels, FIRST and LAST in date order. MIN/MAX on the label text
+    reported 2026-Q4 (Jan-Mar 2026) as the latest MP quarter when it is 2026-Q1 (Apr-Jun 2026)."""
+    rows = int(conn.execute(text("SELECT COUNT(*) FROM {0}".format(table))).scalar() or 0)
+    if table in _FISCAL_LABEL_TABLES:
+        first = conn.execute(text("SELECT period FROM {0} ORDER BY {1} ASC, period ASC LIMIT 1".format(table, CHRONO_KEY_SQL))).scalar()
+        last = conn.execute(text("SELECT period FROM {0} ORDER BY {1} LIMIT 1".format(table, CHRONO_DESC_SQL))).scalar()
+    else:
+        r = conn.execute(text("SELECT MIN(period), MAX(period) FROM {0}".format(table))).fetchone()
+        first, last = r[0], r[1]
+    return {"rows": rows, "first": first, "last": last}
 
 
 def _all_rates(conn) -> dict:
@@ -588,14 +617,7 @@ def minister_travel_5yr(engine, mp_id: int) -> dict:
         # Contract chain link (#373): this minister's CURRENT department (the most recent
         # minister_travel.owner_org) -> the federal contract volume their portfolio oversees
         # (parliament.dept_contracts, mirrored from Gov Watch). Fail-soft (None if no data).
-        latest_org = conn.execute(
-            text(
-                "SELECT owner_org FROM parliament.minister_travel "
-                "WHERE mp_id = :mid AND COALESCE(owner_org, '') <> '' "
-                "ORDER BY period DESC LIMIT 1"
-            ),
-            {"mid": int(mp_id)},
-        ).scalar()
+        latest_org = conn.execute(text(_LATEST_ORG_SQL), {"mid": int(mp_id)}).scalar()
         _canon = _canonical_dept(latest_org or "")
         _cmap = _dept_contracts_map(conn, [_canon]) if _canon else {}
     contracts = {**_cmap[_canon], "department": _canon} if _canon and _canon in _cmap else None
@@ -1081,7 +1103,7 @@ def officials_cost(engine, officials) -> list:
                 text(
                     "SELECT DISTINCT ON (mp_id) mp_id, owner_org FROM parliament.minister_travel "
                     "WHERE mp_id = ANY(:ids) AND COALESCE(owner_org, '') <> '' "
-                    "ORDER BY mp_id, period DESC"
+                    "ORDER BY mp_id, " + CHRONO_DESC_SQL
                 ),
                 {"ids": min_ids},
             ).fetchall()
@@ -1173,10 +1195,7 @@ def cost_reconciliation(engine) -> dict:
             ("Senator expenditures", "parliament.senator_expenses"),
             ("Ministerial travel & hospitality", "parliament.minister_travel"),
         ):
-            r = conn.execute(
-                text("SELECT COUNT(*), MIN(period), MAX(period) FROM {0}".format(tbl))
-            ).fetchone()
-            coverage.append({"source": src, "rows": int(r[0]), "first": r[1], "last": r[2]})
+            coverage.append({"source": src, **series_coverage(conn, tbl)})
         synced = {
             task: (run.isoformat() if run else None)
             for task, run in conn.execute(

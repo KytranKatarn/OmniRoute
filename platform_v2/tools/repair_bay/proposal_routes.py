@@ -120,6 +120,22 @@ def register_proposal_routes(bp, admin_required):
             return jsonify(result), code
         return jsonify(result)
 
+    @bp.route("/api/proposals/<int:proposal_id>/retry-fix", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_retry_fix(proposal_id):
+        from services.audit_pipeline import request_audit_fix_retry
+
+        data = request.get_json(silent=True) or {}
+        result = request_audit_fix_retry(proposal_id, reason=data.get("reason", "Requested repair retry"))
+        if not result.get("success"):
+            return jsonify(result), 422
+        from services.work_control_service import is_enabled
+
+        result["worker_enabled"] = is_enabled("code_health_backlog_drain", default=False)
+        _proposals_cache.clear()
+        return jsonify(result), 202
+
     # ---- Execution ----
 
     @bp.route("/api/proposals/<int:proposal_id>/execute", methods=["POST"])

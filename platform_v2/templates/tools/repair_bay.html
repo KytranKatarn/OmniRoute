@@ -2816,6 +2816,10 @@ function showProposalDetail(id) {
             diffSection.style.display = 'none';
         }
 
+        // Code Health retries stay in the validated generation pipeline.
+        var auditRepair = p.metadata && p.metadata.source === 'code_health_audit';
+        var manualAudit = auditRepair && ['LARGE_FILE', 'SQL_INJECTION_RISK'].indexOf(p.metadata.issue_code) >= 0;
+        var retryAction = auditRepair ? 'retry-fix' : 'retry';
         // Action buttons based on status
         var actions = document.getElementById('detailActions');
         actions.textContent = '';
@@ -2835,20 +2839,28 @@ function showProposalDetail(id) {
             rejectBtn.onclick = function() { proposalAction(id, 'reject'); };
             actions.appendChild(rejectBtn);
 
-            var retryBtn2 = document.createElement('button');
-            retryBtn2.className = 'dp-btn';
-            retryBtn2.style.borderColor = '#f59e0b';
-            retryBtn2.style.color = '#f59e0b';
-            retryBtn2.textContent = 'Retry';
-            retryBtn2.onclick = function() { proposalAction(id, 'retry'); };
-            actions.appendChild(retryBtn2);
+            if (!auditRepair) {
+                var retryBtn2 = document.createElement('button');
+                retryBtn2.className = 'dp-btn';
+                retryBtn2.style.borderColor = '#f59e0b';
+                retryBtn2.style.color = '#f59e0b';
+                retryBtn2.textContent = 'Retry';
+                retryBtn2.onclick = function() { proposalAction(id, retryAction); };
+                actions.appendChild(retryBtn2);
+            }
         }
 
-        if (p.status === 'approved') {
+        if (manualAudit && ['pending', 'proposed', 'pending_approval', 'approved', 'fix_requested', 'ready_for_review'].indexOf(p.status) >= 0) {
+            var manualNote = document.createElement('span');
+            manualNote.textContent = p.metadata.issue_code === 'LARGE_FILE' ? 'Planned refactor required' : 'Security review required';
+            actions.appendChild(manualNote);
+        }
+
+        if (p.status === 'approved' && !manualAudit) {
             var execBtn = document.createElement('button');
             execBtn.className = 'dp-btn dp-btn-primary';
-            execBtn.textContent = 'Execute';
-            execBtn.onclick = function() { proposalAction(id, 'execute'); };
+            execBtn.textContent = auditRepair ? 'Queue repair' : 'Execute';
+            execBtn.onclick = function() { proposalAction(id, auditRepair ? 'retry-fix' : 'execute'); };
             actions.appendChild(execBtn);
         }
 
@@ -2860,11 +2872,11 @@ function showProposalDetail(id) {
             actions.appendChild(deployBtn);
         }
 
-        if (p.status === 'fix_requested' || p.status === 'failed') {
+        if (!manualAudit && (p.status === 'fix_requested' || (!auditRepair && p.status === 'failed') || (auditRepair && p.status === 'ready_for_review'))) {
             var retryBtn = document.createElement('button');
             retryBtn.className = 'dp-btn dp-btn-primary';
-            retryBtn.textContent = 'Retry';
-            retryBtn.onclick = function() { proposalAction(id, 'retry'); };
+            retryBtn.textContent = auditRepair ? 'Queue retry' : 'Retry';
+            retryBtn.onclick = function() { proposalAction(id, retryAction); };
             actions.appendChild(retryBtn);
         }
     }).catch(function() {});
@@ -2877,9 +2889,14 @@ function proposalAction(id, action) {
             if (d.success || d.executed) {
                 loadProposals();
                 showProposalDetail(id);
+                if (d.queued) {
+                    alert(d.worker_enabled === false ? 'Repair queued. The repair worker is paused.' : 'Queued for repair generation.');
+                }
+            } else {
+                alert(d.error || 'Proposal action failed.');
             }
         })
-        .catch(function() {});
+        .catch(function() { alert('Unable to request the proposal action.'); });
 }
 
 function closeDetail() {

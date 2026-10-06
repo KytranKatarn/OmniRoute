@@ -1583,7 +1583,50 @@ _AUTO_FIX_PRIORITY_ISSUE_CODES = (
 )
 
 
-def dispatch_audit_proposals(limit=20):
+def request_audit_fix_retry(proposal_id, reason="Requested repair retry"):
+    """Queue one explicitly requested retry; never apply or dispatch in the web thread."""
+    from services.time_utils import now_utc
+
+    gate = creed_gate_pre_dispatch(proposal_id)
+    if not gate.get("approved"):
+        return {"success": False, "error": gate.get("reason"), "manual_review": True}
+    with get_db_cursor(commit=True) as (_, cur):
+        cur.execute(
+            "SELECT status, metadata, code_changes FROM improvement_proposals WHERE id = %s FOR UPDATE",
+            (proposal_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {"success": False, "error": "Proposal not found"}
+        meta = row["metadata"] or {}
+        if isinstance(meta, str):
+            meta = json.loads(meta)
+        if meta.get("source") != "code_health_audit":
+            return {"success": False, "error": "Only Code Health repairs support this retry"}
+        if row["status"] not in ("pending", "approved", "fix_requested", "ready_for_review"):
+            return {"success": False, "error": "Proposal is not eligible for a retry"}
+        if meta.get("severity_tier") == "red" and row["status"] == "pending":
+            return {"success": False, "error": "Security finding requires approval before retry"}
+        if meta.get("issue_code") in _AUTO_FIX_EXCLUDED_ISSUE_CODES:
+            return {"success": False, "error": "Finding requires planned manual review", "manual_review": True}
+        meta = dict(meta)
+        keys = ("dispatch_attempted", "dispatch_attempted_at", "dispatch_error", "defer_count", "last_defer_error")
+        previous = {key: meta.pop(key) for key in keys if key in meta}
+        previous["patch_size"] = len(row["code_changes"] or "")
+        meta["previous_dispatch_outcome"] = previous
+        meta["fix_retry_requested_at"] = now_utc().isoformat()
+        meta["fix_retry_reason"] = str(reason)[:500]
+        meta["fix_retry_requests"] = int(meta.get("fix_retry_requests") or 0) + 1
+        meta.pop("diff_stats", None)
+        cur.execute(
+            """UPDATE improvement_proposals SET status = 'fix_requested', code_changes = '',
+                   metadata = %s::jsonb WHERE id = %s""",
+            (json.dumps(meta), proposal_id),
+        )
+    return {"success": True, "proposal_id": proposal_id, "status": "fix_requested", "queued": True}
+
+
+def dispatch_audit_proposals(limit=20, module_name=None, dry_run=False):
     """Batch-dispatch pending audit proposals to Bridge agents for fix generation.
 
     Finds pending proposals sourced from code_health_audit and dispatches each one.
@@ -1593,10 +1636,20 @@ def dispatch_audit_proposals(limit=20):
 
     Args:
         limit: Max proposals to process in one batch
+        module_name: Optional path-owned module scope (canonical and legacy paths).
+        dry_run: Return eligible IDs without inference or proposal updates.
 
     Returns:
         {"dispatched": int, "failed": int, "skipped": int}
     """
+    module_filter = ""
+    module_params = ()
+    if module_name is not None:
+        if not isinstance(module_name, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", module_name):
+            raise ValueError("Invalid module name")
+        escaped = module_name.replace("_", r"\_")
+        module_filter = " AND (metadata->>'file_path' LIKE %s OR metadata->>'file_path' LIKE %s)"
+        module_params = (f"platform_v2/tools/{escaped}/%", f"[APP_CORE]/tools/{escaped}/%")
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """SELECT id, metadata FROM improvement_proposals
@@ -1605,15 +1658,20 @@ def dispatch_audit_proposals(limit=20):
                  AND (COALESCE(metadata->>'severity_tier', 'yellow') <> 'red'
                       OR status IN ('approved', 'fix_requested'))
                  AND (metadata->>'dispatch_attempted') IS NULL
-                 AND COALESCE(metadata->>'issue_code', '') <> ALL(%s)
+                 AND COALESCE(metadata->>'issue_code', '') <> ALL(%s)"""
+            + module_filter
+            + """
                ORDER BY
                  CASE WHEN priority = 'critical' THEN 0 ELSE 1 END,
                  CASE WHEN COALESCE(metadata->>'issue_code', '') = ANY(%s) THEN 0 ELSE 1 END,
                  proposed_at ASC
                LIMIT %s""",
-            (list(_AUTO_FIX_EXCLUDED_ISSUE_CODES), list(_AUTO_FIX_PRIORITY_ISSUE_CODES), limit),
+            (list(_AUTO_FIX_EXCLUDED_ISSUE_CODES),) + module_params + (list(_AUTO_FIX_PRIORITY_ISSUE_CODES), limit),
         )
         proposals = cur.fetchall()
+
+    if dry_run:
+        return {"dry_run": True, "module": module_name, "eligible": [r["id"] for r in proposals]}
 
     if not proposals:
         logger.info("Audit dispatch: no pending proposals to process")

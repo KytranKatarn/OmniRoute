@@ -31,15 +31,16 @@ from .fleet_helpers import (
 )
 
 try:
-    from ai_bridge.agent_performance_tracker import (
-        get_agent_performance,
-        update_agent_performance,
-        get_top_performers,
-        log_agent_action,
-    )
+    from ai_bridge import agent_performance_tracker as _performance_tracker
+
+    # Explicit re-exports preserve the legacy helper API for external callers.
+    get_agent_performance = _performance_tracker.get_agent_performance
+    update_agent_performance = _performance_tracker.update_agent_performance
+    get_top_performers = _performance_tracker.get_top_performers
+    log_agent_action = _performance_tracker.log_agent_action
 
     _HAS_PERFORMANCE_TRACKER = True
-except ImportError:
+except (ImportError, AttributeError):
     _HAS_PERFORMANCE_TRACKER = False
 
 logger = logging.getLogger(__name__)

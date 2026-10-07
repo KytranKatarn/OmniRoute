@@ -8,6 +8,7 @@ suite:
     loaded: before that these tests are expected to fail, and each failure message names the missing piece.
     The assertions pin FACTS about named people that do not drift (a Reform -> Canadian Alliance -> Conservative career that
     ended in 2011, a 2025 floor-crossing), not figures that change every quarter.
+    Also covers the /parties cost-by-party panel + floor-crossings and the /cost by-party panel (PRs #3721 and #3725).
   base_url: "https://what-the-fact.com"
   auth:
     mode: browser
@@ -103,3 +104,41 @@ tests:
     skip_auth: true
     expect:
       status: [404]
+
+  - name: "/parties shows what each party's MPs cost, by complete year, and the floor-crossings"
+    type: e2e
+    path: /parties
+    wait_until: load
+    actions:
+      - scroll_to: "#party-costs"
+      - screenshot: "wtf-parties-cost-panel"
+    expect:
+      selector_visible: { "#party-costs": true }
+      js_eval:
+        - name: cost_section_is_present_with_its_honesty_text
+          expr: "(()=>{const t=document.body.textContent;return t.includes('cost taxpayers')&&t.includes('Complete calendar years only')&&t.includes('the party the MP sat for');})()"
+          equals: true
+        - name: cost_table_has_per_mp_column_complete_years_and_the_two_big_parties
+          # years change as more become complete, so pin only two mid-range years plus Liberal/Conservative rows
+          expr: "(()=>{const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('Per MP,'));if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&r.includes('Liberal')&&r.includes('Conservative')&&r.length>=4;})()"
+          equals: true
+        - name: floor_crossings_table_has_real_rows
+          expr: "(()=>{const hs=[...document.querySelectorAll('.wtf-pt-sec')].find(e=>e.textContent.includes('Floor-crossings since 2000'));if(!hs)return false;const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('From'))||null;return !!t&&t.querySelectorAll('tbody tr').length>=5;})()"
+          equals: true
+
+  - name: "/cost shows House expenses by party with the salary and Senate caveats"
+    type: e2e
+    path: /cost
+    wait_until: load
+    actions:
+      - scroll_to: "[data-cost-by-party]"
+      - screenshot: "wtf-cost-by-party"
+    expect:
+      selector_visible: { "[data-cost-by-party]": true }
+      js_eval:
+        - name: panel_states_that_salaries_are_excluded_and_it_is_house_only
+          expr: "(()=>{const p=document.querySelector('[data-cost-by-party]');if(!p)return false;const t=p.textContent;return t.includes('salaries are not included here')&&t.includes('House only');})()"
+          equals: true
+        - name: table_has_complete_years_a_per_mp_column_and_the_big_parties
+          expr: "(()=>{const t=document.querySelector('[data-cost-by-party] table');if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&h.some(x=>x.startsWith('Per MP'))&&r.includes('Liberal')&&r.includes('Conservative');})()"
+          equals: true

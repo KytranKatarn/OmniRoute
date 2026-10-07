@@ -164,6 +164,7 @@
   {% endif %}
 
   {% if party_costs and party_costs.rows %}
+  <div id="party-costs" data-party-cost>
   <div class="wtf-pt-sec">What each party&rsquo;s MPs cost taxpayers</div>
   <p class="wtf-pt-hint">
     House of Commons members&rsquo; expenses (salaries of their staff, travel, hospitality and contracts),
@@ -193,6 +194,7 @@
   {% endfor %}
   {{ data_table([('From → to', ''), ('MPs', 'num')], xrow, empty='None on record.') }}
   {% endif %}
+  </div>
   {% endif %}
 
   <p class="wtf-pt-note">

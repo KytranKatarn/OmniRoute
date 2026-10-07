@@ -39,7 +39,7 @@ def request_submission(proposal_id):
     """Queue approval/testing of the saved patch; never infer, test or regenerate here."""
     from services.audit_pipeline import creed_gate_pre_dispatch
     from services.proposal_service import request_tiered_deploy_approval
-    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields
+    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields, _patch_sanity_ok
 
     gate = creed_gate_pre_dispatch(proposal_id)
     if not gate.get("approved"):
@@ -65,6 +65,9 @@ def request_submission(proposal_id):
         patched = _patched_content(fields["file_path"], fields["code_diff"])
         if patched is None:
             return {"success": False, "error": "Saved patch no longer applies or failed validation"}
+        sane, reasons = _patch_sanity_ok(fields["file_path"], patched)
+        if not sane:
+            return {"success": False, "error": "Saved patch failed sanity checks: " + "; ".join(reasons)}
         # The existing async gate owns approval, sandbox testing and PR creation.
         result = request_tiered_deploy_approval(proposal_id)
         if not result.get("success") or not (result.get("queue_id") or result.get("approval_id")):
@@ -141,9 +144,9 @@ def record_code_health_merge(proposal_id, pr_number):
 def ensure_patch_snapshot(proposal_id, proposal):
     """Capture the same receipt when an existing approval worker starts testing."""
     meta = metadata(proposal.get("metadata"))
-    if meta.get("source") != "code_health_audit" or meta.get("repair_submission"):
+    if meta.get("source") != "code_health_audit":
         return meta
-    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields
+    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields, _patch_sanity_ok
 
     fields = _proposal_fix_fields(proposal)
     patch = proposal.get("code_changes") or ""
@@ -152,6 +155,11 @@ def ensure_patch_snapshot(proposal_id, proposal):
     patched = _patched_content(fields["file_path"], patch)
     if patched is None:
         raise ValueError("Saved patch no longer applies")
+    sane, reasons = _patch_sanity_ok(fields["file_path"], patched)
+    if not sane:
+        raise ValueError("Saved patch failed sanity checks: " + "; ".join(reasons))
+    if meta.get("repair_submission"):
+        return meta
     submission = {
         "stage": "sandbox_testing",
         "patch_sha256": hashlib.sha256(patch.encode()).hexdigest(),

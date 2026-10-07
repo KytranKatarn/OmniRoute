@@ -254,6 +254,67 @@ def check_no_unrelated_deletions(original: str, patched: str) -> tuple:
     return True, ""
 
 
+def check_registration_imports(original: str, patched: str, file_path: str) -> tuple:
+    """Blueprint packages need imports that register routes for their side effects."""
+    path = file_path.replace("\\", "/")
+    if not path.endswith("/__init__.py"):
+        return True, ""
+    try:
+        before, after = ast.parse(original), ast.parse(patched)
+    except SyntaxError:
+        return True, ""  # The syntax check owns this refusal.
+    blueprint_names = {
+        alias.asname or alias.name
+        for node in ast.walk(before)
+        if isinstance(node, ast.ImportFrom) and node.module in ("flask", "flask.blueprints")
+        for alias in node.names
+        if alias.name == "Blueprint"
+    }
+    flask_names = {
+        alias.asname or alias.name
+        for node in ast.walk(before)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == "flask"
+    }
+    creates_blueprint = any(
+        isinstance(node, ast.Call)
+        and (
+            isinstance(node.func, ast.Name)
+            and node.func.id in blueprint_names
+            or isinstance(node.func, ast.Attribute)
+            and node.func.attr == "Blueprint"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id in flask_names
+        )
+        for node in ast.walk(before)
+    )
+    if not creates_blueprint:
+        return True, ""
+    package = path.removeprefix("platform_v2/").split("/")[:-1]
+
+    def modules(tree, relative_only=False):
+        found = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                if node.level:
+                    base = package[: len(package) - node.level + 1]
+                    if node.module:
+                        found.add(".".join(base + node.module.split(".")))
+                    else:
+                        found.update(".".join(base + alias.name.split(".")) for alias in node.names)
+                elif not relative_only and node.module:
+                    found.add(node.module)
+            elif isinstance(node, ast.Import) and not relative_only:
+                found.update(alias.name for alias in node.names)
+        return found
+
+    removed = sorted(modules(before, relative_only=True) - modules(after))
+    if removed:
+        return False, "Blueprint package registration import(s) removed: " + ", ".join(removed)
+    return True, ""
+
+
 def _pyflakes_messages(text: str) -> tuple:
     """(set_of_messages, ok). Line numbers stripped — a patch shifts every line below it,
     so comparing raw output would report the whole file as "new". ok=False means pyflakes
@@ -389,6 +450,7 @@ def validate_patch(original: str, patched: str, file_path: str = "") -> dict:
     run("new_imports_resolve", check_new_imports_resolve, original, patched)
     run("removed_import_still_used", check_removed_import_still_used, original, patched)
     run("no_unrelated_deletions", check_no_unrelated_deletions, original, patched)
+    run("registration_imports", check_registration_imports, original, patched, file_path)
     run("no_new_pyflakes_findings", check_no_new_pyflakes_findings, original, patched)
     run("no_orphaned_module_refs", check_no_orphaned_module_refs, original, patched)
     run("not_semantically_identical", check_not_semantically_identical, original, patched)

@@ -22,6 +22,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from services.patch_sanity import module_resolves, validate_patch  # noqa: E402
 
 
+# Load the real ship gate without importing the Repair Bay blueprint, whose
+# initialization opens production database connections.
+import pytest  # noqa: E402
+import importlib.util  # noqa: E402
+from types import ModuleType  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolated_forge_gate(monkeypatch):
+    base = Path(__file__).parents[1] / "tools/repair_bay/services"
+    for name in ("tools.repair_bay", "tools.repair_bay.services"):
+        package = ModuleType(name)
+        package.__path__ = [str(base.parent if name == "tools.repair_bay" else base)]
+        monkeypatch.setitem(sys.modules, name, package)
+    name = "tools.repair_bay.services.forge_pipeline"
+    spec = importlib.util.spec_from_file_location(name, base / "forge_pipeline.py")
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+
+
 class TestRejectsTheRealFailures(unittest.TestCase):
     def test_syntax_error_is_refused(self):
         """#3362 — malformed try/except indentation."""
@@ -264,3 +285,46 @@ class TestDisabledGateIsLoud(unittest.TestCase):
             fp._warn_sanity_disabled("platform_v2/anything.py")
         except Exception as exc:  # noqa: BLE001
             self.fail(f"_warn_sanity_disabled raised {type(exc).__name__}: {exc}")
+
+
+class TestBlueprintRegistrationImports(unittest.TestCase):
+    source = 'from flask import Blueprint\nimport json\nbp = Blueprint("example", __name__)\nfrom . import routes\n'
+    path = "platform_v2/tools/example/__init__.py"
+
+    def test_commenting_registration_import_is_refused(self):
+        result = validate_patch(
+            self.source, self.source.replace("from . import routes", "# from . import routes"), self.path
+        )
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["checks"]["registration_imports"]["ok"])
+
+    def test_deleting_registration_import_is_refused(self):
+        result = validate_patch(self.source, self.source.replace("from . import routes\n", ""), self.path)
+        self.assertFalse(result["checks"]["registration_imports"]["ok"])
+
+    def test_blueprint_constructor_alias_is_protected(self):
+        source = self.source.replace("import Blueprint", "import Blueprint as BP").replace("= Blueprint(", "= BP(")
+        result = validate_patch(source, source.replace("from . import routes", "# from . import routes"), self.path)
+        self.assertFalse(result["checks"]["registration_imports"]["ok"])
+
+    def test_module_blueprint_constructor_is_protected(self):
+        source = self.source.replace("from flask import Blueprint", "import flask as web").replace(
+            "= Blueprint(", "= web.Blueprint("
+        )
+        result = validate_patch(source, source.replace("from . import routes", "# from . import routes"), self.path)
+        self.assertFalse(result["checks"]["registration_imports"]["ok"])
+
+    def test_unused_standard_library_import_can_still_be_removed(self):
+        result = validate_patch(self.source, self.source.replace("import json\n", ""), self.path)
+        self.assertTrue(result["ok"], result["failures"])
+
+    def test_equivalent_relative_registration_import_is_retained(self):
+        from services.patch_sanity import check_registration_imports
+
+        patched = self.source.replace("from . import routes", "from .routes import register")
+        self.assertTrue(check_registration_imports(self.source, patched, self.path)[0])
+
+    def test_non_blueprint_package_keeps_normal_import_cleanup(self):
+        source = "from . import utils\nvalue = 1\n"
+        result = validate_patch(source, "value = 1\n", self.path)
+        self.assertTrue(result["ok"], result["failures"])

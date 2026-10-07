@@ -11,12 +11,11 @@ scope file and a ship command you do not have:
 |---|---|---|
 | runs | headless `run-codex-task.sh`, or the `codex.kytranempowerment.com` terminal | the `archie_opencode_terminal` container |
 | your scope | `config/agents/codex.yaml` | `config/agents/opencode.yaml` |
-| git credentials | yes | **none, deliberately** |
-| how work ships | you run `codex-pr` yourself | **you do not ship.** A HOST runner collects your work |
+| git credentials | yes | none in your own `git`/`gh`; shipping goes through helpers that use the platform's token (a bare `gh` shows "not logged in" — expected) |
+| how work ships | you run `codex-pr` yourself | you run **`ship-branch.sh`** (host-direct) or **`opencode-pr`** (contained terminal) yourself; headless runs are shipped by a HOST runner |
 
 Tell them apart: if your checkout is `/work/archie-platform`, you are **opencode**.
-`codex-pr` does not exist for you and `git push` will fail — that is the design, not a
-fault. See "Workflow" below.
+`codex-pr` does not exist for you; your equivalents are `ship-branch.sh` / `opencode-pr`. See "Workflow" below.
 
 ## Who we are & what you're building
 **Kytran Empowerment Inc.** runs A.R.C.H.I.E., a self-hosted platform (a hub + a small
@@ -153,11 +152,22 @@ keep rediscovering them the expensive way:
 2. When ready, run: `codex-pr "feat(<module>): <what you did>"`
    - It commits, pushes a `codex/*` branch, and opens a PR against `main`.
 
-**opencode:** you hold no git credential and you do not push. Edit in your checkout and
-**leave the changes in the working tree** — do not try to commit, branch, or push, and do
-not hand back a patch in prose. The host runner (`scripts/agents/run-opencode-task.sh`)
-stages what you changed, scope-checks it, runs pre-commit and the tests in a throwaway
-container, and opens the PR. Your job ends at "the edit is on disk and correct".
+**opencode — you CAN open a PR; do not tell the owner you can't.** Which command depends on
+where you run (check `pwd` and `git rev-parse --show-toplevel`):
+
+- **Host-direct lane (checkout is `/mnt/archie_brain`, the usual interactive case):** commit
+  to a feature branch (never `main`; stage explicit paths, never `git add -A` — the tree is
+  shared with the owner), then run **`/opencode-home/bin/ship-branch.sh <branch> "<title>"`**
+  (or the `/ship` command). It pushes via the platform's token and opens or repoints the PR.
+- **Contained terminal (checkout is `/work/archie-platform`):** run
+  **`opencode-pr "feat(<module>): <what you did>"`**. It refuses to run in `/mnt/archie_brain`.
+- **Headless `run-opencode-task.sh`:** the run holds no credential. Leave the changes in the
+  working tree — do not commit, branch or push; the host runner scope-checks, runs
+  pre-commit and tests, and opens the PR.
+
+In every case `gh` is a guard wrapper that shows "not logged in" by design: do not use it to
+create PRs, and never run `gh pr merge` or approve (refused). If a ship command fails, report
+the exact error — do not conclude "this lane cannot create PRs".
 
 **Both lanes:** **F.O.R.G.E.** (Repair Bay) reviews the PR and a **human merges**. You
 never merge. If you cannot finish the task, say so plainly and say why — a clear refusal

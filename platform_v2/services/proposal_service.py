@@ -1956,6 +1956,7 @@ def _sandbox_gate(proposal_id, proposal):
     try:
         proposal = dict(proposal, metadata=ensure_patch_snapshot(proposal_id, proposal))
     except ValueError as exc:
+        update_stage(proposal_id, "blocked", error=str(exc))
         return {"passed": False, "passed_count": 0, "total": 0, "run_id": None, "error": str(exc)}
     if not patch_snapshot_matches(proposal):
         update_stage(proposal_id, "blocked", error="Saved patch changed after submission")

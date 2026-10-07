@@ -36,10 +36,17 @@ def update_stage(proposal_id, stage, **details):
 
 
 def request_submission(proposal_id):
-    """Queue approval/testing of the saved patch; never infer, test or regenerate here."""
+    """Validate the saved patch and queue the existing async approval/test path.
+
+    The shared F.O.R.G.E. sanity gate compares patched Python with its current
+    original, including preservation of Blueprint registration imports. Its
+    configured enforcement policy applies here; a refused patch returns the
+    gate's reasons before any approval work is queued. This is a static
+    preflight, not a sandbox test or approval, and never regenerates the patch.
+    """
     from services.audit_pipeline import creed_gate_pre_dispatch
     from services.proposal_service import request_tiered_deploy_approval
-    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields
+    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields, _patch_sanity_ok
 
     gate = creed_gate_pre_dispatch(proposal_id)
     if not gate.get("approved"):
@@ -65,6 +72,10 @@ def request_submission(proposal_id):
         patched = _patched_content(fields["file_path"], fields["code_diff"])
         if patched is None:
             return {"success": False, "error": "Saved patch no longer applies or failed validation"}
+        # Apply the shared static safety policy before creating approval work.
+        sane, reasons = _patch_sanity_ok(fields["file_path"], patched)
+        if not sane:
+            return {"success": False, "error": "Saved patch failed sanity checks: " + "; ".join(reasons)}
         # The existing async gate owns approval, sandbox testing and PR creation.
         result = request_tiered_deploy_approval(proposal_id)
         if not result.get("success") or not (result.get("queue_id") or result.get("approval_id")):
@@ -139,11 +150,17 @@ def record_code_health_merge(proposal_id, pr_number):
 
 
 def ensure_patch_snapshot(proposal_id, proposal):
-    """Capture the same receipt when an existing approval worker starts testing."""
+    """Revalidate a queued Code Health patch before sandbox work and capture its receipt.
+
+    Reuse F.O.R.G.E.'s configured static sanity gate, including Blueprint import
+    preservation, even when a receipt already exists: older queued submissions
+    may predate a safety check. Refusal raises ValueError so the sandbox gate
+    records a blocked submission without staging the unsafe patch.
+    """
     meta = metadata(proposal.get("metadata"))
-    if meta.get("source") != "code_health_audit" or meta.get("repair_submission"):
+    if meta.get("source") != "code_health_audit":
         return meta
-    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields
+    from tools.repair_bay.services.forge_pipeline import _patched_content, _proposal_fix_fields, _patch_sanity_ok
 
     fields = _proposal_fix_fields(proposal)
     patch = proposal.get("code_changes") or ""
@@ -152,6 +169,11 @@ def ensure_patch_snapshot(proposal_id, proposal):
     patched = _patched_content(fields["file_path"], patch)
     if patched is None:
         raise ValueError("Saved patch no longer applies")
+    sane, reasons = _patch_sanity_ok(fields["file_path"], patched)
+    if not sane:
+        raise ValueError("Saved patch failed sanity checks: " + "; ".join(reasons))
+    if meta.get("repair_submission"):
+        return meta
     submission = {
         "stage": "sandbox_testing",
         "patch_sha256": hashlib.sha256(patch.encode()).hexdigest(),

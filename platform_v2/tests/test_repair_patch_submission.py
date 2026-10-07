@@ -45,6 +45,7 @@ def submission(monkeypatch):
     fake = ModuleType("tools.repair_bay.services.forge_pipeline")
     fake._proposal_fix_fields = lambda p: {"file_path": p["metadata"]["file_path"], "code_diff": p["code_changes"]}
     fake._patched_content = Mock(return_value="patched source")
+    fake._patch_sanity_ok = Mock(return_value=(True, []))
     monkeypatch.setitem(sys.modules, fake.__name__, fake)
     monkeypatch.setattr(
         service, "progress", lambda p: {"stage": p["metadata"].get("repair_submission", {}).get("stage")}
@@ -193,3 +194,27 @@ def test_ready_patch_field_disagreement_never_queues(submission):
     assert not service.request_submission(42)["success"]
     assert writes == []
     queue.assert_not_called()
+
+
+def test_unsafe_saved_patch_never_enters_approval_queue(submission):
+    _, writes, queue, fake = submission
+    fake._patch_sanity_ok.return_value = (False, ["Blueprint registration import removed"])
+    result = service.request_submission(42)
+    assert not result["success"] and "registration" in result["error"]
+    queue.assert_not_called()
+    assert not writes
+
+
+def test_existing_submission_is_blocked_before_staging_on_sanity_failure(submission, monkeypatch):
+    from services import proposal_service
+
+    row, writes, _, fake = submission
+    row["metadata"]["repair_submission"] = {"stage": "awaiting_review"}
+    fake._patch_sanity_ok.return_value = (False, ["Blueprint registration import removed"])
+    stage = Mock()
+    monkeypatch.setattr(proposal_service, "_sandbox_gate_impl", stage)
+    result = proposal_service._sandbox_gate(42, row)
+    assert not result["passed"]
+    stage.assert_not_called()
+    assert row["metadata"]["repair_submission"]["stage"] == "blocked"
+    assert writes

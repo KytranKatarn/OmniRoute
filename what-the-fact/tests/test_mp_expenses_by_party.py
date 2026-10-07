@@ -36,3 +36,30 @@ def test_the_migration_keeps_its_promises():
     assert "s.q_start + 45" in SQL or "(s.q_start + 45)" in SQL # midpoint rule
     assert "NOT sitting" in SQL                                  # retired MPs are counted and shown separately
     assert "ON CONFLICT (version) DO NOTHING" in SQL
+
+
+SQL96 = open(os.path.join(os.path.dirname(__file__), "..", "migrations", "096_mp_expenses_wind_down.sql"), encoding="utf-8").read()
+
+
+def test_wind_down_costs_fall_back_to_the_last_party_and_are_labelled():
+    assert "'wind_down'" in SQL96 and "'in_term'" in SQL96 and "'none'" in SQL96
+    # a covering stint must outrank a merely-earlier one, and the latest earlier stint wins among those
+    assert "ORDER BY (t0.end_date IS NULL OR t0.end_date >= (s.q_start + 45)) DESC, t0.start_date DESC" in SQL96
+    assert "t0.start_date <= (s.q_start + 45)" in SQL96
+
+
+def test_096_only_appends_columns_so_095_consumers_keep_working():
+    # inspect ONLY the first view's SELECT list (the later `) AS q_start` lateral alias must not count)
+    start = SQL96.index("CREATE OR REPLACE VIEW parliament.v_mp_expenses_by_party")
+    sel = SQL96[start:SQL96.index("FROM parliament.mp_expenses e", start)]
+    sel = "\n".join(l.split("--")[0] for l in sel.splitlines())
+    names = []
+    for part in re.split(r",\s*(?![^()]*\))", sel[sel.index("SELECT") + 6:]):
+        part = part.strip()
+        m = re.search(r"\bAS\s+(\w+)\s*$", part, re.S)
+        names.append(m.group(1) if m else part.split(".")[-1].strip())
+    cols95 = ["expense_id", "mp_id", "mp_name", "sitting", "period", "q_start", "party",
+              "party_changed_in_quarter", "travel_cad", "hospitality_cad", "contracts_cad", "salaries_cad", "total_cad"]
+    assert names[:len(cols95)] == cols95, names           # 095's columns, same order, same positions
+    assert names[len(cols95):] == ["attribution"]          # the only addition, appended LAST
+    assert "ON CONFLICT (version) DO NOTHING" in SQL96

@@ -138,6 +138,22 @@
 </div>
 <script src="{{ url_for('static', filename='js/cost.js') }}"></script>
 
+{# ── Caucus history — public, from the Senate's own quarterly expense summaries (2016-Q3 onward). ── #}
+{% if senator.caucus_history %}
+<div class="wtf-sen-section">
+  <div class="wtf-sen-section-title">🏛 Caucus history</div>
+  <ul class="wtf-sen-caucus-history">
+    {% for s in senator.caucus_history %}
+    <li><strong>{{ s.caucus }}</strong> &mdash; {{ s.from_period }}{% if s.to_period != s.from_period %} to {{ s.to_period }}{% endif %}
+      ({{ s.quarters }} quarter{{ '' if s.quarters == 1 else 's' }} on record){% if s.gap_before %}
+      <span class="wtf-sen-caucus-gap" title="Quarters are missing between the previous record and this one, so the move happened somewhere in that window.">&middot; moved sometime before this</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  <p class="wtf-sen-caucus-note">Taken from the Senate&rsquo;s published quarterly expense summaries, which list each senator&rsquo;s
+    affiliation for that quarter. The Senate publishes these from the third quarter of 2016 only, so earlier history is not shown.</p>
+</div>
+{% endif %}
+
 {# ── Paywalled detail section ───────────────────────────────────────────── #}
 {% if is_subscriber %}
 

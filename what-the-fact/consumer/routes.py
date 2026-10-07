@@ -6719,6 +6719,40 @@ def _senator_travel(senator_id: int) -> dict:
     return out
 
 
+def _senator_caucus_history(senator_id: int) -> list[dict]:
+    """A senator's Senate caucus over time, collapsed into stints (parliament.senator_caucus_quarters, migration 098,
+    from the quarterly expense summaries — 2016-Q3 is as far back as the Senate publishes them).
+
+    A stint runs while consecutive RECORDED quarters carry the same caucus. `gap_before` is True when the quarter before
+    a change is not adjacent to the previous observation: the move happened somewhere inside that window, not
+    necessarily in the quarter where we first see the new caucus. Newest first. Never raises into the page."""
+    try:
+        with _db().begin() as c:
+            rows = c.execute(text("""
+                SELECT period, q_start, coalesce(caucus_short, caucus) AS label
+                FROM parliament.senator_caucus_quarters
+                WHERE senator_id = :sid ORDER BY q_start
+            """), {"sid": senator_id}).mappings().all()
+    except Exception:
+        return []
+
+    def _qn(d):
+        return d.year * 4 + (d.month - 1) // 3
+
+    stints: list[dict] = []
+    prev_q = None
+    for r in rows:
+        q = _qn(r["q_start"])
+        if stints and stints[-1]["caucus"] == r["label"]:
+            stints[-1]["to_period"] = r["period"]
+            stints[-1]["quarters"] += 1
+        else:
+            stints.append({"caucus": r["label"], "from_period": r["period"], "to_period": r["period"], "quarters": 1,
+                           "gap_before": bool(stints) and prev_q is not None and q - prev_q > 1})
+        prev_q = q
+    return stints[::-1]
+
+
 @bp.get("/senator/<slug>")
 def senator_profile(slug: str):
     """Individual senator profile — caucus, province, appointment, bio, committees."""
@@ -6773,6 +6807,7 @@ def senator_profile(slug: str):
     # Expenses and itemized travel — guarded helpers, so a missing table cannot take the page down.
     senator["expense_periods"] = _senator_expense_rows(senator["id"])
     senator["travel"] = _senator_travel(senator["id"])
+    senator["caucus_history"] = _senator_caucus_history(senator["id"])
 
     senator["caucus_colour"] = _CAUCUS_COLOURS.get(senator.get("caucus") or "", "#888888")
     senator["caucus_label"] = _CAUCUS_LABELS.get(senator.get("caucus") or "", senator.get("caucus") or "")

@@ -84,6 +84,23 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z,'\s\.\-]", "", s).strip()
 
 
+# House reports print some MPs under a name that is NOT how parliament.mps spells them, and no amount of normalisation
+# bridges these — they are different NAMES for one person. Found 2026-10-07 when the FY2015-FY2021 archive backfill left six
+# names unmatched. Keyed by the NORMALISED published name (see _norm), resolved by SLUG because ids are database serials
+# while slugs are stable ('rachael-harder' is still Rachael Thomas's slug after her surname change).
+# Every entry is a reviewed fact, not a guess. A bare name here wins over surname matching for ANY period, so only add a
+# name that is unambiguous for the years the House sync and the archive cover (April 2014 onward).
+PUBLISHED_NAME_ALIASES = {
+    "harder, rachael": "rachael-harder",           # now Rachael Thomas (surname change)
+    "harris, richard": "dick-harris",              # nickname
+    "brown, gordon": "gord-brown",                 # nickname
+    "harvey, t.j.": "tj-harvey",                   # punctuation
+    "o'neill gordon, tilly": "tilly-oneill-gordon",  # hyphen printed as a space
+    # Two David Andersons exist (Victoria, left 2006; Cypress Hills-Grasslands, sat to 2015). Only the latter overlaps 2014+.
+    "anderson, david": "david-anderson",
+}
+
+
 def _build_mp_index(engine):
     """({family_key: [{id, given:set}]}, {full_name: id}) over ALL MPs (current + former).
 
@@ -93,11 +110,12 @@ def _build_mp_index(engine):
     """
     with engine.begin() as c:
         rows = c.execute(text(
-            "SELECT id, name, COALESCE(family_name, '') FROM parliament.mps"
+            "SELECT id, name, COALESCE(family_name, ''), slug FROM parliament.mps"
         )).fetchall()
     fam_idx: dict = {}
     full_idx: dict = {}
-    for mp_id, name, family in rows:
+    slug_to_id = {slug: mp_id for mp_id, _n, _f, slug in rows if slug}
+    for mp_id, name, family, _slug in rows:
         nn = _norm(name)
         if nn:
             full_idx.setdefault(nn, mp_id)
@@ -106,6 +124,10 @@ def _build_mp_index(engine):
             continue
         given = set(nn.split()) - set(fam.split())
         fam_idx.setdefault(fam, []).append({"id": mp_id, "given": given})
+    # Explicit aliases win; an alias whose slug is not in the table is skipped (never raises, never guesses).
+    for published, slug in PUBLISHED_NAME_ALIASES.items():
+        if slug in slug_to_id:
+            full_idx[published] = slug_to_id[slug]
     return fam_idx, full_idx
 
 

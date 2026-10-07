@@ -12,7 +12,12 @@ from services import repair_progress as progress_service
 
 
 @pytest.fixture
-def completion(monkeypatch, tmp_path):
+def active_suites():
+    return [{"id": 1}]
+
+
+@pytest.fixture
+def completion(monkeypatch, tmp_path, active_suites):
     file = tmp_path / "fixed.py"
     file.write_text("cur.execute('SELECT 1')\n")
     row = {
@@ -33,6 +38,7 @@ def completion(monkeypatch, tmp_path):
 
     class Cursor:
         def execute(self, sql, params):
+            self.suite_query = sql.startswith("SELECT id FROM qa_test_suites")
             if sql.startswith("UPDATE"):
                 writes.append((sql, params))
 
@@ -40,7 +46,7 @@ def completion(monkeypatch, tmp_path):
             return row
 
         def fetchall(self):
-            return runs
+            return active_suites if self.suite_query else runs
 
     @contextmanager
     def db(commit=False):
@@ -140,3 +146,18 @@ def test_live_pr_progress_requires_current_head_review(monkeypatch, state, tier,
     result = service.progress({"status": "pr_open", "metadata": {"source": "code_health_audit", "pr_number": 17}})
     assert result["stage"] == expected
     assert result["merge_tier"] == tier
+
+
+def test_disabled_mapped_suite_does_not_block_fresh_active_qa(completion, monkeypatch):
+    monkeypatch.setattr("services.qa_service.MODULE_SUITE_MAP", {"faith": [1, 59]})
+    result = service.verify_completion(42)
+    assert result["verified"]
+    assert result["verification"]["qa_run_ids"] == [99]
+
+
+@pytest.mark.parametrize("active", [[], [{"id": 1}, {"id": 2}]])
+def test_empty_or_incomplete_active_coverage_never_completes(completion, active_suites, active):
+    _, _, writes, _ = completion
+    active_suites[:] = active
+    assert not service.verify_completion(42)["success"]
+    assert writes == []

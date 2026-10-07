@@ -50,6 +50,16 @@ def verify_completion(proposal_id):
         suites = MODULE_SUITE_MAP.get(module_from_file_path(display)) or []
         if not suites:
             return {"success": False, "error": "Module QA coverage is unavailable"}
+        # Match run_suite_for_module: inactive suites cannot run and must not
+        # block completion. Still require nonempty active coverage and every
+        # active mapped suite to have fresh, fully passing results.
+        cur.execute(
+            "SELECT id FROM qa_test_suites WHERE id=ANY(%s) AND is_active=true ORDER BY id FOR SHARE",
+            (suites,),
+        )
+        suites = [suite["id"] for suite in cur.fetchall()]
+        if not suites:
+            return {"success": False, "error": "Active module QA coverage is unavailable"}
         cur.execute(
             """SELECT DISTINCT ON (suite_id) id,suite_id,status,total_tests AS total,passed,failed,errors
                FROM qa_test_runs WHERE suite_id=ANY(%s) AND started_at>=to_timestamp(%s)

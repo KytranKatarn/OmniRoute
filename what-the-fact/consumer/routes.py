@@ -2882,7 +2882,8 @@ def cost_of_parliament():
         source_count = _active_source_count(c, S)
     return render_template("cost.html", source_count=source_count,
                            is_subscriber=is_subscriber(), party_costs=_party_cost_panel(),
-                           caucus_costs=_caucus_cost_panel())
+                           caucus_costs=_caucus_cost_panel(),
+                           annual_costs=_annual_cost_panel())
 
 
 def _home_weather_strip():
@@ -10462,6 +10463,62 @@ def _party_cost_panel() -> dict:
     return out
 
 
+_ANNUAL_COST_CACHE: dict = {}
+
+
+def _annual_cost_panel() -> dict:
+    """Earlier years (FY2010-FY2015) from the House's ANNUAL per-member reports, via parliament.v_mp_expenses_annual_by_party
+    (migration 099). A SEPARATE panel from the calendar-year one on purpose:
+      * fiscal years run April-March (FY2010 = Apr 2009 - Mar 2010), so they cannot be added to or lined up against calendar years;
+      * the whole year is charged to the party at the year's midpoint — an MP who changed party mid-year is counted wholly under
+        one party, and the number of such MPs is printed;
+      * vacant seats are not members and are excluded; 'Unattributed' stays its own row.
+    Cached an hour; never raises into the page."""
+    hit = _ANNUAL_COST_CACHE.get("panel")
+    if hit and hit[0] > time.time():
+        return hit[1]
+    empty: dict = {"years": [], "rows": [], "cols": [], "changed": 0, "partial": 0, "members": 0}
+    try:
+        with _db().begin() as c:
+            by = c.execute(text("""
+                SELECT fiscal_year AS fy, party, sum(total_cad) AS amt,
+                       sum(total_cad) FILTER (WHERE NOT sitting) AS retired
+                FROM parliament.v_mp_expenses_annual_by_party GROUP BY 1, 2
+            """)).mappings().all()
+            meta = c.execute(text("""
+                SELECT fiscal_year AS fy, count(*) AS n,
+                       count(*) FILTER (WHERE party_changed_in_year) AS changed,
+                       count(*) FILTER (WHERE partial_year) AS partial
+                FROM parliament.v_mp_expenses_annual_by_party GROUP BY 1
+            """)).mappings().all()
+    except Exception:
+        return empty
+    years = sorted({int(r["fy"]) for r in by})
+    if not years:
+        _ANNUAL_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, empty)
+        return empty
+    grid: dict = {}
+    for r in by:
+        grid.setdefault(r["party"], {})[int(r["fy"])] = r
+    order = sorted(grid, key=lambda p: (p == "Unattributed", -sum(float(v["amt"] or 0) for v in grid[p].values())))
+    rows = []
+    for party in order:
+        cells = grid[party]
+        total = sum(float(v["amt"] or 0) for v in cells.values())
+        retired = sum(float(v["retired"] or 0) for v in cells.values())
+        rows.append({"party": party, "cells": [_fmt_m(cells[y]["amt"]) if y in cells else "\u2014" for y in years],
+                     "total": _fmt_m(total), "retired_share": f"{100 * retired / total:.0f}%" if total else "\u2014"})
+    tot = {y: sum(float(g[y]["amt"] or 0) for g in grid.values() if y in g) for y in years}
+    rows.append({"party": "All members", "cells": [_fmt_m(tot[y]) for y in years], "total": _fmt_m(sum(tot.values())),
+                 "retired_share": "", "is_total": True})
+    out = {"years": years, "rows": rows,
+           "cols": [("FY%d" % y, "num") for y in years],
+           "changed": sum(int(m["changed"]) for m in meta), "partial": sum(int(m["partial"]) for m in meta),
+           "members": sum(int(m["n"]) for m in meta)}
+    _ANNUAL_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, out)
+    return out
+
+
 @bp.get("/parties")
 def parties():
     from flask import request as _req
@@ -10477,7 +10534,7 @@ def parties():
                                house=[], tiles=[], election_date=None,
                                prev_ge=None, merged={}, bars=[],
                                unresolved={"candidates": 0, "votes": 0},
-                               party_costs=_party_cost_panel())
+                               party_costs=_party_cost_panel(), annual_costs=_annual_cost_panel())
     if ge not in available:
         ge = available[0]
 
@@ -10495,7 +10552,7 @@ def parties():
                            prev_ge=B["prev_ge"], rows=B["rows"], house=B["house"],
                            tiles=B["tiles"], election_date=B["election_date"],
                            merged=merged_labels(), bars=bars,
-                           unresolved=B["unresolved"], party_costs=_party_cost_panel())
+                           unresolved=B["unresolved"], party_costs=_party_cost_panel(), annual_costs=_annual_cost_panel())
 
 
 # ---------------------------------------------------------------------------

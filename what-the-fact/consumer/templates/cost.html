@@ -108,6 +108,30 @@
   </div>
   {% endif %}
 
+  {% if annual_costs and annual_costs.rows %}
+  <div class="cost-panel" data-cost-by-fiscal-year>
+    <div class="cost-panel-h">Earlier years &mdash; what each party&rsquo;s MPs cost, by fiscal year</div>
+    <p class="cost-note" style="margin:0 0 12px;">
+      From the House&rsquo;s <strong>annual</strong> per-member expense reports, before the quarterly disclosure began.
+      These are <strong>fiscal years (April to March)</strong> &mdash; FY2010 is April 2009 to March 2010 &mdash; so they do not line up
+      with the calendar years above and are not added to them. Expenses only (staff, travel, hospitality, contracts);
+      <strong>salaries are not included</strong>. Each member&rsquo;s whole year is charged to the party they sat for at the middle of the year:
+      {{ annual_costs.changed }} member-years involved a mid-year party change and are counted wholly under one party. Vacant seats are not members and are left out.
+    </p>
+    <div class="cost-tblwrap">
+      <table class="cost-tbl">
+        <thead><tr><th>Party</th>{% for y in annual_costs.years %}<th>FY{{ y }}</th>{% endfor %}<th>Total</th><th>Retired</th></tr></thead>
+        <tbody>
+        {% for r in annual_costs.rows %}
+          <tr{% if r.is_total %} style="font-weight:600;"{% endif %}><td>{{ r.party }}</td>{% for c in r.cells %}<td>{{ c }}</td>{% endfor %}<td>{{ r.total }}</td><td>{{ r.retired_share }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="cost-note">&ldquo;Retired&rdquo; is the share incurred by members no longer sitting today. {{ annual_costs.partial }} member-years cover only part of a year (for example after an election), so they pull the totals and the per-party shares around those years. Source: House of Commons annual Members&rsquo; Expenditure Reports.</p>
+  </div>
+  {% endif %}
+
   <div>
     <a class="cost-cta" href="/mps">See every MP &amp; senator &rarr;</a>
     <div style="font-size:11px;color:#6b7280;margin-top:8px;">

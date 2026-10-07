@@ -194,6 +194,16 @@
   {% endfor %}
   {{ data_table([('From → to', ''), ('MPs', 'num')], xrow, empty='None on record.') }}
   {% endif %}
+  {% if annual_costs and annual_costs.rows %}
+  <div class="wtf-pt-sec" data-fiscal-year-costs>Earlier years, by fiscal year (FY{{ annual_costs.years[0] }}&ndash;FY{{ annual_costs.years[-1] }})</div>
+  <p class="wtf-pt-hint">From the House&rsquo;s annual reports. Fiscal years run April&ndash;March (FY2010 = April 2009 to March 2010), so they are kept apart
+    from the calendar-year table above. A member&rsquo;s whole year is charged to the party at mid-year ({{ annual_costs.changed }} member-years changed party mid-year).</p>
+  {% set arow = [] %}
+  {% for r in annual_costs.rows %}
+    {% set _ = arow.append([r.party] + r.cells + [r.total, r.retired_share]) %}
+  {% endfor %}
+  {{ data_table([('Party', '')] + annual_costs.cols + [('Total', 'num'), ('Retired', 'num')], arow, empty='No annual data on record.') }}
+  {% endif %}
   </div>
   {% endif %}
 

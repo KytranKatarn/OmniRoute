@@ -171,3 +171,23 @@ tests:
           # transition labels must be folded away and the ISG/CSG/PSG abbreviations expanded
           expr: "(()=>{const t=document.querySelector('[data-cost-by-caucus] table');if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&h.includes('Per senator')&&r.includes('Independent Senators Group')&&r.includes('Conservative')&&!r.some(x=>x.startsWith('Non-affiliated ('))&&!r.includes('ISG');})()"
           equals: true
+
+  - name: "/cost shows the FY2010-FY2015 fiscal-year panel, labelled, caveated and not clipped"
+    type: e2e
+    path: /cost
+    wait_until: load
+    actions:
+      - scroll_to: "[data-cost-by-fiscal-year]"
+      - screenshot: "wtf-cost-by-fiscal-year"
+    expect:
+      selector_visible: { "[data-cost-by-fiscal-year]": true }
+      js_eval:
+        - name: panel_states_fiscal_year_basis_and_exclusions
+          expr: "(()=>{const p=document.querySelector('[data-cost-by-fiscal-year]');if(!p)return false;const t=p.textContent;return t.includes('April to March')&&t.includes('salaries are not included')&&t.includes('mid-year party change')&&t.includes('Vacant seats');})()"
+          equals: true
+        - name: table_is_not_clipped_inside_its_wrapper
+          expr: "(()=>{const w=document.querySelector('[data-cost-by-fiscal-year] .cost-tblwrap');return !!w&&w.scrollWidth<=w.clientWidth+2;})()"
+          equals: true
+        - name: table_has_fy2010_to_fy2015_the_big_parties_and_a_closing_total_row
+          expr: "(()=>{const t=document.querySelector('[data-cost-by-fiscal-year] table');if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('FY2010')&&h.includes('FY2015')&&r.includes('Conservative')&&r.includes('Liberal')&&r[r.length-1]==='All members';})()"
+          equals: true

@@ -15,6 +15,17 @@ STATE="/tmp/codex-sandbox-preview.sha"
 LOG="/tmp/codex-sandbox-preview.log"
 cd "$REPO"
 
+# Worktree-registration watchdog (2026-10-07): if the sandbox worktree dir exists but its
+# registration under .git/worktrees/archie_sandbox has been deleted (a blanket
+# `git worktree prune` from a context where /mnt/archie_sandbox is invisible does this),
+# every deploy AND every Repair Bay sandbox gate fails "not a git repository" — and did
+# so silently for 5 days. This script runs every 3 min, so surface it here: exit before
+# the deploy path with an actionable error instead of a generic failure.
+if [ -e /mnt/archie_sandbox/.git ] && [ ! -d "$REPO/.git/worktrees/archie_sandbox" ]; then
+  echo "$(date '+%F %T') ERROR: sandbox worktree registration MISSING — run: bash $REPO/scripts/setup_sandbox_worktree.sh (self-heal)" >>"$LOG"
+  exit 1
+fi
+
 # Newest open PR whose head branch is codex/* → "branch sha" (uses gh's built-in jq).
 LINE="$(gh pr list --state open --json headRefName,headRefOid,updatedAt \
   --jq 'map(select(.headRefName|startswith("codex/")))|sort_by(.updatedAt)|last

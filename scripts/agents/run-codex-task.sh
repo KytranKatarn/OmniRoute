@@ -32,9 +32,22 @@ cd "$REPO"
 git fetch origin -q
 # run-task worktrees are kept for inspection (no exit-cleanup), so reclaim ones older than
 # 3 days here — otherwise they slowly fill the dedicated LV (#4045).
-git worktree prune 2>/dev/null || true
+#
+# Guarded prune (2026-10-07): a blanket `git worktree prune` in this repo deletes ANY
+# registration whose worktree dir cannot be statable from the current context — notably
+# the /mnt/archie_sandbox registration when running somewhere that path is not mounted
+# (this silently broke every Repair Bay sandbox gate for 5 days before diagnosis).
+# Skip the prune when that registration exists but the sandbox worktree is invisible here.
+prune_main_repo() {
+    if [ -e "$REPO/.git/worktrees/archie_sandbox" ] && [ ! -e /mnt/archie_sandbox ]; then
+        echo "guard: sandbox registration present but /mnt/archie_sandbox not visible here — skipping worktree prune"
+    else
+        git worktree prune 2>/dev/null || true
+    fi
+}
+prune_main_repo
 find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
-git worktree prune 2>/dev/null || true
+prune_main_repo
 mkdir -p "$WT_BASE"
 git worktree add -B "$BRANCH" "$WT" origin/main >/dev/null
 

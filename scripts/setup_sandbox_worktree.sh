@@ -22,12 +22,41 @@ else
     echo "[sandbox-setup] Branch '$BRANCH' already exists."
 fi
 
-# Always prune stale worktree registrations before any add
-git worktree prune 2>/dev/null || true
+# Guarded prune (2026-10-07): a blanket `git worktree prune` deletes ANY registration
+# whose worktree dir cannot be statable FROM THIS CONTEXT. Running this script where
+# /mnt/archie_sandbox is invisible (e.g. a container with .git mounted but not the
+# sandbox) destroyed the sandbox registration this way — every Repair Bay sandbox
+# gate then failed "not a git repository" for 5 days. Skip when the registration
+# exists but the worktree is invisible here.
+if [ -e "$REPO_DIR/.git/worktrees/archie_sandbox" ] && [ ! -e "$SANDBOX_DIR" ]; then
+    echo "[sandbox-setup] SKIP prune: registration exists but $SANDBOX_DIR is not visible from here"
+else
+    git worktree prune 2>/dev/null || true
+fi
 
-# Add worktree if not already present
+# Add / self-heal / verify
 if [ -d "$SANDBOX_DIR/.git" ] || [ -f "$SANDBOX_DIR/.git" ]; then
-    echo "[sandbox-setup] Worktree already exists at $SANDBOX_DIR"
+    if [ -d "$REPO_DIR/.git/worktrees/archie_sandbox" ]; then
+        echo "[sandbox-setup] Worktree already exists at $SANDBOX_DIR"
+    else
+        # Self-heal — the blind spot this script had (it only checked the .git file,
+        # never the registration). `git worktree repair` alone CANNOT rebuild a
+        # fully-pruned entry, so recreate the metadata files by hand: trailing
+        # newlines in gitdir/commondir/HEAD are REQUIRED (without them git reports
+        # "not a git repository"; the file must be exactly "commondir" — a "commdir"
+        # typo reproduces the same failure), then repair cross-links and rebuild the
+        # index only — working files are never touched.
+        echo "[sandbox-setup] REPAIR: worktree present but registration missing — restoring..."
+        REG_DIR="$REPO_DIR/.git/worktrees/archie_sandbox"
+        mkdir -p "$REG_DIR"
+        printf '%s\n' "$SANDBOX_DIR/.git" > "$REG_DIR/gitdir"
+        printf '%s\n' '../..' > "$REG_DIR/commondir"
+        printf '%s\n' "ref: refs/heads/$BRANCH" > "$REG_DIR/HEAD"
+        git -C "$REPO_DIR" worktree repair "$SANDBOX_DIR" >/dev/null 2>&1 || true
+        git -C "$SANDBOX_DIR" reset -q || true
+        echo "[sandbox-setup] Registration restored on '$BRANCH'. Staging usually runs"
+        echo "[sandbox-setup] '_sandbox_preview' — verify with: git -C $SANDBOX_DIR status"
+    fi
 else
     echo "[sandbox-setup] Adding worktree at $SANDBOX_DIR..."
     if ! sudo -n true 2>/dev/null; then

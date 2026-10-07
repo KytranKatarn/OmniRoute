@@ -73,3 +73,22 @@ def test_things_that_are_not_family_given_names_create_nothing(engine, bad):
     assert se.ensure_roster_stub(engine, bad) is None
     with engine.connect() as c:
         assert c.execute(text("SELECT count(*) FROM parliament.senators")).scalar() == 3
+
+
+def test_html_encoded_accents_match_the_existing_roster_senator_not_a_new_stub(engine):
+    with engine.begin() as c:
+        c.execute(text("INSERT INTO parliament.senators (slug, name, given_name, family_name, is_current) "
+                       "VALUES ('gagne-raymonde', 'Gagné, Raymonde', 'Raymonde', 'Gagné', 1)"))
+    fam, full = se._load_senator_index(engine)
+    sid = se._match_senator("Gagn&#xE9;, Raymonde", fam, full)
+    assert sid is not None
+    assert se.ensure_roster_stub(engine, "Gagn&#xE9;, Raymonde", fam_idx=fam, full_idx=full) is not None
+    with engine.connect() as c:
+        assert c.execute(text("SELECT count(*) FROM parliament.senators WHERE family_name LIKE 'Gagn%'")).scalar() == 1
+
+
+def test_a_new_accented_senator_gets_a_clean_name_and_slug(engine):
+    sid = se.ensure_roster_stub(engine, "Dupuis, Ren&#xE9;e")
+    with engine.connect() as c:
+        slug, name = c.execute(text("SELECT slug, name FROM parliament.senators WHERE id=:i"), {"i": sid}).one()
+    assert (slug, name) == ("dupuis-renee", "Dupuis, Renée")

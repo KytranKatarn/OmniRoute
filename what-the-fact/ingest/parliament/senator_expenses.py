@@ -125,7 +125,12 @@ def _extract_rows(fragment: str) -> list[list[str]]:
 
 def _clean_summary_name(name: str) -> str:
     """The Senate marks some rows with a trailing "*" ("Gold, Marc *"): strip it, then normalize spaces."""
-    return re.sub(r"\s+", " ", re.sub(r"\s*\*+\s*$", "", name or "")).strip()
+    import html
+    # The Senate's summary pages HTML-encode accents ("Gagn&#xE9;, Raymonde"). Decode FIRST: left
+    # encoded, an existing roster senator never matches and a stub with a garbled name and slug gets
+    # created beside the real row (2026-10-06: four duplicates before this was caught).
+    name = html.unescape(name or "")
+    return re.sub(r"\s+", " ", re.sub(r"\s*\*+\s*$", "", name)).strip()
 
 
 def _split_family_given(name: str):

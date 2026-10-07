@@ -28,6 +28,17 @@ cat what-the-fact/migrations/0NN_xxx.sql | \
   "docker exec -i what-the-fact-wtf-postgres-1 psql -U wtfuser -d wtf -v ON_ERROR_STOP=1"
 ```
 
+Prefer the guarded runner, which hard-codes this target and refuses a wrong one:
+
+```bash
+python3 what-the-fact/scripts/migrations_apply.py plan       # what is pending (read-only)
+python3 what-the-fact/scripts/migrations_apply.py rehearse   # ALL pending in ONE transaction, then ROLLBACK
+python3 what-the-fact/scripts/migrations_apply.py apply --yes
+```
+
+It refuses a pending file that does not log itself in `schema_migrations` or that carries its own
+BEGIN/COMMIT, and `apply` only reports success once the ledger row exists.
+
 Then check what the database thinks it has, rather than assuming the pipe landed:
 
 ```bash

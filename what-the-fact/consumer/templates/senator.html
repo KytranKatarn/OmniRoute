@@ -43,6 +43,15 @@
 .wtf-sen-link-back { color:#ef4444; text-decoration:none; font-size:11px; }
 .wtf-sen-link-muted { color:#6b7280; font-size:11px; }
 .wtf-sen-back { position:absolute; top:20px; left:0; font-size:11px; color:#6b7280; text-decoration:none; }
+.wtf-sen-tbl { width:100%; border-collapse:collapse; font-size:11px; }
+.wtf-sen-tbl th { text-align:left; color:#6b7280; font-weight:600; padding:5px 8px 5px 0; border-bottom:1px solid #2a0a0a; }
+.wtf-sen-tbl th.r, .wtf-sen-tbl td.r { text-align:right; }
+.wtf-sen-tbl td { padding:5px 8px 5px 0; border-bottom:1px solid #1a0000; color:#d1d5db; vertical-align:top; }
+.wtf-sen-tbl td.dim { color:#9ca3af; }
+.wtf-sen-note { font-size:10px; color:#6b7280; line-height:1.6; margin-top:8px; }
+.wtf-sen-split { font-size:12px; color:#d1d5db; line-height:1.9; margin-bottom:10px; }
+.wtf-sen-flag { font-size:9px; color:#f59e0b; border:1px solid #f59e0b55; border-radius:8px; padding:0 5px; margin-left:4px; white-space:nowrap; }
+.wtf-sen-older > summary { cursor:pointer; font-size:11px; color:#ef4444; padding:8px 0; }
 .wtf-sen-src { font-size:9px; color:#6b7280; line-height:1.6; margin-top:9px; }
 .wtf-sen-src a { color:#6b7280; }
 </style>
@@ -205,6 +214,65 @@
     {% endfor %}
     <div class="wtf-sen-src">Senate ballots are yea, nay or abstention — a distinct vocabulary from the House. Abstention is a recorded position, not an absence.</div>
   </div>
+  {% endif %}
+
+  {# ── Expenses and itemized travel (parliament.senator_expenses, senate_travel_trips, intl_travel_*). ── #}
+  {% set _tr = senator.travel if senator.travel is defined else none %}
+  {% if senator.expense_periods or (_tr and (_tr.intl_trips or _tr.delegations or _tr.split.intl[0] or _tr.split.domestic[0] or _tr.split.unclassified[0])) %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">💳 Expenses by quarter{% if senator.expense_periods|length > 12 %} ({{ senator.expense_periods|length }} quarters){% endif %}</div>
+    {% if senator.expense_periods %}
+    {% macro sen_head() %}<thead><tr><th>Quarter</th><th class="r">Travel</th><th class="r">Hospitality</th><th class="r">Contracts</th><th class="r">Office</th><th class="r">Living</th><th class="r">Total</th></tr></thead>{% endmacro %}
+    {% macro sen_rows(rows) %}{% for e in rows %}<tr><td class="dim">{{ e.period }}</td>
+      <td class="r">{{ '${:,.0f}'.format(e.travel_cad) if e.travel_cad else '—' }}</td>
+      <td class="r">{{ '${:,.0f}'.format(e.hospitality_cad) if e.hospitality_cad else '—' }}</td>
+      <td class="r">{{ '${:,.0f}'.format(e.contracts_cad) if e.contracts_cad else '—' }}</td>
+      <td class="r">{{ '${:,.0f}'.format(e.office_cad) if e.office_cad else '—' }}</td>
+      <td class="r">{{ '${:,.0f}'.format(e.living_cad) if e.living_cad else '—' }}</td>
+      <td class="r"><strong>{{ '${:,.0f}'.format(e.total_cad) if e.total_cad else '—' }}</strong></td></tr>{% endfor %}{% endmacro %}
+    <table class="wtf-sen-tbl">{{ sen_head() }}<tbody>{{ sen_rows(senator.expense_periods[:12]) }}</tbody></table>
+    {% if senator.expense_periods|length > 12 %}
+    <details class="wtf-sen-older"><summary>Show {{ senator.expense_periods|length - 12 }} earlier quarters</summary>
+      <table class="wtf-sen-tbl">{{ sen_head() }}<tbody>{{ sen_rows(senator.expense_periods[12:]) }}</tbody></table>
+    </details>
+    {% endif %}
+    <div class="wtf-sen-src">Source: <a href="https://sencanada.ca/en/proactive/" target="_blank" rel="noopener">Senate proactive disclosure</a> — senators' expenses, by calendar quarter. Salary/indemnity is in the cost panel above.</div>
+    {% else %}
+    <div class="wtf-sen-note">No quarterly expense disclosures on file for this senator.</div>
+    {% endif %}
+  </div>
+
+  {% if _tr and (_tr.intl_trips or _tr.delegations or _tr.split.intl[0] or _tr.split.domestic[0] or _tr.split.unclassified[0]) %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">✈️ Travel</div>
+    <div class="wtf-sen-split">
+      <strong>{{ _tr.split.intl[0] }}</strong> international leg{{ '' if _tr.split.intl[0] == 1 else 's' }}{% if _tr.split.intl[0] %} ({{ '${:,.0f}'.format(_tr.split.intl[1]) }}){% endif %}
+      · <strong>{{ _tr.split.domestic[0] }}</strong> domestic ({{ '${:,.0f}'.format(_tr.split.domestic[1]) }})
+      {% if _tr.split.unclassified[0] %}· <strong>{{ _tr.split.unclassified[0] }}</strong> unclassified ({{ '${:,.0f}'.format(_tr.split.unclassified[1]) }}) — destination not recognised, counted as neither{% endif %}
+    </div>
+    {% if _tr.intl_trips %}
+    <table class="wtf-sen-tbl"><thead><tr><th>Dates</th><th>Itinerary</th><th>Purpose</th><th>Traveller</th><th class="r">Cost</th></tr></thead><tbody>
+      {% for t in _tr.intl_trips %}<tr>
+        <td class="dim">{{ t.trip_start.strftime('%Y-%m-%d') if t.trip_start else '—' }}{% if t.trip_end and t.trip_end != t.trip_start %} → {{ t.trip_end.strftime('%m-%d') }}{% endif %}</td>
+        <td>{{ t.itinerary or '—' }}</td><td class="dim">{{ t.purpose or '—' }}</td>
+        <td class="dim">{{ t.traveller_name or '' }}{% if t.traveller_kind and t.traveller_kind != 'senator' %} ({{ t.traveller_kind }}){% endif %}</td>
+        <td class="r">{{ '${:,.0f}'.format(t.total_cad) }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+    {% if _tr.delegations %}
+    <div class="wtf-sen-section-title" style="margin-top:16px;">🌐 Parliamentary delegations (IIA){% if _tr.delegation_additive_cad %} — {{ '${:,.0f}'.format(_tr.delegation_additive_cad) }} paid by the delegation, not in the expenses above{% endif %}</div>
+    <table class="wtf-sen-tbl"><thead><tr><th>Dates</th><th>Delegation</th><th class="r">Cost to this senator</th></tr></thead><tbody>
+      {% for d in _tr.delegations %}<tr>
+        <td class="dim">{{ d.event_start.strftime('%Y-%m-%d') if d.event_start else '—' }}</td>
+        <td>{{ d.title or d.body or 'Delegation' }}{% if d.destination %} · {{ d.destination }}{% endif %}
+            {% if d.cancelled %}<span class="wtf-sen-flag">cancelled</span>{% endif %}
+            {% if d.overlap == 'in_expense_travel' %}<span class="wtf-sen-flag" title="This trip also appears in the senator's own expense report, so it is not counted twice">already in own expenses</span>{% endif %}</td>
+        <td class="r">{{ '${:,.0f}'.format(d.amount_cad) }}</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+    <div class="wtf-sen-note">International means the destination was recognised as outside Canada; legs we could not classify are shown separately and never assumed either way. Committee travel is reported per committee (staff and interpreters included), not per senator, so it is not attributed here. Delegation costs come from the delegations' own published reports.</div>
+  </div>
+  {% endif %}
   {% endif %}
 
   {# Biography #}

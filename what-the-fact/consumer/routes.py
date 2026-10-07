@@ -6657,6 +6657,68 @@ def mps_listing():
                            same_bill_votes=same_bill_votes)
 
 
+def _senator_expense_rows(senator_id: int) -> list[dict]:
+    """Quarterly expense rows for one senator, newest first (parliament.senator_expenses, Senate calendar quarters:
+    'YYYY-Qn' sorts chronologically as text). Never raises into the page."""
+    try:
+        with _db().begin() as c:
+            return [dict(r) for r in c.execute(text("""
+                SELECT period, travel_cad, hospitality_cad, contracts_cad, office_cad, living_cad, total_cad
+                FROM parliament.senator_expenses
+                WHERE senator_id = :sid
+                ORDER BY period DESC
+                LIMIT 80
+            """), {"sid": senator_id}).mappings().all()]
+    except Exception:
+        return []
+
+
+def _senator_travel(senator_id: int) -> dict:
+    """Itemized travel for one senator: a split by international / domestic / unclassified, the international legs, and
+    the delegations (IIA reports) they sat on.
+
+    Three things a reader could otherwise get wrong, each handled here:
+      * `is_international` is three-valued. NULL means the destination was not recognised; those legs are reported as
+        their own 'unclassified' bucket, never silently counted as domestic or international.
+      * A delegation line whose dates match one of the senator's own travel legs (`overlap = in_expense_travel`) is ALREADY in
+        their own expense report; it is listed but flagged, and is excluded from `delegation_additive_cad`.
+      * Committee travel is reported per committee (staff and interpreters included), not per senator, so it is not
+        attributed to anyone here.
+    Never raises into the page."""
+    out = {"split": {"intl": (0, 0.0), "domestic": (0, 0.0), "unclassified": (0, 0.0)}, "intl_trips": [],
+           "delegations": [], "delegation_additive_cad": 0.0}
+    try:
+        with _db().begin() as c:
+            for r in c.execute(text("""
+                SELECT is_international, count(*) AS n, COALESCE(sum(total_cad), 0) AS amt
+                FROM parliament.senate_travel_trips WHERE senator_id = :sid GROUP BY is_international
+            """), {"sid": senator_id}).mappings().all():
+                key = "intl" if r["is_international"] is True else "domestic" if r["is_international"] is False else "unclassified"
+                out["split"][key] = (int(r["n"]), float(r["amt"]))
+            out["intl_trips"] = [dict(r) for r in c.execute(text("""
+                SELECT trip_start, trip_end, itinerary, purpose, traveller_name, traveller_kind, total_cad
+                FROM parliament.senate_travel_trips
+                WHERE senator_id = :sid AND is_international
+                ORDER BY trip_start DESC NULLS LAST
+                LIMIT 60
+            """), {"sid": senator_id}).mappings().all()]
+            out["delegations"] = [dict(r) for r in c.execute(text("""
+                SELECT e.event_start, e.event_end, e.body, e.title, e.destination, e.cancelled,
+                       s.amount_cad, s.overlap, e.source_url
+                FROM parliament.intl_travel_senators s
+                JOIN parliament.intl_travel_events e ON e.id = s.event_id
+                WHERE s.senator_id = :sid AND e.source = 'iia' AND e.is_foreign
+                ORDER BY e.event_start DESC NULLS LAST
+                LIMIT 60
+            """), {"sid": senator_id}).mappings().all()]
+    except Exception:
+        return {"split": {"intl": (0, 0.0), "domestic": (0, 0.0), "unclassified": (0, 0.0)}, "intl_trips": [],
+                "delegations": [], "delegation_additive_cad": 0.0}
+    out["delegation_additive_cad"] = round(sum(float(d["amount_cad"] or 0) for d in out["delegations"]
+                                               if d["overlap"] == "not_in_expense_travel"), 2)
+    return out
+
+
 @bp.get("/senator/<slug>")
 def senator_profile(slug: str):
     """Individual senator profile — caucus, province, appointment, bio, committees."""
@@ -6707,6 +6769,10 @@ def senator_profile(slug: str):
             LIMIT 30
         """), {"sid": senator["id"]}).mappings().all()
         senator["votes"] = [dict(r) for r in vote_rows]
+
+    # Expenses and itemized travel — guarded helpers, so a missing table cannot take the page down.
+    senator["expense_periods"] = _senator_expense_rows(senator["id"])
+    senator["travel"] = _senator_travel(senator["id"])
 
     senator["caucus_colour"] = _CAUCUS_COLOURS.get(senator.get("caucus") or "", "#888888")
     senator["caucus_label"] = _CAUCUS_LABELS.get(senator.get("caucus") or "", senator.get("caucus") or "")

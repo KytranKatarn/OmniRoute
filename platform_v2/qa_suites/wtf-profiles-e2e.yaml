@@ -29,8 +29,10 @@ tests:
           expr: "(document.querySelector('.wtf-mp-former-badge')||{}).textContent.trim()"
           equals: "Former Member of Parliament"
         - name: party_history_lists_reform_then_alliance_then_conservative_newest_first
-          # newest first on the page: Conservative (2004-11), Canadian Alliance (2001-04), Reform (1997-2000)
-          expr: "(()=>{const t=[...document.querySelectorAll('.wtf-mp-stint')].map(e=>e.textContent);const i=n=>t.findIndex(x=>x.includes(n));return t.length>=3&&i('Conservative')>=0&&i('Conservative')<i('Canadian Alliance')&&i('Canadian Alliance')<i('Reform');})()"
+          # newest first on the page: Conservative (2004-11), Canadian Alliance (2001-04), Reform (1997-2000).
+          # Only the text BEFORE the arrow is the stint's own party: the arrow starts the 'moved from <old party>' note, and without
+          # the split the Conservative stint also contains 'Canadian Alliance', so that lookup found index 0 (first run, 2026-10-07).
+          expr: "(()=>{const t=[...document.querySelectorAll('.wtf-mp-stint')].map(e=>e.textContent.split('\u21b3')[0]);const i=n=>t.findIndex(x=>x.includes(n));return t.length>=3&&i('Conservative')>=0&&i('Conservative')<i('Canadian Alliance')&&i('Canadian Alliance')<i('Reform');})()"
           equals: true
         - name: no_sitting_member_widgets_on_a_former_member
           expr: "!document.body.textContent.includes('Backbench') && !document.body.textContent.includes(' so far — ')"

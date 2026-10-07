@@ -4,7 +4,6 @@ Compliance API Routes
 REST endpoints for compliance scanning, results, and remediation.
 """
 
-import hmac
 import logging
 import os
 
@@ -14,7 +13,6 @@ from flask_login import login_required, current_user
 from . import compliance_service
 
 logger = logging.getLogger(__name__)
-
 
 def _session_is_admin() -> bool:
     """True when the request carries an authenticated admin session."""

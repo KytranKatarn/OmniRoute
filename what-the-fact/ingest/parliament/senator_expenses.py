@@ -123,8 +123,27 @@ def _extract_rows(fragment: str) -> list[list[str]]:
     return out
 
 
+def _clean_summary_name(name: str) -> str:
+    """The Senate marks some rows with a trailing "*" ("Gold, Marc *"): strip it, then normalize spaces."""
+    return re.sub(r"\s+", " ", re.sub(r"\s*\*+\s*$", "", name or "")).strip()
+
+
+def _split_family_given(name: str):
+    """"Family, Given Middle" -> ("Family", "Given Middle"); (None, None) when there is no comma."""
+    if "," not in (name or ""):
+        return None, None
+    fam, giv = name.split(",", 1)
+    fam, giv = fam.strip(), giv.strip()
+    return (fam or None), (giv or None)
+
+
 def _load_senator_index(engine):
-    """Build {family_norm: [(given_norm, id)]} and {full_norm: id} from the roster."""
+    """Build {family_norm: [(given_norm, id)]} and {full_norm: id} from the roster.
+
+    Stub rows (former senators added with only a "Family, Given" `name`, ids 100+) have NULL family_name /
+    given_name; they are derived from `name` here so they are matchable. Without this they were invisible to the
+    matcher and every expense/travel row of those senators was silently dropped (2026-10-06: 8 stubs + 22 absent
+    senators = 30 of the 144 senators on the 2023-2026 summaries)."""
     with engine.connect() as c:
         rows = c.execute(text(
             "SELECT id, name, given_name, family_name FROM parliament.senators"
@@ -132,6 +151,8 @@ def _load_senator_index(engine):
     fam_idx: dict[str, list[tuple[str, int]]] = {}
     full_idx: dict[str, int] = {}
     for sid, name, given, family in rows:
+        if not family and name:
+            family, given = _split_family_given(name)[0], given or _split_family_given(name)[1]
         if family:
             fam_idx.setdefault(_norm_name(family), []).append((_norm_name(given or ""), sid))
         if name:
@@ -140,7 +161,11 @@ def _load_senator_index(engine):
 
 
 def _match_senator(name_val: str, fam_idx, full_idx):
-    """Match a summary "Family, Given" name to a senator id (family-first)."""
+    """Match a summary "Family, Given" name to a senator id."""
+    name_val = _clean_summary_name(name_val)
+    sid = full_idx.get(_norm_name(name_val))          # exact "Family, Given" == the roster's own `name`
+    if sid:
+        return sid
     parts = name_val.split(",", 1)
     family = _norm_name(parts[0])
     given = _norm_name(parts[1]) if len(parts) > 1 else ""
@@ -166,6 +191,45 @@ def _match_senator(name_val: str, fam_idx, full_idx):
         if sid:
             return sid
     return None
+
+
+def _slugify_senator(family: str, given: str) -> str:
+    """sencanada-style slug "family-given" ("boniface-gwen", "megie-marie-francoise")."""
+    import unicodedata
+    raw = unicodedata.normalize("NFKD", f"{family} {given}").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", raw).strip("-")
+
+
+def ensure_roster_stub(engine, summary_name: str, caucus=None, province=None, fam_idx=None, full_idx=None):
+    """Return the roster id for a Senate-summary name, CREATING a stub row when it has none.
+
+    A senator who is on the Senate's own disclosure but not in parliament.senators (it only tracks the current
+    roster plus a few hand-added stubs) otherwise has every expense and travel row silently dropped, which quietly
+    under-counts any total built on them. The stub carries only what the summary itself says (name, caucus,
+    province), is_current=false (a reconcile of the live roster flips it if they still sit), and no entity link.
+    Returns None for anything that is not a "Family, Given" name. Updates fam_idx/full_idx in place if given."""
+    name = _clean_summary_name(summary_name)
+    family, given = _split_family_given(name)
+    if not family or not given:
+        return None
+    slug = _slugify_senator(family, given)
+    if not slug:
+        return None
+    prov = re.sub(r"\s*\(.*\)\s*$", "", (province or "").replace("*", "")).strip() or None
+    cau = (caucus or "").replace("*", "").strip() or None
+    with engine.begin() as c:
+        sid = c.execute(text("""
+            INSERT INTO parliament.senators (slug, name, given_name, family_name, caucus, province, is_current)
+            VALUES (:slug, :name, :given, :family, :caucus, :prov, false)
+            ON CONFLICT (slug) DO UPDATE SET synced_at = parliament.senators.synced_at
+            RETURNING id"""), {"slug": slug, "name": name, "given": given, "family": family,
+                              "caucus": cau, "prov": prov}).scalar()
+    if fam_idx is not None:
+        fam_idx.setdefault(_norm_name(family), []).append((_norm_name(given), sid))
+    if full_idx is not None:
+        full_idx[_norm_name(name)] = sid
+    logger.warning("senator_expenses: roster had no match for %r — created stub senator id=%s slug=%s", name, sid, slug)
+    return sid
 
 
 def _contracts_value(raw: str):
@@ -246,6 +310,7 @@ def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None
 
     inserted = 0
     reports_done = 0
+    stubs_created = 0
     unmatched: set[str] = set()
 
     for (year, quarter) in quarters:
@@ -266,6 +331,12 @@ def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None
         for cells in rows:
             name_val = cells[0].strip()
             sid = _match_senator(name_val, fam_idx, full_idx)
+            if not sid:
+                sid = ensure_roster_stub(engine, name_val, caucus=cells[1] if len(cells) > 1 else None,
+                                         province=cells[2] if len(cells) > 2 else None,
+                                         fam_idx=fam_idx, full_idx=full_idx)
+                if sid:
+                    stubs_created += 1
             if not sid:
                 unmatched.add(name_val)
                 continue
@@ -320,8 +391,8 @@ def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None
     if unmatched:
         logger.info("senator_expenses: %d unmatched summary names (e.g. %s)",
                     len(unmatched), sorted(unmatched)[:5])
-    logger.info("senator_expenses: reports=%d inserted=%d", reports_done, inserted)
-    return {"reports": reports_done, "inserted": inserted}
+    logger.info("senator_expenses: reports=%d inserted=%d stubs_created=%d", reports_done, inserted, stubs_created)
+    return {"reports": reports_done, "inserted": inserted, "roster_stubs_created": stubs_created}
 
 
 def _get_engine():

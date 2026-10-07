@@ -262,7 +262,8 @@ def _sync(engine, max_quarters: int, since_year: int | None) -> dict:
         amounts = {(m, y, q): a for m, y, q, a in travel_links(fragment)}
         stats["quarters"] += 1
         for name, member_id in ids.items():
-            sid = se._match_senator(name, fam_idx, full_idx)
+            sid = se._match_senator(name, fam_idx, full_idx) or se.ensure_roster_stub(
+                engine, name, fam_idx=fam_idx, full_idx=full_idx)
             if not sid:
                 stats["unmatched"].add(name)
                 continue

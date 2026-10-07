@@ -255,10 +255,10 @@ def test_migration_ends_with_its_ledger_line_and_grants_wtfuser():
     assert "is_international  boolean," in sql  # nullable on purpose
 
 
-def test_drift_guard_watches_it_but_does_not_require_it_before_the_first_run():
+def test_drift_guard_watches_it_and_requires_it():
     from ingest.parliament import drift_guard
     assert "senate_travel" in drift_guard._MAX_AGE_DAYS
-    assert "senate_travel" not in drift_guard._REQUIRED_TASKS
+    assert "senate_travel" in drift_guard._REQUIRED_TASKS  # required since #3702, once it had run
 
 
 def test_weekly_run_calls_it_after_the_senator_expenses_sync():

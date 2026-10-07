@@ -53,6 +53,9 @@ _MAX_AGE_DAYS = {
     # Committee + IIA international travel (ingest/parliament/intl_travel.py) — weekly; required since its
     # 2026-10-06 backfill logged a clean run.
     "intl_travel": int(os.environ.get("WTF_DRIFT_INTLTRAVEL_DAYS", "21")),
+    # MP stints + dated party (ingest/parliament/mp_terms.py) — weekly, sitting members. WATCHED but not yet
+    # REQUIRED: add to _REQUIRED_TASKS once it has logged a successful run in production.
+    "mp_terms": int(os.environ.get("WTF_DRIFT_MPTERMS_DAYS", "21")),
     # /cost projection ledger (ingest/parliament/cost.py run_cost_projection_snapshot) — weekly, logs every run even
     # when no new quarter landed. NOT required yet: add to _REQUIRED_TASKS once its first run has logged.
     "cost_projection": int(os.environ.get("WTF_DRIFT_COSTPROJ_DAYS", "21")),

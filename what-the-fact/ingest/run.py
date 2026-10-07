@@ -497,6 +497,14 @@ def main():
             except Exception:
                 log.exception("senate_travel sync crashed")
 
+            # MP stints + dated party (openparliament.ca). Sitting members only each week (~340 requests);
+            # the 2000-onward backfill of ALL politicians is a one-off CLI (python -m ingest.parliament.mp_terms).
+            try:
+                from ingest.parliament.mp_terms import run_mp_terms_sync
+                log.info("mp_terms sync: %s", run_mp_terms_sync(engine, only_current=True))
+            except Exception:
+                log.exception("mp_terms sync crashed")
+
             # Senators' international travel from the Senate COMMITTEE + IIA delegation reports, with overlap
             # against the Travel rows above (task='intl_travel', self-logs). Looks back ~150 days weekly;
             # the backfill is a one-off CLI (--since 2023-01-01).

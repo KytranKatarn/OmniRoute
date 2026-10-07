@@ -62,25 +62,42 @@ def _panel():
           {"fy": 2010, "party": "Unattributed", "amt": 500_000, "retired": 0},
           {"fy": 2010, "party": "NDP", "amt": 18_300_000, "retired": 0},
           {"fy": 2011, "party": "Conservative", "amt": 63_000_000, "retired": 0},
-          {"fy": 2011, "party": "NDP", "amt": 16_800_000, "retired": 0}]
-    meta = [{"fy": 2010, "n": 200, "changed": 3, "partial": 8}, {"fy": 2011, "n": 190, "changed": 3, "partial": 9}]
+          {"fy": 2011, "party": "NDP", "amt": 16_800_000, "retired": 0},
+          {"fy": 2009, "party": "Liberal", "amt": 40_000_000, "retired": 40_000_000},
+          {"fy": 2009, "party": "Conservative", "amt": 50_000_000, "retired": 10_000_000},
+          {"fy": 2002, "party": "Liberal", "amt": 60_000_000, "retired": 60_000_000}]
+    meta = [{"fy": 2010, "n": 200, "changed": 3, "partial": 8}, {"fy": 2011, "n": 190, "changed": 3, "partial": 9},
+            {"fy": 2009, "n": 300, "changed": 4, "partial": 0}, {"fy": 2002, "n": 290, "changed": 0, "partial": 0}]
     ns["_db"] = _db([_Res(by), _Res(meta)])
     return ns["_annual_cost_panel"]()
 
 
-def test_rows_are_sorted_unattributed_last_with_a_total_row_and_dashes():
+def test_two_blocks_detailed_first_then_totals_only_never_one_series():
     p = _panel()
-    assert p["years"] == [2010, 2011] and p["cols"] == [("FY2010", "num"), ("FY2011", "num")]
-    assert [r["party"] for r in p["rows"]] == ["Conservative", "NDP", "Unattributed", "All members"]
-    assert p["rows"][2]["cells"][1] == "—"                       # no FY2011 row -> a dash, never a zero
-    tot = p["rows"][-1]
+    assert [b["label"] for b in p["blocks"]] == ["FY2010\u2013FY2011", "FY2002\u2013FY2009"]
+    assert [b["detailed"] for b in p["blocks"]] == [True, False]
+    assert p["blocks"][0]["years"] == [2010, 2011] and p["blocks"][1]["years"] == [2002, 2009]
+    assert p["blocks"][0]["cols"] == [("FY2010", "num"), ("FY2011", "num")]
+
+
+def test_rows_are_sorted_unattributed_last_with_a_total_row_and_dashes():
+    b = _panel()["blocks"][0]
+    assert [r["party"] for r in b["rows"]] == ["Conservative", "NDP", "Unattributed", "All members"]
+    assert b["rows"][2]["cells"][1] == "\u2014"                  # no FY2011 row -> a dash, never a zero
+    tot = b["rows"][-1]
     assert tot["is_total"] and tot["cells"][0] == "$86.9M" and tot["total"] == "$166.7M"
-    assert p["rows"][0]["retired_share"] == "5%"
+    assert b["rows"][0]["retired_share"] == "5%"
+
+
+def test_the_old_block_only_carries_its_own_years_and_parties():
+    old = _panel()["blocks"][1]
+    assert [r["party"] for r in old["rows"]] == ["Liberal", "Conservative", "All members"]        # biggest first, then the closing total
+    assert old["rows"][0]["cells"] == ["$60.0M", "$40.0M"] and old["rows"][-1]["cells"] == ["$60.0M", "$90.0M"]
 
 
 def test_changes_and_partial_years_are_counted():
     p = _panel()
-    assert p["changed"] == 6 and p["partial"] == 17 and p["members"] == 390
+    assert p["changed"] == 10 and p["partial"] == 17 and p["members"] == 980
 
 
 def test_missing_view_hides_the_panel_not_the_page():
@@ -90,25 +107,28 @@ def test_missing_view_hides_the_panel_not_the_page():
         def begin(self):
             raise RuntimeError("relation does not exist")
     ns["_db"] = lambda: _Boom()
-    assert ns["_annual_cost_panel"]()["rows"] == []
+    assert ns["_annual_cost_panel"]()["blocks"] == []
 
 
 def test_routes_pass_the_panel_to_both_pages():
     assert SRC.count("annual_costs=_annual_cost_panel()") == 3     # /cost + both /parties renders
 
 
-def test_cost_template_renders_labelled_fiscal_year_table():
-    html = jinja2.Environment().from_string(COST[COST.index("{% if annual_costs"):COST.index('<div>\n    <a class="cost-cta"')]).render(
-        annual_costs=_panel())
+def _render_cost(**kw):
+    return jinja2.Environment().from_string(COST[COST.index("{% if annual_costs"):COST.index('<div>\n    <a class="cost-cta"')]).render(**kw)
+
+
+def test_cost_template_renders_labelled_blocks_and_says_the_old_one_is_totals_only():
+    html = _render_cost(annual_costs=_panel())
     assert "data-cost-by-fiscal-year" in html and "FY2010" in html and "April to March" in html
-    assert "salaries are not included" in html and "6 member-years" in html
-    assert html.index("Unattributed") < html.index("All members")
+    assert "salaries are not included" in html and "10 member-years" in html
+    assert html.index("FY2010\u2013FY2011") < html.index("FY2002\u2013FY2009")                  # detailed block first
+    assert "totals only" in html and "no category split is shown" in html and "within rounding" in html
+    assert html.count("print no per-member total") == 1                                         # the caveat is on the old block only
 
 
 def test_empty_panel_renders_nothing():
-    html = jinja2.Environment().from_string(COST[COST.index("{% if annual_costs"):COST.index('<div>\n    <a class="cost-cta"')]).render(
-        annual_costs={"rows": []})
-    assert "data-cost-by-fiscal-year" not in html
+    assert "data-cost-by-fiscal-year" not in _render_cost(annual_costs={"blocks": [], "rows": []})
 
 
 def test_parties_template_has_the_section_inside_the_cost_block():

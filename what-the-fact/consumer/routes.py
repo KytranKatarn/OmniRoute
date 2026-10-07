@@ -10464,20 +10464,22 @@ def _party_cost_panel() -> dict:
 
 
 _ANNUAL_COST_CACHE: dict = {}
+_ANNUAL_DETAILED_FROM = 2010      # FY2010+ come from reports with every category; FY2002-FY2009 are totals only
 
 
 def _annual_cost_panel() -> dict:
-    """Earlier years (FY2010-FY2015) from the House's ANNUAL per-member reports, via parliament.v_mp_expenses_annual_by_party
-    (migration 099). A SEPARATE panel from the calendar-year one on purpose:
-      * fiscal years run April-March (FY2010 = Apr 2009 - Mar 2010), so they cannot be added to or lined up against calendar years;
-      * the whole year is charged to the party at the year's midpoint — an MP who changed party mid-year is counted wholly under
-        one party, and the number of such MPs is printed;
-      * vacant seats are not members and are excluded; 'Unattributed' stays its own row.
-    Cached an hour; never raises into the page."""
+    """What the House's ANNUAL per-member reports say (FY2002-FY2015), via parliament.v_mp_expenses_annual_by_party (migrations 099-100).
+    A SEPARATE panel from the calendar-year one on purpose, in TWO blocks that are never added together:
+      * FY2010-FY2015: reports with every category (salaries, travel, hospitality, contracts);
+      * FY2002-FY2009: older reports whose only reliable figure is each member's total (blank cells are omitted, so a category
+        split would be a guess) — every year's members add up to the report's own printed Total row.
+    Fiscal years run April-March (FY2010 = Apr 2009 - Mar 2010), so none of this lines up with the calendar-year table. The whole
+    year is charged to the party at the year's midpoint (mid-year changers are counted and printed); vacant seats are not members;
+    'Unattributed' stays its own row. Cached an hour; never raises into the page."""
     hit = _ANNUAL_COST_CACHE.get("panel")
     if hit and hit[0] > time.time():
         return hit[1]
-    empty: dict = {"years": [], "rows": [], "cols": [], "changed": 0, "partial": 0, "members": 0}
+    empty: dict = {"blocks": [], "rows": [], "changed": 0, "partial": 0, "members": 0}
     try:
         with _db().begin() as c:
             by = c.execute(text("""
@@ -10500,19 +10502,30 @@ def _annual_cost_panel() -> dict:
     grid: dict = {}
     for r in by:
         grid.setdefault(r["party"], {})[int(r["fy"])] = r
-    order = sorted(grid, key=lambda p: (p == "Unattributed", -sum(float(v["amt"] or 0) for v in grid[p].values())))
-    rows = []
-    for party in order:
-        cells = grid[party]
-        total = sum(float(v["amt"] or 0) for v in cells.values())
-        retired = sum(float(v["retired"] or 0) for v in cells.values())
-        rows.append({"party": party, "cells": [_fmt_m(cells[y]["amt"]) if y in cells else "\u2014" for y in years],
-                     "total": _fmt_m(total), "retired_share": f"{100 * retired / total:.0f}%" if total else "\u2014"})
-    tot = {y: sum(float(g[y]["amt"] or 0) for g in grid.values() if y in g) for y in years}
-    rows.append({"party": "All members", "cells": [_fmt_m(tot[y]) for y in years], "total": _fmt_m(sum(tot.values())),
-                 "retired_share": "", "is_total": True})
-    out = {"years": years, "rows": rows,
-           "cols": [("FY%d" % y, "num") for y in years],
+
+    def _block(label: str, yrs: list, detailed: bool) -> dict:
+        parties = [p for p in grid if any(y in grid[p] for y in yrs)]
+        order = sorted(parties, key=lambda p: (p == "Unattributed", -sum(float(grid[p][y]["amt"] or 0) for y in yrs if y in grid[p])))
+        rows = []
+        for party in order:
+            cells = grid[party]
+            total = sum(float(cells[y]["amt"] or 0) for y in yrs if y in cells)
+            retired = sum(float(cells[y]["retired"] or 0) for y in yrs if y in cells)
+            rows.append({"party": party, "cells": [_fmt_m(cells[y]["amt"]) if y in cells else "\u2014" for y in yrs],
+                         "total": _fmt_m(total), "retired_share": f"{100 * retired / total:.0f}%" if total else "\u2014"})
+        tot = {y: sum(float(g[y]["amt"] or 0) for g in grid.values() if y in g) for y in yrs}
+        rows.append({"party": "All members", "cells": [_fmt_m(tot[y]) for y in yrs], "total": _fmt_m(sum(tot.values())),
+                     "retired_share": "", "is_total": True})
+        return {"label": label, "years": yrs, "cols": [("FY%d" % y, "num") for y in yrs], "rows": rows, "detailed": detailed}
+
+    blocks = []
+    new = [y for y in years if y >= _ANNUAL_DETAILED_FROM]
+    old = [y for y in years if y < _ANNUAL_DETAILED_FROM]
+    if new:
+        blocks.append(_block("FY%d\u2013FY%d" % (new[0], new[-1]), new, True))
+    if old:
+        blocks.append(_block("FY%d\u2013FY%d" % (old[0], old[-1]), old, False))
+    out = {"blocks": blocks, "rows": [r for b in blocks for r in b["rows"]],
            "changed": sum(int(m["changed"]) for m in meta), "partial": sum(int(m["partial"]) for m in meta),
            "members": sum(int(m["n"]) for m in meta)}
     _ANNUAL_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, out)

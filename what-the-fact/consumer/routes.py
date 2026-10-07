@@ -2820,7 +2820,7 @@ def cost_of_parliament():
     with _db().begin() as c:
         source_count = _active_source_count(c, S)
     return render_template("cost.html", source_count=source_count,
-                           is_subscriber=is_subscriber())
+                           is_subscriber=is_subscriber(), party_costs=_party_cost_panel())
 
 
 def _home_weather_strip():

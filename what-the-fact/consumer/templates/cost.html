@@ -28,6 +28,12 @@
   .cost-stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
   .cost-cta { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--wtf-local); text-decoration: none; border: 1px solid var(--wtf-local); padding: 9px 18px; border-radius: 4px; letter-spacing: .04em; }
   .cost-cta:hover { background: rgba(59,130,246,0.1); }
+  .cost-tblwrap { overflow-x: auto; }
+  .cost-tbl { border-collapse: collapse; width: 100%; font-size: 12px; color: #d1d5db; }
+  .cost-tbl th, .cost-tbl td { padding: 6px 10px; border-bottom: 1px solid rgba(148,163,184,0.14); text-align: right; white-space: nowrap; }
+  .cost-tbl th:first-child, .cost-tbl td:first-child { text-align: left; }
+  .cost-tbl th { font-weight: 600; color: #9ca3af; }
+  .cost-note { font-size: 11px; color: #6b7280; line-height: 1.6; margin: 10px 0 0; }
   @media (max-width: 560px) { .cost-panel { padding: 16px 14px; } }
 </style>
 
@@ -51,6 +57,30 @@
     <div class="cost-panel-h">The rising cost of Parliament</div>
     <div data-cost-chart></div>
   </div>
+
+  {% if party_costs and party_costs.rows %}
+  <div class="cost-panel" data-cost-by-party>
+    <div class="cost-panel-h">What each party&rsquo;s MPs cost &mdash; office expenses by year</div>
+    <p class="cost-note" style="margin:0 0 12px;">
+      House of Commons members&rsquo; <strong>expenses only</strong> (staff, travel, hospitality, contracts) &mdash;
+      <strong>salaries are not included here</strong>, so these figures are smaller than the totals above. Each quarter is
+      charged to the party the MP sat for <em>at the time</em>, retired MPs included; costs incurred after an MP left office
+      go to the party they last sat for. Complete calendar years only. The House only, not the Senate.
+    </p>
+    <div class="cost-tblwrap">
+      <table class="cost-tbl">
+        <thead><tr><th>Party</th>{% for y in party_costs.years %}<th>{{ y }}</th>{% endfor %}<th>Total</th><th>Per MP, {{ party_costs.latest }}</th></tr></thead>
+        <tbody>
+        {% for r in party_costs.rows %}
+          <tr><td>{{ r.party }}</td>{% for c in r.cells %}<td>{{ c }}</td>{% endfor %}<td>{{ r.total }}</td><td>{{ r.per_mp }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="cost-note">&ldquo;Unattributed&rdquo; is spending we could not tie to a party; it is shown separately, never folded in.
+      Party switches and retired-MP shares are on <a href="/parties" style="color:var(--wtf-local);">the parties page</a>.</p>
+  </div>
+  {% endif %}
 
   <div>
     <a class="cost-cta" href="/mps">See every MP &amp; senator &rarr;</a>

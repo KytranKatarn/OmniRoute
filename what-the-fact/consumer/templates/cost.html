@@ -82,6 +82,32 @@
   </div>
   {% endif %}
 
+  {% if caucus_costs and caucus_costs.rows %}
+  <div class="cost-panel" data-cost-by-caucus>
+    <div class="cost-panel-h">What each Senate caucus&rsquo;s senators cost &mdash; expenses by year</div>
+    <p class="cost-note" style="margin:0 0 12px;">
+      Senators&rsquo; <strong>expenses only</strong> (office, living, hospitality, travel and contracts) &mdash;
+      <strong>salaries are not included here</strong>. Each quarter is charged to the caucus the senator belonged to
+      <em>in that quarter</em>, retired senators included. Complete calendar years only; the Senate publishes these summaries
+      from the third quarter of 2016, so 2017 is the first full year. The Senate&rsquo;s 2016&ndash;17 transition labels
+      &ldquo;Non-affiliated (Independent Senators Group)&rdquo; and &ldquo;(Independent Reform)&rdquo; are counted under Non-affiliated.
+    </p>
+    <div class="cost-tblwrap">
+      <table class="cost-tbl">
+        <thead><tr><th>Caucus</th>{% for y in caucus_costs.years %}<th>{{ y }}</th>{% endfor %}<th>Total</th><th>Retired</th><th>Per senator</th></tr></thead>
+        <tbody>
+        {% for r in caucus_costs.rows %}
+          <tr><td>{{ r.caucus }}</td>{% for c in r.cells %}<td>{{ c }}</td>{% endfor %}<td>{{ r.total }}</td><td>{{ r.retired_share }}</td><td>{{ r.per_senator }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="cost-note">&ldquo;Retired&rdquo; is the share of each caucus&rsquo;s total incurred by senators no longer sitting. &ldquo;Per senator&rdquo; is the
+      cost in {{ caucus_costs.latest }} divided by the senators who held that caucus at any point in the year, so a mid-year move or
+      retirement lowers it. Source: Senate proactive disclosure, quarterly expenditure summaries.</p>
+  </div>
+  {% endif %}
+
   <div>
     <a class="cost-cta" href="/mps">See every MP &amp; senator &rarr;</a>
     <div style="font-size:11px;color:#6b7280;margin-top:8px;">

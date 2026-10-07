@@ -2807,6 +2807,67 @@ def team():
     )
 
 
+_CAUCUS_COST_CACHE: dict = {}
+_SENATE_CAUCUS_NAMES = {
+    "ISG": "Independent Senators Group", "CSG": "Canadian Senators Group", "PSG": "Progressive Senate Group",
+    "Conservative": "Conservative", "Liberal": "Liberal", "Non-affiliated": "Non-affiliated",
+}
+
+
+def _caucus_cost_panel() -> dict:
+    """What each Senate caucus's senators cost in expenses, by complete calendar year (parliament.v_senator_expenses_by_caucus,
+    migration 098; the Senate publishes these summaries from 2016-Q3, so the first complete year is 2017).
+
+    The same rules as the House panel: a quarter is charged to the caucus the senator belonged to THAT quarter, retired
+    senators are included, only COMPLETE years (4 distinct quarters) are shown, and 'Unattributed' (no caucus on record that
+    quarter) is its own row. One deliberate fold: the Senate's 2016-17 transition labels 'Non-affiliated (Independent
+    Senators Group)' / '(Independent Reform)' are counted under 'Non-affiliated' (printed on the page). Abbreviations are
+    expanded. Salaries are NOT included. Never raises into the page."""
+    hit = _CAUCUS_COST_CACHE.get("panel")
+    if hit and hit[0] > time.time():
+        return hit[1]
+    empty: dict = {"years": [], "rows": [], "latest": None, "years_cols": []}
+    try:
+        with _db().begin() as c:
+            by = c.execute(text("""
+                SELECT extract(year FROM q_start)::int AS yr,
+                       CASE WHEN caucus LIKE 'Non-affiliated (%' THEN 'Non-affiliated' ELSE caucus END AS caucus,
+                       sum(total_cad) AS amt, count(DISTINCT senator_id) AS senators,
+                       sum(total_cad) FILTER (WHERE NOT sitting) AS retired
+                FROM parliament.v_senator_expenses_by_caucus GROUP BY 1, 2
+            """)).mappings().all()
+            qs = {r["yr"]: r["q"] for r in c.execute(text("""
+                SELECT extract(year FROM q_start)::int AS yr, count(DISTINCT q_start) AS q
+                FROM parliament.v_senator_expenses_by_caucus GROUP BY 1
+            """)).mappings().all()}
+    except Exception:
+        return empty
+    years = sorted(y for y, q in qs.items() if q >= 4)
+    if not years:
+        _CAUCUS_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, empty)
+        return empty
+    latest = years[-1]
+    grid: dict = {}
+    for r in by:
+        if r["yr"] in years:
+            grid.setdefault(r["caucus"], {})[r["yr"]] = r
+    order = sorted(grid, key=lambda k: (k == "Unattributed", -sum(float(v["amt"] or 0) for v in grid[k].values())))
+    rows = []
+    for k in order:
+        cells = grid[k]
+        total = sum(float(v["amt"] or 0) for v in cells.values())
+        retired = sum(float(v["retired"] or 0) for v in cells.values())
+        lt = cells.get(latest)
+        per = (float(lt["amt"] or 0) / lt["senators"]) if lt and lt["senators"] else None
+        rows.append({"caucus": _SENATE_CAUCUS_NAMES.get(k, k),
+                     "cells": [_fmt_m(cells[y]["amt"]) if y in cells else "\u2014" for y in years],
+                     "total": _fmt_m(total), "retired_share": f"{100 * retired / total:.0f}%" if total else "\u2014",
+                     "per_senator": f"${per / 1e3:,.0f}K" if per else "\u2014"})
+    out = {"years": years, "rows": rows, "latest": latest, "years_cols": [(str(y), "num") for y in years]}
+    _CAUCUS_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, out)
+    return out
+
+
 @bp.get("/cost")
 def cost_of_parliament():
     """"What Parliament Costs Canadians" — national cost-to-taxpayers page.
@@ -2820,7 +2881,8 @@ def cost_of_parliament():
     with _db().begin() as c:
         source_count = _active_source_count(c, S)
     return render_template("cost.html", source_count=source_count,
-                           is_subscriber=is_subscriber(), party_costs=_party_cost_panel())
+                           is_subscriber=is_subscriber(), party_costs=_party_cost_panel(),
+                           caucus_costs=_caucus_cost_panel())
 
 
 def _home_weather_strip():

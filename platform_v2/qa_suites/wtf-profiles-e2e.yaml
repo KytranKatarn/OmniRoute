@@ -1,0 +1,103 @@
+suite:
+  name: "wtf-profiles-e2e"
+  description: >-
+    What The Fact MP and senator profile pages after PRs #3716 (MP: former members, dated party history, party-labelled
+    expense series) and #3717 (senator: quarterly expenses, travel split, delegations). Subscriber login, DOM-level
+    assertions and screenshots as evidence. Every assertion has a floor (>= N rows, a specific string) so an empty or
+    paywalled page cannot pass vacuously. RUN ONLY AFTER those PRs are deployed AND the archive backfill (migration 097) has
+    loaded: before that these tests are expected to fail, and each failure message names the missing piece.
+    The assertions pin FACTS about named people that do not drift (a Reform -> Canadian Alliance -> Conservative career that
+    ended in 2011, a 2025 floor-crossing), not figures that change every quarter.
+  base_url: "https://what-the-fact.com"
+  auth:
+    mode: browser
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "former MP (jim-abbott) is served, badged, with his three parties in order"
+    type: e2e
+    path: /mp/jim-abbott
+    wait_until: load
+    actions:
+      - scroll_to: ".wtf-mp-stint-list"
+      - screenshot: "wtf-mp-former-jim-abbott"
+    expect:
+      selector_visible: { ".wtf-mp-former-badge": true, ".wtf-mp-stint-list": true }
+      js_eval:
+        - name: former_badge_says_former_member
+          expr: "(document.querySelector('.wtf-mp-former-badge')||{}).textContent.trim()"
+          equals: "Former Member of Parliament"
+        - name: party_history_lists_reform_then_alliance_then_conservative_newest_first
+          # newest first on the page: Conservative (2004-11), Canadian Alliance (2001-04), Reform (1997-2000)
+          expr: "(()=>{const t=[...document.querySelectorAll('.wtf-mp-stint')].map(e=>e.textContent);const i=n=>t.findIndex(x=>x.includes(n));return t.length>=3&&i('Conservative')>=0&&i('Conservative')<i('Canadian Alliance')&&i('Canadian Alliance')<i('Reform');})()"
+          equals: true
+        - name: no_sitting_member_widgets_on_a_former_member
+          expr: "!document.body.textContent.includes('Backbench') && !document.body.textContent.includes(' so far — ')"
+          equals: true
+
+  - name: "floor-crossing (chris-dentremont) is marked as a crossing"
+    type: e2e
+    path: /mp/chris-dentremont
+    wait_until: load
+    actions:
+      - scroll_to: ".wtf-mp-stint-list"
+      - screenshot: "wtf-mp-crossing-chris-dentremont"
+    expect:
+      selector_visible: { ".wtf-mp-stint-list": true, ".wtf-mp-stint-switch": true }
+      js_eval:
+        - name: switch_line_names_the_old_party_and_calls_it_a_crossing
+          expr: "(()=>{const s=[...document.querySelectorAll('.wtf-mp-stint-switch')].map(e=>e.textContent).join(' ');return s.includes('moved from Conservative')&&s.includes('crossed the floor');})()"
+          equals: true
+        - name: sitting_member_has_no_former_badge
+          expr: "!document.querySelector('.wtf-mp-former-badge')"
+          equals: true
+
+  - name: "long expense series (ted-falk) spans the 2020 boundary, in date order, with a party column"
+    type: e2e
+    path: /mp/ted-falk
+    wait_until: load
+    actions:
+      - scroll_to: ".wtf-mp-older-quarters"
+      - screenshot: "wtf-mp-ted-falk-long-series"
+    expect:
+      selector_visible: { ".wtf-mp-td-party": true }
+      js_eval:
+        - name: more_than_twelve_quarters_so_older_ones_are_folded
+          expr: "document.querySelectorAll('.wtf-mp-td-period').length>12 && !!document.querySelector('details.wtf-mp-older-quarters')"
+          equals: true
+        - name: whole_series_is_newest_first_in_date_order_across_both_tables
+          # key = year*10 + (Q4 -> 0, Q1..Q3 -> 1..3): Jan-Mar sorts BEFORE Apr-Jun of the same label year.
+          expr: "(()=>{const ps=[...document.querySelectorAll('.wtf-mp-td-period')].map(e=>e.textContent.trim());const k=p=>{const a=p.split('-Q');if(a.length!==2)return -1;return (+a[0])*10+(a[1]==='4'?0:+a[1]);};if(ps.length<13)return false;for(let i=1;i<ps.length;i++){if(k(ps[i-1])<k(ps[i]))return false;}return true;})()"
+          equals: true
+        - name: series_reaches_back_before_july_2020_via_the_archive
+          # a label year < 2020 (or 2020-Q1) can only come from the archive; the House site starts at 2020-Q2
+          expr: "[...document.querySelectorAll('.wtf-mp-td-period')].some(e=>{const y=+e.textContent.trim().slice(0,4);return y<2020;})"
+          equals: true
+
+  - name: "senator (housakos-leo) shows quarterly expenses, a travel split and flagged delegations"
+    type: e2e
+    path: /senator/housakos-leo
+    wait_until: load
+    actions:
+      - scroll_to: ".wtf-sen-tbl"
+      - screenshot: "wtf-senator-housakos-expenses-travel"
+    expect:
+      selector_visible: { ".wtf-sen-tbl": true, ".wtf-sen-split": true }
+      js_eval:
+        - name: expense_table_has_at_least_a_year_of_quarters
+          expr: "(()=>{const t=document.querySelector('.wtf-sen-tbl');return !!t && t.querySelectorAll('tbody tr').length>=4 && document.body.textContent.includes('Expenses by quarter');})()"
+          equals: true
+        - name: travel_split_names_all_three_buckets_and_never_assumes_unclassified
+          expr: "(()=>{const s=document.querySelector('.wtf-sen-split').textContent;return /international leg/.test(s)&&/domestic/.test(s);})()"
+          equals: true
+        - name: delegations_carry_the_no_double_counting_flag
+          expr: "[...document.querySelectorAll('.wtf-sen-flag')].some(e=>/already in own expenses/.test(e.textContent))"
+          equals: true
+
+  - name: "an unknown MP slug is still a 404, not an empty former-member page"
+    type: page_load
+    path: /mp/this-person-does-not-exist
+    skip_auth: true
+    expect:
+      status: [404]

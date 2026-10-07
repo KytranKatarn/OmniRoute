@@ -125,7 +125,7 @@ tests:
           equals: true
         - name: cost_table_has_per_mp_column_complete_years_and_the_two_big_parties
           # years change as more become complete, so pin only two mid-range years plus Liberal/Conservative rows
-          expr: "(()=>{const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('Per MP,'));if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&h.includes('Per MP')&&r.includes('Liberal')&&r.includes('Conservative')&&r.length>=4;})()"
+          expr: "(()=>{const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('Per MP'));if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&h.includes('Per MP')&&r.includes('Liberal')&&r.includes('Conservative')&&r.length>=4;})()"
           equals: true
         - name: floor_crossings_table_has_real_rows
           expr: "(()=>{const hs=[...document.querySelectorAll('.wtf-pt-sec')].find(e=>e.textContent.includes('Floor-crossings since 2000'));if(!hs)return false;const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('From'))||null;return !!t&&t.querySelectorAll('tbody tr').length>=5;})()"

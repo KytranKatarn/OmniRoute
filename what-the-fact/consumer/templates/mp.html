@@ -2,7 +2,7 @@
 {% from "_archetypes.html" import paywall, lean_pill, lean_token %}
 {% block title %}{{ mp.name }} — MP Profile · What The Fact{% endblock %}
 {% block meta %}
-<meta name="description" content="{{ mp.name }} ({{ mp.party }}, {{ mp.riding_name }}) — vote record, media coverage analysis by What The Fact.">
+<meta name="description" content="{{ mp.name }} ({{ mp.party }}, {{ mp.riding_name }}){% if mp.is_current is defined and not mp.is_current %} — former Member of Parliament —{% endif %} — vote record, media coverage analysis by What The Fact.">
 <meta property="og:title" content="{{ mp.name }} — MP Profile">
 <meta property="og:description" content="{{ mp.party }} MP for {{ mp.riding_name }}. See their voting record and how the media covers them.">
 <meta property="og:url" content="https://what-the-fact.com/mp/{{ mp.slug }}">
@@ -136,6 +136,14 @@
 
 .wtf-mp-hidden { display:none; }
 
+.wtf-mp-former-badge { font-size:11px; padding:3px 10px; border-radius:10px; font-weight:600; background:#37415122; color:#9ca3af; border:1px solid #374151; }
+.wtf-mp-stint-list { list-style:none; margin:0; padding:0; }
+.wtf-mp-stint { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; padding:7px 0; border-bottom:1px solid #0f2740; font-size:12px; color:#d1d5db; }
+.wtf-mp-stint-dates { font-family:var(--wtf-font-mono); font-size:11px; color:#9ca3af; min-width:150px; }
+.wtf-mp-stint-switch { font-size:11px; color:#f59e0b; }
+.wtf-mp-td-party { padding:6px 8px 6px 0; font-size:10px; color:#9ca3af; white-space:nowrap; }
+.wtf-mp-wind-down { font-size:9px; color:#f59e0b; border:1px solid #f59e0b55; border-radius:8px; padding:0 5px; margin-left:4px; }
+.wtf-mp-older-quarters > summary { cursor:pointer; font-size:11px; color:#0af; padding:8px 0; }
 .wtf-mp-ytd-box { border:1px dashed #1a3a5a; border-radius:4px; padding:12px 14px; }
 .wtf-mp-ytd-num { font-family:var(--wtf-font-mono); font-size:22px; font-weight:700; color:#ef4444; }
 .wtf-mp-ytd-note { font-size:10px; color:#6b7280; margin-top:6px; }
@@ -175,7 +183,9 @@
       {% if mp.province_code %}
       <span class="wtf-mp-province">{{ mp.province_code }}</span>
       {% endif %}
-      {% if mp.cabinet_role %}
+      {% if mp.is_current is defined and not mp.is_current %}
+      <span class="wtf-mp-former-badge">Former Member of Parliament</span>
+      {% elif mp.cabinet_role %}
       <span class="wtf-mp-cabinet-badge">
         {{ mp.cabinet_role }}
       </span>
@@ -257,6 +267,28 @@
        class="wtf-mp-cost-loading">Loading cost figures…</div>
 </div>
 <script src="{{ url_for('static', filename='js/cost.js') }}"></script>
+
+{# ── Party history — dated stints (parliament.mp_terms). PUBLIC: the House's own record, and the thing that lets a
+   cost be attributed to the party that actually carried it. A floor-crossing shows as a stint with `switched_from`. ── #}
+{% if party_history %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">🗂 Party and riding history{% if party_history|selectattr('switched_from')|list %} — switched party {{ party_history|selectattr('switched_from')|list|length }}×{% endif %}</div>
+  <ul class="wtf-mp-stint-list">
+    {% for st in party_history %}
+    <li class="wtf-mp-stint">
+      <span class="wtf-mp-stint-dates">{{ st.start_date.strftime('%b %Y') }} – {{ st.end_date.strftime('%b %Y') if st.end_date else 'present' }}</span>
+      <span><strong>{{ st.party or 'Independent' }}</strong>{% if st.riding %} · {{ st.riding }}{% endif %}</span>
+      {% if st.switched_from %}
+      <span class="wtf-mp-stint-switch">↳ moved from {{ st.switched_from }}{% if st.gap_days is not none and st.gap_days <= 31 %} (crossed the floor){% elif st.gap_days is not none %} (returned after {{ (st.gap_days / 365)|round(1) }} yrs){% endif %}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="wtf-mp-source">
+    Source: <a href="https://openparliament.ca" target="_blank" rel="noopener" class="wtf-mp-source-link">openparliament.ca</a> membership records, 2000 onward.
+  </div>
+</div>
+{% endif %}
 
 {# Committee membership is PUBLIC: it is one click away on ourcommons.ca,
    so paywalling it buys no exclusivity and reads as charging for a public
@@ -449,7 +481,7 @@
 {% set ns.qcount = ns.qcount + 1 %}
 {% endif %}
 {% endfor %}
-{% if ns.qcount %}
+{% if ns.qcount and not (mp.is_current is defined and not mp.is_current) %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">🗓 {{ _cur_yr }} so far — {{ ns.qcount }} quarter{{ 's' if ns.qcount != 1 else '' }} disclosed</div>
   <div class="wtf-mp-ytd-box">
@@ -465,22 +497,12 @@
 </div>
 {% endif %}
 <div class="wtf-mp-section">
-  <div class="wtf-mp-section-title">💳 Quarterly expenses — public money spent</div>
-  <div class="wtf-mp-table-wrap">
-  <table class="wtf-mp-table">
-    <thead>
-      <tr class="wtf-mp-thead-row">
-        <th class="wtf-mp-th">Period</th>
-        <th class="wtf-mp-th-r">Travel</th>
-        <th class="wtf-mp-th-r">Hospitality</th>
-        <th class="wtf-mp-th-r">Contracts</th>
-        <th class="wtf-mp-th-r-last">Total</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for ep in expense_periods %}
+  <div class="wtf-mp-section-title">💳 Quarterly expenses — public money spent{% if expense_periods|length > 12 %} ({{ expense_periods|length }} quarters){% endif %}</div>
+  {% macro exp_rows(rows) %}
+      {% for ep in rows %}
       <tr class="wtf-mp-tr">
         <td class="wtf-mp-td-period">{{ ep.period }}</td>
+        <td class="wtf-mp-td-party">{{ ep.expense_party or '' }}{% if ep.attribution == 'wind_down' %}<span class="wtf-mp-wind-down" title="Incurred after the member left office; counted against the party they last sat for">wind-down</span>{% endif %}</td>
         <td class="wtf-mp-td-num">
           {% if ep.travel_cad %}${{ '{:,.0f}'.format(ep.travel_cad) }}{% else %}—{% endif %}
         </td>
@@ -495,11 +517,39 @@
         </td>
       </tr>
       {% endfor %}
-    </tbody>
+  {% endmacro %}
+  {% macro exp_head() %}
+    <thead>
+      <tr class="wtf-mp-thead-row">
+        <th class="wtf-mp-th">Period</th>
+        <th class="wtf-mp-th">Party</th>
+        <th class="wtf-mp-th-r">Travel</th>
+        <th class="wtf-mp-th-r">Hospitality</th>
+        <th class="wtf-mp-th-r">Contracts</th>
+        <th class="wtf-mp-th-r-last">Total</th>
+      </tr>
+    </thead>
+  {% endmacro %}
+  <div class="wtf-mp-table-wrap">
+  <table class="wtf-mp-table">
+    {{ exp_head() }}
+    <tbody>{{ exp_rows(expense_periods[:12]) }}</tbody>
   </table>
   </div>
+  {% if expense_periods|length > 12 %}
+  <details class="wtf-mp-older-quarters">
+    <summary>Show {{ expense_periods|length - 12 }} earlier quarters</summary>
+    <div class="wtf-mp-table-wrap">
+    <table class="wtf-mp-table">
+      {{ exp_head() }}
+      <tbody>{{ exp_rows(expense_periods[12:]) }}</tbody>
+    </table>
+    </div>
+  </details>
+  {% endif %}
   <div class="wtf-mp-source">
     Source: Our Commons proactive disclosure · <a href="https://www.ourcommons.ca/ProactiveDisclosure/en/members" target="_blank" rel="noopener" class="wtf-mp-source-link">ourcommons.ca</a>
+    · Quarters before July 2020 come from the House's archived reports (year-to-date figures, differenced to quarters).
   </div>
 </div>
 {% endif %}

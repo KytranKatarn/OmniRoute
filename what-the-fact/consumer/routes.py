@@ -6764,6 +6764,62 @@ def _donor_group_sort_key(label: str):
     return (2, -int(m.group(1)) if m else 0, label)
 
 
+def _mp_expense_rows(mp_id: int) -> list[dict]:
+    """Quarterly expenses for one MP, newest first, with the party that carried each quarter.
+
+    Reads parliament.v_mp_expenses_by_party (migrations 095-097): the House site (FY2021 Q2 onward) AND the House
+    archive (Apr 2014 - Mar 2020) in one series, each quarter labelled with the party in force at the time and flagged
+    'wind_down' when it is a cost incurred after the member left. q_start orders chronologically by construction, so
+    the Jan-Mar-label trap that CHRONO_DESC_SQL guards does not arise here. Falls back to the House-site table alone if
+    the view is absent (an environment that has not applied 095-097) — and never raises into the page."""
+    try:
+        with _db().begin() as c:
+            return [dict(r) for r in c.execute(text("""
+                SELECT period, travel_cad, hospitality_cad, contracts_cad, salaries_cad, total_cad,
+                       party AS expense_party, attribution, source
+                FROM parliament.v_mp_expenses_by_party
+                WHERE mp_id = :mp_id
+                ORDER BY q_start DESC
+                LIMIT 80
+            """), {"mp_id": mp_id}).mappings().all()]
+    except Exception:
+        try:
+            from shared.fiscal_quarters import CHRONO_DESC_SQL
+            with _db().begin() as c:
+                return [dict(r) for r in c.execute(text("""
+                    SELECT period, travel_cad, hospitality_cad, contracts_cad, salaries_cad, total_cad,
+                           NULL AS expense_party, NULL AS attribution, 'house_site' AS source
+                    FROM parliament.mp_expenses
+                    WHERE mp_id = :mp_id
+                    ORDER BY """ + CHRONO_DESC_SQL + """
+                    LIMIT 12
+                """), {"mp_id": mp_id}).mappings().all()]
+        except Exception:
+            return []
+
+
+def _mp_party_history(mp_id: int) -> list[dict]:
+    """Dated stints for one MP (parliament.mp_terms, migration 094), newest first.
+
+    A stint that follows one for a DIFFERENT party carries `switched_from` and `gap_days` (days between the stints:
+    a small gap is a floor-crossing, a large one is a return under another banner). Never raises into the page."""
+    try:
+        with _db().begin() as c:
+            rows = [dict(r) for r in c.execute(text("""
+                SELECT party, riding, start_date, end_date
+                FROM parliament.mp_terms
+                WHERE mp_id = :mp_id
+                ORDER BY start_date, id
+            """), {"mp_id": mp_id}).mappings().all()]
+    except Exception:
+        return []
+    for prev, cur in zip(rows, rows[1:]):
+        if prev["party"] and cur["party"] and prev["party"] != cur["party"]:
+            cur["switched_from"] = prev["party"]
+            cur["gap_days"] = (cur["start_date"] - prev["end_date"]).days if prev["end_date"] else None
+    return list(reversed(rows))
+
+
 @bp.get("/mp/<slug>")
 def mp_profile(slug: str):
     """Individual MP profile — votes, party, riding, articles mentioning them."""
@@ -6774,9 +6830,12 @@ def mp_profile(slug: str):
         mp_row = c.execute(text("""
             SELECT id, slug, name, party, riding_name, province_code,
                    photo_url, twitter, email, parl_mp_id, openparl_url, fetched_at,
-                   cabinet_role
-            FROM parliament.mps WHERE slug = :slug AND is_current = true
+                   cabinet_role, is_current
+            FROM parliament.mps WHERE slug = :slug
         """), {"slug": slug}).mappings().first()
+    # FORMER members are served too (badged in the template), not 404'd — the same rule /senator/<slug> follows.
+    # Their record is permanent public record and, since 2026-10-07, we hold ~900 of them with dated party history and
+    # expenses back to 2014: serving only sitting MPs made the accountability record unreachable the day they retired.
     if not mp_row:
         abort(404)
     mp = dict(mp_row)
@@ -6857,18 +6916,6 @@ def mp_profile(slug: str):
                 WHERE lc.mp_id = :mp_id
                 ORDER BY lc.communication_date DESC
                 LIMIT 25
-            """), {"mp_id": mp["id"]}).mappings().all()
-
-            # The label is "<calendar year>-Q<fiscal quarter>" with Q4 = Jan-Mar, so `ORDER BY period
-            # DESC` put Jan-Mar above Apr-Jun of the same year and cut the LIMIT at the wrong quarter.
-            from shared.fiscal_quarters import CHRONO_DESC_SQL
-            expense_periods = c.execute(text("""
-                SELECT period, travel_cad, hospitality_cad, contracts_cad,
-                       salaries_cad, total_cad
-                FROM parliament.mp_expenses
-                WHERE mp_id = :mp_id
-                ORDER BY """ + CHRONO_DESC_SQL + """
-                LIMIT 12
             """), {"mp_id": mp["id"]}).mappings().all()
 
             disclosures = c.execute(text("""
@@ -6963,6 +7010,9 @@ def mp_profile(slug: str):
     except Exception:
         pass  # ec_contributions might not be populated yet
 
+    expense_periods = _mp_expense_rows(mp["id"])
+    party_history = _mp_party_history(mp["id"])
+
     # Caucus prev/next navigation (design-parity gap, mockup wtf-mp.js).
     # Same table/filter idiom as the /mps listing route above
     # (is_current=true AND party=:party, ORDER BY name) — 337 current MPs
@@ -6970,7 +7020,7 @@ def mp_profile(slug: str):
     peer_mps = []
     prev_mp = None
     next_mp = None
-    if mp.get("party"):
+    if mp.get("party") and mp.get("is_current"):          # prev/next walks the SITTING caucus only
         with _db().begin() as c:
             peer_mps = [dict(r) for r in c.execute(text("""
                 SELECT slug, name FROM parliament.mps
@@ -6994,6 +7044,7 @@ def mp_profile(slug: str):
                            top_named_donors=[dict(r) for r in top_named_donors],
                            lobbying_contacts=[dict(r) for r in lobbying_contacts],
                            expense_periods=[dict(r) for r in expense_periods],
+                           party_history=party_history,
                            disclosures=[dict(r) for r in disclosures],
                            promises=[dict(r) for r in promises],
                            committees=[dict(r) for r in committees],

@@ -143,7 +143,14 @@ _EC_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DATE_REJECTS = {"n": 0}  # per-run tally, logged + reset in sync_contributions
 
 
-def _parse_date(s: str) -> Optional[str]:
+# A contribution's date is when it was RECEIVED, so it cannot be in the future. The slack only covers clock skew and a
+# filing dated a few days ahead. It was 366 days, which let through monthly-instalment-looking rows dated up to 11 months
+# ahead (44 rows, $9.5K, measured 2026-10-07): the riding donor panel then showed an "Annual 2027" line for money that
+# cannot have been received yet.
+_MAX_FUTURE_DAYS = 31
+
+
+def _parse_date(s: str, today: Optional[date] = None) -> Optional[str]:
     s = (s or "").strip()[:10]
     if not s:
         return None
@@ -152,10 +159,10 @@ def _parse_date(s: str) -> Optional[str]:
     # measured 2026-08-18). Guard impossible values the way gov-watch's
     # date_guard does: store NULL instead of garbage — the weekly
     # TRUNCATE+reimport then self-heals the whole table. Bounds are loose
-    # on purpose: 1990 predates EC's electronic era; +366d allows a dated
-    # filing near year-end without admitting year-2923 artifacts.
+    # on purpose: 1990 predates EC's electronic era; +31d (see _MAX_FUTURE_DAYS) allows
+    # for skew without admitting year-2923 artifacts.
     if not _EC_DATE_RE.match(s) or s < "1990-01-01" \
-            or s > (date.today() + timedelta(days=366)).isoformat():
+            or s > ((today or date.today()) + timedelta(days=_MAX_FUTURE_DAYS)).isoformat():
         _DATE_REJECTS["n"] += 1
         return None
     return s

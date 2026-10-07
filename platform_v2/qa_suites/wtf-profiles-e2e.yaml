@@ -118,9 +118,14 @@ tests:
         - name: cost_section_is_present_with_its_honesty_text
           expr: "(()=>{const t=document.body.textContent;return t.includes('cost taxpayers')&&t.includes('Complete calendar years only')&&t.includes('the party the MP sat for');})()"
           equals: true
+        - name: cost_table_is_not_clipped_inside_its_wrapper
+          # the page itself never overflows (the table scrolls inside .wtf-a-tblwrap), so a page-level overflow check cannot see a
+          # clipped last column. Measured defect 2026-10-07: 'Per MP' was cut off at 1280px.
+          expr: "(()=>{const ws=[...document.querySelectorAll('#party-costs .wtf-a-tblwrap')];return ws.length>=2&&ws.every(w=>w.scrollWidth<=w.clientWidth+2);})()"
+          equals: true
         - name: cost_table_has_per_mp_column_complete_years_and_the_two_big_parties
           # years change as more become complete, so pin only two mid-range years plus Liberal/Conservative rows
-          expr: "(()=>{const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('Per MP,'));if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&r.includes('Liberal')&&r.includes('Conservative')&&r.length>=4;})()"
+          expr: "(()=>{const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('Per MP,'));if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&h.includes('Per MP')&&r.includes('Liberal')&&r.includes('Conservative')&&r.length>=4;})()"
           equals: true
         - name: floor_crossings_table_has_real_rows
           expr: "(()=>{const hs=[...document.querySelectorAll('.wtf-pt-sec')].find(e=>e.textContent.includes('Floor-crossings since 2000'));if(!hs)return false;const t=[...document.querySelectorAll('table.wtf-a-tbl')].find(x=>x.textContent.includes('From'))||null;return !!t&&t.querySelectorAll('tbody tr').length>=5;})()"
@@ -138,6 +143,9 @@ tests:
       js_eval:
         - name: panel_states_that_salaries_are_excluded_and_it_is_house_only
           expr: "(()=>{const p=document.querySelector('[data-cost-by-party]');if(!p)return false;const t=p.textContent;return t.includes('salaries are not included here')&&t.includes('House only');})()"
+          equals: true
+        - name: table_is_not_clipped_inside_its_wrapper
+          expr: "(()=>{const w=document.querySelector('[data-cost-by-party] .cost-tblwrap');return !!w&&w.scrollWidth<=w.clientWidth+2;})()"
           equals: true
         - name: table_has_complete_years_a_per_mp_column_and_the_big_parties
           expr: "(()=>{const t=document.querySelector('[data-cost-by-party] table');if(!t)return false;const h=[...t.querySelectorAll('th')].map(e=>e.textContent.trim());const r=[...t.querySelectorAll('tbody tr')].map(e=>e.firstElementChild.textContent.trim());return h.includes('2022')&&h.includes('2024')&&h.some(x=>x.startsWith('Per MP'))&&r.includes('Liberal')&&r.includes('Conservative');})()"

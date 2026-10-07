@@ -171,14 +171,14 @@
     charged to <strong>the party the MP sat for in that quarter</strong> &mdash; not the party they sit for today.
     A cost incurred <em>after</em> an MP left office (office wind-down) is charged to the party they last sat for, and
     retired MPs are included. Complete calendar years only. Totals follow seat counts, so the last column
-    gives the cost per MP in {{ party_costs.latest }}.
+    gives the cost per MP in {{ party_costs.latest }}, and &ldquo;Retired&rdquo; is the share of each party&rsquo;s total incurred by MPs no longer sitting.
   </p>
   {% set crow = [] %}
   {% for r in party_costs.rows %}
     {% set _ = crow.append([r.party] + r.cells + [r.total, r.retired_share, r.per_mp]) %}
   {% endfor %}
-  {{ data_table([('Party', '')] + party_costs.years_cols + [('Total', 'num'), ('Retired MPs’ share', 'num'),
-                 ('Per MP, ' ~ party_costs.latest, 'num')], crow, empty='No expense data on record.') }}
+  {{ data_table([('Party', '')] + party_costs.years_cols + [('Total', 'num'), ('Retired', 'num'),
+                 ('Per MP', 'num')], crow, empty='No expense data on record.') }}
   <p class="wtf-pt-note">
     &ldquo;Unattributed&rdquo; is an expense we could not tie to any party stint &mdash; it is shown as its own row, never
     folded into a party. Source: House of Commons proactive disclosure (2014 onward, quarterly) and

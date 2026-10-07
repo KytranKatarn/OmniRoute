@@ -127,7 +127,11 @@ def test_template_renders_honesty_text_and_rows():
     html = _render(panel)
     assert "the party the MP sat for in that quarter" in html
     assert "after</em> an MP left office" in html and "Complete calendar years only" in html
-    assert "Unattributed" in html and "Per MP, 2019" in html and "Retired MPs" in html
+    # headers are deliberately SHORT: 'Retired MPs' share' + 'Per MP, <year>' made the table 13 columns wide and clipped the
+    # last column at 1280px (seen in a P.R.O.B.E. screenshot, 2026-10-07). The year and the meaning live in the hint text.
+    assert "Unattributed" in html and "Per MP" in html and "Retired" in html
+    assert "Retired MPs\u2019 share" not in html and "Per MP, 2019" not in html
+    assert "cost per MP in 2019" in html and "no longer sitting" in html
     assert "Conservative → Liberal" in html and "Floor-crossings since 2000 (1)" in html
 
 

@@ -24,3 +24,17 @@ CHRONO_KEY_SQL = (
 
 # Newest first. ``period DESC`` is the tiebreak so malformed labels (key -1) still order deterministically.
 CHRONO_DESC_SQL = f"{CHRONO_KEY_SQL} DESC, period DESC"
+
+
+def period_start(period: str):
+    """First calendar day of a ``YYYY-Qn`` expense period (n = FISCAL quarter), or None if malformed.
+
+    Q1 -> Apr 1, Q2 -> Jul 1, Q3 -> Oct 1, Q4 -> Jan 1 (the year is the calendar year the quarter starts in).
+    Mirrors the SQL in migration 095 (parliament.v_mp_expenses_by_party); a live check compares the two.
+    """
+    import re
+    from datetime import date
+    m = re.fullmatch(r"(\d{4})-Q([1-4])", period or "")
+    if not m:
+        return None
+    return date(int(m.group(1)), {"1": 4, "2": 7, "3": 10, "4": 1}[m.group(2)], 1)

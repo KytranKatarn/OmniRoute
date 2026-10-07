@@ -1,0 +1,13 @@
+{
+  "include": ["platform_v2", "ai_bridge"],
+  "exclude": [
+    "**/node_modules", "**/__pycache__", "**/migrations", "**/static",
+    "platform_v2/tests/fixtures", "**/.venv", "**/venv"
+  ],
+  "extraPaths": ["platform_v2", "ai_bridge"],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "useLibraryCodeForTypes": false
+}

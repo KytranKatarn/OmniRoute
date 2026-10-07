@@ -10289,6 +10289,82 @@ def _parties_bundle(ge_number: int) -> dict:
     return out
 
 
+_PARTY_COST_CACHE: dict = {}
+_PARTY_COST_TTL = int(os.environ.get("WTF_PARTY_COST_CACHE_TTL", "3600"))
+
+
+def _fmt_m(amount) -> str:
+    """$1,234,567 -> '$1.2M'; below a million -> '$845K'; zero/None -> '—'."""
+    a = float(amount or 0)
+    if a == 0:
+        return "—"
+    return f"${a / 1e6:.1f}M" if abs(a) >= 1e6 else f"${a / 1e3:.0f}K"
+
+
+def _party_cost_panel() -> dict:
+    """What each party's MPs cost, by calendar year, from parliament.v_mp_expenses_by_party (migrations 095-097), plus the
+    party floor-crossings from parliament.v_mp_party_changes (094).
+
+    THE RULES THAT MOVE A NUMBER (also printed on the page):
+      * a quarter is charged to the party the MP sat for at its midpoint; a cost incurred AFTER leaving office is charged to the
+        party they last sat for ('wind-down'), and retired MPs are INCLUDED;
+      * only COMPLETE calendar years are shown (4 distinct quarters present) — a partial year would make the newest party
+        look cheaper than it is;
+      * totals follow seat counts, so a per-MP figure is shown for the latest year (partial-year members pull it down);
+      * 'Unattributed' is kept as its own row, never folded into a party.
+    Cached an hour; never raises into the page (an environment without the views simply shows no panel)."""
+    hit = _PARTY_COST_CACHE.get("panel")
+    if hit and hit[0] > time.time():
+        return hit[1]
+    empty: dict = {"years": [], "rows": [], "crossings": [], "latest": None, "n_crossings": 0, "years_cols": []}
+    try:
+        with _db().begin() as c:
+            by = c.execute(text("""
+                SELECT extract(year FROM q_start)::int AS yr, party,
+                       sum(total_cad) AS amt, count(DISTINCT mp_id) AS mps,
+                       sum(total_cad) FILTER (WHERE NOT sitting) AS retired
+                FROM parliament.v_mp_expenses_by_party GROUP BY 1, 2
+            """)).mappings().all()
+            qs = {r["yr"]: r["q"] for r in c.execute(text("""
+                SELECT extract(year FROM q_start)::int AS yr, count(DISTINCT q_start) AS q
+                FROM parliament.v_mp_expenses_by_party GROUP BY 1
+            """)).mappings().all()}
+            cross = c.execute(text("""
+                SELECT from_party, to_party, count(*) AS n FROM parliament.v_mp_party_changes
+                WHERE gap_days IS NOT NULL AND gap_days <= 31 GROUP BY 1, 2 ORDER BY n DESC, 1, 2 LIMIT 12
+            """)).mappings().all()
+            n_cross = c.execute(text("""
+                SELECT count(*) FROM parliament.v_mp_party_changes WHERE gap_days IS NOT NULL AND gap_days <= 31
+            """)).scalar() or 0
+    except Exception:
+        return empty
+    years = sorted(y for y, q in qs.items() if q >= 4)
+    if not years:
+        _PARTY_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, empty)
+        return empty
+    latest = years[-1]
+    grid: dict = {}
+    for r in by:
+        if r["yr"] in years:
+            grid.setdefault(r["party"], {})[r["yr"]] = r
+    order = sorted(grid, key=lambda p: (p == "Unattributed", -sum(float(v["amt"] or 0) for v in grid[p].values())))
+    rows = []
+    for party in order:
+        cells = grid[party]
+        total = sum(float(v["amt"] or 0) for v in cells.values())
+        retired = sum(float(v["retired"] or 0) for v in cells.values())
+        lt = cells.get(latest)
+        per_mp = (float(lt["amt"] or 0) / lt["mps"]) if lt and lt["mps"] else None
+        rows.append({"party": party, "cells": [_fmt_m(cells[y]["amt"]) if y in cells else "—" for y in years],
+                     "total": _fmt_m(total), "retired_share": f"{100 * retired / total:.0f}%" if total else "—",
+                     "per_mp": f"${per_mp / 1e3:,.0f}K" if per_mp else "—"})
+    crossings = [{"from": r["from_party"], "to": r["to_party"], "n": int(r["n"])} for r in cross]
+    out = {"years": years, "rows": rows, "crossings": crossings, "latest": latest, "n_crossings": int(n_cross),
+           "years_cols": [(str(y), "num") for y in years]}
+    _PARTY_COST_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, out)
+    return out
+
+
 @bp.get("/parties")
 def parties():
     from flask import request as _req
@@ -10303,7 +10379,8 @@ def parties():
         return render_template("parties.html", elections=[], ge=None, rows=[],
                                house=[], tiles=[], election_date=None,
                                prev_ge=None, merged={}, bars=[],
-                               unresolved={"candidates": 0, "votes": 0})
+                               unresolved={"candidates": 0, "votes": 0},
+                               party_costs=_party_cost_panel())
     if ge not in available:
         ge = available[0]
 
@@ -10321,7 +10398,7 @@ def parties():
                            prev_ge=B["prev_ge"], rows=B["rows"], house=B["house"],
                            tiles=B["tiles"], election_date=B["election_date"],
                            merged=merged_labels(), bars=bars,
-                           unresolved=B["unresolved"])
+                           unresolved=B["unresolved"], party_costs=_party_cost_panel())
 
 
 # ---------------------------------------------------------------------------

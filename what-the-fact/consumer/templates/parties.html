@@ -163,6 +163,38 @@
                 empty='No sitting members on record.') }}
   {% endif %}
 
+  {% if party_costs and party_costs.rows %}
+  <div class="wtf-pt-sec">What each party&rsquo;s MPs cost taxpayers</div>
+  <p class="wtf-pt-hint">
+    House of Commons members&rsquo; expenses (salaries of their staff, travel, hospitality and contracts),
+    charged to <strong>the party the MP sat for in that quarter</strong> &mdash; not the party they sit for today.
+    A cost incurred <em>after</em> an MP left office (office wind-down) is charged to the party they last sat for, and
+    retired MPs are included. Complete calendar years only. Totals follow seat counts, so the last column
+    gives the cost per MP in {{ party_costs.latest }}.
+  </p>
+  {% set crow = [] %}
+  {% for r in party_costs.rows %}
+    {% set _ = crow.append([r.party] + r.cells + [r.total, r.retired_share, r.per_mp]) %}
+  {% endfor %}
+  {{ data_table([('Party', '')] + party_costs.years_cols + [('Total', 'num'), ('Retired MPs’ share', 'num'),
+                 ('Per MP, ' ~ party_costs.latest, 'num')], crow, empty='No expense data on record.') }}
+  <p class="wtf-pt-note">
+    &ldquo;Unattributed&rdquo; is an expense we could not tie to any party stint &mdash; it is shown as its own row, never
+    folded into a party. Source: House of Commons proactive disclosure (2014 onward, quarterly) and
+    <a href="https://openparliament.ca" target="_blank" rel="noopener">openparliament.ca</a> membership records.
+  </p>
+  {% if party_costs.crossings %}
+  <div class="wtf-pt-sec">Floor-crossings since 2000 ({{ party_costs.n_crossings }})</div>
+  <p class="wtf-pt-hint">An MP who changed party with no break between the two stints (31 days or fewer).
+    A return to Parliament years later under another banner is not counted here.</p>
+  {% set xrow = [] %}
+  {% for x in party_costs.crossings %}
+    {% set _ = xrow.append([x['from'] ~ ' → ' ~ x.to, '{:,}'.format(x.n)]) %}
+  {% endfor %}
+  {{ data_table([('From → to', ''), ('MPs', 'num')], xrow, empty='None on record.') }}
+  {% endif %}
+  {% endif %}
+
   <p class="wtf-pt-note">
     <strong>How parties are matched across elections.</strong> Elections Canada
     records the name that appeared on the ballot, and a ballot name can change.

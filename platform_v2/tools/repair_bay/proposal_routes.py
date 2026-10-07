@@ -84,6 +84,11 @@ def register_proposal_routes(bp, admin_required):
         if not result.get("success"):
             code = 404 if "not found" in result.get("error", "").lower() else 500
             return jsonify(result), code
+        from services.repair_submission import metadata, progress
+
+        proposal = result["proposal"]
+        if metadata(proposal.get("metadata")).get("source") == "code_health_audit":
+            proposal["repair_progress"] = progress(proposal)
         return jsonify(result)
 
     @bp.route("/api/proposals/<int:proposal_id>", methods=["DELETE"])
@@ -135,6 +140,37 @@ def register_proposal_routes(bp, admin_required):
         result["worker_enabled"] = is_enabled("code_health_backlog_drain", default=False)
         _proposals_cache.clear()
         return jsonify(result), 202
+
+    @bp.route("/api/proposals/<int:proposal_id>/submit-patch", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_submit_patch(proposal_id):
+        from services.repair_submission import request_submission
+
+        result = request_submission(proposal_id)
+        _proposals_cache.clear()
+        return jsonify(result), 202 if result.get("success") else 422
+
+    @bp.route("/api/proposals/<int:proposal_id>/repair-progress")
+    @login_required
+    @admin_required
+    def proposals_repair_progress(proposal_id):
+        from services.repair_submission import progress
+
+        result = proposal_service.get_proposal(proposal_id)
+        if not result.get("success"):
+            return jsonify(result), 404
+        return jsonify({"success": True, "progress": progress(result["proposal"])})
+
+    @bp.route("/api/proposals/<int:proposal_id>/verify-completion", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_verify_completion(proposal_id):
+        from services.repair_submission import verify_completion
+
+        result = verify_completion(proposal_id)
+        _proposals_cache.clear()
+        return jsonify(result), 200 if result.get("success") else 422
 
     # ---- Execution ----
 

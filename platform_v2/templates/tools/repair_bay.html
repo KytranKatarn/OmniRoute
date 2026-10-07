@@ -2745,7 +2745,12 @@ function filterProposals(f) {
 }
 
 function showProposalDetail(id) {
+    clearTimeout(window._repairProgressTimer);
+    if (window._repairProgressController) window._repairProgressController.abort();
+    var generation = (window._repairDetailGeneration || 0) + 1;
+    window._repairDetailGeneration = generation;
     fetch(API + '/proposals/' + id).then(function(r) { return r.json(); }).then(function(d) {
+        if (generation !== window._repairDetailGeneration) return;
         var p = d.proposal || d;
         var panel = document.getElementById('proposalDetail');
         var bd = document.getElementById('dp-detail-bd') || document.createElement('div');
@@ -2794,7 +2799,7 @@ function showProposalDetail(id) {
         // Diff view section
         var diffSection = document.getElementById('detailDiff');
         var diffContent = document.getElementById('diffContent');
-        var diffText = p.code_diff || (p.metadata && p.metadata.contractor_proposal) || '';
+        var diffText = p.code_changes || p.code_diff || (p.metadata && p.metadata.contractor_proposal) || '';
 
         if (diffText) {
             diffSection.style.display = 'block';
@@ -2864,6 +2869,51 @@ function showProposalDetail(id) {
             actions.appendChild(execBtn);
         }
 
+        var savedPatch = p.code_changes || p.code_diff;
+        var submission = p.metadata && p.metadata.repair_submission;
+        var currentStage = p.repair_progress ? p.repair_progress.stage : (submission && submission.stage);
+        var submissionActive = submission && ['submitting','awaiting_review','awaiting_approval','sandbox_testing','sandbox_passed','pr_open'].indexOf(currentStage) >= 0;
+        if (auditRepair && p.status === 'ready_for_review' && savedPatch && !submissionActive) {
+            var submitBtn = document.createElement('button');
+            submitBtn.className = 'dp-btn dp-btn-accent';
+            submitBtn.textContent = 'Test & Submit Patch';
+            submitBtn.onclick = function() { submitBtn.disabled = true; proposalAction(id, 'submit-patch'); };
+            actions.appendChild(submitBtn);
+        }
+        if (auditRepair && currentStage === 'merged_awaiting_verification') {
+            var verifyBtn = document.createElement('button');
+            verifyBtn.className = 'dp-btn dp-btn-accent';
+            verifyBtn.textContent = 'Verify Completion';
+            verifyBtn.onclick = function() { proposalAction(id, 'verify-completion'); };
+            actions.appendChild(verifyBtn);
+        }
+        if (auditRepair && submission) {
+            var progressNote = document.createElement('span');
+            progressNote.textContent = 'Patch stage: ' + (currentStage || 'unknown').replace(/_/g, ' ');
+            actions.appendChild(progressNote);
+            var progressController = new AbortController();
+            window._repairProgressController = progressController;
+            function refreshRepairProgress() {
+                if (progressController.signal.aborted || generation !== window._repairDetailGeneration) return;
+                fetch(API + '/proposals/' + id + '/repair-progress', {credentials:'include', signal:progressController.signal})
+                    .then(function(r) { return r.json(); })
+                    .then(function(d) {
+                        if (generation !== window._repairDetailGeneration) return;
+                        if (!d.success) throw new Error('Progress unavailable');
+                        progressNote.textContent = 'Patch stage: ' + d.progress.stage.replace(/_/g, ' ');
+                        if (d.progress.merge_tier) progressNote.textContent += ' · PR merge tier ' + d.progress.merge_tier;
+                        if (d.progress.stage !== currentStage) showProposalDetail(id);
+                    }).catch(function() {
+                        if (generation === window._repairDetailGeneration) progressNote.textContent = 'Progress unavailable — refresh to retry';
+                    }).finally(function() {
+                        if (!progressController.signal.aborted && generation === window._repairDetailGeneration) {
+                            window._repairProgressTimer = setTimeout(refreshRepairProgress, 5000);
+                        }
+                    });
+            }
+            refreshRepairProgress();
+        }
+
         if (p.status === 'tested') {
             var deployBtn = document.createElement('button');
             deployBtn.className = 'dp-btn dp-btn-accent';
@@ -2872,7 +2922,7 @@ function showProposalDetail(id) {
             actions.appendChild(deployBtn);
         }
 
-        if (!manualAudit && (p.status === 'fix_requested' || (!auditRepair && p.status === 'failed') || (auditRepair && p.status === 'ready_for_review'))) {
+        if (!submissionActive && !manualAudit && (p.status === 'fix_requested' || (!auditRepair && p.status === 'failed') || (auditRepair && p.status === 'ready_for_review'))) {
             var retryBtn = document.createElement('button');
             retryBtn.className = 'dp-btn dp-btn-primary';
             retryBtn.textContent = auditRepair ? 'Queue retry' : 'Retry';
@@ -2889,7 +2939,9 @@ function proposalAction(id, action) {
             if (d.success || d.executed) {
                 loadProposals();
                 showProposalDetail(id);
-                if (d.queued) {
+                if (d.queued && action === 'submit-patch') {
+                    alert(d.message || 'Saved patch queued for approval, sandbox tests and PR creation.');
+                } else if (d.queued) {
                     alert(d.worker_enabled === false ? 'Repair queued. The repair worker is paused.' : 'Queued for repair generation.');
                 }
             } else {
@@ -2900,6 +2952,9 @@ function proposalAction(id, action) {
 }
 
 function closeDetail() {
+    window._repairDetailGeneration = (window._repairDetailGeneration || 0) + 1;
+    clearTimeout(window._repairProgressTimer);
+    if (window._repairProgressController) window._repairProgressController.abort();
     document.getElementById('proposalDetail').style.display = 'none';
     var bd = document.getElementById('dp-detail-bd');
     if (bd) bd.remove();

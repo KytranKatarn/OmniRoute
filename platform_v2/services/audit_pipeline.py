@@ -1605,6 +1605,12 @@ def request_audit_fix_retry(proposal_id, reason="Requested repair retry"):
             return {"success": False, "error": "Only Code Health repairs support this retry"}
         if row["status"] not in ("pending", "approved", "fix_requested", "ready_for_review"):
             return {"success": False, "error": "Proposal is not eligible for a retry"}
+        from services.repair_submission import ACTIVE_STAGES, progress
+
+        if (meta.get("repair_submission") or {}).get("stage") in ACTIVE_STAGES and progress(dict(row))[
+            "stage"
+        ] != "blocked":
+            return {"success": False, "error": "Patch submission is active; do not regenerate it"}
         if meta.get("severity_tier") == "red" and row["status"] == "pending":
             return {"success": False, "error": "Security finding requires approval before retry"}
         if meta.get("issue_code") in _AUTO_FIX_EXCLUDED_ISSUE_CODES:

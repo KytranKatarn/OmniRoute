@@ -1800,12 +1800,27 @@ def _apply_fix_to_sandbox(sandbox_path, code_changes):
 
 
 def ship_as_pr(proposal_id, skip_gate=False):
+    from services.repair_submission import update_stage
+
+    try:
+        result = _ship_as_pr_impl(proposal_id, skip_gate=skip_gate)
+    except Exception as exc:
+        update_stage(proposal_id, "blocked", error=str(exc)[:300])
+        raise
+    update_stage(
+        proposal_id,
+        "pr_open" if result.get("pr_number") else "blocked",
+        error=result.get("error") or ("No PR created" if not result.get("pr_number") else None),
+    )
+    return result
+
+
+def _ship_as_pr_impl(proposal_id, skip_gate=False):
     """Terminal deploy action for BOTH deploy paths: sandbox-gate, then open a fix PR.
 
     Spec 2026-08-26 §6.3: #5808 made direct production writes a dead end by design;
-    git is the apply mechanism — the merge, through the governed merge_pr choke
-    point, is what applies code. status='pr_open' until the merge-completion hook
-    flips it to a REAL 'deployed' (code_applied: true).
+    Git is the publication mechanism. Code Health stays pr_open through merge
+    until runtime, artifact, QA and finding evidence verify completion.
 
     skip_gate=True is for deploy_approve_gate, which has ALREADY run the sandbox
     gate. Gate failure returns {'success': False, 'gate': ...} — never raises.
@@ -1823,39 +1838,56 @@ def ship_as_pr(proposal_id, skip_gate=False):
     if proposal.get("status") not in ("approved", "ready_for_review", "fix_requested", "pending_approval"):
         return {"success": False, "error": f"status '{proposal.get('status')}' is not shippable"}
 
+    from services.repair_submission import patch_snapshot_matches
+
+    if not patch_snapshot_matches(dict(proposal)):
+        return {"success": False, "error": "Saved patch changed after submission"}
+
     if not skip_gate:
         gate = _sandbox_gate(proposal_id, dict(proposal))
         if not gate.get("passed"):
             return {"success": False, "error": "sandbox gate failed", "gate": gate}
 
-    from database import get_db_cursor as _get_db_cursor
+    return _publish_tested_proposal(proposal_id, dict(proposal))
 
-    # deployment_type must be 'manual' — the valid_deployment_type CHECK admits only
-    # manual/auto_low_risk/auto_approved; forge_pr provenance lives in metadata.
-    # backup_name is NOT NULL: on the PR path the rollback mechanism is git revert
-    # of the merge (spec §2 principle 5), not a module backup — say so honestly.
-    with _get_db_cursor(commit=True) as (dconn, dcur):
-        dcur.execute(
+
+def _publish_tested_proposal(proposal_id, tested_proposal):
+    """Recheck and lock the tested patch until its PR metadata is recorded."""
+    from database import get_db_cursor
+    from services.repair_submission import metadata, patch_snapshot_matches
+    from tools.repair_bay.services.forge_pipeline import deploy_via_forge
+
+    with get_db_cursor(commit=True) as (_, cur):
+        # NO KEY UPDATE permits deployment FK inserts while serializing patch writes.
+        cur.execute("SELECT * FROM improvement_proposals WHERE id=%s FOR NO KEY UPDATE", (proposal_id,))
+        row = cur.fetchone()
+        if not row or row.get("status") not in ("approved", "ready_for_review", "fix_requested", "pending_approval"):
+            return {"success": False, "error": "Proposal changed while testing"}
+        proposal = dict(row)
+        meta = metadata(proposal.get("metadata"))
+        if metadata(tested_proposal.get("metadata")).get("source") == "code_health_audit":
+            submission = meta.get("repair_submission") or {}
+            if (
+                meta.get("source") != "code_health_audit"
+                or proposal.get("code_changes") != tested_proposal.get("code_changes")
+                or meta.get("file_path") != metadata(tested_proposal.get("metadata")).get("file_path")
+                or not patch_snapshot_matches(proposal)
+                or submission.get("stage") != "sandbox_passed"
+                or not submission.get("target_sha256")
+            ):
+                return {"success": False, "error": "Saved patch changed or has no passing sandbox receipt"}
+        cur.execute(
             """INSERT INTO improvement_deployments (proposal_id, backup_name, deployment_type, status)
                VALUES (%s, 'forge_pr:git-revert', 'manual', 'deploying') RETURNING id""",
             (proposal_id,),
         )
-        deployment_id = dcur.fetchone()["id"]
-
-    from tools.repair_bay.services.forge_pipeline import deploy_via_forge  # late import
-
-    result = deploy_via_forge(dict(proposal), deployment_id)
-    if not result.get("success") or result.get("method") == "no_change":
-        # no_change: the code already matches the fix — leave status for reverify
-        # to settle; never claim a PR that does not exist.
-        return result
-
-    with _get_db_cursor(commit=True) as (uconn, ucur):
-        ucur.execute(
-            """UPDATE improvement_proposals
-               SET status = 'pr_open',
-                   metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
-               WHERE id = %s""",
+        deployment_id = cur.fetchone()["id"]
+        result = deploy_via_forge(proposal, deployment_id)
+        if not result.get("success") or result.get("method") == "no_change":
+            return result
+        cur.execute(
+            """UPDATE improvement_proposals SET status='pr_open',
+               metadata=COALESCE(metadata,'{}'::jsonb) || %s::jsonb WHERE id=%s""",
             (
                 json.dumps(
                     {
@@ -1870,7 +1902,7 @@ def ship_as_pr(proposal_id, skip_gate=False):
                 proposal_id,
             ),
         )
-    return result
+        return result
 
 
 def record_engine_pr(proposal_id, pr_number, pr_url=None, branch=None):
@@ -1919,6 +1951,37 @@ def record_engine_pr(proposal_id, pr_number, pr_url=None, branch=None):
 
 
 def _sandbox_gate(proposal_id, proposal):
+    from services.repair_submission import update_stage, patch_snapshot_matches, ensure_patch_snapshot
+
+    try:
+        proposal = dict(proposal, metadata=ensure_patch_snapshot(proposal_id, proposal))
+    except ValueError as exc:
+        return {"passed": False, "passed_count": 0, "total": 0, "run_id": None, "error": str(exc)}
+    if not patch_snapshot_matches(proposal):
+        update_stage(proposal_id, "blocked", error="Saved patch changed after submission")
+        return {
+            "passed": False,
+            "passed_count": 0,
+            "total": 0,
+            "run_id": None,
+            "error": "Saved patch changed after submission",
+        }
+    update_stage(proposal_id, "sandbox_testing")
+    try:
+        result = _sandbox_gate_impl(proposal_id, proposal)
+    except Exception as exc:
+        update_stage(proposal_id, "blocked", error=str(exc)[:300])
+        raise
+    update_stage(
+        proposal_id,
+        "sandbox_passed" if result.get("passed") else "blocked",
+        sandbox_run_id=result.get("run_id"),
+        error=result.get("error"),
+    )
+    return result
+
+
+def _sandbox_gate_impl(proposal_id, proposal):
     """Apply fix to sandbox branch, restart archie_staging, run P.R.O.B.E. suite #79.
 
     Returns {"passed": bool, "passed_count": int, "total": int, "run_id": int, "error": str|None}

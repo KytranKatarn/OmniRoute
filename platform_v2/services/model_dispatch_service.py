@@ -1094,7 +1094,9 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                 return
 
             verdict = (response or "").upper()
-            approved = "REJECT" not in verdict and "DENIED" not in verdict
+            from services.repair_submission import approval_response_is_positive
+
+            approved = approval_response_is_positive(verdict)
 
             def _run_gate_and_deploy():
                 try:
@@ -1118,6 +1120,9 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                     agent_name = cb_data.get("agent_name", "Director")
 
                     if not approved:
+                        from services.repair_submission import update_stage
+
+                        update_stage(proposal_id, "blocked", error="Patch review rejected")
                         _log.info("deploy_approve_gate: #%s REJECTED by %s", proposal_id, agent_name)
                         with _gdc(commit=True) as (_c2, _cur2):
                             _cur2.execute(
@@ -1150,6 +1155,9 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                 except Exception as _e:
                     import logging as _ll
 
+                    from services.repair_submission import update_stage
+
+                    update_stage(proposal_id, "blocked", error=str(_e)[:300])
                     _ll.getLogger(__name__).error("deploy_approve_gate thread error: %s", _e)
 
             _t.Thread(target=_run_gate_and_deploy, daemon=True).start()

@@ -450,6 +450,12 @@ def deploy_via_forge(
     if code_diff:
         patched = _patched_content(file_path, code_diff)
         if patched is not None:
+            from services.repair_submission import metadata
+            import hashlib
+
+            expected = (metadata(proposal.get("metadata")).get("repair_submission") or {}).get("target_sha256")
+            if expected and hashlib.sha256(patched.encode()).hexdigest() != expected:
+                return {"success": False, "error": "Source changed after sandbox testing; test the patch again"}
             # PATCH SANITY GATE (#6770/#6771) — the choke point where both versions of the
             # file exist, so it is the one place that can ask "does this actually run?"
             # before a patch becomes a PR.
@@ -745,13 +751,18 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
 
 
 def complete_proposal_after_merge(proposal_id: int, pr_number: int) -> bool:
-    """Flip a pr_open proposal to a REAL deployed state after its PR merged.
+    """Settle a confirmed merge; Code Health still requires runtime verification.
 
-    Spec 2026-08-26 §6.4. This is the ONLY writer that sets code_applied: true —
-    it fires exclusively on a confirmed GitHub merge, so 'deployed' finally means
-    'merged into the tree' (gate on the artifact, ADR-014). Also completes the
-    improvement_deployments row and invalidates the module's stale audit.
+    Code Health records merged_awaiting_verification and stays pr_open. Other
+    proposal workflows retain their existing completion behavior.
     """
+    from services.repair_submission import record_code_health_merge
+
+    handled = record_code_health_merge(proposal_id, pr_number)
+    if handled is not None:
+        # Settlement recorded the merge only. Completion requires a runtime receipt.
+        return False
+
     from database import get_db_cursor
 
     with get_db_cursor(commit=True) as (conn, cur):
@@ -842,7 +853,8 @@ def complete_merged_fix_proposals() -> Dict:
 
     FAIL-SAFE: pr_merge_state() None (GitHub unreadable) leaves the row ALONE —
     a blip must never complete or fail a proposal (the pr_is_open None rule).
-    merged -> deployed with code_applied:true; closed-unmerged -> fix_requested.
+    Code Health merges stay open for verification; other merges complete as
+    before. Closed-unmerged proposals return to fix_requested.
     """
     from database import get_db_cursor
 
@@ -854,6 +866,7 @@ def complete_merged_fix_proposals() -> Dict:
             """SELECT id, (metadata->>'pr_number')::int AS pr_number
                FROM improvement_proposals
                WHERE status = 'pr_open' AND metadata->>'pr_number' IS NOT NULL
+                 AND NOT (COALESCE(metadata->>'source','')='code_health_audit' AND metadata ? 'merged_pr')
                ORDER BY id"""
         )
         rows = [dict(r) for r in cur.fetchall()]

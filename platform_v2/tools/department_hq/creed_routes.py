@@ -1653,10 +1653,10 @@ def register_creed_routes(bp, admin_required):
                 )
                 rows = cur.fetchall()
                 cur.execute(
-                    f"SELECT COUNT(*) FROM creed_coordination_chains {where}",  # noqa: S608
+                    f"SELECT COUNT(*) AS total FROM creed_coordination_chains {where}",  # noqa: S608
                     params,
                 )
-                total = cur.fetchone()[0]
+                total = cur.fetchone()["total"]
             return jsonify(
                 {
                     "success": True,

@@ -237,6 +237,60 @@ def ensure_roster_stub(engine, summary_name: str, caucus=None, province=None, fa
     return sid
 
 
+# Senate affiliation labels as published -> the short names the site uses. An unknown label is kept verbatim (never dropped).
+_CAUCUS_SHORT = {
+    "independent senators group": "ISG",
+    "conservative party of canada": "Conservative",
+    "canadian senators group": "CSG",
+    "progressive senate group": "PSG",
+    "liberal party of canada": "Liberal",
+    "non-affiliated": "Non-affiliated",
+    "government representative office": "GRO",
+}
+
+
+def caucus_label(cells) -> str | None:
+    """The affiliation cell of a Senate summary row, cleaned ('*' markers, entities, spacing); None when absent."""
+    if len(cells) < 2:
+        return None
+    return _clean_summary_name(cells[1]) or None
+
+
+def caucus_short(label: str | None) -> str | None:
+    if not label:
+        return None
+    return _CAUCUS_SHORT.get(label.strip().lower(), label.strip())
+
+
+def period_start(period: str):
+    """First day of a Senate CALENDAR quarter label ('2018-Q1' -> 2018-01-01); None if malformed."""
+    from datetime import date
+    m = re.fullmatch(r"(\d{4})-Q([1-4])", period or "")
+    return date(int(m.group(1)), (int(m.group(2)) - 1) * 3 + 1, 1) if m else None
+
+
+def _upsert_caucus(engine, sid: int, period: str, label: str | None, url: str) -> bool:
+    """Record which caucus a senator sat in during a quarter (the Senate summary row names it). Idempotent."""
+    q_start = period_start(period)
+    if not label or q_start is None:
+        return False
+    try:
+        with engine.begin() as c:
+            c.execute(text("""
+                INSERT INTO parliament.senator_caucus_quarters
+                    (senator_id, period, q_start, caucus, caucus_short, source_url)
+                VALUES (:sid, :period, :qs, :caucus, :short, :url)
+                ON CONFLICT (senator_id, period) DO UPDATE SET
+                    caucus = EXCLUDED.caucus, caucus_short = EXCLUDED.caucus_short,
+                    source_url = EXCLUDED.source_url, synced_at = NOW()"""),
+                {"sid": sid, "period": period, "qs": q_start, "caucus": label,
+                 "short": caucus_short(label), "url": url})
+        return True
+    except Exception as exc:
+        logger.debug("senator_expenses: caucus upsert failed sid=%s period=%s: %s", sid, period, exc)
+        return False
+
+
 def _contracts_value(raw: str):
     """N/A -> 0.0 (no contracts); a $ figure -> parsed; 'Details' -> None."""
     r = (raw or "").strip()
@@ -316,6 +370,7 @@ def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None
     inserted = 0
     reports_done = 0
     stubs_created = 0
+    caucus_rows = 0
     unmatched: set[str] = set()
 
     for (year, quarter) in quarters:
@@ -345,6 +400,10 @@ def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None
             if not sid:
                 unmatched.add(name_val)
                 continue
+
+            # The same row names the senator's caucus for this quarter: capture it (no extra request).
+            if _upsert_caucus(engine, sid, period, caucus_label(cells), source_url):
+                caucus_rows += 1
 
             office = _parse_dollar(cells[_COL_OFFICE])
             living = _parse_dollar(cells[_COL_LIVING])
@@ -396,8 +455,9 @@ def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None
     if unmatched:
         logger.info("senator_expenses: %d unmatched summary names (e.g. %s)",
                     len(unmatched), sorted(unmatched)[:5])
-    logger.info("senator_expenses: reports=%d inserted=%d stubs_created=%d", reports_done, inserted, stubs_created)
-    return {"reports": reports_done, "inserted": inserted, "roster_stubs_created": stubs_created}
+    logger.info("senator_expenses: reports=%d inserted=%d stubs_created=%d caucus_rows=%d", reports_done, inserted, stubs_created, caucus_rows)
+    return {"reports": reports_done, "inserted": inserted, "roster_stubs_created": stubs_created,
+            "caucus_rows": caucus_rows}
 
 
 def _get_engine():

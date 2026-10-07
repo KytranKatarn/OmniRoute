@@ -100,12 +100,11 @@ def test_no_fabricated_silent_cities_or_ward_data():
     assert "council seat" not in lower
 
 
-def test_no_elections_route_exists_yet():
-    # If this ever starts failing, /elections is live and the deferred-work
-    # comment + this test's premise both need revisiting.
+def test_elections_route_exists_but_municipal_does_not_link_to_a_missing_anchor():
+    # /elections went live in #3577, so the old "no route yet" premise is gone. The municipal page must still not link to
+    # an anchor that page does not have (elections#coverage) -- that is checked by the dead-link test above.
     src = ROUTES.read_text(encoding="utf-8")
-    assert '@bp.get("/elections")' not in src
-    assert "@bp.get('/elections')" not in src
+    assert '@bp.get("/elections")' in src
 
 
 def test_races_route_exists_and_is_real():

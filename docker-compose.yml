@@ -1393,8 +1393,13 @@ services:
       # a writable shell to the LAN, which is exactly how the claude lane was found
       # exposed once before.
       - "127.0.0.1:17685:7681"
-    mem_limit: 1g
-    cpus: 1.0
+    # 4g / 2 cpus / 512 pids since 2026-10-06 (was 1g / 1.0): the lane now runs a
+    # basedpyright + typescript LSP under /opencode-home/opt, which does not fit in 1g.
+    # memswap == mem so a runaway is OOM-killed instead of swapping the hub.
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2.0
+    pids_limit: 512
     cap_drop:
       - ALL
     # Run as the uid that OWNS the work tree (#6736). Measured 2026-09-12: opencode

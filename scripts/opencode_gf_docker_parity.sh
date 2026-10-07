@@ -129,6 +129,18 @@ if [ "$PRIV" = "true" ];   then RUN+=(--privileged); fi
 if [ "$ROROOT" = "true" ]; then RUN+=(--read-only); fi
 if [ -n "$RESTART" ] && [ "$RESTART" != "no" ]; then RUN+=(--restart "$RESTART"); fi
 
+# Resource limits: carry them over from the live container. They were applied with
+# `docker update` (2026-10-06: 8g / 4 cpus / 512 pids) and a bare reconstruction would
+# silently drop them, handing the guard-free lane an unbounded hub again.
+MEM="$(docker inspect -f '{{.HostConfig.Memory}}' "$CONTAINER")"
+MEMSWAP="$(docker inspect -f '{{.HostConfig.MemorySwap}}' "$CONTAINER")"
+NANOCPU="$(docker inspect -f '{{.HostConfig.NanoCpus}}' "$CONTAINER")"
+PIDS="$(docker inspect -f '{{.HostConfig.PidsLimit}}' "$CONTAINER")"
+if [ "${MEM:-0}" -gt 0 ];     then RUN+=(--memory "$MEM"); fi
+if [ "${MEMSWAP:-0}" -gt 0 ]; then RUN+=(--memory-swap "$MEMSWAP"); fi
+if [ "${NANOCPU:-0}" -gt 0 ]; then RUN+=(--cpus "$(awk "BEGIN{print $NANOCPU/1000000000}")"); fi
+if [ "${PIDS:-0}" -gt 0 ];    then RUN+=(--pids-limit "$PIDS"); fi
+
 # THE FIX — and the whole point of this script.
 RUN+=(--group-add "$DOCKER_GID")
 

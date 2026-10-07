@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-09-20 13:04:52 EDT · **Provenance measured**: 2026-09-20 03:40:05 EDT
+**Collected**: 2026-10-06 20:28:50 EDT · **Provenance measured**: 2026-10-06 03:40:07 EDT
 
-51/52 hub containers running · 9 image-baked products · 0 absent.
+53/54 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -21,13 +21,13 @@
 |---------|-------|-------|----------|----------|
 | `civic_watch` | ⚪ fail_open | `unknown` | `0b185eb3b` | http://100.64.0.10:8099/version |
 | `gov_watch` | ⚪ fail_open | `unknown` | `7188c02ee` | http://100.64.0.10:8102/version |
-| `kbs` | ✅ in_sync | `af99a5421` | `af99a5421` | http://192.168.1.200:8091/version |
+| `kbs` | 🔴 DRIFT | `0dfb59789` | `7f17b4b97` | http://192.168.1.200:8091/version |
 | `kso` | ✅ in_sync | `e163d2f46` | `e163d2f46` | http://192.168.1.200:8085/version |
 | `legal_watch` | ⚪ fail_open | `unknown` | `4c85b6d15` | http://100.64.0.10:8100/version |
 | `market_watch` | ⚪ fail_open | `unknown` | `7b5116ee3` | http://100.64.0.10:8101/version |
 | `media_hub` | ⚪ fail_open | `unknown` | `9a2c0163d` | http://192.168.1.200:8105/version |
-| `wtf_consumer` | ⚪ fail_open | `unknown` | `6f6ca922a` | http://100.64.0.10:8103/version |
-| `wtf_tech` | ⚪ fail_open | `unknown` | `6f6ca922a` | http://100.64.0.10:8104/version |
+| `wtf_consumer` | ✅ in_sync | `f8994eb6a` | `f8994eb6a` | http://100.64.0.10:8103/version |
+| `wtf_tech` | ✅ in_sync | `f8994eb6a` | `f8994eb6a` | http://100.64.0.10:8104/version |
 
 ## Hub containers
 
@@ -44,11 +44,12 @@
 | `archie_llamacpp` | running | archie_brain | — | `ghcr.io/ggml-org/llama.cpp:server` |
 | `archie_mcp_gateway` | running | archie_brain | 17800->7800/tcp | `archie_brain-archie_mcp_gateway:latest` |
 | `archie_ollama` | running | archie_brain | — | `ollama/ollama:0.6.2` |
-| `archie_opencode_terminal` | running | archie_brain | 17685->7681/tcp | `archie_brain-archie_opencode_terminal:latest` |
+| `archie_opencode_terminal` | running | archie_brain | 17685->7681/tcp | `sha256:b74243b3b347` |
+| `archie_opencode_terminal_host` | running | archie_brain | 17686->7681/tcp | `sha256:b74243b3b347` |
 | `archie_platform` | running | archie_brain | 3000->3000/tcp | `archie_brain-archie_platform:latest` |
 | `archie_scheduler` | running | archie_brain | — | `archie_brain-archie_scheduler:latest` |
 | `archie_scraper` | running | archie_brain | 4243->4243/tcp | `archie_brain-archie_scraper:latest` |
-| `archie_staging` | running | archie_brain | 3003->3000/tcp | `archie_brain-archie_platform:latest` |
+| `archie_staging` | running | archie_brain | 3003->3000/tcp | `sha256:4cabf432fc5d` |
 | `archie_staging_db` | running | archie_brain | 5433->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_tailscale` | running | archie_brain | — | `tailscale/tailscale:v1.80.3` |
 | `archie_whisper` | running | archie_brain | — | `archie_brain-archie_whisper:latest` |
@@ -72,7 +73,7 @@
 | `media_prowlarr` | running | media-stack | 9696->9696/tcp | `lscr.io/linuxserver/prowlarr:2.3.5` |
 | `media_radarr` | running | media-stack | 7878->7878/tcp | `lscr.io/linuxserver/radarr:6.1.1` |
 | `media_sabnzbd` | running | media-stack | 8083->8080/tcp | `lscr.io/linuxserver/sabnzbd:4.5.5` |
-| `media_samba` | running | media-stack | — | `dperson/samba:latest` |
+| `media_samba` | running | media-stack | 445->445/tcp | `dperson/samba:latest` |
 | `media_sonarr` | running | media-stack | 8989->8989/tcp | `lscr.io/linuxserver/sonarr:4.0.17` |
 | `mediahub_app` | running | media_hub | 8105->8105/tcp | `mediahub:standalone` |
 | `mediahub_db` | running | media_hub | — | `postgres:16.4-alpine` |
@@ -85,6 +86,7 @@
 | `stalwart_mail` | running | stalwart-mail | 25->25/tcp, 4190->4190/tcp, 465->465/tcp, 587->587/tcp, 8443->443/tcp, 993->993/tcp | `stalwartlabs/mail-server:v0.11.8` |
 | `tdarr` | running | tdarr | 8265->8265/tcp, 8266->8266/tcp | `ghcr.io/haveagitgat/tdarr:latest` |
 | `archie_hub_caddy` | running | (bare docker run) | — | `caddy:2-alpine` |
+| `archie_opencode_terminal_gf` | running | (bare docker run) | 17687->7681/tcp | `archie_opencode_terminal_guardfree:latest` |
 
 
 ---

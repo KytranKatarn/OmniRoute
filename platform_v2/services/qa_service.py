@@ -37,7 +37,7 @@ MODULE_SUITE_MAP: dict = {
     # Admin Ops
     "account_center": [16, 31],
     "backup_manager": [19, 35],
-    "security_network": [5, 6, 8, 59],
+    "security_network": [5, 6, 8],  # #59 deactivated (auto-generated duplicate)
     # AI Command
     "department_hq": [11, 43],
     "consciousness": [12, 39],

@@ -170,9 +170,10 @@ def audit_log():
 # Import stack integration (local containers)
 # Note: Stack management is now handled by System Operations module
 try:
+    # Unused import, remove to fix PYFLAKES issue
+    # from .stack_integration import adguard_api
     from .stack_integration import (
         check_external_tools_status,
-        adguard_api,
         scanner_service,
     )
 

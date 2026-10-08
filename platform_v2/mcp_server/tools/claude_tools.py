@@ -14,6 +14,7 @@ Specialized tools for Claude Code integration:
 import os
 from database import _get_db_password
 import logging
+import re
 import subprocess
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -179,34 +180,46 @@ async def search_mistakes_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         conditions = ["knowledge_type = 'mistake_learned'"]
         params = []
 
-        if query:
-            conditions.append("(title ILIKE %s OR content ILIKE %s)")
-            params.extend([f"%{query}%", f"%{query}%"])
-
         if category:
             conditions.append("tags @> %s::text[]")
             params.append([category])
 
-        where_clause = " AND ".join(conditions)
+        # Whole-phrase ILIKE matched only verbatim text, so a natural multi-word
+        # query ("git commit stuck") returned 0 rows even though every word
+        # appeared in a mistake. Try every-token, then any-token, then the raw
+        # phrase — first variant with hits wins.
+        per_token = "(title ILIKE %s OR content ILIKE %s)"
+        tokens = [t for t in re.split(r"[^a-z0-9]+", query.lower()) if len(t) >= 2] if query else []
+        variants = []
+        if len(tokens) > 1:
+            token_params = [f"%{t}%" for t in tokens for _ in range(2)]
+            variants.append((" AND ".join([per_token] * len(tokens)), token_params))
+            variants.append((" OR ".join([per_token] * len(tokens)), token_params))
+        else:
+            variants.append((per_token if query else None, [f"%{query}%", f"%{query}%"] if query else []))
 
-        cur.execute(
-            f"""
-            SELECT
-                id,
-                title,
-                content,
-                tags,
-                importance_score,
-                created_at
-            FROM knowledge_base
-            WHERE {where_clause}
-            ORDER BY importance_score DESC, created_at DESC
-            LIMIT %s
-        """,
-            params + [limit],
-        )
-
-        mistakes = cur.fetchall()
+        mistakes = []
+        for text_cond, text_params in variants:
+            where_clause = " AND ".join(conditions + ([text_cond] if text_cond else []))
+            cur.execute(
+                f"""
+                SELECT
+                    id,
+                    title,
+                    content,
+                    tags,
+                    importance_score,
+                    created_at
+                FROM knowledge_base
+                WHERE {where_clause}
+                ORDER BY importance_score DESC, created_at DESC
+                LIMIT %s
+            """,
+                params + text_params + [limit],
+            )
+            mistakes = cur.fetchall()
+            if mistakes:
+                break
 
         # Format for easy reading
         formatted = []
@@ -779,9 +792,11 @@ async def get_quick_summary_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
     try:
         summary = []
 
-        # Platform status (one line)
+        # Platform status (one line). /health is the liveness route — there is no
+        # /api/health (404), and allow_redirects=False keeps an auth redirect
+        # from being counted as OK. Same pattern as check_platform_health above.
         try:
-            r = requests.get(f"{PLATFORM_URL}/api/health", timeout=2)
+            r = requests.get(f"{PLATFORM_URL}/health", timeout=2, allow_redirects=False)
             if r.status_code == 200:
                 summary.append("Platform: OK")
             else:
@@ -802,11 +817,15 @@ async def get_quick_summary_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         else:
             summary.append("DB: OFFLINE")
 
-        # Git status (one line)
+        # Git status (one line). The gateway image has no repo mount, so git
+        # silently fails there — report n/a instead of claiming "0 modified".
         branch = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
-        modified = run_git_command(["diff", "--name-only"])
-        mod_count = len([f for f in modified.split("\n") if f]) if modified else 0
-        summary.append(f"Git: {branch} ({mod_count} modified)")
+        if branch:
+            modified = run_git_command(["diff", "--name-only"])
+            mod_count = len([f for f in modified.split("\n") if f]) if modified else 0
+            summary.append(f"Git: {branch} ({mod_count} modified)")
+        else:
+            summary.append("Git: n/a (repo not visible)")
 
         return {
             "success": True,

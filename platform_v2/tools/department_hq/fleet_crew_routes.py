@@ -322,9 +322,10 @@ def register_crew_routes(bp, auth_decorator):
         """Return models + catalog for agent edit form."""
         try:
             with get_db_cursor() as (conn, cur):
-                # Models installed on this node
+                # The route uses remote_nodes.id; inventories use its text node_id.
                 cur.execute(
-                    "SELECT model_name FROM node_ollama_models WHERE node_id = %s",
+                    "SELECT nom.model_name FROM node_ollama_models nom "
+                    "JOIN remote_nodes rn ON rn.node_id = nom.node_id WHERE rn.id = %s",
                     (node_id,),
                 )
                 installed = [r["model_name"] for r in cur.fetchall()]

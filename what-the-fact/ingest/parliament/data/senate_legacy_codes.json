@@ -1,0 +1,884 @@
+[
+ {
+  "code": "AndreA",
+  "name": "HON. RAYNELL ANDREYCHUK",
+  "family": "ANDREYCHUK",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "AngusW",
+  "name": "HON. W. DAVID ANGUS",
+  "family": "ANGUS",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "AtaulS",
+  "name": "HON. SALMA ATAULLAHJAN",
+  "family": "ATAULLAHJAN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "BakerG",
+  "name": "HON. GEORGE BAKER",
+  "family": "BAKER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "BanksT",
+  "name": "HON. TOMMY BANKS",
+  "family": "BANKS",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "BatteD",
+  "name": "HON. DENISE LEANNE BATTERS",
+  "family": "BATTERS",
+  "first_seen": "2012-12-01",
+  "first_end": "2013-02-28"
+ },
+ {
+  "code": "BelleD",
+  "name": "HON. BELLEMARE, DIANE",
+  "family": "BELLEMARE",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "BeyakL",
+  "name": "HON. LYNN BEYAK",
+  "family": "BEYAK",
+  "first_seen": "2012-12-01",
+  "first_end": "2013-02-28"
+ },
+ {
+  "code": "BlackD",
+  "name": "HON. BLACK, DOUGLAS JOHN",
+  "family": "BLACK",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "BoisvP",
+  "name": "HON. PIERRE-HUGUES BOISVENU",
+  "family": "BOISVENU",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "BraleD",
+  "name": "HON. DAVID BRALEY",
+  "family": "BRALEY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "BrazeP",
+  "name": "HON. PATRICK BRAZEAU",
+  "family": "BRAZEAU",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "BrownB",
+  "name": "HON. BERT BROWN",
+  "family": "BROWN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "ButhJ",
+  "name": "HON. JOANNE L. BUTH",
+  "family": "BUTH",
+  "first_seen": "2012-03-01",
+  "first_end": "2012-05-31"
+ },
+ {
+  "code": "CallbC",
+  "name": "HON. CATHERINE S. CALLBECK",
+  "family": "CALLBECK",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "CampbL",
+  "name": "HON. LARRY W. CAMPBELL",
+  "family": "CAMPBELL",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "CarigC",
+  "name": "HON. CLAUDE CARIGNAN",
+  "family": "CARIGNAN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "CarstS",
+  "name": "HON. SHARON CARSTAIRS",
+  "family": "CARSTAIRS",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "ChampA",
+  "name": "HON. ANDREE CHAMPAGNE",
+  "family": "CHAMPAGNE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "ChapuM",
+  "name": "HON. MARIA CHAPUT",
+  "family": "CHAPUT",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "ChareM",
+  "name": "HON. MARIE-P.POULIN(CHARETTE)",
+  "family": "CHARETTE-POULIN",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "CochrE",
+  "name": "HON. ETHEL M. COCHRANE",
+  "family": "COCHRANE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "ComeaG",
+  "name": "HON. GERALD J. COMEAU",
+  "family": "COMEAU",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "CoolsA",
+  "name": "HON. ANNE COOLS",
+  "family": "COOLS",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "CordyJ",
+  "name": "HON. JANE CORDY",
+  "family": "CORDY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "CowanJ",
+  "name": "HON. JAMES COWAN",
+  "family": "COWAN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DagenJ",
+  "name": "HON. JEAN-GUY DAGENAIS",
+  "family": "DAGENAIS",
+  "first_seen": "2011-12-01",
+  "first_end": "2012-02-29"
+ },
+ {
+  "code": "DallaR",
+  "name": "HON. ROMEO DALLAIRE",
+  "family": "DALLAIRE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DawsoD",
+  "name": "HON. DENNIS DAWSON",
+  "family": "DAWSON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DayJ",
+  "name": "HON. JOSEPH A. DAY",
+  "family": "DAY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DeBanP",
+  "name": "HON. PIERRE DE BANE",
+  "family": "BAN",
+  "first_seen": "2011-05-31",
+  "first_end": "2011-05-31"
+ },
+ {
+  "code": "DemerJ",
+  "name": "HON. JACQUES DEMERS",
+  "family": "DEMERS",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DiNinC",
+  "name": "HON. CONSIGLIO DI NINO",
+  "family": "NINO",
+  "first_seen": "2010-11-30",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DicksF",
+  "name": "HON. FRED DICKSON",
+  "family": "DICKSON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DowneP",
+  "name": "HON. PERCY E. DOWNE",
+  "family": "DOWNE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DoyleN",
+  "name": "HON. NORMAN E. DOYLE",
+  "family": "DOYLE",
+  "first_seen": "2011-12-01",
+  "first_end": "2012-02-29"
+ },
+ {
+  "code": "DuffyM",
+  "name": "HON. MICHAEL DUFFY",
+  "family": "DUFFY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "DyckL",
+  "name": "HON. LILLIAN EVA DYCK",
+  "family": "DYCK",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "EatonN",
+  "name": "HON. NICOLE EATON",
+  "family": "EATON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "EggleA",
+  "name": "HON. ART EGGLETON",
+  "family": "EGGLETON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "EnverT",
+  "name": "HON. ENVERGA JR., TOBIAS C.",
+  "family": "ENVERGA",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "FairbJ",
+  "name": "HON. JOYCE FAIRBAIRN",
+  "family": "FAIRBAIRN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "FinleD",
+  "name": "HON. DOUG FINLEY",
+  "family": "FINLEY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "FortiS",
+  "name": "HON. SUZANNE FORTIN-DUPLESSIS",
+  "family": "FORTIN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "FoxF",
+  "name": "HON. FRANCIS FOX",
+  "family": "FOX",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "FraseJ",
+  "name": "HON. JOAN FRASER",
+  "family": "FRASER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "FrumL",
+  "name": "HON. LINDA FRUM",
+  "family": "FRUM",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "FureyG",
+  "name": "HON. GEORGE FUREY",
+  "family": "FUREY",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "GerstI",
+  "name": "HON. IRVING GERSTEIN",
+  "family": "GERSTEIN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "GreenS",
+  "name": "HON. STEPHEN GREENE",
+  "family": "GREENE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "HarbM",
+  "name": "HON. MAC HARB",
+  "family": "HARB",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "HerviC",
+  "name": "HON. CELINE HERVIEUX-PAYETTE",
+  "family": "HERVIEUX-PAYETTE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "HousaL",
+  "name": "HON. LEO HOUSAKOS",
+  "family": "HOUSAKOS",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "HubleE",
+  "name": "HON. ELIZABETH HUBLEY",
+  "family": "HUBLEY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "JaffeM",
+  "name": "HON. MOBINA JAFFER",
+  "family": "JAFFER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "JohnsJ",
+  "name": "HON. JANIS G. JOHNSON",
+  "family": "JOHNSON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "JoyalS",
+  "name": "HON. SERGE JOYAL",
+  "family": "JOYAL",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "KennyC",
+  "name": "HON. COLIN KENNY",
+  "family": "KENNY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "KinseN",
+  "name": "HON. NOEL KINSELLA",
+  "family": "KINSELLA",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "KochhV",
+  "name": "HON. VIM KOCHHAR",
+  "family": "KOCHHAR",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "LangD",
+  "name": "HON. HECTOR DANIEL LANG",
+  "family": "LANG",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "LapoiJ",
+  "name": "HON. JEAN LAPOINTE",
+  "family": "LAPOINTE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "LavigR",
+  "name": "HON. RAYMOND LAVIGNE",
+  "family": "LAVIGNE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "LeBreM",
+  "name": "HON. MARJORY LEBRETON",
+  "family": "LEBRETON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "LosieR",
+  "name": "HON. ROSE-MARIE LOSIER-COOL",
+  "family": "LOSIER-COOL",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "LovelS",
+  "name": "LOVELACE NICHOLAS, HON. S.M.",
+  "family": "LOVELACE NICHOLAS",
+  "first_seen": "2015-03-01",
+  "first_end": "2015-05-31"
+ },
+ {
+  "code": "MacDoM",
+  "name": "HON. MICHAEL L. MACDONALD",
+  "family": "MACDONALD",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MahovF",
+  "name": "HON. FRANK W. MAHOVLICH",
+  "family": "MAHOVLICH",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MaltaG",
+  "name": "HON. GHISLAIN MALTAIS",
+  "family": "MALTAIS",
+  "first_seen": "2011-12-01",
+  "first_end": "2012-02-29"
+ },
+ {
+  "code": "ManniF",
+  "name": "HON. FABIAN MANNING",
+  "family": "MANNING",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MarshE",
+  "name": "HON. ELIZABETH MARSHALL",
+  "family": "MARSHALL",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "MartiY",
+  "name": "HON. YONAH MARTIN",
+  "family": "MARTIN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MassiP",
+  "name": "HON. PAUL J. MASSICOTTE",
+  "family": "MASSICOTTE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "McCoyE",
+  "name": "HON. ELAINE MCCOY",
+  "family": "MCCOY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "McInnT",
+  "name": "HON. MCINNIS, THOMAS JOHNSON",
+  "family": "MCINNIS",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "McIntP",
+  "name": "HON. MCINTYRE, PAUL E",
+  "family": "MCINTYRE",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "MeighM",
+  "name": "HON. MICHAEL A. MEIGHEN",
+  "family": "MEIGHEN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MerceT",
+  "name": "HON. TERRY M. MERCER",
+  "family": "MERCER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MerchP",
+  "name": "HON. PANA MERCHANT",
+  "family": "MERCHANT",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MeredD",
+  "name": "HON. DON MEREDITH",
+  "family": "MEREDITH",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "MitchG",
+  "name": "HON. GRANT MITCHELL",
+  "family": "MITCHELL",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MocklP",
+  "name": "HON. PERCY MOCKLER",
+  "family": "MOCKLER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MooreW",
+  "name": "HON. WILFRED P. MOORE",
+  "family": "MOORE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MunsoJ",
+  "name": "HON. JIM MUNSON",
+  "family": "MUNSON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "MurraL",
+  "name": "HON. LOWELL MURRAY",
+  "family": "MURRAY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "NancyR",
+  "name": "HON. NANCY RUTH",
+  "family": "RUTH",
+  "first_seen": "2015-03-01",
+  "first_end": "2015-05-31"
+ },
+ {
+  "code": "NeufeR",
+  "name": "HON. RICHARD NEUFELD",
+  "family": "NEUFELD",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "NgoT",
+  "name": "NGO, HON. THANH HAI",
+  "family": "NGO",
+  "first_seen": "2015-03-01",
+  "first_end": "2015-05-31"
+ },
+ {
+  "code": "NolinP",
+  "name": "HON. PIERRE CLAUDE NOLIN",
+  "family": "NOLIN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "OgilvK",
+  "name": "HON. KELVIN K. OGILVIE",
+  "family": "OGILVIE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "OhV",
+  "name": "OH, HON. VICTOR",
+  "family": "OH",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "OliveD",
+  "name": "HON. DONALD OLIVER",
+  "family": "OLIVER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "PatteD",
+  "name": "HON. DENNIS PATTERSON",
+  "family": "PATTERSON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "PeterR",
+  "name": "HON. ROBERT W. PETERSON",
+  "family": "PETERSON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "PlettD",
+  "name": "HON. DONALD NEIL PLETT",
+  "family": "PLETT",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "PoiriR",
+  "name": "HON. ROSE-MAY POIRIER",
+  "family": "POIRIER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "PoyV",
+  "name": "HON. VIVIENNE POY",
+  "family": "POY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "RaineN",
+  "name": "RAINE, HON. NANCY C.GREENE",
+  "family": "RAINE",
+  "first_seen": "2015-03-01",
+  "first_end": "2015-05-31"
+ },
+ {
+  "code": "RinguP",
+  "name": "HON. PIERRETTE RINGUETTE",
+  "family": "RINGUETTE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "RivarM",
+  "name": "HON. MICHEL RIVARD",
+  "family": "RIVARD",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "RivesJ",
+  "name": "HON. JEAN-CLAUDE RIVEST",
+  "family": "RIVEST",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "RobicF",
+  "name": "HON. FERNAND ROBICHAUD",
+  "family": "ROBICHAUD",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "RompkB",
+  "name": "HON. WILLIAM ROMPKEY",
+  "family": "ROMPKEY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "RunciB",
+  "name": "HON. BOB RUNCIMAN",
+  "family": "RUNCIMAN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "SegalH",
+  "name": "HON. HUGH SEGAL",
+  "family": "SEGAL",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "SeidmJ",
+  "name": "HON. JUDITH SEIDMAN",
+  "family": "SEIDMAN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "SethA",
+  "name": "HON. ASHA SETH",
+  "family": "SETH",
+  "first_seen": "2011-12-01",
+  "first_end": "2012-02-29"
+ },
+ {
+  "code": "SibbeN",
+  "name": "HON. NICK G. SIBBESTON",
+  "family": "SIBBESTON",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "SinclM",
+  "name": "SINCLAIR, HON. MURRAY",
+  "family": "SINCLAIR",
+  "first_seen": "2016-03-01",
+  "first_end": "2016-06-30"
+ },
+ {
+  "code": "SmithD",
+  "name": "HON. DAVID P. SMITH",
+  "family": "SMITH",
+  "first_seen": "2010-12-01",
+  "first_end": "2011-02-28"
+ },
+ {
+  "code": "SmithL",
+  "name": "SMITH, HON. LARRY",
+  "family": "SMITH",
+  "first_seen": "2015-03-01",
+  "first_end": "2015-05-31"
+ },
+ {
+  "code": "StGerG",
+  "name": "HON. GERRY ST. GERMAIN",
+  "family": "ST. GERMAIN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "StewaC",
+  "name": "HON. CAROLYN STEWART OLSEN",
+  "family": "STEWART-OLSEN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "StollP",
+  "name": "HON. PETER A. STOLLERY",
+  "family": "STOLLERY",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "StratT",
+  "name": "HON. TERRY STRATTON",
+  "family": "STRATTON",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "TannaS",
+  "name": "HON. TANNAS, SCOTT",
+  "family": "TANNAS",
+  "first_seen": "2013-03-01",
+  "first_end": "2013-05-31"
+ },
+ {
+  "code": "TardiC",
+  "name": "HON. CLAUDETTE TARDIF",
+  "family": "TARDIF",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "TkachD",
+  "name": "HON. DAVID TKACHUK",
+  "family": "TKACHUK",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "UngerB",
+  "name": "HON. BETTY UNGER",
+  "family": "UNGER",
+  "first_seen": "2011-12-01",
+  "first_end": "2012-02-29"
+ },
+ {
+  "code": "VerneJ",
+  "name": "HON. JOSÉE VERNER",
+  "family": "VERNER",
+  "first_seen": "2011-06-01",
+  "first_end": "2011-08-31"
+ },
+ {
+  "code": "WallaJ",
+  "name": "HON. JOHN D. WALLACE",
+  "family": "WALLACE",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "WalliP",
+  "name": "HON. PAMELA WALLIN",
+  "family": "WALLIN",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "WattC",
+  "name": "HON. CHARLIE WATT",
+  "family": "WATT",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ },
+ {
+  "code": "WellsD",
+  "name": "HON. DAVID MARK WELLS",
+  "family": "WELLS",
+  "first_seen": "2012-12-01",
+  "first_end": "2013-02-28"
+ },
+ {
+  "code": "WhiteV",
+  "name": "HON. VERNON DARRYL WHITE",
+  "family": "WHITE",
+  "first_seen": "2011-12-01",
+  "first_end": "2012-02-29"
+ },
+ {
+  "code": "ZimmeR",
+  "name": "HON. ROD A.A. ZIMMER",
+  "family": "ZIMMER",
+  "first_seen": "2010-09-01",
+  "first_end": "2010-11-30"
+ }
+]

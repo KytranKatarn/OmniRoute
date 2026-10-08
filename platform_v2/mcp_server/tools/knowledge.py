@@ -34,7 +34,7 @@ _PII_PATTERNS = [
     ),
 ]
 
-from . import register_tool, cap_limit
+from . import register_tool, cap_limit, internal_api
 
 logger = logging.getLogger("archie_mcp.tools.knowledge")
 
@@ -973,6 +973,14 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     Combines: knowledge context + mistake search + KB stats + active projects
     + agent/dispatcher status into a single response. Designed to be called
     at the start of every session via /archie-boot.
+
+    Each section degrades independently. This handler runs under the gateway's
+    read-only `codex_ro` role, which has no grant on `agents`, `remote_nodes`
+    or `autonomy_loop_log` — so a single ungranted table must not cost the
+    sections that succeeded (that was the bug: one permission denial returned
+    success=false and discarded everything already read). Failures land in
+    briefing["section_errors"]; a missing section means "unreadable", not
+    "none found".
     """
     topic = arguments.get("topic", "platform status")
 
@@ -980,203 +988,256 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if not conn:
         return {"success": False, "error": "Database connection failed"}
 
+    # Autocommit: every statement here is read-only, and without it one
+    # permission error leaves the transaction aborted, so every later section
+    # would answer "current transaction is aborted" instead of its own result.
+    conn.autocommit = True
+
+    section_errors: Dict[str, str] = {}
+
+    briefing = {
+        "topic": topic,
+        "knowledge_context": [],
+        "mistakes_to_avoid": [],
+        "active_projects": [],
+        "kb_stats": {},
+        "agent_status": {"total_agents": None, "by_shift_state": {}, "nodes_online": None},
+        "anomalies_active": [],
+        "anomaly_count": 0,
+        "section_errors": section_errors,
+    }
+
+    semantic_search = None
     try:
-        briefing = {
-            "topic": topic,
-            "knowledge_context": [],
-            "mistakes_to_avoid": [],
-            "active_projects": [],
-            "kb_stats": {},
-            "agent_status": {},
-        }
+        from tools.consciousness.memory_service import semantic_search
+    except Exception as e:
+        section_errors["semantic_search"] = f"semantic search unavailable: {e}"
+
+    try:
 
         # 1. Relevant knowledge for the topic (semantic search first, text fallback)
         try:
-            from tools.consciousness.memory_service import semantic_search
+            if semantic_search is not None:
+                try:
+                    logger.info(f"[Briefing] Running semantic search for topic: {topic}")
+                    sem_results = semantic_search(topic, limit=10)
+                    logger.info(f"[Briefing] Semantic search returned {len(sem_results) if sem_results else 0} results")
+                    if sem_results:
+                        briefing["knowledge_context"] = [
+                            {
+                                "id": r.get("id"),
+                                "knowledge_type": r.get("knowledge_type", r.get("source_type", "")),
+                                "title": r.get("title", ""),
+                                "content": (r.get("content", "") or "")[:300],
+                                "category": r.get("category"),
+                                "relevance_score": r.get("similarity", 0),
+                            }
+                            for r in sem_results
+                            if r.get("knowledge_type", r.get("source_type", "")) != "github_file"
+                        ][:10]
+                        logger.info(f"[Briefing] After filtering: {len(briefing['knowledge_context'])} context entries")
+                except Exception as e:
+                    logger.warning(f"Semantic search failed in briefing, falling back to text: {e}")
+                    import traceback
 
-            logger.info(f"[Briefing] Running semantic search for topic: {topic}")
-            sem_results = semantic_search(topic, limit=10)
-            logger.info(f"[Briefing] Semantic search returned {len(sem_results) if sem_results else 0} results")
-            if sem_results:
-                briefing["knowledge_context"] = [
-                    {
-                        "id": r.get("id"),
-                        "knowledge_type": r.get("knowledge_type", r.get("source_type", "")),
-                        "title": r.get("title", ""),
-                        "content": (r.get("content", "") or "")[:300],
-                        "category": r.get("category"),
-                        "relevance_score": r.get("similarity", 0),
-                    }
-                    for r in sem_results
-                    if r.get("knowledge_type", r.get("source_type", "")) != "github_file"
-                ][:10]
-                logger.info(f"[Briefing] After filtering: {len(briefing['knowledge_context'])} context entries")
+                    logger.warning(traceback.format_exc())
+                    section_errors["semantic_search"] = str(e)
+
+            # Text fallback if semantic returned nothing
+            if not briefing["knowledge_context"]:
+                cur.execute(
+                    """
+                    SELECT id, knowledge_type, title, LEFT(content, 300) as content,
+                           importance_score, category
+                    FROM knowledge_base
+                    WHERE (title ILIKE %s OR content ILIKE %s)
+                    AND knowledge_type != 'github_file'
+                    ORDER BY importance_score DESC
+                    LIMIT 10
+                """,
+                    (f"%{topic}%", f"%{topic}%"),
+                )
+                briefing["knowledge_context"] = [dict(r) for r in cur.fetchall()]
         except Exception as e:
-            logger.warning(f"Semantic search failed in briefing, falling back to text: {e}")
-            import traceback
-
-            logger.warning(traceback.format_exc())
-
-        # Text fallback if semantic returned nothing
-        if not briefing["knowledge_context"]:
-            cur.execute(
-                """
-                SELECT id, knowledge_type, title, LEFT(content, 300) as content,
-                       importance_score, category
-                FROM knowledge_base
-                WHERE (title ILIKE %s OR content ILIKE %s)
-                AND knowledge_type != 'github_file'
-                ORDER BY importance_score DESC
-                LIMIT 10
-            """,
-                (f"%{topic}%", f"%{topic}%"),
-            )
-            briefing["knowledge_context"] = [dict(r) for r in cur.fetchall()]
+            logger.warning(f"knowledge_context section failed: {e}")
+            section_errors["knowledge_context"] = str(e)
 
         # 2. Mistakes to avoid (semantic search + text fallback)
         try:
-            mistake_results = semantic_search(topic, source_types=["mistake_learned"], limit=5)
-            if mistake_results:
-                briefing["mistakes_to_avoid"] = [
-                    {
-                        "title": r.get("title", ""),
-                        "content": (r.get("content", "") or "")[:200],
-                        "importance_score": r.get("similarity", 0),
-                    }
-                    for r in mistake_results
-                ]
-        except Exception as e:
-            logger.warning(f"Semantic mistake search failed: {e}")
+            if semantic_search is not None:
+                try:
+                    mistake_results = semantic_search(topic, source_types=["mistake_learned"], limit=5)
+                    if mistake_results:
+                        briefing["mistakes_to_avoid"] = [
+                            {
+                                "title": r.get("title", ""),
+                                "content": (r.get("content", "") or "")[:200],
+                                "importance_score": r.get("similarity", 0),
+                            }
+                            for r in mistake_results
+                        ]
+                except Exception as e:
+                    logger.warning(f"Semantic mistake search failed: {e}")
+                    section_errors["semantic_search"] = str(e)
 
-        if not briefing["mistakes_to_avoid"]:
-            cur.execute(
-                """
-                SELECT title, LEFT(content, 200) as content, importance_score
-                FROM knowledge_base
-                WHERE knowledge_type = 'mistake_learned'
-                AND (title ILIKE %s OR content ILIKE %s)
-                ORDER BY importance_score DESC
-                LIMIT 5
-            """,
-                (f"%{topic}%", f"%{topic}%"),
-            )
-            briefing["mistakes_to_avoid"] = [dict(r) for r in cur.fetchall()]
+            if not briefing["mistakes_to_avoid"]:
+                cur.execute(
+                    """
+                    SELECT title, LEFT(content, 200) as content, importance_score
+                    FROM knowledge_base
+                    WHERE knowledge_type = 'mistake_learned'
+                    AND (title ILIKE %s OR content ILIKE %s)
+                    ORDER BY importance_score DESC
+                    LIMIT 5
+                """,
+                    (f"%{topic}%", f"%{topic}%"),
+                )
+                briefing["mistakes_to_avoid"] = [dict(r) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"mistakes_to_avoid section failed: {e}")
+            section_errors["mistakes_to_avoid"] = str(e)
 
         # 3. Active projects
-        cur.execute(
+        try:
+            cur.execute(
+                """
+                SELECT id, name, status, priority,
+                       (SELECT COUNT(*) FROM unified_tasks t WHERE t.project_id = p.id AND t.status = 'completed') as done,
+                       (SELECT COUNT(*) FROM unified_tasks t WHERE t.project_id = p.id) as total
+                FROM unified_projects p
+                WHERE status IN ('active', 'planning')
+                ORDER BY priority DESC
+                LIMIT 10
             """
-            SELECT id, name, status, priority,
-                   (SELECT COUNT(*) FROM unified_tasks t WHERE t.project_id = p.id AND t.status = 'completed') as done,
-                   (SELECT COUNT(*) FROM unified_tasks t WHERE t.project_id = p.id) as total
-            FROM unified_projects p
-            WHERE status IN ('active', 'planning')
-            ORDER BY priority DESC
-            LIMIT 10
-        """
-        )
-        projects = cur.fetchall()
-        briefing["active_projects"] = [
-            {
-                "id": p["id"],
-                "name": p["name"],
-                "status": p["status"],
-                "priority": p["priority"],
-                "progress": f"{p['done']}/{p['total']} tasks",
-            }
-            for p in projects
-        ]
+            )
+            projects = cur.fetchall()
+            briefing["active_projects"] = [
+                {
+                    "id": p["id"],
+                    "name": p["name"],
+                    "status": p["status"],
+                    "priority": p["priority"],
+                    "progress": f"{p['done']}/{p['total']} tasks",
+                }
+                for p in projects
+            ]
+        except Exception as e:
+            logger.warning(f"active_projects section failed: {e}")
+            section_errors["active_projects"] = str(e)
 
         # 4. Knowledge base stats
-        cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
-        total = cur.fetchone()["total"]
-        cur.execute("SELECT COUNT(*) as total FROM knowledge_base WHERE embedding IS NOT NULL")
-        embedded = cur.fetchone()["total"]
-        cur.execute(
+        try:
+            cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
+            total = cur.fetchone()["total"]
+            cur.execute("SELECT COUNT(*) as total FROM knowledge_base WHERE embedding IS NOT NULL")
+            embedded = cur.fetchone()["total"]
+            cur.execute(
+                """
+                SELECT knowledge_type, COUNT(*) as count
+                FROM knowledge_base GROUP BY knowledge_type ORDER BY count DESC LIMIT 5
             """
-            SELECT knowledge_type, COUNT(*) as count
-            FROM knowledge_base GROUP BY knowledge_type ORDER BY count DESC LIMIT 5
-        """
-        )
-        by_type = {r["knowledge_type"]: r["count"] for r in cur.fetchall()}
-        briefing["kb_stats"] = {
-            "total_entries": total,
-            "embedded": embedded,
-            "embedding_coverage": f"{round(embedded / total * 100, 1)}%" if total > 0 else "0%",
-            "by_type": by_type,
-        }
+            )
+            by_type = {r["knowledge_type"]: r["count"] for r in cur.fetchall()}
+            briefing["kb_stats"] = {
+                "total_entries": total,
+                "embedded": embedded,
+                "embedding_coverage": f"{round(embedded / total * 100, 1)}%" if total > 0 else "0%",
+                "by_type": by_type,
+            }
+        except Exception as e:
+            logger.warning(f"kb_stats section failed: {e}")
+            section_errors["kb_stats"] = str(e)
 
-        # 5. Agent & dispatcher status
-        cur.execute("SELECT COUNT(*) as total FROM agents")
-        agent_total = cur.fetchone()["total"]
-        cur.execute(
+        # 5. Agent & dispatcher status.
+        # `codex_ro` has no grant on `agents`: roster counts come from the hub's
+        # scoped /api/internal/agents, exactly as list_agents_handler does
+        # (admin.py). `remote_nodes` has no scoped route for this key, so it
+        # stays a direct query that degrades to null + a section_errors note.
+        try:
+            roster = internal_api("/api/internal/agents", params={"limit": 1})
+            if roster.get("ok"):
+                data = roster["data"]
+                briefing["agent_status"]["total_agents"] = data.get("total")
+                briefing["agent_status"]["by_shift_state"] = data.get("facets", {}).get("states", {})
+            else:
+                section_errors["agent_status"] = roster.get("error", "internal agents read failed")
+        except Exception as e:
+            logger.warning(f"agent_status section failed: {e}")
+            section_errors["agent_status"] = str(e)
+
+        try:
+            cur.execute(
+                """
+                SELECT COUNT(*) as online FROM remote_nodes
+                WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
             """
-            SELECT shift_state, COUNT(*) as count
-            FROM agents GROUP BY shift_state ORDER BY count DESC
-        """
-        )
-        by_state = {r["shift_state"]: r["count"] for r in cur.fetchall()}
-        cur.execute(
-            """
-            SELECT COUNT(*) as online FROM remote_nodes
-            WHERE last_heartbeat > NOW() - INTERVAL '2 minutes'
-        """
-        )
-        nodes_online = cur.fetchone()["online"]
-        briefing["agent_status"] = {
-            "total_agents": agent_total,
-            "by_shift_state": by_state,
-            "nodes_online": nodes_online,
-        }
+            )
+            briefing["agent_status"]["nodes_online"] = cur.fetchone()["online"]
+        except Exception as e:
+            logger.warning(f"remote_nodes read failed: {e}")
+            section_errors["remote_nodes"] = str(e)
 
         # 6. Active anomalies from the agent-loop observers
         # (Project #272 Phase 4 / Task #2116). Replaces the old
         # "fresh session" default with a real signal: what did
         # V.I.G.I.L. / S.P.E.C.T.R.A. / K.I.N. / F.O.R.G.E. / C.O.D.E.X.
         # observe going sideways in the last 24h?
-        cur.execute(
-            """
-            SELECT job_name, status, items_failed, severity, reasons, error_message, created_at
-            FROM (
-                SELECT DISTINCT ON (job_name)
-                       job_name,
-                       status,
-                       items_failed,
-                       details->>'severity' AS severity,
-                       details->'reasons'   AS reasons,
-                       error_message,
-                       created_at
-                FROM autonomy_loop_log
-                WHERE created_at > now() - INTERVAL '24 hours'
-                ORDER BY job_name, created_at DESC
-            ) latest_runs
-            WHERE status IN ('error', 'partial')
-               OR severity IN ('error', 'warning')
-            LIMIT 20
-            """
-        )
-        anomalies = []
-        for row in cur.fetchall():
-            anomalies.append(
-                {
-                    "job_name": row["job_name"],
-                    "status": row["status"],
-                    "severity": row.get("severity"),
-                    "items_failed": row.get("items_failed"),
-                    "reasons": row.get("reasons"),
-                    "error_message": row.get("error_message"),
-                    "last_seen": row["created_at"].isoformat() if row.get("created_at") else None,
-                }
+        # `codex_ro` has no grant on autonomy_loop_log and there is no scoped
+        # route for it — degrade honestly rather than reporting "no anomalies".
+        try:
+            cur.execute(
+                """
+                SELECT job_name, status, items_failed, severity, reasons, error_message, created_at
+                FROM (
+                    SELECT DISTINCT ON (job_name)
+                           job_name,
+                           status,
+                           items_failed,
+                           details->>'severity' AS severity,
+                           details->'reasons'   AS reasons,
+                           error_message,
+                           created_at
+                    FROM autonomy_loop_log
+                    WHERE created_at > now() - INTERVAL '24 hours'
+                    ORDER BY job_name, created_at DESC
+                ) latest_runs
+                WHERE status IN ('error', 'partial')
+                   OR severity IN ('error', 'warning')
+                LIMIT 20
+                """
             )
-        briefing["anomalies_active"] = anomalies
-        briefing["anomaly_count"] = len(anomalies)
+            anomalies = []
+            for row in cur.fetchall():
+                anomalies.append(
+                    {
+                        "job_name": row["job_name"],
+                        "status": row["status"],
+                        "severity": row.get("severity"),
+                        "items_failed": row.get("items_failed"),
+                        "reasons": row.get("reasons"),
+                        "error_message": row.get("error_message"),
+                        "last_seen": row["created_at"].isoformat() if row.get("created_at") else None,
+                    }
+                )
+            briefing["anomalies_active"] = anomalies
+            briefing["anomaly_count"] = len(anomalies)
+        except Exception as e:
+            logger.warning(f"anomalies section failed: {e}")
+            section_errors["anomalies"] = str(e)
 
         cur.close()
         conn.close()
 
         tip = "Review mistakes_to_avoid before starting work. Use search_knowledge for deeper dives."
-        if anomalies:
+        if section_errors:
             tip = (
-                f"{len(anomalies)} observer(s) flagged active anomalies in the "
+                f"DEGRADED briefing — {len(section_errors)} section(s) could not be read: "
+                f"{', '.join(sorted(section_errors))}. Partial data only; a missing "
+                "section means 'unreadable', not 'none found'."
+            )
+        elif briefing["anomaly_count"]:
+            tip = (
+                f"{briefing['anomaly_count']} observer(s) flagged active anomalies in the "
                 "last 24h — inspect briefing.anomalies_active before starting new work."
             )
 
@@ -1188,10 +1249,25 @@ async def session_briefing_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
+        # Safety net — every section guards itself, so anything landing here is
+        # outside them. Keep whatever was read instead of discarding it:
+        # success:false is reserved for "database connection failed" above.
         logger.error(f"Error in session_briefing: {e}")
-        if conn:
+        section_errors["handler"] = str(e)
+        try:
+            cur.close()
             conn.close()
-        return {"success": False, "error": str(e)}
+        except Exception:
+            pass
+        return {
+            "success": True,
+            "briefing": briefing,
+            "generated_at": datetime.now().isoformat(),
+            "tip": (
+                f"DEGRADED briefing — internal error: {e}. Partial data only; "
+                "a missing section means 'unreadable', not 'none found'."
+            ),
+        }
 
 
 # ============================================================================

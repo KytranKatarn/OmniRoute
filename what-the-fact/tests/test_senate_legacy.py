@@ -146,3 +146,30 @@ def test_migration_is_own_table_nullable_senator_no_delete_and_no_own_transactio
     assert "senator_id         INTEGER       REFERENCES parliament.senators(id) ON DELETE SET NULL" in sql      # nullable: no stub roster rows
     assert "REVOKE DELETE, TRUNCATE" in sql and "GRANT SELECT, INSERT, UPDATE" in sql
     assert "\nBEGIN;" not in sql and "COMMIT;" not in sql and "'102'" in sql
+
+
+def _row_runs(cells, name="HON THANH HAI NGO"):
+    """A report page: header runs, the Quarter row built from `cells` [(x, text)], and a printed name."""
+    y = 319.3
+    return ([(536.6, 89.5, name), (y, 44.5, "Quarter / Trimestre"), (368.7, 158.0, "Staff & Office("), (356.5, 284.0, "Hospitality / Accueil"),
+             (409.2, 400.0, "Living Expenses in the"), (368.7, 523.0, "Regular Travel /("), (368.7, 634.0, "Other Travel(")]
+            + [(y, x, t) for x, t in cells])
+
+
+def test_an_amount_split_into_one_character_runs_at_the_same_x_is_rejoined():
+    """Real: NgoT 2013-02-28 prints the travel-other cell as '3','2',',','5','4','2','.','36' and the travel cell as '0.','00'."""
+    cells = [(192, "26,020.50"), (317, "0.00"), (438, "0.00"), (546, "0."), (546, "00"),
+             (652, "3"), (652, "2"), (652, ","), (652, "5"), (652, "4"), (652, "2"), (652, "."), (652, "36")]
+    r = sl.parse_fragments(_row_runs(cells))
+    assert [r[c] for c in sl.COLUMNS] == [26020.50, 0.0, 0.0, 0.0, 32542.36] and r["layout_ok"]
+
+
+def test_a_title_printed_without_the_period_is_still_a_name():
+    r = sl.parse_fragments(_row_runs([(192, "12,530.02"), (312, "102.43"), (429, "5,388.40"), (546, "2,288.42"), (663, "0.00")], "HON DIANE BELLEMARE"))
+    assert r["name"] == "HON DIANE BELLEMARE" and r["office"] == 12530.02
+    assert sl.normalise_name("HON DIANE BELLEMARE") == (None, "Diane Bellemare")
+
+
+def test_two_amounts_are_not_glued_together_just_because_they_share_a_run():
+    r = sl.parse_fragments(_row_runs([(192, "1,000.00 2.50"), (429, "3.00"), (546, "4.00"), (652, "5.00")]))
+    assert [r[c] for c in sl.COLUMNS] == [1000.0, 2.5, 3.0, 4.0, 5.0]

@@ -39,7 +39,7 @@ COLUMNS = ("office", "hospitality", "living", "travel_regular", "travel_other") 
 _AMT = re.compile(r"^\(?-?[\d,]+\.\d\d\)?$")
 # header text legible in every layout -> the column it labels (the 'Regular'/'Other' travel headers are garbled before late 2012)
 _HEADER_COL = (("Staff & Office", 0), ("Office(", 0), ("Hospitality", 1), ("Living Expenses", 2), ("Regular", 3), ("Other", 4))
-_TITLE = re.compile(r"\bHON\.", re.I)
+_TITLE = re.compile(r"\bHON\b\.?", re.I)                 # 'HON. X' and, in some periods, 'HON X' (no period)
 
 
 def url_for(end: str, code: str) -> str:
@@ -84,11 +84,16 @@ def parse_fragments(fr: list) -> dict | None:
     qy = q[0][0]
     # Amounts on the 'Quarter / Trimestre' row. A run may hold ONE amount (usual) or ALL FIVE after the label (2010 'DuffyM'), so
     # every run on the row is tokenised, left to right; the position of a token inside a multi-amount run is its order in the run.
-    row = sorted((f for f in fr if abs(f[0] - qy) < 3), key=lambda f: f[1])
-    amts = []                                                   # [(x, text)]
+    row = [f for f in fr if abs(f[0] - qy) < 3]
+    # Some periods print one amount as SEVERAL runs at the same x, a character or two each ('3','2',',','5','4','2','.','36' for
+    # 32,542.36): runs sharing an x are one cell, so join them in stream order before tokenising.
+    cells: dict = {}
     for _y, x, t in row:
-        toks = [tok for tok in t.replace("Quarter / Trimestre", " ").split() if _AMT.match(tok)]
-        for k, tok in enumerate(toks):
+        cells.setdefault(round(x), []).append(t)
+    amts = []                                                   # [(x, text)]
+    for x in sorted(cells):
+        text_ = "".join(cells[x]) if len(cells[x]) > 1 and not any(len(t) > 12 for t in cells[x]) else " ".join(cells[x])
+        for k, tok in enumerate(t for t in text_.replace("Quarter / Trimestre", " ").split() if _AMT.match(t)):
             amts.append((x + k * 1e-3, tok))
     if len(amts) != 5:
         return None
@@ -118,7 +123,7 @@ def normalise_name(name: str | None) -> tuple[str | None, str | None]:
     Andreychuk') (no comma: the family/given split is left to the matcher, which tries each split)."""
     if not name:
         return None, None
-    n = re.sub(r"\bHON\.\s*", "", name, flags=re.I).strip()
+    n = re.sub(r"\bHON\b\.?\s*", "", name, flags=re.I).strip()
     n = re.sub(r"\s+", " ", n)
     if "," in n:
         fam, giv = n.split(",", 1)

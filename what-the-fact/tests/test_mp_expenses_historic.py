@@ -220,3 +220,26 @@ def test_migration_101_falls_back_to_the_first_stint_in_the_year_never_a_guess()
     assert "t0.start_date <= (a.period_start + 182)" in sql              # a midpoint stint still wins (tier 1)
     assert "ORDER BY x.tier" in sql
     assert "\nBEGIN;" not in sql and "COMMIT;" not in sql and "'101'" in sql
+
+
+def test_an_ambiguous_name_with_no_riding_answer_is_settled_by_the_stint_overlapping_the_year():
+    """Norman Doyle is stored as two records ('Norman E.' to 2004, 'Norman' 2004-2008). The name ties between them and the riding
+    gives nothing in FY2006 (renamed) or FY2009 (two holders). Only 12074 has a stint overlapping each year."""
+    from datetime import date
+    fam = {"doyle": [{"id": 12073, "given": {"norman", "e."}}, {"id": 12074, "given": {"norman"}}]}
+    terms = {12073: [(date(1997, 9, 22), date(2004, 5, 23))], 12074: [(date(2004, 10, 4), date(2005, 11, 29)), (date(2006, 4, 3), date(2008, 9, 7))]}
+    rec = {"name": "Doyle,  Norman", "riding": "St. John's East"}
+    for start, end in ((date(2005, 4, 1), date(2006, 3, 31)), (date(2008, 4, 1), date(2009, 3, 31))):
+        (_r, mp, how), = h.resolve_ids([rec], fam, {}, {}, start, end, terms)
+        assert (mp, how) == (12074, "name-term")
+    # without term evidence it stays unmatched (the old behaviour) — never a guess
+    (_r, mp, how), = h.resolve_ids([rec], fam, {}, {}, date(2005, 4, 1), date(2006, 3, 31), None)
+    assert mp is None
+
+
+def test_two_candidates_both_overlapping_the_year_stay_unmatched():
+    from datetime import date
+    fam = {"smith": [{"id": 1, "given": {"john"}}, {"id": 2, "given": {"john"}}]}
+    terms = {1: [(date(2005, 1, 1), None)], 2: [(date(2005, 1, 1), None)]}
+    (_r, mp, how), = h.resolve_ids([{"name": "Smith, John", "riding": "X"}], fam, {}, {}, date(2005, 4, 1), date(2006, 3, 31), terms)
+    assert mp is None and how is None

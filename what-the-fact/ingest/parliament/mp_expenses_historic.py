@@ -149,7 +149,31 @@ def parse_report(full_text: str) -> dict:
             "printed_total": printed_total(lines), "style": style, "suspect": suspect}
 
 
-def resolve_ids(recs: list, fam_idx: dict, full_idx: dict, riding_idx: dict, start, end) -> list:
+def _tied_candidates(name: str, fam_idx: dict) -> list:
+    """mp_ids sharing the published surname AND tying for the best given-name overlap — the set `_match_mp` refuses to choose
+    between (e.g. 'Norman Doyle' and 'Norman E. Doyle': one person stored as two records with disjoint stints)."""
+    n = _norm(name)
+    if "," not in n:
+        return []
+    fam, given = n.split(",", 1)[0].strip(), set(n.split(",", 1)[1].split())
+    cands = fam_idx.get(fam) or (fam_idx.get(fam.split()[-1]) if fam else None) or []
+    if len(cands) < 2:
+        return []
+    best = max(len(given & c["given"]) for c in cands)
+    return [c["id"] for c in cands if best > 0 and len(given & c["given"]) == best]
+
+
+def build_term_index(engine) -> dict:
+    """{mp_id: [(start, end|None)]} from parliament.mp_terms — which MP held a seat when."""
+    with engine.connect() as c:
+        rows = c.execute(text("SELECT mp_id, start_date, end_date FROM parliament.mp_terms WHERE mp_id IS NOT NULL")).fetchall()
+    idx: dict = {}
+    for mp, s, e in rows:
+        idx.setdefault(mp, []).append((s, e))
+    return idx
+
+
+def resolve_ids(recs: list, fam_idx: dict, full_idx: dict, riding_idx: dict, start, end, term_idx: dict | None = None) -> list:
     """[(rec, mp_id|None, how)] for one fiscal year. Name first, then riding (never a guess).
 
     A COLLISION — two published members resolving to the SAME mp_id in one year — means one name match is wrong (two people
@@ -160,7 +184,17 @@ def resolve_ids(recs: list, fam_idx: dict, full_idx: dict, riding_idx: dict, sta
     for rec in recs:
         by_name = _match_mp(rec["name"], fam_idx, full_idx)
         holder = match_by_riding(riding_idx, rec["riding"], start, end)
-        first.append([rec, by_name if by_name is not None else holder, "name" if by_name is not None else ("riding" if holder else None), holder])
+        tied_how = None
+        if by_name is None and holder is None and term_idx:
+            # Ambiguous name AND no riding answer: keep only the candidates with a stint overlapping THIS fiscal year; exactly one
+            # left is that person, none or several stays unmatched. (Doyle: his FY2006 riding was renamed, and in FY2009 two members
+            # held St. John's East — the riding is silent, the stints are not.)
+            live = [i for i in _tied_candidates(rec["name"], fam_idx)
+                    if any(s <= end and (e is None or e >= start) for s, e in term_idx.get(i, ()))]
+            if len(live) == 1:
+                by_name, tied_how = live[0], "name-term"
+        first.append([rec, by_name if by_name is not None else holder,
+                      tied_how or ("name" if by_name is not None else ("riding" if holder else None)), holder])
     claims: dict = {}
     for row in first:
         if row[1] is not None:
@@ -186,6 +220,7 @@ def run_historic_sync(engine, fy_from: int = 2002, fy_to: int = 2009, sleep: flo
     """Load every report in [fy_from, fy_to] that RECONCILES to its printed total. Resumable; never raises on one bad year."""
     fam_idx, full_idx = _build_mp_index(engine)
     riding_idx = build_riding_index(engine)
+    term_idx = build_term_index(engine)
     stats = {"reports": 0, "stored": 0, "skipped_existing": 0, "matched_by_riding": 0, "vacant": 0,
              "unmatched": {}, "unreconciled": [], "failed": []}
     for fy in HIST_YEARS:
@@ -212,7 +247,7 @@ def run_historic_sync(engine, fy_from: int = 2002, fy_to: int = 2009, sleep: flo
         with engine.connect() as c:
             have = {r[0] for r in c.execute(text("SELECT mp_id FROM parliament.mp_expenses_annual WHERE fiscal_year=:y"), {"y": fy})}
         live = [r for r in rep["members"] if not r["vacant"]]
-        for rec, mp_id, how in resolve_ids(live, fam_idx, full_idx, riding_idx, start, end):
+        for rec, mp_id, how in resolve_ids(live, fam_idx, full_idx, riding_idx, start, end, term_idx):
             if how in ("riding", "riding-collision"):
                 stats["matched_by_riding"] += 1
             if mp_id is None:

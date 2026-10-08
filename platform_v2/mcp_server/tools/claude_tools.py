@@ -274,6 +274,7 @@ register_tool(
                     "network",
                     "auth",
                     "api",
+                    "git",
                 ],
             },
             "limit": {
@@ -301,14 +302,26 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
 
     conn, cur = get_db_connection()
     if not conn:
-        # Try API fallback
+        # #7164 liveness-only fallback. There is no /api/health route — the
+        # probe just 404s, and returning health JSON as "roadmap" would
+        # mislabel the data. Report honest degraded state instead: is the
+        # platform process alive, and was any roadmap data substituted (no).
+        platform_status = "unknown"
         try:
-            response = requests.get(f"{PLATFORM_URL}/api/health", timeout=5)
-            if response.status_code == 200:
-                return {"success": True, "roadmap": response.json()}
-        except Exception:
-            pass
-        return {"success": False, "error": "Could not fetch roadmap"}
+            response = requests.get(f"{PLATFORM_URL}/health", timeout=5, allow_redirects=False)
+            if response.status_code == 200 and response.json().get("status") == "healthy":
+                platform_status = "healthy"
+            else:
+                platform_status = f"unhealthy (HTTP {response.status_code})"
+        except (requests.RequestException, ValueError) as e:
+            platform_status = f"offline ({e})"
+        return {
+            "success": False,
+            "error": "Database connection failed; roadmap unavailable",
+            "degraded": True,
+            "platform_liveness": platform_status,
+            "hint": "No roadmap data was substituted — retry once the DB is reachable.",
+        }
 
     try:
         # Get phases
@@ -323,7 +336,7 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
                 section,
                 status,
                 description,
-                completion_percentage
+                completion_percent
             FROM blueprint_phases
             {status_filter}
             ORDER BY display_order, phase_number
@@ -349,7 +362,7 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
                 "name": phase["name"],
                 "section": phase["section"],
                 "status": phase["status"],
-                "completion": phase["completion_percentage"],
+                "completion": phase["completion_percent"],
             }
 
             # Count by status
@@ -364,7 +377,7 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
             if include_tasks and phase["status"] in ("active", "in_progress"):
                 cur.execute(
                     """
-                    SELECT id, description, done, notes
+                    SELECT id, task_description, done, notes
                     FROM blueprint_tasks
                     WHERE phase_id = %s
                     ORDER BY display_order
@@ -375,7 +388,7 @@ async def get_roadmap_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any
                 tasks = cur.fetchall()
                 phase_data["tasks"] = [
                     {
-                        "description": t["description"],
+                        "description": t["task_description"],
                         "done": t["done"],
                         "notes": t["notes"],
                     }

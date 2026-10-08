@@ -61,6 +61,11 @@ it and then `git checkout origin/main -- <the unrelated path>` and
 
 Otherwise `git checkout <branch> -- <explicit paths>`.
 
+For brand-new work, **edit the files directly inside the worktree** and skip this
+step's copy/checkout entirely — the live tree only ever receives changes through a
+merged PR, never by being the place the edit was made (that is how the 2026-10-08
+session's docs PR was written).
+
 ### 4. Verify before you commit
 
 ```bash

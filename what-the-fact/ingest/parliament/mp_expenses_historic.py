@@ -22,7 +22,8 @@ import time
 
 from sqlalchemy import text
 
-from ingest.parliament.mp_expenses import _build_mp_index, _match_mp, _norm
+from ingest.parliament.mp_expenses import (_build_mp_index, _match_mp, _norm, build_term_index, family_of_index, riding_fallback_ok,
+                                           seat_plausible)
 from ingest.parliament.mp_expenses_annual import fy_dates
 from ingest.parliament.mp_expenses_archive import _get, build_riding_index, match_by_riding
 
@@ -163,16 +164,6 @@ def _tied_candidates(name: str, fam_idx: dict) -> list:
     return [c["id"] for c in cands if best > 0 and len(given & c["given"]) == best]
 
 
-def build_term_index(engine) -> dict:
-    """{mp_id: [(start, end|None)]} from parliament.mp_terms — which MP held a seat when."""
-    with engine.connect() as c:
-        rows = c.execute(text("SELECT mp_id, start_date, end_date FROM parliament.mp_terms WHERE mp_id IS NOT NULL")).fetchall()
-    idx: dict = {}
-    for mp, s, e in rows:
-        idx.setdefault(mp, []).append((s, e))
-    return idx
-
-
 def resolve_ids(recs: list, fam_idx: dict, full_idx: dict, riding_idx: dict, start, end, term_idx: dict | None = None) -> list:
     """[(rec, mp_id|None, how)] for one fiscal year. Name first, then riding (never a guess).
 
@@ -180,10 +171,15 @@ def resolve_ids(recs: list, fam_idx: dict, full_idx: dict, riding_idx: dict, sta
     called David Anderson sat in this period; the database held only one name match). The record whose RIDING agrees with the id
     keeps it; the others fall back to their own riding holder, or stay unmatched. Without this the second row would silently
     overwrite the first (UNIQUE mp_id, fiscal_year) and charge a Liberal minister's office to a Conservative backbencher."""
+    fam_of = family_of_index(fam_idx)
     first = []
     for rec in recs:
         by_name = _match_mp(rec["name"], fam_idx, full_idx)
+        if by_name is not None and not seat_plausible(by_name, start, end, term_idx):
+            by_name = None                                      # a namesake who was not in the seat then (Candice vs Jake Hoeppner)
         holder = match_by_riding(riding_idx, rec["riding"], start, end)
+        if not riding_fallback_ok(rec["name"], holder, fam_idx, fam_of):
+            holder = None                                       # the riding's holder is a DIFFERENT person (Cummins vs Findlay)
         tied_how = None
         if by_name is None and holder is None and term_idx:
             # Ambiguous name AND no riding answer: keep only the candidates with a stint overlapping THIS fiscal year; exactly one

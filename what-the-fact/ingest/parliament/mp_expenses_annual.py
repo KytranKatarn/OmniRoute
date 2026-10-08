@@ -32,7 +32,8 @@ from datetime import date
 
 from sqlalchemy import text
 
-from ingest.parliament.mp_expenses import _build_mp_index, _match_mp, _norm
+from ingest.parliament.mp_expenses import (_build_mp_index, _match_mp, _norm, build_term_index, family_of_index, riding_fallback_ok,
+                                           seat_plausible)
 from ingest.parliament.mp_expenses_archive import _BASE, _get, build_riding_index, match_by_riding, parse_member_list
 
 logger = logging.getLogger("wtf-ingest.mp_expenses_annual")
@@ -156,7 +157,9 @@ def run_annual_sync(engine, fy_from: int = 2010, fy_to: int = 2015, sleep: float
     """Load every annual report in [fy_from, fy_to]. Resumable. Never raises on one bad report."""
     fam_idx, full_idx = _build_mp_index(engine)
     riding_idx = build_riding_index(engine)
-    stats = {"reports": 0, "stored": 0, "skipped_existing": 0, "matched_by_riding": 0, "rejected_pages": 0,
+    term_idx = build_term_index(engine)
+    fam_of = family_of_index(fam_idx)
+    stats = {"implausible": {}, "reports": 0, "stored": 0, "skipped_existing": 0, "matched_by_riding": 0, "rejected_pages": 0,
              "vacant_pages": 0, "unmatched": {}, "failed": [], "missing_codes": []}
     for fy, code in sorted(ANNUAL_CODES.items()):
         if not (fy_from <= fy <= fy_to):
@@ -180,9 +183,13 @@ def run_annual_sync(engine, fy_from: int = 2010, fy_to: int = 2015, sleep: float
             if rec["name"].lower().startswith("vacant"):
                 continue
             mp_id = _match_mp(rec["name"], fam_idx, full_idx)
+            if mp_id is not None and not seat_plausible(mp_id, start, end, term_idx):
+                stats["implausible"][rec["name"]] = stats["implausible"].get(rec["name"], 0) + 1       # a namesake who was not in the seat
+                mp_id = None
             if mp_id is None:
-                mp_id = match_by_riding(riding_idx, rec["riding"], start, end)
-                if mp_id is not None:
+                holder = match_by_riding(riding_idx, rec["riding"], start, end)
+                if riding_fallback_ok(rec["name"], holder, fam_idx, fam_of):
+                    mp_id = holder
                     stats["matched_by_riding"] += 1
             if mp_id is None:
                 stats["unmatched"][rec["name"]] = stats["unmatched"].get(rec["name"], 0) + 1

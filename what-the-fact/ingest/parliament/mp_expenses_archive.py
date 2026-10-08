@@ -33,7 +33,8 @@ from datetime import date
 from sqlalchemy import text
 
 from ingest.parliament._retry import fetch_with_retry
-from ingest.parliament.mp_expenses import _build_mp_index, _match_mp, _quarter_label
+from ingest.parliament.mp_expenses import (_build_mp_index, _match_mp, _quarter_label, build_term_index, family_of_index,
+                                           riding_fallback_ok, seat_plausible)
 
 logger = logging.getLogger("wtf-ingest.mp_expenses_archive")
 
@@ -191,7 +192,9 @@ def run_archive_sync(engine, fy_from: int = 2015, fy_to: int = 2021, sleep: floa
     """Load every archive member report in [fy_from, fy_to]. Resumable: stored (mp, FY, Q) rows are skipped."""
     fam_idx, full_idx = _build_mp_index(engine)
     riding_idx = build_riding_index(engine)
-    stats = {"matched_by_riding": 0, "reports": 0, "stored": 0, "skipped_existing": 0, "unmatched": {}, "rejected": 0, "failed": 0,
+    term_idx = build_term_index(engine)
+    fam_of = family_of_index(fam_idx)
+    stats = {"implausible": {}, "matched_by_riding": 0, "reports": 0, "stored": 0, "skipped_existing": 0, "unmatched": {}, "rejected": 0, "failed": 0,
              "missing_codes": []}
     for (fy, fq), code in sorted(REPORT_CODES.items()):
         if not (fy_from <= fy <= fy_to):
@@ -206,11 +209,17 @@ def run_archive_sync(engine, fy_from: int = 2015, fy_to: int = 2021, sleep: floa
             have = {r[0] for r in c.execute(text(
                 "SELECT mp_id FROM parliament.mp_expenses_archive WHERE fiscal_year=:y AND fq=:q"), {"y": fy, "q": fq})}
         for mem in members:
+            qs, qe = quarter_start(fy, fq), quarter_end(fy, fq)
             mp_id = _match_mp(mem["name"], fam_idx, full_idx)
+            if mp_id is not None and not seat_plausible(mp_id, qs, qe, term_idx):
+                stats["implausible"][mem["name"]] = stats["implausible"].get(mem["name"], 0) + 1     # a namesake who was not in the seat then
+                mp_id = None
             if mp_id is None and not mem["name"].lower().startswith("vacant"):
-                # surname changes / nicknames / shared surnames defeat the name match; who held the RIDING that day does not
-                mp_id = match_by_riding(riding_idx, mem.get("riding"), quarter_start(fy, fq), quarter_end(fy, fq))
-                if mp_id is not None:
+                # surname changes / nicknames / shared surnames defeat the name match; who held the RIDING that day does not — but only
+                # when the surnames agree (or the published surname is unknown), else the published person is a DIFFERENT, unmatched MP
+                holder = match_by_riding(riding_idx, mem.get("riding"), qs, qe)
+                if riding_fallback_ok(mem["name"], holder, fam_idx, fam_of):
+                    mp_id = holder
                     stats["matched_by_riding"] += 1
             if mp_id is None:
                 stats["unmatched"][mem["name"]] = stats["unmatched"].get(mem["name"], 0) + 1

@@ -163,6 +163,69 @@ def _match_mp(csv_name: str, fam_idx: dict, full_idx: dict):
     return scored[0]["id"]
 
 
+# --- identity gates: a name/riding match is only accepted for a person who could have incurred the cost ---------------
+
+# A surname shared with a different MP (Carr, Saini, Lefebvre, Hoeppner...) lets the matcher pick someone who was not in the seat
+# at all: 2020-22 costs of the then-MP landed on a namesake first elected in 2023/2025, and Candice Hoeppner's 2009-12 costs on
+# Jake Hoeppner (1997-2000). Terms are recorded from the day Parliament OPENED, which is at most ~7 months after the election, so an
+# MP-elect can bill a little before their first recorded term (BEFORE); wind-down and late claims run on for a while after the last
+# (AFTER). Outside that, the matched person is wrong and the row stays unmatched — never attributed to a namesake.
+SEAT_BEFORE_DAYS = 200
+SEAT_AFTER_DAYS = 1095
+
+
+def build_term_index(engine) -> dict:
+    """{mp_id: [(start, end|None)]} from parliament.mp_terms — which MP held a seat when."""
+    with engine.connect() as c:
+        rows = c.execute(text("SELECT mp_id, start_date, end_date FROM parliament.mp_terms WHERE mp_id IS NOT NULL")).fetchall()
+    from datetime import date
+
+    def _d(v):
+        return date.fromisoformat(str(v)[:10]) if isinstance(v, str) else v      # sqlite hands dates back as text
+    idx: dict = {}
+    for mp, s, e in rows:
+        idx.setdefault(mp, []).append((_d(s), _d(e)))
+    return idx
+
+
+def seat_plausible(mp_id, start, end, term_idx) -> bool:
+    """True if `mp_id` held a seat at some point from SEAT_AFTER_DAYS before `start` to SEAT_BEFORE_DAYS after `end`.
+    An MP with NO recorded terms is unknowable, not implausible: True (fail-open); so is a missing term index."""
+    if not term_idx or not term_idx.get(mp_id):
+        return True
+    from datetime import timedelta
+    return any(s <= end + timedelta(days=SEAT_BEFORE_DAYS) and (e is None or e >= start - timedelta(days=SEAT_AFTER_DAYS))
+               for s, e in term_idx[mp_id])
+
+
+def family_of_index(fam_idx: dict) -> dict:
+    """{mp_id: normalised family name} inverted from _build_mp_index's {family: [{id, given}]}."""
+    return {c["id"]: fam for fam, cands in fam_idx.items() for c in cands}
+
+
+def published_family(name: str) -> str:
+    """'Cummins,  John' / 'Doyle, Hon. Norman' -> 'cummins' (everything before the comma, normalised)."""
+    return _norm((name or "").split(",", 1)[0])
+
+
+def riding_fallback_ok(name: str, holder_id, fam_idx: dict, fam_of: dict) -> bool:
+    """May the RIDING's holder stand in for an unmatched published name? Only when the surnames agree, or the published surname is
+    unknown to the roster altogether (a married-name change). A surname that IS on the roster but belongs to someone else means the
+    published person is a DIFFERENT MP who simply is not matched: 'Cummins, John' (retired 2011) must not become Kerry-Lynne Findlay,
+    who replaced him in Delta-Richmond East."""
+    if holder_id is None:
+        return False
+    fam = published_family(name)
+    return fam_of.get(holder_id) == fam or fam not in fam_idx
+
+
+def quarter_dates(fiscal_year: int, quarter: int):
+    """(first day, last day) of fiscal quarter `quarter` of `fiscal_year` (FY ends March: Q1=Apr-Jun of fy-1 ... Q4=Jan-Mar of fy)."""
+    from datetime import date
+    return {1: (date(fiscal_year - 1, 4, 1), date(fiscal_year - 1, 6, 30)), 2: (date(fiscal_year - 1, 7, 1), date(fiscal_year - 1, 9, 30)),
+            3: (date(fiscal_year - 1, 10, 1), date(fiscal_year - 1, 12, 31)), 4: (date(fiscal_year, 1, 1), date(fiscal_year, 3, 31))}[quarter]
+
+
 # --- fetch one quarter --------------------------------------------------------------
 
 def _report_guid(fiscal_year: int, quarter: int):
@@ -226,6 +289,8 @@ def run_expenses_sync(engine, start_fy: int = None, end_fy: int = None) -> dict:
     if start_fy is None:
         start_fy = end_fy - 2
     fam_idx, full_idx = _build_mp_index(engine)
+    term_idx = build_term_index(engine)
+    implausible: dict = {}
 
     total_up = total_unmatched = periods_ok = 0
     by_period: dict = {}
@@ -244,9 +309,13 @@ def run_expenses_sync(engine, start_fy: int = None, end_fy: int = None) -> dict:
                 time.sleep(_SLEEP)
                 continue
             up = un = 0
+            qs, qe = quarter_dates(fy, q)
             with engine.begin() as c:
                 for r in rows:
                     mp_id = _match_mp(r["name"], fam_idx, full_idx)
+                    if mp_id and not seat_plausible(mp_id, qs, qe, term_idx):
+                        implausible[r["name"]] = implausible.get(r["name"], 0) + 1      # a namesake who was not in the seat then
+                        mp_id = None
                     if not mp_id:
                         un += 1
                         continue
@@ -283,6 +352,7 @@ def run_expenses_sync(engine, start_fy: int = None, end_fy: int = None) -> dict:
         "unmatched": total_unmatched,
         "by_period": by_period,
         "problems": problems[:12],
+        "implausible": implausible,          # published names matched to someone who was not in the seat then (left unmatched)
     }
     # Guardrail: a run that touched a real range but upserted nothing means the source moved
     # again (or matching broke). Surface it loudly — the old failure mode was total silence.

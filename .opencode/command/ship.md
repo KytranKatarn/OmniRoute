@@ -8,13 +8,23 @@ Written from the procedure actually used on 2026-09-30, not adapted from the con
 lane. This lane works in `/mnt/archie_brain` directly and **can** push; it has no
 `opencode-pr` and no `/work/archie-platform`, and does not need them.
 
-## The two things this lane gets wrong most easily
+## The three things this lane gets wrong most easily
 
 1. **`git add -A` in the live tree.** `/mnt/archie_brain` is shared with Claude/owner
    *and* bind-mounted into running containers, so a stray `add -A` sweeps someone
    else's in-progress work into your commit — and serves it live. Stage explicit paths.
 2. **Building PR branches in the live checkout.** The live tree must stay on `main`,
    because `archie_platform` bind-mounts it. Use a separate worktree.
+3. **Assuming the shell remembers where you were.** Tool calls do NOT share cwd —
+   a `cd` in one call is gone by the next, back to the default workdir. Every git
+   command below must run as a **single self-contained chain starting with its own
+   `cd`**; never `cd` in one call and `git` in the next. On 2026-10-08 a bare
+   `git add`/`git commit` issued after a `cd` in an *earlier* call landed the commit
+   on the live tree's `main` — recovered with `git reset --soft HEAD~1` only after
+   verifying the commit held exactly the intended file and its parent was
+   `origin/main`. Check that same way if it ever happens: reflog, `git show --stat`,
+   parent vs `origin/main`, then soft-reset. Never `--hard` — the tree carries other
+   people's uncommitted work.
 
 ## Procedure
 
@@ -33,11 +43,14 @@ Anything you did not write, do not stage.
 ### 2. Branch in a throwaway worktree
 
 ```bash
-WT=/home/kytran/.cache/opencode/tmp/opencode/ship-wt
-rm -rf "$WT"
-git worktree add --detach "$WT" origin/main
-cd "$WT" && git checkout -b <type>/<short-slug>
+cd /mnt/archie_brain && WT=/home/kytran/.cache/opencode/tmp/opencode/ship-wt \
+  && rm -rf "$WT" && git worktree add --detach "$WT" origin/main \
+  && cd "$WT" && git checkout -b <type>/<short-slug>
 ```
+
+If `git worktree add` fails with *missing but already registered*: run
+`git -C /mnt/archie_brain worktree prune` and retry — a previous ship's worktree
+directory was deleted without deregistering.
 
 ### 3. Apply only your change
 
@@ -51,7 +64,7 @@ Otherwise `git checkout <branch> -- <explicit paths>`.
 ### 4. Verify before you commit
 
 ```bash
-git diff --name-only origin/main...HEAD   # exactly the files you intend
+cd "$WT" && git diff --name-only origin/main...HEAD   # exactly the files you intend
 ```
 
 For shell: `bash -n` every script. For file modes, compare against the source branch —
@@ -67,11 +80,14 @@ reformatted file and commit again.
 Do **not** pre-format with the host's `black` (currently 26.x); it disagrees with the
 pinned version on untouched lines and you will fight it. Let the hook decide.
 
+Gate-check without committing: `pre-commit run --files <your paths>` runs the same
+pinned hooks (no stash, no side effects) — that, not host `black`/`flake8`, is the
+authoritative pre-commit result.
+
 Never `--amend` a commit the hook rejected — make a new one.
 
 ```bash
-git add <explicit paths>
-git commit -F - <<'EOF'
+cd "$WT" && git add <explicit paths> && git commit -F - <<'EOF'
 <why the change, not what the diff says>
 EOF
 ```
@@ -82,8 +98,8 @@ symptom pointed somewhere else than the defect.
 ### 6. Push and open the PR
 
 ```bash
-git push -u origin <branch>
-gh pr create --base main --head <branch> --title "..." --body "..."
+cd "$WT" && git push -u origin <branch>
+cd "$WT" && gh pr create --base main --head <branch> --title "..." --body "..."
 ```
 
 The body should carry: what changed, the root cause where it was not obvious, how it
@@ -95,7 +111,24 @@ security-boundary change into its own PR with a title that says it needs a decis
 
 ### 7. Register with Repair Bay
 
-So F.O.R.G.E. picks it up for review.
+So F.O.R.G.E. picks it up for review. There is no helper command — run this
+(inside the platform container, where the service and its DB access live):
+
+```bash
+docker exec archie_platform python3 -c "
+import sys; sys.path.insert(0, '/app')
+from tools.repair_bay.services.pr_review_service import poll_open_prs, get_review
+p = poll_open_prs()
+print('POLL:', {k: p[k] for k in ('tracked','inserted','updated','errors') if k in p})
+r = get_review(<PR-NUMBER>) or {}
+print('STATUS:', r.get('review_status'))
+"
+```
+
+`inserted: 1` + `STATUS: pending` = registered; F.O.R.G.E. picks it up on its next
+pass. The row moves `pending → in_progress → reviewed` on its own — a row stuck
+`in_progress` self-heals through the 20-minute retry/reap cycle, so wait rather
+than poking its bookkeeping.
 
 ### 8. Stop
 
@@ -104,6 +137,13 @@ So F.O.R.G.E. picks it up for review.
 ```bash
 gh pr view <n> --json state,mergeStateStatus,reviewDecision
 ```
+
+Reading the verdict: F.O.R.G.E. writes `ai_summary` (what `merge_state` reads).
+A `NEEDS REVIEW` summary that says *"0/1 files read in full"* is the known
+fail-closed chunked-review gap (#6822/#6247) — read the summary body for the
+actual findings instead of treating it as a clean reject. Also check
+`metadata->>'reviewed_head_sha'` matches your PR's head commit; a mismatch means
+the verdict predates your last push and is stale.
 
 ## Deploy is a separate step, and it is not a merge
 

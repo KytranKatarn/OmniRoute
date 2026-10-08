@@ -136,6 +136,42 @@ Always use `var(--archie-*)` from `lcars-tokens.css` for colors. Don't hardcode.
 
 Example: `mistral-cpu` (CODEX+ROSETTA dual-lane pattern) is a Modelfile variant of `mistral:7b` with `PARAMETER num_gpu 0`.
 
+## Verifying inside an image-baked, read-only container
+
+Product containers `COPY` their code (a merge is not a deploy), and some run
+`read_only: true` — so the live tree is NOT what the process executes, and
+`docker cp` into the container fails with *"container rootfs is marked read-only"*
+(only the `/tmp` tmpfs is writable, and `docker cp` cannot target it). Recipe
+used for PRs #3751/#3752 — embed the edited source over stdin and load it with
+package context so relative imports still resolve:
+
+```bash
+B64=$(base64 -w0 <edited-file>) && docker exec -i -e B64="$B64" <container> python3 - <<'EOF'
+import base64, os, sys, asyncio, types
+sys.path.insert(0, '/app')
+src = base64.b64decode(os.environ['B64']).decode()
+mod = types.ModuleType('mcp_server.tools.<module>_new')  # unique name, no clash
+mod.__package__ = 'mcp_server.tools'                     # enables `from . import ...`
+sys.modules[mod.__name__] = mod
+exec(compile(src, '<module>_new.py', 'exec'), mod.__dict__)
+r = asyncio.run(mod.<handler>_handler({...}))            # handlers are async
+print(r)
+EOF
+```
+
+Notes:
+
+- `register_tool` calls firing at import time are harmless in a throwaway process.
+- Container env (DB_HOST/DB_USER/DB_PASSWORD_FILE) is the point: you test with the
+  same config and grants the running process has (`archie_mcp_gateway` connects as
+  **`codex_ro`** — test grants there, never as `archie`).
+- `archie_mcp_gateway` is `FROM archie_brain-archie_platform:latest` and has **no
+  repo mount**: rebuild the base image first (or you serve stale code looking
+  healthy), and git commands inside it return empty — tools must report n/a, not
+  a fake clean status.
+- **Never "verify" by reading the file inside the container.** Prove it where it
+  executes (`.claude/rules/deploy-provenance.md`).
+
 ## When in doubt
 
 - Search KB: `mcp__archie__search_knowledge` with category=architecture or the module name

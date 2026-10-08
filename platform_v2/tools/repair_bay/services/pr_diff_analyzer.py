@@ -3310,7 +3310,6 @@ def _obtain_review_summary(
 
     _summaries = []
     _retry_used = False
-    _salvage_used = False  # #6800 — separate budget from the #5287 path upgrade
     # #5836 follow-up — the cap each pass ACTUALLY ran at, so the coverage note can be
     # measured against what the review saw rather than a fixed assumption.
     #
@@ -3390,10 +3389,11 @@ def _obtain_review_summary(
         # ⚠️ THIS NEVER INFERS A VERDICT. Reading approval out of friendly prose is the #2458
         # shape — "a lost pass must never read as an approval". If the salvage is ALSO unreadable
         # the original stands and the existing fail-closed behaviour is byte-identical. Its
-        # budget is separate from `_retry_used`: that one is a path upgrade for a degraded
+        # budget is one extra call PER PASS, without a loop. A review-wide budget leaves
+        # later malformed passes blocked (#3748: 19 passes). It is separate from
+        # `_retry_used`: that one is a path upgrade for a degraded
         # BLOCKING verdict, a different problem with a different remedy.
-        if summary and not _salvage_used and _is_unparseable_pass(summary):
-            _salvage_used = True
+        if summary and _is_unparseable_pass(summary):
             logger.warning(
                 "[PR Review] PR #%s — pass %d answered in prose (no VERDICT, no findings); "
                 "requesting one structured salvage (#6800)",

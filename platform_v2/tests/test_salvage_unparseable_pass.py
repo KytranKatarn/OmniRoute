@@ -74,28 +74,56 @@ class TestTheFailClosedBehaviourIsUnchanged:
         assert "failing closed" in out
 
 
-class TestTheSalvageIsWiredAndBounded:
-    """A predicate nobody calls is not a salvage — and an unbounded retry is a cost bug."""
+class TestEveryPassGetsOneSalvage:
+    """Exercise the real chunk loop, not a source-text imitation of the budget."""
 
-    import pathlib
+    def run_review(self, monkeypatch, salvage):
+        from tools.repair_bay.services import pr_diff_analyzer as analyzer
 
-    SRC = pathlib.Path(__file__).resolve().parents[1] / "tools" / "repair_bay" / "services" / "pr_diff_analyzer.py"
+        calls = {}
+        chunks = []
+        full = "".join(
+            f"diff --git a/f{i}.py b/f{i}.py\n--- a/f{i}.py\n+++ b/f{i}.py\n" "@@ -1 +1 @@\n-old\n+new\n"
+            for i in range(3)
+        )
 
-    def test_the_chunk_loop_calls_the_predicate(self):
-        src = self.SRC.read_text()
-        assert "if summary and not _salvage_used and _is_unparseable_pass(summary):" in src
+        def review(_review, chunk, *args, ground_diff=None, **kwargs):
+            assert ground_diff == full
+            calls[chunk] = calls.get(chunk, 0) + 1
+            chunks.append(chunk)
+            assert calls[chunk] <= 2, "salvage must never recurse or loop"
+            return PROSE if calls[chunk] == 1 else salvage
 
-    def test_the_budget_is_one_per_review_and_separate_from_the_5287_retry(self):
-        src = self.SRC.read_text()
-        assert "_salvage_used = False" in src
-        assert "_salvage_used = True" in src
-        # the two budgets must be distinct variables, or one path steals the other's retry
-        assert "_retry_used = False" in src
+        monkeypatch.setattr(analyzer, "_get_setting", lambda *a, **k: None)
+        monkeypatch.setattr(analyzer, "_tier3_is_reachable", lambda: False)
+        monkeypatch.setattr(analyzer, "_structured_review", review)
+        monkeypatch.setattr(analyzer, "mark_review_progress", lambda *a, **k: None)
+        monkeypatch.setattr(analyzer, "_publish_file_progress", lambda *a, **k: None)
+        with analyzer.review_scope_override(plan="per_file", max_files=3):
+            out = analyzer._obtain_review_summary({"title": "test"}, full, 1, "test/repo")
+        assert len(calls) == 3
+        assert list(calls.values()) == [2, 2, 2]
+        return out
 
-    def test_a_failed_salvage_keeps_the_original_summary(self):
-        """The `else` branch must not assign — an unreadable salvage leaves `summary` alone."""
-        src = self.SRC.read_text()
-        i = src.index("if summary and not _salvage_used and _is_unparseable_pass(summary):")
-        body = src[i : i + 1500]
-        assert "if _salvaged and not _is_unparseable_pass(_salvaged):" in body
-        assert "failing closed as before" in body
+    def test_later_malformed_passes_receive_their_own_retry(self, monkeypatch):
+        out = self.run_review(monkeypatch, "VERDICT: APPROVE")
+        assert "VERDICT: APPROVE" in out
+        assert "blocked without a parseable finding" not in out
+
+    def test_repeated_prose_still_blocks_without_more_retries(self, monkeypatch):
+        out = self.run_review(monkeypatch, PROSE)
+        assert "VERDICT: NEEDS REVIEW" in out
+        assert "blocked without a parseable finding" in out
+
+    def test_unavailable_salvage_keeps_original_prose_and_blocks(self, monkeypatch):
+        out = self.run_review(monkeypatch, None)
+        assert "VERDICT: NEEDS REVIEW" in out
+        assert "blocked without a parseable finding" in out
+
+    def test_salvaged_defect_is_not_discarded(self, monkeypatch):
+        out = self.run_review(
+            monkeypatch,
+            "- [CRITICAL] Regression — new breaks execution — Evidence: new\n" "VERDICT: REQUEST CHANGES",
+        )
+        assert "VERDICT: REQUEST CHANGES" in out
+        assert "Regression" in out

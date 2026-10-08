@@ -1,0 +1,306 @@
+"""Static department job entries, section 3."""
+
+JOB_ENTRIES = {
+    "agent_conversation_consolidation": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": "Consolidate conversation fragments into coherent knowledge",
+        "interval": "1h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_improvement_detection": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Detect improvement opportunities from knowledge patterns",
+        "interval": "6h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_daily_self_reflection": {
+        "department": "Executive Office",
+        "director": "A.R.C.H.I.E.",
+        "description": "Daily self-reflection — system introspection at midnight",
+        "interval": "daily 00:00",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_weekly_memory_consolidation": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": "Weekly memory consolidation — prune and merge memories (Sunday 3 AM)",
+        "interval": "weekly Sun 03:00",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_knowledge_auto_link": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": "Auto-link knowledge entries to relevant projects",
+        "interval": "5m",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_auto_generate_docs": {
+        "department": "Research & Development",
+        "director": "D.A.R.W.I.N.",
+        "description": "D.A.R.W.I.N. auto-documentation generation for projects",
+        "interval": "6h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_weekly_knowledge_report": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": "C.O.D.E.X. weekly knowledge health reports (Sunday 3 AM)",
+        "interval": "weekly Sun 03:00",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_github_repo_analysis": {
+        "department": "Research & Development",
+        "director": "D.A.R.W.I.N.",
+        "description": "GitHub repo relevance analysis — score and rank tracked repos",
+        "interval": "6h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_skill_installer": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": "Install discovered skills to Claude Code configuration",
+        "interval": "2h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_skill_tester": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Skill tester — structural validation and dry-run testing",
+        "interval": "4h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_skill_fleet_push": {
+        "department": "Fleet & Infrastructure",
+        "director": "A.R.M.A.D.A.",
+        "description": "Push validated skills to fleet nodes for cluster distribution",
+        "interval": "6h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    "agent_skill_adaptation": {
+        "department": "Research & Development",
+        "director": "D.A.R.W.I.N.",
+        "description": "Adapt external skills for A.R.C.H.I.E. platform conventions",
+        "interval": "12h",
+        "source_file": "platform_v2/tools/consciousness/jobs.py",
+    },
+    # =========================================================================
+    # platform_v2/tools/department_hq/jobs.py — 6 jobs
+    # =========================================================================
+    "agent_code_metrics": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Daily codebase metrics snapshot with stale audit detection (3 AM)",
+        "interval": "daily 03:00",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    "agent_pattern_compliance": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Pattern compliance check — ADR-013 and coding standard violations (4 AM)",
+        "interval": "daily 04:00",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    "agent_automated_module_audit": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Automated module audit with Repair Bay proposal generation (3:30 AM)",
+        "interval": "daily 03:30",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    "agent_code_health_digest": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Daily code health Telegram digest summary (8 AM)",
+        "interval": "daily 08:00",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    "agent_code_health_scan": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Daily codebase scan — save snapshot for Code Health tab (2 AM)",
+        "interval": "daily 02:00",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    "agent_competitor_scan": {
+        "department": "Analytics & Intelligence",
+        "director": "S.P.E.C.T.R.A.",
+        "description": "AI competitor landscape scan — track and update competitor profiles",
+        "interval": "14d",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    "dispatch_retention_prune": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Nightly prune of old rows: TERMINAL bridge_jobs + dispatch_pending_queue (allowlist) + age-only autonomy_loop_log (14d) + governance_audit_log (365d, signed compliance trail) — bounds unbounded growth (#4542). Tunable via platform_settings retention:*",
+        "interval": "daily 04:15",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
+    # =========================================================================
+    # platform_v2/services/fleet_jobs.py — 6 jobs
+    # =========================================================================
+    "agent_fleet_health": {
+        "department": "Fleet & Infrastructure",
+        "director": "A.R.M.A.D.A.",
+        "description": "Fleet node heartbeat monitor — return agents to barracks if offline",
+        "interval": "30s",
+        "source_file": "platform_v2/services/fleet_jobs.py",
+    },
+    "agent_mesh_health": {
+        "department": "Fleet & Infrastructure",
+        "director": "A.R.M.A.D.A.",
+        "description": "Mesh VPN connectivity monitor for fleet nodes",
+        "interval": "60s",
+        "source_file": "platform_v2/services/fleet_jobs.py",
+    },
+    "agent_model_state_save": {
+        "department": "Fleet & Infrastructure",
+        "director": "A.R.M.A.D.A.",
+        "description": "Save loaded model state to DB for restart recovery",
+        "interval": "5m",
+        "source_file": "platform_v2/services/fleet_jobs.py",
+    },
+    "agent_standalone_health": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Standalone product health monitor — alert on downtime",
+        "interval": "60s",
+        "source_file": "platform_v2/services/fleet_jobs.py",
+    },
+    "department_metrics_rollup": {
+        "department": "Analytics & Intelligence",
+        "director": "S.P.E.C.T.R.A.",
+        "description": "Department metrics rollup — daily aggregation (2 AM)",
+        "interval": "daily 02:00",
+        "source_file": "platform_v2/services/fleet_jobs.py",
+    },
+    "fleet_ssl_renewal": {
+        "department": "Security & Compliance",
+        "director": "V.I.G.I.L.",
+        "description": "Fleet wildcard SSL certificate renewal check (3 AM)",
+        "interval": "daily 03:00",
+        "source_file": "platform_v2/services/fleet_jobs.py",
+    },
+    # =========================================================================
+    # platform_v2/services/agent_jobs.py — 11 jobs
+    # =========================================================================
+    "agent_hr_tracker": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "HR tracker — shift transitions, time tracking, attendance",
+        "interval": "5m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_ethics_monitoring": {
+        "department": "Legal & Regulatory",
+        "director": "G.A.V.E.L.",
+        "description": "Ethics monitoring — C.R.E.E.D. compliance checks for all agents",
+        "interval": "15m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_training_tick": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Training progression tick — advance agent proficiency levels",
+        "interval": "5m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_welfare_recovery": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Welfare recovery — heal stressed/fatigued agents over time",
+        "interval": "30m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_idle_volunteering": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Idle volunteering — assign idle agents to pending work",
+        "interval": "5m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_performance_rankings": {
+        "department": "Analytics & Intelligence",
+        "director": "S.P.E.C.T.R.A.",
+        "description": "Update agent performance rankings across departments",
+        "interval": "15m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_queue_exhaustion": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "DHQ observer — alert when agent is at task_queue_limit (Project #261 #2101)",
+        "interval": "10m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_counter_drift": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Reconcile agent_budgets counter vs bridge_jobs live count — alert on drift > 3",
+        "interval": "1h",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "agent_understaffed_digest": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Daily digest — capabilities with no Lv4+ dispatchable agent",
+        "interval": "daily 09:00",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "ollama_lifecycle_telemetry": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Snapshot Ollama loaded models + alert on KEEP_ALIVE stall (#1898)",
+        "interval": "5m",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    "department_welfare_digest": {
+        "department": "Human Resources & Culture",
+        "director": "K.I.N.",
+        "description": "Daily welfare roll-up — alert on elevated stress / agents-at-risk (#1933)",
+        "interval": "daily 09:05",
+        "source_file": "platform_v2/services/agent_jobs.py",
+    },
+    # =========================================================================
+    # platform_v2/tools/social_media/social_worker.py — 3 jobs
+    # =========================================================================
+    "social_process_queue": {
+        "department": "Marketing & Communications",
+        "director": "S.I.G.N.A.L.",
+        "description": "Process social media post queue — publish pending posts",
+        "interval": "60s",
+        "source_file": "platform_v2/tools/social_media/social_worker.py",
+    },
+    "social_refresh_tokens": {
+        "department": "Marketing & Communications",
+        "director": "S.I.G.N.A.L.",
+        "description": "Refresh expiring OAuth tokens for social media platforms",
+        "interval": "1h",
+        "source_file": "platform_v2/tools/social_media/social_worker.py",
+    },
+    "social_fetch_analytics": {
+        "department": "Marketing & Communications",
+        "director": "S.I.G.N.A.L.",
+        "description": "Fetch post analytics from social media platforms",
+        "interval": "1h",
+        "source_file": "platform_v2/tools/social_media/social_worker.py",
+    },
+    # =========================================================================
+    # platform_v2/services/budget_jobs.py — 2 jobs (via JobService)
+    # =========================================================================
+    "budget_reset": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Daily zero-out of agent task counts and token usage (4 AM)",
+        "interval": "daily 04:00",
+        "source_file": "platform_v2/services/budget_jobs.py",
+    },
+    "cooldown_recovery": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Transition cooldown agents with cleared budgets back to active (4:05 AM)",
+        "interval": "daily 04:05",
+        "source_file": "platform_v2/services/budget_jobs.py",
+    },
+}

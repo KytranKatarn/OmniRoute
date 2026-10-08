@@ -83,7 +83,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 Authored interactively via the OpenCode web terminal." || true
 fi
 
-# Push — this fires the pre-push scope guard (fails closed if out of scope).
+# Push — in guarded lanes this fires the pre-push scope guard (fails closed if
+# out of scope); the guard-free lane runs with no guard (/opt/no-guard).
 git push -u origin "$BRANCH"
 
 # Open the PR via the GitHub API (python urllib; the image has no curl, same as codex).
@@ -96,7 +97,6 @@ body = json.dumps({
     "head": branch,
     "base": "main",
     "body": "Opened from the OpenCode web terminal (interactive). "
-            "Scope-guarded to allowed Applications/Concepts paths; "
             "F.O.R.G.E. review required before merge.\n\n🤖 OpenCode (CLI)",
 }).encode()
 req = urllib.request.Request(

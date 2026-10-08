@@ -197,7 +197,7 @@
   {% if annual_costs and annual_costs.blocks %}
   <div class="wtf-pt-sec" data-fiscal-year-costs>Earlier years, by fiscal year</div>
   <p class="wtf-pt-hint">From the House&rsquo;s annual reports. Fiscal years run April&ndash;March (FY2010 = April 2009 to March 2010), so they are kept apart
-    from the calendar-year table above. A member&rsquo;s whole year is charged to the party at mid-year ({{ annual_costs.changed }} member-years changed party mid-year).
+    from the calendar-year table above. A member&rsquo;s whole year is charged to the party at mid-year, or to their first stint that year if they joined later ({{ annual_costs.changed }} member-years changed party mid-year).
     FY2002&ndash;FY2009 are totals only: the older reports give no reliable category split.</p>
   {% for b in annual_costs.blocks %}
   {% set arow = [] %}

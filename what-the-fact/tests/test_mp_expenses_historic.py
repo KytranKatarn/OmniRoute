@@ -207,3 +207,16 @@ def test_a_name_match_with_a_turnover_riding_disagreement_but_no_collision_is_ke
     idx = {_riding_key("Kitchener—Conestoga"): [(date(1993, 1, 1), None, 12411)]}
     (rec, mp, how), = h.resolve_ids([{"name": "Albrecht, Harold", "riding": "Kitchener—Conestoga"}], {}, {}, idx, date(2005, 4, 1), date(2006, 3, 31))
     assert (mp, how) == (11826, "name")
+
+
+MIG101 = Path(__file__).resolve().parent.parent / "migrations" / "101_annual_view_first_stint_in_year.sql"
+
+
+def test_migration_101_falls_back_to_the_first_stint_in_the_year_never_a_guess():
+    sql = MIG101.read_text(encoding="utf-8")
+    assert "'first_in_year'" in sql and "t.tier = 2" in sql
+    assert "t0.start_date <= (a.period_end + 30)" in sql                 # the window is bounded: a later stint is not borrowed blindly
+    assert "COALESCE(t.party, 'Unattributed')" in sql                    # no stint in the window -> still Unattributed
+    assert "t0.start_date <= (a.period_start + 182)" in sql              # a midpoint stint still wins (tier 1)
+    assert "ORDER BY x.tier" in sql
+    assert "\nBEGIN;" not in sql and "COMMIT;" not in sql and "'101'" in sql

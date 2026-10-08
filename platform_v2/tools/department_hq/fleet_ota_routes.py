@@ -32,7 +32,11 @@ logger = logging.getLogger(__name__)
 
 
 def register_ota_routes(bp, auth_decorator):
-    """Fleet OTA command entry point; file delivery and node-key polling are registered below."""
+    """Register OTA push and sync routes on the fleet blueprint.
+
+    Delivery and node-key polling are registered through the companion module
+    below. All original route docstrings, guards and bodies are preserved.
+    """
 
     @bp.route("/api/nodes/<int:node_id>/push-config", methods=["POST"])
     @auth_decorator

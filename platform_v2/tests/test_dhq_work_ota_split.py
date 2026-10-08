@@ -174,3 +174,10 @@ def test_ota_file_allowlist_and_checkpoint_filename_guards(route_app):
     client = app.test_client()
     assert client.get("/tools/department-hq/api/nodes/ota/secret.txt").status_code == 403
     assert client.get("/tools/department-hq/api/fleet/checkpoints/bad%24name").status_code == 400
+
+
+def test_work_detail_keeps_the_original_inference_filter(route_app):
+    _, modules = route_app
+    assert modules["work_detail_routes"]._REAL_INFERENCE_SQL is modules["work_routes"]._REAL_INFERENCE_SQL
+    assert "bridge-managed" in modules["work_detail_routes"]._REAL_INFERENCE_SQL
+    assert "worker_type IS NOT NULL" in modules["work_detail_routes"]._REAL_INFERENCE_SQL

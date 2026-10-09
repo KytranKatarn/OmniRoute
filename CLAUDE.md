@@ -243,54 +243,23 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 
 1. **Read before modify** — Check existing code patterns first
 2. **Two `.env` sources, both LIVE — a variable can have TWO different values at once.**
-   Root `.env` is injected as **process env** by compose (`env_file: - .env`, read at *container
-   create*). `platform_v2/.env` is visible inside the same container at **`/app/.env`**, and code
-   loads it with dotenv. So `os.getenv("X")` and `load_dotenv("/app/.env")["X"]` can disagree.
-
-   As of 2026-10-06 they **do** disagree for 7 shared vars — `ARCHIE_CLAUDE_PASSWORD`,
-   `CANLII_API_KEY` (absent from the mirror), `GDRIVE_ENCRYPTION_PASSPHRASE_HASH` (absent from
-   root), `GITHUB_REPOS`, `GITHUB_TOKEN`, `INTERNAL_API_KEY`, `NTOPNG_ADMIN_PASSWORD` — and the
-   files are not even the same shape (49 vars only in root, 17 only in the mirror). **Do not
-   "fix" this by copying one over the other**; each side may be correct for its own consumer.
-   Resolve a given variable's source deliberately before trusting it.
-
-   **Precedence, settled three independent ways — root `.env` wins:**
-   1. compose injects root `.env` as process env (`env_file: - .env`)
-   2. `platform_v2/config.py` calls bare `load_dotenv()` — **no `override=True`** — and
-      python-dotenv defaults to `override=False`, so an existing process env is never replaced
-   3. `ai_bridge/external_providers._get_api_key()` checks `auth_env_var` against `os.getenv`
-      *before* the encrypted DB column
-   4. `platform_v2/services/agent_credential_service.py` and
-      `platform_v2/tools/backup_manager/_shared.py` both document it in comments
-
-   So `/app/.env` only fills variables root does not define at all (it has 17 such), and all 7
-   divergent shared vars resolve to the ROOT value at runtime.
-
-   **The mirror is NOT dead config — do not delete it.** It has four real readers (verified
-   2026-10-06 by sweeping cron, systemd, compose, Dockerfiles, CI and every running container):
-
-   | reader | what it does |
-   |---|---|
-   | `platform_v2/services/qa_spec_runner.py` | `load_dotenv("/app/.env")`, falls back to the mirror for `${...}` refs in QA specs |
-   | `platform_v2/tools/system_operations/stack_routes.py` | reads the file's **full contents** and returns them in the System Operations stack API |
-   | `platform_v2/tools/system_operations/stack_routes.py` | whitelists `platform_v2/.env` as a servable env file beside `.env` |
-   | `website/.../_export_agents.py` | `DB_PASSWORD` fallback |
-
-   Of its 17 mirror-only vars, none is read by any consumer that loads dotenv — but that is a
-   statement about those variables, NOT about the file. Confusing the two leads to deleting a file
-   that four things depend on.
-
-   `platform_v2/tools/backup_manager/_shared.py`, `.../routes_storage.py` and
-   `platform_v2/services/agent_credential_service.py` also mention the path, but only in COMMENTS —
-   and those comments say the container does NOT load it. Don't read a comment as a reader.
-
-   This has caused real incidents, not just confusion: **#5124** (Cloud tab hid itself, and 37
-   good off-site backups appeared lost, because a recovery check keyed off a var
-   `archie_platform` does not load) and **#5311** (a rotation reported success against
-   `/app/.env` while the root `.env` needed a hand-sync).
-
-   Verify with fingerprints, never by printing a value:
-   `sed -n 's/^VAR=//p' .env | tr -d '"\''\r' | sha256sum | cut -c1-12`
+   Root `.env` is injected as **process env** by compose (`env_file: - .env`, read at container
+   *create*); `platform_v2/.env` shows up in the same container as **`/app/.env`** and is read by
+   dotenv. So `os.getenv("X")` and `load_dotenv("/app/.env")["X"]` can disagree (7 shared vars did on
+   2026-10-06). **Root `.env` wins** — compose injects it, `config.py` calls bare `load_dotenv()` with no
+   `override=True`, and `external_providers._get_api_key()` reads `os.getenv` before the DB column — so
+   `/app/.env` only fills variables root does not define.
+   - **Never "fix" a mismatch by copying one file over the other**; each side may be right for its own
+     consumer. Resolve a variable's source deliberately first.
+   - **The mirror is NOT dead — do not delete it.** Four real readers: `qa_spec_runner.py`,
+     `system_operations/stack_routes.py` (reads it AND whitelists it as servable), and
+     `website/.../_export_agents.py`. Comments elsewhere that mention the path are not readers.
+   - Real incidents: **#5124** (a recovery check keyed off a var `archie_platform` doesn't load — 37 good
+     backups looked lost) and **#5311** (a rotation reported success against `/app/.env` while root
+     needed a hand-sync).
+   - Verify with fingerprints, never by printing a value:
+     `sed -n 's/^VAR=//p' .env | tr -d '"\''\r' | sha256sum | cut -c1-12`
+   - Full evidence (divergent var list, precedence proof, reader table): **KB #377834**.
 3. **Module perms** — Add to BOTH `rbac.py` AND `module_registry.py`
 4. **Keep indexes in sync** — Memory files → MEMORY.md. Architecture changes → rules files + CLAUDE.md
 5. **Dev HQ after every commit+push**:

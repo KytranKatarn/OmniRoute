@@ -905,6 +905,15 @@ def code_health_backlog_drain_job():
     except Exception as exc:
         logger.warning("Planned repair reconciliation failed: %s", exc)
 
+    try:
+        from services.planned_repair_completion import reconcile_planned_completion
+
+        completed = reconcile_planned_completion(limit=3)
+        if completed.get("checked"):
+            logger.info("[PlannedRepairCompletion] %s", completed)
+    except Exception as exc:
+        logger.warning("Planned repair completion tracking failed: %s", exc)
+
     if not is_enabled("code_health_backlog_drain", default=False):
         return
     start = time.time()

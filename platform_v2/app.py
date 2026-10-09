@@ -5740,6 +5740,16 @@ def api_internal_repair_proposals():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/internal/repair/proposals/<int:proposal_id>/verify", methods=["POST"])
+@require_internal_scope("repair:write")
+def api_internal_repair_proposal_verify(proposal_id):
+    """Collect local runtime evidence in the serving process, never the scheduler."""
+    from services.repair_verification import verify_completion
+
+    result = verify_completion(proposal_id)
+    return jsonify(result)
+
+
 @app.route("/api/internal/repair/proposals/<int:proposal_id>/pr", methods=["POST"])
 @require_internal_scope("repair:write")
 def api_internal_repair_proposal_pr(proposal_id):

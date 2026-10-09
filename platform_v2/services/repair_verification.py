@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import subprocess
 from database import get_db_cursor
 
 
@@ -35,21 +36,35 @@ def verify_completion(proposal_id):
         if row["status"] != "pr_open":
             return {"success": False, "error": "Repair is not awaiting completion verification"}
         submission = meta.get("repair_submission") or {}
-        path, display, status = resolve_proposal_source(meta.get("file_path", ""))
-        if status != "ok" or not submission.get("target_sha256"):
-            return {"success": False, "error": "Deployed patch fingerprint is unavailable"}
-        file = Path(path)
-        source = file.read_text()
-        if hashlib.sha256(source.encode()).hexdigest() != submission["target_sha256"]:
-            return {"success": False, "error": "Deployed file does not match the submitted patch"}
-        if RUNTIME_STARTED_AT <= file.stat().st_mtime:
-            return {"success": False, "error": "Restart the service after deploying the patch, then run module QA"}
-        verdict = finding_still_reproduces(proposal_message(meta.get("issue_code", ""), meta.get("detail", "")), source)
-        if verdict is not False:
-            return {"success": False, "error": "Original finding remains present or unverified"}
-        suites = MODULE_SUITE_MAP.get(module_from_file_path(display)) or []
-        if not suites:
+        if meta.get("apply_mode") == "planned_codex_pr" and not meta.get("repair_artifacts"):
+            return {"success": False, "error": "Planned repair manifest is unavailable"}
+        if meta.get("repair_artifacts"):
+            from services.planned_repair_verification import verify_artifacts
+
+            try:
+                evidence, modules = verify_artifacts(meta, RUNTIME_STARTED_AT)
+            except (ValueError, OSError, SyntaxError, subprocess.SubprocessError) as exc:
+                return {"success": False, "error": str(exc)}
+        else:
+            path, display, status = resolve_proposal_source(meta.get("file_path", ""))
+            if status != "ok" or not submission.get("target_sha256"):
+                return {"success": False, "error": "Deployed patch fingerprint is unavailable"}
+            file = Path(path)
+            source = file.read_text()
+            if hashlib.sha256(source.encode()).hexdigest() != submission["target_sha256"]:
+                return {"success": False, "error": "Deployed file does not match the submitted patch"}
+            if RUNTIME_STARTED_AT <= file.stat().st_mtime:
+                return {"success": False, "error": "Restart the service after deploying the patch, then run module QA"}
+            verdict = finding_still_reproduces(
+                proposal_message(meta.get("issue_code", ""), meta.get("detail", "")), source
+            )
+            if verdict is not False:
+                return {"success": False, "error": "Original finding remains present or unverified"}
+            modules = {module_from_file_path(display)}
+            evidence = {"artifact_sha256": submission["target_sha256"]}
+        if any(not MODULE_SUITE_MAP.get(module) for module in modules):
             return {"success": False, "error": "Module QA coverage is unavailable"}
+        suites = sorted({suite for module in modules for suite in MODULE_SUITE_MAP[module]})
         # Match run_suite_for_module: inactive suites cannot run and must not
         # block completion. Still require nonempty active coverage and every
         # active mapped suite to have fresh, fully passing results.
@@ -58,7 +73,7 @@ def verify_completion(proposal_id):
             (suites,),
         )
         suites = [suite["id"] for suite in cur.fetchall()]
-        if not suites:
+        if any(not set(MODULE_SUITE_MAP[module]).intersection(suites) for module in modules):
             return {"success": False, "error": "Active module QA coverage is unavailable"}
         cur.execute(
             """SELECT DISTINCT ON (suite_id) id,suite_id,status,total_tests AS total,passed,failed,errors
@@ -72,10 +87,17 @@ def verify_completion(proposal_id):
             for r in runs
         ):
             return {"success": False, "error": "Run all module QA suites successfully after deployment"}
+        if meta.get("repair_artifacts"):
+            try:
+                final_evidence, final_modules = verify_artifacts(meta, RUNTIME_STARTED_AT)
+                if final_evidence != evidence or final_modules != modules:
+                    return {"success": False, "error": "Deployment changed during verification"}
+            except (ValueError, OSError, SyntaxError, subprocess.SubprocessError) as exc:
+                return {"success": False, "error": str(exc)}
         receipt = {
             "verified_at": now_utc().isoformat(),
             "runtime_started_at": RUNTIME_STARTED_AT,
-            "artifact_sha256": submission["target_sha256"],
+            **evidence,
             "qa_run_ids": [r["id"] for r in runs],
         }
         submission = dict(submission, stage="verified_complete")

@@ -1,7 +1,8 @@
 # Planned Code Health repairs
 
-Status: handoff and reviewed PR/artifact reconciliation implemented; dispatch OFF.
-Multi-file runtime verification and the live pilot remain pending. This is a repository design
+Status: handoff, reviewed PR/artifact reconciliation, and multi-file completion
+verification implemented; dispatch OFF. Explicit task recovery and the live pilot
+remain pending. This is a repository design
 artifact requested by the owner, not a claim of Dev HQ or KB persistence.
 
 ## Problem and outcome
@@ -49,8 +50,8 @@ real local scope file where present, otherwise the exact tracked
 `HEAD:config/agents/codex.yaml` through the existing .git mount. Unavailable or
 invalid policy fails closed; no copied allowlist or mount change is introduced.
 
-Pending: manifest refresh after later pushes, explicit attempt/retry recovery,
-and the phase-3 completion contract below. Keep dispatch disabled.
+Manifest refresh after later pushes and completion retries are implemented below.
+Explicit task-attempt recovery remains pending. Keep dispatch disabled.
 
 Use a platform-owned reconciler in a scheduled background job; no GitHub reads,
 inference or sandbox operations in request handlers. A task result must carry
@@ -69,6 +70,26 @@ closed-unmerged recovery. Claims need durable leases and attempt history;
 callbacks from an older attempt cannot overwrite a newer attempt.
 
 ## Phase 3: verification and recovery
+
+Implemented completion slice: the bounded scheduler refreshes manifests against
+current-head approval, records GitHub merge SHA/time, and calls the scoped internal
+web verification endpoint. It runs independently of new-work admission and preserves
+operator-visible errors. No new worker attempt is launched. The serving process
+checks merge ancestry, exact bytes for every present artifact, absent removed/old
+renamed files, runtime after merge and file modification, Python syntax and the
+600-line limit across extracted files, original finding, and fresh active QA for
+each affected module. Platform core files use the existing `app` QA mapping.
+Artifacts outside the serving product have no runtime mapping and fail closed.
+A second local verification after QA rejects deployment changes during collection.
+`PLATFORM_INTERNAL_URL` (or `BRIDGE_URL`) and `INTERNAL_API_KEY` must be configured;
+only mesh endpoints are accepted and redirects are refused. Missing configuration
+blocks completion visibly; no credentials or infrastructure are changed by this PR.
+
+Remaining recovery slice: explicit retry/cancel with attempt history and safe
+closed-PR replacement. Stuck in-progress workers require operator investigation;
+no timeout alone proves a worker stopped. Dispatch remains off until recovery and
+the live pilot pass.
+
 
 Extend the existing completion authority for manifest-backed planned repairs;
 retain existing single-file receipts. Check the deployed commit and all manifest

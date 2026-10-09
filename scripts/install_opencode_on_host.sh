@@ -61,6 +61,16 @@ CFG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
 CFG="$CFG_DIR/opencode.json"
 SECRETS_REPO=/mnt/archie_brain/secrets/opencode
 
+# The HOST instruction set (GUARDRAILS.md + a handover seed), tracked in the repo
+# under scripts/opencode_host_lane_docs/. It exists because the container's
+# copy — which this script used to copy verbatim — names /opencode-home/... paths
+# that do not exist on the host, so /archie-boot failed to read its handover.
+# Installing a tracked HOST copy is what stops a re-seed from reintroducing that.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+HOST_DOCS="$REPO_DIR/scripts/opencode_host_lane_docs"
+[ -d "$HOST_DOCS" ] || HOST_DOCS=/mnt/archie_brain/scripts/opencode_host_lane_docs
+
 say()  { printf '%s\n' "$*"; }
 step() { printf '\n\033[1;33m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -166,6 +176,13 @@ say "  3. seed $CFG from $SRC_CONTAINER, rewriting container-only endpoints"
 say "     archie-kb -> $KB_URL"
 say "     omniroute -> $OR_BASE"
 say "     hostinger -> $HOSTINGER_SECRET"
+if [ -f "$HOST_DOCS/GUARDRAILS.md" ]; then
+  say "  3b. install HOST GUARDRAILS.md + data/archie-handover.md from $HOST_DOCS"
+else
+  say "  3b. ! $HOST_DOCS/GUARDRAILS.md missing — will fall back to the container's"
+  say "      copy, which is NOT host-correct (only the handover path is rewritten)"
+  DEGRADED=1
+fi
 say "  4. git credential helper -> $GH_SECRET"
 [ "$DEGRADED" = "1" ] && say "  ! one or more endpoints could NOT be verified from this host — see above"
 
@@ -250,7 +267,7 @@ RAW="$(docker exec "$SRC_CONTAINER" cat /opencode-home/config/opencode/opencode.
 say "  read config from container ($(printf '%s' "$RAW" | wc -c) bytes)"
 
 CFG="$CFG" KB_URL="$KB_URL" OR_BASE="$OR_BASE" HOSTINGER_SECRET="$HOSTINGER_SECRET" \
-SRC_CONTAINER="$SRC_CONTAINER" python3 - <<'PY'
+SRC_CONTAINER="$SRC_CONTAINER" HOST_DOCS="$HOST_DOCS" python3 - <<'PY'
 import json, os, subprocess, sys
 
 cfg_path = os.environ["CFG"]
@@ -297,18 +314,57 @@ with open(cfg_path, "w") as f:
     f.write("\n")
 print("  wrote %s" % cfg_path)
 
-# GUARDRAILS.md: copy out of the container so `instructions` resolves.
+# --- host instruction set ---------------------------------------------------
+# GUARDRAILS.md: install the HOST copy from the tracked template, never by
+# verbatim-copying the container's file. The container copy names
+# /opencode-home/... paths that do not exist here, which is exactly the bug
+# this template exists to prevent. `instructions` above already points here.
+# Fallback (older checkout, no template): copy the container's file but REWRITE
+# the one path that breaks /archie-boot, and say plainly that the rest is wrong.
 g = os.path.join(os.path.dirname(cfg_path), "GUARDRAILS.md")
-try:
-    body = subprocess.run(["docker", "exec", os.environ["SRC_CONTAINER"],
-                           "cat", "/opencode-home/config/opencode/GUARDRAILS.md"],
-                          capture_output=True, text=True, check=True).stdout
-    if body.strip():
-        with open(g, "w") as f:
-            f.write(body)
-        print("  wrote %s (%d bytes)" % (g, len(body)))
-except Exception as e:
-    print("  note: could not copy GUARDRAILS.md (%s) — `instructions` will point at a missing file" % type(e).__name__)
+host_docs = os.environ.get("HOST_DOCS", "")
+tmpl = os.path.join(host_docs, "GUARDRAILS.md") if host_docs else ""
+handover_host = os.path.join(os.path.dirname(cfg_path), "data", "archie-handover.md")
+
+def _write(path, data):
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    with open(path, "w") as f:
+        f.write(data)
+
+if tmpl and os.path.isfile(tmpl):
+    with open(tmpl) as f:
+        body = f.read()
+    _write(g, body)
+    print("  wrote %s from host template (%d bytes)" % (g, len(body)))
+else:
+    print("  ! %s not found — falling back to the container's GUARDRAILS.md"
+          % (tmpl or "$HOST_DOCS/GUARDRAILS.md"))
+    try:
+        body = subprocess.run(["docker", "exec", os.environ["SRC_CONTAINER"],
+                               "cat", "/opencode-home/config/opencode/GUARDRAILS.md"],
+                              capture_output=True, text=True, check=True).stdout
+        if body.strip():
+            body = body.replace("/opencode-home/data/archie-handover.md", handover_host)
+            _write(g, body)
+            print("  wrote %s from container copy, handover path rewritten (%d bytes)"
+                  % (g, len(body)))
+            print("  ! NOTE: that copy still describes the CONTAINER — only the handover path was fixed.")
+    except Exception as e:
+        print("  note: could not write GUARDRAILS.md (%s) — `instructions` will point at a missing file"
+              % type(e).__name__)
+
+# handover: CREATE ONLY. Continuity must never be clobbered by a re-install.
+hd_tmpl = os.path.join(host_docs, "handover.md") if host_docs else ""
+if os.path.exists(handover_host):
+    print("  handover already present — left untouched: %s" % handover_host)
+elif hd_tmpl and os.path.isfile(hd_tmpl):
+    with open(hd_tmpl) as f:
+        _write(handover_host, f.read())
+    print("  created %s (host handover seed)" % handover_host)
+else:
+    print("  note: no handover seed template — %s not created" % handover_host)
 PY
 
 # ---------------------------------------------------------------------------
@@ -391,6 +447,23 @@ fi
 
 have ssh      && say "  ✓ ssh present" || { say "  ✗ ssh missing"; fail=1; }
 python3 -c "import json;json.load(open('$CFG'))" 2>/dev/null && say "  ✓ config parses" || { say "  ✗ config does not parse"; fail=1; }
+# Host instruction set: the whole point of this fix — assert it landed and that
+# it does NOT still send boot to the container's /opencode-home handover.
+if [ -f "$CFG_DIR/GUARDRAILS.md" ]; then
+  say "  ✓ host GUARDRAILS.md present"
+else
+  say "  ✗ host GUARDRAILS.md missing — \`instructions\` points at nothing"; fail=1
+fi
+if [ -f "$CFG_DIR/GUARDRAILS.md" ] && grep -q '/opencode-home/data/archie-handover.md' "$CFG_DIR/GUARDRAILS.md" 2>/dev/null; then
+  say "  ✗ host GUARDRAILS.md still names the container's /opencode-home handover"; fail=1
+elif [ -f "$CFG_DIR/GUARDRAILS.md" ]; then
+  say "  ✓ host GUARDRAILS.md names no /opencode-home handover path"
+fi
+if [ -f "$CFG_DIR/data/archie-handover.md" ]; then
+  say "  ✓ handover present ($CFG_DIR/data/archie-handover.md)"
+else
+  say "  ✗ handover missing at $CFG_DIR/data/archie-handover.md"; fail=1
+fi
 probe_http "$KB_URL" && say "  ✓ archie-kb gateway reachable" || { say "  ✗ archie-kb gateway NOT reachable from the host ($KB_URL)"; fail=1; }
 
 echo

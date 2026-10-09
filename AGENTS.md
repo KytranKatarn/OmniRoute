@@ -72,6 +72,18 @@ refused: infra, secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, 
 `department_dispatcher.py`, and each lane's own cage (`config/agents/*`,
 `scripts/agents/*`). Don't fight it; stay in your lane.
 
+**Codex narrow exception** — for Repair Bay failed-worker recovery, Codex may edit
+`scripts/agents/codex-delegation-worker.py` only. This is a documented exception to the
+`scripts/agents/*` block, recorded in codex.yaml `allowed_paths`. The scope guard still
+evaluates blocked-first, so this exception is noted for future guard refinement. All other
+restrictions (`config/agents/*`, other `scripts/agents/*` files, etc.) remain in effect.
+
+**Codex narrow exception** — for Repair Bay failed-worker recovery, Codex may edit
+`scripts/agents/codex-delegation-worker.py` only. This is a documented exception to the
+`scripts/agents/*` block, recorded in codex.yaml `allowed_paths`. The scope guard still
+evaluates blocked-first, so this exception is noted for future guard refinement. All other
+restrictions (`config/agents/*`, other `scripts/agents/*` files, etc.) remain in effect.
+
 **Where the guard runs differs by lane**, and it changes what a failure looks like:
 codex is checked pre-push; opencode is checked on the HOST after the fact, so an
 out-of-scope edit is not rejected as you make it — it is dropped later, and your work is

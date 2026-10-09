@@ -45,7 +45,11 @@ def _template() -> str:
 
 
 def _routes() -> str:
-    return _ROUTES.read_text(encoding="utf-8")
+    # The same route/data checks follow their new source modules.
+    return "\n".join(
+        (_ROUTES.parent / name).read_text(encoding="utf-8")
+        for name in ("approvals_routes.py", "approvals_queue.py", "approvals_hire_routes.py")
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -59,20 +63,20 @@ def test_category_of_hire_candidate_is_not_hiring():
     a template that trusts `category` for hires is broken by construction."""
     from tools.department_hq.services.approvals_bulk import ACTION_CATEGORY, category_of
 
-    assert category_of("hire_candidate") != "hiring", (
-        "category_of now yields 'hiring' — re-read this test's premise before relying on it"
-    )
-    assert "hiring" not in set(ACTION_CATEGORY.values()), (
-        "'hiring' has become a real category value; the taxonomy changed under this test"
-    )
+    assert (
+        category_of("hire_candidate") != "hiring"
+    ), "category_of now yields 'hiring' — re-read this test's premise before relying on it"
+    assert "hiring" not in set(
+        ACTION_CATEGORY.values()
+    ), "'hiring' has become a real category value; the taxonomy changed under this test"
 
 
 def test_the_pending_list_still_restamps_category():
     """The overwrite is the mechanism. If it disappears, this test should be revisited."""
     src = _routes()
-    assert 'a["category"] = category_of(' in src, (
-        "the category re-stamp is gone — the failure mode this guards may no longer exist"
-    )
+    assert (
+        'a["category"] = category_of(' in src
+    ), "the category re-stamp is gone — the failure mode this guards may no longer exist"
 
 
 # --------------------------------------------------------------------------- #
@@ -84,12 +88,10 @@ def test_hire_rows_are_branched_on_source_not_category():
     """THE REGRESSION. Pre-fix the template had three `a.category === 'hiring'` tests,
     every one of them dead."""
     tpl = _template()
-    assert "a.category === 'hiring'" not in tpl, (
-        "a hire branch still keys off the re-stamped `category` — it can never be true"
-    )
-    assert tpl.count("a.source === 'hire'") >= 3, (
-        "expected the shortlist, approve and deny branches to key off source"
-    )
+    assert (
+        "a.category === 'hiring'" not in tpl
+    ), "a hire branch still keys off the re-stamped `category` — it can never be true"
+    assert tpl.count("a.source === 'hire'") >= 3, "expected the shortlist, approve and deny branches to key off source"
 
 
 def test_the_hire_handlers_are_the_ones_wired_up():
@@ -108,9 +110,9 @@ def test_source_is_assigned_once_and_never_restamped():
     """The whole argument for using `source` is that nothing rewrites it."""
     src = _routes()
     assert '"source": "hire"' in src
-    assert not re.search(r'\[\s*["\']source["\']\s*\]\s*=', src), (
-        "something now reassigns `source` — it is no longer a stable identity field"
-    )
+    assert not re.search(
+        r'\[\s*["\']source["\']\s*\]\s*=', src
+    ), "something now reassigns `source` — it is no longer a stable identity field"
 
 
 # --------------------------------------------------------------------------- #
@@ -130,9 +132,7 @@ def test_the_generic_endpoint_still_refuses_a_hire_id():
     guards = re.findall(r"prefix not in \(([^)]*)\)", src)
     assert guards, "the prefix guard is gone entirely"
     for g in guards:
-        assert "hire" not in g, (
-            "'hire' was added to the generic approve/reject guard — see this test's docstring"
-        )
+        assert "hire" not in g, "'hire' was added to the generic approve/reject guard — see this test's docstring"
 
 
 def test_the_dedicated_hire_routes_exist():
@@ -149,4 +149,6 @@ def test_the_dedicated_hire_routes_exist():
         and isinstance(d.args[0].value, str)
     }
     for path in ("/api/approvals/hire/<int:hire_id>/approve", "/api/approvals/hire/<int:hire_id>/reject"):
-        assert any(path == r for r in routed), f"missing dedicated hire route: {path}  (have: {sorted(r for r in routed if 'hire' in r)})"
+        assert any(
+            path == r for r in routed
+        ), f"missing dedicated hire route: {path}  (have: {sorted(r for r in routed if 'hire' in r)})"

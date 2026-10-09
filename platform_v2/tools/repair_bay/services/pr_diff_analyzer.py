@@ -3271,11 +3271,12 @@ def _obtain_review_summary(
     if _review_plan() == "per_file":
         # (1) the wide re-review gets the wider bound — it exists to read everything.
         _max_files = _review_max_files_wide() if wide else _review_max_files()
-        # (2) split a file that is bigger than one window across several passes. Split at
-        # the cap a pass will ACTUALLY get: if the patient model is reachable the window is
-        # the wide cap, otherwise it is the weak one — more parts, each of them readable.
-        # Splitting at a cap we will not get would re-create the truncation it prevents.
-        _split_cap = _diff_cap_for_model(_tier3_is_reachable())
+        # (2) Size every segment for the fallback window. A reachable patient model
+        # can still time out or return unparseable output; its fallback has a smaller
+        # cap. Planning at the patient cap truncated five of six files on #3757.
+        # More bounded segments cost extra passes, but either model can read them.
+        # Coverage and verdict gates still measure what the review actually saw.
+        _split_cap = _diff_cap_for_model(strong=False)
         _chunks, _bound_dropped = file_plan_detail(diff, _max_files, _split_cap)
         _chunks = _chunks or [diff]
         if _bound_dropped:

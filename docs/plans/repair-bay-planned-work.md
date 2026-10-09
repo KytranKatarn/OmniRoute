@@ -1,8 +1,8 @@
 # Planned Code Health repairs
 
 Status: handoff, reviewed PR/artifact reconciliation, and multi-file completion
-verification implemented; dispatch OFF. Explicit task recovery and the live pilot
-remain pending. This is a repository design
+verification implemented; dispatch OFF. Safe unclaimed-task cancellation/retry is implemented. Failed-worker and closed-PR
+recovery plus the live pilot remain pending. This is a repository design
 artifact requested by the owner, not a claim of Dev HQ or KB persistence.
 
 ## Problem and outcome
@@ -51,7 +51,8 @@ real local scope file where present, otherwise the exact tracked
 invalid policy fails closed; no copied allowlist or mount change is introduced.
 
 Manifest refresh after later pushes and completion retries are implemented below.
-Explicit task-attempt recovery remains pending. Keep dispatch disabled.
+Safe unclaimed-task recovery is implemented below. Failed-worker and closed-PR
+replacement remain pending. Keep dispatch disabled.
 
 Use a platform-owned reconciler in a scheduled background job; no GitHub reads,
 inference or sandbox operations in request handlers. A task result must carry
@@ -85,11 +86,21 @@ A second local verification after QA rejects deployment changes during collectio
 only mesh endpoints are accepted and redirects are refused. Missing configuration
 blocks completion visibly; no credentials or infrastructure are changed by this PR.
 
-Remaining recovery slice: explicit retry/cancel with attempt history and safe
-closed-PR replacement. Stuck in-progress workers require operator investigation;
-no timeout alone proves a worker stopped. Dispatch remains off until recovery and
-the live pilot pass.
+Implemented recovery slice: admin cancellation locks the proposal and task against
+the host worker's atomic `deferred` claim. It only cancels an associated task with
+no PR/branch or patch workflow. A server-owned marker proves this cancellation;
+explicit retry accepts only that cancelled attempt, rechecks current governance,
+scope and dispatch admission, preserves history, and links the new task in one
+transaction. Expected task IDs reject stale clicks; failures roll back together.
+Cancellation remains available while admission is paused. These controls do not
+change finding counts or close proposals.
 
+Remaining: failed-worker stop evidence and closed-PR replacement. The current host
+worker can be marked blocked by stale-task cleanup without proof it exited; this
+UI must not launch a replacement from that status. A maintainer change under
+`scripts/agents/` must supply durable attempt/worker-stop evidence before such
+retry can be safe. Codex must not edit its own harness. The live pilot remains
+gated; dispatch stays disabled.
 
 Extend the existing completion authority for manifest-backed planned repairs;
 retain existing single-file receipts. Check the deployed commit and all manifest

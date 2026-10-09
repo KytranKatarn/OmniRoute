@@ -37,13 +37,28 @@ def test_planned_repair_controls_and_progress(tmp_path):
         page.set_content(html)
         page.evaluate(
             """proposal => {
-                window.proposal = proposal; window.API = '/fixture'; window.postCount = 0;
+                window.recoveryPayloads = []; window.proposal = proposal; window.API = '/fixture'; window.postCount = 0;
                 window.alert = () => {}; window.loadProposals = () => {};
                 window.fetch = async (url, options) => ({json: async () => {
                     if (options && options.method === 'POST') {
                         window.postCount++;
+                        if (url.endsWith('planned-recovery')) {
+                            var payload = JSON.parse(options.body);
+                            window.recoveryPayloads.push(payload);
+                            var planned = proposal.repair_progress.planned_work;
+                            if (payload.action === 'cancel') {
+                                planned.task_status = 'cancelled'; planned.can_cancel = false;
+                                planned.can_retry = true; planned.enabled = false;
+                                proposal.repair_progress.stage = 'planned_blocked';
+                                return {success:true, cancelled:true};
+                            }
+                            planned.task_id = 78; planned.task_status = 'deferred';
+                            planned.can_cancel = true; planned.can_retry = false;
+                            proposal.repair_progress.stage = 'planned_queued';
+                            return {success:true, queued:true};
+                        }
                         proposal.repair_progress = {stage:'planned_queued', planned_work:{
-                            task_id:77, task_status:'deferred', kind:'planned_refactor', enabled:true
+                            task_id:77, task_status:'deferred', kind:'planned_refactor', enabled:true, can_cancel:true
                         }};
                         return {success:true, queued:true};
                     }
@@ -65,10 +80,23 @@ def test_planned_repair_controls_and_progress(tmp_path):
         assert page.evaluate("postCount") == 1
         assert page.get_by_role("button", name="Queue planned refactor").count() == 0
         page.screenshot(path=str(tmp_path / "planned-queued.png"))
+        page.get_by_role("button", name="Cancel queued work").click()
+        page.get_by_text("Coding task #77 · cancelled", exact=True).wait_for()
+        retry = page.get_by_role("button", name="Retry cancelled work")
+        assert retry.is_disabled()
+        page.screenshot(path=str(tmp_path / "planned-cancelled.png"))
+        page.evaluate("proposal.repair_progress.planned_work.enabled = true; showProposalDetail(19)")
+        page.get_by_role("button", name="Retry cancelled work").click()
+        page.get_by_text("Coding task #78 · deferred", exact=True).wait_for()
+        assert page.evaluate("recoveryPayloads") == [
+            {"action": "cancel", "task_id": 77},
+            {"action": "retry", "task_id": 77},
+        ]
+        page.screenshot(path=str(tmp_path / "planned-retried.png"))
         page.evaluate(
-            "proposal.repair_progress.stage = 'planned_blocked'; proposal.repair_progress.planned_work.task_status = 'blocked'; showProposalDetail(19)"
+            "proposal.repair_progress.stage = 'planned_blocked'; proposal.repair_progress.planned_work.task_status = 'blocked'; proposal.repair_progress.planned_work.can_cancel = false; showProposalDetail(19)"
         )
-        page.get_by_text("Coding task #77 · blocked", exact=True).wait_for()
+        page.get_by_text("Coding task #78 · blocked", exact=True).wait_for()
         assert "verified complete" not in page.locator("#detailActions").inner_text()
         page.screenshot(path=str(tmp_path / "planned-blocked.png"))
         browser.close()

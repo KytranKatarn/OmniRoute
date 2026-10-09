@@ -134,10 +134,13 @@ def planned_progress(proposal, cursor):
     if not link.get("task_id"):
         return result
     result["task_id"] = link["task_id"]
-    cursor.execute("SELECT status,metadata FROM unified_tasks WHERE id=%s", (link["task_id"],))
+    cursor.execute("SELECT status,metadata,delegation_args FROM unified_tasks WHERE id=%s", (link["task_id"],))
     task = cursor.fetchone()
     if not task:
         return dict(result, stage="planned_blocked", reason="Linked coding task is unavailable")
+    from services.planned_repair_recovery import recovery_options
+
+    result.update(recovery_options(proposal, task))
     task_meta = metadata(task.get("metadata"))
     result["task_status"] = task["status"]
     result["pr_number"] = task_meta.get("codex_pr")
@@ -150,7 +153,7 @@ def planned_progress(proposal, cursor):
     }
     result["stage"] = stages.get(task["status"], "planned_blocked")
     if result["stage"] == "planned_blocked":
-        result["reason"] = "Coding task needs operator review; an automatic retry has not been created"
+        result["reason"] = "Worker stop is unverified; operator investigation is required before a replacement task"
     if link.get("result_error"):
         result.update(stage="planned_blocked", reason=link["result_error"])
     return result

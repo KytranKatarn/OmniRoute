@@ -2870,6 +2870,19 @@ function showProposalDetail(id) {
             if (plannedWork.task_id && plannedWork.pr_number) plannedNote.textContent += ' · PR #' + plannedWork.pr_number;
             if (plannedWork.stage === 'planned_blocked') plannedNote.textContent += ' · ' + plannedWork.reason;
             actions.appendChild(plannedNote);
+            if (plannedWork.can_cancel || plannedWork.can_retry) {
+                var recoveryBtn = document.createElement('button');
+                recoveryBtn.className = 'dp-btn';
+                var recoveryAction = plannedWork.can_cancel ? 'cancel' : 'retry';
+                recoveryBtn.textContent = plannedWork.can_cancel ? 'Cancel queued work' : 'Retry cancelled work';
+                recoveryBtn.disabled = !plannedWork.can_cancel && !plannedWork.enabled;
+                recoveryBtn.onclick = function() {
+                    recoveryBtn.disabled = true;
+                    proposalAction(id, 'planned-recovery', {action: recoveryAction, task_id: plannedWork.task_id})
+                        .finally(function() { recoveryBtn.disabled = false; });
+                };
+                actions.appendChild(recoveryBtn);
+            }
             if (plannedWork.eligible && !plannedWork.task_id) {
                 var planBtn = document.createElement('button');
                 planBtn.className = 'dp-btn dp-btn-accent';
@@ -2951,8 +2964,13 @@ function showProposalDetail(id) {
     }).catch(function() {});
 }
 
-function proposalAction(id, action) {
-    fetch(API + '/proposals/' + id + '/' + action, { method: 'POST', credentials: 'include' })
+function proposalAction(id, action, payload) {
+    var options = {method: 'POST', credentials: 'include'};
+    if (payload) {
+        options.headers = {'Content-Type': 'application/json'};
+        options.body = JSON.stringify(payload);
+    }
+    return fetch(API + '/proposals/' + id + '/' + action, options)
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.success || d.executed) {
@@ -2960,7 +2978,7 @@ function proposalAction(id, action) {
                 showProposalDetail(id);
                 if (d.queued && action === 'submit-patch') {
                     alert(d.message || 'Saved patch queued for approval, sandbox tests and PR creation.');
-                } else if (d.queued && action === 'plan-repair') {
+                } else if (d.queued && (action === 'plan-repair' || action === 'planned-recovery')) {
                     alert(d.message || 'Planned work queued; the finding remains open until verified.');
                 } else if (d.queued) {
                     alert(d.worker_enabled === false ? 'Repair queued. The repair worker is paused.' : 'Queued for repair generation.');

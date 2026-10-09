@@ -151,6 +151,19 @@ def register_proposal_routes(bp, admin_required):
         _proposals_cache.clear()
         return jsonify(result), (200 if result.get("already_queued") else 202) if result.get("success") else 422
 
+    @bp.route("/api/proposals/<int:proposal_id>/planned-recovery", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_planned_recovery(proposal_id):
+        from services.planned_repair_recovery import recover_planned_work
+
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify(success=False, error="Invalid recovery request"), 422
+        result = recover_planned_work(proposal_id, current_user.get_id(), data.get("action"), data.get("task_id"))
+        _proposals_cache.clear()
+        return jsonify(result), (202 if result.get("queued") else 200) if result.get("success") else 422
+
     @bp.route("/api/proposals/<int:proposal_id>/submit-patch", methods=["POST"])
     @login_required
     @admin_required

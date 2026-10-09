@@ -51,7 +51,7 @@ def state(monkeypatch, tmp_path):
                 if data["fail_link"]:
                     raise RuntimeError("link write failed")
                 data["proposal"]["metadata"].update(params[0].adapted)
-            elif "SELECT status,metadata FROM unified_tasks" in sql:
+            elif "SELECT status,metadata,delegation_args FROM unified_tasks" in sql:
                 self.row = data["tasks"].get(params[0])
             else:
                 raise AssertionError(sql)

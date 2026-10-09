@@ -151,6 +151,21 @@ def register_proposal_routes(bp, admin_required):
         _proposals_cache.clear()
         return jsonify(result), (200 if result.get("already_queued") else 202) if result.get("success") else 422
 
+    @bp.route("/api/proposals/<int:proposal_id>/planned-replacement", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_planned_replacement(proposal_id):
+        from services.planned_repair_closed import request_replacement
+
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify(success=False, error="Invalid replacement request"), 422
+        result = request_replacement(
+            proposal_id, current_user.get_id(), data.get("task_id"), data.get("pr_number"), data.get("head_sha")
+        )
+        _proposals_cache.clear()
+        return jsonify(result), 200 if result.get("success") else 422
+
     @bp.route("/api/proposals/<int:proposal_id>/planned-recovery", methods=["POST"])
     @login_required
     @admin_required

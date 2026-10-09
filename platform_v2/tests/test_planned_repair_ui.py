@@ -37,11 +37,18 @@ def test_planned_repair_controls_and_progress(tmp_path):
         page.set_content(html)
         page.evaluate(
             """proposal => {
-                window.recoveryPayloads = []; window.proposal = proposal; window.API = '/fixture'; window.postCount = 0;
+                window.replacementPayloads = []; window.recoveryPayloads = []; window.proposal = proposal; window.API = '/fixture'; window.postCount = 0;
                 window.alert = () => {}; window.loadProposals = () => {};
                 window.fetch = async (url, options) => ({json: async () => {
                     if (options && options.method === 'POST') {
                         window.postCount++;
+                        if (url.endsWith('planned-replacement')) {
+                            window.replacementPayloads.push(JSON.parse(options.body));
+                            var replacement = proposal.repair_progress.planned_work.replacement;
+                            replacement.can_request = false;
+                            replacement.request = {status:'requested'};
+                            return {success:true, recorded:true, execution_enabled:false, message:'Request recorded; execution blocked'};
+                        }
                         if (url.endsWith('planned-recovery')) {
                             var payload = JSON.parse(options.body);
                             window.recoveryPayloads.push(payload);
@@ -99,4 +106,48 @@ def test_planned_repair_controls_and_progress(tmp_path):
         page.get_by_text("Coding task #78 · blocked", exact=True).wait_for()
         assert "verified complete" not in page.locator("#detailActions").inner_text()
         page.screenshot(path=str(tmp_path / "planned-blocked.png"))
+        page.evaluate(
+            """() => {
+            proposal.status = 'fix_requested';
+            proposal.repair_progress.stage = 'pr_closed_unmerged';
+            var work = proposal.repair_progress.planned_work;
+            work.pr_number = 123;
+            work.replacement = {state:'closed', head_sha:'a'.repeat(40), request:{}, can_request:true,
+                execution_enabled:false, reason:'Worker stop is unverified; replacement execution is blocked'};
+            showProposalDetail(19);
+        }"""
+        )
+        page.get_by_role("button", name="Request replacement (no execution)").wait_for()
+        page.screenshot(path=str(tmp_path / "closed-request-ready.png"))
+        page.get_by_role("button", name="Request replacement (no execution)").click()
+        page.get_by_text(
+            "Replacement requested · Worker stop is unverified; replacement execution is blocked", exact=True
+        ).wait_for()
+        assert page.evaluate("replacementPayloads") == [{"task_id": 78, "pr_number": 123, "head_sha": "a" * 40}]
+        assert page.get_by_role("button", name="Request replacement (no execution)").count() == 0
+        assert page.get_by_role("button", name="Queue planned refactor").count() == 0
+        page.screenshot(path=str(tmp_path / "closed-request-blocked.png"))
+        # A head change keeps the same closed stage; polling must still refresh intent.
+        page.evaluate(
+            """() => {
+            var replacement = proposal.repair_progress.planned_work.replacement;
+            replacement.head_sha = 'b'.repeat(40); replacement.request.status = 'invalidated';
+            replacement.can_request = true; replacement.reason = 'PR head changed; prior request invalidated';
+        }"""
+        )
+        page.get_by_text("PR head changed; prior request invalidated", exact=True).wait_for(timeout=12000)
+        page.get_by_role("button", name="Request replacement (no execution)").wait_for()
+        page.screenshot(path=str(tmp_path / "closed-head-changed.png"))
+        page.evaluate(
+            """() => {
+            proposal.status = 'pr_open'; proposal.repair_progress.stage = 'pr_review';
+            var replacement = proposal.repair_progress.planned_work.replacement;
+            replacement.state = 'open'; replacement.request.status = 'invalidated'; replacement.can_request = false;
+            replacement.reason = 'PR reopened; prior request invalidated';
+            showProposalDetail(19);
+        }"""
+        )
+        page.get_by_text("PR reopened; prior request invalidated", exact=True).wait_for()
+        assert page.get_by_role("button", name="Request replacement (no execution)").count() == 0
+        page.screenshot(path=str(tmp_path / "closed-reopened.png"))
         browser.close()

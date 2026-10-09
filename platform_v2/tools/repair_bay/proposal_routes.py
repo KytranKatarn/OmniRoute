@@ -141,6 +141,16 @@ def register_proposal_routes(bp, admin_required):
         _proposals_cache.clear()
         return jsonify(result), 202
 
+    @bp.route("/api/proposals/<int:proposal_id>/plan-repair", methods=["POST"])
+    @login_required
+    @admin_required
+    def proposals_plan_repair(proposal_id):
+        from services.planned_repair_service import request_planned_work
+
+        result = request_planned_work(proposal_id, requested_by=current_user.get_id())
+        _proposals_cache.clear()
+        return jsonify(result), (200 if result.get("already_queued") else 202) if result.get("success") else 422
+
     @bp.route("/api/proposals/<int:proposal_id>/submit-patch", methods=["POST"])
     @login_required
     @admin_required

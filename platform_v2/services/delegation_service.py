@@ -27,6 +27,7 @@ import logging
 import os
 import re
 import time
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Tuple
 
 from database import get_db_cursor
@@ -181,11 +182,14 @@ def delegate_task(
     streaming_channel: Optional[str] = None,
     project_id: Optional[int] = None,
     priority: int = 5,
+    cursor=None,
 ) -> Dict[str, Any]:
     """Persist a delegated task to ``unified_tasks`` for worker pickup.
 
     Returns ``{"success": True, "task_id": int, "title": str}`` on
     success, ``{"success": False, "error": str}`` on validation failure.
+    With ``cursor`` supplied, the caller owns commit/rollback; use this to link
+    the new task to its originating domain row atomically.
     """
     if not capability or not str(capability).strip():
         return {"success": False, "error": "capability is required"}
@@ -219,7 +223,10 @@ def delegate_task(
     status = "deferred" if is_codex else "pending"
     task_metadata = {"codex": True, "project_id": project_id} if is_codex else None
 
-    with get_db_cursor(commit=True) as (conn, cur):
+    # A caller linking a task to a domain row may supply its transaction cursor.
+    # Neither row becomes visible to a worker until that transaction commits.
+    transaction = nullcontext((None, cursor)) if cursor is not None else get_db_cursor(commit=True)
+    with transaction as (conn, cur):
         cur.execute(
             """
             INSERT INTO unified_tasks

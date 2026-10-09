@@ -2824,6 +2824,7 @@ function showProposalDetail(id) {
         // Code Health retries stay in the validated generation pipeline.
         var auditRepair = p.metadata && p.metadata.source === 'code_health_audit';
         var manualAudit = auditRepair && ['LARGE_FILE', 'SQL_INJECTION_RISK'].indexOf(p.metadata.issue_code) >= 0;
+        var plannedWork = p.repair_progress && p.repair_progress.planned_work;
         var retryAction = auditRepair ? 'retry-fix' : 'retry';
         // Action buttons based on status
         var actions = document.getElementById('detailActions');
@@ -2861,6 +2862,24 @@ function showProposalDetail(id) {
             actions.appendChild(manualNote);
         }
 
+        if (plannedWork && manualAudit) {
+            var plannedNote = document.createElement('span');
+            plannedNote.textContent = plannedWork.task_id
+                ? 'Coding task #' + plannedWork.task_id + ' · ' + (plannedWork.task_status || 'unavailable')
+                : plannedWork.reason;
+            if (plannedWork.task_id && plannedWork.pr_number) plannedNote.textContent += ' · PR #' + plannedWork.pr_number;
+            if (plannedWork.stage === 'planned_blocked') plannedNote.textContent += ' · ' + plannedWork.reason;
+            actions.appendChild(plannedNote);
+            if (plannedWork.eligible && !plannedWork.task_id) {
+                var planBtn = document.createElement('button');
+                planBtn.className = 'dp-btn dp-btn-accent';
+                planBtn.textContent = plannedWork.enabled ? 'Queue planned refactor' : 'Planned repairs disabled';
+                planBtn.disabled = !plannedWork.enabled;
+                planBtn.onclick = function() { planBtn.disabled = true; proposalAction(id, 'plan-repair'); };
+                actions.appendChild(planBtn);
+            }
+        }
+
         if (p.status === 'approved' && !manualAudit) {
             var execBtn = document.createElement('button');
             execBtn.className = 'dp-btn dp-btn-primary';
@@ -2887,9 +2906,9 @@ function showProposalDetail(id) {
             verifyBtn.onclick = function() { proposalAction(id, 'verify-completion'); };
             actions.appendChild(verifyBtn);
         }
-        if (auditRepair && submission) {
+        if (auditRepair && (submission || (plannedWork && plannedWork.task_id))) {
             var progressNote = document.createElement('span');
-            progressNote.textContent = 'Patch stage: ' + (currentStage || 'unknown').replace(/_/g, ' ');
+            progressNote.textContent = 'Repair stage: ' + (currentStage || 'unknown').replace(/_/g, ' ');
             actions.appendChild(progressNote);
             var progressController = new AbortController();
             window._repairProgressController = progressController;
@@ -2900,7 +2919,7 @@ function showProposalDetail(id) {
                     .then(function(d) {
                         if (generation !== window._repairDetailGeneration) return;
                         if (!d.success) throw new Error('Progress unavailable');
-                        progressNote.textContent = 'Patch stage: ' + d.progress.stage.replace(/_/g, ' ');
+                        progressNote.textContent = 'Repair stage: ' + d.progress.stage.replace(/_/g, ' ');
                         if (d.progress.merge_tier) progressNote.textContent += ' · PR merge tier ' + d.progress.merge_tier;
                         if (d.progress.stage !== currentStage) showProposalDetail(id);
                     }).catch(function() {
@@ -2941,6 +2960,8 @@ function proposalAction(id, action) {
                 showProposalDetail(id);
                 if (d.queued && action === 'submit-patch') {
                     alert(d.message || 'Saved patch queued for approval, sandbox tests and PR creation.');
+                } else if (d.queued && action === 'plan-repair') {
+                    alert(d.message || 'Planned work queued; the finding remains open until verified.');
                 } else if (d.queued) {
                     alert(d.worker_enabled === false ? 'Repair queued. The repair worker is paused.' : 'Queued for repair generation.');
                 }

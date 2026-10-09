@@ -12,6 +12,11 @@ def progress(proposal):
     stage = submission.get("stage", "patch_ready" if proposal.get("status") == "ready_for_review" else "generation")
     result = {"stage": stage, "submission": submission, "pr_number": meta.get("pr_number")}
     with get_db_cursor(commit=False) as (_, cur):
+        from services.planned_repair_service import planned_progress
+
+        result["planned_work"] = planned_progress(proposal, cur)
+        if result["planned_work"].get("stage") and not meta.get("pr_number"):
+            result["stage"] = result["planned_work"]["stage"]
         if meta.get("pr_number"):
             cur.execute(
                 "SELECT * FROM pr_reviews WHERE pr_number=%s AND repo=%s",

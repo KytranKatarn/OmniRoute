@@ -35,6 +35,12 @@ _BACKEND_OVERRIDES = {
 
 # Curated backlog registry (jobs come from job_registry.JOB_REGISTRY).
 BACKLOGS = {
+    "code_health_planned_repairs": {
+        "module": "Repair Bay",
+        "drains": "Explicit planned-refactor requests (pilot; completion integration pending)",
+        "backend": "platform_settings",
+        "default": False,
+    },
     "consciousness_analysis": {"module": "Consciousness", "drains": "knowledge_base unanalyzed", "backend": "loop"},
     "consciousness_embedding": {"module": "Consciousness", "drains": "knowledge_base unembedded", "backend": "loop"},
     "consciousness_translate": {"module": "Consciousness", "drains": "untranslated keys", "backend": "loop"},

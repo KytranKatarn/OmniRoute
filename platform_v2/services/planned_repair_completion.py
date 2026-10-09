@@ -14,7 +14,7 @@ from services.repair_submission import metadata
 
 def request_serving_verification(proposal_id):
     """Never verify imports in the scheduler. Call the scoped web authority."""
-    base = os.environ.get("PLATFORM_INTERNAL_URL") or os.environ.get("BRIDGE_URL")
+    base = os.environ.get("PLATFORM_INTERNAL_URL") or os.environ.get("BRIDGE_URL") or os.environ.get("HUB_MESH_URL")
     key = os.environ.get("INTERNAL_API_KEY")
     if not base or not key:
         raise ValueError("Internal serving verification is not configured")

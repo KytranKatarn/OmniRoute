@@ -61,6 +61,41 @@ def test_missing_config_fails_closed(serving, monkeypatch):
     assert serving == []
 
 
+@pytest.mark.parametrize("setting", ["HUB_MESH_URL", "BRIDGE_URL"])
+def test_existing_internal_endpoint_settings_are_supported(serving, monkeypatch, setting):
+    monkeypatch.delenv("PLATFORM_INTERNAL_URL")
+    monkeypatch.delenv("BRIDGE_URL", raising=False)
+    monkeypatch.delenv("HUB_MESH_URL", raising=False)
+    monkeypatch.setenv(setting, "http://100.64.0.4:3000")
+    assert service.request_serving_verification(19)["verified"]
+    assert serving[0][0].startswith("http://100.64.0.4:3000/")
+
+
+def test_absent_base_settings_fail_closed(serving, monkeypatch):
+    for setting in ("PLATFORM_INTERNAL_URL", "BRIDGE_URL", "HUB_MESH_URL"):
+        monkeypatch.delenv(setting, raising=False)
+    with pytest.raises(ValueError, match="not configured"):
+        service.request_serving_verification(19)
+    assert serving == []
+
+
+def test_hub_mesh_setting_keeps_destination_validation(serving, monkeypatch):
+    monkeypatch.delenv("PLATFORM_INTERNAL_URL")
+    monkeypatch.delenv("BRIDGE_URL", raising=False)
+    monkeypatch.setenv("HUB_MESH_URL", "https://example.com")
+    with pytest.raises(ValueError, match="mesh endpoint"):
+        service.request_serving_verification(19)
+    assert serving == []
+
+
+def test_invalid_explicit_setting_does_not_fall_back_to_mesh(serving, monkeypatch):
+    monkeypatch.setenv("PLATFORM_INTERNAL_URL", "https://example.com")
+    monkeypatch.setenv("HUB_MESH_URL", "http://100.64.0.4:3000")
+    with pytest.raises(ValueError, match="mesh endpoint"):
+        service.request_serving_verification(19)
+    assert serving == []
+
+
 def test_internal_endpoint_requires_write_scope_and_ignores_browser_evidence():
     """Extract the actual route into a minimal Flask app, avoiding production startup."""
     from flask import Flask, jsonify

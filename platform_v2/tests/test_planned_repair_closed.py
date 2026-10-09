@@ -203,6 +203,40 @@ def test_attempt_change_while_observing_cannot_overwrite_new_link(closed):
     assert closed["writes"] == []
 
 
+@pytest.mark.parametrize("field", ["metadata", "delegation_args"])
+def test_task_change_during_github_lookup_blocks_until_successful_recheck(closed, monkeypatch, field):
+    from tools.repair_bay.services import github_service
+
+    service.reconcile_closed_planned()
+    request()
+    original = deepcopy(closed["row"]["metadata"])
+    original_task = deepcopy(closed["task"])
+
+    def changed_during_lookup(*args):
+        closed["task"][field]["concurrent_update"] = True
+        return True, deepcopy(closed["pr"])
+
+    monkeypatch.setattr(github_service, "_api_get", changed_during_lookup)
+    result = service.reconcile_closed_planned()
+    assert result["blocked"] == 1 and result["tracked"] == 0
+    meta = closed["row"]["metadata"]
+    assert "task changed" in meta["planned_pr_tracking_error"]
+    assert meta["planned_pr_observation"] == original["planned_pr_observation"]
+    assert meta["planned_replacement_request"] == original["planned_replacement_request"]
+    assert not request()["success"]
+    assert not service.replacement_progress(closed["row"], closed["task"])["can_request"]
+    closed["task"] = original_task
+    monkeypatch.setattr(github_service, "_api_get", lambda *a: (True, deepcopy(closed["pr"])))
+    assert service.reconcile_closed_planned()["tracked"] == 1
+    assert request()["already_requested"]
+
+
+def test_task_row_id_must_match_link(closed):
+    closed["task"]["id"] = 78
+    assert service.reconcile_closed_planned()["blocked"] == 1
+    assert not request()["success"]
+
+
 def test_request_write_failure_rolls_back(closed):
     service.reconcile_closed_planned()
     before = deepcopy(closed["row"])
@@ -269,6 +303,7 @@ def test_route_requires_login_admin_and_ignores_browser_stop_claim(closed, monke
         ("closed", None, "pr_closed_unmerged"),
         ("merged", None, "merged_awaiting_verification"),
         ("closed", "GitHub unavailable", "blocked"),
+        ("open", "Task changed", "blocked"),
     ],
 )
 def test_progress_uses_observed_state_and_requires_review_of_observed_head(closed, monkeypatch, state, error, expected):

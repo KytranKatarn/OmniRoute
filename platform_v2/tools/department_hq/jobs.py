@@ -910,9 +910,9 @@ def code_health_backlog_drain_job():
 
         tracked = reconcile_closed_planned(limit=3)
         if tracked.get("checked"):
-            logger.info("[PlannedRepairClosedTracking] %s", tracked)
+            logger.info("[CodeHealthBacklogDrain] closed-PR tracking limit=3 result=%s", tracked)
     except Exception as exc:
-        logger.warning("Planned closed-PR tracking failed: %s", exc)
+        logger.exception("[CodeHealthBacklogDrain] closed-PR tracking failed; retry next scheduled run: %s", exc)
 
     try:
         from services.planned_repair_completion import reconcile_planned_completion

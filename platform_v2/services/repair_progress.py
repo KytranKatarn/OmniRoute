@@ -8,6 +8,7 @@ def progress(proposal):
     from services.repair_submission import metadata
 
     meta = metadata(proposal.get("metadata"))
+    observed = meta.get("planned_pr_observation") or {}
     submission = dict(meta.get("repair_submission") or {})
     stage = submission.get("stage", "patch_ready" if proposal.get("status") == "ready_for_review" else "generation")
     result = {"stage": stage, "submission": submission, "pr_number": meta.get("pr_number")}
@@ -26,6 +27,14 @@ def progress(proposal):
             if review:
                 from tools.repair_bay.services.pr_review_service import classify_pr_tier, verdict_is_approved
 
+                review_meta = metadata(review.get("metadata"))
+                review_head = review_meta.get("head_sha")
+                observed_head = observed.get("head_sha")
+                reviewed_current_head = bool(
+                    review_head
+                    and review_head == review_meta.get("reviewed_head_sha")
+                    and (not observed_head or observed_head == review_head)
+                )
                 result["merge_tier"] = classify_pr_tier(dict(review))
                 result["review_status"] = review.get("review_status")
                 if meta.get("repair_verification") and proposal.get("status") == "deployed":
@@ -36,19 +45,12 @@ def progress(proposal):
                     result["stage"] = "pr_closed_unmerged"
                 elif (
                     review.get("review_status") == "reviewed"
-                    and metadata(review.get("metadata")).get("head_sha")
-                    and metadata(review.get("metadata")).get("head_sha")
-                    == metadata(review.get("metadata")).get("reviewed_head_sha")
-                    and (
-                        not (meta.get("planned_pr_observation") or {}).get("head_sha")
-                        or (meta.get("planned_pr_observation") or {}).get("head_sha")
-                        == metadata(review.get("metadata")).get("head_sha")
-                    )
+                    and reviewed_current_head
                     and verdict_is_approved(review.get("ai_summary") or "")
                 ):
                     result["stage"] = (
                         "awaiting_human_merge"
-                        if result["merge_tier"] == 3 or metadata(review.get("metadata")).get("kytran_approval_sent")
+                        if result["merge_tier"] == 3 or review_meta.get("kytran_approval_sent")
                         else "awaiting_governed_merge"
                     )
                 else:
@@ -65,7 +67,7 @@ def progress(proposal):
             result["queue_status"] = row and row["status"]
             if row and row["status"] in ("failed", "cancelled"):
                 result["stage"] = "blocked"
-    observed = meta.get("planned_pr_observation") or {}
+    # Tracking errors override cached review approval until a successful recheck.
     if meta.get("apply_mode") == "planned_codex_pr" and not meta.get("merged_pr"):
         if meta.get("planned_pr_tracking_error"):
             result["stage"] = "blocked"

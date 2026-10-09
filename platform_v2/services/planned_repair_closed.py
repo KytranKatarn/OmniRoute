@@ -1,11 +1,15 @@
 """Track closed planned PRs and record replacement intent; never execute it."""
 
+import logging
 import re
 from uuid import uuid4
 from psycopg2.extras import Json
 from database import get_db_cursor
 from services.planned_repair_results import REPO
 from services.repair_submission import metadata
+
+
+logger = logging.getLogger(__name__)
 
 
 def _identity(proposal, task):
@@ -22,6 +26,7 @@ def _identity(proposal, task):
         or type(number) is not int
         or number <= 0
         or not task
+        or task.get("id") != link.get("task_id")
         or task_meta.get("codex_pr") != number
         or args.get("capability") != "codex_task"
         or metadata(args.get("args")).get("repair_proposal_id") != proposal.get("id")
@@ -194,11 +199,13 @@ def reconcile_closed_planned(limit=3):
             with get_db_cursor(commit=False) as (_, cur):
                 cur.execute("SELECT * FROM unified_tasks WHERE id=%s", (task_id,))
                 task = cur.fetchone()
+            # Fetch GitHub outside locks; revalidate the task snapshot under lock below.
             observation = observe_pr(row, task, github)
             error = None
         except Exception as exc:
             error = str(exc)[:300]
             blocked += 1
+            logger.warning("Closed-PR tracking blocked proposal=%s task=%s: %s", row["id"], task_id, error)
         with get_db_cursor(commit=True) as (_, cur):
             cur.execute("SELECT * FROM improvement_proposals WHERE id=%s FOR UPDATE", (row["id"],))
             current = cur.fetchone()
@@ -211,10 +218,18 @@ def reconcile_closed_planned(limit=3):
                 locked = cur.fetchone()
                 if (
                     not locked
+                    or locked.get("id") != task.get("id")
                     or locked.get("metadata") != task.get("metadata")
                     or locked.get("delegation_args") != task.get("delegation_args")
                 ):
-                    continue
+                    # Do not leave the earlier observation actionable after a task race.
+                    observation = None
+                    updates["planned_pr_tracking_error"] = "Coding task changed during PR observation; awaiting recheck"
+                    blocked += 1
+                    logger.warning(
+                        "Closed-PR task snapshot changed proposal=%s task=%s; recheck next run", row["id"], task_id
+                    )
+            if observation:
                 updates["planned_pr_observation"] = observation
                 status = "fix_requested" if observation["state"] == "closed" else "pr_open"
                 intent = original.get("planned_replacement_request") or {}

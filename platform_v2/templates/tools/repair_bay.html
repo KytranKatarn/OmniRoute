@@ -2945,6 +2945,7 @@ function showProposalDetail(id) {
             actions.appendChild(progressNote);
             var progressController = new AbortController();
             window._repairProgressController = progressController;
+            // Preserve the rendered baseline across polls; same-stage identity changes need a detail refresh.
             var replacementSnapshot = JSON.stringify(plannedWork && plannedWork.replacement || null);
             function refreshRepairProgress() {
                 if (progressController.signal.aborted || generation !== window._repairDetailGeneration) return;

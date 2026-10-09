@@ -85,6 +85,8 @@ class TestCoderLaneScopes:
             "agents:read",
             "agents:manage",
             "delegation",
+            "infra:read",
+            "knowledge:write",
         }
 
     def test_coder_lanes_cannot_approve_their_own_work(self):
@@ -128,7 +130,7 @@ class TestGatewayWriteGating:
 
     def test_every_mutating_tool_calls_the_write_guard(self):
         src = self._src()
-        for tool in ("create_task", "set_task_status", "add_task_note"):
+        for tool in ("create_task", "set_task_status", "add_task_note", "store_memory"):
             body = re.search(r"async def %s\(.*?(?=\n@mcp\.tool|\nclass )" % tool, src, re.S)
             assert body, "tool %s not found in gateway" % tool
             assert "_needs_write()" in body.group(0), (
@@ -158,6 +160,16 @@ class TestGatewayWriteGating:
         src = self._src()
         assert "/api/internal/tasks" in src
         assert "INTERNAL_API_KEY_CODER_LANES" in src
+
+    def test_memory_write_goes_over_the_knowledge_hub_route(self):
+        """store_memory (the close-out Step 3a write) is the fourth hub-backed write:
+        it must post to /api/internal/knowledge/store and gate on the write bearer,
+        never touch Postgres directly from this read-only-role container."""
+        src = self._src()
+        assert "/api/internal/knowledge/store" in src
+        body = re.search(r"async def store_memory\(.*?(?=\n@mcp\.tool|\nclass )", src, re.S)
+        assert body, "store_memory not found in gateway"
+        assert "_needs_write()" in body.group(0)
         assert "codex_ro" in src, "the read-only DB role note must survive"
 
 

@@ -6605,6 +6605,30 @@ def api_internal_task_delegate(task_id):
     )
 
 
+# ---- internal knowledge writes: coder-lane store_memory (owner decision 2026-10-09) ----
+# The containerised coder lanes (codex/opencode) keep their own memory — the write the
+# close-out procedure's Step 3a requires. A thin pass-through to the platform's ONE memory
+# writer, store_memory_handler, so validation, the C.R.E.E.D. PII scan and the
+# 'announcement' draft trigger behave exactly as for any other store_memory caller. Reach
+# is fenced by the knowledge:write scope; nothing else about the lanes widens.
+@app.route("/api/internal/knowledge/store", methods=["POST"])
+@require_internal_scope("knowledge:write")
+def api_internal_knowledge_store():
+    import asyncio
+
+    from mcp_server.tools.knowledge import store_memory_handler
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = asyncio.run(store_memory_handler(data))
+    except Exception as exc:
+        logger.error("internal knowledge store failed: %s", exc)
+        return jsonify({"success": False, "error": "knowledge write failed"}), 500
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @require_internal_scope("delegation")
 def api_internal_delegation_submit():

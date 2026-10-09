@@ -19,9 +19,9 @@ write a row. Writes instead go where they are individually scoped, validated and
 audited by the platform itself (`services/internal_auth.require_internal_scope`).
 
 The cost is honest and worth stating: this is NOT every tool Claude has. Writes cover
-what the internal API exposes — tasks, agent/team management, delegation — and nothing
-more. Adding a write capability means adding a scoped route on the hub, deliberately,
-rather than it appearing here for free.
+what the internal API exposes — tasks, agent/team management, delegation, and memory
+(store_memory) — and nothing more. Adding a write capability means adding a scoped route
+on the hub, deliberately, rather than it appearing here for free.
 
 ⚠️ Read tools run as `codex_ro`. A read tool that needs a table `codex_ro` cannot see
 will fail at the DB, not here; that is the role doing its job, not a gateway bug.
@@ -304,6 +304,29 @@ async def delegate_task_to_fleet(capability: str, reason: str, priority: int = 5
     return err or await _hub("POST", "/api/internal/delegation/submit", {
         "capability": capability, "reason": reason,
         "priority": priority, "delegation_source": "coder_lane",
+    })
+
+
+@mcp.tool()
+async def store_memory(
+    content: str,
+    title: str = "",
+    knowledge_type: str = "conversation_memory",
+    category: str = "general",
+    tags: list[str] | None = None,
+    importance: float = 0.6,
+) -> dict:
+    """Store information in A.R.C.H.I.E.'s long-term memory (knowledge base). Use for
+    facts, learnings, procedures or preferences that should persist across sessions.
+
+    `knowledge_type`: conversation_memory | vault_note | mistake_learned | code_snippet |
+    improvement. vault_note = 1.2x and mistake_learned = 1.3x search weight, so a note
+    worth finding later should say so. This is the write the close-out procedure's Step 3a
+    requires; it needs a write-scoped bearer."""
+    err = _needs_write()
+    return err or await _hub("POST", "/api/internal/knowledge/store", {
+        "content": content, "title": title, "knowledge_type": knowledge_type,
+        "category": category, "tags": tags or [], "importance": importance,
     })
 
 

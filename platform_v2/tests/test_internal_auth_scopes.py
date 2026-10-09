@@ -47,6 +47,7 @@ PROBES = {
     "agents:read": ("GET", "/api/internal/agents"),
     "tasks:read": ("GET", "/api/internal/tasks"),
     "tasks:write": ("POST", "/api/internal/tasks/0/note"),
+    "knowledge:write": ("POST", "/api/internal/knowledge/store"),
 }
 
 

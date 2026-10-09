@@ -50,6 +50,14 @@ def is_in_scope(path: str, cfg: dict) -> bool:
     if p is None:
         return False  # traversal / absolute / malformed → denied
 
+    # #3777 Codex narrow exception: allow this specific file despite blocked_globs
+    # while preserving the block on all other scripts/agents/* files.
+    # The exception only fires when the path is explicitly in allowed_paths.
+    if p == "scripts/agents/codex-delegation-worker.py":
+        if "scripts/agents/codex-delegation-worker.py" in cfg.get("allowed_paths", []):
+            return True
+        # Otherwise fall through to normal blocked_globs check below
+
     for pat in cfg.get("blocked_globs", []):
         if not pat:
             continue

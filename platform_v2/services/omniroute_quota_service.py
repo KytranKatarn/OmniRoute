@@ -90,9 +90,7 @@ def scan_quota_status(window_hours: Optional[int] = None) -> Dict[str, Any]:
     must never manufacture a false alert)."""
     from database import get_db_cursor
 
-    window_hours = window_hours if window_hours is not None else _get_setting_int(
-        "omniroute_quota:window_hours", 24
-    )
+    window_hours = window_hours if window_hours is not None else _get_setting_int("omniroute_quota:window_hours", 24)
 
     if not os.path.exists(OMNIROUTE_DB):
         logger.warning("omniroute_quota: call_logs not found at %s", OMNIROUTE_DB)
@@ -271,10 +269,7 @@ def check_and_alert() -> None:
             rate = recent[0]["rate"]
             send_system(
                 title=f"⚠️ OmniRoute quota: {provider} exhausted",
-                message=(
-                    f"{provider} has been throttled "
-                    f"({rate:.0%} of calls) for {confirm_k} consecutive scans."
-                ),
+                message=(f"{provider} has been throttled " f"({rate:.0%} of calls) for {confirm_k} consecutive scans."),
             )
         elif was_exhausted_before and not all_exhausted_now and recent[0]["status"] != "exhausted":
             send_system(
@@ -297,11 +292,9 @@ def check_and_alert() -> None:
 # ============================================================================
 
 # Model-prefix → upstream mapping, observed live from call_logs.requested_model
-# (2026-09-22): auto/* is served by the auto upstream, opencode/* by opencode,
+# (2026-09-22): auto/* is served by the auto upstream.
 # felo-web/* by felo-web. Keep this in sync if OmniRoute adds a front.
 _UPSTREAM_FOR_MODEL_PREFIX = (
-    ("oc/", "opencode"),      # the omniroute provider row's default (oc/big-pickle)
-    ("opencode/", "opencode"),
     ("auto/", "auto"),
     ("felo-web/", "felo-web"),
 )
@@ -369,7 +362,7 @@ def prefer_least_throttled_upstream(
     is exhausted — the caller falls back to local, mirroring
     pick_free_text_provider()'s contract. Fail-open → prefer (or first) when no
     snapshot reads."""
-    cands = candidates or ["opencode", "auto", "felo-web"]
+    cands = candidates or ["auto", "felo-web"]
     scored: List[tuple] = []
     for u in cands:
         try:

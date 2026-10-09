@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Backfill platform_registry_module.notes from the on-disk capability index (#5948).
 
-THE PROBLEM. `.claude/rules/module-capability-index.md` says it is REGENERATED and that
+THE PROBLEM. `docs/generated/module-capability-index.md` says it is REGENERATED and that
 curated context must be added via `platform_registry_service.set_notes()` — "never by
 editing this file". Each module block renders as "**Notes** (curated, survives
 regeneration): ...". But `set_notes()` has ZERO production callers: everyone edits the
@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, "/app")
 
-INDEX = "/mnt/archie_brain/.claude/rules/module-capability-index.md"
+INDEX = "/mnt/archie_brain/docs/generated/module-capability-index.md"
 _HEAD = re.compile(r"^###\s+.*?—\s+`([a-z0-9_]+)`\s*$", re.M)
 _MARK = "- **Notes** (curated, survives regeneration): "
 

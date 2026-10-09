@@ -23,7 +23,7 @@ drifts from the Jinja2 templates.
   `category-nav.css` are **not loaded at all**. `.claude/rules/standalone-extraction.md`
   documents a 16-file order that does not match the template — and that file's own warning
   says a wrong order leaves a standalone "visually broken", so this matters for extraction.
-- **`sc-live` / `sc-static`** (frontend.md, starbase.md) are **not** in the globally loaded
+- **`sc-live` / `sc-static`** (frontend.md) are **not** in the globally loaded
   CSS — they live in `station-ops.css`, which base.html does not load. Deliberately left
   out of the conventions header.
 - **Themes**: 7 files in `css/themes/`, not 8. The 8th is `lcars-classic`, which has no

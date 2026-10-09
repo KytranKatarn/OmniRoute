@@ -51,8 +51,8 @@ _MODULE_SOURCE_PREFIXES = ()
 _SERVICE_SOURCE_HINTS = ("docker-compose", "scripts/deploy_drift_check.py")
 _SKILL_SOURCE_PREFIXES = (".claude/skills/", ".claude/commands/")
 
-_MODULE_DOC = ".claude/rules/module-capability-index.md"
-_SERVICE_DOC = ".claude/rules/service-registry.md"
+_MODULE_DOC = "docs/generated/module-capability-index.md"
+_SERVICE_DOC = "docs/generated/service-registry.md"
 
 _CMD = "docker exec archie_platform python3 /mnt/archie_brain/scripts/generate_registry_docs.py"
 

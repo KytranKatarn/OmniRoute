@@ -72,7 +72,7 @@ asyncio.run(m())
 ASSIGN="You are coding in the A.R.C.H.I.E. platform (Kytran Empowerment civic-intelligence cluster).
 GROUND YOURSELF FIRST, then make the smallest correct change:
 - Read in the worktree: CLAUDE.md, the relevant file(s) under .claude/rules/, and the
-  module's entry in .claude/rules/module-capability-index.md.
+  module's entry in docs/generated/module-capability-index.md.
 - You have a read-only MCP server 'archie_kb' — call search_knowledge / search_mistakes /
   recall_context to ground the change in real platform patterns + prior decisions.
 

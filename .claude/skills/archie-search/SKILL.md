@@ -69,7 +69,7 @@ search_knowledge(query="ON CONFLICT translation_gaps", types=["code_snippet", "g
 ### Module capability deep-dive
 ```python
 search_knowledge(category="module_capability")
-# Returns all 36 module audits — see .claude/rules/module-capability-index.md for the index
+# Returns all 36 module audits — see docs/generated/module-capability-index.md for the index
 ```
 
 ## Quick-search (summary only)

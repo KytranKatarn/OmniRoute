@@ -40,8 +40,8 @@ from services.platform_registry_service import (  # noqa: E402
 )
 from services.time_utils import format_local  # noqa: E402
 
-OUT = Path("/mnt/archie_brain/.claude/rules/module-capability-index.md")
-OUT_SERVICES = Path("/mnt/archie_brain/.claude/rules/service-registry.md")
+OUT = Path("/mnt/archie_brain/docs/generated/module-capability-index.md")
+OUT_SERVICES = Path("/mnt/archie_brain/docs/generated/service-registry.md")
 
 # Order here IS the section order of the generated doc (see the sort at the bottom of
 # render_modules), so it is kept in step with dashboard_generator.get_categories_info()
@@ -111,9 +111,10 @@ def render() -> str:
     )
     L.append("")
 
-    # Instruction-budget visibility (2026-09-25). This index is auto-loaded into every
-    # Claude Code session's context alongside CLAUDE.md + every .claude/rules/*.md file;
-    # together they were measured at 443,893 chars against Claude Code's ~150k budget,
+    # Instruction-budget visibility (2026-09-25). Until the move to docs/generated/ this
+    # index was auto-loaded into every Claude Code session's context alongside CLAUDE.md
+    # + every .claude/rules/*.md file; together they were measured at 443,893 chars
+    # against Claude Code's ~150k budget (it no longer loads: only .claude/rules/ does),
     # and curated notes on just 3 modules (department_hq, repair_bay, backup_manager)
     # accounted for ~60% of every char this file has ever cost. Deliberately NOT
     # auto-truncated here: these notes are the only place a lot of hard-won incident

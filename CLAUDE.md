@@ -131,6 +131,7 @@ Every new session MUST begin with one of:
 | Dev HQ | http://192.168.1.200:3000/tools/consciousness/#devhq (tab inside Consciousness) |
 | Docs | `knowledge_base` table → Consciousness Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (36 modules) |
+| Module capability index | `docs/generated/module-capability-index.md` (generated, NOT auto-loaded) — or MCP `search_knowledge(category="module_capability")`. Edit notes via `platform_registry_service.set_notes()`, never the file |
 | MCP Tools | 87 tools via `.mcp.json` (incl. `session_briefing`, `propose_hire` #2124, `delegate_task` #2207) |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 

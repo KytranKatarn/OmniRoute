@@ -11,7 +11,7 @@
 #   * website portraits + data/*.json  -> REAL deployable assets: commit them.
 #     (publish_website.sh zips the working tree for Hostinger; git is the
 #     version history + the safety that makes reset/merge operations sane.)
-#   * .claude/rules/service-registry.md -> regenerated session-rules doc; commit
+#   * docs/generated/service-registry.md -> regenerated session-rules doc; commit
 #     so worktrees + fresh clones load current registry state.
 #   * hardware_baseline.json / learned-skills.md are NOT here — they are
 #     runtime state / a KB index and are gitignored instead (same PR).
@@ -37,7 +37,7 @@ PATHS=(
   # website/creed-ai.org is a SYMLINK to the standalone (gitignored as such) —
   # git add hard-refuses pathspecs beyond a symlink, and its content was never
   # tracked in this repo. Caught by the supervised first run 2026-07-28.
-  ".claude/rules/service-registry.md"
+  "docs/generated/service-registry.md"
 )
 
 log(){ echo "[$(date '+%F %T')] $*"; }

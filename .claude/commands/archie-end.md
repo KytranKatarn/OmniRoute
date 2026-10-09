@@ -45,7 +45,7 @@ Per-PR checklist — ALL four must be checked before proceeding to Step 4:
       Tags: `["user-doc", "project-<id>", "pr-<n>"]`
 - [ ] **Coder-facing vault_note** — *What's the contract?* (endpoint path + method + body + response shape, OR service function signature + side effects + preconditions)
       Tags: `["coder-doc", "project-<id>", "pr-<n>"]`
-- [ ] **Capability index** — If the PR added/removed/renamed a route, tab, service, or DB column, edit `.claude/rules/module-capability-index.md` inline. This file is loaded into every session's context — drift here is expensive.
+- [ ] **Capability index** — If the PR added/removed/renamed a route, tab, service, or DB column, edit the module's curated notes via `platform_registry_service.set_notes(module_id, text)` (NOT `docs/generated/module-capability-index.md` by hand — it is regenerated; run `scripts/generate_registry_docs.py` after). The generated index is no longer auto-loaded; it is searchable via `search_knowledge(category="module_capability")`.
 - [ ] **Mistake_learned** — Any 2+ step debug loop or "this was harder than it should have been" moment gets its own entry so we don't repeat it.
 
 **Self-check before moving on:** State out loud: "I have written [N] vault_notes for PR #[X]." If N < 2, stop and write them now.

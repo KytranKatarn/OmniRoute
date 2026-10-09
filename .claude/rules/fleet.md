@@ -1,6 +1,6 @@
 # Fleet Rules
 
-**Authoritative fleet reference** — supercedes starbase.md for new code. Starbase.md kept for historical patterns.
+**Authoritative fleet reference.** (The old `starbase.md` was retired; its few unique facts — node RAM budget split, status badge labels — are not restated here, see git history.)
 
 ## Architecture
 

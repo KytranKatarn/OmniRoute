@@ -94,7 +94,7 @@ Print a focused summary:
 - **Relevant mistakes**: <list or "none found">
 - **Active tasks**: <list or "none in progress">
 - **Key agents**: <relevant director + any module chat overlay agent>
-- **Critical gotchas**: <from module-capability-index.md>
+- **Critical gotchas**: <from docs/generated/module-capability-index.md>
 - **Ready**: Yes/No
 ```
 

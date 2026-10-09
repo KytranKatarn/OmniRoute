@@ -119,6 +119,23 @@ BLOCK_MSG
     exit 2
 fi
 
+# ONCE-PER-SESSION injection (2026-10-09, context-budget audit).
+# The hard BLOCKS above run on EVERY call - they are safety and stay unconditional.
+# Only this ~3,000-char informational block is throttled: it was re-injected on every
+# infra-matching Edit/Write/Bash (a dozen+ times in one session), and a guardrail
+# that fires on every call trains you to ignore it. Keyed on the hook's session_id;
+# re-injects after ARCHIE_INFRA_CTX_TTL_MIN (default 120) so a compaction that dropped
+# the earlier copy does not leave the session without it. Set the TTL to 0 to restore
+# the old always-inject behaviour.
+sid=$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)
+marker="/tmp/archie_infra_ctx_${sid:-nosession}"
+ttl="${ARCHIE_INFRA_CTX_TTL_MIN:-120}"
+if [ "$ttl" -gt 0 ] 2>/dev/null && [ -f "$marker" ] && \
+   [ -z "$(find "$marker" -mmin +"$ttl" 2>/dev/null)" ]; then
+    exit 0
+fi
+touch "$marker" 2>/dev/null || true
+
 # Inject canonical architecture as JSON additionalContext.
 # Claude Code reads this and folds it into the assistant's context BEFORE
 # the tool actually runs.

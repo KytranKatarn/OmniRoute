@@ -2,7 +2,8 @@
 
 Status: handoff, reviewed PR/artifact reconciliation, and multi-file completion
 verification implemented; dispatch OFF. Safe unclaimed-task cancellation/retry is implemented. Failed-worker and closed-PR
-recovery plus the live pilot remain pending. This is a repository design
+replacement execution plus the live pilot remain pending. Closed-PR tracking and
+replacement intent are implemented; execution remains disabled. This is a repository design
 artifact requested by the owner, not a claim of Dev HQ or KB persistence.
 
 ## Problem and outcome
@@ -189,10 +190,13 @@ that change with guessed timestamps or an operator checkbox in the web app.
    rollback, and concurrent cancellation/retry. Every unknown state must refuse
    replacement and remain visible.
 
-### Closed-unmerged PR contract (implementation still pending)
+### Closed-unmerged PR contract (tracking/intent implemented; execution pending)
 
 The existing merge sweep preserves PR metadata and changes the proposal to
-`fix_requested`; planned completion polling currently selects only `pr_open`.
+`fix_requested`; planned completion polling selects only `pr_open`. A separate bounded tracker now
+selects `pr_open` and `fix_requested`, records trusted task/repo/branch/PR/head/state
+observations, and returns reopened/merged PRs to `pr_open` for the original
+completion authority. Unknown identity/state stays blocked with evidence retained.
 That is a recovery gap, not evidence that the original finding is fixed. Never
 clear the old PR fields and feed the proposal into ordinary mechanical retry.
 
@@ -211,3 +215,29 @@ Preserve an operator-visible blocker when dispatch is paused or proof is missing
 Test close/reopen races, merged-after-close, changed head/task, stale requests,
 missing GitHub data, duplicate requests and failed insertion/link writes. Keep
 planned dispatch OFF until these contracts and the live pilot are proved.
+
+
+## Closed-PR tracking and replacement intent
+
+`reconcile_closed_planned(limit=3)` runs before completion retries and before new-work
+admission. It validates task and GitHub identity server-side and compares the locked
+proposal/task with the snapshot before writing observations. No admission, inference,
+PR mutation, task creation, deployment or finding closure occurs here.
+
+Admin POST `/tools/repair-bay/api/proposals/<id>/planned-replacement` accepts
+`{task_id, pr_number, head_sha}`. It records one intent per current identity under a
+proposal lock; duplicates return the same request ID. Current scope/governance must
+pass. Prior invalidated requests remain in history. Browser worker-stop/execute
+fields are ignored. The request can be recorded while dispatch is paused because
+it does not authorize execution. `execution_enabled` is always false in this phase,
+even if an unvalidated worker-stop field appears on a task.
+
+Reopened/merged PRs and changed heads invalidate prior intent on the next bounded
+tracking pass. Missing GitHub data exposes a blocker and cannot make intent executable.
+The serving progress projection does not call a stale reviewed head merge-ready when
+it differs from the observed head. Existing polling cadence applies; this is not an
+instant GitHub webhook or proof that a queued replacement has started.
+
+The detail panel renders request-ready, requested/blocked, and reopened/invalidated
+states. Pilot fixture commands and future live evidence gates are in
+`docs/plans/department-hq-repair-pilot.md`. The live pilot is not yet executed.

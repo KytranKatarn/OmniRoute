@@ -2870,6 +2870,26 @@ function showProposalDetail(id) {
             if (plannedWork.task_id && plannedWork.pr_number) plannedNote.textContent += ' · PR #' + plannedWork.pr_number;
             if (plannedWork.stage === 'planned_blocked') plannedNote.textContent += ' · ' + plannedWork.reason;
             actions.appendChild(plannedNote);
+            var replacement = plannedWork.replacement;
+            if (replacement && (replacement.state === 'closed' || replacement.request.status)) {
+                var replacementNote = document.createElement('span');
+                replacementNote.textContent = replacement.request.status === 'requested'
+                    ? 'Replacement requested · ' + replacement.reason
+                    : replacement.reason;
+                actions.appendChild(replacementNote);
+                if (replacement.can_request) {
+                    var replacementBtn = document.createElement('button');
+                    replacementBtn.className = 'dp-btn';
+                    replacementBtn.textContent = 'Request replacement (no execution)';
+                    replacementBtn.onclick = function() {
+                        replacementBtn.disabled = true;
+                        proposalAction(id, 'planned-replacement', {task_id: plannedWork.task_id,
+                            pr_number: plannedWork.pr_number, head_sha: replacement.head_sha})
+                            .finally(function() { replacementBtn.disabled = false; });
+                    };
+                    actions.appendChild(replacementBtn);
+                }
+            }
             if (plannedWork.can_cancel || plannedWork.can_retry) {
                 var recoveryBtn = document.createElement('button');
                 recoveryBtn.className = 'dp-btn';
@@ -2925,6 +2945,7 @@ function showProposalDetail(id) {
             actions.appendChild(progressNote);
             var progressController = new AbortController();
             window._repairProgressController = progressController;
+            var replacementSnapshot = JSON.stringify(plannedWork && plannedWork.replacement || null);
             function refreshRepairProgress() {
                 if (progressController.signal.aborted || generation !== window._repairDetailGeneration) return;
                 fetch(API + '/proposals/' + id + '/repair-progress', {credentials:'include', signal:progressController.signal})
@@ -2934,7 +2955,8 @@ function showProposalDetail(id) {
                         if (!d.success) throw new Error('Progress unavailable');
                         progressNote.textContent = 'Repair stage: ' + d.progress.stage.replace(/_/g, ' ');
                         if (d.progress.merge_tier) progressNote.textContent += ' · PR merge tier ' + d.progress.merge_tier;
-                        if (d.progress.stage !== currentStage) showProposalDetail(id);
+                        var nextReplacement = JSON.stringify(d.progress.planned_work && d.progress.planned_work.replacement || null);
+                        if (d.progress.stage !== currentStage || nextReplacement !== replacementSnapshot) showProposalDetail(id);
                     }).catch(function() {
                         if (generation === window._repairDetailGeneration) progressNote.textContent = 'Progress unavailable — refresh to retry';
                     }).finally(function() {
@@ -2976,7 +2998,9 @@ function proposalAction(id, action, payload) {
             if (d.success || d.executed) {
                 loadProposals();
                 showProposalDetail(id);
-                if (d.queued && action === 'submit-patch') {
+                if (d.recorded && action === 'planned-replacement') {
+                    alert(d.message);
+                } else if (d.queued && action === 'submit-patch') {
                     alert(d.message || 'Saved patch queued for approval, sandbox tests and PR creation.');
                 } else if (d.queued && (action === 'plan-repair' || action === 'planned-recovery')) {
                     alert(d.message || 'Planned work queued; the finding remains open until verified.');

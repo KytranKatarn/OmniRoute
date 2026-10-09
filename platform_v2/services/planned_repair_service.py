@@ -141,6 +141,9 @@ def planned_progress(proposal, cursor):
     from services.planned_repair_recovery import recovery_options
 
     result.update(recovery_options(proposal, task))
+    from services.planned_repair_closed import replacement_progress
+
+    result["replacement"] = replacement_progress(proposal, task)
     task_meta = metadata(task.get("metadata"))
     result["task_status"] = task["status"]
     result["pr_number"] = task_meta.get("codex_pr")

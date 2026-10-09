@@ -906,6 +906,15 @@ def code_health_backlog_drain_job():
         logger.warning("Planned repair reconciliation failed: %s", exc)
 
     try:
+        from services.planned_repair_closed import reconcile_closed_planned
+
+        tracked = reconcile_closed_planned(limit=3)
+        if tracked.get("checked"):
+            logger.info("[PlannedRepairClosedTracking] %s", tracked)
+    except Exception as exc:
+        logger.warning("Planned closed-PR tracking failed: %s", exc)
+
+    try:
         from services.planned_repair_completion import reconcile_planned_completion
 
         completed = reconcile_planned_completion(limit=3)

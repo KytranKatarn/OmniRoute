@@ -39,6 +39,11 @@ def progress(proposal):
                     and metadata(review.get("metadata")).get("head_sha")
                     and metadata(review.get("metadata")).get("head_sha")
                     == metadata(review.get("metadata")).get("reviewed_head_sha")
+                    and (
+                        not (meta.get("planned_pr_observation") or {}).get("head_sha")
+                        or (meta.get("planned_pr_observation") or {}).get("head_sha")
+                        == metadata(review.get("metadata")).get("head_sha")
+                    )
                     and verdict_is_approved(review.get("ai_summary") or "")
                 ):
                     result["stage"] = (
@@ -60,6 +65,16 @@ def progress(proposal):
             result["queue_status"] = row and row["status"]
             if row and row["status"] in ("failed", "cancelled"):
                 result["stage"] = "blocked"
+    observed = meta.get("planned_pr_observation") or {}
+    if meta.get("apply_mode") == "planned_codex_pr" and not meta.get("merged_pr"):
+        if meta.get("planned_pr_tracking_error"):
+            result["stage"] = "blocked"
+        elif observed.get("state") == "closed":
+            result["stage"] = "pr_closed_unmerged"
+        elif observed.get("state") == "merged":
+            result["stage"] = "merged_awaiting_verification"
+        elif observed.get("state") == "open" and result["stage"] == "pr_closed_unmerged":
+            result["stage"] = "pr_review"
     if meta.get("merged_pr"):
         result["stage"] = (
             "verified_complete"

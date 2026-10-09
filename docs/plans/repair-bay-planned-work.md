@@ -1,6 +1,7 @@
 # Planned Code Health repairs
 
-Status: initial handoff implementation; dispatch OFF. This is a repository design
+Status: handoff and reviewed PR/artifact reconciliation implemented; dispatch OFF.
+Multi-file runtime verification and the live pilot remain pending. This is a repository design
 artifact requested by the owner, not a claim of Dev HQ or KB persistence.
 
 ## Problem and outcome
@@ -32,6 +33,24 @@ a repair is live. Protected oversight targets remain human-led work.
   no-change assessment would otherwise be falsely reported as blocked.
 
 ## Phase 2: coder results and PR linkage
+
+The initial implementation polls the trusted host worker's task writeback rather
+than accepting callbacks. It verifies task/proposal association, repository and
+branch, complete bounded file inventory, every changed/renamed path against current
+scope and governance, and an approved current-head review. Reviewed blobs are
+verified against Git object hashes before SHA-256 manifests are recorded. A final
+head check and locked task/proposal/review comparison reject stale snapshots.
+The proposal enters `pr_open` with `apply_mode=planned_codex_pr`; it is never marked
+deployed by this step. Reconciliation runs before the existing drain admission
+switch, bounded to three proposals per cycle. No worker harness changes are used.
+
+Post-merge P.R.O.B.E. found the hub does not mount the root config tree. Read the
+real local scope file where present, otherwise the exact tracked
+`HEAD:config/agents/codex.yaml` through the existing .git mount. Unavailable or
+invalid policy fails closed; no copied allowlist or mount change is introduced.
+
+Pending: manifest refresh after later pushes, explicit attempt/retry recovery,
+and the phase-3 completion contract below. Keep dispatch disabled.
 
 Use a platform-owned reconciler in a scheduled background job; no GitHub reads,
 inference or sandbox operations in request handlers. A task result must carry

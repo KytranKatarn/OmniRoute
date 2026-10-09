@@ -3,10 +3,7 @@
 This lane creates work; it never applies code, approves a PR or closes a finding.
 """
 
-from pathlib import Path
-
 from psycopg2.extras import Json
-import yaml
 
 from database import get_db_cursor
 from services.repair_submission import metadata
@@ -23,6 +20,7 @@ def classify(proposal):
         resolve_proposal_source,
     )
     from services.agents.codex_scope import is_in_scope
+    from services.planned_repair_policy import load_scope
 
     meta = metadata(proposal.get("metadata"))
     result = {"kind": "unsupported", "eligible": False}
@@ -43,13 +41,10 @@ def classify(proposal):
     if status != "ok":
         return dict(result, reason="Source file is unavailable")
     try:
-        root = Path(__file__).resolve().parents[2]
-        if not (root / "config/agents/codex.yaml").is_file():
-            root = Path("/mnt/archie_brain")
-        config = yaml.safe_load((root / "config/agents/codex.yaml").read_text())["codex"]
+        config = load_scope()
         if not is_in_scope(path, config):
             return dict(result, reason="Target is outside the coding lane scope")
-    except (OSError, ValueError, TypeError, KeyError, yaml.YAMLError):
+    except ValueError:
         return dict(result, reason="Coding lane scope could not be verified")
     if proposal.get("status") != "approved":
         return dict(result, reason="Approve the finding before requesting planned work")
@@ -156,4 +151,6 @@ def planned_progress(proposal, cursor):
     result["stage"] = stages.get(task["status"], "planned_blocked")
     if result["stage"] == "planned_blocked":
         result["reason"] = "Coding task needs operator review; an automatic retry has not been created"
+    if link.get("result_error"):
+        result.update(stage="planned_blocked", reason=link["result_error"])
     return result

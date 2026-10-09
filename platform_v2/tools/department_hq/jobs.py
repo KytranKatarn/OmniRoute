@@ -895,6 +895,16 @@ def code_health_backlog_drain_job():
     (default 15)."""
     from services.work_control_service import is_enabled
 
+    # Existing work must keep progressing while new repair admission is paused.
+    try:
+        from services.planned_repair_results import reconcile_planned_results
+
+        reconciled = reconcile_planned_results(limit=3)
+        if reconciled.get("checked"):
+            logger.info("[PlannedRepairResults] %s", reconciled)
+    except Exception as exc:
+        logger.warning("Planned repair reconciliation failed: %s", exc)
+
     if not is_enabled("code_health_backlog_drain", default=False):
         return
     start = time.time()

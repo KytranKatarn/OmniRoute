@@ -1343,7 +1343,7 @@ def emit_delegation_event(
 
 
 def fetch_pending_delegations(limit: int = 10) -> list:
-    """Return up to ``limit`` pending delegated tasks oldest-first."""
+    """Return pending hub delegations; host-owned Codex tasks never execute here."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
@@ -1352,6 +1352,7 @@ def fetch_pending_delegations(limit: int = 10) -> list:
             FROM unified_tasks
             WHERE delegation_source IS NOT NULL
               AND status = 'pending'
+              AND COALESCE(delegation_args->>'capability','') <> 'codex_task'
             ORDER BY priority DESC, created_at ASC
             LIMIT %s
             """,
@@ -1393,10 +1394,10 @@ def reclaim_stale_delegations(exclude_ids, idle_secs: int = 600, limit: int = 10
         "AND updated_at < now() - make_interval(secs => %s) "
         "AND NOT EXISTS (SELECT 1 FROM work_notes w "
         "WHERE w.task_id = t.id AND w.created_at > now() - make_interval(secs => %s)) "
-        # #4422: a codex_task that already opened a PR is SUCCESSFUL work awaiting
-        # the promote — never reap it (it would false-block, then re-run → dup PRs).
-        "AND NOT (delegation_args->>'capability' = 'codex_task' "
-        "AND metadata->>'codex_pr' IS NOT NULL)"
+        # Host-owned Codex processes are absent from this worker's live-id set.
+        # Neither age nor missing notes proves they stopped. Never reclaim them
+        # into the generic pending queue, even before a PR exists.
+        "AND COALESCE(delegation_args->>'capability','') <> 'codex_task'"
     )
     with get_db_cursor(commit=True) as (conn, cur):
         if exclude_ids:
@@ -1910,6 +1911,13 @@ def requeue_blocked_delegation(task_id: int) -> Dict[str, Any]:
         # row should be 'review'/'completed', not retryable.
         if capability == "codex_task" and row["_meta"].get("codex_pr"):
             return {"success": False, "error": "already_has_pr", "codex_pr": row["_meta"].get("codex_pr")}
+        payload = row["_args"].get("args") or {}
+        if capability == "codex_task" and isinstance(payload, dict) and "repair_proposal_id" in payload:
+            return {
+                "success": False,
+                "error": "planned_repair_recovery_required",
+                "message": "Use Repair Bay recovery. A blocked status does not prove the host worker stopped.",
+            }
         new_status = "deferred" if capability == "codex_task" else "pending"
         cur.execute(
             "UPDATE unified_tasks "

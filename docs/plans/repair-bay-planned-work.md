@@ -147,3 +147,67 @@ changed deployment artifacts and failed QA. None may close a finding falsely.
 Only after that pilot add bounded automatic planned-work admission. Use explicit
 capacity limits and welfare/cost controls, with operator-visible blocker reasons.
 Keep protected targets and security dispositions out of unattended coding.
+
+## Failed-worker and closed-PR recovery findings
+
+The general delegation retry API could bypass Repair Bay's stop-evidence refusal
+by putting a blocked planned `codex_task` back in `deferred`. The generic stale
+reclaimer also considered host-owned Codex tasks absent from its own live-id set,
+then wrote `pending`; the hub pending selector accepted that wrong queue state.
+The ownership fix refuses generic retry for tasks carrying `repair_proposal_id`,
+excludes Codex tasks from generic stale reclamation, and excludes them from the
+hub pending selector. Ordinary hub work and legacy manual Codex retry behavior
+remain supported. No existing task is rewritten by deployment of these filters.
+
+Read-only PostgreSQL verification used the actual candidate SELECT statements
+against synthetic CTE rows: ordinary hub and missing-capability rows stayed
+selectable; planned/legacy Codex rows were excluded, with and without PR metadata
+and with a live-id exclusion. Removing the predicate admitted host-owned tasks.
+No production rows were selected for mutation or changed by this verification.
+
+### Maintainer-owned worker contract (required before failed-worker retry)
+
+The change belongs in `scripts/agents/codex-delegation-worker.py` and the runner's
+process lifecycle; Codex scope explicitly blocks this directory. Do not replace
+that change with guessed timestamps or an operator checkbox in the web app.
+
+1. Atomically claim with a unique attempt ID, host/process identity and generation;
+   publish a durable claim/lease before starting execution. Missing or expired
+   heartbeat means unknown, never proof of exit.
+2. On timeout, stop and reap the entire execution process group, including child
+   runners. Confirm no surviving descendants or outstanding PR fallback operation
+   before emitting a server-owned terminal receipt. Merely catching TimeoutExpired
+   or writing `blocked` is insufficient.
+3. Bind every status/PR writeback and stop receipt to task ID plus attempt ID using
+   compare-and-set. An older process cannot overwrite a newer attempt or register
+   its PR on a replacement. Preserve PR/branch evidence even on partial failure.
+4. Only accept a retry after validated terminal evidence and an operator request,
+   rechecking Repair Bay governance, current scope, admission and proposal identity.
+   Allocate the replacement and preserve prior evidence in one transaction.
+5. Test a live process after the nominal timeout, a surviving child process, lease
+   expiry without exit, stale callback, partial PR creation, repeated requests,
+   rollback, and concurrent cancellation/retry. Every unknown state must refuse
+   replacement and remain visible.
+
+### Closed-unmerged PR contract (implementation still pending)
+
+The existing merge sweep preserves PR metadata and changes the proposal to
+`fix_requested`; planned completion polling currently selects only `pr_open`.
+That is a recovery gap, not evidence that the original finding is fixed. Never
+clear the old PR fields and feed the proposal into ordinary mechanical retry.
+
+Implement an explicit admin replacement request carrying expected task/PR IDs;
+let a bounded background consumer perform the GitHub reads. Verify repository,
+branch, task/proposal association, current head, `closed` and not merged, and
+recheck immediately before accepting replacement. Unavailable, reopened, merged,
+foreign or changed PRs must refuse that replacement. Reopened/merged PRs should
+resume their original reviewed-manifest and completion path instead.
+
+Retain the old task, PR, head, manifest, review and closure evidence in immutable
+attempt history. Require worker completion/stop evidence, renewed finding approval,
+current scope/governance, and enabled admission. Allocate/link the new attempt
+atomically, with stale-request protection and no original-finding closure.
+Preserve an operator-visible blocker when dispatch is paused or proof is missing.
+Test close/reopen races, merged-after-close, changed head/task, stale requests,
+missing GitHub data, duplicate requests and failed insertion/link writes. Keep
+planned dispatch OFF until these contracts and the live pilot are proved.

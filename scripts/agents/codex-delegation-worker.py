@@ -16,10 +16,10 @@ it claims (status + metadata writeback). It NEVER writes the agents table and
 NEVER dispatches to the cluster (Codex is external).
 
 Security invariants (do not violate):
-  * The task ``reason`` only ever reaches Codex as a subprocess ARGUMENT (never
-    interpolated into SQL). The only values interpolated into SQL are integers
-    (task_id, project_id), hardcoded status literals, and a JSON blob whose
-    values are an int PR number + a regex-restricted ``codex/[a-z0-9-]+`` branch.
+  * Task prose is never interpolated into SQL. JSON uses hex-encoded UTF-8;
+    IDs/statuses are validated. Every writeback matches the claimed attempt.
+  * Attempt observations never certify Docker work has stopped. Replacement
+    execution remains disabled until container lifecycle ownership is implemented.
   * Never auto-merge — promotion is a human Telegram approval.
 
 Usage:
@@ -31,9 +31,13 @@ from __future__ import annotations
 
 import fcntl
 import json
+import os
 import re
+import socket
 import subprocess
 import sys
+import uuid
+from pathlib import Path
 
 REPO = "/mnt/archie_brain"
 RUNNER = f"{REPO}/scripts/agents/run-codex-task.sh"
@@ -77,14 +81,37 @@ def psql(sql: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _json_sql(value: dict) -> str:
+    """Encode JSON without interpolating arbitrary text into a SQL literal."""
+    encoded = json.dumps(value).encode().hex()
+    return f"convert_from(decode('{encoded}', 'hex'), 'UTF8')::jsonb"
+
+
+def worker_identity() -> dict:
+    """Identify this poller incarnation; PID alone can be reused after a crash."""
+    return {
+        "id": str(uuid.uuid4()),
+        "host": socket.gethostname(),
+        "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+        "pid": os.getpid(),
+        "process_start": Path("/proc/self/stat").read_text().rsplit(")", 1)[1].split()[19],
+        "stop_confirmed": False,
+    }
+
+
 def claim_one() -> dict | None:
     """Atomically claim the oldest deferred codex_task (deferred → in_progress)."""
+    attempt = worker_identity()
     out = psql(
-        """
-        UPDATE unified_tasks SET status='in_progress', updated_at=now()
+        f"""
+        UPDATE unified_tasks SET status='in_progress', updated_at=now(),
+            metadata=coalesce(metadata,'{{}}'::jsonb)||jsonb_build_object(
+                'codex_worker_attempt', {_json_sql(attempt)} || jsonb_build_object(
+                    'claimed_at', now(), 'lease_expires_at', now()+interval '1800 seconds'))
         WHERE id = (
             SELECT id FROM unified_tasks
             WHERE status='deferred' AND delegation_args->>'capability'='codex_task'
+              AND NOT (coalesce(metadata,'{{}}'::jsonb) ? 'codex_worker_attempt')
               AND (metadata->>'codex_pr') IS NULL  -- idempotency (#4422): never re-run a task that already opened a PR → no duplicate PRs
             ORDER BY created_at ASC LIMIT 1
             FOR UPDATE SKIP LOCKED
@@ -96,7 +123,12 @@ def claim_one() -> dict | None:
     if not out:
         return None
     parts = out.split("|", 2)
-    return {"id": int(parts[0]), "project_id": parts[1].strip(), "reason": parts[2].strip()}
+    return {
+        "id": int(parts[0]),
+        "project_id": parts[1].strip(),
+        "reason": parts[2].strip(),
+        "attempt_id": attempt["id"],
+    }
 
 
 def project_ctx(pid: str) -> str:
@@ -108,16 +140,55 @@ def project_ctx(pid: str) -> str:
     )
 
 
-def set_status(task_id: int, status: str, extra: dict | None = None) -> None:
-    if extra:
-        blob = json.dumps(extra)  # values are int + regex-safe branch → no quotes
-        psql(
-            f"UPDATE unified_tasks SET status='{status}', "
-            f"metadata=coalesce(metadata,'{{}}'::jsonb)||'{blob}'::jsonb, "
-            f"updated_at=now() WHERE id={int(task_id)};"
-        )
+def owns_attempt(task_id: int, attempt_id: str, status: str = "in_progress") -> bool:
+    attempt_id = str(uuid.UUID(attempt_id))
+    if status not in {"in_progress", "review"}:
+        raise ValueError("Unsupported ownership status")
+    return psql(
+        f"SELECT id FROM unified_tasks WHERE id={int(task_id)} AND status='{status}' "
+        f"AND metadata->'codex_worker_attempt'->>'id'='{attempt_id}';"
+    ) == str(int(task_id))
+
+
+def set_status(
+    task_id: int,
+    status: str,
+    extra: dict | None = None,
+    *,
+    attempt_id: str,
+    outcome: str = "runner_returned",
+) -> bool:
+    """CAS writeback. Terminal observation is NEVER proof that Docker work stopped.
+
+    Each task has one durable attempt; replacement will use a new task. A deferred
+    status alone cannot make a previously claimed task runnable again.
+    """
+    attempt_id = str(uuid.UUID(attempt_id))
+    if status not in {"blocked", "review", "deferred"}:
+        raise ValueError("Unsupported worker status")
+    extra = extra or {}
+    if set(extra) - {"codex_pr", "codex_branch"}:
+        raise ValueError("Unsupported worker metadata")
+    if "codex_pr" in extra and (type(extra["codex_pr"]) is not int or extra["codex_pr"] <= 0):
+        raise ValueError("Invalid PR number")
+    if "codex_branch" in extra and not BRANCH_RE.fullmatch(extra["codex_branch"]):
+        raise ValueError("Invalid branch")
+    if status == "deferred":
+        if outcome != "dry_run" or extra:
+            raise ValueError("Only a dry run may release its claim")
+        metadata = "metadata-'codex_worker_attempt'"
     else:
-        psql(f"UPDATE unified_tasks SET status='{status}', updated_at=now() WHERE id={int(task_id)};")
+        terminal = _json_sql({"outcome": outcome, "stop_confirmed": False})
+        metadata = (
+            f"metadata||{_json_sql(extra)}||jsonb_build_object('codex_worker_attempt', "
+            f"(metadata->'codex_worker_attempt')||{terminal}||jsonb_build_object('observed_at',now()))"
+        )
+    out = psql(
+        f"UPDATE unified_tasks SET status='{status}', metadata={metadata}, updated_at=now() "
+        f"WHERE id={int(task_id)} AND status='in_progress' "
+        f"AND metadata->'codex_worker_attempt'->>'id'='{attempt_id}' RETURNING id;"
+    )
+    return out == str(int(task_id))
 
 
 def compose_prompt(task: dict) -> str:
@@ -145,7 +216,19 @@ def fallback_pr(branch: str, task_id: int, reason: str) -> int | None:
     # Step 1 — look for an existing open PR on this branch
     try:
         r = subprocess.run(
-            [GH, "pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number"],
+            [
+                GH,
+                "pr",
+                "list",
+                "--head",
+                branch,
+                "--state",
+                "open",
+                "--json",
+                "number",
+                "--jq",
+                ".[0].number",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -227,22 +310,44 @@ def main() -> int:
         print("no deferred codex tasks")
         return 0
     tid = task["id"]
-    prompt = compose_prompt(task)
+    attempt_id = task["attempt_id"]
+    try:
+        prompt = compose_prompt(task)
+    except Exception:
+        set_status(tid, "blocked", attempt_id=attempt_id, outcome="prompt_failed")
+        raise
     print(f"claimed codex task #{tid} (project {task['project_id'] or 'n/a'})")
 
     if dry:
         print("--- composed prompt ---")
         print(prompt)
-        set_status(tid, "deferred")  # release for a real run
-        print(f"[dry-run] released task #{tid} back to deferred")
+        released = set_status(tid, "deferred", attempt_id=attempt_id, outcome="dry_run")
+        print(f"[dry-run] task #{tid} claim released: {released}")
         return 0
 
     # Run the sandboxed Codex runner (pushes a codex/* branch on success).
-    r = subprocess.run([RUNNER, prompt], capture_output=True, text=True, timeout=RUNNER_TIMEOUT)
-    out = (r.stdout or "") + (r.stderr or "")
+    # Recheck after prompt lookup; an operator may have cancelled this claim.
+    if not owns_attempt(tid, attempt_id):
+        return 0
+    outcome = "runner_returned"
+    try:
+        r = subprocess.run([RUNNER, prompt], capture_output=True, text=True, timeout=RUNNER_TIMEOUT)
+        out = (r.stdout or "") + (r.stderr or "")
+    except subprocess.TimeoutExpired as exc:
+        # subprocess.run kills its direct child, NOT daemon-owned Docker work.
+        # Preserve partial PR/branch evidence, but never start fallback on timeout.
+        outcome = "runner_timeout_stop_unconfirmed"
+
+        def decoded(value):
+            return value.decode(errors="replace") if isinstance(value, bytes) else (value or "")
+
+        out = decoded(exc.stdout) + decoded(exc.stderr)
+    except OSError:
+        set_status(tid, "blocked", attempt_id=attempt_id, outcome="runner_start_failed")
+        raise
     # Persist the FULL runner output — the runner's scope-guard / gate decisions
     # are essential for debugging a blocked run and must not be truncated away.
-    logpath = f"/tmp/codex-delegation-{tid}.log"
+    logpath = f"/tmp/codex-delegation-{tid}-{attempt_id}.log"
     try:
         with open(logpath, "w") as fh:
             fh.write(out)
@@ -254,13 +359,27 @@ def main() -> int:
     mp = PR_RE.search(out)
     pr_num = int(mp.group(1)) if mp else None
 
+    evidence = {}
+    if branch:
+        evidence["codex_branch"] = branch
+    if pr_num:
+        evidence["codex_pr"] = pr_num
+    if outcome != "runner_returned":
+        set_status(tid, "blocked", evidence, attempt_id=attempt_id, outcome=outcome)
+        print(f"codex #{tid}: timeout; stop unconfirmed (full log: {logpath})")
+        return 0
+
     # Branch pushed but gh pr create failed inside the runner — attempt recovery.
     if branch and not pr_num:
+        if not owns_attempt(tid, attempt_id):
+            return 0
         print(f"codex #{tid}: branch {branch} pushed but no PR in runner output — trying fallback")
         pr_num = fallback_pr(branch, tid, task["reason"])
+        if pr_num:
+            evidence["codex_pr"] = pr_num
 
     if not branch or not pr_num:
-        set_status(tid, "blocked")
+        set_status(tid, "blocked", evidence, attempt_id=attempt_id, outcome="pr_unconfirmed")
         print(f"codex #{tid}: no PR opened → blocked (full log: {logpath})\n{out[-500:]}")
         return 0
 
@@ -269,12 +388,12 @@ def main() -> int:
     # reclaim_stale_delegations false-mark a SUCCESSFUL task 'blocked' after 2-3
     # idle cycles — which then got re-run → DUPLICATE PRs. The promote→merge
     # writeback (ai_bridge/agent_loop.py) flips 'review' → 'completed' on approval.
-    set_status(tid, "review", {"codex_pr": pr_num, "codex_branch": branch})
-    if pr_num:
+    written = set_status(tid, "review", evidence, attempt_id=attempt_id)
+    if written and owns_attempt(tid, attempt_id, "review"):
         queue_promote(pr_num, tid)
         print(f"codex #{tid} → PR #{pr_num} ({branch}); Telegram promote queued")
     else:
-        print(f"codex #{tid}: branch {branch} pushed but PR open failed:\n{prout[-400:]}")
+        print(f"codex #{tid}: attempt superseded; writeback/promotion refused (log: {logpath})")
     return 0
 
 

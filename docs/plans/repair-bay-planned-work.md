@@ -168,8 +168,24 @@ No production rows were selected for mutation or changed by this verification.
 
 ### Maintainer-owned worker contract (required before failed-worker retry)
 
+Worker ownership foundation (pending review/deployment): the host poller now
+claims one durable UUID attempt per task with host, boot, PID and process-start
+identity plus a fixed execution deadline. Every status/PR writeback compares the
+attempt UUID and `in_progress` status; stale callbacks cannot overwrite cancellation
+or a different attempt. Claimed tasks cannot be reselected merely by restoring
+`deferred`; only an unexecuted dry run can release its own claim. Timeout retains
+partial branch/PR evidence and refuses fallback/promotion. Terminal observations
+always carry `stop_confirmed: false`, including a normal runner return.
+
+This is not the terminal stop receipt. `run-codex-task.sh` starts daemon-owned
+Docker work without an attempt-owned container identity. Its lifecycle must gain
+trusted ownership/cleanup before process-group exit could prove the attempt has
+stopped. That runner remains outside the narrow Codex worker-file exception.
+Lease expiry, normal return and `blocked` status are all insufficient for replacement.
+Dispatch and replacement execution remain disabled.
+
 The change belongs in `scripts/agents/codex-delegation-worker.py` and the runner's
-process lifecycle; Codex scope explicitly blocks this directory. Do not replace
+process lifecycle; Codex may edit only the `.py` worker exception in this directory. Do not replace
 that change with guessed timestamps or an operator checkbox in the web app.
 
 1. Atomically claim with a unique attempt ID, host/process identity and generation;

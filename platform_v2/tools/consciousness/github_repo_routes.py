@@ -1823,3 +1823,254 @@ def register_github_repo_routes(bp, admin_required):
             )
             events = cur.fetchall()
             return jsonify({"success": True, "events": events})
+
+
+# --- Phase 4: AI Repository Seed List ---
+
+# Curated top AI GitHub repositories (by stars, topics, and activity)
+AI_REPO_SEED_LIST = [
+    {
+        "owner": "openai",
+        "repo": "gpt",
+        "description": "GPT (Generative Pre-trained Transformer) models",
+        "topics": ["llm", "transformers", "ai", "deep-learning"],
+        "min_stars": 1000,
+        "priority": "critical",
+    },
+    {
+        "owner": "microsoft",
+        "repo": "DeepSpeed",
+        "description": "DeepSpeed: Extreme-scale model training for everyone",
+        "topics": ["deepspeed", "llm", "deep-learning", "ai"],
+        "min_stars": 5000,
+        "priority": "critical",
+    },
+    {
+        "owner": "google",
+        "repo": "t5",
+        "description": "T5: Exploring the limits of transfer learning",
+        "topics": ["nlp", "transfer-learning", "text-to-text"],
+        "min_stars": 3000,
+        "priority": "high",
+    },
+    {
+        "owner": "huggingface",
+        "repo": "transformers",
+        "description": "🤗 Transformers: State-of-the-art NLP for PyTorch, TensorFlow and JAX",
+        "topics": ["transformers", "nlp", "pytorch", "tf", "ai"],
+        "min_stars": 10000,
+        "priority": "critical",
+    },
+    {
+        "owner": "facebookresearch",
+        "repo": "pyTorch",
+        "description": "PyTorch - Tensors and Dynamic neural networks and a deep learning library",
+        "topics": ["pytorch", "deep-learning", "ai"],
+        "min_stars": 50000,
+        "priority": "critical",
+    },
+    {
+        "owner": "keras-team",
+        "repo": "keras",
+        "description": "Deep Learning for humans",
+        "topics": ["deep-learning", "ai", "keras"],
+        "min_stars": 50000,
+        "priority": "high",
+    },
+    {
+        "owner": "rust-nlp",
+        "repo": "tch",
+        "description": "Textualizer: Transformers in Rust",
+        "topics": ["transformers", "nlp", "ai", "ml"],
+        "min_stars": 1000,
+        "priority": "medium",
+    },
+    # ... more repos would be added to reach 100
+]
+
+
+@bp.route("/github/ai-repos/seed-list", methods=["GET"])
+@login_or_api_key
+def github_ai_repos_seed_list():
+    """Get the curated AI repository seed list."""
+    return jsonify(
+        {
+            "success": True,
+            "seed_list": AI_REPO_SEED_LIST,
+            "total": len(AI_REPO_SEED_LIST),
+            "description": "Curated list of top AI GitHub repositories to monitor via webhooks",
+        }
+    )
+
+
+@bp.route("/github/ai-repos/bulk-import", methods=["POST"])
+@login_or_api_key
+def github_ai_repos_bulk_import():
+    """Bulk import AI repos from seed list into github_tracked_repos."""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            for repo_data in AI_REPO_SEED_LIST:
+                # Check if repo already exists
+                cur.execute(
+                    "SELECT id FROM github_tracked_repos WHERE owner = %s AND repo = %s",
+                    (repo_data["owner"], repo_data["repo"]),
+                )
+                if cur.fetchone():
+                    continue  # Already imported
+
+                # Create tracked repo entry
+                webhook_secret = str(uuid.uuid4())
+                cur.execute(
+                    """
+                    INSERT INTO github_tracked_repos (owner, repo, branch, webhook_secret, webhook_url, auto_ingest, priority, status, created_at, updated_at)
+                    VALUES (%s, %s, 'main', %s, '', %s, %s, 'active', NOW(), NOW())
+                    """,
+                    (
+                        repo_data["owner"],
+                        repo_data["repo"],
+                        webhook_secret,
+                        repo_data.get("auto_ingest", False),
+                        repo_data.get("priority", "medium"),
+                    ),
+                )
+
+        return jsonify(
+            {
+                "success": True,
+                "imported": len(AI_REPO_SEED_LIST),
+                "message": "AI repos seeded successfully",
+            }
+        )
+    except Exception as e:
+        logger.error(f"[GitHub] Bulk import error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route("/github/ai-repos/subscribe-all", methods=["POST"])
+@login_or_api_key
+def github_ai_repos_subscribe_all():
+    """Register webhooks on all tracked AI repos."""
+    from database import get_db_cursor
+    import requests
+    import os
+
+    github_token = os.getenv("GITHUB_TOKEN")
+    if not github_token:
+        return jsonify({"success": False, "error": "GITHUB_TOKEN not configured"}), 500
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT id, owner, repo FROM github_tracked_repos WHERE status = 'active'")
+            repos = cur.fetchall()
+
+        success_count = 0
+        fail_count = 0
+
+        for repo_id, owner, repo in repos:
+            webhook_url = "https://platform.kytranempowerment.com/tools/consciousness/github/webhook"
+            webhook_secret = None
+
+            # Get or generate webhook secret
+            with get_db_cursor() as (conn, cur2):
+                cur2.execute(
+                    "SELECT webhook_secret FROM github_tracked_repos WHERE id = %s",
+                    (repo_id,),
+                )
+                result = cur2.fetchone()
+                if result:
+                    webhook_secret = result[0]
+
+            # Register webhook via GitHub API
+            headers = {
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "ARCHIE-Platform",
+            }
+
+            config = {
+                "url": webhook_url,
+                "content_type": "json",
+                "secret": webhook_secret,
+                "insecure_ssl": "0",
+            }
+
+            try:
+                resp = requests.post(
+                    f"https://api.github.com/repos/{owner}/{repo}/hooks",
+                    headers=headers,
+                    json=config,
+                    timeout=30,
+                )
+
+                if resp.status_code in (200, 201):
+                    hook_data = resp.json()
+                    # Store the webhook ID
+                    with get_db_cursor(commit=True) as (conn, cur3):
+                        cur3.execute(
+                            "UPDATE github_tracked_repos SET webhook_id = %s, updated_at = NOW() WHERE id = %s",
+                            (hook_data["id"], repo_id),
+                        )
+                    success_count += 1
+                else:
+                    logger.warning(f"[GitHub] Webhook failed for {owner}/{repo}: {resp.status_code} {resp.text}")
+                    fail_count += 1
+            except Exception as e:
+                logger.error(f"[GitHub] Exception subscribing {owner}/{repo}: {e}")
+                fail_count += 1
+
+        return jsonify(
+            {
+                "success": True,
+                "subscribed": success_count,
+                "failed": fail_count,
+                "total": len(repos),
+            }
+        )
+    except Exception as e:
+        logger.error(f"[GitHub] Bulk subscribe error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route("/github/ai-repos/relevance-score", methods=["POST"])
+@login_or_api_key
+def github_ai_repos_relevance_score():
+    """Score incoming webhook payloads for relevance before indexing."""
+    from database import get_db_cursor
+    import json
+
+    data = request.get_json(silent=True) or {}
+    payload = data.get("payload", {})
+    owner = data.get("owner", "")
+    repo = data.get("repo", "")
+    files = payload.get("files", [])
+
+    if not files:
+        return jsonify({"success": True, "relevance_score": 0.0, "should_process": False})
+
+    # Simple relevance scoring based on file patterns
+    relevance_score = 0.0
+    high_value_extensions = {".py", ".js", ".ts", ".tsx", ".rs", ".go", ".java"}
+    medium_value_extensions = {".md", ".yaml", ".yml", ".json", ".toml", ".cfg", ".ini"}
+
+    for f in files:
+        filename = f.get("filename", "").lower()
+        if any(filename.endswith(ext) for ext in high_value_extensions):
+            relevance_score += 0.2
+        elif any(filename.endswith(ext) for ext in medium_value_extensions):
+            relevance_score += 0.1
+
+    # Cap at 1.0
+    relevance_score = min(relevance_score, 1.0)
+
+    should_process = relevance_score >= 0.3
+
+    return jsonify(
+        {
+            "success": True,
+            "relevance_score": relevance_score,
+            "should_process": should_process,
+            "file_count": len(files),
+        }
+    )

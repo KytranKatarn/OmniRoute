@@ -106,15 +106,17 @@ PYEOF
     if echo "$ACTIVE_BRANCHES" | grep -q '__PRUNE_DISABLED__'; then
         echo "DB query failed — disabling age-based pruning (fail closed)"
     else
-        if [ -n "$ACTIVE_BRANCHES" ]; then
-            EXCLUDE_PATHS=()
+        # Worktrees are at $WT_BASE/codex/<branch> — search there, not at parent
+        CODEX_WT_DIR="$WT_BASE/codex"
+        if [ -n "$ACTIVE_BRANCHES" ] && [ -d "$CODEX_WT_DIR" ]; then
+            EXCLUDE_NAMES=()
             while IFS= read -r branch; do
-                [ -n "$branch" ] && EXCLUDE_PATHS+=(-not -path "*/$branch")
+                [ -n "$branch" ] && EXCLUDE_NAMES+=(-not -name "$branch")
             done <<< "$ACTIVE_BRANCHES"
             echo "Preserving worktrees for active/blocked Codex attempts: $(echo "$ACTIVE_BRANCHES" | tr '\n' ' ')"
-            find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 "${EXCLUDE_PATHS[@]}" -exec rm -rf {} + 2>/dev/null || true
-        else
-            find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+            find "$CODEX_WT_DIR" -maxdepth 1 -mindepth 1 -type d -mtime +3 "${EXCLUDE_NAMES[@]}" -exec rm -rf {} + 2>/dev/null || true
+        elif [ -d "$CODEX_WT_DIR" ]; then
+            find "$CODEX_WT_DIR" -maxdepth 1 -mindepth 1 -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
         fi
     fi
     prune_main_repo
@@ -210,24 +212,29 @@ if [ "$SUPERVISED" = "1" ]; then
     [ -n "$CREATED_CID" ] || { echo "FAIL: empty container ID in cidfile"; exit 4; }
     echo "Created container $CREATED_CID (attempt $ATTEMPT_ID, task $TASK_ID)"
 
-    # Start/stop race: check stop signal BEFORE start barrier
+    # Start/stop race: check stop signal at TOP of loop, always
     BARRIER_TIMEOUT=60
     echo "Waiting for start barrier at $START_BARRIER..."
-    while [ ! -f "$START_BARRIER" ]; do
+    while true; do
+        # STOP CHECK FIRST — always check before barrier
         if [ -f "$STOP_SIGNAL" ]; then
-            echo "Stop signal received before start — cleaning up"
-            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+            echo "Stop signal received — leaving container for supervisor"
+            # Leave container and ALL evidence for supervisor
             exit 5
+        fi
+        if [ -f "$START_BARRIER" ]; then
+            echo "Start barrier present — starting container"
+            break
         fi
         BARRIER_TIMEOUT=$((BARRIER_TIMEOUT - 1))
         if [ "$BARRIER_TIMEOUT" -le 0 ]; then
-            echo "FAIL: start barrier timeout"
-            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+            echo "FAIL: start barrier timeout — leaving container for supervisor"
+            # Leave container and ALL evidence for supervisor
             exit 6
         fi
         sleep 1
     done
-    echo "Start barrier released — starting container"
+    echo "Starting container"
 
     docker start "$CONTAINER_NAME" >/dev/null
     CONTAINER_EXIT_CODE="$(docker wait "$CONTAINER_NAME" 2>/dev/null || echo 255)"

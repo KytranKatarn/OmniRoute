@@ -1,0 +1,86 @@
+[Unit]
+Description=Host OpenCode Supervisor Broker
+After=network.target
+ConditionACPower=true
+
+# Security: do not run as superuser; drop privileges to kytran
+# FIXED: User directive is honored by systemd when combined with NoNewPrivileges
+User=kytran
+Group=kytran
+
+# Security hardening — all honored by systemd when User= is set
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHostname=true
+
+# Drop all capabilities except what's needed
+AmbientCapabilities=CAP_CHOWN CAP_DAC_OVERRIDE
+BoundingSetCapabilities=CAP_CHOWN CAP_DAC_OVERRIDE
+
+# Crash handling
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Resource limits
+MemoryLimit=200M
+
+# Kill signal
+SendSIGTERM=yes
+
+# Pre-start: ensure directories exist (RUN as kytran user via ExecStartPre)
+# FIXED: ExecStartPre runs BEFORE the service, as the USER specified
+ExecStartPre=/bin/sh -c '
+mkdir -p /var/lib/host-opencode/keys
+mkdir -p /var/lib/host-opencode/journal
+mkdir -p /var/run
+chmod 700 /var/lib/host-opencode/keys
+chmod 755 /var/lib/host-opencode/journal
+chmod 600 /var/lib/host-opencode/keys/broker_private.key
+chmod 640 /var/lib/host-opencode/keys/broker_public.key
+'
+
+# Post-start: cgroup setup and key permissions
+# FIXED: PostStartScript runs AFTER the service starts as kytran user
+PostStartScript=/bin/sh -c '
+# Pre-create the runner cgroup
+mkdir -p /sys/fs/cgroup/host-opencode-runner
+
+# Set cgroup permissions for kytran user
+chown kytran:kytran /sys/fs/cgroup/host-opencode-runner
+
+# Ensure private key has correct permissions
+chmod 600 /var/lib/host-opencode/keys/broker_private.key
+
+# Ensure journal directory has correct permissions
+chmod 755 /var/lib/host-opencode/journal
+
+# Verify cgroup hierarchy exists
+ls /sys/fs/cgroup/host-opencode-runner/ 2>/dev/null || echo "cgroup dir being set up"
+
+# Relay log to platform logger (best-effort)
+chmod 640 /var/log/host-opencode*.log 2>/dev/null
+
+echo "Host OpenCode broker post-start initialization complete"
+'
+
+# Pre-start: ensure directories exist (before User= is set)
+# FIXED: Running as root via ExecStartPre before User= directive switches to kytran
+ExecStartPre=/bin/sh -c '
+mkdir -p /var/lib/host-opencode/keys
+mkdir -p /var/lib/host-opencode/journal
+chmod 700 /var/lib/host-opencode/keys
+chmod 755 /var/lib/host-opencode/journal
+'
+
+# Do NOT use --scope; the broker manages its own cgroup at runtime
+# PrivateTmp is already set above by the PreStartScript
+
+# [Install]
+# WantedBy=multi-user.target

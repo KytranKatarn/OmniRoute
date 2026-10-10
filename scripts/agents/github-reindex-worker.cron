@@ -1,0 +1,3 @@
+# GitHub Incremental Reindex Worker (Phase 3)
+# Runs every minute, processes pending reindex queue items
+* * * * * kytran /usr/bin/python3 /mnt/archie_brain/scripts/agents/github-reindex-worker.py >> /tmp/github-reindex-worker.log 2>&1

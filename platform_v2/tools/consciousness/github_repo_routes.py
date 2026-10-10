@@ -1393,3 +1393,433 @@ def register_github_repo_routes(bp, admin_required):
         except Exception as e:
             logger.error(f"[GitHub] Sync confirm error: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ==================================================================
+    # WEBHOOK ENDPOINT & TRACKED REPOS (Phase 1-3)
+    # ==================================================================
+
+    # GitHub webhook endpoint - receives push events from GitHub
+    @bp.route("/github/webhook", methods=["POST"])
+    def github_webhook():
+        """
+        Receive GitHub push webhooks for tracked repositories.
+        Verifies HMAC signature, stores event, queues incremental reindex.
+        """
+        import hmac
+        import hashlib
+        from database import get_db_cursor
+
+        # Get delivery ID for deduplication
+        delivery_id = request.headers.get("X-GitHub-Delivery", "")
+        event_type = request.headers.get("X-GitHub-Event", "unknown")
+
+        # Get raw payload for HMAC verification
+        payload_bytes = request.get_data()
+
+        # DEBUG: Log raw payload and computed signature
+        logger.debug(f"[Webhook Debug] Raw payload: {payload_bytes}")
+        logger.debug(f"[Webhook Debug] Payload length: {len(payload_bytes)}")
+
+        # Only process push events for now
+        if event_type != "push":
+            return jsonify({"success": True, "message": f"Ignored event type: {event_type}"}), 200
+
+        payload = request.get_json(silent=True) or {}
+
+        # Find matching tracked repo by full_name (owner/repo)
+        repo_full_name = payload.get("repository", {}).get("full_name", "")
+        if not repo_full_name:
+            return jsonify({"success": False, "error": "No repository in payload"}), 400
+
+        try:
+            owner, repo = repo_full_name.split("/", 1)
+        except ValueError:
+            return jsonify({"success": False, "error": "Invalid repository full_name"}), 400
+
+        # Look up tracked repo
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, webhook_secret, auto_ingest, branch
+                FROM github_tracked_repos
+                WHERE owner = %s AND repo = %s AND status = 'active'
+                """,
+                (owner, repo),
+            )
+            tracked = cur.fetchone()
+
+        if not tracked:
+            # Not tracked - log but don't error (allows webhook registration without tracking)
+            logger.info(f"[GitHub Webhook] Push to untracked repo: {repo_full_name}")
+            return jsonify({"success": True, "message": "Repo not tracked"}), 200
+
+        tracked_id = tracked["id"]
+        webhook_secret = tracked["webhook_secret"]
+        auto_ingest = tracked["auto_ingest"]
+        tracked_branch = tracked["branch"]
+
+        # Verify HMAC signature if secret configured
+        if webhook_secret:
+            sig_header = request.headers.get("X-Hub-Signature-256", "")
+            if not sig_header.startswith("sha256="):
+                logger.warning(f"[GitHub Webhook] Missing/invalid signature for {repo_full_name}")
+                return jsonify({"success": False, "error": "Invalid signature"}), 401
+            expected = hmac.new(webhook_secret.encode(), payload_bytes, hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(sig_header[7:], expected):
+                logger.warning(f"[GitHub Webhook] Signature mismatch for {repo_full_name}")
+                return jsonify({"success": False, "error": "Signature mismatch"}), 401
+
+        # Store webhook event for audit
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO github_webhook_events
+                (tracked_repo_id, event_type, github_delivery_id, payload)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (tracked_id, event_type, delivery_id, json.dumps(payload)),
+            )
+            event_id = cur.fetchone()["id"]
+
+            # Update tracked repo last event info
+            head_commit = payload.get("head_commit", {})
+            last_sha = head_commit.get("id", "") if head_commit else ""
+            cur.execute(
+                """
+                UPDATE github_tracked_repos
+                SET last_event_at = NOW(),
+                    last_event_type = %s,
+                    last_sha = %s
+                WHERE id = %s
+                """,
+                (event_type, last_sha, tracked_id),
+            )
+
+        # Queue incremental reindex if auto_ingest enabled
+        if auto_ingest:
+            # Get changed files via GitHub compare API (base: previous last_sha, head: new sha)
+            ref = payload.get("ref", "")
+            expected_ref = f"refs/heads/{tracked_branch}"
+            if ref != expected_ref:
+                logger.info(f"[GitHub Webhook] Push to {ref}, tracked branch is {tracked_branch} - skipping")
+            else:
+                # Queue reindex job - will fetch changed files in background worker
+                with get_db_cursor(commit=True) as (conn, cur):
+                    from_sha = None
+                    # Get previous last_sha from tracked repo (before update)
+                    # The payload's before commit is the previous head
+                    before_sha = payload.get("before", "")
+                    if before_sha and before_sha != "0" * 40:
+                        from_sha = before_sha
+
+                    cur.execute(
+                        """
+                        INSERT INTO github_reindex_queue
+                        (tracked_repo_id, trigger_type, trigger_payload, from_sha, to_sha)
+                        VALUES (%s, 'webhook_push', %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (tracked_id, json.dumps(payload), from_sha, last_sha),
+                    )
+                    queue_id = cur.fetchone()["id"]
+                    logger.info(f"[GitHub Webhook] Queued incremental reindex #{queue_id} for {repo_full_name}")
+
+        return jsonify({"success": True, "event_id": event_id}), 200
+
+    # ==================================================================
+    # TRACKED REPOS CRUD
+    # ==================================================================
+
+    @bp.route("/github/tracked-repos", methods=["GET"])
+    @login_or_api_key
+    def github_list_tracked_repos():
+        from database import get_db_cursor
+
+        """List all tracked repositories for webhook ingestion."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT gtr.*, gr.id as github_repo_id, gr.status as github_repo_status
+                FROM github_tracked_repos gtr
+                LEFT JOIN github_repositories gr
+                    ON gr.repo_name LIKE '%' || gtr.owner || '/' || gtr.repo || '%'
+                ORDER BY gtr.updated_at DESC
+                """
+            )
+            repos = cur.fetchall()
+            return jsonify({"success": True, "repos": repos})
+
+    @bp.route("/github/tracked-repos", methods=["POST"])
+    @login_or_api_key
+    def github_create_tracked_repo():
+        from database import get_db_cursor
+
+        """Register a new repository for webhook tracking."""
+        data = request.get_json(silent=True) or {}
+        owner = data.get("owner", "").strip()
+        repo = data.get("repo", "").strip()
+        branch = data.get("branch", "main").strip()
+        webhook_secret = data.get("webhook_secret", "").strip() or None
+        auto_ingest = data.get("auto_ingest", True)
+        is_ai_repo = data.get("is_ai_repo", False)
+        relevance_tags = data.get("relevance_tags", [])
+        max_files = data.get("max_files")
+        description = data.get("description", "").strip() or None
+
+        if not owner or not repo:
+            return jsonify({"success": False, "error": "Owner and repo required"}), 400
+
+        # Generate webhook secret if not provided
+        import secrets
+
+        if not webhook_secret:
+            webhook_secret = secrets.token_urlsafe(32)
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO github_tracked_repos
+                    (owner, repo, branch, webhook_secret, auto_ingest, is_ai_repo,
+                     relevance_tags, max_files, description)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (owner, repo) DO UPDATE SET
+                        branch = EXCLUDED.branch,
+                        webhook_secret = EXCLUDED.webhook_secret,
+                        auto_ingest = EXCLUDED.auto_ingest,
+                        is_ai_repo = EXCLUDED.is_ai_repo,
+                        relevance_tags = EXCLUDED.relevance_tags,
+                        max_files = EXCLUDED.max_files,
+                        description = EXCLUDED.description,
+                        updated_at = NOW()
+                    RETURNING id
+                    """,
+                    (
+                        owner,
+                        repo,
+                        branch,
+                        webhook_secret,
+                        auto_ingest,
+                        is_ai_repo,
+                        relevance_tags,
+                        max_files,
+                        description,
+                    ),
+                )
+                new_id = cur.fetchone()["id"]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "id": new_id,
+                    "webhook_secret": webhook_secret,
+                    "webhook_url": f"https://platform.kytranempowerment.com/tools/consciousness/github/webhook",
+                }
+            )
+        except Exception as e:
+            logger.error(f"[GitHub] Create tracked repo error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/github/tracked-repos/<int:repo_id>", methods=["PATCH"])
+    @login_or_api_key
+    def github_update_tracked_repo(repo_id):
+        from database import get_db_cursor
+
+        """Update a tracked repository."""
+        data = request.get_json(silent=True) or {}
+        allowed_fields = {
+            "branch",
+            "auto_ingest",
+            "is_ai_repo",
+            "relevance_tags",
+            "max_files",
+            "description",
+            "status",
+            "priority",
+        }
+        updates = {k: v for k, v in data.items() if k in allowed_fields}
+        if not updates:
+            return jsonify({"success": False, "error": "No valid fields to update"}), 400
+
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                set_clause = ", ".join([f"{k} = %s" for k in updates.keys()])
+                values = list(updates.values()) + [repo_id]
+                cur.execute(
+                    f"UPDATE github_tracked_repos SET {set_clause}, updated_at = NOW() WHERE id = %s RETURNING *",
+                    values,
+                )
+                updated = cur.fetchone()
+                if not updated:
+                    return jsonify({"success": False, "error": "Not found"}), 404
+
+            return jsonify({"success": True, "repo": updated})
+        except Exception as e:
+            logger.error(f"[GitHub] Update tracked repo error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/github/tracked-repos/<int:repo_id>", methods=["DELETE"])
+    @login_or_api_key
+    def github_delete_tracked_repo(repo_id):
+        from database import get_db_cursor
+
+        """Delete a tracked repository."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("DELETE FROM github_tracked_repos WHERE id = %s", (repo_id,))
+                if cur.rowcount == 0:
+                    return jsonify({"success": False, "error": "Not found"}), 404
+
+            return jsonify({"success": True})
+        except Exception as e:
+            logger.error(f"[GitHub] Delete tracked repo error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/github/tracked-repos/<int:repo_id>/register-webhook", methods=["POST"])
+    @login_or_api_key
+    def github_register_webhook(repo_id):
+        from database import get_db_cursor
+
+        """Register webhook with GitHub for a tracked repository."""
+        headers, has_token = _get_github_headers()
+        if not has_token:
+            return jsonify({"success": False, "error": "GitHub token required"}), 400
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT owner, repo, webhook_secret, webhook_id FROM github_tracked_repos WHERE id = %s",
+                (repo_id,),
+            )
+            repo = cur.fetchone()
+            if not repo:
+                return jsonify({"success": False, "error": "Not found"}), 404
+
+        owner, repo_name, webhook_secret, existing_webhook_id = repo
+        if not webhook_secret:
+            return jsonify({"success": False, "error": "No webhook secret configured"}), 400
+
+        # Delete existing webhook if present
+        if existing_webhook_id:
+            try:
+                requests.delete(
+                    f"https://api.github.com/repos/{owner}/{repo_name}/hooks/{existing_webhook_id}",
+                    headers=headers,
+                    timeout=10,
+                )
+            except Exception as e:
+                logger.warning(f"[GitHub] Failed to delete existing webhook: {e}")
+
+        # Create new webhook
+        webhook_url = "https://platform.kytranempowerment.com/tools/consciousness/github/webhook"
+        try:
+            resp = requests.post(
+                f"https://api.github.com/repos/{owner}/{repo_name}/hooks",
+                headers=headers,
+                json={
+                    "name": "web",
+                    "active": True,
+                    "events": ["push"],
+                    "config": {
+                        "url": webhook_url,
+                        "content_type": "json",
+                        "secret": webhook_secret,
+                        "insecure_ssl": "0",
+                    },
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            hook = resp.json()
+
+            # Update tracked repo with new webhook ID
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE github_tracked_repos SET webhook_id = %s, webhook_url = %s, updated_at = NOW() WHERE id = %s",
+                    (hook["id"], webhook_url, repo_id),
+                )
+
+            return jsonify({"success": True, "webhook": hook})
+        except requests.RequestException as e:
+            logger.error(f"[GitHub] Register webhook error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/github/reindex-queue", methods=["GET"])
+    @login_or_api_key
+    def github_list_reindex_queue():
+        from database import get_db_cursor
+
+        """List reindex queue items."""
+        status_filter = request.args.get("status")
+        with get_db_cursor() as (conn, cur):
+            if status_filter:
+                cur.execute(
+                    """
+                    SELECT grq.*, gtr.owner, gtr.repo
+                    FROM github_reindex_queue grq
+                    JOIN github_tracked_repos gtr ON grq.tracked_repo_id = gtr.id
+                    WHERE grq.status = %s
+                    ORDER BY grq.created_at DESC
+                    LIMIT 100
+                    """,
+                    (status_filter,),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT grq.*, gtr.owner, gtr.repo
+                    FROM github_reindex_queue grq
+                    JOIN github_tracked_repos gtr ON grq.tracked_repo_id = gtr.id
+                    ORDER BY grq.created_at DESC
+                    LIMIT 100
+                    """
+                )
+            items = cur.fetchall()
+            return jsonify({"success": True, "items": items})
+
+    @bp.route("/github/reindex-queue/<int:queue_id>/retry", methods=["POST"])
+    @login_or_api_key
+    def github_retry_reindex(queue_id):
+        from database import get_db_cursor
+
+        """Retry a failed reindex queue item."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    UPDATE github_reindex_queue
+                    SET status = 'pending', error_message = NULL, started_at = NULL, completed_at = NULL
+                    WHERE id = %s AND status IN ('failed', 'completed')
+                    RETURNING *
+                    """,
+                    (queue_id,),
+                )
+                item = cur.fetchone()
+                if not item:
+                    return jsonify({"success": False, "error": "Not found or not retryable"}), 404
+
+            return jsonify({"success": True, "item": item})
+        except Exception as e:
+            logger.error(f"[GitHub] Retry reindex error: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/github/webhook-events", methods=["GET"])
+    @login_or_api_key
+    def github_list_webhook_events():
+        from database import get_db_cursor
+
+        """List recent webhook events for audit."""
+        limit = min(int(request.args.get("limit", 50)), 200)
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT gwe.*, gtr.owner, gtr.repo
+                FROM github_webhook_events gwe
+                LEFT JOIN github_tracked_repos gtr ON gwe.tracked_repo_id = gtr.id
+                ORDER BY gwe.received_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            events = cur.fetchall()
+            return jsonify({"success": True, "events": events})

@@ -3,6 +3,10 @@
 # Usage: scripts/agents/run-codex-task.sh "implement X in the doc module"
 # Codex auth: host ~/.codex/auth.json (copied read/write into the container per run).
 # See .claude/rules/codex-agent.md + .claude/plans/2026-06-05-codex-cli-phase-a-plan.md.
+# Supervised mode (Repair Bay attempt-owned lifecycle):
+#   CODEX_ATTEMPT_ID=<UUID> CODEX_TASK_ID=<int> CODEX_SUPERVISED=1
+#   Creates container with attempt-owned labels, waits for start barrier,
+#   starts container, waits for completion, cleans up owned resources.
 set -euo pipefail
 
 # Ensure gh CLI is reachable in cron's restricted PATH.
@@ -19,6 +23,19 @@ WT_BASE="${CODEX_WT_BASE:-/mnt/codex-wt}"
 WT="$WT_BASE/$BRANCH"
 START=$(date +%s%3N)
 
+# Supervised mode (attempt-owned lifecycle) — set by codex-delegation-worker.py
+ATTEMPT_ID="${CODEX_ATTEMPT_ID:-}"
+TASK_ID="${CODEX_TASK_ID:-}"
+SUPERVISED="${CODEX_SUPERVISED:-0}"
+if [ "$SUPERVISED" = "1" ]; then
+    [ -n "$ATTEMPT_ID" ] || { echo "SUPERVISED=1 requires CODEX_ATTEMPT_ID"; exit 3; }
+    [ -n "$TASK_ID" ] || { echo "SUPERVISED=1 requires CODEX_TASK_ID"; exit 3; }
+    # Validate UUID format
+    echo "$ATTEMPT_ID" | grep -Eq '^[0-9a-f-]{36}$' || { echo "Invalid ATTEMPT_ID format"; exit 3; }
+    # Validate task ID is integer
+    echo "$TASK_ID" | grep -Eq '^[0-9]+$' || { echo "Invalid TASK_ID format"; exit 3; }
+fi
+
 # containerized-exec config — the container IS the isolation boundary.
 CODEX_IMG="archie_brain-archie_codex:latest"
 NET="archie_network"
@@ -26,6 +43,23 @@ GATEWAY_URL="http://archie_mcp_gateway:7800/mcp"   # read-only MCP gateway (inte
 BEARER_FILE="$REPO/secrets/codex/mcp_bearer.txt"   # the ONLY secret given to Codex
 CODEX_HOME_SRC="${CODEX_HOME:-$HOME/.codex}"        # host auth lives here
 CODEX_RUN_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/codex-run/$BRANCH"  # per-run HOME (mode 700)
+
+# Attempt-owned Docker lifecycle paths (host-only, supervisor-accessible)
+if [ "$SUPERVISED" = "1" ]; then
+    CIDFILE="/tmp/codex-attempt-${ATTEMPT_ID}.cid"
+    START_BARRIER="/tmp/codex-attempt-${ATTEMPT_ID}.start"
+    STOP_SIGNAL="/tmp/codex-attempt-${ATTEMPT_ID}.stop"
+    CONTAINER_NAME="archie-codex-${ATTEMPT_ID}"
+    HOST_BOOT_ID="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null | tr -d '\n' || echo unknown)"
+    HOST_ID="$(hostname)"
+else
+    CIDFILE=""
+    START_BARRIER=""
+    STOP_SIGNAL=""
+    CONTAINER_NAME=""
+    HOST_BOOT_ID=""
+    HOST_ID=""
+fi
 
 # 1) fresh worktree off origin/main
 cd "$REPO"
@@ -46,8 +80,53 @@ prune_main_repo() {
     fi
 }
 prune_main_repo
-find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
-prune_main_repo
+
+# Safe pruning: exclude worktrees for active/UNKNOWN Codex attempts.
+# Query DB for tasks in 'in_progress' or 'review' with a codex_branch.
+# Those worktrees must not be removed until the attempt is confirmed stopped.
+if [ "$SUPERVISED" = "1" ]; then
+    # In supervised mode, the worker manages lifecycle; skip age-based pruning entirely
+    # to avoid racing with other supervised runs. Worker handles cleanup post-receipt.
+    echo "Supervised mode: skipping age-based worktree pruning (worker manages lifecycle)"
+else
+    # Legacy mode: load DB creds and query for active Codex worktrees
+    while IFS='=' read -r _k _v; do export "$_k=$_v"; done < <(grep -E '^(DB_PORT|DB_NAME|DB_USER|DB_PASSWORD)=' "$REPO/.env")
+    export DB_HOST=192.168.1.200
+    ACTIVE_BRANCHES="$(cd "$REPO/platform_v2" && python3 -c "
+import sys, os
+sys.path.insert(0, '/app')
+sys.path.insert(0, '/mnt/archie_brain')
+from database import get_db_cursor
+try:
+    with get_db_cursor() as (conn, cur):
+        cur.execute(\"\"\"
+            SELECT metadata->>'codex_branch'
+            FROM unified_tasks
+            WHERE status IN ('in_progress', 'review')
+              AND metadata ? 'codex_branch'
+              AND metadata->>'codex_branch' IS NOT NULL
+              AND metadata->>'codex_branch' != ''
+        \"\"\")
+        for row in cur.fetchall():
+            if row[0]:
+                print(row[0])
+except Exception:
+    pass  # On any DB error, allow pruning (fail open for legacy)
+" 2>/dev/null || true)"
+    # Build find command that excludes active branches
+    if [ -n "$ACTIVE_BRANCHES" ]; then
+        EXCLUDE_ARGS=()
+        while IFS= read -r branch; do
+            [ -n "$branch" ] && EXCLUDE_ARGS+=(-not -name "$branch")
+        done <<< "$ACTIVE_BRANCHES"
+        echo "Preserving worktrees for active Codex attempts: $(echo "$ACTIVE_BRANCHES" | tr '\n' ' ')"
+        find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 "${EXCLUDE_ARGS[@]}" -exec rm -rf {} + 2>/dev/null || true
+    else
+        find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+    fi
+    prune_main_repo
+fi
+
 mkdir -p "$WT_BASE"
 git worktree add -B "$BRANCH" "$WT" origin/main >/dev/null
 
@@ -103,27 +182,113 @@ EOF
   printf 'ARCHIE_KB_BEARER=%s\n' "$(cat "$BEARER_FILE")" > "$CODEX_RUN_HOME/codex.env"
 )
 
-# 4) run Codex INSIDE the container. The container is the sandbox (only the worktree
-#    mounted rw, repo .git ro for git reads, no host fs/secrets, run as host uid),
-#    so bypassing Codex's own (broken-on-this-host) bwrap sandbox is safe here.
+# 4) run Codex INSIDE the container — attempt-owned lifecycle (create/start/wait/cleanup).
+#    In supervised mode: create with labels, wait for start barrier, start, wait, cleanup.
+#    In legacy mode: create/start/wait/rm without start barrier.
 CODEX_EXIT=0
-# Capture Codex stdout+stderr so we can parse its self-reported token usage (Phase A /
-# ChatGPT sign-in exposes no API token split, but Codex prints a running total). Re-emit
-# it afterward so the worker still sees the branch/PR lines and keeps the full debug log.
-CODEX_OUT="$(docker run --rm \
-  --network "$NET" \
-  --user "$(id -u):$(id -g)" \
-  -v "$WT":"$WT":rw \
-  -v "$REPO/.git":"$REPO/.git":ro \
-  -v "$CODEX_RUN_HOME":/codex-home:rw \
-  -e HOME=/codex-home -e CODEX_HOME=/codex-home \
-  --env-file "$CODEX_RUN_HOME/codex.env" \
-  -w "$WT" \
-  --read-only --tmpfs /tmp:size=64m \
-  --memory 2g --cpus 2 --cap-drop ALL \
-  "$CODEX_IMG" \
-  exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" 2>&1)" \
-  || { CODEX_EXIT=$?; echo "codex exited $CODEX_EXIT (continuing to gates)"; }
+CODEX_OUT=""
+
+# Build common Docker args
+DOCKER_ARGS=(
+    --network "$NET"
+    --user "$(id -u):$(id -g)"
+    -v "$WT":"$WT":rw
+    -v "$REPO/.git":"$REPO/.git":ro
+    -v "$CODEX_RUN_HOME":/codex-home:rw
+    -e HOME=/codex-home -e CODEX_HOME=/codex-home
+    --env-file "$CODEX_RUN_HOME/codex.env"
+    -w "$WT"
+    --read-only --tmpfs /tmp:size=64m
+    --memory 2g --cpus 2 --cap-drop ALL
+)
+
+if [ "$SUPERVISED" = "1" ]; then
+    # Supervised: attempt-owned container with labels, cidfile, start barrier
+    # Labels encode attempt/task/host/boot identity for recovery
+    LABELS=(
+        --label "codex.attempt.id=${ATTEMPT_ID}"
+        --label "codex.task.id=${TASK_ID}"
+        --label "codex.host.id=${HOST_ID}"
+        --label "codex.host.boot_id=${HOST_BOOT_ID}"
+    )
+    # Create container (not start) — persist ID via cidfile for supervisor
+    if ! docker create \
+        "${DOCKER_ARGS[@]}" \
+        "${LABELS[@]}" \
+        --cidfile "$CIDFILE" \
+        --name "$CONTAINER_NAME" \
+        "$CODEX_IMG" \
+        exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" >/dev/null; then
+        echo "FAIL: docker create exited with code $?"
+        exit 4
+    fi
+
+    # Verify container was created and cidfile written
+    [ -f "$CIDFILE" ] || { echo "FAIL: cidfile not created at $CIDFILE"; exit 4; }
+    CREATED_CID="$(cat "$CIDFILE" | tr -d '\n')"
+    [ -n "$CREATED_CID" ] || { echo "FAIL: empty container ID in cidfile"; exit 4; }
+    echo "Created container $CREATED_CID (attempt $ATTEMPT_ID, task $TASK_ID)"
+
+    # Wait for start barrier from supervisor (max 60s)
+    BARRIER_TIMEOUT=60
+    echo "Waiting for start barrier at $START_BARRIER..."
+    while [ ! -f "$START_BARRIER" ]; do
+        if [ -f "$STOP_SIGNAL" ]; then
+            echo "Stop signal received before start — cleaning up"
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+            rm -f "$CIDFILE" "$STOP_SIGNAL" 2>/dev/null || true
+            exit 5
+        fi
+        BARRIER_TIMEOUT=$((BARRIER_TIMEOUT - 1))
+        if [ "$BARRIER_TIMEOUT" -le 0 ]; then
+            echo "FAIL: start barrier timeout"
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+            rm -f "$CIDFILE" 2>/dev/null || true
+            exit 6
+        fi
+        sleep 1
+    done
+    echo "Start barrier released — starting container"
+
+    # Start the container and wait for completion
+    docker start "$CONTAINER_NAME" >/dev/null
+    # Capture output via docker wait + logs (docker wait blocks until exit)
+    if docker wait "$CONTAINER_NAME" >/dev/null; then
+        CODEX_EXIT=0
+    else
+        CODEX_EXIT=$?
+    fi
+    CODEX_OUT="$(docker logs "$CONTAINER_NAME" 2>&1)" || CODEX_OUT=""
+
+    # Supervised cleanup: leave container for supervisor to inspect/remove.
+    # Supervisor will verify terminal state, write receipt, then remove.
+    # Only remove our coordination files.
+    rm -f "$CIDFILE" "$START_BARRIER" "$STOP_SIGNAL" 2>/dev/null || true
+    # Note: container $CONTAINER_NAME left for supervisor inspection/removal
+
+else
+    # Legacy/unsupervised: create/start/wait/rm without start barrier
+    # Use a unique container name to avoid collisions
+    LEGACY_NAME="codex-${BRANCH//\//-}-$(date +%s%N)"
+    if ! docker create \
+        "${DOCKER_ARGS[@]}" \
+        --name "$LEGACY_NAME" \
+        "$CODEX_IMG" \
+        exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" >/dev/null; then
+        echo "FAIL: docker create (legacy) exited with code $?"
+        exit 4
+    fi
+
+    docker start "$LEGACY_NAME" >/dev/null
+    if docker wait "$LEGACY_NAME" >/dev/null; then
+        CODEX_EXIT=0
+    else
+        CODEX_EXIT=$?
+    fi
+    CODEX_OUT="$(docker logs "$LEGACY_NAME" 2>&1)" || CODEX_OUT=""
+    docker rm -f "$LEGACY_NAME" >/dev/null 2>&1 || true
+fi
+
 printf '%s\n' "$CODEX_OUT"
 rm -rf "$CODEX_RUN_HOME"
 # Parse Codex's "tokens used\n<N>" (comma-formatted) so the Consciousness Token Economy

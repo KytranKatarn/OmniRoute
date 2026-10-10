@@ -111,11 +111,17 @@ function api(path, opts) {
     fetchOpts.method = fetchOpts.method || "POST";
     fetchOpts.headers["Content-Type"] = "application/json";
     fetchOpts.body = JSON.stringify(opts.body);
+  } else if ((fetchOpts.method || "").toUpperCase() === "POST") {
+    fetchOpts.headers["Content-Type"] = "application/json";
+    fetchOpts.body = "{}";
   }
   return fetch(url, fetchOpts).then(function (resp) {
     var ct = resp.headers.get("content-type") || "";
     if (ct.indexOf("application/json") === -1) {
-      return Promise.reject(new Error("Session expired — please refresh the page"));
+      if (resp.redirected || resp.status === 401 || resp.status === 403) {
+        return Promise.reject(new Error("Not authorized — refresh the page or check admin access"));
+      }
+      return Promise.reject(new Error("Server error (HTTP " + resp.status + ") — check the platform logs"));
     }
     return resp.json().then(function(data) {
       /* Attach HTTP status so callers can detect 409 duplicate */
@@ -1120,60 +1126,65 @@ function _disableGitHubBtnsByJobType(jobs) {
 
 /* ── Loop controls removed — moved to Autonomy module ── */
 
+function _procFeedback(html) {
+  setHtml("procResult", html);
+  setHtml("ghIntakeResult", html);
+}
+
 window.startAnalysis = function() {
   _disableProcessingBtns();
-  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026"));
+  _procFeedback(lcarsMsg("info", "\u25CF", "Assigning agent for analysis\u2026"));
 
   api("/api/processing/start", {
     method: "POST",
     body: { category: "conversations", batch_size: 10 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("procResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
+      _procFeedback(lcarsMsg("warn", "\u25B6", escHtml(data.error || "Job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued"));
+      _procFeedback(lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " items queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "No items to analyze")));
+      _procFeedback(lcarsMsg("ok", "\u2713", escHtml(data.message || "No items to analyze")));
       _enableProcessingBtns();
     } else {
-      setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Processing failed")));
+      _procFeedback(lcarsMsg("err", "\u2717", escHtml(data.error || "Processing failed")));
       _enableProcessingBtns();
     }
   }).catch(function(err) {
-    setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
+    _procFeedback(lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
     _enableProcessingBtns();
   });
 };
 
 window.generateEmbeddings = function() {
   _disableProcessingBtns();
-  setHtml("procResult", lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026"));
+  _procFeedback(lcarsMsg("info", "\u25CF", "Assigning agent for embeddings\u2026"));
 
   api("/api/processing/generate-embeddings", {
     method: "POST",
     body: { batch_size: 50 }
   }).then(function(data) {
     if (data.duplicate || data._status === 409) {
-      setHtml("procResult", lcarsMsg("warn", "\u25B6", escHtml(data.error || "Embedding job already running")));
+      _procFeedback(lcarsMsg("warn", "\u25B6", escHtml(data.error || "Embedding job already running")));
       checkActiveJobs();
       return;
     }
     if (data.success && data.job_id) {
-      setHtml("procResult", lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
+      _procFeedback(lcarsMsg("ok", "\u25B6", "Job #" + data.job_id + " started \u2014 " + (data.total || 0) + " entries queued"));
       setTimeout(checkActiveJobs, 1000);
     } else if (data.success) {
-      setHtml("procResult", lcarsMsg("ok", "\u2713", escHtml(data.message || "All entries already embedded")));
+      _procFeedback(lcarsMsg("ok", "\u2713", escHtml(data.message || "All entries already embedded")));
       _enableProcessingBtns();
     } else {
-      setHtml("procResult", lcarsMsg("err", "\u2717", escHtml(data.error || "Embedding generation failed")));
+      _procFeedback(lcarsMsg("err", "\u2717", escHtml(data.error || "Embedding generation failed")));
       _enableProcessingBtns();
     }
   }).catch(function(err) {
-    setHtml("procResult", lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
+    _procFeedback(lcarsMsg("err", "\u2717", "Error: " + escHtml(err.message || "Request failed")));
     _enableProcessingBtns();
   });
 };
@@ -2140,8 +2151,9 @@ function _renderOpsAgents(elId, homeStationCode, jobData) {
 function _applyStationCapacity(atCapacity) {
   /* Disable/enable ALL command buttons across all tabs when station is full */
   var allBtnIds = [
-    "btnStartAnalysis", "btnEmbedKB",
+    "btnStartAnalysis", "btnStartAnalysis2", "btnEmbedKB",
     "btnReindexAll", "btnEmbedGH",
+    "btnGenerateEmbed", "btnGenerateEmbed2",
     "langAuditBtn", "langScanBtn", "langGenAllBtn", "langFullPassBtn"
   ];
   allBtnIds.forEach(function(id) {

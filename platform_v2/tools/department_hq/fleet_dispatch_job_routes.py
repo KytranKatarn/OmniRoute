@@ -86,7 +86,10 @@ def register_dispatch_job_routes(bp, admin_required):
                     # Estimate ETA for running jobs
                     eta_seconds = None
                     if j["status"] == "running" and completed > 0 and j["created_at"]:
-                        elapsed = (now - j["created_at"].replace(tzinfo=None)).total_seconds()
+                        created = j["created_at"]
+                        if created.tzinfo is None:
+                            created = created.replace(tzinfo=timezone.utc)
+                        elapsed = (now - created).total_seconds()
                         per_step = elapsed / completed
                         remaining = total - completed
                         eta_seconds = int(per_step * remaining)

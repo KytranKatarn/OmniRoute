@@ -81,7 +81,7 @@ def register_github_repo_routes(bp, admin_required):
         Index specific files/folders from a GitHub repo with semantic embeddings
         This allows ARCHIE to learn from GitHub repositories with higher priority
         """
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         repo_url = data.get("repo_url", "").strip()
         paths = data.get("paths", [])
         priority = data.get("priority", "high")  # high, medium, low
@@ -109,6 +109,8 @@ def register_github_repo_routes(bp, admin_required):
 
         # If no paths specified, use the recursive tree API for full repo index
         if not paths:
+            conn = None
+            cur = None
             try:
                 from tools.department_hq.services.department_dispatcher import get_dispatcher
 
@@ -198,15 +200,17 @@ def register_github_repo_routes(bp, admin_required):
                 traceback.print_exc()
                 return jsonify({"success": False, "error": str(e)}), 500
             finally:
-
-                cur.close()
-
-                conn.close()
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
 
         # Paths specified — use Contents API for targeted indexing
         indexed_count = 0
         errors = []
 
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -333,10 +337,10 @@ def register_github_repo_routes(bp, admin_required):
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # REINDEX
@@ -352,10 +356,12 @@ def register_github_repo_routes(bp, admin_required):
         Work runs in a background thread with progress tracked in Starbase Command.
         Skips repos indexed within the last 7 days unless force=true.
         """
+        conn = None
+        cur = None
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 
-            data = request.get_json() or {}
+            data = request.get_json(silent=True) or {}
             force = data.get("force", False)
 
             conn = _get_db()
@@ -453,10 +459,10 @@ def register_github_repo_routes(bp, admin_required):
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     @bp.route("/github/reindex/<int:repo_id>", methods=["POST"])
     @login_required
@@ -466,6 +472,8 @@ def register_github_repo_routes(bp, admin_required):
 
         Creates a bridge_job so the work is visible in Starbase Command.
         """
+        conn = None
+        cur = None
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 
@@ -550,10 +558,10 @@ def register_github_repo_routes(bp, admin_required):
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # REPOSITORY CRUD
@@ -564,6 +572,8 @@ def register_github_repo_routes(bp, admin_required):
     @admin_required
     def github_repositories():
         """List tracked GitHub repositories with their status"""
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -591,18 +601,20 @@ def register_github_repo_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     @bp.route("/github/repositories/<int:repo_id>", methods=["PATCH"])
     @login_required
     @admin_required
     def github_repository_update(repo_id):
         """Update a tracked repository's settings (e.g. max_files cap)."""
+        conn = None
+        cur = None
         try:
-            data = request.get_json() or {}
+            data = request.get_json(silent=True) or {}
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -625,10 +637,10 @@ def register_github_repo_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     @bp.route("/github/repositories/<int:repo_id>", methods=["DELETE"])
     @login_required
@@ -636,6 +648,8 @@ def register_github_repo_routes(bp, admin_required):
     def github_repository_delete(repo_id):
         """Delete a tracked repository and its indexed files. Use ?preview=true for impact summary."""
         preview = request.args.get("preview", "").lower() == "true"
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -686,10 +700,10 @@ def register_github_repo_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # INDEXED FILE LISTING
@@ -701,6 +715,8 @@ def register_github_repo_routes(bp, admin_required):
     def github_indexed_list():
         """List all selectively indexed GitHub content. Optional ?file_type=code|docs to filter."""
         file_type = request.args.get("file_type", "").lower()
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -760,10 +776,10 @@ def register_github_repo_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # SEMANTIC SEARCH
@@ -774,7 +790,7 @@ def register_github_repo_routes(bp, admin_required):
     @admin_required
     def github_search_semantic():
         """Semantic search across indexed GitHub files"""
-        data = request.get_json() or {}
+        data = request.get_json(silent=True) or {}
         query = data.get("query", "").strip()
         limit = data.get("limit", 10)
 
@@ -1103,7 +1119,7 @@ def register_github_repo_routes(bp, admin_required):
         conn = None
         cur = None
         try:
-            data = request.get_json() or {}
+            data = request.get_json(silent=True) or {}
             review_status = data.get("review_status")
             review_notes = data.get("review_notes")
             relevance_tags = data.get("relevance_tags")

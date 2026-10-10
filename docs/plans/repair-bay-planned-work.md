@@ -168,6 +168,12 @@ No production rows were selected for mutation or changed by this verification.
 
 ### Maintainer-owned worker contract (required before failed-worker retry)
 
+Next-phase receipt/containment contract:
+[`repair-bay-trusted-stop-receipts.md`](repair-bay-trusted-stop-receipts.md).
+It records the actual platform superuser constraint, dedicated issuer boundary,
+authoritative journal versus platform projection, host/Codex ownership split and
+synthetic rollout gates. It is a preparation document, not activated receipt trust.
+
 Supervised worker adapter (pending review/activation): `CODEX_WORKER_SUPERVISED=1`
 selects a transient user systemd **service**, never `--scope`. The default remains
 the existing worker path; no cron/config activation is part of this change.

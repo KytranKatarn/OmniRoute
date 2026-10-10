@@ -46,6 +46,19 @@ RUNNER_TIMEOUT = 1800  # matches codex.yaml max runtime (30 min)
 BRANCH_RE = re.compile(r"codex/[a-z0-9-]+")
 PR_RE = re.compile(r"PR #(\d+) created:")
 GH = "/home/kytran/.local/bin/gh"
+SUPERVISED_ENV = "CODEX_WORKER_SUPERVISED"  # default OFF; separate activation
+
+
+def lifecycle_observation(task_id: int, attempt_id: str, observation: dict) -> bool:
+    """Untrusted diagnostics only. This is NOT the authenticated receipt store."""
+    attempt_id = str(uuid.UUID(attempt_id))
+    observation = dict(observation, stop_confirmed=False, trusted_receipt=False)
+    blob = _json_sql(observation)
+    return psql(
+        f"UPDATE unified_tasks SET metadata=jsonb_set(metadata, '{{codex_worker_attempt,supervision}}', "
+        f"{blob}), updated_at=now() WHERE id={int(task_id)} "
+        f"AND metadata->'codex_worker_attempt'->>'id'='{attempt_id}' RETURNING id;"
+    ) == str(int(task_id))
 
 
 def psql(sql: str) -> str:
@@ -330,9 +343,24 @@ def main() -> int:
     if not owns_attempt(tid, attempt_id):
         return 0
     outcome = "runner_returned"
+    supervised = os.environ.get(SUPERVISED_ENV) == "1"
     try:
-        r = subprocess.run([RUNNER, prompt], capture_output=True, text=True, timeout=RUNNER_TIMEOUT)
-        out = (r.stdout or "") + (r.stderr or "")
+        if supervised:
+            # Imported only for the separately activated host integration.
+            sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "platform_v2"))
+            from services.codex_worker_supervision import run_supervised
+
+            out, outcome = run_supervised(
+                task,
+                prompt,
+                runner=RUNNER,
+                timeout=RUNNER_TIMEOUT,
+                observe=lifecycle_observation,
+                owns=owns_attempt,
+            )
+        else:
+            r = subprocess.run([RUNNER, prompt], capture_output=True, text=True, timeout=RUNNER_TIMEOUT)
+            out = (r.stdout or "") + (r.stderr or "")
     except subprocess.TimeoutExpired as exc:
         # subprocess.run kills its direct child, NOT daemon-owned Docker work.
         # Preserve partial PR/branch evidence, but never start fallback on timeout.
@@ -344,6 +372,14 @@ def main() -> int:
         out = decoded(exc.stdout) + decoded(exc.stderr)
     except OSError:
         set_status(tid, "blocked", attempt_id=attempt_id, outcome="runner_start_failed")
+        raise
+    except (ValueError, RuntimeError):
+        set_status(
+            tid,
+            "blocked",
+            attempt_id=attempt_id,
+            outcome="supervisor_failed_stop_unconfirmed",
+        )
         raise
     # Persist the FULL runner output — the runner's scope-guard / gate decisions
     # are essential for debugging a blocked run and must not be truncated away.
@@ -366,11 +402,11 @@ def main() -> int:
         evidence["codex_pr"] = pr_num
     if outcome != "runner_returned":
         set_status(tid, "blocked", evidence, attempt_id=attempt_id, outcome=outcome)
-        print(f"codex #{tid}: timeout; stop unconfirmed (full log: {logpath})")
+        print(f"codex #{tid}: {outcome}; stop unconfirmed (full log: {logpath})")
         return 0
 
     # Branch pushed but gh pr create failed inside the runner — attempt recovery.
-    if branch and not pr_num:
+    if branch and not pr_num and not supervised:
         if not owns_attempt(tid, attempt_id):
             return 0
         print(f"codex #{tid}: branch {branch} pushed but no PR in runner output — trying fallback")

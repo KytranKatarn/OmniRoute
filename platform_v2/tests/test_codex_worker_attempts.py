@@ -159,3 +159,40 @@ def test_start_failure_remains_unconfirmed(running, monkeypatch):
         running.main()
     assert running.set_status.call_args.kwargs["outcome"] == "runner_start_failed"
     running.queue_promote.assert_not_called()
+
+
+def test_supervised_mode_never_uses_uncontained_fallback(running, monkeypatch):
+    from services import codex_worker_supervision
+
+    monkeypatch.setenv(running.SUPERVISED_ENV, "1")
+    supervised = Mock(return_value=("codex/repair", "runner_returned"))
+    monkeypatch.setattr(codex_worker_supervision, "run_supervised", supervised)
+    assert running.main() == 0
+    supervised.assert_called_once()
+    running.fallback_pr.assert_not_called()
+    running.queue_promote.assert_not_called()
+
+
+def test_supervised_failure_retains_artifacts_without_promotion(running, monkeypatch):
+    from services import codex_worker_supervision
+
+    monkeypatch.setenv(running.SUPERVISED_ENV, "1")
+    monkeypatch.setattr(
+        codex_worker_supervision,
+        "run_supervised",
+        Mock(return_value=("codex/repair\nPR #9 created: url", "supervisor_observation_not_persisted")),
+    )
+    assert running.main() == 0
+    assert running.set_status.call_args.args == (41, "blocked", {"codex_branch": "codex/repair", "codex_pr": 9})
+    running.queue_promote.assert_not_called()
+
+
+def test_lifecycle_metadata_cannot_certify_stop(worker, monkeypatch):
+    sql = Mock(return_value="41")
+    monkeypatch.setattr(worker, "psql", sql)
+    assert worker.lifecycle_observation(41, str(uuid.uuid4()), {"stop_confirmed": True, "trusted_receipt": True})
+    query = sql.call_args.args[0]
+    encoded = query.split("decode('")[1].split("'")[0]
+    observation = json.loads(bytes.fromhex(encoded))
+    assert observation["stop_confirmed"] is False
+    assert observation["trusted_receipt"] is False

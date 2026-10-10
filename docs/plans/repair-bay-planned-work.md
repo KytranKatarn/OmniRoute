@@ -168,6 +168,26 @@ No production rows were selected for mutation or changed by this verification.
 
 ### Maintainer-owned worker contract (required before failed-worker retry)
 
+Supervised worker adapter (pending review/activation): `CODEX_WORKER_SUPERVISED=1`
+selects a transient user systemd **service**, never `--scope`. The default remains
+the existing worker path; no cron/config activation is part of this change.
+The adapter validates the private runtime directory, exclusively allocates the
+attempt directory, uses no-restart/control-group service properties and a bounded
+runtime, validates full container ID plus task/attempt/host/boot labels, and writes
+identity conditionally before creating the runner's start barrier. Lost ownership
+or persistence failure refuses the barrier. Cleanup targets the service and exact
+validated container, escalates stop to kill after re-inspection, and retains files
+and containers for investigation. Supervised fallback PR creation is disabled so
+the poller cannot create uncontained publication operations.
+
+`codex_worker_attempt.supervision` is diagnostic metadata only: every write forces
+`trusted_receipt=false` and `stop_confirmed=false`. It is not append-only evidence
+or a trusted issuer. User-manager containment security, crash recovery, remote PR
+reconciliation and authenticated append-only receipt storage remain pending.
+Do not enable replacement from these observations. A missing cgroup/container or
+failed cleanup check remains unknown. No real service/container runtime test has
+been performed as part of the fixture-only adapter validation.
+
 Worker ownership foundation (pending review/deployment): the host poller now
 claims one durable UUID attempt per task with host, boot, PID and process-start
 identity plus a fixed execution deadline. Every status/PR writeback compares the

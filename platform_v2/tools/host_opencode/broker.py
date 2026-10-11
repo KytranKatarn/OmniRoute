@@ -18,6 +18,8 @@ from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
+BROKER_ERROR = "broker_error"
+
 # ============================================================================
 # Configuration
 # ============================================================================
@@ -32,6 +34,12 @@ JOURNAL_DB = Path("/var/lib/host-opencode/broker_journal.db")
 RUNNER_CGROUP = "host-opencode-runner"
 REPLAY_PROTECTION_SECONDS = 300
 TRUSTED_UIDS_FILE = "/var/lib/host-opencode/trusted_uids"
+TRUSTED_UIDS = frozenset({1000})
+PINNED_KEY_ID = "host-opencode-broker-v1"
+PINNED_ALGORITHM = "RSA-PSS-SHA256"
+MAX_PAYLOAD_BYTES = 65536
+TERMINAL_DOCKER_STATES = frozenset({"stopped", "exited", "dead"})
+TERMINAL_STOP_OBSERVATIONS = frozenset({"stopped", "verified", "verified-stopped", "quiescent"})
 
 # ============================================================================
 # 1. Service Identity — FIXED
@@ -56,18 +64,22 @@ def is_trusted_user(uid: Optional[int] = None) -> bool:
 # ============================================================================
 
 
-def ensure_keys() -> Tuple[str, str]:
+def ensure_keys(keys_dir: Optional[Path] = None) -> Tuple[str, str]:
     """Generate or load the broker's asymmetric key pair.
 
     FIXED: chmod AFTER file creation (not before). Keys generated once, stored
-    securely; never re-generated on restart.
+    securely; never re-generated on restart. keys_dir override keeps tests
+    isolated from /var/lib/host-opencode.
     """
-    KEYS_DIR.mkdir(parents=True, exist_ok=True)
+    active_dir = Path(keys_dir) if keys_dir else _keys_dir()
+    active_dir.mkdir(parents=True, exist_ok=True)
+    priv_file = active_dir / "broker_private.key"
+    pub_file = active_dir / "broker_public.key"
 
-    if PRIVATE_KEY_FILE.exists() and PUBLIC_KEY_FILE.exists():
+    if priv_file.exists() and pub_file.exists():
         # Load existing keys — read first
-        private_key_pem = PRIVATE_KEY_FILE.read_text()
-        public_key_pem = PUBLIC_KEY_FILE.read_text()
+        private_key_pem = priv_file.read_text()
+        public_key_pem = pub_file.read_text()
     else:
         # Generate new RSA key pair
         from cryptography.hazmat.primitives import serialization
@@ -92,11 +104,11 @@ def ensure_keys() -> Tuple[str, str]:
         )
 
         # Store securely — chmod AFTER write (not before)
-        PRIVATE_KEY_FILE.write_text(private_key_pem)
-        os.chmod(str(PRIVATE_KEY_FILE), 0o600)
+        priv_file.write_text(private_key_pem)
+        os.chmod(str(priv_file), 0o600)
 
-        PUBLIC_KEY_FILE.write_text(public_key_pem)
-        os.chmod(str(PUBLIC_KEY_FILE), 0o644)
+        pub_file.write_text(public_key_pem)
+        os.chmod(str(pub_file), 0o644)
 
     return private_key_pem, public_key_pem
 
@@ -106,13 +118,17 @@ def ensure_keys() -> Tuple[str, str]:
 # ============================================================================
 
 
-def journal_init(db_path: str = str(JOURNAL_DB)) -> bool:
+def journal_init(db_path: Optional[str] = None) -> bool:
     """Initialize the durable append-only journal in SQLite.
 
     FIXED: Actual SQLite database; INSERT-only (append-only); readable entries.
+    Respects HOST_OPENCODE_JOURNAL_DB for isolated tests.
     """
+    db_path = _journal_db_path(db_path)
     try:
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        parent = os.path.dirname(db_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(
@@ -157,12 +173,13 @@ def journal_append(
     event_type: str,
     payload: Dict[str, Any],
     signature: str,
-    db_path: str = str(JOURNAL_DB),
+    db_path: Optional[str] = None,
 ) -> bool:
     """Append an entry to the authoritative journal.
 
     FIXED: INSERT-only (append-only); never UPDATE/DELETE. Persists to SQLite.
     """
+    db_path = _journal_db_path(db_path)
     try:
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA journal_mode=WAL")
@@ -182,9 +199,10 @@ def journal_append(
 def journal_get_entries(
     assignment_id: Optional[str] = None,
     verified_only: bool = False,
-    db_path: str = str(JOURNAL_DB),
+    db_path: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Retrieve journal entries — FIXED: actually reads from SQLite (not always [])."""
+    db_path = _journal_db_path(db_path)
     try:
         conn = sqlite3.connect(db_path)
         conn.execute("PRAGMA journal_mode=WAL")
@@ -225,56 +243,48 @@ def journal_get_entries(
 def get_peer_uid(conn) -> Optional[int]:
     """Get the connecting process's UID via Unix socket peer credentials.
 
-    FIXED: Uses getsockopt with SOCK_PEERCRED to actual peer UID.
+    Strict: returns None on any failure. Never falls back to the broker euid,
+    otherwise an untrusted peer would inherit the broker's identity.
     """
-    import ctypes
-    import ctypes.util
+    import socket as _socket
+    import struct as _struct
 
     try:
-        sock_fd = conn.fileno()
-        SOCK_PEERCRED = 7
-
-        class ucred(ctypes.Structure):
-            _fields_ = [("pid", ctypes.c_int), ("uid", ctypes.c_int), ("gid", ctypes.c_int)]
-
-        ucred_buf = ucred()
-        # Use ctypes to call getsockopt
-        libc = ctypes.CDLL(ctypes.util.find_library("c"))
-        # Actually, simpler approach: use getsockopt directly
-        try:
-            ucred_buf = ctypes.create_string_buffer(ctypes.sizeof(ucred))
-            res = conn.getsockopt(socket.SOL_SOCKET, SOCK_PEERCRED, ctypes.byref(ucred_buf))
-            if res >= 0:
-                ucred_obj = ucred.from_address(ctypes.addressof(ucred_buf))
-                return ucred_obj.uid
-        except (OSError, AttributeError):
-            pass
-
-        # Fallback to euid
-        return os.geteuid()
+        level = _socket.SOL_SOCKET
+        opt = getattr(_socket, "SO_PEERCRED", 17)
+        raw = conn.getsockopt(level, opt, _struct.calcsize("iii"))
+    except (OSError, AttributeError, TypeError, ValueError):
+        return None
+    if not isinstance(raw, (bytes, bytearray)) or len(raw) != 12:
+        return None
+    try:
+        _pid, uid, _gid = _struct.unpack("iii", bytes(raw))
     except Exception:
-        return os.geteuid()
+        return None
+    if uid < 0:
+        return None
+    return int(uid)
 
 
-def validate_peer_identity(conn, trusted_uids: Optional[set] = None) -> bool:
-    """Validate using ACTUAL socket peer credentials, not broker identity.
+def validate_peer_identity(conn, trusted_uids=None, _get_peer_uid=None) -> bool:
+    """Validate the connecting process via socket peer credentials.
 
-    FIXED: Gets the connecting process's UID via peer credentials and checks
-    against trusted uids. This is the critical fix — was just checking broker identity.
+    The peer UID itself must be in the trusted set. The broker euid is
+    irrelevant and MUST NOT grant access — otherwise UID 99999 passes
+    whenever the broker runs as a trusted user.
     """
     if trusted_uids is None:
-        trusted_uids = {1000}  # kytran's UID
-
-    peer_uid = get_peer_uid(conn)
+        trusted_uids = set(TRUSTED_UIDS)
+    else:
+        trusted_uids = set(trusted_uids)
+    getter = _get_peer_uid if _get_peer_uid is not None else get_peer_uid
+    try:
+        peer_uid = getter(conn)
+    except Exception:
+        return False
     if peer_uid is None:
         return False
-
-    # Also check the process is running under expected conditions
-    euid = os.geteuid()
-    if euid not in trusted_uids:
-        return False
-
-    return True
+    return peer_uid in trusted_uids
 
 
 # ============================================================================
@@ -282,10 +292,58 @@ def validate_peer_identity(conn, trusted_uids: Optional[set] = None) -> bool:
 # ============================================================================
 
 
+def _reject_noncanonical(obj: Any, depth: int = 0) -> None:
+    """Strict canonical-JSON guard: no floats, str keys, bounded size/depth."""
+    if depth > 16:
+        raise ValueError("payload too deeply nested")
+    if isinstance(obj, float):
+        raise ValueError("floats forbidden in canonical payloads")
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if not isinstance(k, str):
+                raise ValueError("non-string dict key")
+            _reject_noncanonical(v, depth + 1)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            _reject_noncanonical(v, depth + 1)
+    elif obj is not None and not isinstance(obj, (str, int, bool)):
+        raise ValueError(f"unsupported type {type(obj).__name__}")
+
+
+def _canonical_bytes(obj: Dict[str, Any]) -> bytes:
+    """Canonical bytes shared by signer and verifier (sort_keys, compact)."""
+    _reject_noncanonical(obj)
+    raw = json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    if len(raw) > MAX_PAYLOAD_BYTES:
+        raise ValueError("payload oversized")
+    return raw
+
+
+def _parse_canonical_blob(signed_blob: str) -> Dict[str, Any]:
+    """Parse raw envelope bytes, rejecting duplicate keys and bad types."""
+    if len(signed_blob.encode("utf-8")) > MAX_PAYLOAD_BYTES:
+        raise ValueError("envelope oversized")
+
+    def _no_dupes(pairs):
+        out: Dict[str, Any] = {}
+        for k, v in pairs:
+            if k in out:
+                raise ValueError("duplicate JSON key")
+            out[k] = v
+        return out
+
+    data = json.loads(signed_blob, object_pairs_hook=_no_dupes)
+    if not isinstance(data, dict):
+        raise ValueError("envelope must be an object")
+    _reject_noncanonical(data)
+    return data
+
+
 def sign_payload(payload: Dict[str, Any], private_key_pem: str) -> Dict[str, str]:
     """Sign a payload using the broker's private key.
 
-    FIXED: All imports are at point of use; RSA-4096 with RSA-PSS, SHA-256.
+    Signs the exact canonical bytes of {version, timestamp, payload} with
+    pinned RSA-PSS-SHA256. Verifier recomputes the same bytes.
     """
     import base64
     from cryptography.hazmat.primitives import hashes
@@ -297,17 +355,18 @@ def sign_payload(payload: Dict[str, Any], private_key_pem: str) -> Dict[str, str
         "timestamp": int(time.time()),
         "payload": payload,
     }
+    blob = _canonical_bytes(signed_data).decode("utf-8")
 
     private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
     signature = private_key.sign(
-        json.dumps(signed_data, sort_keys=True).encode(),
+        blob.encode("utf-8"),
         padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
         hashes.SHA256(),
     )
 
     return {
         "signature_b64": base64.b64encode(signature).decode(),
-        "signed_blob": json.dumps(signed_data, sort_keys=True),
+        "signed_blob": blob,
     }
 
 
@@ -329,35 +388,79 @@ def verify_signature(
     from cryptography.exceptions import InvalidSignature
 
     try:
-        # Load the PINNED public key — not caller-supplied
-        # In production, this would be the pinned key from platform config
+        # public_key_pem here MUST be the platform-pinned key for PINNED_KEY_ID;
+        # callers must never supply their own trust anchor (see verify_receipt).
         public_key = serialization.load_pem_public_key(public_key_pem.encode())
 
-        signed_data = json.loads(json.dumps(payload))
+        if not isinstance(payload, dict):
+            return False
+        blob = _canonical_bytes(payload).decode("utf-8")
+        signed_data = _parse_canonical_blob(blob)
 
         if signed_data.get("version") != expected_version:
             return False
 
-        signature = base64.b64decode(signature_b64)
+        try:
+            timestamp = int(signed_data.get("timestamp", -1))
+        except (TypeError, ValueError):
+            return False
+        now = int(time.time())
+        age = now - timestamp
+        if age < -60 or age > REPLAY_PROTECTION_SECONDS:
+            return False
+
+        signature = base64.b64decode(signature_b64, validate=True)
 
         public_key.verify(
             signature,
-            json.dumps(payload, sort_keys=True).encode(),
+            blob.encode("utf-8"),
             padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
             hashes.SHA256(),
         )
-
-        # Replay protection
-        if "timestamp" in signed_data:
-            now = int(time.time())
-            age = now - signed_data["timestamp"]
-            if age > REPLAY_PROTECTION_SECONDS:
-                return False
 
         return True
 
     except (InvalidSignature, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
         print(f"[{BROKER_ERROR}] Verification failed: {e}", file=sys.stderr)
+        return False
+
+
+def verify_envelope(
+    signed_blob: str,
+    signature_b64: str,
+    pinned_public_key_pem: str,
+    expected_version: int = 1,
+) -> bool:
+    """Verify an exact signed envelope against the pinned issuer key."""
+    import base64
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.exceptions import InvalidSignature
+
+    try:
+        public_key = serialization.load_pem_public_key(pinned_public_key_pem.encode())
+        signed_data = _parse_canonical_blob(signed_blob)
+        if signed_data.get("version") != expected_version:
+            return False
+        try:
+            timestamp = int(signed_data.get("timestamp", -1))
+        except (TypeError, ValueError):
+            return False
+        now = int(time.time())
+        age = now - timestamp
+        if age < -60 or age > REPLAY_PROTECTION_SECONDS:
+            return False
+        signature = base64.b64decode(signature_b64, validate=True)
+        public_key.verify(
+            signature,
+            signed_blob.encode("utf-8"),
+            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+            hashes.SHA256(),
+        )
+        return True
+    except (InvalidSignature, json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+        print(f"[{BROKER_ERROR}] Envelope verification failed: {e}", file=sys.stderr)
         return False
 
 
@@ -390,6 +493,7 @@ def seal_assignment(assignment: Dict[str, Any], private_key_pem: str) -> SealedA
     """
     import base64
     from cryptography.hazmat.primitives import hashes as hashes_mod
+    from cryptography.hazmat.primitives import serialization as _seal_serialization
     from cryptography.hazmat.primitives.asymmetric import padding
 
     seal_data = {
@@ -403,9 +507,9 @@ def seal_assignment(assignment: Dict[str, Any], private_key_pem: str) -> SealedA
         "created_at": assignment["created_at"],
     }
 
-    private_key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+    private_key = _seal_serialization.load_pem_private_key(private_key_pem.encode(), password=None)
     signature = private_key.sign(
-        json.dumps(seal_data, sort_keys=True).encode(),
+        _canonical_bytes(seal_data),
         padding.PSS(mgf=padding.MGF1(hashes_mod.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
         hashes_mod.SHA256(),
     )
@@ -508,36 +612,61 @@ def verify_cgroup_confinement(assigned_cgroup: str, process_pid: int = None) -> 
     return False, f"cgroup mismatch: assigned={assigned_normalized}, actual={actual_normalized}"
 
 
+def set_runner_cgroup(cgroup_name: str = RUNNER_CGROUP) -> bool:
+    """Best-effort runner cgroup preparation.
+
+    The unit owns provisioning via StateDirectory/RuntimeDirectory; this helper
+    only ensures the cgroup path exists when permitted and never claims
+    confinement by itself. Verification is done by verify_cgroup_confinement.
+    """
+    try:
+        target = Path("/sys/fs/cgroup") / cgroup_name
+        target.mkdir(parents=True, exist_ok=True)
+        return True
+    except (PermissionError, OSError):
+        return False
+
+
 # ============================================================================
 # 5. Trusted Completion — FIXED (3 independent checks)
 # ============================================================================
 
 
-def check_trusted_completion(journal_entries: List[Dict[str, Any]], details: Dict[str, Any]) -> bool:
-    """Check that completion is trusted — requires 3 independent conditions.
+def _normalized_state(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower()
+    return text if text else None
 
-    No longer trusts caller claims alone. All three must pass:
-    1. Assignment has valid sealing in journal
-    2. Docker state observations provided
-    3. Independent stop observation (not just caller's claim)
+
+def check_trusted_completion(journal_entries: List[Dict[str, Any]], details: Dict[str, Any]) -> bool:
+    """Check that completion is trusted — requires independent terminal evidence.
+
+    Presence alone is insufficient: docker_state and stop_observation must be
+    in explicit terminal allowlists. "running" / "not stopped" and any other
+    non-terminal claim is rejected even with a journal signature present.
+    Missing assignments are rejected.
     """
-    if not journal_entries:
+    if not journal_entries or not isinstance(details, dict):
         return False
 
-    # Check 1: Assignment has valid sealing (signature exists in journal entry)
-    has_sealing = journal_entries[0].get("signature") is not None
+    # Check 1: Assignment has non-empty sealing signature in journal
+    signature = journal_entries[0].get("signature")
+    has_sealing = isinstance(signature, str) and len(signature.strip()) > 0
+    if not has_sealing:
+        return False
 
-    # Check 2: Docker state observations provided by runner
-    docker_state = details.get("docker_state")
-    has_docker_observation = docker_state is not None and docker_state != ""
+    # Check 2: Docker state must be an explicit terminal state
+    docker_state = _normalized_state(details.get("docker_state"))
+    if docker_state not in TERMINAL_DOCKER_STATES:
+        return False
 
-    # Check 3: Independent stop observation (not just caller's claim)
-    stop_observation = details.get("stop_observation")
-    has_stop_observation = stop_observation is not None and stop_observation != ""
+    # Check 3: Stop observation must be an explicit terminal observation
+    stop_observation = _normalized_state(details.get("stop_observation"))
+    if stop_observation not in TERMINAL_STOP_OBSERVATIONS:
+        return False
 
-    # All three checks must pass for trusted completion
-    trusted = has_sealing and has_docker_observation and has_stop_observation
-    return trusted
+    return True
 
 
 # ============================================================================
@@ -545,13 +674,34 @@ def check_trusted_completion(journal_entries: List[Dict[str, Any]], details: Dic
 # ============================================================================
 
 
-def load_public_key() -> str:
+def _keys_dir() -> Path:
+    override = os.environ.get("HOST_OPENCODE_KEYS_DIR")
+    return Path(override) if override else KEYS_DIR
+
+
+def _private_key_file() -> Path:
+    return _keys_dir() / "broker_private.key"
+
+
+def _public_key_file() -> Path:
+    return _keys_dir() / "broker_public.key"
+
+
+def _journal_db_path(explicit: Optional[str] = None) -> str:
+    if explicit:
+        return explicit
+    override = os.environ.get("HOST_OPENCODE_JOURNAL_DB")
+    return override if override else str(JOURNAL_DB)
+
+
+def load_public_key(keys_dir: Optional[Path] = None) -> str:
     """Load the broker's PINNED public key from secure storage.
 
     The platform pins this key; it is NEVER the caller-supplied key.
     """
+    pub_file = (Path(keys_dir) / "broker_public.key") if keys_dir else _public_key_file()
     try:
-        return Path("/var/lib/host-opencode/keys/broker_public.key").read_text()
+        return pub_file.read_text()
     except FileNotFoundError:
         # Generate and store for development; in production, platform provides this
         from cryptography.hazmat.primitives import serialization
@@ -573,43 +723,65 @@ def load_public_key() -> str:
             .decode()
         )
 
-        # Store for future runs
-        KEYS_DIR.mkdir(parents=True, exist_ok=True)
-        Path("/var/lib/host-opencode/keys/broker_public.key").write_text(public_key_pem)
-        Path("/var/lib/host-opencode/keys/broker_private.key").write_text(private_key_pem)
+        # Store for future runs under the same keys dir (isolated in tests)
+        pub_file.parent.mkdir(parents=True, exist_ok=True)
+        pub_file.write_text(public_key_pem)
+        os.chmod(str(pub_file), 0o644)
+        priv_file = pub_file.parent / "broker_private.key"
+        priv_file.write_text(private_key_pem)
+        os.chmod(str(priv_file), 0o600)
 
         return public_key_pem
 
 
-def verify_receipt(receipt_b64: str, assignment_id: str, expected_sender_uid: int, public_key_pem: str) -> bool:
+def verify_receipt(
+    signed_blob: str,
+    signature_b64: str,
+    assignment_id: str,
+    expected_sender_uid: int,
+    pinned_public_key_pem: Optional[str] = None,
+    *,
+    journal_db: Optional[str] = None,
+    peer_uid: Optional[int] = None,
+    untrusted_public_key_pem: Optional[str] = None,
+    keys_dir: Optional[Path] = None,
+) -> bool:
     """Verify a receipt against the PINNED trusted issuer public key.
 
-    FIXED: Uses the platform's pinned public key, NOT the caller-supplied key.
-    Also checks the sender UID matches what we expect.
+    A caller-supplied key is never trusted: if one is provided and differs
+    from the pinned key, verification fails closed. The envelope signature,
+    assignment binding, journal existence, and sender UID must all pass.
     """
-    import base64
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import padding
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.exceptions import InvalidSignature
-
     try:
-        public_key = serialization.load_pem_public_key(public_key_pem.encode())
+        pinned = pinned_public_key_pem if pinned_public_key_pem else load_public_key(keys_dir)
+        if untrusted_public_key_pem is not None and untrusted_public_key_pem != pinned:
+            return False
 
-        # Check sender UID matches
-        sender_matches = expected_sender_uid == os.geteuid()
+        if peer_uid is None or peer_uid != expected_sender_uid:
+            return False
 
         # Retrieve the sealed assignment from journal to get the signature context
-        entries = journal_get_entries(assignment_id=assignment_id)
+        entries = journal_get_entries(assignment_id=assignment_id, db_path=_journal_db_path(journal_db))
         if not entries:
             return False
 
-        # The receipt should contain the original payload data; verify signature
-        # In full production, this would deserialize the receipt and verify
-        # against the pinned public key over the original payload
-        # For now, check that the sender UID matches and the assignment exists
+        # Verify the exact envelope bytes against the pinned key.
+        if not verify_envelope(signed_blob, signature_b64, pinned):
+            return False
 
-        return sender_matches  # Simplified: UID check is primary guard
+        # Bind the envelope to this assignment: reject transplanted receipts.
+        try:
+            envelope = _parse_canonical_blob(signed_blob)
+        except ValueError:
+            return False
+        receipt_payload = envelope.get("payload")
+        if not isinstance(receipt_payload, dict):
+            return False
+        bound_id = receipt_payload.get("assignment_id")
+        if bound_id != assignment_id:
+            return False
+
+        return True
 
     except Exception as e:
         print(f"[{BROKER_ERROR}] Receipt verification failed: {e}", file=sys.stderr)
@@ -686,7 +858,7 @@ def broker_main() -> None:
                 conn.settimeout(60)
 
                 # CRITICAL: Validate peer identity via socket credentials
-                if not validate_peer_identity(conn, TRUSTED_UIDS if "TRUSTED_UIDS" in dir() else {1000}):
+                if not validate_peer_identity(conn, TRUSTED_UIDS):
                     conn.close()
                     print(f"[{BROKER_ERROR}] Rejected untrusted peer", file=sys.stderr)
                     continue

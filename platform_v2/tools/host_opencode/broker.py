@@ -16,7 +16,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 BROKER_ERROR = "broker_error"
 
@@ -532,7 +532,14 @@ def verify_envelope(
 
 @dataclass
 class SealedAssignment:
-    """A sealed assignment with cryptographic binding and cgroup confinement."""
+    """A sealed assignment with cryptographic binding and cgroup confinement.
+
+    container_id/runner_pids/repo/branch are the durable observation bindings:
+    the pinned full container ID resolved at discovery, the runner PIDs the
+    reaper must account for, and the exact publication repo/branch. Seals
+    predating these fields reconstruct with empty defaults and can never
+    satisfy the binding cross-checks (fail closed).
+    """
 
     assignment_id: str
     task_id: str
@@ -544,18 +551,51 @@ class SealedAssignment:
     created_at: str
     signature: str
     cgroup_proof: str
+    container_id: str = ""
+    runner_pids: list = field(default_factory=list)
+    repo: str = ""
+    branch: str = ""
 
 
-def seal_assignment(assignment: Dict[str, Any], private_key_pem: str) -> SealedAssignment:
+def _is_full_hex_id(value: Any) -> bool:
+    """A Docker full ID is 64 hex chars. Local copy (no observers import)
+    so broker.py keeps zero intra-package dependencies."""
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
+
+
+def seal_assignment(
+    assignment: Dict[str, Any],
+    private_key_pem: str,
+    resolve_container_id_fn=None,
+) -> SealedAssignment:
     """Seal an assignment with broker signature and cgroup proof.
 
     The seal binds the assignment to the cgroup state at creation time,
-    preventing later migration claims.
+    preventing later migration claims. It also pins the durable observation
+    bindings: the full container ID (poller-supplied when already resolved,
+    otherwise resolved via resolve_container_id_fn when provided), the
+    runner PIDs the reaper must account for, and the exact publication
+    repo/branch. Without a resolver the ID stays empty and completions can
+    never verify — fail closed, never default-true.
     """
     import base64
     from cryptography.hazmat.primitives import hashes as hashes_mod
     from cryptography.hazmat.primitives import serialization as _seal_serialization
     from cryptography.hazmat.primitives.asymmetric import padding
+
+    supplied_id = assignment.get("container_id", "")
+    if not _is_full_hex_id(supplied_id) and resolve_container_id_fn is not None:
+        try:
+            resolved = resolve_container_id_fn(assignment.get("container_name", ""))
+        except Exception:
+            resolved = None
+        if _is_full_hex_id(resolved):
+            supplied_id = str(resolved).lower()
+    container_id = str(supplied_id).lower() if _is_full_hex_id(supplied_id) else ""
+    runner_pids = assignment.get("runner_pids", [])
+    if not isinstance(runner_pids, list):
+        runner_pids = []
+    runner_pids = [int(p) for p in runner_pids if isinstance(p, int) or str(p).lstrip("-").isdigit()]
 
     seal_data = {
         "assignment_id": assignment["assignment_id"],
@@ -566,6 +606,10 @@ def seal_assignment(assignment: Dict[str, Any], private_key_pem: str) -> SealedA
         "container_name": assignment["container_name"],
         "creator_broker_id": assignment["broker_id"],
         "created_at": assignment["created_at"],
+        "container_id": container_id,
+        "runner_pids": runner_pids,
+        "repo": assignment.get("repo", ""),
+        "branch": assignment.get("branch", ""),
     }
 
     private_key = _seal_serialization.load_pem_private_key(private_key_pem.encode(), password=None)
@@ -590,6 +634,10 @@ def seal_assignment(assignment: Dict[str, Any], private_key_pem: str) -> SealedA
         created_at=assignment["created_at"],
         signature=base64.b64encode(signature).decode(),
         cgroup_proof=cgroup_proof,
+        container_id=container_id,
+        runner_pids=runner_pids,
+        repo=assignment.get("repo", ""),
+        branch=assignment.get("branch", ""),
     )
 
 
@@ -629,6 +677,10 @@ def verify_sealed_assignment(
                 "container_name": sealed.container_name,
                 "creator_broker_id": sealed.creator_broker_id,
                 "created_at": sealed.created_at,
+                "container_id": sealed.container_id,
+                "runner_pids": list(sealed.runner_pids),
+                "repo": sealed.repo,
+                "branch": sealed.branch,
             }
             signature_b64 = sealed.signature
         else:
@@ -641,6 +693,10 @@ def verify_sealed_assignment(
                 "container_name": sealed["container_name"],
                 "creator_broker_id": sealed["creator_broker_id"],
                 "created_at": sealed["created_at"],
+                "container_id": sealed.get("container_id", ""),
+                "runner_pids": list(sealed.get("runner_pids", [])),
+                "repo": sealed.get("repo", ""),
+                "branch": sealed.get("branch", ""),
             }
             signature_b64 = sealed["signature"]
         if not all([seal_data["assignment_id"], seal_data["task_id"], seal_data["scope"], seal_data["container_name"]]):
@@ -749,6 +805,9 @@ def _reconstruct_seal(entry: Dict[str, Any]) -> Optional[SealedAssignment]:
         signature = entry.get("signature")
         if not isinstance(signature, str) or not signature.strip():
             return None
+        runner_pids = payload.get("runner_pids", [])
+        if not isinstance(runner_pids, list):
+            runner_pids = []
         return SealedAssignment(
             assignment_id=str(payload["assignment_id"]),
             task_id=str(payload["task_id"]),
@@ -760,6 +819,10 @@ def _reconstruct_seal(entry: Dict[str, Any]) -> Optional[SealedAssignment]:
             created_at=str(payload["created_at"]),
             signature=signature,
             cgroup_proof=str(payload["cgroup_proof"]),
+            container_id=str(payload.get("container_id", "")),
+            runner_pids=[int(p) for p in runner_pids],
+            repo=str(payload.get("repo", "")),
+            branch=str(payload.get("branch", "")),
         )
     except (KeyError, TypeError, ValueError):
         return None
@@ -858,6 +921,23 @@ def check_trusted_completion(
     if _normalized_state(observed_host.get("service")) != "stopped":
         return False
     if not isinstance(observed_pub, dict) or observed_pub.get("settled") is not True:
+        return False
+
+    # End-to-end binding enforcement against the durable seal. The pinned
+    # full container ID recorded at discovery must match the observed one;
+    # seals without a pinned ID (legacy or unresolved) can never complete.
+    # Publication evidence must carry this assignment's exact repo/branch.
+    # Host evidence must positively confirm reaping — a missing reaped flag
+    # stays UNKNOWN even when the cgroup reads empty.
+    if not _is_full_hex_id(sealed.container_id):
+        return False
+    if observed_docker.get("full_id") != sealed.container_id.lower():
+        return False
+    if not sealed.repo or not sealed.branch:
+        return False
+    if observed_pub.get("repo") != sealed.repo or observed_pub.get("branch") != sealed.branch:
+        return False
+    if observed_host.get("reaped") is not True:
         return False
 
     return True
@@ -1151,6 +1231,7 @@ def handle_broker_connection(
     host_observe=None,
     publication_observe=None,
     peer_uid: Optional[int] = None,
+    resolve_container_id_fn=None,
 ) -> None:
     """Handle broker connection with 4 message types."""
     import json
@@ -1170,8 +1251,15 @@ def handle_broker_connection(
         msg_type = message.get("type")
 
         if msg_type == "assign_task":
-            # Poller submits task proposal
-            sealed = seal_assignment(message["assignment_data"], private_key_pem)
+            # Poller submits task proposal. Discovery-time resolution of the
+            # container name to a full ID happens here when a resolver is
+            # provided; otherwise only a poller-supplied full ID is pinned
+            # and completions stay UNKNOWN until one exists.
+            sealed = seal_assignment(
+                message["assignment_data"],
+                private_key_pem,
+                resolve_container_id_fn=resolve_container_id_fn,
+            )
 
             # Record the full seal atomically; identical retries are
             # idempotent, conflicting retries are refused, persistence
@@ -1186,6 +1274,10 @@ def handle_broker_connection(
                 "creator_broker_id": sealed.creator_broker_id,
                 "created_at": sealed.created_at,
                 "cgroup_proof": sealed.cgroup_proof,
+                "container_id": sealed.container_id,
+                "runner_pids": list(sealed.runner_pids),
+                "repo": sealed.repo,
+                "branch": sealed.branch,
             }
             if journal_append_fn is journal_append:
                 seal_status, existing = journal_try_seal(
@@ -1241,6 +1333,10 @@ def handle_broker_connection(
                     "container_name": out_payload["container_name"],
                     "signature": out_signature,
                     "cgroup_proof": out_payload["cgroup_proof"],
+                    "container_id": out_payload.get("container_id", ""),
+                    "runner_pids": list(out_payload.get("runner_pids", [])),
+                    "repo": out_payload.get("repo", ""),
+                    "branch": out_payload.get("branch", ""),
                 },
             }
             conn.sendall(json.dumps(response).encode())

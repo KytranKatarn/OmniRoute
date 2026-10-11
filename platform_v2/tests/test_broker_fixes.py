@@ -111,25 +111,42 @@ class _FakeConn:
         return _struct.pack("iii", 1234, int(self._uid), 100)
 
 
-def _terminal_observers(container, assignment="a-handler-001", cgroup="host-opencode-runner"):
+FULL_W = "abcdef0123456789" * 4  # 64 hex chars: pinned container ID
+
+
+def _terminal_observers(
+    container,
+    assignment="a-handler-001",
+    cgroup="host-opencode-runner",
+    full_id=None,
+    repo="o/r",
+    branch="main",
+):
     calls = {}
+    bound_full = full_id if full_id is not None else FULL_W
 
     def docker_observe(cid, aid):
         calls["docker"] = (cid, aid)
         assert cid == container, f"observer must receive sealed container, got {cid!r}"
         assert aid == assignment, f"observer must receive assignment identity, got {aid!r}"
-        return {"id": cid, "state": "stopped", "restart_disabled": True, "labels_match": True}
+        return {
+            "id": cid,
+            "full_id": bound_full,
+            "state": "stopped",
+            "restart_disabled": True,
+            "labels_match": True,
+        }
 
     def host_observe(cg, aid):
         calls["host"] = (cg, aid)
         assert cg == cgroup, f"observer must receive sealed cgroup, got {cg!r}"
         assert aid == assignment
-        return {"cgroup_empty": True, "service": "stopped"}
+        return {"cgroup_empty": True, "service": "stopped", "reaped": True}
 
     def publication_observe(aid):
         calls["pub"] = aid
         assert aid == assignment
-        return {"settled": True}
+        return {"settled": True, "repo": repo, "branch": branch}
 
     return docker_observe, host_observe, publication_observe, calls
 
@@ -143,6 +160,10 @@ _ASSIGNMENT = {
     "container_name": "c-handler-001",
     "broker_id": "broker-test",
     "created_at": "2026-01-01T00:00:00Z",
+    "container_id": FULL_W,
+    "runner_pids": [4242],
+    "repo": "o/r",
+    "branch": "main",
 }
 
 
@@ -569,6 +590,119 @@ class BrokerSecurityTests(unittest.TestCase):
             "c-handler-001",
             "original seal must be preserved",
         )
+
+    def test_bound_completion_accepted(self):
+        """Full bindings end to end: pinned ID, repo/branch, reaped host."""
+        self._assign(peer_uid=1000)
+        done = self._complete_terminal()
+        self.assertTrue(done["success"] and done["trusted"], f"bound completion failed: {done}")
+        self.assertIn("receipt_blob", done)
+        self.assertIn("receipt_signature", done)
+        self.assertTrue(
+            B.verify_receipt(
+                done["receipt_blob"],
+                done["receipt_signature"],
+                "a-handler-001",
+                1000,
+                pinned_public_key_pem=self.pub_pem,
+                journal_db=self.db,
+                peer_uid=1000,
+            ),
+            "returned receipt envelope must verify",
+        )
+
+    def test_unpinned_seal_completion_rejected(self):
+        """A seal without a pinned full ID can never complete (legacy seals
+        fail closed under the binding cross-checks)."""
+        data = dict(_ASSIGNMENT)
+        del data["container_id"]
+        conn = _FakeConn(json.dumps({"type": "assign_task", "assignment_data": data}).encode(), uid=1000)
+        B.handle_broker_connection(
+            conn,
+            self.priv_pem,
+            B.journal_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=1000,
+        )
+        resp = json.loads(conn.sent.decode())
+        self.assertIsNotNone(resp.get("assignment"), f"assign failed: {resp}")
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp2["success"], "unpinned seal must not complete")
+        self.assertFalse(resp2.get("trusted", True))
+
+    def test_evidence_full_id_mismatch_rejected(self):
+        """Observed full ID differing from the pinned seal ID is rejected."""
+        self._assign(peer_uid=1000)
+        docker, host, pub, _ = _terminal_observers(
+            "c-handler-001",
+            full_id="f" * 64,
+        )
+        resp = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp["success"], "mismatched full ID must not complete")
+        self.assertFalse(resp.get("trusted", True))
+
+    def test_resolver_pins_id_at_discovery(self):
+        """A name-only assignment gains its pin via the discovery resolver;
+        an unresolvable name stays unpinned and cannot complete."""
+        data = dict(_ASSIGNMENT)
+        del data["container_id"]
+        conn = _FakeConn(json.dumps({"type": "assign_task", "assignment_data": data}).encode(), uid=1000)
+        B.handle_broker_connection(
+            conn,
+            self.priv_pem,
+            B.journal_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=1000,
+            resolve_container_id_fn=lambda _name: FULL_W,
+        )
+        resp = json.loads(conn.sent.decode())
+        self.assertIsNotNone(resp.get("assignment"), f"assign failed: {resp}")
+        self.assertEqual(resp["assignment"]["container_id"], FULL_W)
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertTrue(resp2["success"] and resp2["trusted"], f"resolved pin failed: {resp2}")
 
 
 if __name__ == "__main__":

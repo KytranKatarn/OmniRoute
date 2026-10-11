@@ -309,3 +309,251 @@ def make_publication_observer(
         return None
 
     return _observe
+
+
+# ============================================================================
+# Live clients — read-only host boundaries for the activation phase.
+# NOT used by broker_main (fail-closed stubs stay until owner authorization).
+# Every helper fails closed (None) on any error, timeout, or ambiguity.
+# ============================================================================
+
+DOCKER_INSPECT_TIMEOUT = 10
+SYSTEMCTL_TIMEOUT = 10
+GITHUB_TIMEOUT = 15
+
+
+def docker_inspect_live(name, *, run_fn=None):
+    """Read-only `docker inspect` for one container. Returns the inspect
+    dict or None. Never starts, stops, or creates anything."""
+    import json as _json
+    import subprocess as _sp
+
+    run = run_fn if run_fn is not None else _sp.run
+    if not isinstance(name, str) or not name:
+        return None
+    try:
+        proc = run(
+            ["docker", "inspect", "--format", "{{json .}}", name],
+            capture_output=True,
+            text=True,
+            timeout=DOCKER_INSPECT_TIMEOUT,
+        )
+    except Exception:
+        return None
+    if getattr(proc, "returncode", 1) != 0:
+        return None
+    try:
+        data = _json.loads((getattr(proc, "stdout", "") or "").strip())
+    except Exception:
+        return None
+    if isinstance(data, list):
+        if len(data) != 1:
+            return None
+        data = data[0]
+    return data if isinstance(data, dict) else None
+
+
+def make_live_docker_observer(expected_labels=None, *, inspect_fn=None):
+    """Observer closure using live `docker inspect` (or an injected fake)."""
+    live_inspect = inspect_fn if inspect_fn is not None else docker_inspect_live
+
+    def _observe(container_name, assignment_id, pinned_full_id=None):
+        return observe_docker(
+            container_name,
+            assignment_id,
+            inspect_fn=live_inspect,
+            expected_labels=expected_labels,
+            pinned_full_id=pinned_full_id,
+        )
+
+    return _observe
+
+
+def systemd_state_live(unit, *, run_fn=None):
+    """Read-only `systemctl is-active` for one unit. Returns the state
+    string or None."""
+    import subprocess as _sp
+
+    run = run_fn if run_fn is not None else _sp.run
+    if not isinstance(unit, str) or not unit:
+        return None
+    try:
+        proc = run(
+            ["systemctl", "is-active", unit],
+            capture_output=True,
+            text=True,
+            timeout=SYSTEMCTL_TIMEOUT,
+        )
+    except Exception:
+        return None
+    out = (getattr(proc, "stdout", "") or "").strip().lower()
+    return out if out else None
+
+
+def cgroup_pids_live(path, *, read_fn=None, walk_fn=None):
+    """List all PIDs in a cgroup subtree (cgroup.procs at every level).
+
+    Returns a sorted list of ints, [] when quiescent, or None when any
+    level is unreadable. Both the walk and the reads are injectable so
+    fixtures never touch the real cgroupfs.
+    """
+    import os as _os
+
+    read = read_fn
+    if read is None:
+
+        def read(p):
+            with open(p, "r") as handle:
+                return handle.read()
+
+    walk = walk_fn if walk_fn is not None else _os.walk
+
+    if not isinstance(path, str) or not path:
+        return None
+    try:
+        collected = set()
+        for root, _dirs, files in walk(path):
+            if "cgroup.procs" not in files:
+                continue
+            text = read(_os.path.join(root, "cgroup.procs"))
+            for token in str(text).split():
+                if token.lstrip("-").isdigit():
+                    collected.add(int(token))
+    except Exception:
+        return None
+    return sorted(collected)
+
+
+def github_api_get_live(url, token, *, get_fn=None):
+    """Read-only GitHub REST GET. Returns parsed JSON or None."""
+    try:
+        import requests as _requests
+    except Exception:
+        return None
+    get = get_fn if get_fn is not None else _requests.get
+    if not isinstance(url, str) or not url.startswith("https://api.github.com/"):
+        return None
+    if not isinstance(token, str) or not token:
+        return None
+    try:
+        resp = get(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "ARCHIE-broker-observer",
+            },
+            timeout=GITHUB_TIMEOUT,
+        )
+    except Exception:
+        return None
+    if getattr(resp, "status_code", 0) != 200:
+        return None
+    try:
+        data = resp.json()
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def make_live_host_observer(
+    service_unit,
+    cgroup_path,
+    *,
+    expected_pids=None,
+    reap_confirmed_fn=None,
+    state_fn=None,
+    pids_fn=None,
+):
+    """Observer closure using live systemd/cgroup reads (or injected fakes)."""
+    _state = state_fn if state_fn is not None else systemd_state_live
+    _pids = pids_fn if pids_fn is not None else cgroup_pids_live
+
+    def _observe(cgroup, assignment_id):
+        return observe_host(
+            cgroup or cgroup_path,
+            assignment_id,
+            service_state_fn=lambda u: _state(service_unit or u),
+            cgroup_pids_fn=lambda c: _pids(cgroup_path if not c else c),
+            service_unit=service_unit,
+            expected_pids=expected_pids,
+            reap_confirmed_fn=reap_confirmed_fn,
+        )
+
+    return _observe
+
+
+def make_live_publication_observer(repo, branch, sha, token, *, api_get_fn=None):
+    """Observer closure reconciling one push + PR state via live GitHub reads.
+
+    Push confirmation comes from the compare endpoint (base...head); PR
+    state from a head-filtered pulls listing. Any ambiguity stays UNKNOWN.
+    """
+    getter = api_get_fn if api_get_fn is not None else github_api_get_live
+
+    def _observe(assignment_id):
+        compare = getter(f"https://api.github.com/repos/{repo}/compare/{branch}...{sha}", token)
+        if not isinstance(compare, dict):
+            return None
+        # Confirmation requires the compare to reference our exact head SHA.
+        head_commit = compare.get("head_commit") or {}
+        commits = compare.get("commits") or []
+        shas = {head_commit.get("sha")} | {c.get("sha") for c in commits if isinstance(c, dict)}
+        if sha not in shas:
+            return None
+        pulls = getter(f"https://api.github.com/repos/{repo}/pulls?state=open&head={sha}", token)
+        if pulls is None:
+            return None
+        return make_publication_observer(
+            repo,
+            branch,
+            get_push_status=lambda: {"confirmed": True, "sha": sha, "pending_ops": []},
+            get_pr_status=lambda: _pr_view(pulls, repo, branch, sha),
+        )(assignment_id)
+
+    return _observe
+
+
+def _pr_view(pulls, repo, branch, sha):
+    """Reduce a pulls listing to the observer's PR view. Open PRs whose
+    head matches win; otherwise UNKNOWN (absence needs a namespace-wide
+    listing the live path does not claim)."""
+    if isinstance(pulls, dict):
+        items = pulls.get("items", [])
+    elif isinstance(pulls, list):
+        items = pulls
+    else:
+        return {"state": "unknown"}
+    if not isinstance(items, list):
+        return {"state": "unknown"}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        head = item.get("head") or {}
+        base = item.get("base") or {}
+        if (
+            isinstance(head, dict)
+            and head.get("sha") == sha
+            and isinstance(base, dict)
+            and base.get("repo", {}).get("full_name") == repo
+            and base.get("ref") == branch
+        ):
+            state = item.get("state", "open")
+            return {
+                "state": state if state in ("open", "merged") else "unknown",
+                "head_sha": sha,
+                "repo": repo,
+                "branch": branch,
+                "pending_ops": [] if state in ("open", "merged") else ["unknown"],
+            }
+    return {"state": "unknown"}
+
+
+def json_dumps_safe(value):
+    """Best-effort JSON dump for substring checks; never raises."""
+    import json as _json
+
+    try:
+        return _json.dumps(value, sort_keys=True, default=str)
+    except Exception:
+        return ""

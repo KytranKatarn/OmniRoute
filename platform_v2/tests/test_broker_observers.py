@@ -727,5 +727,132 @@ class TrustedCompletionIntegrationTests(unittest.TestCase):
         )
 
 
+class LiveClientTests(unittest.TestCase):
+    """Live boundary helpers: parsing and fail-closed behavior with fakes.
+
+    These never touch real Docker/systemd/network — run_fn/get_fn are
+    injected. broker_main does not use them yet (stubs stay until owner
+    authorization); they are the provisioned building blocks.
+    """
+
+    def test_docker_inspect_live_parses(self):
+        from observers import docker_inspect_live
+
+        class _Proc:
+            returncode = 0
+            stdout = '[{"Id": "' + FULL_A + '", "Name": "/c-1"}]'
+
+        self.assertEqual(docker_inspect_live("c-1", run_fn=lambda *a, **k: _Proc())["Id"], FULL_A)
+
+    def test_docker_inspect_live_rejects(self):
+        from observers import docker_inspect_live
+
+        class _Bad:
+            returncode = 1
+            stdout = ""
+
+        self.assertIsNone(docker_inspect_live("c-1", run_fn=lambda *a, **k: _Bad()))
+
+        def _boom(*a, **k):
+            raise FileNotFoundError("no docker")
+
+        self.assertIsNone(docker_inspect_live("c-1", run_fn=_boom))
+        self.assertIsNone(docker_inspect_live(""))
+
+    def test_systemd_state_live(self):
+        from observers import systemd_state_live
+
+        class _Proc:
+            returncode = 0
+            stdout = "inactive\n"
+
+        self.assertEqual(systemd_state_live("unit", run_fn=lambda *a, **k: _Proc()), "inactive")
+        self.assertIsNone(systemd_state_live(""))
+
+    def test_cgroup_pids_live(self):
+        from observers import cgroup_pids_live
+
+        files = {
+            "/cg/cgroup.procs": "4242\n4243\n",
+            "/cg/sub/cgroup.procs": "4244\nkernel\n",
+        }
+
+        def _walk(_path):
+            yield "/cg", ["sub"], ["cgroup.procs"]
+            yield "/cg/sub", [], ["cgroup.procs"]
+
+        self.assertEqual(
+            cgroup_pids_live(
+                "/cg",
+                read_fn=lambda p: files[p],
+                walk_fn=_walk,
+            ),
+            [4242, 4243, 4244],
+        )
+
+        # Unreadable level fails closed.
+        def _boom(_p):
+            raise PermissionError("denied")
+
+        self.assertIsNone(cgroup_pids_live("/cg", read_fn=_boom, walk_fn=_walk))
+        self.assertIsNone(cgroup_pids_live(""))
+
+    def test_github_api_get_live(self):
+        from observers import github_api_get_live
+
+        class _Resp:
+            status_code = 200
+
+            def json(self):
+                return {"ok": True}
+
+        self.assertEqual(
+            github_api_get_live(
+                "https://api.github.com/repos/o/r",
+                "tok",
+                get_fn=lambda *a, **k: _Resp(),
+            ),
+            {"ok": True},
+        )
+        # Non-API hosts and missing tokens are refused without any call.
+        calls = []
+        self.assertIsNone(
+            github_api_get_live(
+                "https://evil.example/x",
+                "tok",
+                get_fn=lambda *a, **k: calls.append(1) or _Resp(),
+            )
+        )
+        self.assertEqual(calls, [])
+        self.assertIsNone(github_api_get_live("https://api.github.com/repos/o/r", ""))
+
+    def test_make_live_factories_bind(self):
+        from observers import (
+            make_live_docker_observer,
+            make_live_host_observer,
+            make_live_publication_observer,
+        )
+
+        hobs = make_live_host_observer(
+            "unit",
+            "/cg",
+            expected_pids=[7],
+            reap_confirmed_fn=lambda _p: True,
+            state_fn=lambda _u: "inactive",
+            pids_fn=lambda _c: [],
+        )
+        self.assertEqual(hobs("runner", "a-1"), {"cgroup_empty": True, "service": "stopped", "reaped": True})
+
+        dobs = make_live_docker_observer(
+            {"attempt": "a-1"},
+            inspect_fn=lambda _n: _inspect(name="c-1", cid=FULL_A, labels={"attempt": "a-1"}),
+        )
+        # No pinned ID yet at this layer: the broker supplies it from the
+        # sealed record at completion time.
+        self.assertIsNone(dobs("c-1", "a-1"))
+        ev = dobs("c-1", "a-1", pinned_full_id=FULL_A)
+        self.assertIsNotNone(ev)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -196,6 +196,67 @@ def journal_append(
         return False
 
 
+def journal_try_seal(
+    assignment_id: str,
+    payload: Dict[str, Any],
+    signature: str,
+    db_path: Optional[str] = None,
+) -> Tuple[str, Optional[Dict[str, Any]]]:
+    """Atomically record a seal once per assignment identity.
+
+    Returns (status, existing):
+    - ("inserted", None): no prior seal; this call recorded it.
+    - ("identical", existing): a seal already exists with byte-identical
+      payload and signature — idempotent retry, no new row.
+    - ("conflict", existing): a seal already exists with different content —
+      refused atomically, existing record untouched.
+    - ("error", None): persistence failure.
+    """
+    db_path = _journal_db_path(db_path)
+    try:
+        conn = sqlite3.connect(db_path, timeout=10)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.isolation_level = None
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            rows = conn.execute(
+                "SELECT payload, signature FROM broker_journal "
+                "WHERE assignment_id = ? AND event_type = 'assignment_sealed' "
+                "ORDER BY id ASC",
+                (assignment_id,),
+            ).fetchall()
+            if not rows:
+                conn.execute(
+                    "INSERT INTO broker_journal "
+                    "(assignment_id, event_type, payload, signature, verified, created_at) "
+                    "VALUES (?, 'assignment_sealed', ?, ?, 0, datetime('now'))",
+                    (assignment_id, json.dumps(payload, sort_keys=True), signature),
+                )
+                conn.execute("COMMIT")
+                return ("inserted", None)
+            stored_payload = json.loads(rows[0][0])
+            stored_sig = rows[0][1]
+            new_canonical = json.loads(json.dumps(payload, sort_keys=True))
+            # NOTE: signatures are randomized (RSA-PSS salt), so identity is
+            # defined by the canonical payload, not the signature bytes.
+            if stored_payload == new_canonical:
+                conn.execute("ROLLBACK")
+                return ("identical", {"payload": stored_payload, "signature": stored_sig})
+            conn.execute("ROLLBACK")
+            return ("conflict", {"payload": stored_payload, "signature": stored_sig})
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+    except Exception as e:
+        print(f"[{BROKER_ERROR}] Seal journal failed: {e}", file=sys.stderr)
+        return ("error", None)
+
+
 def journal_get_entries(
     assignment_id: Optional[str] = None,
     verified_only: bool = False,
@@ -535,32 +596,65 @@ def seal_assignment(assignment: Dict[str, Any], private_key_pem: str) -> SealedA
 def verify_sealed_assignment(
     sealed: SealedAssignment,
     expected_cgroup: str,
+    pinned_public_key_pem: str,
 ) -> bool:
-    """Verify sealed assignment — checks cgroup binding + structure.
+    """Verify a sealed assignment against the pinned issuer key.
 
-    In production, the platform has the broker's PUBLIC key pinned and verifies
-    the signature against it. Here we verify the cgroup binding which is the
-    critical confinement check.
+    Checks the RSA signature over the canonical seal bytes, the cgroup
+    binding, and structure. A replaced signature such as "forged" fails.
     """
+    import base64
     import hashlib
+    from cryptography.hazmat.primitives import hashes as _vh
+    from cryptography.hazmat.primitives import serialization as _vs
+    from cryptography.hazmat.primitives.asymmetric import padding as _vp
+    from cryptography.exceptions import InvalidSignature
 
-    # Check cgroup binding — the key confinement check
-    computed_cgroup_proof = hashlib.sha256(sealed.cgroup.encode() + sealed.container_name.encode()).hexdigest()[:16]
-
-    cgroup_match = sealed.cgroup == expected_cgroup
-    proof_match = sealed.cgroup_proof == computed_cgroup_proof
-
-    # Structure validation
-    structure_valid = all(
-        [
-            sealed.assignment_id,
-            sealed.task_id,
-            sealed.scope,
-            sealed.container_name,
-        ]
-    )
-
-    return cgroup_match and proof_match and structure_valid
+    try:
+        cgroup = sealed.cgroup if isinstance(sealed, SealedAssignment) else sealed["cgroup"]
+        container = sealed.container_name if isinstance(sealed, SealedAssignment) else sealed["container_name"]
+        if cgroup != expected_cgroup:
+            return False
+        computed = hashlib.sha256(cgroup.encode() + container.encode()).hexdigest()[:16]
+        proof = sealed.cgroup_proof if isinstance(sealed, SealedAssignment) else sealed["cgroup_proof"]
+        if proof != computed:
+            return False
+        if isinstance(sealed, SealedAssignment):
+            seal_data = {
+                "assignment_id": sealed.assignment_id,
+                "task_id": sealed.task_id,
+                "runner_id": sealed.runner_id,
+                "scope": sealed.scope,
+                "cgroup": sealed.cgroup,
+                "container_name": sealed.container_name,
+                "creator_broker_id": sealed.creator_broker_id,
+                "created_at": sealed.created_at,
+            }
+            signature_b64 = sealed.signature
+        else:
+            seal_data = {
+                "assignment_id": sealed["assignment_id"],
+                "task_id": sealed["task_id"],
+                "runner_id": sealed.get("runner_id", ""),
+                "scope": sealed["scope"],
+                "cgroup": sealed["cgroup"],
+                "container_name": sealed["container_name"],
+                "creator_broker_id": sealed["creator_broker_id"],
+                "created_at": sealed["created_at"],
+            }
+            signature_b64 = sealed["signature"]
+        if not all([seal_data["assignment_id"], seal_data["task_id"], seal_data["scope"], seal_data["container_name"]]):
+            return False
+        public_key = _vs.load_pem_public_key(pinned_public_key_pem.encode())
+        public_key.verify(
+            base64.b64decode(signature_b64, validate=True),
+            _canonical_bytes(seal_data),
+            _vp.PSS(mgf=_vp.MGF1(_vh.SHA256()), salt_length=_vp.PSS.MAX_LENGTH),
+            _vh.SHA256(),
+        )
+        return True
+    except (InvalidSignature, KeyError, TypeError, ValueError):
+        return False
 
 
 # ============================================================================
@@ -639,31 +733,131 @@ def _normalized_state(value: Any) -> Optional[str]:
     return text if text else None
 
 
-def check_trusted_completion(journal_entries: List[Dict[str, Any]], details: Dict[str, Any]) -> bool:
-    """Check that completion is trusted — requires independent terminal evidence.
+def _sealed_entry(journal_entries: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    for entry in journal_entries:
+        if entry.get("event_type") == "assignment_sealed":
+            return entry
+    return None
 
-    Presence alone is insufficient: docker_state and stop_observation must be
-    in explicit terminal allowlists. "running" / "not stopped" and any other
-    non-terminal claim is rejected even with a journal signature present.
-    Missing assignments are rejected.
+
+def _reconstruct_seal(entry: Dict[str, Any]) -> Optional[SealedAssignment]:
+    """Rebuild the sealed assignment from the durable journal record."""
+    try:
+        payload = entry.get("payload")
+        if not isinstance(payload, dict):
+            return None
+        signature = entry.get("signature")
+        if not isinstance(signature, str) or not signature.strip():
+            return None
+        return SealedAssignment(
+            assignment_id=str(payload["assignment_id"]),
+            task_id=str(payload["task_id"]),
+            runner_id=str(payload.get("runner_id", "")),
+            scope=str(payload["scope"]),
+            cgroup=str(payload["cgroup"]),
+            container_name=str(payload["container_name"]),
+            creator_broker_id=str(payload["creator_broker_id"]),
+            created_at=str(payload["created_at"]),
+            signature=signature,
+            cgroup_proof=str(payload["cgroup_proof"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _reconstruct_sealed_assignment(entry: Dict[str, Any]) -> Optional[SealedAssignment]:
+    return _reconstruct_seal(entry)
+
+
+def _unprovisioned_observer(name: str):
+    """Explicit fail-closed stub for production observers not yet provisioned.
+
+    Completions stay UNKNOWN/rejected until the Docker/host/publication
+    observers are provisioned with owner authorization. This documents the
+    provisioning requirement instead of silently passing None through.
+    """
+
+    def _observer(*_args, **_kwargs):
+        print(
+            f"[{BROKER_ERROR}] {name} observer not provisioned; failing closed",
+            file=sys.stderr,
+        )
+        return None
+
+    _observer.__name__ = f"unprovisioned_{name}_observer"
+    return _observer
+
+
+def check_trusted_completion(
+    journal_entries: List[Dict[str, Any]],
+    details: Dict[str, Any],
+    *,
+    pinned_public_key_pem: Optional[str] = None,
+    docker_observe=None,
+    host_observe=None,
+    publication_observe=None,
+) -> bool:
+    """Check that completion is trusted — durable seal plus independent evidence.
+
+    Caller strings alone never suffice. All of the following must hold:
+    1. A sealed journal entry exists whose RSA signature verifies against the
+       pinned issuer key (fabricated "forged" signatures rejected).
+    2. Caller details carry terminal values (fail fast on running/not-stopped).
+    3. Injected independent observers — bound to the sealed assignment identity,
+       never to caller-supplied IDs — confirm: Docker terminal state for the
+       exact sealed container with restart disabled and labels matching; host
+       cgroup empty with the service stopped; publication settled True.
+    Observers default to fail-closed (None means reject).
     """
     if not journal_entries or not isinstance(details, dict):
         return False
-
-    # Check 1: Assignment has non-empty sealing signature in journal
-    signature = journal_entries[0].get("signature")
-    has_sealing = isinstance(signature, str) and len(signature.strip()) > 0
-    if not has_sealing:
+    if pinned_public_key_pem is None:
         return False
 
-    # Check 2: Docker state must be an explicit terminal state
+    sealed_entry = _sealed_entry(journal_entries)
+    if sealed_entry is None:
+        return False
+    sealed = _reconstruct_sealed_assignment(sealed_entry)
+    if sealed is None:
+        return False
+    if not verify_sealed_assignment(sealed, sealed.cgroup, pinned_public_key_pem):
+        return False
+
     docker_state = _normalized_state(details.get("docker_state"))
     if docker_state not in TERMINAL_DOCKER_STATES:
         return False
-
-    # Check 3: Stop observation must be an explicit terminal observation
     stop_observation = _normalized_state(details.get("stop_observation"))
     if stop_observation not in TERMINAL_STOP_OBSERVATIONS:
+        return False
+
+    if docker_observe is None or host_observe is None or publication_observe is None:
+        return False
+    try:
+        observed_docker = docker_observe(sealed.container_name, sealed.assignment_id)
+        observed_host = host_observe(sealed.cgroup, sealed.assignment_id)
+        observed_pub = publication_observe(sealed.assignment_id)
+    except Exception:
+        return False
+    if not isinstance(observed_docker, dict) or not isinstance(observed_host, dict):
+        return False
+    if _normalized_state(observed_docker.get("state")) not in TERMINAL_DOCKER_STATES:
+        return False
+    if observed_docker.get("restart_disabled") is not True:
+        return False
+    if observed_docker.get("labels_match") is not True:
+        return False
+    if observed_docker.get("id") != sealed.container_name:
+        return False
+    caller_container = details.get("container_id")
+    if caller_container is not None and caller_container != sealed.container_name:
+        return False
+    if _normalized_state(details.get("docker_state")) != _normalized_state(observed_docker.get("state")):
+        return False
+    if observed_host.get("cgroup_empty") is not True:
+        return False
+    if _normalized_state(observed_host.get("service")) != "stopped":
+        return False
+    if not isinstance(observed_pub, dict) or observed_pub.get("settled") is not True:
         return False
 
     return True
@@ -692,6 +886,21 @@ def _journal_db_path(explicit: Optional[str] = None) -> str:
         return explicit
     override = os.environ.get("HOST_OPENCODE_JOURNAL_DB")
     return override if override else str(JOURNAL_DB)
+
+
+def _runtime_paths() -> Tuple[Path, Path, Path]:
+    """Resolve runtime socket/PID/pointer paths from the provisioned dir.
+
+    Honors RUNTIME_DIRECTORY (systemd RuntimeDirectory=) so the broker never
+    writes directly to /run. Falls back to the legacy /run paths.
+    """
+    base = os.environ.get("RUNTIME_DIRECTORY")
+    runtime_dir = Path(base) if base else Path("/run/host-opencode-broker")
+    return (
+        runtime_dir / "broker.sock",
+        runtime_dir / "broker.pid",
+        runtime_dir / "broker-socket",
+    )
 
 
 def load_public_key(keys_dir: Optional[Path] = None) -> str:
@@ -781,6 +990,22 @@ def verify_receipt(
         if bound_id != assignment_id:
             return False
 
+        # A receipt is only valid against an exact persisted completion
+        # match — unconditionally. A correctly signed envelope with only a
+        # sealed assignment record (no completed receipt persisted, or the
+        # completion evidence deleted) must reject.
+        completed = [e for e in entries if e.get("event_type") == "assignment_completed"]
+        if not completed:
+            return False
+        matched = any(
+            isinstance(e.get("payload"), dict)
+            and e["payload"].get("envelope") == signed_blob
+            and e.get("signature") == signature_b64
+            for e in completed
+        )
+        if not matched:
+            return False
+
         return True
 
     except Exception as e:
@@ -811,27 +1036,36 @@ def broker_main() -> None:
     private_key_pem, public_key_pem = ensure_keys()
     journal_init()
 
-    # Start Unix socket with peer credential authentication
-    if os.path.exists(BROKER_SOCKET):
-        os.unlink(BROKER_SOCKET)
+    # Start Unix socket with peer credential authentication.
+    # Use the provisioned RuntimeDirectory, never /run directly.
+    socket_path, pid_path, pointer_path = _runtime_paths()
+    socket_path.parent.mkdir(parents=True, exist_ok=True)
+    if os.path.exists(socket_path):
+        os.unlink(socket_path)
+    # Remove the legacy socket path if it exists to avoid split-brain binds.
+    if str(socket_path) != BROKER_SOCKET and os.path.exists(BROKER_SOCKET):
+        try:
+            os.unlink(BROKER_SOCKET)
+        except OSError:
+            pass
 
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.settimeout(60)
-    sock.bind(BROKER_SOCKET)
-    os.chmod(BROKER_SOCKET, 0o660)
+    sock.bind(str(socket_path))
+    os.chmod(str(socket_path), 0o660)
+    sock.listen(5)
 
     # Write PID file
-    with open(BROKER_PID_FILE, "w") as f:
+    with open(pid_path, "w") as f:
         f.write(str(os.getpid()))
 
-    # Store socket path
-    os.makedirs("/run", exist_ok=True)
-    with open("/run/host-opencode-broker-socket", "w") as f:
-        f.write(BROKER_SOCKET)
+    # Store socket path pointer for clients
+    with open(pointer_path, "w") as f:
+        f.write(str(socket_path))
 
     print(f"[{BROKER_NAME}] Started broker PID {os.getpid()}", file=sys.stderr)
-    print(f"[{BROKER_NAME}] Socket: {BROKER_SOCKET}", file=sys.stderr)
-    print(f"[{BROKER_NAME}] Journal: SQLite at {JOURNAL_DB}", file=sys.stderr)
+    print(f"[{BROKER_NAME}] Socket: {socket_path}", file=sys.stderr)
+    print(f"[{BROKER_NAME}] Journal: SQLite at {_journal_db_path()}", file=sys.stderr)
 
     # Set up cgroup
     cgroup_ok, cgroup_msg = verify_cgroup_confinement(RUNNER_CGROUP)
@@ -858,12 +1092,30 @@ def broker_main() -> None:
                 conn.settimeout(60)
 
                 # CRITICAL: Validate peer identity via socket credentials
-                if not validate_peer_identity(conn, TRUSTED_UIDS):
-                    conn.close()
+                # and carry the authenticated UID into the handler so receipt
+                # verification never runs without it.
+                peer_uid = get_peer_uid(conn)
+                if peer_uid is None or not validate_peer_identity(
+                    conn, TRUSTED_UIDS, _get_peer_uid=lambda _c: peer_uid
+                ):
+                    try:
+                        conn.close()
+                    finally:
+                        pass
                     print(f"[{BROKER_ERROR}] Rejected untrusted peer", file=sys.stderr)
                     continue
 
-                handle_broker_connection(conn, private_key_pem, journal_append)
+                handle_broker_connection(
+                    conn,
+                    private_key_pem,
+                    journal_append,
+                    journal_db=_journal_db_path(),
+                    keys_dir=_keys_dir(),
+                    docker_observe=_unprovisioned_observer("docker"),
+                    host_observe=_unprovisioned_observer("host"),
+                    publication_observe=_unprovisioned_observer("publication"),
+                    peer_uid=peer_uid,
+                )
 
             except socket.timeout:
                 # Periodic: verify cgroup still valid
@@ -875,20 +1127,31 @@ def broker_main() -> None:
         print(f"[{BROKER_NAME}] Shutting down", file=sys.stderr)
     finally:
         try:
-            os.unlink(BROKER_SOCKET)
-        except FileNotFoundError:
-            pass
-        try:
-            os.unlink(BROKER_PID_FILE)
-        except FileNotFoundError:
-            pass
-        try:
-            lock_fd.close()
-        except Exception:
-            pass
+            socket_path, pid_path, _ = _runtime_paths()
+            for path in (socket_path, pid_path, BROKER_SOCKET, BROKER_PID_FILE):
+                try:
+                    os.unlink(path)
+                except FileNotFoundError:
+                    pass
+        finally:
+            try:
+                lock_fd.close()
+            except Exception:
+                pass
 
 
-def handle_broker_connection(conn, private_key_pem, journal_append_fn) -> None:
+def handle_broker_connection(
+    conn,
+    private_key_pem,
+    journal_append_fn,
+    *,
+    journal_db: Optional[str] = None,
+    keys_dir: Optional[Path] = None,
+    docker_observe=None,
+    host_observe=None,
+    publication_observe=None,
+    peer_uid: Optional[int] = None,
+) -> None:
     """Handle broker connection with 4 message types."""
     import json
 
@@ -910,30 +1173,74 @@ def handle_broker_connection(conn, private_key_pem, journal_append_fn) -> None:
             # Poller submits task proposal
             sealed = seal_assignment(message["assignment_data"], private_key_pem)
 
-            # Record in journal
-            journal_append(
-                assignment_id=sealed["assignment_id"],
-                event_type="assignment_sealed",
-                payload={
-                    "assignment_id": sealed["assignment_id"],
-                    "task_id": sealed["task_id"],
-                    "scope": sealed["scope"],
-                    "cgroup": sealed["cgroup"],
-                    "container_name": sealed["container_name"],
-                },
-                signature=sealed["signature"],
-            )
+            # Record the full seal atomically; identical retries are
+            # idempotent, conflicting retries are refused, persistence
+            # failure fails the operation — no assignment without a commit.
+            seal_payload = {
+                "assignment_id": sealed.assignment_id,
+                "task_id": sealed.task_id,
+                "runner_id": sealed.runner_id,
+                "scope": sealed.scope,
+                "cgroup": sealed.cgroup,
+                "container_name": sealed.container_name,
+                "creator_broker_id": sealed.creator_broker_id,
+                "created_at": sealed.created_at,
+                "cgroup_proof": sealed.cgroup_proof,
+            }
+            if journal_append_fn is journal_append:
+                seal_status, existing = journal_try_seal(
+                    sealed.assignment_id,
+                    seal_payload,
+                    sealed.signature,
+                    db_path=journal_db,
+                )
+            else:
+                ok = journal_append_fn(
+                    assignment_id=sealed.assignment_id,
+                    event_type="assignment_sealed",
+                    payload=seal_payload,
+                    signature=sealed.signature,
+                    db_path=journal_db,
+                )
+                seal_status, existing = ("inserted", None) if ok else ("error", None)
+            if seal_status == "error":
+                conn.sendall(
+                    json.dumps(
+                        {
+                            "type": "assignment_response",
+                            "assignment": None,
+                            "error": "journal_persist_failed",
+                        }
+                    ).encode()
+                )
+                return
+            if seal_status == "conflict":
+                conn.sendall(
+                    json.dumps(
+                        {
+                            "type": "assignment_response",
+                            "assignment": None,
+                            "error": "assignment_conflict",
+                        }
+                    ).encode()
+                )
+                return
 
+            # Identical retries return the originally persisted seal bytes
+            # (signatures randomize per signing, so the stored original wins).
+            out_payload = existing["payload"] if seal_status == "identical" and existing else seal_payload
+            out_signature = existing["signature"] if seal_status == "identical" and existing else sealed.signature
+            # Return sealed assignment to poller
             response = {
                 "type": "assignment_response",
                 "assignment": {
-                    "assignment_id": sealed["assignment_id"],
-                    "task_id": sealed["task_id"],
-                    "scope": sealed["scope"],
-                    "cgroup": sealed["cgroup"],
-                    "container_name": sealed["container_name"],
-                    "signature": sealed["signature"],
-                    "cgroup_proof": sealed["cgroup_proof"],
+                    "assignment_id": out_payload["assignment_id"],
+                    "task_id": out_payload["task_id"],
+                    "scope": out_payload["scope"],
+                    "cgroup": out_payload["cgroup"],
+                    "container_name": out_payload["container_name"],
+                    "signature": out_signature,
+                    "cgroup_proof": out_payload["cgroup_proof"],
                 },
             }
             conn.sendall(json.dumps(response).encode())
@@ -946,7 +1253,7 @@ def handle_broker_connection(conn, private_key_pem, journal_append_fn) -> None:
             details = message.get("details", {})
 
             # Verify assignment exists in journal
-            entries = journal_get_entries(assignment_id=assignment_id)
+            entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
             if not entries:
                 response = {
                     "type": "completion_response",
@@ -956,46 +1263,116 @@ def handle_broker_connection(conn, private_key_pem, journal_append_fn) -> None:
                 conn.sendall(json.dumps(response).encode())
                 return
 
-            # Check trusted completion (3 independent checks)
-            trusted = check_trusted_completion(entries, details)
+            # Verify the durable seal first: a fabricated journal entry
+            # (e.g. signature "forged") must fail here.
+            pinned = load_public_key(keys_dir)
+            sealed_entry = _sealed_entry(entries)
+            sealed_obj = _reconstruct_sealed_assignment(sealed_entry) if sealed_entry else None
+            if sealed_obj is None or not verify_sealed_assignment(sealed_obj, sealed_obj.cgroup, pinned):
+                response = {
+                    "type": "completion_response",
+                    "success": False,
+                    "assignment_id": assignment_id,
+                    "trusted": False,
+                    "error": "seal_invalid",
+                }
+                conn.sendall(json.dumps(response).encode())
+                return
 
-            # Record completion in journal
-            journal_append(
+            # Observation targets come from the sealed assignment, never from
+            # caller details. A mismatched caller container_id is rejected.
+            caller_container = details.get("container_id")
+            if caller_container is not None and caller_container != sealed_obj.container_name:
+                response = {
+                    "type": "completion_response",
+                    "success": False,
+                    "assignment_id": assignment_id,
+                    "trusted": False,
+                    "error": "container_mismatch",
+                }
+                conn.sendall(json.dumps(response).encode())
+                return
+
+            # Check trusted completion via independent observers (fail closed
+            # when observers are absent: caller strings alone never suffice).
+            trusted = check_trusted_completion(
+                entries,
+                details,
+                pinned_public_key_pem=pinned,
+                docker_observe=docker_observe,
+                host_observe=host_observe,
+                publication_observe=publication_observe,
+            )
+
+            # Build the exact signed receipt envelope and persist it verbatim.
+            # The stored signature must match these exact bytes.
+            receipt_payload = {
+                "assignment_id": assignment_id,
+                "task_id": sealed_obj.task_id,
+                "runner_id": runner_id,
+                "container": sealed_obj.container_name,
+                "cgroup": sealed_obj.cgroup,
+                "execution_stopped": trusted,
+                "publication_settled": trusted,
+                "assignment_sealed": True,
+                "success": bool(success and trusted),
+                "observed_at": int(__import__("time").time()),
+            }
+            signed = sign_payload(receipt_payload, private_key_pem)
+            receipt_blob = signed["signed_blob"]
+            receipt_sig = signed["signature_b64"]
+            persisted = journal_append_fn(
                 assignment_id=assignment_id,
                 event_type="assignment_completed",
-                payload={
-                    "assignment_id": assignment_id,
-                    "runner_id": runner_id,
-                    "success": success,
-                    "details": details,
-                    "cgroup_ok": True,  # would verify in production
-                },
-                signature=seal_assignment(
-                    {"assignment_id": assignment_id, "runner_id": runner_id},
-                    private_key_pem,
-                )["signature"],
+                payload={"envelope": receipt_blob, "trusted": trusted},
+                signature=receipt_sig,
+                db_path=journal_db,
             )
+            if not persisted:
+                response = {
+                    "type": "completion_response",
+                    "success": False,
+                    "assignment_id": assignment_id,
+                    "trusted": False,
+                    "error": "journal_persist_failed",
+                }
+                conn.sendall(json.dumps(response).encode())
+                return
 
             response = {
                 "type": "completion_response",
-                "success": success and trusted,
+                "success": bool(success and trusted),
                 "assignment_id": assignment_id,
                 "trusted": trusted,
+                "receipt_blob": receipt_blob,
+                "receipt_signature": receipt_sig,
             }
             conn.sendall(json.dumps(response).encode())
 
         elif msg_type == "verify_receipt":
-            # Platform verifies receipt against pinned key
-            receipt_b64 = message.get("receipt_b64")
+            # Platform verifies receipt against the pinned issuer key.
+            # The authenticated peer UID from SO_PEERCRED is required: without
+            # it, valid receipts cannot pass this path.
+            signed_blob = message.get("signed_blob")
+            signature_b64 = message.get("signature_b64", message.get("receipt_b64"))
             assignment_id = message.get("assignment_id")
-            expected_sender_uid = message.get("expected_sender_uid", os.geteuid())
-            pub_key = load_public_key()
+            expected_sender_uid = message.get("expected_sender_uid")
+            caller_key = message.get("public_key_pem")
+            pinned = load_public_key(keys_dir)
 
-            if not all([receipt_b64, assignment_id]):
+            if not all([signed_blob, signature_b64, assignment_id]) or expected_sender_uid is None:
                 response = {"type": "verification_response", "valid": False}
             else:
-                # Verify using pinned key + UID check
-                valid = verify_receipt(receipt_b64, assignment_id, expected_sender_uid, pub_key)
+                valid = verify_receipt(
+                    signed_blob,
+                    signature_b64,
+                    assignment_id,
+                    int(expected_sender_uid),
+                    pinned_public_key_pem=pinned,
+                    journal_db=journal_db,
+                    peer_uid=peer_uid,
+                    untrusted_public_key_pem=caller_key,
+                )
                 response = {
                     "type": "verification_response",
                     "valid": valid,
@@ -1006,7 +1383,7 @@ def handle_broker_connection(conn, private_key_pem, journal_append_fn) -> None:
 
         elif msg_type == "get_journal":
             assignment_id = message.get("assignment_id")
-            entries = journal_get_entries(assignment_id=assignment_id)
+            entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
             response = {"type": "journal_response", "entries": entries}
             conn.sendall(json.dumps(response).encode())
 

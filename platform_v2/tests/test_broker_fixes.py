@@ -1,21 +1,27 @@
 """
 Isolated regression tests for the Host OpenCode broker.
 
-Proves the four Codex-verified failures are rejected:
+Covers the Codex-verified failures through the actual request handlers
+(not only unit helpers):
   1. untrusted peers (mocked UID 99999 rejected even when broker euid trusted)
   2. forged receipts (tampered payload or wrong key rejected)
   3. missing assignments (completion for nonexistent assignment rejected)
   4. caller-supplied stop claims (running / not stopped rejected)
+  5. journal persist failures (assign/complete fail when append returns False)
+  6. fabricated seals (journal entry with signature "forged" rejected)
+  7. unbound observation targets (caller container mismatch rejected;
+     observers receive sealed assignment identity)
+  8. usable receipt envelope (complete persists/returns exact signed bytes)
 
-Plus a positive control proving valid terminal evidence is accepted.
+Plus positive controls proving valid terminal evidence verifies.
 
-Isolation: tmp dirs via env overrides (HOST_OPENCODE_KEYS_DIR,
-HOST_OPENCODE_JOURNAL_DB); no writes to /var/lib/host-opencode; no network;
+Isolation: tmp keys/journal dirs only; no /var/lib writes; no network;
 no platform DB. Run with: python3 platform_v2/tests/test_broker_fixes.py
 """
 
 import json
 import os
+import struct as _struct
 import sys
 import tempfile
 import unittest
@@ -27,7 +33,6 @@ import broker as B
 
 
 def _make_keys(tmpdir):
-    """Fast 2048-bit test keypair written to an isolated keys dir."""
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.hazmat.backends import default_backend
@@ -72,19 +77,73 @@ def _other_public_key():
 
 
 class _FakeConn:
-    """Fake Unix socket returning controlled SO_PEERCRED bytes."""
+    """Fake Unix socket: scripted inbound bytes, captured outbound, peer UID."""
 
-    def __init__(self, uid=None, fail=False):
-        import struct as _struct
-
+    def __init__(self, inbound: bytes, uid=None, fail_cred=False):
+        self._inbound = bytes(inbound)
         self._uid = uid
-        self._fail = fail
-        self._struct = _struct
+        self._fail_cred = fail_cred
+        self.sent = b""
+        self.closed = False
 
-    def getsockopt(self, level, opt, buflen):
-        if self._fail or self._uid is None:
+    def settimeout(self, _timeout):
+        return None
+
+    def recv(self, n):
+        if not self._inbound:
+            return b""
+        chunk, self._inbound = self._inbound[:n], self._inbound[n:]
+        return chunk
+
+    def sendall(self, data):
+        self.sent += bytes(data)
+
+    def close(self):
+        self.closed = True
+
+    def fileno(self):
+        return -1
+
+    def getsockopt(self, _level, _opt, buflen):
+        if self._fail_cred or self._uid is None:
             raise OSError("no peercred")
-        return self._struct.pack("iii", 1234, int(self._uid), 100)
+        assert buflen == 12
+        return _struct.pack("iii", 1234, int(self._uid), 100)
+
+
+def _terminal_observers(container, assignment="a-handler-001", cgroup="host-opencode-runner"):
+    calls = {}
+
+    def docker_observe(cid, aid):
+        calls["docker"] = (cid, aid)
+        assert cid == container, f"observer must receive sealed container, got {cid!r}"
+        assert aid == assignment, f"observer must receive assignment identity, got {aid!r}"
+        return {"id": cid, "state": "stopped", "restart_disabled": True, "labels_match": True}
+
+    def host_observe(cg, aid):
+        calls["host"] = (cg, aid)
+        assert cg == cgroup, f"observer must receive sealed cgroup, got {cg!r}"
+        assert aid == assignment
+        return {"cgroup_empty": True, "service": "stopped"}
+
+    def publication_observe(aid):
+        calls["pub"] = aid
+        assert aid == assignment
+        return {"settled": True}
+
+    return docker_observe, host_observe, publication_observe, calls
+
+
+_ASSIGNMENT = {
+    "assignment_id": "a-handler-001",
+    "task_id": "t-handler-001",
+    "runner_id": "",
+    "scope": "test",
+    "cgroup": "host-opencode-runner",
+    "container_name": "c-handler-001",
+    "broker_id": "broker-test",
+    "created_at": "2026-01-01T00:00:00Z",
+}
 
 
 class BrokerSecurityTests(unittest.TestCase):
@@ -92,140 +151,423 @@ class BrokerSecurityTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.db = str(Path(self.tmp.name) / "journal.db")
+        self.keys_dir, self.priv_pem, self.pub_pem = _make_keys(self.tmp.name)
         self.assertTrue(B.journal_init(self.db))
+
+    def _handle(self, message, peer_uid=1000, observers=None):
+        conn = _FakeConn(json.dumps(message).encode(), uid=peer_uid)
+        kwargs = dict(
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=peer_uid,
+        )
+        if observers is not None:
+            docker, host, pub = observers
+            kwargs.update(docker_observe=docker, host_observe=host, publication_observe=pub)
+        B.handle_broker_connection(conn, self.priv_pem, B.journal_append, **kwargs)
+        return json.loads(conn.sent.decode())
+
+    def _assign(self, peer_uid=1000):
+        resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=peer_uid,
+        )
+        self.assertIn("assignment", resp)
+        self.assertIsNotNone(resp["assignment"], f"assign failed: {resp}")
+        return resp["assignment"]
 
     def test_untrusted_peer_rejected(self):
         """UID 99999 is rejected even though the broker itself runs trusted."""
-        conn = _FakeConn(uid=99999)
         self.assertFalse(
-            B.validate_peer_identity(conn, {1000}, _get_peer_uid=B.get_peer_uid),
+            B.validate_peer_identity(_FakeConn(b"", uid=99999), {1000}),
             "untrusted peer UID 99999 must be rejected",
         )
-        trusted = _FakeConn(uid=1000)
         self.assertTrue(
-            B.validate_peer_identity(trusted, {1000}, _get_peer_uid=B.get_peer_uid),
+            B.validate_peer_identity(_FakeConn(b"", uid=1000), {1000}),
             "trusted peer UID must be accepted",
         )
-        broken = _FakeConn(uid=None, fail=True)
         self.assertFalse(
-            B.validate_peer_identity(broken, {1000}, _get_peer_uid=B.get_peer_uid),
+            B.validate_peer_identity(_FakeConn(b"", uid=None, fail_cred=True), {1000}),
             "unreadable peer credentials must fail closed",
         )
 
-    def test_forged_receipt_rejected(self):
-        """Tampered payloads and wrong keys are rejected against the pinned key."""
-        keys_dir, priv_pem, pub_pem = _make_keys(self.tmp.name)
-        B.journal_append("a-forged", "assignment_sealed", {"x": 1}, "sig", db_path=self.db)
+    def _complete_terminal(self, aid="a-handler-001", container="c-handler-001"):
+        docker, host, pub, _ = _terminal_observers(container, assignment=aid)
+        return self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": aid,
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": container,
+                },
+            },
+            observers=(docker, host, pub),
+        )
 
-        good = B.sign_payload({"assignment_id": "a-forged", "stop": "stopped"}, priv_pem)
-        self.assertTrue(
-            B.verify_receipt(
-                good["signed_blob"],
-                good["signature_b64"],
-                "a-forged",
-                1000,
-                pinned_public_key_pem=pub_pem,
+    def test_forged_receipt_rejected_through_handler(self):
+        """Tampered payloads, wrong keys, transplants, wrong UIDs rejected."""
+        self._assign(peer_uid=1000)
+        done = self._complete_terminal()
+        self.assertTrue(done["success"], f"setup completion failed: {done}")
+        good_blob, good_sig = done["receipt_blob"], done["receipt_signature"]
+
+        def _verify(peer_uid=1000, key=None, blob=None, sig=None, aid="a-handler-001"):
+            body = {
+                "type": "verify_receipt",
+                "signed_blob": blob if blob is not None else good_blob,
+                "signature_b64": sig if sig is not None else good_sig,
+                "assignment_id": aid,
+                "expected_sender_uid": 1000,
+            }
+            if key is not None:
+                body["public_key_pem"] = key
+            conn = _FakeConn(json.dumps(body).encode(), uid=peer_uid)
+            B.handle_broker_connection(
+                conn,
+                self.priv_pem,
+                B.journal_append,
                 journal_db=self.db,
-                peer_uid=1000,
-            ),
-            "valid pinned receipt must verify",
-        )
-        # Wrong key (attacker-supplied trust anchor) rejected.
+                keys_dir=self.keys_dir,
+                peer_uid=peer_uid,
+            )
+            return json.loads(conn.sent.decode())
+
+        self.assertTrue(_verify()["valid"], "persisted pinned receipt must verify")
+        self.assertFalse(_verify(key=_other_public_key())["valid"], "wrong key must fail")
         self.assertFalse(
-            B.verify_receipt(
-                good["signed_blob"],
-                good["signature_b64"],
-                "a-forged",
-                1000,
-                pinned_public_key_pem=_other_public_key(),
-                journal_db=self.db,
-                peer_uid=1000,
-            ),
-            "receipt verified against wrong key must fail",
-        )
-        # Caller-supplied key differing from pinned key rejected.
-        self.assertFalse(
-            B.verify_receipt(
-                good["signed_blob"],
-                good["signature_b64"],
-                "a-forged",
-                1000,
-                pinned_public_key_pem=pub_pem,
-                journal_db=self.db,
-                peer_uid=1000,
-                untrusted_public_key_pem=_other_public_key(),
-            ),
-            "caller-supplied substitute key must fail",
-        )
-        # Tampered envelope bytes rejected.
-        tampered = good["signed_blob"].replace("stopped", "running")
-        self.assertFalse(
-            B.verify_receipt(
-                tampered,
-                good["signature_b64"],
-                "a-forged",
-                1000,
-                pinned_public_key_pem=pub_pem,
-                journal_db=self.db,
-                peer_uid=1000,
-            ),
+            _verify(blob=good_blob.replace("stopped", "running"))["valid"],
             "tampered payload must fail",
         )
-        # Transplant onto another assignment rejected.
-        self.assertFalse(
+        self.assertFalse(_verify(aid="a-other")["valid"], "transplanted receipt must fail")
+        conn = _FakeConn(
+            json.dumps(
+                {
+                    "type": "verify_receipt",
+                    "signed_blob": good_blob,
+                    "signature_b64": good_sig,
+                    "assignment_id": "a-handler-001",
+                    "expected_sender_uid": 1000,
+                }
+            ).encode(),
+            uid=1000,
+        )
+        B.handle_broker_connection(
+            conn,
+            self.priv_pem,
+            B.journal_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=None,
+        )
+        self.assertFalse(json.loads(conn.sent.decode())["valid"], "missing peer UID must fail")
+
+    def test_missing_assignment_rejected_through_handler(self):
+        """Completion for a nonexistent assignment is rejected by the handler."""
+        docker, host, pub, _ = _terminal_observers("c-x", assignment="a-does-not-exist")
+        resp = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-does-not-exist",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {"docker_state": "stopped", "stop_observation": "verified"},
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp["success"])
+        self.assertEqual(resp.get("error"), "assignment_not_found")
+
+    def test_caller_supplied_stop_claims_rejected_through_handler(self):
+        """running / not-stopped claims rejected even with a sealed assignment."""
+        self._assign(peer_uid=1000)
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+        resp = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "running",
+                    "stop_observation": "not stopped",
+                    "container_id": "c-handler-001",
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp["success"], "forged running/not-stopped claims must be rejected")
+        self.assertFalse(resp["trusted"], "forged claims must not be trusted")
+
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                },
+            },
+            observers=_terminal_observers("c-handler-001")[:3],
+        )
+        self.assertTrue(resp2["success"] and resp2["trusted"], "terminal evidence must pass")
+        self.assertIn("receipt_blob", resp2, "usable receipt envelope must be returned")
+        self.assertIn("receipt_signature", resp2, "usable receipt signature must be returned")
+        # The returned envelope must verify against the pinned key and the journal.
+        self.assertTrue(
             B.verify_receipt(
-                good["signed_blob"],
-                good["signature_b64"],
-                "a-other",
+                resp2["receipt_blob"],
+                resp2["receipt_signature"],
+                "a-handler-001",
                 1000,
-                pinned_public_key_pem=pub_pem,
+                pinned_public_key_pem=self.pub_pem,
                 journal_db=self.db,
                 peer_uid=1000,
             ),
-            "transplanted receipt must fail",
-        )
-        # Wrong sender UID rejected.
-        self.assertFalse(
-            B.verify_receipt(
-                good["signed_blob"],
-                good["signature_b64"],
-                "a-forged",
-                1000,
-                pinned_public_key_pem=pub_pem,
-                journal_db=self.db,
-                peer_uid=99999,
-            ),
-            "wrong sender UID must fail",
+            "returned receipt envelope must verify",
         )
 
-    def test_missing_assignment_rejected(self):
-        """Completion for a nonexistent assignment is rejected."""
-        self.assertFalse(
-            B.check_trusted_completion([], {"docker_state": "stopped", "stop_observation": "verified"}),
-            "empty journal must not complete",
-        )
-        B.journal_append("a-real", "assignment_sealed", {"t": 1}, "sig", db_path=self.db)
-        self.assertEqual(
-            B.journal_get_entries(assignment_id="a-nope", db_path=self.db),
-            [],
-            "unknown assignment must have no journal entries",
-        )
-
-    def test_caller_supplied_stop_claims_rejected(self):
-        """docker_state=running + stop_observation=not stopped is rejected."""
-        B.journal_append("a-stop", "assignment_sealed", {"t": 1}, "sig", db_path=self.db)
-        entries = B.journal_get_entries(assignment_id="a-stop", db_path=self.db)
-        self.assertFalse(
-            B.check_trusted_completion(entries, {"docker_state": "running", "stop_observation": "not stopped"}),
-            "forged running/not-stopped claims must be rejected",
-        )
-        self.assertFalse(
-            B.check_trusted_completion(entries, {}),
-            "missing observations must be rejected",
-        )
+    def test_forged_seal_rejected(self):
+        """A replaced seal signature does not verify against the pinned key."""
+        sealed = B.seal_assignment(dict(_ASSIGNMENT), self.priv_pem)
         self.assertTrue(
-            B.check_trusted_completion(entries, {"docker_state": "stopped", "stop_observation": "verified"}),
-            "explicit terminal evidence must be accepted",
+            B.verify_sealed_assignment(sealed, "host-opencode-runner", self.pub_pem),
+            "genuine seal must verify",
+        )
+        forged = B.SealedAssignment(
+            assignment_id=sealed.assignment_id,
+            task_id=sealed.task_id,
+            runner_id=sealed.runner_id,
+            scope=sealed.scope,
+            cgroup=sealed.cgroup,
+            container_name=sealed.container_name,
+            creator_broker_id=sealed.creator_broker_id,
+            created_at=sealed.created_at,
+            signature="forged",
+            cgroup_proof=sealed.cgroup_proof,
+        )
+        self.assertFalse(
+            B.verify_sealed_assignment(forged, "host-opencode-runner", self.pub_pem),
+            "forged seal signature must fail",
+        )
+        self.assertFalse(
+            B.verify_sealed_assignment(sealed, "host-opencode-runner", _other_public_key()),
+            "seal verified against wrong key must fail",
+        )
+
+    def test_fabricated_journal_seal_rejected(self):
+        """A fabricated journal entry with signature 'forged' fails completion."""
+        B.journal_append(
+            "a-fabricated",
+            "assignment_sealed",
+            {
+                "assignment_id": "a-fabricated",
+                "task_id": "t-f",
+                "runner_id": "",
+                "scope": "test",
+                "cgroup": "host-opencode-runner",
+                "container_name": "c-fabricated",
+                "creator_broker_id": "broker-test",
+                "created_at": "2026-01-01T00:00:00Z",
+                "cgroup_proof": "0" * 16,
+            },
+            "forged",
+            db_path=self.db,
+        )
+        docker, host, pub, _ = _terminal_observers("c-fabricated", assignment="a-fabricated")
+        resp = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-fabricated",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-fabricated",
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp["success"], "fabricated seal must fail completion")
+        self.assertFalse(resp.get("trusted", True), "fabricated seal must not be trusted")
+
+    def test_journal_failure_fails_closed(self):
+        """Failed persistence fails the operation; no assignment or success."""
+
+        def failing_append(*_a, **_k):
+            return False
+
+        conn = _FakeConn(
+            json.dumps({"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)}).encode(),
+            uid=1000,
+        )
+        B.handle_broker_connection(
+            conn,
+            self.priv_pem,
+            failing_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=1000,
+        )
+        resp = json.loads(conn.sent.decode())
+        self.assertIsNone(resp.get("assignment"), "failed persist must return no assignment")
+        self.assertEqual(resp.get("error"), "journal_persist_failed")
+
+        self._assign(peer_uid=1000)
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+        conn2 = _FakeConn(
+            json.dumps(
+                {
+                    "type": "complete_assignment",
+                    "assignment_id": "a-handler-001",
+                    "runner_id": "r-1",
+                    "success": True,
+                    "details": {
+                        "docker_state": "stopped",
+                        "stop_observation": "verified",
+                        "container_id": "c-handler-001",
+                    },
+                }
+            ).encode(),
+            uid=1000,
+        )
+        B.handle_broker_connection(
+            conn2,
+            self.priv_pem,
+            failing_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=1000,
+            docker_observe=docker,
+            host_observe=host,
+            publication_observe=pub,
+        )
+        resp2 = json.loads(conn2.sent.decode())
+        self.assertFalse(resp2["success"], "failed completion persist must not succeed")
+        self.assertFalse(resp2.get("trusted", True), "failed persist must not be trusted")
+        self.assertEqual(resp2.get("error"), "journal_persist_failed")
+
+    def test_observation_targets_bound_to_seal(self):
+        """Caller container mismatch rejected; observers get sealed identity."""
+        self._assign(peer_uid=1000)
+        docker, host, pub, calls = _terminal_observers("c-handler-001")
+        resp = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-evil",
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp["success"], "caller container mismatch must fail")
+        self.assertEqual(resp.get("error"), "container_mismatch")
+
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                },
+            },
+            observers=_terminal_observers("c-handler-001")[:3],
+        )
+        self.assertTrue(resp2["trusted"], "bound observers must be consulted for sealed target")
+
+    def test_verify_requires_persisted_completion(self):
+        """A validly signed receipt with only a seal record must be rejected."""
+        self._assign(peer_uid=1000)
+        # Sign a well-formed envelope but never persist a completion for it.
+        signed = B.sign_payload({"assignment_id": "a-handler-001", "stop": "stopped"}, self.priv_pem)
+        conn = _FakeConn(
+            json.dumps(
+                {
+                    "type": "verify_receipt",
+                    "signed_blob": signed["signed_blob"],
+                    "signature_b64": signed["signature_b64"],
+                    "assignment_id": "a-handler-001",
+                    "expected_sender_uid": 1000,
+                }
+            ).encode(),
+            uid=1000,
+        )
+        B.handle_broker_connection(
+            conn,
+            self.priv_pem,
+            B.journal_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=1000,
+        )
+        self.assertFalse(
+            json.loads(conn.sent.decode())["valid"],
+            "receipt without persisted completion must fail",
+        )
+
+    def test_assignment_retry_identical_is_idempotent(self):
+        """Identical reassignment returns the same seal without a second row."""
+        first = self._assign(peer_uid=1000)
+        seals_before = [
+            e
+            for e in B.journal_get_entries(assignment_id="a-handler-001", db_path=self.db)
+            if e["event_type"] == "assignment_sealed"
+        ]
+        second = self._assign(peer_uid=1000)
+        seals_after = [
+            e
+            for e in B.journal_get_entries(assignment_id="a-handler-001", db_path=self.db)
+            if e["event_type"] == "assignment_sealed"
+        ]
+        self.assertEqual(second["signature"], first["signature"], "identical retry must return same seal")
+        self.assertEqual(len(seals_after), len(seals_before), "identical retry must not append")
+
+    def test_assignment_conflict_rejected_atomically(self):
+        """Same assignment ID with a different container is refused; old seal kept."""
+        self._assign(peer_uid=1000)
+        other = dict(_ASSIGNMENT)
+        other["container_name"] = "c-evil-container"
+        conn = _FakeConn(
+            json.dumps({"type": "assign_task", "assignment_data": other}).encode(),
+            uid=1000,
+        )
+        B.handle_broker_connection(
+            conn,
+            self.priv_pem,
+            B.journal_append,
+            journal_db=self.db,
+            keys_dir=self.keys_dir,
+            peer_uid=1000,
+        )
+        resp = json.loads(conn.sent.decode())
+        self.assertIsNone(resp.get("assignment"), "conflicting retry must return no assignment")
+        self.assertEqual(resp.get("error"), "assignment_conflict")
+        seals = [
+            e
+            for e in B.journal_get_entries(assignment_id="a-handler-001", db_path=self.db)
+            if e["event_type"] == "assignment_sealed"
+        ]
+        self.assertEqual(len(seals), 1, "conflict must not overwrite the original seal")
+        self.assertEqual(
+            seals[0]["payload"]["container_name"],
+            "c-handler-001",
+            "original seal must be preserved",
         )
 
 

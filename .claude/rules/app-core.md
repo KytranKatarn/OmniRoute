@@ -1,5 +1,17 @@
 ---
-globs: ["platform_v2/app.py", "platform_v2/services/**", "platform_v2/database.py", "platform_v2/rbac.py", "platform_v2/module_registry.py", "platform_v2/dashboard_generator.py", "platform_v2/templates/base.html", "platform_v2/templates/login.html", "platform_v2/templates/signup.html", "platform_v2/templates/dashboard_dynamic.html", "platform_v2/templates/verify_2fa.html", "platform_v2/templates/directory.html"]
+paths:
+  - "platform_v2/app.py"
+  - "platform_v2/services/**"
+  - "platform_v2/database.py"
+  - "platform_v2/rbac.py"
+  - "platform_v2/module_registry.py"
+  - "platform_v2/dashboard_generator.py"
+  - "platform_v2/templates/base.html"
+  - "platform_v2/templates/login.html"
+  - "platform_v2/templates/signup.html"
+  - "platform_v2/templates/dashboard_dynamic.html"
+  - "platform_v2/templates/verify_2fa.html"
+  - "platform_v2/templates/directory.html"
 ---
 
 # APP_CORE Rules (Audited 2026-03-18)

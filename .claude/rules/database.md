@@ -1,7 +1,3 @@
----
-globs: ["database/**", "platform_v2/database.py", "platform_v2/services/**"]
----
-
 # Database Rules
 
 ## Connection

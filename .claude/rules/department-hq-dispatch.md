@@ -1,5 +1,6 @@
 ---
-globs: ["platform_v2/tools/department_hq/**"]
+paths:
+  - "platform_v2/tools/department_hq/**"
 ---
 
 # Department HQ Dispatch Layer (Project #244 Phase 2, 2026-04-11)

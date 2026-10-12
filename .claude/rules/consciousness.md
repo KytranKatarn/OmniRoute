@@ -1,5 +1,6 @@
 ---
-globs: ["platform_v2/tools/consciousness/**"]
+paths:
+  - "platform_v2/tools/consciousness/**"
 ---
 
 # Consciousness Module Rules

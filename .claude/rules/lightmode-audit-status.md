@@ -1,3 +1,7 @@
+---
+paths:
+  - "platform_v2/static/css/light-mode.css"
+---
 # Light-Mode Audit Tracker (#1997 / #1998 / #1999)
 
 Running status of the platform-wide light-mode (LCARS) compliance audit + fix.

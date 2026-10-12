@@ -1,3 +1,9 @@
+---
+paths:
+  - "platform_v2/tools/backup_manager/**"
+  - "scripts/backup/**"
+  - "scripts/backup_triage.sh"
+---
 # Backup Manager Rules
 
 ## Module

@@ -1,5 +1,6 @@
 ---
-globs: ["ai_bridge/**"]
+paths:
+  - "ai_bridge/**"
 ---
 
 # AI Bridge Rules

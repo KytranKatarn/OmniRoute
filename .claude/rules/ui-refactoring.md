@@ -1,5 +1,8 @@
 ---
-globs: ["platform_v2/templates/**", "platform_v2/static/css/**", "platform_v2/static/js/**"]
+paths:
+  - "platform_v2/templates/**"
+  - "platform_v2/static/css/**"
+  - "platform_v2/static/js/**"
 ---
 
 # LCARS UI Refactoring Protocol

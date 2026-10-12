@@ -1,5 +1,9 @@
 ---
-globs: ["kytran-server-manager/**", "kytran-business-suite/**", "kytran-*/**"]
+paths:
+  - "kytran-server-manager/**"
+  - "kytran-business-suite/**"
+  - "kytran-*/**"
+  - "standalone/**"
 ---
 
 # Standalone Extraction Playbook (Established 2026-03-25)

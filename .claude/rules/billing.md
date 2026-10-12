@@ -1,3 +1,10 @@
+---
+paths:
+  - "platform_v2/services/*billing*"
+  - "platform_v2/services/stripe_service.py"
+  - "platform_v2/services/subscription_service.py"
+  - "platform_v2/tools/account_center/bundle_checkout_service.py"
+---
 # Billing Infrastructure Rules
 
 ## Stripe Account — Source of Truth

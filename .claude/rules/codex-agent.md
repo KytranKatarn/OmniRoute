@@ -1,3 +1,10 @@
+---
+paths:
+  - "scripts/agents/**"
+  - "config/agents/**"
+  - "codex/**"
+  - "platform_v2/services/agents/**"
+---
 # Codex CLI Agent — Safety Policy, Task Template & Operating Guide
 
 ## ⭐ ARCHITECTURE UPDATE (2026-06-05) — containerized + read-only KB MCP

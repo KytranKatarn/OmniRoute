@@ -1,5 +1,9 @@
 ---
-globs: ["platform_v2/tools/backup_manager/**", "platform_v2/tools/security_network/**", "platform_v2/tools/account_center/**", "platform_v2/tools/system_operations/**"]
+paths:
+  - "platform_v2/tools/backup_manager/**"
+  - "platform_v2/tools/security_network/**"
+  - "platform_v2/tools/account_center/**"
+  - "platform_v2/tools/system_operations/**"
 ---
 
 # Admin Operations Rules

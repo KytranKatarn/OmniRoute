@@ -1,5 +1,7 @@
 ---
-globs: ["platform_v2/templates/**", "platform_v2/static/**"]
+paths:
+  - "platform_v2/templates/**"
+  - "platform_v2/static/**"
 ---
 
 # Frontend Rules

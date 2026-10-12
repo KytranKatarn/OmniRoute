@@ -1,5 +1,8 @@
 ---
-globs: ["platform_v2/tools/autonomy/**", "ai_bridge/agent_loop.py", "ai_bridge/telegram_gateway.py"]
+paths:
+  - "platform_v2/tools/autonomy/**"
+  - "ai_bridge/agent_loop.py"
+  - "ai_bridge/telegram_gateway.py"
 ---
 
 # Autonomy & Agent Loop Rules

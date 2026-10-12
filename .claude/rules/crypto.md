@@ -1,5 +1,7 @@
 ---
-globs: ["platform_v2/tools/archie_pool/**", "platform_v2/tools/pool_management/**"]
+paths:
+  - "platform_v2/tools/archie_pool/**"
+  - "platform_v2/tools/pool_management/**"
 ---
 
 # Crypto Rules

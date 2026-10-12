@@ -1,3 +1,8 @@
+---
+paths:
+  - "what-the-fact/**"
+  - "platform_v2/tools/wtf_hub/**"
+---
 # What The Fact (WTF) Rules
 
 **Creating new file** — no prior state. Documents 3-container VPS architecture, XSS rule, deploy patterns, DB location.

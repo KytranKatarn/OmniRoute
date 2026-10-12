@@ -74,36 +74,18 @@ Now machine-enforced in three places — a remembered rule was not enough:
 **Rule: `mesh.` must never resolve to a host with no TLS listener.** Adding a hostname to
 `PROTECTED_REWRITES` is the way to extend this to any other control-plane name.
 
-#### The Beacon UPSTREAM is a persistent reverse tunnel (2026-07-26, task #5260)
+#### The control-plane UPSTREAM must be an outbound persistent tunnel (2026-07-26, task #5260)
 
-DNS protection above answers *what `mesh.` resolves to*. It says nothing about *what Beacon
-proxies to* — and that second half is what stranded the whole fleet after the 07-26 reboot.
-Both must be right.
-
-Beacon's `mesh.` vhost upstream is **`http://127.0.0.1:8095`**, fed by
-**`archie-mesh-tunnel.service`** on the hub (`scripts/archie-mesh-tunnel.service`,
-`ssh -NT -R 127.0.0.1:8095:127.0.0.1:8095 root@2.25.170.252`, `Restart=always`, boot-enabled).
-
-Two upstreams look plausible and are both WRONG:
-
-| ❌ Upstream | Why it fails |
-|---|---|
-| `100.64.0.4:8095` (mesh IP) | **Bootstrap deadlock** — the mesh needs the control plane, and the control plane is only reachable over the mesh. A hub reboot takes the fleet down and it cannot self-recover. This is the 07-26 outage. |
-| the hub's public IP | It is a **DYNAMIC residential lease**. Works until it changes, and collides head-on with the DDNS updater (#5260). Also needs an inbound router forward that can vanish on a router reset. |
-
-The tunnel avoids both: the hub dials **OUT**, so the control-plane path needs no inbound
-forward and no stable public IP.
-
-- **`ExitOnForwardFailure=yes` is load-bearing.** Without it `ssh` stays happily connected with
-  no forward bound — the unit reports `active` while serving nothing.
-- Beacon runs `ClientAliveInterval 30` / `ClientAliveCountMax 3` so a dead peer is reaped in ~90s,
-  freeing the remote bind for the retry. Without this the stale bind survives on the default TCP
-  keepalive (~2h) and the tunnel cannot rebind after an unclean hub drop.
-- **`systemctl is-active` is NOT proof.** Verify by serving:
-  `curl -s -o /dev/null -w '%{http_code}' https://mesh.kytranempowerment.com/key?v=118` → `200`,
-  ideally from an off-hub vantage (Citadel/Beacon), never from the hub itself.
-- An ad-hoc `ssh -L` left running by hand is how Beacon and Citadel sat off the control plane for
-  a month (KB #284829). Persistence is the entire point — never "just start a tunnel".
+DNS protection says what `mesh.` resolves to; the proxy's upstream is the other half. Never point
+it at the mesh IP (`100.64.0.4:8095` — bootstrap deadlock: a hub reboot takes the fleet down and it
+cannot self-recover) or the hub's public IP (a dynamic residential lease). The hub dials OUT via a
+persistent `ssh -R` unit (`archie-mesh-tunnel.service`, `Restart=always`, **`ExitOnForwardFailure=yes`**
+— without it the unit reads `active` while serving nothing; the peer needs `ClientAliveInterval 30` /
+`CountMax 3` so a dead bind is reaped). `systemctl is-active` is NOT proof: verify by serving
+`https://mesh.kytranempowerment.com/key?v=118` → 200 from an off-hub vantage. Never leave an ad-hoc
+`ssh -L` running by hand.
+⚠️ Written for Beacon, which was removed 2026-08-28 (Citadel now fronts as container `beacon`) — verify
+the unit and its target before relying on the details. Full narrative: **KB #377830**.
 
 ## Fleet Route Files (`tools/department_hq/`)
 
@@ -207,63 +189,16 @@ this before touching `remote_nodes.extra_capabilities` or enrolling new hardware
 
 ### 1. MEASURE FIRST — a node is judged by its success rate, never by one log line
 
-🔴 **EXCLUDE ADMISSION-GATE SHEDS OR THE NUMBER IS MEANINGLESS.** When the hub's
-in-flight cap is reached the dispatcher REFUSES the dispatch and writes a `success=false`
-row carrying `model_used` — with **0 tokens and no inference**. The work never reached the
-model. Counting those rows measures the GATE, not the model or the node. Measured 2026-09-08:
-`gemma3:12b` read **50%** over 8 days and **94%** once the 2,188 shed rows (46% of its
-dispatches) were removed. Both queries below carry the filter; keep it.
-
-The predicate is `services/infra_failure_filter.not_backpressure_sql()` — **that module is
-the source of truth**, and the SQL below is its output. If they ever disagree, the module wins.
-
-```sql
--- per-node health, last 3h (do this BEFORE and AFTER any change)
-SELECT COALESCE(r.node_name,'hub') AS node, count(*) runs,
-       count(*) FILTER (WHERE t.success) ok,
-       round(100.0*count(*) FILTER (WHERE t.success)/count(*),0) pct
-  FROM task_execution_log t LEFT JOIN remote_nodes r ON r.id=t.node_used_id
- WHERE t.created_at > now()-interval '3 hours'
-   AND t.model_used IS NOT NULL AND t.model_used <> 'bridge-managed'
-   AND NOT (NOT t.success AND (t.error_message ILIKE '%hub saturated%'
-         OR t.error_message ILIKE '%admission cap%'
-         OR t.error_message ILIKE '%shed to relieve%'
-         OR t.error_message ILIKE '%backpressure%'))
- GROUP BY 1 ORDER BY runs DESC;
-
--- per-node × per-model, hour by hour (the one that actually settles it)
-SELECT date_trunc('hour',t.created_at) hr, t.model_used, count(*) runs,
-       count(*) FILTER (WHERE t.success) ok, round(avg(t.duration_ms)/1000.0,1) avg_s
-  FROM task_execution_log t JOIN remote_nodes r ON r.id=t.node_used_id
- WHERE r.node_name ILIKE '%<node>%' AND t.created_at > now()-interval '24 hours'
-   AND NOT (NOT t.success AND (t.error_message ILIKE '%hub saturated%'
-         OR t.error_message ILIKE '%admission cap%'
-         OR t.error_message ILIKE '%shed to relieve%'
-         OR t.error_message ILIKE '%backpressure%'))
- GROUP BY 1,2 ORDER BY 1 DESC;
-
--- Sanity companion: how much was shed? A high shed share means the number above
--- describes a LOAD problem, and no amount of model-swapping will move it.
-SELECT model_used, count(*) dispatches,
-       count(*) FILTER (WHERE NOT success AND error_message ILIKE '%hub saturated%') shed,
-       round(100.0*count(*) FILTER (WHERE NOT success AND error_message ILIKE '%hub saturated%')
-             /count(*),0) pct_shed
-  FROM task_execution_log
- WHERE created_at > now()-interval '7 days' AND model_used <> 'bridge-managed'
- GROUP BY 1 ORDER BY dispatches DESC;
-```
-
-⚠️ **A NULL `error_message` breaks the naive filter.** `NOT (error_message ~* '…')` is **NULL**
-on every successful row, and a NULL predicate drops the row from a `FILTER` clause — silently
-excluding every success and yielding impossible rates (a first cut of this analysis produced
-"1587%"). Wrap it: `COALESCE(error_message ~* '…', false)`. The `NOT (NOT success AND …)` form
-above is already NULL-safe.
-
-⚠️ **A cold-load line is a MOMENT; a success rate is a FACT.** `model_dispatch: … still
-cold-loading on <node>` is NORMAL for a node that passes `can_node_run_model` — it is not
-evidence of misplacement. On 2026-08-19 that single line was read as "USS-245 can't run 7B"
-while the node was doing `qwen2.5:7b` **50/50 @ 32.4s** and 98% overall. The cap removed real
-capacity and was reverted the same hour. The genuinely sick node was USS-246 (77%).
+🔴 **EXCLUDE ADMISSION-GATE SHEDS OR THE NUMBER IS MEANINGLESS.** When the hub's in-flight cap is
+reached the dispatcher writes a `success=false` row with `model_used` and no inference. Counting those
+measures the GATE, not the node or model (`gemma3:12b`: 50% → 94% once the 46% shed rows were removed).
+The predicate is `services/infra_failure_filter.not_backpressure_sql()` — that module is the source of
+truth. Run a per-node (3h) and a per-node×per-model (24h, hourly) query before AND after any change,
+plus a shed-share sanity query. Full SQL: **KB #377833**.
+⚠️ A NULL `error_message` breaks a naive `NOT (error_message ILIKE …)` filter (NULL drops every success →
+impossible rates); use the `NOT (NOT success AND …)` form or `COALESCE`.
+⚠️ A cold-load log line is a MOMENT; a success rate is a FACT — USS-245 was capped on one
+`still cold-loading` line while doing qwen2.5:7b 50/50, and the cap was reverted the same hour.
 
 ### 2. `max_model_gb` semantics — it is a CPU CEILING, not a disk size
 
@@ -313,51 +248,16 @@ margin on both sides — e.g. to admit `llama3.2:3b` (5.0) and block 7B (8.0), u
   outposts) despite **31.3GB RAM**, so a box taking 377 real dispatches/30d could only ever run
   `qwen2.5:1.5b`. Raised to `6` on 2026-08-19 — purely additive, removed nothing.
 
-### 4. ✅ THE CAP NOW BINDS BOTH PATHS (#5809 — resolved 2026-08-22)
+### 4. The cap binds BOTH dispatch paths (#5809 — resolved 2026-08-22)
 
-| path | enforces `can_node_run_model`? |
-|---|---|
-| `BridgeDispatcher` | ✅ — logs `Refusing fleet dispatch (flag enforced): capacity-mismatch: model=… disqualifies node=…` |
-| the warm-up path (`fleet_warmup` / `kin_warmth`) | ✅ **since PR #2738** — gated at the DRAIN, see below |
-
-**The caller is identified. There is no planner class** — `grep -rn "class ModelQueuePlanner"`
-still returns nothing. TWO producers, both in `platform_v2/services/fleet_jobs.py`:
-
-- **`warmup_fleet` (~L269)** calls `dispatch(capability=…, module_id="fleet_warmup")`. It is
-  **CAPABILITY-driven, not model-driven** — the list reads
-  `("workforce_planning", "Status: 'ping'")  # K.I.N. gemma3:12b`. The model is whatever the
-  selected agent carries. That is why nothing in the codebase appears to "plan gemma3:12b onto
-  a node": **no code names the model.** Searching for the model is the wrong search.
-- **`kin_warmth` (~L496)** does a raw `INSERT INTO dispatch_pending_queue (…, model_needed,
-  preferred_node_id, module_id, …)`. It never calls `dispatch()`, so **there is still no
-  producer-side capacity check.** This was the bypass.
-
-**Why it is nonetheless closed: the gate is at the DRAIN, which is the choke point.**
-`model_dispatch_service.py:1204-1245` runs `can_node_run_model` + `node_has_model` inside
-`if node_id:` (L1181) — which covers the preferred-pinned branch **and** warm-discovery, so
-warm-up rows are gated like everything else. ⚠️ `_WARMUP_MODULES` (L1064/L1075) and
-`department_dispatcher.py:4664` gate **LOG ATTRIBUTION ONLY** (`agent_id`→None, which is why
-warm-up rows carry an agent_name with a NULL agent_id). Neither grants a placement exemption —
-easy to misread as one.
-
-**Proof it fires** (a live refusal, not a code reading) — `dispatch_pending_queue`, 7d:
-`module_id=kin_warmth | "node Outpost - Lithuania cannot fit qwen2.5:7b (capacity gate)"`.
-
-⚠️ **The old evidence for #5809 no longer reproduces, and not because of any fix to it.**
-It read "`can_node_run_model` REFUSES a model USS-246 ran 2,918× at 95%". The 2026-08-21
-rebalance raised USS-246 `max_model_gb` 16→**26**, so the predicate now returns **True** for
-`gemma3:12b` there (verified live). Predicate and reality agree; do not go chasing that
-contradiction.
-
-**Residual (waste, not danger):** `kin_warmth` still queues a pin it cannot honour, and the
-drain claims-then-fails it — burning a queue slot and a 30s cycle. Bounded by the 12-minute TTL
-and the one-in-flight-per-node dedup. Calling the predicate before the INSERT would keep it out
-of the queue entirely.
-
-⚠️ `node_has_model` is **fail-OPEN** (unknown/empty model list ⇒ allow), so a presence check
-lists **Beacon** for `gemma3:12b` and `qwen2.5:7b` even though Beacon runs no Ollama. Harmless
-today — capacity refuses Beacon, and `ollama_available=False` is a hard refusal — but reading
-the presence predicate alone will mislead you.
+`can_node_run_model` is enforced by `BridgeDispatcher` AND on the warm-up path, because the gate lives
+at the DRAIN (`model_dispatch_service.py`, inside `if node_id:`), which preferred-pinned and
+warm-discovery rows both pass through. There is no "planner class" to find: `warmup_fleet` is
+capability-driven (no code names the model) and `kin_warmth` raw-INSERTs into `dispatch_pending_queue`
+with no producer-side check. `_WARMUP_MODULES` gates log attribution only, not placement. Residual
+waste: `kin_warmth` can queue a pin the drain then refuses (bounded by the 12-min TTL).
+`node_has_model` is fail-OPEN, so a presence check alone lists nodes that run no Ollama — read it
+together with the capacity predicate. Full history, line refs, live proof: **KB #377831**.
 
 ### 5. Adding a GPU / a new card
 
@@ -390,47 +290,13 @@ predicted. **If you cannot state the prediction in advance, you are not ready to
 
 ### 7. Model choice is a separate question from placement
 
-Placement fixes where work runs; it cannot make an oversized model fit the hardware. But
-answer it with a number that measures the MODEL.
-
-🔴 **CORRECTED 2026-09-08 (#6647).** This section read: *"`gemma3:12b` measured **56%
-fleet-wide** (hub 35%, USS-246 60%) — bad everywhere … retire it / move consumers to
-`qwen2.5:7b` at 90.3%."* **Every one of those figures was an admission-gate artifact**, and the
-blanket conclusion drawn from them does not hold. Re-measured over 8 days with sheds excluded:
-
-| model | dispatches | shed by gate | reported | **when it actually ran** |
-|---|---|---|---|---|
-| `qwen2.5:7b`   | 28,458 |  8% | 83% | 91% |
-| `qwen2.5:1.5b` | 26,278 |  0% | 92% | 92% |
-| `mistral:7b`   | 15,343 | 18% | 76% | 93% |
-| `gemma3:12b`   |  4,719 | **46%** | **50%** | **94%** |
-| `llama3.2:3b`  |  1,153 |  0% | 94% | 94% |
-
-The reported spread (50–94%) is **entirely explained by shed rate**; the true spread is 91–94%,
-i.e. noise. `gemma3:12b` looked worst only because it is shed most — it is used almost solely by
-the `translate` backlog, which fires bursts far above `dispatch:hub_inflight_max` (on 2026-09-05:
-1,496 translate dispatches, ~1,450 shed in ~3s each → the "3% day" that produced the 34% headline).
-
-⚠️ **A fleet-wide average across capabilities is not a model-quality measurement either**, because
-capabilities differ wildly in difficulty and deadline. Compare the SAME capability. Over 30 days
-only two have both models at n>20:
-
-| capability | `gemma3:12b` | `qwen2.5:7b` |
-|---|---|---|
-| `bias_quick` | 87% (n=30) | 91% (n=361) |
-| **`fact_check`** | **62%** (n=136) | **93%** (n=57,139) |
-
-**So the retire-from-`fact_check` recommendation SURVIVES — but for a different, narrower reason
-than the one this file gave.** gemma3's fact_check failures are **100% timeouts, avg 572s** against
-a 300s deadline: it is too SLOW for that wall, not wrong. Where it is fast enough it is excellent —
-`translate` **99–100%** (1,085 runs over 2026-09-07/08) and `beat_classification` **96%** (n=480).
-
-**Current guidance**: move `fact_check` off `gemma3:12b`; **keep it for `translate` and
-`beat_classification`**. Retiring the model outright would move its best-performing workloads onto
-a model that is no better at them, and would not reduce shedding by a single dispatch — the gate
-sheds whatever is in flight, regardless of which model is behind it. If shedding is the concern,
-the lever is the producer's burst rate or the cap, not the model (see #5903 — and note the shed
-message says "**7B** in-flight admission cap" while shedding a 12B, so the label misleads too).
+Placement cannot make an oversized model fit, and a success rate that includes admission-gate sheds
+does not measure the model: `gemma3:12b` read 50% but ran at 94% once sheds were excluded (the true
+spread across models is 91–94%, i.e. noise). Compare the SAME capability, never fleet-wide averages.
+**Current guidance**: move `fact_check` off `gemma3:12b` (its failures are 100% timeouts, avg 572s vs
+a 300s wall — too slow, not wrong); **keep it for `translate` (99–100%) and `beat_classification`
+(96%)**. Retiring it would not reduce shedding — that lever is the producer's burst rate or the cap
+(#5903). Tables and measurements: **KB #377832**.
 
 ---
 

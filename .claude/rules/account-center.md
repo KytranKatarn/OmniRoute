@@ -1,3 +1,7 @@
+---
+paths:
+  - "platform_v2/tools/account_center/**"
+---
 # Account Center Rules
 
 ## Module

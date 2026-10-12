@@ -1,3 +1,8 @@
+---
+paths:
+  - "platform_v2/tools/security_network/**"
+  - "scripts/host_monitor.py"
+---
 # Security Network Rules
 
 ## Module

@@ -1,5 +1,9 @@
 ---
-globs: ["platform_v2/tools/repair_bay/**", "platform_v2/services/scan_service.py", "platform_v2/services/proposal_service.py", "platform_v2/services/scan_pipeline.py"]
+paths:
+  - "platform_v2/tools/repair_bay/**"
+  - "platform_v2/services/scan_service.py"
+  - "platform_v2/services/proposal_service.py"
+  - "platform_v2/services/scan_pipeline.py"
 ---
 
 # Repair Bay Rules

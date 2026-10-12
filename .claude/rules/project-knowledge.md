@@ -1,5 +1,8 @@
 ---
-globs: ["platform_v2/tools/consciousness/devhq_routes.py", "platform_v2/services/knowledge_service.py", "platform_v2/services/project_service.py"]
+paths:
+  - "platform_v2/tools/consciousness/devhq_routes.py"
+  - "platform_v2/services/knowledge_service.py"
+  - "platform_v2/services/project_service.py"
 ---
 
 # Project & Knowledge Rules

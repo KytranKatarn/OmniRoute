@@ -1,3 +1,7 @@
+---
+paths:
+  - "standalone/media_hub/**"
+---
 # Media Hub Rules
 
 **Two separate things share this name** — read carefully:

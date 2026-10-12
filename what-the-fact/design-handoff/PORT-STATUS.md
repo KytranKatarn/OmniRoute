@@ -142,6 +142,20 @@ no backing data (the template's own comment says so), so it stays unbuilt rather
 design's "select an organisation" caption line; hover is a flat panel tint, not the design's.
 `tests/test_lobbying_table_cards.py`. Stacked on the stat-cards PR (same file).
 
+**Ranked bars — shared columns (2026-10-12, follow-up to the empty-bar fix).** Once the fill rendered,
+the bars on `/parties`, `/team`, `/races` and the race pages visibly did not line up: each
+`.wtf-a-ranked-row` was its own grid whose `auto` value column was sized to that row's own text, so the
+track's left edge and width drifted (616/620/625/629px on `/parties`, 711/720/724px on `/team`) and the
+bars could not be compared by eye — which is the whole point of the chart. Fixed with subgrid: every row
+takes the parent's columns, so the widest value sets one width for all (browsers without subgrid keep the
+old per-row layout). Same layout also made phone bars tiny — `/parties`' 187px value column left the track
+37–58px wide at 400px — so at ≤520px the value now sits beside the label and the bar runs full width
+underneath. Measured live in Chrome (new CSS on the deployed pages): one track edge per page at
+1280/768/400 on all three pages, phone tracks 364–368px (were 37–136px), no horizontal scroll.
+**Why it hid:** the empty-fill bug (#3803) masked it — alignment only matters once there is something to
+align; and the existing tests assert markup/inline widths, which cannot see a layout defect.
+`tests/test_ranked_bars_alignment.py` (source-level; the render check was manual).
+
 ---
 
 ## Rows 1 and 2 are blocked

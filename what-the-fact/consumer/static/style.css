@@ -813,6 +813,27 @@ a { color: inherit; }
 .wtf-a-ranked { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
 .wtf-a-ranked-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) 1fr auto; gap: 12px; align-items: center; font-size: 13px; }
 .wtf-a-ranked-v { font-family: var(--wtf-font-mono); font-size: 12px; color: var(--wtf-text-2); font-variant-numeric: tabular-nums; }
+/* Shared columns. Each row above is its own grid, so its `auto` value column was sized to ITS OWN
+   text: the track's left edge and width drifted row to row (616/620/625/629px on /parties, 711-724px
+   on /team) and the bars could not be compared by eye. Subgrid makes every row use the parent's
+   columns, so the widest value sets one width for all. Browsers without subgrid keep the layout above. */
+@supports (grid-template-columns: subgrid) {
+  .wtf-a-ranked { display: grid; grid-template-columns: minmax(120px, 1.4fr) 1fr auto; column-gap: 12px; row-gap: 10px; }
+  .wtf-a-ranked-row { grid-template-columns: subgrid; grid-column: 1 / -1; }
+}
+/* Phones: a 187px value column (/parties: "33.7% of votes · 119 seats") left the track 37-58px wide.
+   Put the value beside the label and the bar full-width underneath. */
+@media (max-width: 520px) {
+  .wtf-a-ranked-row { grid-template-columns: 1fr auto; row-gap: 4px; }
+  .wtf-a-ranked-row > .wtf-a-bar-track { grid-column: 1 / -1; order: 3; }
+  .wtf-a-ranked-v { text-align: right; }
+}
+@supports (grid-template-columns: subgrid) {
+  @media (max-width: 520px) {
+    .wtf-a-ranked { grid-template-columns: 1fr auto; }
+    .wtf-a-ranked-row { grid-template-columns: subgrid; }
+  }
+}
 .wtf-a-tblwrap { overflow-x: auto; }
 .wtf-a-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .wtf-a-tbl th {

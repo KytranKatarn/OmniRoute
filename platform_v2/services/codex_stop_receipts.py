@@ -30,6 +30,10 @@ class ExpectedAssignment:
     container: str
     cgroup: str
     runner_id: str
+    container_id: str = ""
+    runner_pids: tuple = ()
+    repo: str = ""
+    branch: str = ""
 
 
 @dataclass(frozen=True)
@@ -210,8 +214,33 @@ def verify_current_receipt(
             "created_at",
             "cgroup_proof",
         }
-        if not isinstance(seal, dict) or set(seal) != seal_fields or any(type(v) is not str for v in seal.values()):
+        extended_fields = {"container_id", "runner_pids", "repo", "branch"}
+        if not isinstance(seal, dict) or set(seal) not in (seal_fields, seal_fields | extended_fields):
             return reject("seal_invalid")
+        if any(type(seal[k]) is not str for k in seal_fields):
+            return reject("seal_invalid")
+        if set(seal) == seal_fields | extended_fields:
+            cid, pids = seal["container_id"], seal["runner_pids"]
+            if (
+                type(cid) is not str
+                or len(cid) != 64
+                or any(c not in "0123456789abcdef" for c in cid)
+                or type(pids) is not list
+                or not pids
+                or any(type(pid) is not int or pid <= 0 for pid in pids)
+                or len(set(pids)) != len(pids)
+                or any(type(seal[k]) is not str or not seal[k] for k in ("repo", "branch"))
+            ):
+                return reject("seal_invalid")
+            if (
+                cid != expected.container_id
+                or tuple(pids) != expected.runner_pids
+                or seal["repo"] != expected.repo
+                or seal["branch"] != expected.branch
+            ):
+                return reject("seal_mismatch")
+        elif expected.container_id or expected.runner_pids or expected.repo or expected.branch:
+            return reject("seal_mismatch")
         if (
             seal["assignment_id"] != expected.assignment_id
             or seal["task_id"] != expected.task_id

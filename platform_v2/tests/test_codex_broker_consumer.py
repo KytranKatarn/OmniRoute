@@ -331,6 +331,10 @@ def test_current_broker_completion_roundtrip(tmp_path, keys, monkeypatch):
         "scope": "codex",
         "cgroup": "/attempt-a",
         "container_name": "c" * 64,
+        "container_id": "c" * 64,
+        "runner_pids": [4242],
+        "repo": "o/r",
+        "branch": "codex/repair",
         "broker_id": "host-opencode-broker",
         "created_at": "2026-10-11T00:00:00Z",
     }
@@ -356,19 +360,22 @@ def test_current_broker_completion_roundtrip(tmp_path, keys, monkeypatch):
         },
         docker_observe=lambda cid, aid: {
             "id": cid,
+            "full_id": cid,
             "state": "stopped",
             "restart_disabled": True,
             "labels_match": True,
         },
-        host_observe=lambda cg, aid: {"cgroup_empty": True, "service": "stopped"},
-        publication_observe=lambda aid: {"settled": True},
+        host_observe=lambda cg, aid: {"cgroup_empty": True, "service": "stopped", "reaped": True},
+        publication_observe=lambda aid: {"settled": True, "repo": "o/r", "branch": "codex/repair"},
     )
     assert response["trusted"] is True
     result = verify_current_receipt(
         response["receipt_blob"],
         response["receipt_signature"],
         pin=IssuerPin("host-opencode-broker", "reviewed-key-v1", public),
-        expected=ExpectedAssignment("assignment-a", "41", "c" * 64, "/attempt-a", "runner-a"),
+        expected=ExpectedAssignment(
+            "assignment-a", "41", "c" * 64, "/attempt-a", "runner-a", "c" * 64, (4242,), "o/r", "codex/repair"
+        ),
         journal_entries=broker.journal_get_entries("assignment-a", db_path=db),
         now=1000,
     )
@@ -405,3 +412,60 @@ def test_missing_socket_produces_unknown_observation(tmp_path, evidence):
         expected=evidence["expected"],
     )
     assert not result.evidence_verified and not result.stop_confirmed and not result.recovery_eligible
+
+
+@pytest.fixture
+def extended_evidence(evidence, keys):
+    evidence["expected"] = replace(
+        evidence["expected"], container_id="c" * 64, runner_pids=(4242,), repo="o/r", branch="codex/repair"
+    )
+    entry = evidence["journal_entries"][0]
+    entry["payload"].update(container_id="c" * 64, runner_pids=[4242], repo="o/r", branch="codex/repair")
+    entry["signature"] = sign(
+        canonical_bytes({k: v for k, v in entry["payload"].items() if k != "cgroup_proof"}), keys[0]
+    )
+    return evidence
+
+
+def test_extended_seal_verified_diagnostic_only(extended_evidence):
+    result = verify_current_receipt(**extended_evidence)
+    assert result.evidence_verified and not result.stop_confirmed and not result.recovery_eligible
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("container_id", "d" * 64),
+        ("runner_pids", (4243,)),
+        ("repo", "other/repo"),
+        ("branch", "other"),
+        ("container_id", ""),
+        ("runner_pids", ()),
+        ("repo", ""),
+        ("branch", ""),
+    ],
+)
+def test_extended_seal_requires_independent_binding(extended_evidence, field, value):
+    extended_evidence["expected"] = replace(extended_evidence["expected"], **{field: value})
+    assert not verify_current_receipt(**extended_evidence).evidence_verified
+
+
+@pytest.mark.parametrize("pids", [[], [True], [0], [-1], ["4242"], [4242, 4242]])
+def test_signed_invalid_inventory_rejected(extended_evidence, keys, pids):
+    entry = extended_evidence["journal_entries"][0]
+    entry["payload"]["runner_pids"] = pids
+    entry["signature"] = sign(
+        canonical_bytes({k: v for k, v in entry["payload"].items() if k != "cgroup_proof"}), keys[0]
+    )
+    assert not verify_current_receipt(**extended_evidence).evidence_verified
+
+
+def test_extended_context_rejects_legacy_seal(evidence):
+    evidence["expected"] = replace(evidence["expected"], container_id="c" * 64)
+    assert not verify_current_receipt(**evidence).evidence_verified
+
+
+def test_extended_fields_are_signed(extended_evidence):
+    extended_evidence["journal_entries"][0]["payload"]["repo"] = "other/repo"
+    extended_evidence["expected"] = replace(extended_evidence["expected"], repo="other/repo")
+    assert not verify_current_receipt(**extended_evidence).evidence_verified

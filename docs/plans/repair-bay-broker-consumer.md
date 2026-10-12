@@ -47,3 +47,8 @@ PYTHONPATH=platform_v2 python3 -m pytest --noconftest -q platform_v2/tests/test_
 Tests include the merged broker's actual handlers with temporary SQLite storage,
 generated test-only keys and fake independent observers, plus an actual temporary
 Unix socket exchange. No production datastore, service, key or inference is used.
+
+The diagnostic verifier accepts the extended assignment seal introduced in #3801.
+Full container ID, positive PID inventory, repository, and branch must match
+independently supplied assignment context and remain covered by the signature.
+Legacy seals cannot satisfy extended context. This enables no execution or recovery.

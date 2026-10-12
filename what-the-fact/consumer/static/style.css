@@ -805,7 +805,10 @@ a { color: inherit; }
    highlighted value, so chart colour can never collide with lean colour
    (annotation a3-note). */
 .wtf-a-bar-track { background: var(--wtf-bg-panel); border-radius: 2px; height: 8px; overflow: hidden; }
-.wtf-a-bar-fill { background: var(--wtf-text-muted); height: 100%; border-radius: 2px; }
+/* display:block is load-bearing: ranked_bars() emits the fill as a <span>, and an inline
+   element ignores width/height, so every fill measured 0x0 and the bars were empty tracks
+   on /parties, /team, /races and the race pages (found by a live visual check). */
+.wtf-a-bar-fill { display: block; background: var(--wtf-text-muted); height: 100%; border-radius: 2px; }
 .wtf-a-bar-fill.is-highlight { background: var(--wtf-accent); }
 .wtf-a-ranked { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
 .wtf-a-ranked-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) 1fr auto; gap: 12px; align-items: center; font-size: 13px; }

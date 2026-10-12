@@ -131,6 +131,21 @@ class TestRankedBars:
         src = '{% from "_archetypes.html" import ranked_bars %}{{ ranked_bars([]) }}'
         env.from_string(src).render()  # must not raise
 
+    def test_the_fill_span_is_not_left_inline(self):
+        """The macro emits the fill as a <span>; an inline element ignores width/height,
+        so without display:block every bar rendered as an empty track (measured 0x0 in
+        Chrome on /parties, /team, /races). The width assertions above pass either way,
+        which is exactly how this shipped. Source-level guard; the rendered measurement
+        was done in a real browser when it was fixed."""
+        import re
+
+        css = (TPL.parent / "static" / "style.css").read_text()
+        m = re.search(r"\.wtf-a-bar-fill\s*\{([^}]*)\}", css)
+        assert m, ".wtf-a-bar-fill rule not found"
+        assert re.search(r"display\s*:\s*(block|inline-block|flex)", m.group(1)), (
+            ".wtf-a-bar-fill must not be inline: width/height are ignored on inline elements"
+        )
+
 
 class TestNoHardcodedColours:
     def test_macros_file_carries_no_literal_hex_colours(self):

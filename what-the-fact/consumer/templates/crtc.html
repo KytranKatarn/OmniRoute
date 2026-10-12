@@ -47,7 +47,15 @@
 .wtf-crtc-own-name { width:110px; font-size:11px; color:#9ca3af; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .wtf-crtc-own-track { flex:1; background:#0a1520; border-radius:2px; height:12px; position:relative; }
 .wtf-crtc-own-fill { height:100%; border-radius:2px; opacity:0.7; }
-.wtf-crtc-own-stat { width:60px; font-size:10px; color:#6b7280; text-align:right; flex-shrink:0; }
+/* 200px is sized to the content: "9 outlets · -0.22 [CENTER LEFT]" measures 187px live. It was
+   60px, so every row wrapped to 3 lines (62px tall against a 12px bar) and the chip split
+   "CENTER / LEFT". nowrap keeps one line; below 640px the stat drops under its bar instead. */
+.wtf-crtc-own-stat { width:200px; font-size:10px; color:#6b7280; text-align:right; flex-shrink:0; white-space:nowrap; }
+.wtf-crtc-own-stat .wtf-a-chip { white-space:nowrap; }
+@media (max-width:640px) {
+  .wtf-crtc-own-row { flex-wrap:wrap; row-gap:2px; }
+  .wtf-crtc-own-stat { flex:1 0 100%; width:auto; text-align:left; }
+}
 .wtf-crtc-own-note { margin-top:10px; font-size:10px; color:#4b5563; }
 .wtf-crtc-own-link { color:#0af; margin-left:8px; }
 .wtf-crtc-own-legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:9px; }

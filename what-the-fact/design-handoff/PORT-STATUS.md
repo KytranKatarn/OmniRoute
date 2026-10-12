@@ -89,6 +89,27 @@ Templates are the likely target by name. Confirm the real filename in
 
 ---
 
+## Page headers — rows 15, 20, 30 (2026-10-12)
+
+`/lobbying`, `/crtc` and `/parties` now use the shared centred header (`.wtf-pg-head` /
+`-eyebrow` / `-title` / `-lede`, the same block `/clusters` and `/blindspot` use) instead of their
+own left-aligned ones. Measured live-markup-with-new-markup in Chrome: h1 centred at x=640 of 1280
+(and x=200 of 400), serif, 46px desktop / 34px phone, no horizontal scroll; before it was left-aligned
+(monospace 20px on lobbying/crtc, 32px serif on parties). Emoji dropped from the lobbying and crtc
+titles. Page-specific header CSS removed (`.wtf-lob-header/-title/-eyebrow`,
+`.wtf-crtc-header/-title/-sub`, `.wtf-pt h1`, `.wtf-pt-lede`); `.wtf-lob-sub` stays (still used in the
+body). `/parties` is the one with a trap: its old `.wtf-pt h1` rule was (0,1,1) and would have
+out-ranked `.wtf-pg-title` — that is why it was removed rather than left beside the new class.
+Copy: `/crtc` takes the design's lede (true of the page: tracked-outlet rulings carry a "WTF source"
+link); `/parties` uses the eyebrow "Elections Canada · official results" because the design's
+"Twenty-five years of record" is not claimable with two elections of data. **Still open on these
+pages:** `/lobbying` stat tiles and table are not the design's rounded cards and the Sector
+column/filter has no data; the owner-name column on `/crtc` still truncates; `/parties` provenance
+paragraph stays left-aligned under the centred header on purpose (it is a long note).
+`tests/test_header_port_lobbying_crtc_parties.py`.
+
+---
+
 ## Rows 1 and 2 are blocked
 
 > **Superseded 2026-10-07:** the table above now shows rows 1 and 2 as delivered work (#3544, #3546), so the 'neither exists' text below is historical. Kept for the record of why they were once blocked.

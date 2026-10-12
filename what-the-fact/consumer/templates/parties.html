@@ -26,8 +26,6 @@
    be misread as a lean score (same rule as /races). #}
 <style>
   .wtf-pt { max-width: 1080px; margin: 0 auto; padding: 22px 16px 60px; }
-  .wtf-pt h1 { font-family: var(--wtf-font-serif); font-size: 2rem; margin: 0 0 10px; color: var(--wtf-text); }
-  .wtf-pt-lede { color: var(--wtf-text-2); font-size: 0.95rem; line-height: 1.55; margin: 0 0 6px; max-width: 70ch; }
   .wtf-pt-src { color: var(--wtf-text-muted); font-size: 0.72rem; margin: 0 0 22px; max-width: 70ch; line-height: 1.5; }
   .wtf-pt-src a { color: var(--wtf-text-muted); }
   .wtf-pt-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 18px 0 14px; }
@@ -45,12 +43,19 @@
   .wtf-pt-hint-gap { margin-top: 10px; }
 </style>
 <div class="wtf-pt">
-  <h1>Political parties</h1>
+  {# Shared centred page header (.wtf-pg-head, style.css). The design's eyebrow reads "Twenty-five
+     years of record", which this page cannot honestly claim (two elections, see above), so the
+     eyebrow names the source instead. The old `.wtf-pt h1` rule is gone: at (0,1,1) it would
+     have out-ranked .wtf-pg-title. #}
+  <header class="wtf-pg-head">
+    <div class="wtf-pg-eyebrow">Elections Canada &middot; official results</div>
+    <h1 class="wtf-pg-title">Political parties</h1>
+    <p class="wtf-pg-lede">
+      {% if rows %}What each party won, and what it was given. Share of the vote against share
+      of the seats, from the official results.{% else %}No election results have been ingested yet.{% endif %}
+    </p>
+  </header>
   {% if rows %}
-  <p class="wtf-pt-lede">
-    What each party won, and what it was given. Share of the vote against share
-    of the seats, from the official results.
-  </p>
   <p class="wtf-pt-src">
     Elections Canada via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
     <strong>Two elections, not a trend.</strong> Official voting results are published
@@ -227,8 +232,6 @@
     is plausible but not demonstrable from the data, no merge is made, because
     inventing continuity is worse than showing two rows a reader can compare.
   </p>
-  {% else %}
-  <p class="wtf-pt-lede">No election results have been ingested yet.</p>
   {% endif %}
 </div>
 {% endblock %}

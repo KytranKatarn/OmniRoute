@@ -20,9 +20,6 @@
    The design contract's flagged "owner-type colors collide with the lean
    spectrum" issue is a real, deliberate recoloring decision, not styling debt —
    left out of scope, same discipline as cost.js/markets.html this session. */
-.wtf-crtc-header { padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:20px; }
-.wtf-crtc-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
-.wtf-crtc-sub { font-size:12px; color:#6b7280; }
 .wtf-crtc-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
 .wtf-crtc-filter { font-size:11px; padding:4px 12px; border-radius:12px; border:1px solid #1a3a5a; background:#060d14; color:#9ca3af; text-decoration:none; }
 .wtf-crtc-filter.active { border-color:#0af; color:#0af; background:#0a1a2a; }
@@ -68,12 +65,18 @@
 .wtf-crtc-about-link--muted { color:#6b7280; font-size:11px; }
 </style>
 
-<div class="wtf-crtc-header">
-  <h1 class="wtf-crtc-title">📡 CRTC Decisions</h1>
-  <div class="wtf-crtc-sub">
-    {{ total_rulings }} rulings · {{ year_span }} · Canadian Radio-television and Telecommunications Commission
-  </div>
-</div>
+{# Shared centred page header (.wtf-pg-head, style.css), per the design. Copy after the counts is
+   the design's, and is true of this page: a ruling whose subject is a tracked outlet carries
+   the "WTF source" link. Emoji dropped from the title (host-font dependent). #}
+<header class="wtf-pg-head">
+  <div class="wtf-pg-eyebrow">Canadian Radio-television and Telecommunications Commission</div>
+  <h1 class="wtf-pg-title">CRTC Decisions</h1>
+  <p class="wtf-pg-lede">
+    {{ total_rulings }} rulings · {{ year_span }}. The regulator&rsquo;s decisions affect every media outlet,
+    telecom provider and online platform operating in Canada &mdash; and when the subject of a ruling is an
+    outlet this newsroom tracks, the row links to that outlet&rsquo;s profile.
+  </p>
+</header>
 
 {# ── Ownership concentration panel ─────────────────────────────────────── #}
 {% if owners_summary %}

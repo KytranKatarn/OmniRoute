@@ -19,9 +19,6 @@
    "See plans" link these two hand-rolled copies were missing (a small,
    deliberate content addition matching the sitewide convention already
    adopted on rates.html/crtc.html this session — not a silent change). */
-.wtf-lob-header { padding:20px 0 16px; border-bottom:1px solid #0a1a2a; margin-bottom:20px; }
-.wtf-lob-eyebrow { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#6b7280; margin-bottom:6px; }
-.wtf-lob-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
 .wtf-lob-sub { font-size:12px; color:#6b7280; line-height:1.6; }
 .wtf-lob-stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 20px; }
 .wtf-lob-stat { background:#060d14; border:1px solid #0a1a2a; border-radius:4px; padding:8px 14px; min-width:96px; }
@@ -42,27 +39,30 @@
 .wtf-lob-scroll { overflow-x:auto; }
 .wtf-lob-note { font-size:9px; color:#374151; margin-top:8px; }
 .wtf-lob-source-link { color:#374151; }
-.wtf-lob-back { font-size:11px; color:#6b7280; text-decoration:none; }
+.wtf-lob-back { display:inline-block; margin-bottom:12px; font-size:11px; color:#6b7280; text-decoration:none; }
 </style>
 
-<div class="wtf-lob-header">
+{# Shared centred page header (.wtf-pg-head, style.css) — the design's pattern; the page used
+   its own left-aligned monospace header. Emoji dropped from the title (host-font dependent;
+   see PORT-STATUS). #}
+<header class="wtf-pg-head">
   {% if detail %}
   <a class="wtf-lob-back" href="/lobbying">← All lobbying</a>
-  <div class="wtf-lob-eyebrow">Office of the Commissioner of Lobbying</div>
-  <h1 class="wtf-lob-title">🏢 {{ detail.org_label }}</h1>
-  <div class="wtf-lob-sub">
+  <div class="wtf-pg-eyebrow">Office of the Commissioner of Lobbying</div>
+  <h1 class="wtf-pg-title">{{ detail.org_label }}</h1>
+  <p class="wtf-pg-lede">
     {{ '{:,}'.format(detail.contacts) }} registered communications with {{ detail.mps }} MP{{ '' if detail.mps == 1 else 's' }}
     {% if detail.first_seen %}· {{ detail.first_seen }} → {{ detail.last_seen }}{% endif %}
-  </div>
+  </p>
   {% else %}
-  <div class="wtf-lob-eyebrow">Office of the Commissioner of Lobbying</div>
-  <h1 class="wtf-lob-title">🏢 Lobbying Tracker</h1>
-  <div class="wtf-lob-sub">
+  <div class="wtf-pg-eyebrow">Office of the Commissioner of Lobbying</div>
+  <h1 class="wtf-pg-title">Lobbying tracker</h1>
+  <p class="wtf-pg-lede">
     Every communication the federal Lobbying Registry records between a registered
     lobbyist and a Member of Parliament. Who is being lobbied, by whom, and how often.
-  </div>
+  </p>
   {% endif %}
-</div>
+</header>
 
 <div class="wtf-lob-stats">
   <div class="wtf-lob-stat">

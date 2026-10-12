@@ -335,6 +335,7 @@ def test_current_broker_completion_roundtrip(tmp_path, keys, monkeypatch):
         "runner_pids": [4242],
         "repo": "o/r",
         "branch": "codex/repair",
+        "commit_sha": "a" * 40,
         "broker_id": "host-opencode-broker",
         "created_at": "2026-10-11T00:00:00Z",
     }
@@ -374,7 +375,7 @@ def test_current_broker_completion_roundtrip(tmp_path, keys, monkeypatch):
         response["receipt_signature"],
         pin=IssuerPin("host-opencode-broker", "reviewed-key-v1", public),
         expected=ExpectedAssignment(
-            "assignment-a", "41", "c" * 64, "/attempt-a", "runner-a", "c" * 64, (4242,), "o/r", "codex/repair"
+            "assignment-a", "41", "c" * 64, "/attempt-a", "runner-a", "c" * 64, (4242,), "o/r", "codex/repair", "a" * 40
         ),
         journal_entries=broker.journal_get_entries("assignment-a", db_path=db),
         now=1000,
@@ -417,10 +418,17 @@ def test_missing_socket_produces_unknown_observation(tmp_path, evidence):
 @pytest.fixture
 def extended_evidence(evidence, keys):
     evidence["expected"] = replace(
-        evidence["expected"], container_id="c" * 64, runner_pids=(4242,), repo="o/r", branch="codex/repair"
+        evidence["expected"],
+        container_id="c" * 64,
+        runner_pids=(4242,),
+        repo="o/r",
+        branch="codex/repair",
+        commit_sha="a" * 40,
     )
     entry = evidence["journal_entries"][0]
-    entry["payload"].update(container_id="c" * 64, runner_pids=[4242], repo="o/r", branch="codex/repair")
+    entry["payload"].update(
+        container_id="c" * 64, runner_pids=[4242], repo="o/r", branch="codex/repair", commit_sha="a" * 40
+    )
     entry["signature"] = sign(
         canonical_bytes({k: v for k, v in entry["payload"].items() if k != "cgroup_proof"}), keys[0]
     )

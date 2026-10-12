@@ -34,6 +34,7 @@ class ExpectedAssignment:
     runner_pids: tuple = ()
     repo: str = ""
     branch: str = ""
+    commit_sha: str = ""
 
 
 @dataclass(frozen=True)
@@ -214,7 +215,7 @@ def verify_current_receipt(
             "created_at",
             "cgroup_proof",
         }
-        extended_fields = {"container_id", "runner_pids", "repo", "branch"}
+        extended_fields = {"container_id", "runner_pids", "repo", "branch", "commit_sha"}
         if not isinstance(seal, dict) or set(seal) not in (seal_fields, seal_fields | extended_fields):
             return reject("seal_invalid")
         if any(type(seal[k]) is not str for k in seal_fields):
@@ -237,6 +238,7 @@ def verify_current_receipt(
                 or tuple(pids) != expected.runner_pids
                 or seal["repo"] != expected.repo
                 or seal["branch"] != expected.branch
+                or seal.get("commit_sha", "") != expected.commit_sha
             ):
                 return reject("seal_mismatch")
         elif expected.container_id or expected.runner_pids or expected.repo or expected.branch:

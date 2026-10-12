@@ -520,7 +520,7 @@ def make_live_publication_observer(repo, branch, sha, token, *, api_get_fn=None)
         return make_publication_observer(
             repo,
             branch,
-            get_push_status=lambda: {"confirmed": True, "sha": sha},
+            get_push_status=lambda: {"confirmed": True, "sha": sha, "pending_ops": []},
             get_pr_status=lambda: _pr_view(pulls, repo, branch, sha),
         )(assignment_id)
 

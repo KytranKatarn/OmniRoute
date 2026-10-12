@@ -555,6 +555,7 @@ class SealedAssignment:
     runner_pids: list = field(default_factory=list)
     repo: str = ""
     branch: str = ""
+    commit_sha: str = ""
 
 
 def _is_full_hex_id(value: Any) -> bool:
@@ -610,6 +611,7 @@ def seal_assignment(
         "runner_pids": runner_pids,
         "repo": assignment.get("repo", ""),
         "branch": assignment.get("branch", ""),
+        "commit_sha": assignment.get("commit_sha", ""),
     }
 
     private_key = _seal_serialization.load_pem_private_key(private_key_pem.encode(), password=None)
@@ -638,6 +640,7 @@ def seal_assignment(
         runner_pids=runner_pids,
         repo=assignment.get("repo", ""),
         branch=assignment.get("branch", ""),
+        commit_sha=assignment.get("commit_sha", ""),
     )
 
 
@@ -681,6 +684,7 @@ def verify_sealed_assignment(
                 "runner_pids": list(sealed.runner_pids),
                 "repo": sealed.repo,
                 "branch": sealed.branch,
+                "commit_sha": sealed.commit_sha,
             }
             signature_b64 = sealed.signature
         else:
@@ -697,6 +701,7 @@ def verify_sealed_assignment(
                 "runner_pids": list(sealed.get("runner_pids", [])),
                 "repo": sealed.get("repo", ""),
                 "branch": sealed.get("branch", ""),
+                "commit_sha": sealed.get("commit_sha", ""),
             }
             signature_b64 = sealed["signature"]
         if not all([seal_data["assignment_id"], seal_data["task_id"], seal_data["scope"], seal_data["container_name"]]):
@@ -823,6 +828,7 @@ def _reconstruct_seal(entry: Dict[str, Any]) -> Optional[SealedAssignment]:
             runner_pids=[int(p) for p in runner_pids],
             repo=str(payload.get("repo", "")),
             branch=str(payload.get("branch", "")),
+            commit_sha=str(payload.get("commit_sha", "")),
         )
     except (KeyError, TypeError, ValueError):
         return None
@@ -864,10 +870,24 @@ def _provision_observers(journal_db: str):
     )
 
     docker = make_live_docker_observer()
-    host = make_live_host_observer(
-        service_unit=os.environ.get("BROKER_SERVICE_UNIT", ""),
-        cgroup_path="/sys/fs/cgroup",
-    )
+
+    service_unit = os.environ.get("BROKER_SERVICE_UNIT", "")
+    cgroup_path = os.environ.get("BROKER_CGROUP_PATH", "/sys/fs/cgroup")
+
+    def host(assignment_id):
+        entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
+        sealed_entry = _sealed_entry(entries)
+        if sealed_entry is None:
+            return None
+        sealed = _reconstruct_sealed_assignment(sealed_entry)
+        if sealed is None:
+            return None
+        return make_live_host_observer(
+            service_unit=service_unit,
+            cgroup_path=cgroup_path,
+            expected_pids=sealed.runner_pids,
+            reap_confirmed_fn=lambda: True,
+        )(sealed.cgroup, assignment_id)
 
     github_token = os.environ.get("GITHUB_TOKEN", "")
     if not github_token:
@@ -881,8 +901,10 @@ def _provision_observers(journal_db: str):
             sealed = _reconstruct_sealed_assignment(sealed_entry)
             if sealed is None or not sealed.repo or not sealed.branch:
                 return None
+            if not sealed.commit_sha:
+                return None
             return make_live_publication_observer(
-                sealed.repo, sealed.branch, sealed.task_id, github_token
+                sealed.repo, sealed.branch, sealed.commit_sha, github_token
             )(assignment_id)
 
     return docker, host, publication
@@ -1322,6 +1344,7 @@ def handle_broker_connection(
                 "runner_pids": list(sealed.runner_pids),
                 "repo": sealed.repo,
                 "branch": sealed.branch,
+                "commit_sha": sealed.commit_sha,
             }
             if journal_append_fn is journal_append:
                 seal_status, existing = journal_try_seal(

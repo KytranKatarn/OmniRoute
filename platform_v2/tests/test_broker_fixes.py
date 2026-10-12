@@ -164,6 +164,7 @@ _ASSIGNMENT = {
     "runner_pids": [4242],
     "repo": "o/r",
     "branch": "main",
+    "commit_sha": "a" * 40,
 }
 
 

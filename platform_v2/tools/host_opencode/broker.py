@@ -157,6 +157,18 @@ def journal_init(db_path: Optional[str] = None) -> bool:
             broker_id TEXT NOT NULL
         )"""
         )
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS reap_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assignment_id TEXT NOT NULL,
+            pid INTEGER NOT NULL,
+            reaped_ok BOOLEAN NOT NULL,
+            reaper_id TEXT,
+            notes TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        )"""
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_reap_assignment ON reap_ledger(assignment_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_journal_assignment ON broker_journal(assignment_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_journal_verified ON broker_journal(verified)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_assignments_task ON broker_assignments(task_id)")
@@ -857,6 +869,87 @@ def _unprovisioned_observer(name: str):
     return _observer
 
 
+def _record_reap(assignment_id: str, pid: int, reaped_ok: bool, journal_db: str) -> bool:
+    """Record a reaping attempt in the durable reap_ledger.
+
+    Returns True only after a successful commit; False on any failure.
+    Caller (_reap_wrapped) propagates this result — the reaped flag in
+    completion is only set True when the ledger row is durably persisted.
+    """
+    import json as _json
+
+    try:
+        conn = sqlite3.connect(journal_db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            "INSERT INTO reap_ledger (assignment_id, pid, reaped_ok, reaper_id, notes, created_at) "
+            "VALUES (?, ?, ?, ?, ?, datetime('now'))",
+            (assignment_id, pid, int(reaped_ok), "", f"reap pid={pid} ok={reaped_ok}"),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def _fence_token() -> str:
+    """Generate a unique fence token for start/stop pairing."""
+    import uuid as _uuid
+
+    return str(_uuid.uuid4())
+
+
+def _record_fence_start(assignment_id: str, journal_db: str, token: str) -> bool:
+    """Record a start-fence token in the journal. Returns True on success."""
+    try:
+        conn = sqlite3.connect(journal_db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified) "
+            "VALUES (?, 'fence_start', ?, '{}', 0)",
+            (assignment_id, json.dumps({"token": token}, sort_keys=True)),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def _record_fence_stop(assignment_id: str, journal_db: str, token: str) -> bool:
+    """Record a stop-fence token in the journal. Returns True on success."""
+    try:
+        conn = sqlite3.connect(journal_db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified) "
+            "VALUES (?, 'fence_stop', ?, '{}', 0)",
+            (assignment_id, json.dumps({"token": token}, sort_keys=True)),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def _check_fence(assignment_id: str, journal_db: str, token: str) -> bool:
+    """Check that a fence token has both a start and a stop entry.
+
+    Matching tokens alone cannot prevent concurrent starts or publications.
+    This function only verifies the fence start/stop pair exists — it does not
+    by itself guarantee temporal ordering or isolation. Callers must also check
+    that no new start appeared between the stop and this check.
+    """
+    entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
+    start_seen = any(
+        e.get("event_type") == "fence_start" and e.get("payload", {}).get("token") == token for e in entries
+    )
+    stop_seen = any(e.get("event_type") == "fence_stop" and e.get("payload", {}).get("token") == token for e in entries)
+    return start_seen and stop_seen
+
+
 def _provision_observers(journal_db: str, *, reap_observe=None):
     """Create live observers from environment configuration.
 
@@ -874,6 +967,13 @@ def _provision_observers(journal_db: str, *, reap_observe=None):
     service_unit = os.environ.get("BROKER_SERVICE_UNIT", "")
     cgroup_path = os.environ.get("BROKER_CGROUP_PATH", "/sys/fs/cgroup")
 
+    def _reap_wrapped(pid: int, assignment_id: str, journal_db: str) -> bool:
+        """Wrap user's reap_observe: record in ledger only if user confirms."""
+        if reap_observe is None or reap_observe(assignment_id, pid) is not True:
+            return False
+        recorded = _record_reap(assignment_id, pid, True, journal_db)
+        return recorded
+
     def host(cgroup, assignment_id):
         entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
         sealed_entry = _sealed_entry(entries)
@@ -886,7 +986,7 @@ def _provision_observers(journal_db: str, *, reap_observe=None):
             service_unit=service_unit,
             cgroup_path=cgroup_path,
             expected_pids=sealed.runner_pids,
-            reap_confirmed_fn=lambda pid: reap_observe(assignment_id, pid),
+            reap_confirmed_fn=lambda pid: _reap_wrapped(pid, assignment_id, journal_db),
         )(sealed.cgroup, assignment_id)
 
     github_token = os.environ.get("GITHUB_TOKEN", "")

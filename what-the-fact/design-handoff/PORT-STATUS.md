@@ -108,6 +108,40 @@ column/filter has no data; the owner-name column on `/crtc` still truncates; `/p
 paragraph stays left-aligned under the centred header on purpose (it is a long note).
 `tests/test_header_port_lobbying_crtc_parties.py`.
 
+**`/lobbying` stat cards (row 15, 2026-10-12).** The page's five small left-aligned chips (16px blue
+numbers, 96px min-width) are now the shared `stat_tiles()` macro centred like the design's `.stat`
+cards, via a page-scoped `.wtf-lob-tiles` wrapper (same pattern as `.wtf-nw-stats` on `/news`; the
+seven other `stat_tiles` pages are untouched). Same five figures from the same `stats` row — a
+render test pins that, plus "Coverage dropped without dates" and "absent numbers show 0". Measured
+in Chrome on the live page: five equal 206px cards filling the container at 1280 (were 96–118px chips
+filling about half the width), two across on a phone (3 rows) rather than five stacked; uniform card
+height at 1280/1024/768/400, no clipped values, no horizontal scroll. Two things found while
+measuring: "2008–2026" wrapped to two lines at 26px in a ~137px tablet card (fixed: `nowrap` + a
+fluid 20–26px size), and the macro's own `minmax(190px,…)` would have stacked cards on a phone (so
+this page uses 130px, near the design's 118px). Not done: the org **table** is still not the
+design's rounded card, the design's `–` for an empty "Last 30 days" is not used (live shows the
+real `0`), and the numbers are the page's real ones — the design's 3,659 / 16 / 337 are sample values.
+`tests/test_lobbying_stat_cards.py`. Stacked on the headers PR (same file).
+
+**`/lobbying` table cards (row 15, 2026-10-12).** Each `.wtf-lob-section` is now the design's `.panel`
+card (14px radius, card ground, 1px border, top highlight + soft shadow, small mono section label),
+and its table takes the design's mono 8.5px headers and 10px cells; the search box is the design's
+input. All of it is CSS on the existing classes plus a `wtf-lob-search` class and a `wtf-lob-date`
+class on the four date cells — no data or route change. The old block was dark-only hex, so none of it
+followed light mode; it now uses the shared `--wtf-*` tokens (the one remaining hex is the link
+colour, kept on purpose: the organisation name IS the link to its record, so the colour is its
+affordance — the design shows names in plain text because its rows select in place). Measured in
+Chrome on the live page: cards at 1280/768/400/360; median row 30 → 37px at 1280, 45 → 37px at 768,
+45 → 49px at 400 and 360 (it was 65px at 360 before the name-column fix). **Found while measuring:**
+the design's looser 10px cells made the "Most recent" date break mid-value ("2026-06-/03") on
+tablet and phone and roughly doubled row height — fixed with `nowrap` on date cells, with each table
+already inside a `.wtf-lob-scroll`, so any overflow scrolls inside the card, never the page. On the
+narrowest phones the date column needs that inner scroll (360px: yes; 400px: it fits, table still
+scrolls slightly). **Not done:** the design's Sector column and filter — `subject_matter`/sector has
+no backing data (the template's own comment says so), so it stays unbuilt rather than invented; the
+design's "select an organisation" caption line; hover is a flat panel tint, not the design's.
+`tests/test_lobbying_table_cards.py`. Stacked on the stat-cards PR (same file).
+
 ---
 
 ## Rows 1 and 2 are blocked

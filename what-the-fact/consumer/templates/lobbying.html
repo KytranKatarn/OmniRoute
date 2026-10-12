@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import paywall %}
+{% from "_archetypes.html" import paywall, stat_tiles %}
 {% block title %}{% if detail %}{{ detail.org_label }} — lobbying{% else %}Lobbying Tracker{% endif %} · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="{% if detail %}Who {{ detail.org_label }} lobbies in Parliament — {{ detail.contacts }} registered communications with {{ detail.mps }} MPs.{% else %}Who lobbies Canadian MPs — {{ '{:,}'.format(stats.contacts or 0) }} registered communications from the federal Lobbying Registry, by organization and by MP.{% endif %}">
@@ -20,25 +20,58 @@
    deliberate content addition matching the sitewide convention already
    adopted on rates.html/crtc.html this session — not a silent change). */
 .wtf-lob-sub { font-size:12px; color:#6b7280; line-height:1.6; }
-.wtf-lob-stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 20px; }
-.wtf-lob-stat { background:#060d14; border:1px solid #0a1a2a; border-radius:4px; padding:8px 14px; min-width:96px; }
-.wtf-lob-stat-n { font-family:var(--wtf-font-mono); font-size:16px; color:#60a5fa; }
-.wtf-lob-stat-n--sm { font-size:12px; }
+/* Stat cards: the shared stat_tiles() macro, centred like the design's .stat cards — same
+   wrapper pattern as .wtf-nw-stats on /news (scoped so the other stat_tiles pages are untouched). */
+.wtf-lob-tiles { margin:18px 0 22px; }
+/* 130px minimum (the design's .statrow uses 118px): five across on desktop, two across on a
+   phone instead of five full-width cards stacked ~400px tall. */
+.wtf-lob-tiles .wtf-a-tiles { margin:0; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); }
+.wtf-lob-tiles .wtf-a-tile { text-align:center; align-items:center; padding:16px 12px; }
+/* nowrap + fluid size: "2008–2026" wrapped to two lines at 26px in a ~137px tablet card and made
+   that card taller than its neighbours. */
+.wtf-lob-tiles .wtf-a-tile-n { order:-1; font-size:clamp(20px, 2.2vw, 26px); white-space:nowrap; }
 .wtf-lob-stat-l { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
-.wtf-lob-section { margin-bottom:26px; }
-.wtf-lob-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px; }
-.wtf-lob-table { width:100%; border-collapse:collapse; font-size:12px; }
-.wtf-lob-table th { text-align:left; font-size:9px; color:#4b5563; text-transform:uppercase; letter-spacing:.06em; padding:6px 8px; border-bottom:1px solid #1a2a3a; font-weight:500; }
+/* Each section is the design's `.panel` card (wtf-lobbying.html): rounded 14px, card ground, 1px
+   border, a faint top highlight + soft drop shadow, a small mono section label, and the design's
+   table (mono 8.5px headers, 10px cells). Colours are the shared --wtf-* tokens (the old block was
+   dark-only hex, so none of it followed light mode). Links stay accent-coloured: on this page the
+   organisation name IS the link to its record, so the colour is its affordance. */
+.wtf-lob-section { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:14px;
+  padding:16px 17px; margin-bottom:12px;
+  box-shadow:0 1px 0 rgba(255,255,255,.045) inset, 0 8px 22px -12px rgba(0,0,0,.85); }
+.wtf-lob-section-title { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.15em;
+  text-transform:uppercase; color:var(--wtf-text-muted); margin-bottom:11px; }
+.wtf-lob-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+.wtf-lob-table th { text-align:left; font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.13em;
+  text-transform:uppercase; color:var(--wtf-text-muted); padding:0 10px 9px; border-bottom:1px solid var(--wtf-border); font-weight:500; }
 .wtf-lob-table th.wtf-lob-num-h { text-align:right; }
-.wtf-lob-table td { padding:7px 8px; border-bottom:1px solid #0a1420; color:#9ca3af; }
-.wtf-lob-table tr:hover td { background:#060d14; }
+.wtf-lob-table td { padding:10px; border-bottom:1px solid var(--wtf-border); color:var(--wtf-text-2); }
+.wtf-lob-table tr:hover td { background:var(--wtf-bg-panel); }
 .wtf-lob-table a { color:#60a5fa; text-decoration:none; }
 .wtf-lob-table a:hover { text-decoration:underline; }
-.wtf-lob-num { font-family:var(--wtf-font-mono); color:#e5e7eb; text-align:right; white-space:nowrap; }
-.wtf-lob-former { color:#4b5563; font-size:10px; }
+.wtf-lob-num { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; color:var(--wtf-text); text-align:right; white-space:nowrap; }
+/* A date must not break mid-value ("2026-06-/03"): the looser 10px cell padding made that happen
+   on tablet/phone and doubled the row height. The table scrolls inside its card instead. */
+.wtf-lob-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.wtf-lob-former { color:var(--wtf-text-muted); font-size:10px; }
 .wtf-lob-scroll { overflow-x:auto; }
-.wtf-lob-note { font-size:9px; color:#374151; margin-top:8px; }
-.wtf-lob-source-link { color:#374151; }
+.wtf-lob-note { font-size:11px; color:var(--wtf-text-muted); margin-top:9px; }
+.wtf-lob-note + .wtf-lob-scroll { margin-top:12px; }
+.wtf-lob-source-link { color:var(--wtf-text-muted); }
+@media (max-width:640px) {
+  /* the design's 10px cells + 17px card padding leave a ~330px table on a phone: names wrapped to
+     4 lines and the date column was clipped. Tighter cells; still scrolls inside the card if needed. */
+  .wtf-lob-section { padding:14px 12px; }
+  .wtf-lob-table th { padding:0 6px 8px; letter-spacing:.06em; }
+  .wtf-lob-table td { padding:8px 6px; }
+}
+@media (max-width:420px) {
+  /* narrowest phones: don't crush the name column to its longest word (rows were 4+ lines);
+     give it room and let the numeric columns scroll inside the card. */
+  .wtf-lob-table td:first-child { min-width:132px; }
+}
+.wtf-lob-search { width:100%; max-width:320px; box-sizing:border-box; padding:9px 11px; background:var(--wtf-bg-card);
+  border:1px solid var(--wtf-border); border-radius:7px; color:var(--wtf-text); font-size:13px; }
 .wtf-lob-back { display:inline-block; margin-bottom:12px; font-size:11px; color:#6b7280; text-decoration:none; }
 </style>
 
@@ -64,29 +97,18 @@
   {% endif %}
 </header>
 
-<div class="wtf-lob-stats">
-  <div class="wtf-lob-stat">
-    <div class="wtf-lob-stat-n">{{ '{:,}'.format(stats.contacts or 0) }}</div>
-    <div class="wtf-lob-stat-l">Communications</div>
-  </div>
-  <div class="wtf-lob-stat">
-    <div class="wtf-lob-stat-n">{{ '{:,}'.format(stats.orgs or 0) }}</div>
-    <div class="wtf-lob-stat-l">Organizations</div>
-  </div>
-  <div class="wtf-lob-stat">
-    <div class="wtf-lob-stat-n">{{ stats.mps or 0 }}</div>
-    <div class="wtf-lob-stat-l">MPs lobbied</div>
-  </div>
-  <div class="wtf-lob-stat">
-    <div class="wtf-lob-stat-n">{{ stats.last_30d or 0 }}</div>
-    <div class="wtf-lob-stat-l">Last 30 days</div>
-  </div>
-  {% if stats.first_seen %}
-  <div class="wtf-lob-stat">
-    <div class="wtf-lob-stat-n wtf-lob-stat-n--sm">{{ stats.first_seen.year }}–{{ stats.last_seen.year }}</div>
-    <div class="wtf-lob-stat-l">Coverage</div>
-  </div>
-  {% endif %}
+{# Same five figures as before, from the same `stats` row — only the card markup changed. #}
+{% set _lob_tiles = [
+  {'label': 'Communications', 'value': '{:,}'.format(stats.contacts or 0)},
+  {'label': 'Organizations', 'value': '{:,}'.format(stats.orgs or 0)},
+  {'label': 'MPs lobbied', 'value': stats.mps or 0},
+  {'label': 'Last 30 days', 'value': stats.last_30d or 0},
+] %}
+{% if stats.first_seen %}
+{% set _lob_tiles = _lob_tiles + [{'label': 'Coverage', 'value': '%s–%s'|format(stats.first_seen.year, stats.last_seen.year)}] %}
+{% endif %}
+<div class="wtf-lob-tiles">
+{{ stat_tiles(_lob_tiles) }}
 </div>
 
 {% if detail %}
@@ -118,7 +140,7 @@
         <td>{{ m.party or '—' }}</td>
         <td>{{ m.riding_name or '—' }}</td>
         <td class="wtf-lob-num">{{ m.contacts }}</td>
-        <td>{{ m.last_seen or '—' }}</td>
+        <td class="wtf-lob-date">{{ m.last_seen or '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -135,7 +157,7 @@
     <tbody>
       {% for r in contacts %}
       <tr>
-        <td>{{ r.communication_date or '—' }}</td>
+        <td class="wtf-lob-date">{{ r.communication_date or '—' }}</td>
         <td><a href="/mp/{{ r.mp_slug }}">{{ r.mp_name }}</a></td>
         <td>{{ r.lobbyist_first }} {{ r.lobbyist_last }}</td>
       </tr>
@@ -163,8 +185,7 @@
      fabrication, not a feature. #}
   <form method="get" action="/lobbying" style="margin:0 0 10px;">
     <input type="search" name="q" value="{{ q }}" placeholder="Search organizations…"
-           aria-label="Search organizations"
-           style="width:100%;max-width:320px;padding:7px 10px;background:#060d14;border:1px solid #0a1a2a;border-radius:4px;color:#e5e7eb;font-size:12px;">
+           aria-label="Search organizations" class="wtf-lob-search">
   </form>
   <div class="wtf-lob-note" style="margin-top:0;">
     {{ top_orgs|length }} of {{ '{:,}'.format(stats.orgs or 0) }} organizations shown{% if q %} matching &ldquo;{{ q }}&rdquo;{% endif %}
@@ -178,7 +199,7 @@
         <td><a href="/lobbying?org={{ o.org_key | urlencode }}">{{ o.org_label }}</a></td>
         <td class="wtf-lob-num">{{ '{:,}'.format(o.contacts) }}</td>
         <td class="wtf-lob-num">{{ o.mps }}</td>
-        <td>{{ o.last_seen or '—' }}</td>
+        <td class="wtf-lob-date">{{ o.last_seen or '—' }}</td>
       </tr>
       {% else %}
       <tr><td colspan="4">No organizations match &ldquo;{{ q }}&rdquo;.</td></tr>
@@ -217,7 +238,7 @@
     <tbody>
       {% for r in recent %}
       <tr>
-        <td>{{ r.communication_date or '—' }}</td>
+        <td class="wtf-lob-date">{{ r.communication_date or '—' }}</td>
         <td><a href="/mp/{{ r.mp_slug }}">{{ r.mp_name }}</a></td>
         <td>{{ r.client_org }}</td>
         <td>{{ r.lobbyist_first }} {{ r.lobbyist_last }}</td>

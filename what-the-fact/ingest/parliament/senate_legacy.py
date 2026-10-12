@@ -18,6 +18,7 @@ import logging
 import re
 import time
 import unicodedata
+from datetime import date
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -196,6 +197,57 @@ def load_codes() -> list:
     return json.loads(CODES_FILE.read_text(encoding="utf-8"))
 
 
+def _fold_given(token: str) -> str:
+    """'JOSÉE' / 'S.M.' / 'Marie-P.' -> 'josee' / 'sm' / 'marie-p' (accent-folded, lower-case, only letters and hyphens kept)."""
+    t = unicodedata.normalize("NFKD", token or "").encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z-]", "", t)
+
+
+def given_agrees(published_name: str | None, roster_given: str | None) -> bool:
+    """Does the PUBLISHED name share a given name with the roster senator? Accent- and case-insensitive. Agreement is ANY full given
+    name (3+ letters) in common, because people go by a middle name ('HECTOR DANIEL LANG' is roster 'Daniel') or the roster carries
+    an initial first ('A. Raynell' = 'RAYNELL ANDREYCHUK'). Failing that, a leading initial ('S.M.') agrees with a name starting with
+    that letter. 'DOUGLAS JOHN' vs 'Robert', 'DENNIS' vs 'Rebecca', 'VERNON DARRYL' vs 'Judy' and 'DAVID P.' vs 'Larry W.' share nothing.
+    Fails closed: a missing side, or a nickname ('MICHAEL' vs 'Mike'), is NOT an agreement."""
+    _fam, giv = normalise_name(published_name)                    # comma form -> the given names; 'GIVEN FAMILY' form -> the whole name
+    pub = [t for t in (_fold_given(x) for x in (giv or "").split()) if t]
+    roster = [t for t in (_fold_given(x) for x in (roster_given or "").split()) if t]
+    if not pub or not roster:
+        return False
+    if {t for t in pub if len(t) >= 3} & {t for t in roster if len(t) >= 3}:
+        return True
+    if len(pub[0]) <= 2 or len(roster[0]) <= 2:                   # a leading initial: 'S.M.' -> 'sm' agrees with 'sandra'
+        return pub[0][0] == roster[0][0]
+    return False
+
+
+def _as_date(v):
+    """date / datetime / 'YYYY-MM-DD...' string (sqlite returns text, Postgres a date) -> date, None stays None."""
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return date.fromisoformat(v[:10])
+    return v.date() if hasattr(v, "date") else v
+
+
+def plausible_link(published_name: str | None, roster, period_end) -> bool:
+    """May this published name be linked to this roster senator, FOR THIS PERIOD? `roster` is (given_name, appointed_at) or None.
+    The family-name matcher accepts a unique family hit without looking at the given name, which attached retired senators to
+    unrelated sitting ones (Douglas John Black -> Robert Black, Dennis Patterson -> Rebecca Patterson, Vernon Darryl White -> Judy
+    White, David P. Smith merged into Larry W. Smith: the namesake class of ADR-047). So the link needs (1) the given name to agree and
+    (2) the period not to end before the senator was appointed. Anything else is "no link": the row stays attributed by its own
+    published name (name_key), never to someone else."""
+    if not roster:
+        return False
+    given, appointed = roster
+    if not given_agrees(published_name, given):
+        return False
+    a, e = _as_date(appointed), _as_date(period_end)
+    if a is not None and e is not None and e < a:
+        return False
+    return True
+
+
 def match_published(name: str | None, fam_idx: dict, full_idx: dict):
     """A published name -> parliament.senators id, or None (never a guess). Comma forms go straight to the roster matcher; a
     'GIVEN FAMILY' form is tried with the family as the last 1, 2, then 3 words."""
@@ -222,8 +274,13 @@ def run_legacy_sync(engine, period_from: str = "2010-09-01", period_to: str = "2
     from sqlalchemy import text
     from ingest.parliament.senator_expenses import _load_senator_index
     fam_idx, full_idx = _load_senator_index(engine)
+    from ingest.parliament.senator_expenses import _split_family_given
+
+    with engine.connect() as _c:
+        roster = {rid: ((given or (_split_family_given(name)[1] if name else None)), appointed)
+                  for rid, name, given, appointed in _c.execute(text("SELECT id, name, given_name, appointed_at FROM parliament.senators")).fetchall()}
     codes = codes if codes is not None else load_codes()
-    stats = {"stored": 0, "not_found": 0, "unparsed": [], "bad_layout": [], "name_mismatch": [], "unmatched_senator": {}, "per_period": {}, "failed": []}
+    stats = {"stored": 0, "not_found": 0, "unparsed": [], "bad_layout": [], "name_mismatch": [], "unmatched_senator": {}, "implausible_link": [], "per_period": {}, "failed": []}
     for start, end in PERIODS:
         if not (period_from <= start and end <= period_to):
             continue
@@ -250,6 +307,9 @@ def run_legacy_sync(engine, period_from: str = "2010-09-01", period_to: str = "2
                 stats["name_mismatch"].append(f"{end}/{code}: {rec['name']}")
                 continue
             sid = match_published(rec["name"], fam_idx, full_idx)
+            if sid is not None and not plausible_link(rec["name"], roster.get(sid), date.fromisoformat(end)):
+                stats["implausible_link"].append(f"{end}/{code}: {rec['name']} !~ senator id {sid}")
+                sid = None                                           # fail closed: keep it under its own published name
             if sid is None:
                 stats["unmatched_senator"][rec["name"]] = stats["unmatched_senator"].get(rec["name"], 0) + 1
             travel = round(rec["travel_regular"] + rec["travel_other"], 2)

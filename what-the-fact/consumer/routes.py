@@ -2868,6 +2868,70 @@ def _caucus_cost_panel() -> dict:
     return out
 
 
+_SENATE_LEGACY_CACHE: dict = {}
+
+
+def _legacy_display_name(published) -> str:
+    """'NGO, HON. THANH HAI' / 'HON. DON MEREDITH' -> 'Thanh Hai Ngo' / 'Don Meredith', with the same normaliser the loader uses."""
+    raw = (published or "").strip()
+    try:
+        from ingest.parliament.senate_legacy import normalise_name
+
+        fam, giv = normalise_name(raw)
+    except Exception:
+        return raw.title()
+    return " ".join(p for p in (giv, fam) if p) or raw.title()
+
+
+def _senate_legacy_panel() -> dict:
+    """Senators' expenses Sept 2010 - June 2016, one row per senator (parliament.senator_expenses_legacy, migrations 102-104).
+
+    NO CAUCUS is shown, on purpose (task 7173, option D): the 23 quarterly PDFs name no party, and the database holds no dated
+    caucus source before 2016-Q3, so a label would be a guess. Sitting-roster senators group by senator_id (and link to their
+    profile); former senators, who are not on the roster, group by the loader's name_key and are plain text. Expenses only
+    (office, hospitality, living, travel): salaries are not in these reports. A senator's total covers only the quarters they were
+    in the window. Never raises into the page."""
+    hit = _SENATE_LEGACY_CACHE.get("panel")
+    if hit and hit[0] > time.time():
+        return hit[1]
+    empty: dict = {"rows": [], "senators": 0, "total": None, "periods": 0, "first": None, "last": None}
+    try:
+        with _db().begin() as c:
+            rows = c.execute(text("""
+                SELECT s.slug AS slug, e.senator_id AS senator_id,
+                       (array_agg(e.name_as_published ORDER BY e.period_end DESC))[1] AS published,
+                       count(*) AS quarters, sum(e.total_cad) AS total,
+                       min(e.period_start) AS first_start, max(e.period_end) AS last_end
+                FROM parliament.senator_expenses_legacy e
+                LEFT JOIN parliament.senators s ON s.id = e.senator_id
+                GROUP BY COALESCE(e.senator_id::text, e.name_key, e.name_as_published), s.slug, e.senator_id
+                ORDER BY sum(e.total_cad) DESC
+            """)).mappings().all()
+            meta = c.execute(text("""
+                SELECT count(DISTINCT period_end) AS periods, min(period_start) AS first, max(period_end) AS last, sum(total_cad) AS total
+                FROM parliament.senator_expenses_legacy
+            """)).mappings().all()
+    except Exception:
+        return empty
+    if not rows or not meta or not meta[0]["periods"]:
+        _SENATE_LEGACY_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, empty)
+        return empty
+    out_rows = []
+    for r in rows:
+        q = int(r["quarters"] or 0)
+        tot = float(r["total"] or 0)
+        out_rows.append({
+            "name": _legacy_display_name(r["published"]), "slug": r["slug"], "quarters": q,
+            "total": f"${tot:,.0f}", "avg": f"${tot / q:,.0f}" if q else "\u2014",
+            "span": f"{r['first_start'].year}\u2013{r['last_end'].year}" if r["first_start"] and r["last_end"] else "",
+        })
+    m = meta[0]
+    out = {"rows": out_rows, "senators": len(out_rows), "total": _fmt_m(m["total"]), "periods": int(m["periods"]),
+           "first": m["first"].strftime("%B %Y") if m["first"] else None, "last": m["last"].strftime("%B %Y") if m["last"] else None}
+    _SENATE_LEGACY_CACHE["panel"] = (time.time() + _PARTY_COST_TTL, out)
+    return out
+
+
 @bp.get("/cost")
 def cost_of_parliament():
     """"What Parliament Costs Canadians" — national cost-to-taxpayers page.
@@ -2883,6 +2947,7 @@ def cost_of_parliament():
     return render_template("cost.html", source_count=source_count,
                            is_subscriber=is_subscriber(), party_costs=_party_cost_panel(),
                            caucus_costs=_caucus_cost_panel(),
+                           senate_legacy=_senate_legacy_panel(),
                            annual_costs=_annual_cost_panel())
 
 
@@ -6736,6 +6801,22 @@ def _senator_expense_rows(senator_id: int) -> list[dict]:
         return []
 
 
+def _senator_legacy_expense_rows(senator_id: int) -> list[dict]:
+    """Quarterly expense rows Sept 2010 - June 2016 for one ROSTER senator (parliament.senator_expenses_legacy), newest first.
+    These reports name no party and have no contracts column, so neither appears. Never raises into the page."""
+    try:
+        with _db().begin() as c:
+            return [dict(r) for r in c.execute(text("""
+                SELECT period_start, period_end, travel_cad, hospitality_cad, office_cad, living_cad, total_cad
+                FROM parliament.senator_expenses_legacy
+                WHERE senator_id = :sid
+                ORDER BY period_end DESC
+                LIMIT 40
+            """), {"sid": senator_id}).mappings().all()]
+    except Exception:
+        return []
+
+
 def _senator_travel(senator_id: int) -> dict:
     """Itemized travel for one senator: a split by international / domestic / unclassified, the international legs, and
     the delegations (IIA reports) they sat on.
@@ -6869,6 +6950,7 @@ def senator_profile(slug: str):
 
     # Expenses and itemized travel — guarded helpers, so a missing table cannot take the page down.
     senator["expense_periods"] = _senator_expense_rows(senator["id"])
+    senator["legacy_expense_periods"] = _senator_legacy_expense_rows(senator["id"])
     senator["travel"] = _senator_travel(senator["id"])
     senator["caucus_history"] = _senator_caucus_history(senator["id"])
 

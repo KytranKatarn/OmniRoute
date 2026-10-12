@@ -108,6 +108,39 @@
   </div>
   {% endif %}
 
+  {% if senate_legacy and senate_legacy.rows %}
+  <div class="cost-panel" data-cost-senate-legacy>
+    <div class="cost-panel-h">What senators cost, {{ senate_legacy.first }} &ndash; {{ senate_legacy.last }} &mdash; expenses by senator</div>
+    <p class="cost-note" style="margin:0 0 12px;">
+      <strong>No caucus is shown for this period.</strong> The Senate&rsquo;s reports for these {{ senate_legacy.periods }} quarters name no party,
+      and we hold no dated record of who sat in which caucus before the third quarter of 2016 &mdash; so we show none rather than guess.
+      {{ senate_legacy.senators }} senators, {{ senate_legacy.total }} in expenses in total (<strong>expenses only</strong>: office, hospitality,
+      living and travel &mdash; salaries are not included). A senator&rsquo;s total covers only the quarters they sat in this window.
+    </p>
+    {% macro legacy_rows(rows) %}{% for r in rows %}
+      <tr><td>{% if r.slug %}<a href="/senator/{{ r.slug }}">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td><td>{{ r.span }}</td><td>{{ r.quarters }}</td><td>{{ r.total }}</td><td>{{ r.avg }}</td></tr>
+    {% endfor %}{% endmacro %}
+    <div class="cost-tblwrap">
+      <table class="cost-tbl">
+        <thead><tr><th>Senator</th><th>Reporting years</th><th>Quarters</th><th>Total</th><th>Per quarter</th></tr></thead>
+        <tbody>{{ legacy_rows(senate_legacy.rows[:25]) }}</tbody>
+      </table>
+    </div>
+    {% if senate_legacy.rows|length > 25 %}
+    <details class="cost-more"><summary>Show the other {{ senate_legacy.rows|length - 25 }} senators</summary>
+      <div class="cost-tblwrap"><table class="cost-tbl">
+        <thead><tr><th>Senator</th><th>Reporting years</th><th>Quarters</th><th>Total</th><th>Per quarter</th></tr></thead>
+        <tbody>{{ legacy_rows(senate_legacy.rows[25:]) }}</tbody>
+      </table></div>
+    </details>
+    {% endif %}
+    <p class="cost-note">Ranked by total. Senators still on today&rsquo;s roster link to their profile; former senators have no profile page here and appear as
+      plain text. These are the Senate&rsquo;s own reporting quarters (December&ndash;February, March&ndash;May, June&ndash;August, September&ndash;November), so they do
+      not line up with the calendar-year caucus table above. A few quarters are net negative: a repayment. Source: Senate proactive disclosure,
+      <a href="https://sencanada.ca/en/ProActive/Archive" target="_blank" rel="noopener">archived quarterly expenditure reports</a>.</p>
+  </div>
+  {% endif %}
+
   {% if annual_costs and annual_costs.blocks %}
   <div class="cost-panel" data-cost-by-fiscal-year>
     <div class="cost-panel-h">Earlier years &mdash; what each party&rsquo;s MPs cost, by fiscal year</div>

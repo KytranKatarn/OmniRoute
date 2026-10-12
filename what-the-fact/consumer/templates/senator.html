@@ -291,6 +291,21 @@
   {% endif %}
   {% endif %}
 
+  {# Earlier expenses, Sept 2010 - June 2016 (parliament.senator_expenses_legacy). No caucus: those reports name no party. #}
+  {% if senator.legacy_expense_periods %}
+  {% macro money(v) %}{{ '\u2014' if not v else (('-' if v < 0 else '') ~ '${:,.0f}'.format(v|abs)) }}{% endmacro %}
+  <div class="wtf-sen-section">
+    <div class="wtf-sen-section-title">💳 Earlier quarterly expenses ({{ senator.legacy_expense_periods[-1].period_start.strftime('%b %Y') }} &ndash; {{ senator.legacy_expense_periods[0].period_end.strftime('%b %Y') }})</div>
+    <table class="wtf-sen-tbl"><thead><tr><th>Period</th><th class="r">Travel</th><th class="r">Hospitality</th><th class="r">Office</th><th class="r">Living</th><th class="r">Total</th></tr></thead><tbody>
+      {% for e in senator.legacy_expense_periods %}<tr><td class="dim">{{ e.period_start.strftime('%b %Y') }} &ndash; {{ e.period_end.strftime('%b %Y') }}</td>
+        <td class="r">{{ money(e.travel_cad) }}</td><td class="r">{{ money(e.hospitality_cad) }}</td><td class="r">{{ money(e.office_cad) }}</td>
+        <td class="r">{{ money(e.living_cad) }}</td><td class="r"><strong>{{ money(e.total_cad) }}</strong></td></tr>{% endfor %}
+    </tbody></table>
+    <div class="wtf-sen-src">Source: <a href="https://sencanada.ca/en/ProActive/Archive" target="_blank" rel="noopener">Senate proactive disclosure archive</a>.
+      These are the Senate&rsquo;s own reporting quarters, not calendar quarters. The reports for this period name no party, so no caucus is shown. Expenses only; salary is not included. A negative figure is a repayment.</div>
+  </div>
+  {% endif %}
+
   {# Biography #}
   {% if senator.biography %}
   <div class="wtf-sen-section">

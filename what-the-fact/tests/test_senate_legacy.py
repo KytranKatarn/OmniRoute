@@ -87,12 +87,12 @@ def engine():
         dbapi.create_function("now", 0, lambda: "2026-10-08 00:00:00")
     with eng.begin() as c:
         c.execute(text("ATTACH DATABASE ':memory:' AS parliament"))
-        c.execute(text("CREATE TABLE parliament.senators (id INTEGER PRIMARY KEY, slug TEXT, name TEXT, given_name TEXT, family_name TEXT)"))
+        c.execute(text("CREATE TABLE parliament.senators (id INTEGER PRIMARY KEY, slug TEXT, name TEXT, given_name TEXT, family_name TEXT, appointed_at DATE)"))
         c.execute(text("""CREATE TABLE parliament.senator_expenses_legacy (id INTEGER PRIMARY KEY AUTOINCREMENT, senator_id INTEGER,
             name_as_published TEXT, name_key TEXT, period_start DATE, period_end DATE, office_cad REAL, hospitality_cad REAL, living_cad REAL,
             travel_regular_cad REAL, travel_other_cad REAL, travel_cad REAL, total_cad REAL, source_code TEXT, source_url TEXT,
             synced_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE (period_end, source_code))"""))
-        c.execute(text("INSERT INTO parliament.senators VALUES (1,'doyle-norman','Norman E. Doyle','Norman E.','Doyle')"))
+        c.execute(text("INSERT INTO parliament.senators (id, slug, name, given_name, family_name) VALUES (1,'doyle-norman','Norman E. Doyle','Norman E.','Doyle')"))
     return eng
 
 
@@ -419,3 +419,78 @@ def test_migration_104_is_update_only_guarded_and_logs_itself():
     assert all("AND travel_" in chunk.split("WHERE")[1] for chunk in body.split("UPDATE")[1:] if "WHERE" in chunk)     # each guards the wrong value
     assert "\nBEGIN;" not in sql and "COMMIT;" not in sql and "'104'" in sql
     assert "GRANT" not in body and "DROP" not in body and "DELETE" not in body and "TRUNCATE" not in body
+
+
+# --- the identity gate: the family-name matcher must not attach a retired senator to an unrelated sitting namesake -------------------------
+
+
+@pytest.mark.parametrize("published, roster_given, agrees", [
+    ("BLACK, HON. DOUGLAS JOHN", "Robert", False),            # Doug Black (2013-) vs Robert Black (2018-): the live misattribution
+    ("HON. DENNIS PATTERSON", "Rebecca", False),               # Dennis vs Rebecca Patterson
+    ("HON. VERNON DARRYL WHITE", "Judy", False),               # Vern vs Judy White
+    ("SMITH, HON. DAVID P.", "Larry W.", False),                # two Smiths that were merged into one profile
+    ("SMITH, HON. LARRY", "Larry W.", True),
+    ("HON. HECTOR DANIEL LANG", "Daniel", True),               # goes by a middle name
+    ("ANDREYCHUK, HON. RAYNELL", "A. Raynell", True),          # the roster carries an initial first
+    ("VERNER, HON. JOS\u00c9E", "Jos\u00e9e", True),             # accents
+    ("HERVIEUX-PAYETTE, HON. CELINE", "C\u00e9line", True),
+    ("LOVELACE NICHOLAS, HON. S.M.", "Sandra M.", True),       # a leading initial
+    ("POULIN(CHARETTE), HON.MARIE-P.", "Marie-P.", True),
+    ("HON. MICHAEL DUFFY", "Mike", False),                     # a nickname: fail closed, never link on a guess
+    ("HON. DON MEREDITH", None, False),                        # nothing to compare: not an agreement
+])
+def test_given_agrees(published, roster_given, agrees):
+    assert sl.given_agrees(published, roster_given) is agrees
+
+
+def test_plausible_link_needs_the_roster_row_and_a_period_after_the_appointment():
+    from datetime import date
+    assert not sl.plausible_link("HON. DON MEREDITH", None, date(2013, 5, 31))                      # unknown roster entry
+    assert not sl.plausible_link("HON. DON MEREDITH", ("Don", date(2012, 12, 1)), date(2011, 5, 31))   # period ends before appointment
+    assert sl.plausible_link("HON. DON MEREDITH", ("Don", date(2012, 12, 1)), date(2013, 5, 31))
+    assert sl.plausible_link("HON. DON MEREDITH", ("Don", "2012-12-01"), date(2013, 5, 31))          # sqlite hands back text
+    assert sl.plausible_link("HON. DON MEREDITH", ("Don", None), date(2011, 5, 31))                   # appointment unknown: not a reason to refuse
+
+
+def _namesake_engine(engine, senator_id, name, given, family, appointed):
+    with engine.begin() as c:
+        c.execute(text("INSERT INTO parliament.senators VALUES (:i, :s, :n, :g, :f, :a)"),
+                  {"i": senator_id, "s": name.lower().replace(" ", "-"), "n": name, "g": given, "f": family, "a": appointed})
+
+
+def _syn(monkeypatch, key, published):
+    cells = [(192, "1.00"), (312, "2.00"), (429, "3.00"), (546, "4.00"), (652, "5.00")]
+    monkeypatch.setitem(_FRAGS, key, [list(f) for f in _row_runs(cells, published)])
+
+
+def test_the_loader_does_not_link_a_retired_senator_to_a_sitting_namesake(engine, monkeypatch):
+    _namesake_engine(engine, 2, "Robert Black", "Robert", "Black", "2018-02-15")
+    _syn(monkeypatch, "syn_BlackD", "BLACK, HON. DOUGLAS JOHN")
+    # the root cause, pinned: the shared family-name matcher WOULD have linked him to Robert
+    from ingest.parliament.senator_expenses import _load_senator_index
+
+    fam_idx, full_idx = _load_senator_index(engine)
+    assert sl.match_published("BLACK, HON. DOUGLAS JOHN", fam_idx, full_idx) == 2
+    st = _run(engine, {sl.url_for("2015-05-31", "BlackD"): b"syn_BlackD"}, [{"code": "BlackD", "family": "BLACK"}])
+    assert st["stored"] == 1 and len(st["implausible_link"]) == 1 and "2015-05-31/BlackD" in st["implausible_link"][0]
+    with engine.connect() as c:
+        sid, nk = c.execute(text("SELECT senator_id, name_key FROM parliament.senator_expenses_legacy")).one()
+    assert sid is None and nk == sl.name_key("BLACK, HON. DOUGLAS JOHN")                           # kept under his OWN name, not Robert's
+
+
+def test_the_loader_still_links_a_senator_known_by_a_middle_name(engine, monkeypatch):
+    _namesake_engine(engine, 3, "Daniel Lang", "Daniel", "Lang", "2009-01-01")
+    _syn(monkeypatch, "syn_LangH", "LANG, HON. HECTOR DANIEL")
+    st = _run(engine, {sl.url_for("2015-05-31", "LangH"): b"syn_LangH"}, [{"code": "LangH", "family": "LANG"}])
+    assert st["stored"] == 1 and st["implausible_link"] == []
+    with engine.connect() as c:
+        assert c.execute(text("SELECT senator_id FROM parliament.senator_expenses_legacy")).scalar() == 3
+
+
+def test_the_loader_does_not_link_a_period_that_ends_before_the_roster_senators_appointment(engine, monkeypatch):
+    _namesake_engine(engine, 4, "Don Meredith", "Don", "Meredith", "2018-01-01")
+    _syn(monkeypatch, "syn_MeredD", "HON. DON MEREDITH")
+    st = _run(engine, {sl.url_for("2015-05-31", "MeredD"): b"syn_MeredD"}, [{"code": "MeredD", "family": "MEREDITH"}])
+    assert st["stored"] == 1 and len(st["implausible_link"]) == 1
+    with engine.connect() as c:
+        assert c.execute(text("SELECT senator_id FROM parliament.senator_expenses_legacy")).scalar() is None

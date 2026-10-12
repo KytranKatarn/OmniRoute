@@ -1,5 +1,7 @@
 # Fleet Rules
 
+*Condensed 2026-10-12 (task 7179): retired-node rows and one pin narrative shortened; previous text: `git show b3bd529dc:.claude/rules/fleet.md`.*
+
 **Authoritative fleet reference.** (The old `starbase.md` was retired; its few unique facts — node RAM budget split, status badge labels — are not restated here, see git history.)
 
 ## Architecture
@@ -18,11 +20,9 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 | Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | 93 | None | 8GB | CPU outpost (Ashburn). **SSH `kytran@`** |
 | Starship - Defiant - USS-246 | starship-246 | 192.168.1.246 | 100.64.0.3 | 115 | RTX 3070 8GB (**Defiant**) | 32GB | LAN GPU, 7B. SSH `Famil@` |
 | Starship - Runabout - USS-245 | starship-245 | 192.168.1.245 | 100.64.0.6 | 120 | RTX 3050 4GB (**Runabout**) | 12GB | LAN GPU, small. SSH `Famil@` |
-| ~~Outpost - Singapore~~ | outpost-singapore | 156.67.217.86 | 100.64.0.5 | 125 | None | 8GB | 🔴 **RETIRED 2026-08-29** (`remote_nodes.status='retired'`) |
-| ~~Outpost - Lithuania~~ | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | 126 | None | 8GB | 🔴 **RETIRED 2026-08-29** |
-| ~~Outpost - United Kingdom~~ | outpost-uk | 2.24.130.153 | 100.64.0.8 | 127 | None | 8GB | 🔴 **RETIRED 2026-08-29** |
 | Citadel - United States | citadel-us | 2.25.133.122 | 100.64.0.10 | 128 | None | 31GB | **DR warm-standby base** (boston-2): watch products + DR replica + ingress Caddy. SSH `root@` |
-| ~~Beacon~~ | beacon | 2.25.170.252 | 100.64.0.11 | 129 | None | 4GB | 🔴 **GONE — the VPS was removed by Hostinger 2026-08-28.** Citadel inherited the front door as a container literally named `beacon`. Do NOT ssh to this IP; 5 DR scripts did and the whole ingress layer was inert (#3245/#3248). |
+
+**Retired / gone (do not use):** Outpost Singapore (id 125, mesh .5), Lithuania (126, .7) and UK (127, .8) — retired 2026-08-29 (`remote_nodes.status='retired'`). **Beacon** (id 129, mesh .11, 2.25.170.252) — the VPS was removed by Hostinger 2026-08-28; Citadel inherited the front door as a container literally named `beacon`. Do NOT ssh to that IP: 5 DR scripts did and the whole ingress layer was inert (#3245/#3248).
 
 **NEVER** use public hostnames (`platform.kytranempowerment.com`) for inter-cluster traffic — Hostinger CDN caps at 60s, bypasses queue.
 
@@ -37,7 +37,7 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 ### Hub has THREE tailscale presences (don't confuse — KB #270520)
 - `.4 archie-starbase` = host headscale tailscaled (`/var/lib/tailscale-hs`, `--tun=tailscale1`) — THE platform/dispatch hub (`BRIDGE_URL`, :3000, direct via public IP).
 - `.1 archie-starbase-subnet` = the `archie_tailscale` Docker container (docker-compose.yml ~L760-800) — hub-LAN subnet router (`--advertise-routes=192.168.1.0/24 --ssh`). Route currently **Enabled=false** (dormant; platform reaches hub via `.4`). Do NOT delete — re-registers via authkey.
-  - ⚠️ **Control-plane pin (PR #2344, task #4998).** Docker DNS forwards to the host's Tailscale resolver, which **SERVFAILs** for this zone, so `mesh.kytranempowerment.com` MUST be pinned in `extra_hosts` → **currently Citadel `2.25.133.122`** (measured live 2026-09-08: `HostConfig.ExtraHosts` = `["mesh.kytranempowerment.com:2.25.133.122"]`). ⚠️ This line said **Beacon `2.25.170.252`** until then — a host removed 2026-08-28 — and reading it cost real time during the 09-08 outage. Verify with `docker inspect archie_tailscale -f '{{json .HostConfig.ExtraHosts}}'`, never from this file. It previously pinned the hub `192.168.1.200` to reach NPM on :443; **NPM was decommissioned 2026-06-27 and the hub has no :443 listener**, which silently killed this node for 23 days (RestartCount 219, `last seen` frozen at the decommission timestamp).
+  - ⚠️ **Control-plane pin (PR #2344, task #4998).** Docker DNS forwards to the host's Tailscale resolver, which **SERVFAILs** for this zone, so `mesh.kytranempowerment.com` MUST be pinned in `extra_hosts` → **currently Citadel `2.25.133.122`**. Verify with `docker inspect archie_tailscale -f '{{json .HostConfig.ExtraHosts}}'`, never from this file (it once named the removed Beacon and cost real time in the 09-08 outage). It previously pinned the hub `192.168.1.200` to reach NPM on :443; NPM was decommissioned 2026-06-27 and the hub has no :443 listener, which silently killed this node for 23 days.
   - **Keep `--login-server=https://mesh.kytranempowerment.com` byte-identical** to headscale's `config.yaml` `server_url`. Do NOT "simplify" it to the hub's `:8095` — headscale hands clients back its configured `server_url`, so a mismatch is a latent break. Only the DNS pin may move.
   - **`docker compose restart` does NOT apply `extra_hosts`** — use `docker compose up -d --no-deps archie_tailscale`. Identity survives (state in named volume `tailscale_hub_data`), so no re-registration → the identity invariants below stay intact.
   - Verify: `docker exec archie_headscale headscale nodes list` → node 15 `connected=online`. KB #282680 (user) / #282681 (coder) / #282676 (mistake).

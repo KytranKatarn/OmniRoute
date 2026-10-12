@@ -1,5 +1,7 @@
 # Multi-Repo Workspace — FOUR git repos live under /mnt/archie_brain, plus a 5th on GitHub only
 
+*Condensed 2026-10-12 (task 7179): two long table rows and the review section shortened. Full previous text: `git show b3bd529dc:.claude/rules/multi-repo.md`.*
+
 **Established 2026-07-29 (task #5401).** `/mnt/archie_brain` is not one repository. Several
 products are their **own independent git repos nested inside it**, and almost every tool that
 says "the repo" silently means *the caller's* repo. That distinction has now caused two
@@ -13,8 +15,8 @@ separate defects in one day, so it is written down.
 | `/mnt/archie_brain/kytran-business-suite` | `KytranKatarn/kytran-business-suite` | **Own repo.** KBS, :8091 |
 | `/mnt/archie_brain/kytran-creed` | own repo | C.R.E.E.D., :8086 |
 | `/mnt/archie_brain/kytran-server-manager` | `KytranKatarn/kytran-system-operations` | KSO, :8085 |
-| *(not cloned locally)* | `KytranKatarn/kytran-what-the-fact` | 🟡 **History mirror only, created 2026-09-05.** NOT yet the deployed source — `archie-platform`'s `what-the-fact/` still is, until a separate gated cutover (new DB + F.O.R.G.E. token grant + deploy retarget) happens. Full history preserved via `git subtree split` (600 app commits + the old static-landing-page history merged under `static-site/`). Exists so design tooling has a real repo to connect to. See `what-the-fact/.design-sync/conventions.md` for the live-vs-mirror status. |
-| *(canonical checkout: `/mnt/standalone/websites/creed-ai.org`)* | `KytranKatarn/creed-ai-site` | 🟡 **Reachable via a SYMLINK, not a subdirectory — `find` without `-L` reports it empty and that is a false negative, not a fact.** `archie-platform`'s `website/creed-ai.org` is `mode 120000` → `/mnt/standalone/websites/creed-ai.org` (commit `bafeee32c`, 2026-05-31, "symlink website/creed-ai.org mirror to canonical creed-ai-site repo" — deliberate, mirrors the `kytran-creed/` pattern). That target IS a real, populated git checkout of THIS repo: 34+ live HTML pages, its own `.design-sync/`, `fr/`+`papers/` subpaths. A 2026-09-19 investigation ran a plain `find` on the symlink path, got no output (symlinks aren't followed by default), and wrongly concluded the directory was "completely empty" / "never the real source" — corrected the same day. `platform_v2/services/deploy_service.py`'s local-path mapping for `creed-ai.org` was therefore CORRECT all along; nothing there needs fixing. ⚠️ A second, throwaway clone also exists at `/mnt/archie_brain/creed-ai-site` (used to build+push PR #12) — that is NOT the deploy source; after any PR merges upstream, `git pull` must happen INSIDE `/mnt/standalone/websites/creed-ai.org` (which has its own uncommitted local changes — modified `data/translations.json` + new portrait JPGs, matching DHQ approval id 18541's flagged-file list) for the fix to actually go live. Full push+admin access on the repo (see write-token table below). |
+| *(not cloned locally)* | `KytranKatarn/kytran-what-the-fact` | 🟡 **History mirror only (2026-09-05)** — NOT the deployed source: `archie-platform`'s `what-the-fact/` still is, until a separate gated cutover (new DB + F.O.R.G.E. token grant + deploy retarget). Editing the mirror does not change the live site. See `what-the-fact/.design-sync/conventions.md`. |
+| *(canonical checkout: `/mnt/standalone/websites/creed-ai.org`)* | `KytranKatarn/creed-ai-site` | 🟡 **Reachable via a SYMLINK, not a subdirectory**: `archie-platform`'s `website/creed-ai.org` (mode 120000) → that checkout, a real populated git repo of this one; `find` without `-L` reports it empty, a false negative. `/mnt/archie_brain/creed-ai-site` is a throwaway clone, NOT the deploy source: after a PR merges, `git pull` INSIDE `/mnt/standalone/websites/creed-ai.org` (it has its own uncommitted local changes) for the fix to go live. |
 
 ⚠️ `standalone/media_hub` is **NOT** in this list — it is a *subdirectory* of archie-platform.
 That is exactly why tooling written against media_hub breaks on the other three: media_hub is
@@ -87,31 +89,16 @@ missing credential. The tokens live in the `archie_platform` container.
 
 ## Review + merge across repos
 
-- **Only `archie-platform` and the 4 watch repos are in `GITHUB_REPOS`.** KBS, creed and KSO are
-  **not polled**, so their PRs never reach Repair Bay on their own and `_automerge_governance_ok`
-  fails closed — correctly, but it means nothing can ever auto-merge there.
-- Review one explicitly: `review_pr(<pr>, repo="KytranKatarn/kytran-business-suite")` —
-  `FORGE_REVIEW_TOKEN` is read-scoped across all repos.
-- ⚠️ **The write token is NOT archie-platform-scoped** — corrected 2026-08-23 (#5981) after
-  probing `GET /repos/{repo}` → `.permissions` with the container's own `GITHUB_TOKEN`:
+- **Only `archie-platform` and the 4 watch repos are in `GITHUB_REPOS`.** KBS, creed and KSO are **not polled**, so their PRs never reach Repair Bay and `_automerge_governance_ok` fails closed (correct, but nothing can auto-merge there). Review one explicitly: `review_pr(<pr>, repo="KytranKatarn/kytran-business-suite")` — `FORGE_REVIEW_TOKEN` is read-scoped across all repos.
+- ⚠️ **The write token is NOT archie-platform-scoped** (probed 2026-08-23, #5981, `GET /repos/{repo}` → `.permissions` with the container's own `GITHUB_TOKEN`):
 
   | repo | write token |
   |---|---|
   | `archie-platform`, `archie-code`, `kytran-system-operations`, `kytran-creed`, `kytran-what-the-fact` | **push + admin** |
   | the 4 watch repos, `kytran-business-suite` | 404 — no access |
-  | `creed-ai-site` | **push + admin** — but only verified against the session's own `gh` CLI auth (2026-09-19), NOT the `archie_platform` container's own `GITHUB_TOKEN`. Re-probe from inside the container (`GET /repos/{repo}` → `.permissions`) before assuming F.O.R.G.E./automerge tooling has the same access. |
+  | `creed-ai-site` | **push + admin**, verified only against the session's own `gh` auth (2026-09-19), NOT the container's `GITHUB_TOKEN` — re-probe from inside the container before assuming F.O.R.G.E./automerge has the same access |
 
-  `kytran-what-the-fact` added 2026-09-05 — Kytran manually added it to the fine-grained PAT's
-  repository allowlist (no API exists for that step) and it was verified live the same way:
-  `admin: true, push: true` on the real token. Not yet in `GITHUB_REPOS`, so it isn't
-  auto-polled — review it explicitly via `review_pr(<pr>, repo="KytranKatarn/kytran-what-the-fact")`
-  until/unless it's added to the poll list, same as KBS/creed/KSO below.
-
-  So "human-merge-only" holds for the **watch products and KBS** — but NOT for archie-code, KSO or
-  creed, where the token can merge and administer. **Never reason about merge safety from assumed
-  token absence**; the governance gate (`_automerge_governance_ok`, and the `coo_window` manifest
-  naming an explicit `(repo, PR)` pair) is the control that actually binds. Re-probe before trusting
-  this table — a token's grants can change without any code change.
+  Repos outside `GITHUB_REPOS` (e.g. `kytran-what-the-fact`) are reviewed explicitly via `review_pr(<pr>, repo=...)`. "Human-merge-only" holds for the watch products and KBS, but NOT for archie-code, KSO or creed. **Never reason about merge safety from assumed token absence**: the governance gate (`_automerge_governance_ok`, and the `coo_window` manifest naming an explicit `(repo, PR)` pair) is the control that binds. Re-probe before trusting this table; a token's grants can change without any code change.
 
 ## Databases — KBS is NOT self-contained (corrected 2026-08-30, task #6129)
 

@@ -1,5 +1,7 @@
 # Operational State — DO NOT SKIP
 
+*Condensed 2026-10-12 (task 7179): DR-quorum and DNS correction narratives shortened. Full previous text: `git show b3bd529dc:.claude/rules/operational-state.md`.*
+
 ## Product Registry (What Exists — Don't Rebuild)
 
 | Product | Port | Subdomain | Container | Location |
@@ -60,37 +62,22 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 | `Famil@100.64.0.3\|pwsh` (USS-246) | PowerShell | `probe_hub.ps1` |
 | `Famil@100.64.0.6\|pwsh` (USS-245) | PowerShell | `probe_hub.ps1` |
 
-🔴 **A vantage votes ONLY on the stdout sentinel `PROBE_RESULT=up|down`. Anything
-else — including a non-zero exit with no sentinel — is `unreachable` and is IGNORED by
-`count_down`.** Never re-derive the vote from an exit code: PowerShell's `exit 1` over
-`ssh "powershell -NoProfile -Command -"` was measured arriving as **exit 0**, and the old
-"non-255 means down" rule made both Starships vote `down` against a verifiably UP hub —
-two phantom votes that would hold a 2-of-3 quorum permanently and auto-promote on the
-first mesh hiccup.
+🔴 **A vantage votes ONLY on the stdout sentinel `PROBE_RESULT=up|down`.** Anything else — including a non-zero exit with no sentinel — is `unreachable` and IGNORED by `count_down`. Never re-derive the vote from an exit code: PowerShell's `exit 1` over `ssh "powershell -NoProfile -Command -"` arrives as exit 0, and the old "non-255 means down" rule made both Starships vote `down` against a verifiably UP hub (phantom votes that would auto-promote on the first mesh hiccup).
 
-⚠️ **The majority is PARTLY CORRELATED and this is an accepted trade**: two of the three
-vantages sit on the hub's own LAN, so a LAN-wide fault can produce two *real* down-votes
-for a hub that is fine from the internet. outpost-us is the only remote vantage left after
-the 2026-08-29 sunset. Adding a second geographically independent one removes it.
-
-**Adding a vantage is not done until its probe is verified live** — a vantage that cannot
-emit the sentinel silently degrades to a non-voter (fail-safe, but invisible).
+⚠️ The majority is PARTLY CORRELATED (accepted trade): two of three vantages sit on the hub's own LAN, so a LAN-wide fault can yield two real down-votes for a hub that is fine from the internet; outpost-us is the only remote vantage left after the 2026-08-29 sunset. **A new vantage is not done until its probe is verified live** — one that cannot emit the sentinel silently degrades to a non-voter.
 
 ## DNS (kytranempowerment.com)
 
-_(Audited + pruned 2026-06-11 — KB #272182. ⚠️ Verify public DNS from an EXTERNAL resolver; the hub's AdGuard split-horizon resolves many names to 192.168.1.200 locally.)_
+_(Audited + pruned 2026-06-11 — KB #272182. Verify public DNS from an EXTERNAL resolver: the hub's AdGuard split-horizon resolves many names to 192.168.1.200 locally.)_
 
-- Root (@) + `www` → Hostinger CDN (cdn.hstgr.net)
-- **Citadel (2.25.133.122)** = external front door for hub services — ⚠️ **a CONTAINER named `beacon`** (caddy:2-alpine), config on the HOST at `/opt/archie-ingress/Caddyfile` bind-mounted to `/etc/caddy/Caddyfile` inside it: platform, consciousness, business, creed, mediahub, media, jellyfin, plex, adguard, nagios, server, store, archie, bridge, claude, codex, terminal, sandbox, shop, mesh.
-  ⚠️ This line said **Beacon `2.25.170.252` (host Caddy)** until 2026-09-08. That VPS was removed by Hostinger on 2026-08-28. Both halves were wrong — the host AND the mechanism — and both cost real time: the DR ingress layer ssh'd to the dead IP and ran `systemctl reload caddy` against a machine with no caddy binary, so failover could not move public traffic (#3245/#3248). Verify with `docker ps --filter name=^beacon$` **on Citadel**, not from here.
-- **Citadel/boston-2 (2.25.133.122)** = products (`archie_ingress_caddy`, `/opt/archie-ingress/Caddyfile` → local containers at 172.18.0.1:<port>): gov, market, legal, civic, wtf, mail-admin(removed), mta-sts, voice.
-  ⚠️ **`mail.` is NOT here — it is HUB-fronted (192.168.1.200).** This line said "products + mail" and listed `mail` until 2026-07-26 (task #5245), contradicting the product table above, which has always correctly shown Stalwart Mail on the **Hub**. Settled by probing, not by reading: hub `192.168.1.200` → 25/587/993 **OPEN**; Citadel `2.25.133.122` → 25/993 **closed**. `mta-sts` genuinely IS on Citadel (a static policy host), which is most likely how `mail` got lumped in with it. This false claim caused a real error twice in one day: it led to `mail.` being repointed at Citadel during the #5219 recovery (a per-host grep matched `mx: mail.…` inside Citadel's MTA-STS **policy text**, not a vhost — KB #284817), and then the first draft of `scripts/dr/adguard_flip.sh` encoded the same mapping and would have repointed it again under `--apply`. `adguard_flip.sh` therefore leaves `mail.` OUT of its target map deliberately — reported, never rewritten. Do not add it back without re-probing. `voice` = reserved/planned (HA voice, no service yet). `what-the-fact.com`/`.tech` apexes also → here.
-- **outpost-us (76.13.107.109)** = `api`, `relay`, `outpost-us` only (infra: api→hub mesh, SMTP relay, socks, sync, node_api). NO product stacks.
-- Mail TXT/MX: SPF `v=spf1 a mx ip4:76.13.107.109 -all`, DMARC `p=reject`, `_mta-sts` (mta-sts host now SERVES the policy — **mode=testing**; enforce gated on relay cert, task #4044), `_smtp._tls`, DKIM `stalwart`+`default`, MX `10 mail` / `20 relay`, `outpost-relay`.
-- ⚠️ Old hub public IP **153.68.195.85 is STALE** — hub moved (now a dynamic residential IP); external traffic enters via **Beacon**. (NPM **decommissioned 2026-06-27** — Beacon is the sole hub front door; hub :80/:443 has no listener.)
-- **Pruned 2026-06-11** (#4032 follow-on): deleted `thenews`/`n8n`/`fdtest`/`ftp`/`webmail`/`mail-admin`/`brainstorm`/`proxy` A-records + legacy `zmail._domainkey` TXT (stale / no-service / ftp=takeover-risk external IP). All confirmed NXDOMAIN; Beacon Caddy blocks excised.
-- ~~NPM (nginx_proxy_manager)~~: **DECOMMISSIONED 2026-06-27** (was 17 proxy hosts) — removed from `docker-compose.yml` + the infra_heartbeat/fleet_jobs critical-container watch lists; container `docker rm -f`'d. Beacon is the sole hub front door. Rollback: restore compose block + `AdGuardHome.yaml.bak` + `docker compose up`. ADR-853, PR #1953/#1954, KB mistake #276161. The Security Network 'NPM Proxy' management feature was REMOVED in **PR #1956** (merged 2026-06-27): `npm_service.py` deleted; `domain_npm_routes.py` keeps ONLY the live domain/DNS CRUD (no proxy-host endpoints); verified 2026-07-15 — zero `NPMService`/`NPM_API_URL`/`NPM_ADMIN` refs remain in `platform_v2/`. STILL-OPEN (owner-via-UI, NOT code): 2 stale AdGuard rewrites (proxy.*, brainstorm.*) — remove via the AdGuard UI, KB #276163 (do NOT text-edit the YAML).
-- `creed-ai.org` → Hostinger shared hosting (separate domain)
+- Root (@) + `www` → Hostinger CDN (cdn.hstgr.net); `creed-ai.org` → Hostinger shared hosting.
+- **Citadel (2.25.133.122) fronts the hub's services as a CONTAINER named `beacon`** (caddy:2-alpine; config on the HOST at `/opt/archie-ingress/Caddyfile`, bind-mounted to `/etc/caddy/Caddyfile`): platform, consciousness, business, creed, mediahub, media, jellyfin, plex, adguard, nagios, server, store, archie, bridge, claude, codex, terminal, sandbox, shop, mesh. The original Beacon VPS (2.25.170.252) was removed by Hostinger 2026-08-28; DR scripts that ssh'd to it could not move public traffic (#3245/#3248). Verify with `docker ps --filter name=^beacon$` **on Citadel**.
+- **Citadel products** (`archie_ingress_caddy` → local containers at 172.18.0.1:<port>): gov, market, legal, civic, wtf, mta-sts, voice (reserved, no service); `what-the-fact.com`/`.tech` apexes also resolve here.
+- ⚠️ **`mail.` is HUB-fronted (192.168.1.200), NOT Citadel** — settled by probing (hub 25/587/993 open, Citadel 25/993 closed); `mta-sts` is the one on Citadel (static policy host). A wrong "mail is on Citadel" line once got `mail.` repointed during the #5219 recovery (KB #284817). `scripts/dr/adguard_flip.sh` leaves `mail.` OUT of its target map deliberately — do not add it back without re-probing.
+- **outpost-us (76.13.107.109)** = `api`, `relay`, `outpost-us` only (api→hub mesh, SMTP relay, socks, sync, node_api). NO product stacks.
+- Mail: SPF `v=spf1 a mx ip4:76.13.107.109 -all`, DMARC `p=reject`, `_mta-sts` (policy served, **mode=testing**; enforce gated on the relay cert, task #4044), `_smtp._tls`, DKIM `stalwart`+`default`, MX `10 mail` / `20 relay`.
+- Old hub public IP **153.68.195.85 is STALE** (the hub is now a dynamic residential IP); external traffic enters via Citadel's `beacon` container. **NPM was decommissioned 2026-06-27** (ADR-853, PR #1953/#1954/#1956): the hub has no :80/:443 listener and `npm_service.py` is gone. Rollback = restore the compose block + `AdGuardHome.yaml.bak`. STILL OPEN (owner, via the AdGuard UI, never by text-editing the YAML): 2 stale rewrites `proxy.*`, `brainstorm.*` (KB #276163).
+- Stale records (`thenews`, `n8n`, `fdtest`, `ftp`, `webmail`, `mail-admin`, `brainstorm`, `proxy`, legacy `zmail._domainkey`) were pruned 2026-06-11 (#4032), all NXDOMAIN.
 
 ## Consciousness Module Status
 

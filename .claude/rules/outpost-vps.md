@@ -1,51 +1,21 @@
 # Outpost VPS Rules (Global Fleet)
 
 All VPS fleet nodes follow this pattern. Hard-won from outpost-us setup.
-**Authoritative alongside `fleet.md` — both apply.**
+**Authoritative alongside `fleet.md` — both apply.** *(Condensed 2026-10-12, task 7179; previous text: `git show b3bd529dc:.claude/rules/outpost-vps.md`.)*
 
 ---
 
-## Global Outpost Map
+## Outpost fleet (authoritative node map: `fleet.md` + KB #270521)
 
-Names below are the 2026-06-04 canonical set (display `node_name` / mesh `given_name`). Full roster + ship-class + audit: `fleet.md` + KB #270521.
-
-| Display name | mesh given_name | Public IP | Mesh IP | Region | DB ID | Status |
-|------|------|-----------|---------|--------|-------|--------|
-| Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | us-east (Ashburn VA) | 93 | Online (CPU outpost; SSH `kytran@`) |
-| ~~Outpost - Singapore~~ | outpost-singapore | 156.67.217.86 | 100.64.0.5 | asia-east (Singapore) | 125 | 🔴 **RETIRED 2026-08-29** (`remote_nodes.status='retired'`; subscription cancelled) |
-| ~~Outpost - Lithuania~~ | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | eu-west (Vilnius, LT) | 126 | 🔴 **RETIRED 2026-08-29** |
-| ~~Outpost - United Kingdom~~ | outpost-uk | 2.24.130.153 | 100.64.0.8 | eu-west (Manchester, UK) | 127 | 🔴 **RETIRED 2026-08-29** |
-| Citadel - United States | citadel-us | 2.25.133.122 | 100.64.0.10 | us-east (Boston) | 128 | Online — **DR warm-standby base** (boston-2): watch products + DR replica. SSH `root@` |
-| ~~Beacon~~ | beacon | 2.25.170.252 | 100.64.0.11 | us-east (Boston) | 129 | 🔴 **GONE — VPS removed by Hostinger 2026-08-28.** Citadel inherited the front door as a CONTAINER named `beacon`. Do not ssh to this IP (it timed out for 5 DR scripts — #3245/#3248). |
-
-**Update this table when each node enrolls (mesh IP + DB ID).** Renames are display-only (`node_name` + headscale `given_name`); `node_id` is unchanged.
-
----
+- **Live:** outpost-us (76.13.107.109, mesh 100.64.0.2, DB id 93, SSH `kytran@`, infra-only) and Citadel (2.25.133.122, mesh 100.64.0.10, DB id 128, SSH `root@`, DR warm-standby + products + the front door as a container named `beacon`).
+- **Retired:** Singapore, Lithuania, UK (2026-08-29); the Beacon VPS was removed by Hostinger 2026-08-28 — never ssh to 2.25.170.252.
+- Renames are display-only (`node_name` + Headscale `given_name`; `node_id` unchanged). Update the roster when a node enrolls.
 
 ## Outpost Hardware Baseline (outpost-us)
 
-| Item | Value |
-|------|-------|
-| CPU | AMD EPYC 9354P |
-| RAM | 7.8 GB |
-| GPU | None — CPU inference only |
-| OS | Ubuntu 22.04.5 LTS |
-| SSH user | `kytran` (passwordless sudo — **NOT limited to docker**, see note) |
-| Root login | Disabled |
-| Auth | SSH key `~/.ssh/id_ed25519` |
+AMD EPYC 9354P, 7.8 GB RAM, no GPU (CPU inference only), Ubuntu 22.04.5, ssh user `kytran` (key auth, root login disabled).
 
----
-
-> ⚠️ **`kytran`'s passwordless sudo is BROADER than docker** (measured 2026-08-26). This table said
-> "passwordless sudo for docker" until then; in fact `sudo -n true` succeeds and `sudo rm -rf` works.
-> It came up decommissioning the stale product tree: `static/img/*` logo files are **root-owned**, so
-> a plain `rm -rf` as `kytran` **partially failed** — 5 of 8 dirs removed, 3 refused. Read the `rm`
-> output; the command's exit status alone reads as success.
->
-> **Product deployments were REMOVED from outpost-us on 2026-08-26** (`/opt/archie-products`
-> 98 MB → 4 K). The node is now genuinely infra-only, matching `operational-state.md`. Before
-> deleting any VPS product dir, run `git status` in it first — four of the eight were git checkouts
-> with dirty trees holding files that existed in no commit (KB #296223).
+> ⚠️ **`kytran`'s passwordless sudo is BROADER than docker** (`sudo -n true` and `sudo rm -rf` work). Root-owned files (e.g. `static/img/*`) make a plain `rm -rf` as `kytran` partially fail while the exit status reads success — read the output. **Product deployments were REMOVED from outpost-us on 2026-08-26** (infra-only, matching `operational-state.md`). Before deleting any VPS product dir run `git status` in it first: four of eight were git checkouts holding files that existed in no commit (KB #296223).
 
 ## Outpost Tier Capabilities
 

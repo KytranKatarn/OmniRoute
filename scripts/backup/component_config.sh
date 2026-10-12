@@ -21,8 +21,11 @@ START=$(date +%s)
 RAW_TAR="$OUT_DIR/.config_raw_$(backup_ts).tar.gz"
 ENC_FILE="$OUT_DIR/config_$(backup_ts).tar.gz.enc"
 
-SENTINEL_FILE=$(mktemp -t backup_sentinel.XXXXXX)
-echo "archie-backup-sentinel $(date -u +%FT%TZ)" > "$SENTINEL_FILE"
+# The sentinel is staged as .backup_sentinel and written INTO the one-pass archive below. It used to be appended afterwards with
+# `tar -rzf`, which GNU tar cannot do on a compressed archive ("Cannot update compressed archives"); the `|| true` hid that, the
+# sentinel never landed, and verify_backups.sh's config roundtrip failed every week (task #7182).
+SENTINEL_STAGE_DIR=$(mktemp -d)
+echo "archie-backup-sentinel $(date -u +%FT%TZ)" > "$SENTINEL_STAGE_DIR/.backup_sentinel"
 
 # Tar the platform config items; --ignore-failed-read so missing dirs WARN, not fail.
 tar --ignore-failed-read -czf "$RAW_TAR" \
@@ -30,14 +33,9 @@ tar --ignore-failed-read -czf "$RAW_TAR" \
     .env docker-compose.yml .mcp.json CLAUDE.md \
     .claude/rules \
     nginx secrets \
+    -C "$SENTINEL_STAGE_DIR" .backup_sentinel \
     2>>"$BACKUP_LOG_FILE"
-
-# Append the sentinel (rename to .backup_sentinel inside archive via tar --transform).
-# Simpler: stage a named copy, then -rzf it.
-SENTINEL_STAGE_DIR=$(mktemp -d)
-cp "$SENTINEL_FILE" "$SENTINEL_STAGE_DIR/.backup_sentinel"
-tar -rzf "$RAW_TAR" -C "$SENTINEL_STAGE_DIR" .backup_sentinel 2>>"$BACKUP_LOG_FILE" || true
-rm -rf "$SENTINEL_STAGE_DIR" "$SENTINEL_FILE"
+rm -rf "$SENTINEL_STAGE_DIR"
 
 # Encrypt with AES-256-CBC + PBKDF2 (200k iterations).
 openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \

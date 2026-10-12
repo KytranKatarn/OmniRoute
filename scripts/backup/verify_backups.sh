@@ -70,9 +70,14 @@ mapfile -t BUNDLE_ARR < <(set +o pipefail; find "$BACKUP_ROOT" -type f -name "*_
 if (( ${#BUNDLE_ARR[@]} > 0 )); then
     for bundle in "${BUNDLE_ARR[@]}"; do
         [[ -z "$bundle" ]] && continue
-        if git bundle verify "$bundle" >/dev/null 2>&1; then
+        rc=0
+        verify_gitbundle "$bundle" || rc=$?
+        if (( rc == 0 )); then
             log_info "verify OK: gitbundle ($(basename "$bundle"))"
             mark_verified "$bundle"
+        elif (( rc == 2 || rc == 3 )); then
+            # cannot be verified (unrecognised name / source repo gone): say so loudly, but it is not evidence of corruption
+            log_warn "verify SKIP: gitbundle ($(basename "$bundle")) — no source repo to verify against (rc=$rc)"
         else
             log_error "verify FAIL: gitbundle ($bundle)"
             mark_failed "$bundle" "git bundle verify failed"

@@ -132,6 +132,54 @@ load_backup_env() {
 # ---------- Utilities ----------
 backup_ts() { date -u +'%Y%m%d_%H%M%S'; }
 
+# gitbundle_repos: one "<name>:<path>" line per repo that gets a git bundle. This is the SINGLE definition: component_gitbundle.sh
+# creates bundles from it and verify_backups.sh maps a bundle back to its source repo through it, so the two cannot drift.
+# The platform repo is always the root; every other subdir with a .git is auto-discovered (task #2077), name normalised
+# (kytran-business-suite -> kytran_business_suite). GITBUNDLE_ROOT exists for tests; production leaves it at /mnt/archie_brain.
+gitbundle_repos() {
+    local root="${GITBUNDLE_ROOT:-/mnt/archie_brain}" sub base
+    echo "archie_brain:${root}"
+    for sub in "${root}"/*/; do
+        [[ -d "${sub}.git" ]] || continue
+        base="$(basename "${sub%/}")"
+        [[ "$base" == ".git" ]] && continue
+        echo "${base//-/_}:${sub%/}"
+    done
+}
+
+# verify_gitbundle <bundle>: verify an INCREMENTAL/FULL bundle inside its OWN source repo. `git bundle verify` needs the repository
+# the bundle was cut from: run with no repo (cron's cwd is /home/kytran) it ALWAYS fails ("need a repository to verify a bundle"),
+# and run in the wrong repo it fails on missing prerequisite commits. The weekly verify therefore failed every Sunday while the
+# bundles themselves were fine (task #7182). `git bundle verify` alone is also too weak (it never reads the pack), so the pack is
+# validated too. Returns 0 verified, 1 verification failed, 2 name not <repo>_<kind>_<ts>.bundle,
+# 3 no source repo found (cannot be verified: not the same thing as corrupt).
+verify_gitbundle() {
+    local bundle="$1" file name entry repo=""
+    file="$(basename "$bundle")"
+    if [[ "$file" =~ ^(.+)_(incremental|full)_[0-9]{8}_[0-9]{6}\.bundle$ ]]; then
+        name="${BASH_REMATCH[1]}"
+    else
+        return 2
+    fi
+    while IFS= read -r entry; do
+        [[ "${entry%%:*}" == "$name" ]] && repo="${entry#*:}"
+    done < <(gitbundle_repos)
+    [[ -n "$repo" && -d "$repo/.git" ]] || return 3
+    # 1. header + prerequisites (cheap). Any failure is normalised to 1: git exits 128 on a fatal, which is not our contract.
+    git -C "$repo" bundle verify "$bundle" >/dev/null 2>&1 || return 1
+    # 2. `bundle verify` does NOT read the pack: a truncated or bit-flipped bundle still passes it. Unbundle into a THROWAWAY object
+    #    directory (the live repo is only an alternate, to resolve an incremental bundle's thin-pack bases): index-pack then checks
+    #    every object. Nothing is written to the repo, and refs are not touched by `unbundle`.
+    local tmp rc=1 objdir
+    objdir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)/objects"
+    tmp="$(mktemp -d)" || return 1
+    mkdir -p "$tmp/pack"
+    GIT_OBJECT_DIRECTORY="$tmp" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objdir" \
+        git -C "$repo" bundle unbundle "$bundle" >/dev/null 2>&1 && rc=0
+    rm -rf "$tmp"
+    return "$rc"
+}
+
 dir_size_bytes() {
     du -sb "$1" 2>/dev/null | awk '{print $1}' || echo 0
 }

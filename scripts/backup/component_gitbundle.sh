@@ -24,15 +24,7 @@ fi
 # other local subdir is auto-discovered by the presence of a .git dir. This
 # stops us from missing newly-cloned standalones (archie-code was missed in
 # the original hardcoded list — task #2077).
-REPOS=( "archie_brain:/mnt/archie_brain" )
-for sub in /mnt/archie_brain/*/; do
-    [[ -d "${sub}.git" ]] || continue
-    base="$(basename "${sub%/}")"
-    [[ "$base" == ".git" ]] && continue
-    # Normalize name: kytran-business-suite -> kytran_business_suite
-    name="${base//-/_}"
-    REPOS+=( "${name}:${sub%/}" )
-done
+mapfile -t REPOS < <(gitbundle_repos)   # shared with verify_backups.sh (lib_common.sh)
 
 TOTAL_SIZE=0
 CRITICAL_FAILED=0   # only the platform repo (archie_brain) failing blocks the run

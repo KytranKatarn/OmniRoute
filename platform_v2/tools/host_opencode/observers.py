@@ -399,26 +399,39 @@ def cgroup_pids_live(path, *, read_fn=None, walk_fn=None):
     """
     import os as _os
 
-    read = read_fn
-    if read is None:
-
-        def read(p):
-            with open(p, "r") as handle:
-                return handle.read()
-
-    walk = walk_fn if walk_fn is not None else _os.walk
-
     if not isinstance(path, str) or not path:
         return None
     try:
         collected = set()
-        for root, _dirs, files in walk(path):
+        unreadable = False
+
+        def _onerror(_err):
+            nonlocal unreadable
+            unreadable = True
+
+        if walk_fn is not None:
+            walk_iter = walk_fn(path)
+        else:
+            walk_iter = _os.walk(path, onerror=_onerror)
+
+        if read_fn is not None:
+            read = read_fn
+        else:
+            def read(p):
+                with open(p, "r") as handle:
+                    return handle.read()
+
+        for root, _dirs, files in walk_iter:
+            if unreadable:
+                return None
             if "cgroup.procs" not in files:
                 continue
             text = read(_os.path.join(root, "cgroup.procs"))
             for token in str(text).split():
                 if token.lstrip("-").isdigit():
                     collected.add(int(token))
+        if unreadable:
+            return None
     except Exception:
         return None
     return sorted(collected)
@@ -453,7 +466,7 @@ def github_api_get_live(url, token, *, get_fn=None):
         data = resp.json()
     except Exception:
         return None
-    return data if isinstance(data, dict) else None
+    return data if isinstance(data, (dict, list)) else None
 
 
 def make_live_host_observer(
@@ -507,7 +520,7 @@ def make_live_publication_observer(repo, branch, sha, token, *, api_get_fn=None)
         return make_publication_observer(
             repo,
             branch,
-            get_push_status=lambda: {"confirmed": True, "sha": sha, "pending_ops": []},
+            get_push_status=lambda: {"confirmed": True, "sha": sha},
             get_pr_status=lambda: _pr_view(pulls, repo, branch, sha),
         )(assignment_id)
 

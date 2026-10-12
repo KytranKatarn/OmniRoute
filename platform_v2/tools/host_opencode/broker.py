@@ -851,6 +851,43 @@ def _unprovisioned_observer(name: str):
     return _observer
 
 
+def _provision_observers(journal_db: str):
+    """Create live observers from environment configuration.
+
+    Falls back to unprovisioned stubs when required env vars are missing,
+    preserving the fail-closed contract.
+    """
+    from tools.host_opencode.observers import (
+        make_live_docker_observer,
+        make_live_host_observer,
+        make_live_publication_observer,
+    )
+
+    docker = make_live_docker_observer()
+    host = make_live_host_observer(
+        service_unit=os.environ.get("BROKER_SERVICE_UNIT", ""),
+        cgroup_path="/sys/fs/cgroup",
+    )
+
+    github_token = os.environ.get("GITHUB_TOKEN", "")
+    if not github_token:
+        publication = _unprovisioned_observer("publication")
+    else:
+        def publication(assignment_id):
+            entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
+            sealed_entry = _sealed_entry(entries)
+            if sealed_entry is None:
+                return None
+            sealed = _reconstruct_sealed_assignment(sealed_entry)
+            if sealed is None or not sealed.repo or not sealed.branch:
+                return None
+            return make_live_publication_observer(
+                sealed.repo, sealed.branch, sealed.task_id, github_token
+            )(assignment_id)
+
+    return docker, host, publication
+
+
 def check_trusted_completion(
     journal_entries: List[Dict[str, Any]],
     details: Dict[str, Any],
@@ -1190,15 +1227,17 @@ def broker_main() -> None:
                     print(f"[{BROKER_ERROR}] Rejected untrusted peer", file=sys.stderr)
                     continue
 
+                journal_db = _journal_db_path()
+                docker_obs, host_obs, pub_obs = _provision_observers(journal_db)
                 handle_broker_connection(
                     conn,
                     private_key_pem,
                     journal_append,
-                    journal_db=_journal_db_path(),
+                    journal_db=journal_db,
                     keys_dir=_keys_dir(),
-                    docker_observe=_unprovisioned_observer("docker"),
-                    host_observe=_unprovisioned_observer("host"),
-                    publication_observe=_unprovisioned_observer("publication"),
+                    docker_observe=docker_obs,
+                    host_observe=host_obs,
+                    publication_observe=pub_obs,
                     peer_uid=peer_uid,
                 )
 

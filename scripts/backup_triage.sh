@@ -141,10 +141,18 @@ done
 # ----- [4/4] Config tar — AES-256-CBC encrypted (BACKUP_CONFIG_PASSPHRASE) -----
 # Decrypt: scripts/backup/decrypt_restore.sh <file>.enc BACKUP_CONFIG_PASSPHRASE
 log "[4/4] Config tar (encrypting with AES-256-CBC)..."
+# The verifier (scripts/backup/verify_backups.sh, config roundtrip) decrypts THIS archive and looks for .backup_sentinel. Nothing wrote it
+# here (only the unused component_config.sh did), so the weekly roundtrip failed forever (task #7182). Write it INTO the single pass: a tar
+# cannot append to a compressed archive, and the encrypted copy below is what ships.
+SENTINEL_STAGE="$RUN/config/.sentinel_stage"
+mkdir -p "$SENTINEL_STAGE"
+echo "archie-backup-sentinel $(date -u +%FT%TZ)" > "$SENTINEL_STAGE/.backup_sentinel"
 tar --ignore-failed-read -czf "$RUN/config/config_${TS}.tar.gz" \
     -C /mnt/archie_brain \
     .env docker-compose.yml .mcp.json CLAUDE.md \
-    .claude/rules nginx secrets 2>>"$LOG" || true
+    .claude/rules nginx secrets \
+    -C "$SENTINEL_STAGE" .backup_sentinel 2>>"$LOG" || true
+rm -rf "$SENTINEL_STAGE"
 if [[ -n "${BACKUP_CONFIG_PASSPHRASE:-}" ]] && [[ -s "$RUN/config/config_${TS}.tar.gz" ]]; then
     if openssl enc -aes-256-cbc -pbkdf2 -iter 200000 \
         -in  "$RUN/config/config_${TS}.tar.gz" \

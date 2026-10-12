@@ -366,3 +366,26 @@ def test_the_pack_scratch_dir_is_on_the_backup_disk_not_tmp_and_is_cleaned_up(sa
     env = {**env, "TMPDIR": "/nonexistent/tmpdir"}  # if the scratch dir used TMPDIR/tmp, mktemp would fail -> rc 1
     assert bash(f"source {LIB}; verify_gitbundle {out}", env).returncode == 0
     assert not list((tmp / "backups").glob(".verify_pack.*")), "scratch directory was left behind"
+
+
+def test_the_nightly_triage_config_archive_carries_the_sentinel_the_verifier_looks_for(tmp_path):
+    """The archive the verifier decrypts is written by backup_triage.sh, not component_config.sh: it must hold .backup_sentinel too."""
+    src = (Path(__file__).resolve().parents[2] / "scripts" / "backup_triage.sh").read_text()
+    start = src.index("# ----- [4/4] Config tar")
+    end = src.index('if [[ -n "${BACKUP_CONFIG_PASSPHRASE:-}" ]] && [[ -s')
+    block = src[start:end].replace("/mnt/archie_brain", str(tmp_path / "root"))
+    root = tmp_path / "root"
+    (root / ".claude" / "rules").mkdir(parents=True)
+    (root / ".env").write_text("X=1\n")
+    run = tmp_path / "run"
+    (run / "config").mkdir(parents=True)
+    script = f'log() {{ :; }}\nRUN={run}\nTS=T1\nLOG={tmp_path / "l.log"}\n' + block
+    r = subprocess.run(["bash", "-c", script], capture_output=True, text=True, env={"PATH": os.environ["PATH"]})
+    assert r.returncode == 0, r.stderr
+    archive = run / "config" / "config_T1.tar.gz"
+    with tarfile.open(archive) as t:
+        names = t.getnames()
+        assert ".backup_sentinel" in names and ".env" in names, names
+        first = t.extractfile(".backup_sentinel").read().decode().splitlines()[0]
+    assert first.startswith("archie-backup-sentinel"), first
+    assert not (run / "config" / ".sentinel_stage").exists(), "staging dir left behind"

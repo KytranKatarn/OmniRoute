@@ -321,3 +321,48 @@ def test_an_incremental_bundle_with_prerequisites_verifies_through_the_alternate
         ["git", "-C", str(repo), "bundle", "create", str(b), f"{base}..HEAD"], check=True, capture_output=True
     )  # has prerequisites
     assert bash(f"source {LIB}; verify_gitbundle {b}", env).returncode == 0
+
+
+def test_the_nightly_triage_bundle_names_are_verified_not_skipped(sandbox):
+    """backup_triage.sh (the cron producer) names bundles <name>_<ts>.bundle with 'kytran-' stripped and no kind. The first fix only
+    parsed component_gitbundle.sh's names and skipped ALL FOUR real bundles on the first production run."""
+    tmp, root, env = sandbox
+    for repo_dir, bundle_name in (
+        ("kytran-business-suite", "business-suite"),
+        ("kytran-server-manager", "server-manager"),
+        ("kytran-creed", "creed"),
+    ):
+        repo = mkrepo(root / repo_dir)
+        out = tmp / "backups" / f"{bundle_name}_20261012_060001.bundle"
+        subprocess.run(["git", "-C", str(repo), "bundle", "create", str(out), "--all"], check=True, capture_output=True)
+        assert bash(f"source {LIB}; verify_gitbundle {out}", env).returncode == 0, bundle_name
+    top = tmp / "backups" / "archie_brain_20261012_060001.bundle"
+    mkrepo(root / "unused-sub")  # the root itself must be a repo for the platform bundle
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    (root / "r.txt").write_text("x")
+    subprocess.run(["git", "-C", str(root), "add", "r.txt"], check=True)
+    subprocess.run(["git", "-C", str(root), "-c", "commit.gpgsign=false", "commit", "-qm", "r"], check=True)
+    subprocess.run(["git", "-C", str(root), "bundle", "create", str(top), "--all"], check=True, capture_output=True)
+    assert bash(f"source {LIB}; verify_gitbundle {top}", env).returncode == 0
+
+
+def test_a_corrupt_triage_named_bundle_fails_rather_than_skips(sandbox):
+    tmp, root, env = sandbox
+    repo = mkrepo(root / "kytran-creed")
+    out = tmp / "backups" / "creed_20261012_060001.bundle"
+    subprocess.run(["git", "-C", str(repo), "bundle", "create", str(out), "--all"], check=True, capture_output=True)
+    data = bytearray(out.read_bytes())
+    data[-40] ^= 0xFF
+    out.write_bytes(bytes(data))
+    assert bash(f"source {LIB}; verify_gitbundle {out}", env).returncode == 1
+
+
+def test_the_pack_scratch_dir_is_on_the_backup_disk_not_tmp_and_is_cleaned_up(sandbox):
+    """/tmp is a small tmpfs: a first version ran out of space unbundling the real 150 MB bundle and called it corrupt."""
+    tmp, root, env = sandbox
+    repo = mkrepo(root / "kytran-creed")
+    out = tmp / "backups" / "creed_20261012_060001.bundle"
+    subprocess.run(["git", "-C", str(repo), "bundle", "create", str(out), "--all"], check=True, capture_output=True)
+    env = {**env, "TMPDIR": "/nonexistent/tmpdir"}  # if the scratch dir used TMPDIR/tmp, mktemp would fail -> rc 1
+    assert bash(f"source {LIB}; verify_gitbundle {out}", env).returncode == 0
+    assert not list((tmp / "backups").glob(".verify_pack.*")), "scratch directory was left behind"

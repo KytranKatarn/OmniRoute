@@ -147,6 +147,9 @@ gitbundle_repos() {
     done
 }
 
+# _bundle_key <name>: canonical form so every producer's spelling of a repo meets (kytran-business-suite, kytran_business_suite, business-suite).
+_bundle_key() { local k="${1,,}"; k="${k#kytran[-_]}"; echo "${k//-/_}"; }
+
 # verify_gitbundle <bundle>: verify an INCREMENTAL/FULL bundle inside its OWN source repo. `git bundle verify` needs the repository
 # the bundle was cut from: run with no repo (cron's cwd is /home/kytran) it ALWAYS fails ("need a repository to verify a bundle"),
 # and run in the wrong repo it fails on missing prerequisite commits. The weekly verify therefore failed every Sunday while the
@@ -156,13 +159,19 @@ gitbundle_repos() {
 verify_gitbundle() {
     local bundle="$1" file name entry repo=""
     file="$(basename "$bundle")"
-    if [[ "$file" =~ ^(.+)_(incremental|full)_[0-9]{8}_[0-9]{6}\.bundle$ ]]; then
+    # TWO producers write bundles with DIFFERENT names: component_gitbundle.sh -> <repo>_<incremental|full>_<ts>.bundle, and the nightly
+    # backup_triage.sh -> <name>_<ts>.bundle with "kytran-" stripped (business-suite, server-manager, creed, archie_brain). The nightly
+    # one is what the cron actually produces, so it must parse too (a first version only knew the former and skipped every real bundle).
+    if [[ "$file" =~ ^(.+)_(incremental|full)_[0-9]{8}_[0-9]{6}\.bundle$ ]] || [[ "$file" =~ ^(.+)_[0-9]{8}_[0-9]{6}\.bundle$ ]]; then
         name="${BASH_REMATCH[1]}"
     else
         return 2
     fi
+    local want have
+    want="$(_bundle_key "$name")"
     while IFS= read -r entry; do
-        [[ "${entry%%:*}" == "$name" ]] && repo="${entry#*:}"
+        have="$(_bundle_key "${entry%%:*}")"
+        [[ "$have" == "$want" ]] && repo="${entry#*:}"
     done < <(gitbundle_repos)
     [[ -n "$repo" && -d "$repo/.git" ]] || return 3
     # 1. header + prerequisites (cheap). Any failure is normalised to 1: git exits 128 on a fatal, which is not our contract.
@@ -172,7 +181,9 @@ verify_gitbundle() {
     #    every object. Nothing is written to the repo, and refs are not touched by `unbundle`.
     local tmp rc=1 objdir
     objdir="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)/objects"
-    tmp="$(mktemp -d)" || return 1
+    # Scratch lives on the BACKUP disk, not /tmp: the pack is as large as the bundle (150 MB+ and growing) and /tmp is a small tmpfs, where
+    # a first version ran out of space and reported a perfectly good bundle as corrupt.
+    tmp="$(mktemp -d "${BACKUP_ROOT:-${TMPDIR:-/tmp}}/.verify_pack.XXXXXX")" || return 1
     mkdir -p "$tmp/pack"
     GIT_OBJECT_DIRECTORY="$tmp" GIT_ALTERNATE_OBJECT_DIRECTORIES="$objdir" \
         git -C "$repo" bundle unbundle "$bundle" >/dev/null 2>&1 && rc=0

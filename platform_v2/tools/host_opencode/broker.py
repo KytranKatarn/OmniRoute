@@ -857,7 +857,7 @@ def _unprovisioned_observer(name: str):
     return _observer
 
 
-def _provision_observers(journal_db: str):
+def _provision_observers(journal_db: str, *, reap_observe=None):
     """Create live observers from environment configuration.
 
     Falls back to unprovisioned stubs when required env vars are missing,
@@ -874,25 +874,26 @@ def _provision_observers(journal_db: str):
     service_unit = os.environ.get("BROKER_SERVICE_UNIT", "")
     cgroup_path = os.environ.get("BROKER_CGROUP_PATH", "/sys/fs/cgroup")
 
-    def host(assignment_id):
+    def host(cgroup, assignment_id):
         entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
         sealed_entry = _sealed_entry(entries)
         if sealed_entry is None:
             return None
         sealed = _reconstruct_sealed_assignment(sealed_entry)
-        if sealed is None:
+        if sealed is None or cgroup != sealed.cgroup or reap_observe is None:
             return None
         return make_live_host_observer(
             service_unit=service_unit,
             cgroup_path=cgroup_path,
             expected_pids=sealed.runner_pids,
-            reap_confirmed_fn=lambda: True,
+            reap_confirmed_fn=lambda pid: reap_observe(assignment_id, pid),
         )(sealed.cgroup, assignment_id)
 
     github_token = os.environ.get("GITHUB_TOKEN", "")
     if not github_token:
         publication = _unprovisioned_observer("publication")
     else:
+
         def publication(assignment_id):
             entries = journal_get_entries(assignment_id=assignment_id, db_path=journal_db)
             sealed_entry = _sealed_entry(entries)
@@ -903,9 +904,9 @@ def _provision_observers(journal_db: str):
                 return None
             if not sealed.commit_sha:
                 return None
-            return make_live_publication_observer(
-                sealed.repo, sealed.branch, sealed.commit_sha, github_token
-            )(assignment_id)
+            return make_live_publication_observer(sealed.repo, sealed.branch, sealed.commit_sha, github_token)(
+                assignment_id
+            )
 
     return docker, host, publication
 

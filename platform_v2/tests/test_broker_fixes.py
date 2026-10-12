@@ -198,6 +198,44 @@ class BrokerSecurityTests(unittest.TestCase):
         self.assertIsNotNone(resp["assignment"], f"assign failed: {resp}")
         return resp["assignment"]
 
+    def test_provisioned_host_requires_owned_reaping(self):
+        from unittest.mock import patch
+        from tools.host_opencode import observers
+
+        self._assign()
+        aid = _ASSIGNMENT["assignment_id"]
+        cg = _ASSIGNMENT["cgroup"]
+        with patch.object(observers, "systemd_state_live", return_value="inactive"), patch.object(
+            observers, "cgroup_pids_live", return_value=[]
+        ):
+            _, host, _ = B._provision_observers(self.db)
+            self.assertIsNone(host(cg, aid))
+            calls = []
+
+            def reaped(assignment_id, pid):
+                calls.append((assignment_id, pid))
+                return True
+
+            _, host, _ = B._provision_observers(self.db, reap_observe=reaped)
+            self.assertIsNone(host("other-cgroup", aid))
+            self.assertEqual(calls, [])
+            self.assertEqual(host(cg, aid), {"cgroup_empty": True, "service": "stopped", "reaped": True})
+            self.assertEqual(calls, [(aid, 4242)])
+            docker, _, pub, _ = _terminal_observers(_ASSIGNMENT["container_name"])
+            response = self._handle(
+                {
+                    "type": "complete_assignment",
+                    "assignment_id": aid,
+                    "details": {
+                        "container_id": _ASSIGNMENT["container_name"],
+                        "docker_state": "stopped",
+                        "stop_observation": "stopped",
+                    },
+                },
+                observers=(docker, host, pub),
+            )
+            self.assertTrue(response.get("trusted"), response)
+
     def test_untrusted_peer_rejected(self):
         """UID 99999 is rejected even though the broker itself runs trusted."""
         self.assertFalse(

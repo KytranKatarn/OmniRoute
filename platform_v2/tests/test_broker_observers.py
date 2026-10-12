@@ -23,7 +23,6 @@ from containment import (
 )
 from observers import make_publication_observer, observe_docker, observe_host
 
-
 FULL_A = "a" * 64
 FULL_B = "b" * 64
 
@@ -825,6 +824,20 @@ class LiveClientTests(unittest.TestCase):
         )
         self.assertEqual(calls, [])
         self.assertIsNone(github_api_get_live("https://api.github.com/repos/o/r", ""))
+
+    def test_live_publication_cannot_invent_operation_settlement(self):
+        from observers import make_live_publication_observer
+
+        calls = []
+        observer = make_live_publication_observer(
+            "o/r",
+            "main",
+            "a" * 40,
+            "test-token",
+            api_get_fn=lambda *args: calls.append(args) or {},
+        )
+        self.assertIsNone(observer("a-1"))
+        self.assertEqual(calls, [])
 
     def test_make_live_factories_bind(self):
         from observers import (

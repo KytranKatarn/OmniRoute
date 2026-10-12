@@ -417,6 +417,7 @@ def cgroup_pids_live(path, *, read_fn=None, walk_fn=None):
         if read_fn is not None:
             read = read_fn
         else:
+
             def read(p):
                 with open(p, "r") as handle:
                     return handle.read()
@@ -497,69 +498,17 @@ def make_live_host_observer(
 
 
 def make_live_publication_observer(repo, branch, sha, token, *, api_get_fn=None):
-    """Observer closure reconciling one push + PR state via live GitHub reads.
+    """Fail closed until a supervisor-owned publication fence is available.
 
-    Push confirmation comes from the compare endpoint (base...head); PR
-    state from a head-filtered pulls listing. Any ambiguity stays UNKNOWN.
+    GitHub snapshots cannot establish that no push or PR creation is still in
+    flight. An empty listing cannot justify pending_ops=[]. Preserve the factory
+    interface without issuing settlement evidence from these snapshots.
     """
-    getter = api_get_fn if api_get_fn is not None else github_api_get_live
 
     def _observe(assignment_id):
-        compare = getter(f"https://api.github.com/repos/{repo}/compare/{branch}...{sha}", token)
-        if not isinstance(compare, dict):
-            return None
-        # Confirmation requires the compare to reference our exact head SHA.
-        head_commit = compare.get("head_commit") or {}
-        commits = compare.get("commits") or []
-        shas = {head_commit.get("sha")} | {c.get("sha") for c in commits if isinstance(c, dict)}
-        if sha not in shas:
-            return None
-        pulls = getter(f"https://api.github.com/repos/{repo}/pulls?state=open&head={sha}", token)
-        if pulls is None:
-            return None
-        return make_publication_observer(
-            repo,
-            branch,
-            get_push_status=lambda: {"confirmed": True, "sha": sha, "pending_ops": []},
-            get_pr_status=lambda: _pr_view(pulls, repo, branch, sha),
-        )(assignment_id)
+        return None
 
     return _observe
-
-
-def _pr_view(pulls, repo, branch, sha):
-    """Reduce a pulls listing to the observer's PR view. Open PRs whose
-    head matches win; otherwise UNKNOWN (absence needs a namespace-wide
-    listing the live path does not claim)."""
-    if isinstance(pulls, dict):
-        items = pulls.get("items", [])
-    elif isinstance(pulls, list):
-        items = pulls
-    else:
-        return {"state": "unknown"}
-    if not isinstance(items, list):
-        return {"state": "unknown"}
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        head = item.get("head") or {}
-        base = item.get("base") or {}
-        if (
-            isinstance(head, dict)
-            and head.get("sha") == sha
-            and isinstance(base, dict)
-            and base.get("repo", {}).get("full_name") == repo
-            and base.get("ref") == branch
-        ):
-            state = item.get("state", "open")
-            return {
-                "state": state if state in ("open", "merged") else "unknown",
-                "head_sha": sha,
-                "repo": repo,
-                "branch": branch,
-                "pending_ops": [] if state in ("open", "merged") else ["unknown"],
-            }
-    return {"state": "unknown"}
 
 
 def json_dumps_safe(value):

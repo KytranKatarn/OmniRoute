@@ -896,7 +896,12 @@ def check_trusted_completion(
     if docker_observe is None or host_observe is None or publication_observe is None:
         return False
     try:
-        observed_docker = docker_observe(sealed.container_name, sealed.assignment_id)
+        try:
+            observed_docker = docker_observe(
+                sealed.container_name, sealed.assignment_id, pinned_full_id=sealed.container_id
+            )
+        except TypeError:
+            observed_docker = docker_observe(sealed.container_name, sealed.assignment_id)
         observed_host = host_observe(sealed.cgroup, sealed.assignment_id)
         observed_pub = publication_observe(sealed.assignment_id)
     except Exception:

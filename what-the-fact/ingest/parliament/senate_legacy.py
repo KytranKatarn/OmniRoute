@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -36,7 +37,8 @@ PERIODS = [
     ("2015-09-01", "2015-11-30"), ("2015-12-01", "2016-02-29"), ("2016-03-01", "2016-06-30"),
 ]
 COLUMNS = ("office", "hospitality", "living", "travel_regular", "travel_other")      # left -> right in every period
-_AMT = re.compile(r"^\(?-?[\d,]+\.\d\d\)?$")
+_AMOUNT = re.compile(r"\(?-?\d{1,3}(?:,\d{3})*\.\d\d\)?")   # one amount, thousands grouping included; cut out of the glued Quarter row
+_CELL_GAP = 30.0        # points: runs this close to the previous run on the Quarter row are pieces of ONE amount (widest seen: 22.7)
 # header text legible in every layout -> the column it labels (the 'Regular'/'Other' travel headers are garbled before late 2012)
 _HEADER_COL = (("Staff & Office", 0), ("Office(", 0), ("Hospitality", 1), ("Living Expenses", 2), ("Regular", 3), ("Other", 4))
 _TITLE = re.compile(r"\bHON\b\.?", re.I)                 # 'HON. X' and, in some periods, 'HON X' (no period)
@@ -82,21 +84,41 @@ def parse_fragments(fr: list) -> dict | None:
     if not q:
         return None
     qy = q[0][0]
-    # Amounts on the 'Quarter / Trimestre' row. A run may hold ONE amount (usual) or ALL FIVE after the label (2010 'DuffyM'), so
-    # every run on the row is tokenised, left to right; the position of a token inside a multi-amount run is its order in the run.
+    # The Quarter row is read as ONE character stream, not cell by cell. A cell is a run of text runs within _CELL_GAP points of each other
+    # (kerning shifts the pieces of one amount by up to ~23pt: '2,041' then '.58'), but an amount can also START in one cell and END in the
+    # next, a whole column away ('0.00 4,' ... '867.92' is one run '0 4,' and four pieces at x=654: 4,867.92 — the old cell-by-cell reading
+    # either refused such a row or, in 3 stored rows, kept only '867.92'). So the cells are glued left to right in stream order and the
+    # amounts are CUT OUT of the glued text with a strict amount grammar: an amount ends at its first '.dd', which is unambiguous.
+    #   * A dropped fragment cannot hide: after the amounts are removed, anything left over on the row (a stray '5,9', a word) makes the
+    #     whole row None. Fail closed, never a wrong figure.
+    #   * Thousands grouping is part of the grammar, so a mis-glue ('5,9'+'2.50' = '5,92.50') matches no amount, leaves '5,' over, and
+    #     the row is refused rather than invented.
+    #   * Exactly five amounts, in header order (layout_ok below), or None.
+    # A footnote '*' printed beside (or at the same x as) a figure is a marker, not part of it: '-2,599.30','*' must read -2,599.30.
     row = [f for f in fr if abs(f[0] - qy) < 3]
-    # Some periods print one amount as SEVERAL runs at the same x, a character or two each ('3','2',',','5','4','2','.','36' for
-    # 32,542.36): runs sharing an x are one cell, so join them in stream order before tokenising.
-    cells: dict = {}
-    for _y, x, t in row:
-        cells.setdefault(round(x), []).append(t)
-    amts = []                                                   # [(x, text)]
-    for x in sorted(cells):
-        text_ = "".join(cells[x]) if len(cells[x]) > 1 and not any(len(t) > 12 for t in cells[x]) else " ".join(cells[x])
-        for k, tok in enumerate(t for t in text_.replace("Quarter / Trimestre", " ").split() if _AMT.match(t)):
-            amts.append((x + k * 1e-3, tok))
-    if len(amts) != 5:
+    cells: list = []                                            # [[first_x, last_x, [texts]]], left to right
+    for _y, x, t in sorted(row, key=lambda f: f[1]):
+        if cells and x - cells[-1][1] <= _CELL_GAP:
+            cells[-1][1] = x
+            cells[-1][2].append(t)
+        else:
+            cells.append([x, x, [t]])
+    stream, owner = "", []                                      # the glued row, and for each character the cell it came from
+    for ci, (_x0, _x1, ts) in enumerate(cells):
+        piece = "".join(ts)
+        stream += piece
+        owner += [ci] * len(piece)
+    stream = re.sub(r"Quarter / Trimestre|\*", lambda m: " " * len(m.group()), stream)          # same length: owner[] stays aligned
+    found = list(_AMOUNT.finditer(stream))
+    if _AMOUNT.sub(" ", stream).strip():
+        return None                                             # text on the row that is not part of an amount: refuse the row, never guess
+    if len(found) != 5:
         return None
+    amts, per_cell = [], {}                                     # [(x, text)]
+    for m in found:
+        ci = owner[m.start()]
+        amts.append((round(cells[ci][0]) + per_cell.get(ci, 0) * 1e-3, m.group()))
+        per_cell[ci] = per_cell.get(ci, 0) + 1
     vals = [_money(a[1]) for a in amts]
     # English name: a run with 'HON.' that is not the French 'L'HON.' twin
     names = [f[2] for f in sorted(fr, key=lambda f: (-f[0], f[1])) if _TITLE.search(f[2]) and not f[2].upper().startswith("L'")]
@@ -127,8 +149,26 @@ def normalise_name(name: str | None) -> tuple[str | None, str | None]:
     n = re.sub(r"\s+", " ", n)
     if "," in n:
         fam, giv = n.split(",", 1)
+        fam = re.sub(r"\s+(?:JR|SR)\.?$", "", fam.strip(), flags=re.I)      # 'ENVERGA JR., HON. TOBIAS C.' -> family 'Enverga'
         return fam.strip().title(), giv.strip().title()
     return None, n.title()
+
+
+_KEY_DROP = frozenset({"hon", "jr", "sr", "the", "l"})
+
+
+def name_key(name: str | None) -> str | None:
+    """A deterministic identity key for a PUBLISHED name, independent of the form it was printed in: accents folded, lower-case
+    words only, the honorific / Jr / Sr and single-letter initials dropped, the rest sorted. 'CHAPUT, HON. MARIA' and
+    'HON. MARIA CHAPUT' share one key; 'ENVERGA JR., HON. TOBIAS C.' and 'HON. TOBIAS C. ENVERGA' share another. It exists so a
+    senator who is not on the roster (so senator_id stays NULL, deliberately) still groups across periods. It never GUESSES:
+    two forms that differ by a real word ('Pierre Claude Nolin' vs 'Pierre Nolin') get different keys — a missing link is
+    visible and fixable, a wrong merge is not."""
+    if not name:
+        return None
+    folded = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii").lower()
+    words = sorted(w for w in re.findall(r"[a-z]+", folded) if len(w) > 1 and w not in _KEY_DROP)
+    return " ".join(words) or None
 
 
 def _get(url: str, timeout: int = 60):
@@ -216,15 +256,16 @@ def run_legacy_sync(engine, period_from: str = "2010-09-01", period_to: str = "2
             with engine.begin() as conn:
                 conn.execute(text("""
                     INSERT INTO parliament.senator_expenses_legacy
-                        (senator_id, name_as_published, period_start, period_end, office_cad, hospitality_cad, living_cad,
+                        (senator_id, name_as_published, name_key, period_start, period_end, office_cad, hospitality_cad, living_cad,
                          travel_regular_cad, travel_other_cad, travel_cad, total_cad, source_code, source_url)
-                    VALUES (:sid, :nm, :ps, :pe, :o, :h, :l, :tr, :to, :t, :tot, :code, :url)
+                    VALUES (:sid, :nm, :nk, :ps, :pe, :o, :h, :l, :tr, :to, :t, :tot, :code, :url)
                     ON CONFLICT (period_end, source_code) DO UPDATE SET
                         senator_id = EXCLUDED.senator_id, name_as_published = EXCLUDED.name_as_published,
+                        name_key = EXCLUDED.name_key,
                         office_cad = EXCLUDED.office_cad, hospitality_cad = EXCLUDED.hospitality_cad, living_cad = EXCLUDED.living_cad,
                         travel_regular_cad = EXCLUDED.travel_regular_cad, travel_other_cad = EXCLUDED.travel_other_cad,
                         travel_cad = EXCLUDED.travel_cad, total_cad = EXCLUDED.total_cad, synced_at = now()"""),
-                    {"sid": sid, "nm": rec["name"], "ps": start, "pe": end, "o": rec["office"], "h": rec["hospitality"],
+                    {"sid": sid, "nm": rec["name"], "nk": name_key(rec["name"]), "ps": start, "pe": end, "o": rec["office"], "h": rec["hospitality"],
                      "l": rec["living"], "tr": rec["travel_regular"], "to": rec["travel_other"], "t": travel, "tot": rec["total"],
                      "code": code, "url": url_for(end, code)})
             n += 1

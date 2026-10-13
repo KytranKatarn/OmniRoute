@@ -101,3 +101,19 @@ def test_a_dump_that_does_not_validate_is_rejected_and_leaves_no_file_anywhere(s
 def test_the_hub_copy_is_checksum_verified_before_citadel_is_cleaned(sandbox):
     src = SCRIPT.read_text()
     assert src.index("sha256sum") < src.index("rm -f '${remote_file}'")
+
+
+def test_vps_pull_reaches_the_usb_tier_and_retention_keeps_two_weeklies_there():
+    """The pulled databases used to exist only on the hub's primary disk (Drive is too small): the USB must carry them too, and the
+    retention table must say how many, or the USB tier would fill the disk or prune them away."""
+    import importlib.util
+
+    root = SCRIPT.parent
+    spec = importlib.util.spec_from_file_location("tier_sync_usb", root / "tier_sync_usb.py")
+    usb = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(usb)
+    assert "vps_pull" in usb.TIER_COMPONENTS
+    spec = importlib.util.spec_from_file_location("retention_prune", root / "retention_prune.py")
+    rp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rp)
+    assert rp.RETENTION["vps_pull"]["usb"] == (0, 2, 0)

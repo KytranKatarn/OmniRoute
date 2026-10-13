@@ -6,7 +6,7 @@ Uses the tar-pipe-through-archie_platform pattern because /mnt/external-backup
 is root-owned on the host (kytran can read but not write), while archie_platform
 has rw inside the container.
 
-Components that land on USB (spec §6): database, code, gitbundles, config, volumes.
+Components that land on USB (spec §6): database, code, gitbundles, config, volumes, vps_pull.
 
 Writes one row per component to backup_log with tier='usb'.
 
@@ -21,7 +21,9 @@ import time
 from pathlib import Path
 
 USB_ROOT = Path(os.environ.get("BACKUP_USB", "/mnt/external-backup"))
-TIER_COMPONENTS = {"database", "code", "gitbundles", "config", "volumes"}
+# vps_pull (the Citadel-hosted WTF / Gov / Civic / Legal / Market databases, pulled weekly) lands here too: before this they existed on the hub's
+# primary disk ONLY (Drive is too small for them), i.e. off Citadel but not off the hub (task #7183).
+TIER_COMPONENTS = {"database", "code", "gitbundles", "config", "volumes", "vps_pull"}
 
 
 def log_db(component: str, status: str, path: str, size: int, dur_ms: int, err: str = "") -> None:

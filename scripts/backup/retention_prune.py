@@ -41,7 +41,7 @@ RETENTION = {
     "volumes": {"primary": (14, 4, 0), "usb": (0, 4, 0), "gdrive": (0, 0, 0)},
     "convlogs": {"primary": (0, 8, 0), "usb": (0, 0, 0), "gdrive": (0, 0, 0)},
     "kb_export": {"primary": (0, 12, 6), "usb": (0, 0, 0), "gdrive": (0, 0, 6)},
-    "vps_pull": {"primary": (0, 8, 3), "usb": (0, 0, 0), "gdrive": (0, 0, 0)},
+    "vps_pull": {"primary": (0, 8, 3), "usb": (0, 2, 0), "gdrive": (0, 0, 0)},
     "monthly_full": {"primary": (0, 0, 6), "usb": (0, 0, 0), "gdrive": (0, 0, 6)},
     "pre-change": {"primary": (20, 0, 0), "usb": (0, 0, 0), "gdrive": (0, 0, 0)},
 }

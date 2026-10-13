@@ -16,6 +16,15 @@ Spec: `design-handoff/<design file>`. Rules: `.design-sync/DESIGN-BRIEF.md`.
 > - `/claims`: live is an honest empty state (0 claims, six 0% tiles); the design's table is sample data. Not a port gap.
 > - `/parties`: header has no eyebrow and is left-aligned; the party-card grid is deliberately not built (see row 20).
 
+> **Automated structural verification, 2026-10-13** (`node scripts/port_screenshots.js --widths 1280,390`, all 49 mapped design pages, live vs mockup; `node scripts/port_screenshots.js --check` first proves the rig: emoji font present and rendering, mockup assets served, fonts loaded, bar detector proven; `--only <slug>` re-checks pages and merges into the manifest; `--report-only` regenerates `REPORT.md`). Output (PNGs, `manifest.json`, `REPORT.md`) is generated, not committed. Structure is compared, not pixels. First full run found, and these are now fixed and deployed:
+> - **Phone (390px) horizontal overflow** on `/methodology`, `/weather/city`, `/weather/accuracy` and home (#3831, re-measured 0px on live).
+> - **9 guaranteed 404 favicon requests per `/news` view** (#3830; the 9 icon-less publishers show the badge, the documented render, because they refuse our self-identifying fetcher).
+> - **18 page titles in a different font from the mockup's Newsreader** (#3834 Georgia on 4 pages, #3836 + #3837 mono/sans on 13; mockup size/weight/tracking, phones step down; `/municipal` and `/economy` lost their all-caps).
+>
+> **Still open:** `/weather` lacks 3 mockup sections (Forecast accuracy, Fire spread prediction, Recent climate and science stories). **Title alignment:** the mockup centres most titles; live is left-aligned on several pages (municipal, ethics, economy, chain, cross-watch ...). The rig's alignment check measures the h1 *box* centre, which is the page centre for any full-width block, so it **under-reports** this: fix the metric (use the text's own rect / computed `text-align`) before trusting it.
+>
+> **Not defects** (recorded so they are not re-reported; two were first mis-reported by this rig): zero-width bars on `/mps` (a hidden tab measures 0); `ERR_ABORTED` on `/methodology` (the page cancels its own fetch; the creed score API answers 200); **`/accuracy`**: there is no such page, the design's forecast-accuracy page lives at `/weather/accuracy` (the rig first guessed `/accuracy`); the mockup's province map needs `consumer/static` (the rig serves it); the mockup's cost page calls `/api/cost/summary`, which the local design server does not serve (distorts that mockup only).
+
 | # | Design file | Template | Status | PR | Notes |
 |---|---|---|---|---|---|
 | 1 | shell (`_nav.html`, `wtf-shell.css`) | `base.html`, `static/style.css` | pr | #3544 merged, #3548 | Logo + brand cyan (#3544). Nav parity: bar ground, one row >820px, LIVE pill, globe + `EN`, search circle, SIGN IN as text, chip order. Repo source never had the ECONOMY emoji seen on the live site — deployed image is older than main |

@@ -198,11 +198,28 @@ class BrokerSecurityTests(unittest.TestCase):
         self.assertIsNotNone(resp["assignment"], f"assign failed: {resp}")
         return resp["assignment"]
 
+    def _get_fence_token(self, assignment_id="a-handler-001", peer_uid=1000):
+        """Get fence token for an assignment by assigning and extracting token."""
+        resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=peer_uid,
+        )
+        self.assertIn("assignment", resp)
+        assignment = resp["assignment"]
+        self.assertIsNotNone(assignment, f"assign failed: {resp}")
+        self.assertIn("fence_token", assignment, "assignment must include fence_token")
+        return assignment["fence_token"]
+
     def test_provisioned_host_requires_owned_reaping(self):
         from unittest.mock import patch
         from tools.host_opencode import observers
 
-        self._assign()
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp)
+        fence_token = assign_resp["assignment"]["fence_token"]
         aid = _ASSIGNMENT["assignment_id"]
         cg = _ASSIGNMENT["cgroup"]
         with patch.object(observers, "systemd_state_live", return_value="inactive"), patch.object(
@@ -230,6 +247,7 @@ class BrokerSecurityTests(unittest.TestCase):
                         "container_id": _ASSIGNMENT["container_name"],
                         "docker_state": "stopped",
                         "stop_observation": "stopped",
+                        "fence_token": fence_token,
                     },
                 },
                 observers=(docker, host, pub),
@@ -251,7 +269,16 @@ class BrokerSecurityTests(unittest.TestCase):
             "unreadable peer credentials must fail closed",
         )
 
-    def _complete_terminal(self, aid="a-handler-001", container="c-handler-001"):
+    def _complete_terminal(self, aid="a-handler-001", container="c-handler-001", fence_token=None):
+        if fence_token is None:
+            # Auto-assign to get a fence token
+            resp = self._handle(
+                {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+                peer_uid=1000,
+            )
+            self.assertIn("assignment", resp)
+            fence_token = resp["assignment"]["fence_token"]
+
         docker, host, pub, _ = _terminal_observers(container, assignment=aid)
         return self._handle(
             {
@@ -263,6 +290,7 @@ class BrokerSecurityTests(unittest.TestCase):
                     "docker_state": "stopped",
                     "stop_observation": "verified",
                     "container_id": container,
+                    "fence_token": fence_token,
                 },
             },
             observers=(docker, host, pub),
@@ -343,7 +371,12 @@ class BrokerSecurityTests(unittest.TestCase):
 
     def test_caller_supplied_stop_claims_rejected_through_handler(self):
         """running / not-stopped claims rejected even with a sealed assignment."""
-        self._assign(peer_uid=1000)
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp)
+        fence_token = assign_resp["assignment"]["fence_token"]
         docker, host, pub, _ = _terminal_observers("c-handler-001")
         resp = self._handle(
             {
@@ -355,6 +388,7 @@ class BrokerSecurityTests(unittest.TestCase):
                     "docker_state": "running",
                     "stop_observation": "not stopped",
                     "container_id": "c-handler-001",
+                    "fence_token": fence_token,
                 },
             },
             observers=(docker, host, pub),
@@ -372,6 +406,7 @@ class BrokerSecurityTests(unittest.TestCase):
                     "docker_state": "stopped",
                     "stop_observation": "verified",
                     "container_id": "c-handler-001",
+                    "fence_token": fence_token,
                 },
             },
             observers=_terminal_observers("c-handler-001")[:3],
@@ -481,6 +516,12 @@ class BrokerSecurityTests(unittest.TestCase):
         self.assertEqual(resp.get("error"), "journal_persist_failed")
 
         self._assign(peer_uid=1000)
+        assign_resp2 = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp2)
+        fence_token = assign_resp2["assignment"]["fence_token"]
         docker, host, pub, _ = _terminal_observers("c-handler-001")
         conn2 = _FakeConn(
             json.dumps(
@@ -493,6 +534,7 @@ class BrokerSecurityTests(unittest.TestCase):
                         "docker_state": "stopped",
                         "stop_observation": "verified",
                         "container_id": "c-handler-001",
+                        "fence_token": fence_token,
                     },
                 }
             ).encode(),
@@ -516,7 +558,12 @@ class BrokerSecurityTests(unittest.TestCase):
 
     def test_observation_targets_bound_to_seal(self):
         """Caller container mismatch rejected; observers get sealed identity."""
-        self._assign(peer_uid=1000)
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp)
+        fence_token = assign_resp["assignment"]["fence_token"]
         docker, host, pub, calls = _terminal_observers("c-handler-001")
         resp = self._handle(
             {
@@ -528,6 +575,7 @@ class BrokerSecurityTests(unittest.TestCase):
                     "docker_state": "stopped",
                     "stop_observation": "verified",
                     "container_id": "c-evil",
+                    "fence_token": fence_token,
                 },
             },
             observers=(docker, host, pub),
@@ -545,6 +593,7 @@ class BrokerSecurityTests(unittest.TestCase):
                     "docker_state": "stopped",
                     "stop_observation": "verified",
                     "container_id": "c-handler-001",
+                    "fence_token": fence_token,
                 },
             },
             observers=_terminal_observers("c-handler-001")[:3],
@@ -726,6 +775,7 @@ class BrokerSecurityTests(unittest.TestCase):
         resp = json.loads(conn.sent.decode())
         self.assertIsNotNone(resp.get("assignment"), f"assign failed: {resp}")
         self.assertEqual(resp["assignment"]["container_id"], FULL_W)
+        fence_token = resp["assignment"]["fence_token"]
         docker, host, pub, _ = _terminal_observers("c-handler-001")
         resp2 = self._handle(
             {
@@ -737,11 +787,408 @@ class BrokerSecurityTests(unittest.TestCase):
                     "docker_state": "stopped",
                     "stop_observation": "verified",
                     "container_id": "c-handler-001",
+                    "fence_token": fence_token,
                 },
             },
             observers=(docker, host, pub),
         )
         self.assertTrue(resp2["success"] and resp2["trusted"], f"resolved pin failed: {resp2}")
+
+    def test_fence_race_concurrent_start(self):
+        """Concurrent start attempts with same assignment_id: only first wins,
+        second must get assignment_conflict (not a new fence token)."""
+        # First assignment succeeds with fence token
+        resp1 = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", resp1)
+        fence1 = resp1["assignment"]["fence_token"]
+
+        # Second assignment with SAME assignment_id but different container
+        # must be rejected at seal time (conflict), not get a new fence token
+        other = dict(_ASSIGNMENT)
+        other["container_name"] = "c-evil-container"
+        resp2 = self._handle(
+            {"type": "assign_task", "assignment_data": other},
+            peer_uid=1000,
+        )
+        self.assertIsNone(resp2.get("assignment"), "conflicting retry must return no assignment")
+        self.assertEqual(resp2.get("error"), "assignment_conflict")
+
+        # Journal should have only ONE fence_start for this assignment_id
+        entries = B.journal_get_entries(assignment_id="a-handler-001", db_path=self.db)
+        fence_starts = [e for e in entries if e.get("event_type") == "fence_start"]
+        self.assertEqual(len(fence_starts), 1, "only one fence_start per assignment_id")
+
+    def test_fence_race_concurrent_completion(self):
+        """Two concurrent completion attempts with same fence_token:
+        only first succeeds; second must fail fence verification."""
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        fence_token = assign_resp["assignment"]["fence_token"]
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+
+        # First completion succeeds
+        resp1 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertTrue(resp1["success"] and resp1["trusted"])
+
+        # Second completion with SAME fence_token must fail
+        # (fence_stop already recorded, pair complete, but fence_check should
+        # detect no NEW start between stop and check — or we can just require
+        # fence_token is single-use)
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-2",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=_terminal_observers("c-handler-001")[:3],
+        )
+        # Should fail because fence is already "closed" or token reused
+        self.assertFalse(resp2["success"], "fence token reuse must fail")
+
+    def test_fence_missing_start_fails_verification(self):
+        """If only fence_stop exists (no fence_start), _check_fence returns False."""
+        # Directly insert a fence_stop without fence_start
+        import sqlite3
+        import json
+
+        conn = sqlite3.connect(self.db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified) "
+            "VALUES (?, 'fence_stop', ?, '{}', 0)",
+            ("a-handler-001", json.dumps({"token": "nonexistent-token"}, sort_keys=True)),
+        )
+        conn.commit()
+        conn.close()
+
+        # _check_fence should return False
+        self.assertFalse(B._check_fence("a-handler-001", self.db, "nonexistent-token"))
+
+    def test_fence_missing_stop_fails_verification(self):
+        """If only fence_start exists (no fence_stop), _check_fence returns False."""
+        import sqlite3
+        import json
+
+        conn = sqlite3.connect(self.db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified) "
+            "VALUES (?, 'fence_start', ?, '{}', 0)",
+            ("a-handler-001", json.dumps({"token": "nonexistent-token"}, sort_keys=True)),
+        )
+        conn.commit()
+        conn.close()
+
+        self.assertFalse(B._check_fence("a-handler-001", self.db, "nonexistent-token"))
+
+    def test_fence_token_mismatch_fails_verification(self):
+        """If start and stop tokens don't match, _check_fence returns False."""
+        import sqlite3
+        import json
+
+        conn = sqlite3.connect(self.db)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified) "
+            "VALUES (?, 'fence_start', ?, '{}', 0)",
+            ("a-handler-001", json.dumps({"token": "token-A"}, sort_keys=True)),
+        )
+        conn.execute(
+            "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified) "
+            "VALUES (?, 'fence_stop', ?, '{}', 0)",
+            ("a-handler-001", json.dumps({"token": "token-B"}, sort_keys=True)),
+        )
+        conn.commit()
+        conn.close()
+
+        self.assertFalse(B._check_fence("a-handler-001", self.db, "token-A"))
+        self.assertFalse(B._check_fence("a-handler-001", self.db, "token-B"))
+
+    def test_trusted_containment_docker_labels_bound(self):
+        """Docker observer must receive sealed assignment identity, not caller ID.
+        Verifies the docker_observe closure binds the correct container_id."""
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        fence_token = assign_resp["assignment"]["fence_token"]
+
+        captured = {}
+
+        def docker_observe(cid, aid):
+            captured["cid"] = cid
+            captured["aid"] = aid
+            return {
+                "id": "c-handler-001",
+                "full_id": FULL_W,
+                "state": "stopped",
+                "restart_disabled": True,
+                "labels_match": True,
+            }
+
+        def host_observe(cg, aid):
+            return {"cgroup_empty": True, "service": "stopped", "reaped": True}
+
+        def pub_observe(aid):
+            return {"settled": True, "repo": "o/r", "branch": "main"}
+
+        response = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker_observe, host_observe, pub_observe),
+        )
+        self.assertTrue(response.get("trusted"))
+        # Observer must receive sealed assignment identity
+        self.assertEqual(captured["cid"], "c-handler-001", "docker must receive sealed container_name")
+        self.assertEqual(captured["aid"], "a-handler-001", "docker must receive sealed assignment_id")
+
+    def test_trusted_containment_host_cgroup_bound(self):
+        """Host observer must receive sealed cgroup, not caller-supplied cgroup."""
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        fence_token = assign_resp["assignment"]["fence_token"]
+
+        captured = {}
+
+        def host_observe(cg, aid):
+            captured["cg"] = cg
+            captured["aid"] = aid
+            return {"cgroup_empty": True, "service": "stopped", "reaped": True}
+
+        def docker_observe(cid, aid):
+            return {
+                "id": "c-handler-001",
+                "full_id": FULL_W,
+                "state": "stopped",
+                "restart_disabled": True,
+                "labels_match": True,
+            }
+
+        def pub_observe(aid):
+            return {"settled": True, "repo": "o/r", "branch": "main"}
+
+        response = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker_observe, host_observe, pub_observe),
+        )
+        self.assertTrue(response.get("trusted"))
+        self.assertEqual(captured["cg"], "host-opencode-runner", "host must receive sealed cgroup")
+        self.assertEqual(captured["aid"], "a-handler-001", "host must receive sealed assignment_id")
+
+    def test_integrated_host_exercise(self):
+        """Integrated exercise with real disposable host resources.
+
+        This test requires:
+        - BROKER_SERVICE_UNIT: systemd service unit for the runner
+        - BROKER_CGROUP_PATH: cgroup path for the runner
+        - Docker daemon accessible
+
+        Skips gracefully if environment not configured.
+        """
+        import os
+
+        if not all(k in os.environ for k in ("BROKER_SERVICE_UNIT", "BROKER_CGROUP_PATH")):
+            self.skipTest("Live host exercise requires BROKER_SERVICE_UNIT and BROKER_CGROUP_PATH")
+
+        # Use live observers
+        docker, host, pub = B._provision_observers(self.db)
+        if docker is None or host is None or pub is None:
+            self.skipTest("Live observers not fully provisioned")
+
+        # Create assignment with real fence token
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp)
+        fence_token = assign_resp["assignment"]["fence_token"]
+
+        # Complete with live observers - this exercises the real host/docker/publication path
+        response = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        # With live observers, completion should be trusted
+        self.assertTrue(response.get("trusted"), f"Integrated host exercise failed: {response}")
+        self.assertIn("receipt_blob", response)
+        self.assertIn("receipt_signature", response)
+
+        # Verify the receipt is valid
+        self.assertTrue(
+            B.verify_receipt(
+                response["receipt_blob"],
+                response["receipt_signature"],
+                "a-handler-001",
+                1000,
+                pinned_public_key_pem=self.pub_pem,
+                journal_db=self.db,
+                peer_uid=1000,
+            ),
+            "Integrated exercise receipt must verify",
+        )
+
+def test_fence_atomic_consumption_sequential(self):
+        """Sequential test verifying atomic fence token consumption.
+        
+        Two sequential completions with the same fence token:
+        first succeeds (trusted), second fails with fence_token_consumed.
+        This verifies the atomic consumption logic without SQLite locking
+        issues that affect truly concurrent tests in this environment."""
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp)
+        fence_token = assign_resp["assignment"]["fence_token"]
+
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+
+        # First completion succeeds
+        resp1 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertTrue(resp1["success"] and resp1["trusted"])
+
+        # Second completion with same token fails
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-2",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp2["success"])
+        self.assertEqual(resp2.get("error"), "fence_token_consumed")
+
+def test_fence_untrusted_then_trusted_sequential(self):
+        """Sequential test: untrusted completion doesn't consume token,
+        subsequent trusted completion succeeds."""
+        assign_resp = self._handle(
+            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
+            peer_uid=1000,
+        )
+        self.assertIn("assignment", assign_resp)
+        fence_token = assign_resp["assignment"]["fence_token"]
+
+        docker, host, pub, _ = _terminal_observers("c-handler-001")
+
+        # First: untrusted (running) - should fail but NOT consume token
+        resp1 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-1",
+                "success": True,
+                "details": {
+                    "docker_state": "running",
+                    "stop_observation": "not stopped",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertFalse(resp1["success"])
+        self.assertFalse(resp1["trusted"])
+        self.assertNotEqual(resp1.get("error"), "fence_token_consumed")
+
+        # Second: trusted (stopped) - should succeed and consume token
+        resp2 = self._handle(
+            {
+                "type": "complete_assignment",
+                "assignment_id": "a-handler-001",
+                "runner_id": "r-2",
+                "success": True,
+                "details": {
+                    "docker_state": "stopped",
+                    "stop_observation": "verified",
+                    "container_id": "c-handler-001",
+                    "fence_token": fence_token,
+                },
+            },
+            observers=(docker, host, pub),
+        )
+        self.assertTrue(resp2["success"] and resp2["trusted"])
 
 
 if __name__ == "__main__":

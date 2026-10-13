@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "archive_name": "Canadian-History-Atlas-159-Events.zip",
+  "archive_sha256": "b5426ba44ce863e4d66ad80b697fa42a60fe30f7a35d8bb240f939e4b53e7329",
+  "events_sha256": "f2620d3cbc006332bf8a90730296e9523df960e4588d37d5e8cda60de0dab8c4",
+  "events_count": 159,
+  "sources_count": 128,
+  "movements_count": 13,
+  "maps": [
+    {
+      "year": 1867,
+      "file": "nrcan-1867.svg",
+      "sha256": "d1b02ca614c1b661b56ead8a98b137f689b35af94682a099dafee713c15c0a17",
+      "original_sha256": "fb8c20802cd929c535654bdc943928a0cb4cbc8afc7f6495ab036b123dbdbcab"
+    },
+    {
+      "year": 1870,
+      "file": "nrcan-1870.svg",
+      "sha256": "8d2d2ceacc76169ee8b252e5648cb4bac1a6caf720c13064818d820c42472eee",
+      "original_sha256": "adca065730c3a02afb863b01b410ac433ba445d5024f471c1be4b5c11aba778a"
+    },
+    {
+      "year": 1871,
+      "file": "nrcan-1871.svg",
+      "sha256": "04fdb7915445440a7928442daa703fcb89a461b791e478359feb2c76391bed41",
+      "original_sha256": "0ac0b11874295aa362023aff11d26302e7095d029071fe5f4120bb61d9ca4faf"
+    },
+    {
+      "year": 1873,
+      "file": "nrcan-1873.svg",
+      "sha256": "a160a85e690fe906a4b9966bae146387e31cdfded0f6d216eea21fb9ced54cdb",
+      "original_sha256": "b008c7bb5131ceefd1cd2f4af9c357c86671a1e743ac028d2411555b687e3dab"
+    },
+    {
+      "year": 1874,
+      "file": "nrcan-1874.svg",
+      "sha256": "7c5c5e13b15787e79e3b6300414c47db2055508a887ad8500d47dd8f5642b06b",
+      "original_sha256": "d05ba7c514217d19027601ed2f47f6b1d773cb7bbacac15ef94cfb4a2b6a320a"
+    },
+    {
+      "year": 1876,
+      "file": "nrcan-1876.svg",
+      "sha256": "1c5ab71bcc0305c504c70c58dd04b280b216fc98806645eb93fbb603ad0a8263",
+      "original_sha256": "cb0f97b2dec7e5b6d00a866937bada16045c55ec80a8e28b7c71f8d760dcad6b"
+    },
+    {
+      "year": 1880,
+      "file": "nrcan-1880.svg",
+      "sha256": "3f08c1ffb51ec61cf74f573db020ba32e702017a1e3b04c3608796244792218f",
+      "original_sha256": "858bb3310592a9d26f5a1c372f6ee0a18c9c4bbffb1437a81aa3cf78a68ec422"
+    },
+    {
+      "year": 1881,
+      "file": "nrcan-1881.svg",
+      "sha256": "a0c5494666fc1913bd0c1201329a91120e81ebbb028a1b7ae45d8326a9e327f0",
+      "original_sha256": "4bddb0e2afb7a1ab7d83c2c6b613bf36e561595d4e2f1e2d1ee77d4dc42abe8b"
+    },
+    {
+      "year": 1882,
+      "file": "nrcan-1882.svg",
+      "sha256": "aa521b46a8cad26c2dc70e270297879f46ec8ef8ddad6197c080fdda65a7b5c8",
+      "original_sha256": "f9eff1bb49caa2fc030e15453b47b2041644ab558b6c3cb2665cbf01c344ca6d"
+    },
+    {
+      "year": 1886,
+      "file": "nrcan-1886.svg",
+      "sha256": "653d83a23b2f1ea3ef01453014261a9585d9b98a7108a65d9807b14d6c5c65e1",
+      "original_sha256": "5104680b0b5770fd1b7de942b64e1b50a1223ef431dd116d1082e43d30f281aa"
+    },
+    {
+      "year": 1889,
+      "file": "nrcan-1889.svg",
+      "sha256": "17ddf411575f96acd04a2d29d08ebcbae72fb0590392098e680a35ce641c65cc",
+      "original_sha256": "b4c8e8d2c6e5d1140439cfa90ed2d3473ed7ab245c70a518286b83374d87f9f3"
+    },
+    {
+      "year": 1895,
+      "file": "nrcan-1895.svg",
+      "sha256": "138555a7c90cbb7c929c50849fe83e5cc15f0f901e4d1f740371ed1e7e790bdd",
+      "original_sha256": "310c1a153bc76d6d4fdb818e0c9b8f982ca6e9ff71daf08d7edecce631a91899"
+    },
+    {
+      "year": 1897,
+      "file": "nrcan-1897.svg",
+      "sha256": "d2f172ebaaf40b77e22625065cc0632b34aab2d7a85f6583a085eebd3483396d",
+      "original_sha256": "2c3e9d80d8524fd21bcc2a58802fcb0139b6c734226a0597bf3e43d8d31b45d5"
+    },
+    {
+      "year": 1898,
+      "file": "nrcan-1898.svg",
+      "sha256": "384f33082726848f066b89307e522f36c901b22377a809c273f0f847e504a780",
+      "original_sha256": "cd3f4618f78bd0fbfd6e2d2aab98c43c101c6a89da11bd9ab3bbf916f430e95c"
+    },
+    {
+      "year": 1901,
+      "file": "nrcan-1901.svg",
+      "sha256": "0c52635c94e2aa65f176fc8c6756ae68579afa5ad483f1900559efe3feb41102",
+      "original_sha256": "79603077b2ed38aa209456f75e711fef177cd7461178a76c692aac5e52b53e22"
+    },
+    {
+      "year": 1905,
+      "file": "nrcan-1905.svg",
+      "sha256": "038d83069a5b8be5acdaa70d11cb02ef5f0adbf0345fc54533a6872ba0bd0503",
+      "original_sha256": "f1fc97411e9f9c9b968175835e33619686db38cce184c07decc06abe95838192"
+    },
+    {
+      "year": 1912,
+      "file": "nrcan-1912.svg",
+      "sha256": "b3b2e90bb64edb1c645efd2c0698e0c89d9ce2049ce6c352cada272da6d62679",
+      "original_sha256": "eb098a8591c31a626b40a51b4948a7b0ed29e3f7dcbd8c73c354281e12a00cc8"
+    },
+    {
+      "year": 1920,
+      "file": "nrcan-1920.svg",
+      "sha256": "18bbf6ae5421fedb3c11fc3b8261560bf88c775b88ffca8896f876aa0fa6ad18",
+      "original_sha256": "e2625d9d65bd5aea067e8c8de98082e2395753adf70e82cd07cf7fe1c7d59467"
+    },
+    {
+      "year": 1927,
+      "file": "nrcan-1927.svg",
+      "sha256": "328f27973f36befecf89342db4da09304bb6509f29b91881e43a7f816844a758",
+      "original_sha256": "7504a43a132ae2bd9b1c8e2a4b4077a0fb823bc49824c091b43fe970e8304a84"
+    },
+    {
+      "year": 1949,
+      "file": "nrcan-1949.svg",
+      "sha256": "db42198c447f4e808f1c511ac5140b09c7b64a11d5c5c1426e8601c6890a7a62",
+      "original_sha256": "2ea3bcf8e04ae47d0339330a11c9de234bb14b32b9c01b0cb767c08ad6c44cbc"
+    },
+    {
+      "year": 1999,
+      "file": "nrcan-1999.svg",
+      "sha256": "8b3447b2a870aa72902c39909b5217aac7bf097973e8341dc3a0d810dd6e7098",
+      "original_sha256": "0acc750264a207eef4954a4972141f039fc2ccb7b3bc5cbde2c961905ec5cb1e"
+    },
+    {
+      "year": 2001,
+      "file": "nrcan-2001.svg",
+      "sha256": "bd6aed35fc6815903a113032f1242986b52b6d843fe9365a4daadac12838a6e9",
+      "original_sha256": "61ec9a275de75b578b3f22e4ef23c5d6fa3cfe36c2081e1a43be10989868e199"
+    },
+    {
+      "year": 2003,
+      "file": "nrcan-2003.svg",
+      "sha256": "4ffc1a9acbc743324fc0b3b390044f3a7d91888305a48029a52b54b1e51f89fb",
+      "original_sha256": "6174d548616868f6abf5caa3e83fb7ce924f4251add4b982383ec1efff2d6f7a"
+    }
+  ],
+  "excluded": [
+    "Undated Native Land territory geometry: licensing unresolved",
+    "atlas-overlay-topology.json: contains excluded Native Land geometry"
+  ],
+  "map_attribution": "Adapted from Natural Resources Canada; includes generalized modern geographic reference. Not an archival photograph or legal boundary determination.",
+  "map_dataset_url": "https://open.canada.ca/data/dataset/e88ce995-b69a-4595-a752-bb06b061b5a3",
+  "map_license_url": "https://open.canada.ca/en/open-government-licence-canada",
+  "editorial_status": "All events remain research drafts; no historical claims independently verified by this import.",
+  "original_events_sha256": "2e1bd5df854349ac4cbc4067f9214a0b14ea44614db2e820a0445972f1e0406f",
+  "normalization": "Repository hooks add one final newline; original and packaged content hashes are both retained."
+}

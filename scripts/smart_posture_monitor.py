@@ -41,11 +41,17 @@ CURRENT counters as a baseline (keyed by SERIAL, which survives device renames).
 and after a worsening page the baseline moves up, so only the NEXT band pages again. Otherwise it stays silent except for ONE low-key
 weekly reminder, so an acknowledgement cannot be forgotten. `--unack /dev/sdX` removes it; `--list-acks` shows them.
 Acknowledging is the OWNER's decision: nothing here acknowledges a disk by itself.
+
+KERNEL I/O ERRORS (task #6803, ported from the host-only /usr/local/bin/smart_watch.py): SMART counters can hold steady while the read
+path is actively failing, so the kernel log is checked too: "medium error" / "unrecovered read error" / "I/O error" lines per disk in
+the last hour. That count is ROLLING, so a still-failing disk reports non-zero on every run; alerting on presence would re-fire hourly
+forever, hence only a RISE pages (vs the previous run for an unacknowledged disk, vs the acknowledged baseline band for an acknowledged one).
 """
 
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -64,6 +70,11 @@ ACK_PATH = os.environ.get("SMART_ACK_PATH", "/var/lib/smart_posture_ack.json")
 ESCALATION_RATIO = 1.25  # a counter must grow by >=25% over its acknowledged baseline...
 ESCALATION_MIN_STEP = 25  # ...AND by at least this many units, so jitter on a small counter never pages
 REMINDER_DAYS = 7
+STATE_PATH = os.environ.get("SMART_STATE_PATH", "/var/lib/smart_posture_state.json")
+_KERNEL_ERR_RE = re.compile(r"medium error|unrecovered read error|I/O error", re.I)
+_KERNEL_DEV_RE = re.compile(
+    r"\b(sd[a-z]+)\d*\b"
+)  # \d*: errors are often logged against a PARTITION (sdb1) but belong to the disk (sdb)
 
 
 def evaluate_disk(health_passed, attrs):
@@ -122,13 +133,14 @@ def evaluate_disk(health_passed, attrs):
     return findings
 
 
-def counters_from_attrs(attrs):
-    """The four counters the policy tracks, as a plain dict."""
+def counters_from_attrs(attrs, kerr=0):
+    """The counters the policy tracks, as a plain dict (kerr = kernel I/O errors in the last hour)."""
     return {
         "realloc": int(attrs.get(ATTR_REALLOCATED, 0) or 0),
         "pending": int(attrs.get(ATTR_PENDING, 0) or 0),
         "offline": int(attrs.get(ATTR_OFFLINE_UNC, 0) or 0),
         "crc": int(attrs.get(ATTR_UDMA_CRC, 0) or 0),
+        "kerr": int(kerr or 0),
     }
 
 
@@ -138,7 +150,7 @@ def worsened(baseline, counters, health_passed):
     if health_passed is False and not baseline.get("health_failed"):
         reasons.append("SMART overall-health self-assessment is now FAILED")
     base_counters = baseline.get("counters", {})
-    for key in ("realloc", "pending", "offline", "crc"):
+    for key in ("realloc", "pending", "offline", "crc", "kerr"):
         base = int(base_counters.get(key, 0) or 0)
         cur = int(counters.get(key, 0) or 0)
         if cur <= base:
@@ -196,6 +208,54 @@ def _run(cmd, timeout=30):
         return r.returncode, r.stdout
     except Exception as exc:  # noqa: BLE001 — a broken probe must report unknown, not crash the sweep
         return -1, str(exc)
+
+
+def parse_kernel_errors(text):
+    """{'sdb': n, ...}: kernel medium/IO error lines per disk in the given journal text. Pure."""
+    counts = {}
+    for line in (text or "").splitlines():
+        if _KERNEL_ERR_RE.search(line):
+            m = _KERNEL_DEV_RE.search(line)
+            if m:
+                counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+    return counts
+
+
+def kernel_errors():
+    """Per-disk kernel I/O error count over the last hour. Any failure to read the journal → {} (and loud on stderr): an unreadable
+    journal must not look like a clean disk, but it also must not take down the SMART sweep."""
+    rc, out = _run(["journalctl", "-k", "--since", "-1 hour", "--no-pager"], timeout=60)
+    if rc != 0:
+        print(
+            f"smart_posture_monitor: kernel journal unreadable (rc={rc}) - kernel I/O errors NOT checked this run",
+            file=sys.stderr,
+        )
+        return {}
+    return parse_kernel_errors(out)
+
+
+def load_state(path=None):
+    path = path or STATE_PATH
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"smart_posture_monitor: STATE FILE UNREADABLE ({path}: {exc}) - kernel-error rise cannot be judged this run",
+            file=sys.stderr,
+        )
+        return {}
+
+
+def save_state(state, path=None):
+    path = path or STATE_PATH
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as fh:
+        json.dump(state, fh, indent=2, sort_keys=True)
+    os.replace(tmp, path)
 
 
 def scan_disks():
@@ -275,7 +335,7 @@ def push_alert(title, message, severity, cooldown_hours, retries=2):
     return False
 
 
-def main(scan=None, read=None, push=None, ack_path=None, now=None):
+def main(scan=None, read=None, push=None, ack_path=None, now=None, kernel=None, state_path=None):
     scan = scan or scan_disks
     read = read or read_disk
     push = push or push_alert
@@ -292,13 +352,33 @@ def main(scan=None, read=None, push=None, ack_path=None, now=None):
         print("no disks enumerable")
         return
     acks = load_acks(ack_path)
+    kerr_now = (kernel or kernel_errors)()
+    prev_state = load_state(state_path)
+    new_state = {}
     dirty = False
     for dev in disks:
         health, attrs, model, serial = read(dev)
         findings = evaluate_disk(health, attrs)
         unreadable = health is None and not attrs
+        short = os.path.basename(dev)
+        kerr = int(kerr_now.get(short, 0) or 0)
+        prev_kerr = int((prev_state.get(short) or {}).get("kerr", 0) or 0)
+        new_state[short] = {"kerr": kerr}
         ack = acks.get(serial) if serial and not unreadable else None
-        action, why = decide(ack, counters_from_attrs(attrs), health, now)
+        action, why = decide(ack, counters_from_attrs(attrs, kerr), health, now)
+        # Kernel I/O errors: an unacknowledged disk pages on a RISE vs the previous run; an acknowledged one only via its band (in `why`).
+        if kerr and (
+            (action == "page" and kerr > prev_kerr)
+            or (action == "worsened" and any(w.startswith("kerr ") for w in why))
+        ):
+            findings.append(
+                (
+                    "kernel",
+                    f"kernel medium/I-O errors in the last hour: {prev_kerr} -> {kerr} (the read path is failing now)",
+                )
+            )
+        if action == "worsened" and not findings:
+            findings.append(("critical", "; ".join(why)))
         if action == "suppress":
             if findings:
                 print(f"{dev}: acknowledged ({'; '.join(r for _, r in findings)}) - suppressed")
@@ -319,20 +399,30 @@ def main(scan=None, read=None, push=None, ack_path=None, now=None):
             print(f"{dev}: acknowledged - weekly reminder sent")
             continue
         for level, reason in findings:
-            sev = "critical" if level == "critical" else "warning"
+            sev = "critical" if level in ("critical", "kernel") else "warning"
             if action == "worsened":
                 reason = f"WORSENED since acknowledgement ({'; '.join(why)}). {reason}"
-            title = f"SMART {level.upper()}: {dev} ({model or 'unknown model'} {serial or ''})".strip()
+            # The kernel finding gets its OWN title: send_system dedups on (title, source), so sharing the sector finding's title would
+            # silently drop it behind that alert.
+            label = "KERNEL I/O" if level == "kernel" else level.upper()
+            title = f"SMART {label}: {dev} ({model or 'unknown model'} {serial or ''})".strip()
             push(title, reason, sev, 6 if level == "critical" else 12)
             print(f"{dev}: {level} - {reason}")
         if action == "worsened":
             # Move the baseline up so only the NEXT band pages, not every cooldown.
-            ack["counters"] = counters_from_attrs(attrs)
+            ack["counters"] = counters_from_attrs(attrs, kerr)
             ack["health_failed"] = health is False
             ack["last_reminder"] = now
             dirty = True
         if not findings:
             print(f"{dev}: healthy")
+    try:
+        save_state(new_state, state_path)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"smart_posture_monitor: could not save state ({exc}) - a still-failing disk may re-page next run",
+            file=sys.stderr,
+        )
     if dirty:
         try:
             save_acks(acks, ack_path)
@@ -343,7 +433,7 @@ def main(scan=None, read=None, push=None, ack_path=None, now=None):
             )
 
 
-def cmd_ack(dev, note="", ack_path=None, read=None, now=None):
+def cmd_ack(dev, note="", ack_path=None, read=None, now=None, kernel=None):
     read = read or read_disk
     health, attrs, model, serial = read(dev)
     if not serial:
@@ -360,7 +450,7 @@ def cmd_ack(dev, note="", ack_path=None, read=None, now=None):
     acks[serial] = {
         "dev": dev,
         "model": model,
-        "counters": counters_from_attrs(attrs),
+        "counters": counters_from_attrs(attrs, (kernel or kernel_errors)().get(os.path.basename(dev), 0)),
         "health_failed": health is False,
         "acked_at": now,
         "last_reminder": now,

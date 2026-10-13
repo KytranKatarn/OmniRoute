@@ -28,8 +28,12 @@ def disk(pending=1784, realloc=0, crc=0, health=True, serial=SERIAL, unreadable=
 class Harness:
     def __init__(self, tmp_path):
         self.path = str(tmp_path / "ack.json")
+        self.state_path = str(tmp_path / "state.json")
         self.pushed = []
         self.now = 1_800_000_000.0
+        self.kerr = (
+            {}
+        )  # injected kernel-error counts per short device name; the real journal and /var/lib are never touched
 
     def run(self, state, dev="/dev/sdb"):
         mon.main(
@@ -38,10 +42,17 @@ class Harness:
             push=lambda title, msg, sev, cd: self.pushed.append((title, msg, sev)) or True,
             ack_path=self.path,
             now=self.now,
+            kernel=lambda: dict(self.kerr),
+            state_path=self.state_path,
         )
 
     def ack(self, state, note="awaiting swap", dev="/dev/sdb"):
-        assert mon.cmd_ack(dev, note, ack_path=self.path, read=lambda d: state, now=self.now) == 0
+        assert (
+            mon.cmd_ack(
+                dev, note, ack_path=self.path, read=lambda d: state, now=self.now, kernel=lambda: dict(self.kerr)
+            )
+            == 0
+        )
 
 
 @pytest.fixture
@@ -134,8 +145,8 @@ def test_a_corrupt_ack_file_fails_open_and_pages(h, capsys):
 
 
 def test_ack_refuses_a_disk_with_no_serial_or_unreadable_smart(h):
-    assert mon.cmd_ack("/dev/sdb", ack_path=h.path, read=lambda d: disk(serial=""), now=h.now) == 1
-    assert mon.cmd_ack("/dev/sdb", ack_path=h.path, read=lambda d: disk(unreadable=True), now=h.now) == 1
+    assert mon.cmd_ack("/dev/sdb", ack_path=h.path, read=lambda d: disk(serial=""), now=h.now, kernel=dict) == 1
+    assert mon.cmd_ack("/dev/sdb", ack_path=h.path, read=lambda d: disk(unreadable=True), now=h.now, kernel=dict) == 1
     assert mon.load_acks(h.path) == {}
 
 
@@ -156,3 +167,90 @@ def test_the_ack_file_is_valid_json_and_records_the_baseline(h):
 def test_evaluate_disk_severity_model_is_untouched():
     f = mon.evaluate_disk(True, {197: 1760, 198: 1736, 5: 0})
     assert [lvl for lvl, _ in f] == ["critical"]
+
+
+# --- kernel I/O errors (ported from the host-only smart_watch.py) ---------------------------------------------------------------------------
+
+
+def test_parse_kernel_errors_counts_per_disk_and_ignores_unrelated_lines():
+    text = "\n".join(
+        [
+            "kernel: blk_update_request: I/O error, dev sdb, sector 123 op 0x0:(READ)",
+            "kernel: sd 1:0:0:0: [sdb] tag#5 Sense Key : Medium Error [current]",
+            "kernel: critical medium error, dev sdc, sector 9",
+            "kernel: EXT4-fs (sda1): mounted filesystem",
+            "kernel: Buffer I/O error on dev sdb1, logical block 5",
+        ]
+    )
+    assert mon.parse_kernel_errors(text) == {"sdb": 3, "sdc": 1}
+    assert mon.parse_kernel_errors("") == {} and mon.parse_kernel_errors(None) == {}
+
+
+def test_a_rising_kernel_error_count_pages_critical_on_an_unacknowledged_disk(h):
+    h.kerr = {"sde": 2}
+    h.run(disk(pending=0, serial="HEALTHY-1"), dev="/dev/sde")  # SMART clean, but the kernel is erroring
+    assert (
+        len(h.pushed) == 1
+        and h.pushed[0][2] == "critical"
+        and "kernel medium/I-O errors" in h.pushed[0][1]
+        and "0 -> 2" in h.pushed[0][1]
+    )
+    assert h.pushed[0][0].startswith("SMART KERNEL I/O:")
+
+
+def test_a_steady_nonzero_kernel_count_does_not_repage_every_run(h):
+    h.kerr = {"sde": 2}
+    h.run(disk(pending=0, serial="HEALTHY-1"), dev="/dev/sde")
+    h.pushed.clear()
+    h.run(disk(pending=0, serial="HEALTHY-1"), dev="/dev/sde")  # rolling hourly count, same value: not a rise
+    assert h.pushed == []
+    h.kerr = {"sde": 5}
+    h.run(disk(pending=0, serial="HEALTHY-1"), dev="/dev/sde")
+    assert len(h.pushed) == 1 and "2 -> 5" in h.pushed[0][1]
+
+
+def test_a_clean_kernel_log_pages_nothing_on_a_healthy_disk(h):
+    h.run(disk(pending=0, serial="HEALTHY-1"), dev="/dev/sde")
+    assert h.pushed == []
+
+
+def test_an_acknowledged_disk_pages_on_kernel_errors_only_when_they_cross_the_band(h):
+    h.kerr = {"sdb": 0}
+    h.ack(disk())
+    h.kerr = {"sdb": 3}  # 0 -> nonzero on an acknowledged disk: a new failure signal
+    h.run(disk())
+    kernel = [p for p in h.pushed if "kernel medium/I-O errors" in p[1]]
+    assert len(kernel) == 1 and "WORSENED" in kernel[0][1]
+    assert kernel[0][0].startswith(
+        "SMART KERNEL I/O:"
+    ), "needs its own title or send_system dedups it behind the sector alert"
+    assert len({t for t, _, _ in h.pushed}) == len(h.pushed), "every push in one run must have a distinct title"
+    h.pushed.clear()
+    h.kerr = {"sdb": 5}  # inside the new band (3 -> 5 is +67% but only +2 units)
+    h.run(disk())
+    assert h.pushed == []
+    h.kerr = {"sdb": 40}
+    h.run(disk())
+    assert len([p for p in h.pushed if p[0].startswith("SMART KERNEL I/O:")]) == 1
+
+
+def test_an_acknowledged_disk_with_a_steady_kernel_baseline_stays_silent(h):
+    h.kerr = {"sdb": 12}
+    h.ack(disk())  # baselines kerr=12
+    h.run(disk())
+    assert h.pushed == []
+
+
+def test_an_unreadable_journal_is_loud_and_does_not_crash_the_sweep(monkeypatch, capsys):
+    monkeypatch.setattr(mon, "_run", lambda cmd, timeout=30: (1, ""))
+    assert mon.kernel_errors() == {}
+    assert "kernel journal unreadable" in capsys.readouterr().err
+
+
+def test_the_real_journal_and_var_lib_are_never_touched_by_the_harness(h, monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("the harness must inject kernel/state_path")
+
+    monkeypatch.setattr(mon, "kernel_errors", boom)
+    monkeypatch.setattr(mon, "STATE_PATH", "/nonexistent/forbidden/state.json")
+    h.run(disk())  # would raise if main() fell back to the real journal

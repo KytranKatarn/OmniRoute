@@ -18,6 +18,8 @@
 .wtf-stat:last-child { border-right: none; }
 .wtf-stat-num { font-size: 28px; color: #0af; font-weight: bold; }
 .wtf-stat-label { font-size: 10px; color: #555; letter-spacing: 1px; margin-top: 4px; }
+/* Phone: four cells with 20px padding cannot share 390px (the strip overflowed by 57px). Wrap them two to a row. */
+@media (max-width: 600px) { .wtf-trans-stats { flex-wrap: wrap; } .wtf-stat { flex: 1 1 45%; border-bottom: 1px solid #112233; } }
 .wtf-trans-container { max-width: 860px; margin: 0 auto; padding: 30px 16px; }
 .wtf-section { margin-bottom: 36px; }
 .wtf-section-title { font-size: 14px; letter-spacing: 2px; color: #a0f; border-bottom: 1px solid #1a0a3a; padding-bottom: 8px; margin-bottom: 16px; }

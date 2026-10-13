@@ -49,6 +49,7 @@
 .wtf-fa-bar-val { font-family:var(--wtf-font-mono);font-size:11px;color:#f9fafb;margin-bottom:6px }
 .wtf-fa-bar-x { font-family:var(--wtf-font-mono);font-size:9px;color:#6b7280;margin-top:8px;text-align:center }
 .wtf-fa-bar-n { font-family:var(--wtf-font-mono);font-size:8px;color:#374151;text-align:center }
+.wtf-fa-table-wrap { overflow-x:auto;-webkit-overflow-scrolling:touch }
 .wtf-fa-table { width:100%;border-collapse:collapse }
 .wtf-fa-table th { font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#6b7280;text-align:left;font-weight:500;padding:0 12px 10px 0;border-bottom:1px solid #1f2937 }
 .wtf-fa-table td { font-size:13px;color:#d1d5db;padding:11px 12px 11px 0;border-bottom:1px solid #161d29 }
@@ -173,6 +174,7 @@
 
 <div class="wtf-fa-panel">
   <h2 class="wtf-fa-section">Accuracy by city</h2>
+  <div class="wtf-fa-table-wrap">
   <table class="wtf-fa-table">
     <tr>
       <th class="wtf-fa-th-city">City</th>
@@ -206,6 +208,7 @@
     </tr>
     {% endfor %}
   </table>
+  </div>{# /.wtf-fa-table-wrap #}
   <p class="wtf-fa-note">
     Lead times one to five days; same-day forecasts are excluded because they are a much easier problem and including them flatters every city equally.
     A colour never stands alone here — every bias carries its number and the words cold or warm.

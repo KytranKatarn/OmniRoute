@@ -1603,6 +1603,8 @@ p { text-wrap: pretty; }
    margin:0, exactly matching the inline style it replaces. */
 #wtf-map-zone #wtf-map-label { margin: 0; }
 .wtf-h-map-controls { display: flex; align-items: center; gap: 6px; }
+/* Phone: the label + five controls overflowed 390px by 24px. Scoped to the map zone (other rows are untouched): the title takes its own line and the controls wrap beneath it. */
+@media (max-width: 600px) { #wtf-map-zone .wtf-h-row-between { flex-wrap: wrap; gap: 8px; } .wtf-h-map-controls { flex: 1 1 100%; flex-wrap: wrap; } .wtf-map-toggle { flex-wrap: wrap; } }
 #wtf-province-selector { position: relative; }
 #wtf-province-dropdown {
   display: none;   /* toggled by toggleProvinceDropdown() via .style.display */

@@ -40,13 +40,13 @@
   .wtf-rc-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
 </style>
 <div class="wtf-rc">
-  <h1>Candidates and races</h1>
+  <h1 class="wtf-pg-centre">Candidates and races</h1>
   {% if ge %}
-  <p class="wtf-rc-lede">
+  <p class="wtf-rc-lede wtf-pg-centre">
     Every riding in the {{ ge }}th general election — who won, by how much, and who
     came second. Ranked by margin, so the closest results come first.
   </p>
-  <p class="wtf-rc-src">
+  <p class="wtf-rc-src wtf-pg-centre">
     Official results{% if election_date %}, polling day {{ election_date.strftime('%-d %B %Y') }}{% endif %} ·
     Elections Canada via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
     These are completed elections, not a contest in progress.

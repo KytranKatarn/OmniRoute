@@ -38,14 +38,14 @@
   .wtf-rd-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
 </style>
 <div class="wtf-rd">
-  <h1>Ridings directory</h1>
+  <h1 class="wtf-pg-centre">Ridings directory</h1>
   {% if ge %}
-  <p class="wtf-rd-lede">
+  <p class="wtf-rd-lede wtf-pg-centre">
     Every riding from the {{ ge }}th general election, alphabetically, with who won it
     and by how much. Look a riding up here; the full candidate breakdown is one click
     away.
   </p>
-  <p class="wtf-rd-src">
+  <p class="wtf-rd-src wtf-pg-centre">
     Official results{% if election_date %}, polling day {{ election_date.strftime('%-d %B %Y') }}{% endif %} ·
     Elections Canada via <a href="https://open.canada.ca/data/en/dataset?organization=elections">open.canada.ca</a>.
     <strong>GE43 and GE44 only</strong> — CKAN's <code>elections</code> organisation publishes

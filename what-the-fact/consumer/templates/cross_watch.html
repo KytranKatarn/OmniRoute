@@ -52,7 +52,9 @@
 .wtf-cw-badges { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
 .wtf-cw-badge { font-size:8px; letter-spacing:.5px; text-transform:uppercase; padding:2px 6px; border-radius:2px; background:#060d14; }
 .wtf-cw-mentions { font-size:9px; color:#374151; font-family:'IBM Plex Mono',monospace; }
-.wtf-cw-title { font-family: var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:16px 0 6px; }
+/* Page title follows the mockup (serif 38px/600); phones step down so it does not take three lines (task #6604). */
+.wtf-cw-title { font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;line-height:1.1;letter-spacing:-.015em;color:#e5e7eb; margin:16px 0 6px; }
+@media (max-width: 600px) { .wtf-cw-title { font-size: 30px; } }
 .wtf-cw-results-note { font-size:11px; color:#6b7280; margin-bottom:10px; }
 .wtf-cw-clear { color:#38bdf8; text-decoration:none; }
 .wtf-cw-section-label { font-size:10px; color:#4b5563; letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; }

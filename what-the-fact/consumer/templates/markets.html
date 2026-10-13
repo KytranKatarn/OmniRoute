@@ -17,7 +17,9 @@
    class scheme/layout is deliberately not adopted here — see the coder-doc
    for this PR.  */
 .mk-kicker { font-size:10px; color:#4b5563; letter-spacing:1px; text-transform:uppercase; margin:16px 0 6px; }
-.mk-h1 { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 6px; }
+/* Page title follows the mockup (serif 38px/600); phones step down so it does not take three lines (task #6604). */
+.mk-h1 { font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;line-height:1.1;letter-spacing:-.015em;color:#e5e7eb;margin:0 0 6px; }
+@media (max-width: 600px) { .mk-h1 { font-size: 30px; } }
 .mk-intro { font-size:11px; color:#6b7280; line-height:1.7; max-width:640px; margin-bottom:14px; }
 .mk-total { font-size:11px; color:var(--wtf-developing); letter-spacing:.04em; margin-bottom:16px; }
 .mk-row { display:flex; align-items:center; gap:12px; padding:11px 13px; margin-bottom:8px;

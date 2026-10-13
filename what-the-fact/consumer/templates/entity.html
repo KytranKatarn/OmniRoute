@@ -21,7 +21,9 @@
 .wtf-cw-link-row { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:11px; border-bottom:1px solid #060d14; }
 .wtf-cw-breadcrumb { font-size:11px; color:#6b7280; margin:14px 0 4px; }
 .wtf-cw-breadcrumb-link { color:#6b7280; text-decoration:none; }
-.wtf-cw-title { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 4px; }
+/* Page title follows the mockup (serif 38px/600); phones step down so it does not take three lines (task #6604). */
+.wtf-cw-title { font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;line-height:1.1;letter-spacing:-.015em;color:#e5e7eb; margin:0 0 4px; }
+@media (max-width: 600px) { .wtf-cw-title { font-size: 30px; } }
 .wtf-cw-entity-type { font-size:11px; color:#6b7280; margin-bottom:4px; text-transform:capitalize; }
 .wtf-cw-aliases { font-size:10px; color:#4b5563; margin-bottom:12px; }
 .wtf-cw-stats-row { display:flex; gap:14px; flex-wrap:wrap; margin:14px 0 20px; }

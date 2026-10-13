@@ -23,7 +23,9 @@
    converged onto the shared paywall() macro instead (_archetypes.html),
    so its 6 inline styles are gone via the macro's own classes. #}
 .wtf-eth-header { padding:20px 0 16px; border-bottom:1px solid #2a1a00; margin-bottom:20px; }
-.wtf-eth-title { font-family:var(--wtf-font-mono); font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+/* Page title follows the mockup (serif 38px/600); phones step down so it does not take three lines (task #6604). */
+.wtf-eth-title { font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;line-height:1.1;letter-spacing:-.015em;color:#e5e7eb;margin:0 0 6px; }
+@media (max-width: 600px) { .wtf-eth-title { font-size: 30px; } }
 .wtf-eth-sub { font-size:12px; color:#6b7280; }
 .wtf-eth-list { display:flex; flex-direction:column; gap:8px; }
 .wtf-eth-row { background:#060d14; border:1px solid #2a1a00; border-left:3px solid var(--wtf-developing); border-radius:4px; padding:12px 14px; }

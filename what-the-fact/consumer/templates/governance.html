@@ -17,12 +17,10 @@
    none equal a token value, e.g. #0a0e18/#0d0a1a are close to but not
    byte-identical to --wtf-bg #0d1117), so none are swapped.
 
-   font-family:Georgia,serif (3 occurrences: h1 title, overall score, pillar
-   score) is deliberately LEFT literal — it is not the never-loaded 'Orbitron'
-   bug fixed elsewhere this session (base.html loads no Orbitron reference on
-   this page at all), and Georgia,serif is not byte-identical to the
-   --wtf-font-serif token value ('Newsreader', Georgia, 'Times New Roman',
-   serif), so swapping it would silently change the rendered font stack.
+   The h1 title, overall score and pillar scores use var(--wtf-font-serif) (Newsreader), as the
+   mockup does (h1, .wtf-gv-big, .wtf-gv-n). They were hard-coded Georgia,serif, left literal
+   during the token sweep only because swapping would silently change the rendered font; the
+   design port (task #6604) wants that change.
 
    No paywall gate exists on this page (fully public — no Starter+ card, no
    "Unlock with Starter" CTA), so the _archetypes.html paywall() macro does not
@@ -30,14 +28,14 @@
 .wtf-gv-wrap { max-width:760px; margin:48px auto; padding:0 16px; }
 .wtf-gv-header { margin-bottom:28px; }
 .wtf-gv-eyebrow { font-size:0.55rem; letter-spacing:3px; color:#4b5563; text-transform:uppercase; margin-bottom:8px; }
-.wtf-gv-title { font-family:Georgia,serif; font-size:1.8rem; color:#f0f0f0; margin:0 0 8px; }
+.wtf-gv-title { font-family:var(--wtf-font-serif); font-size:1.8rem; color:#f0f0f0; margin:0 0 8px; }
 .wtf-gv-intro { color:#6b7280; font-size:0.78rem; margin:0; line-height:1.6; }
 .wtf-gv-link { color:var(--wtf-aurora); }
 .wtf-gv-strong { color:#9ca3af; }
 .wtf-gv-code { color:var(--wtf-aurora); }
 
 .wtf-gv-scorecard { background:#0d0a1a; border:1px solid #4c1d95; border-radius:6px; padding:20px; margin-bottom:20px; display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
-.wtf-gv-score-big { font-size:2.6rem; font-family:Georgia,serif; color:#c4b5fd; line-height:1; }
+.wtf-gv-score-big { font-size:2.6rem; font-family:var(--wtf-font-serif); color:#c4b5fd; line-height:1; }
 .wtf-gv-score-suffix { font-size:1.2rem; color:var(--wtf-aurora); }
 .wtf-gv-grade-label { font-size:0.6rem; letter-spacing:2px; color:#6b7280; text-transform:uppercase; margin-top:4px; }
 .wtf-gv-grade-value { color:var(--wtf-aurora); }
@@ -50,7 +48,7 @@
 .wtf-gv-pillar-card { background:#0a0e18; border:1px solid #1a2a3a; border-radius:4px; padding:12px 14px; }
 .wtf-gv-pillar-head { display:flex; align-items:baseline; justify-content:space-between; }
 .wtf-gv-pillar-name { color:#9ca3af; font-size:0.72rem; text-transform:capitalize; font-weight:600; }
-.wtf-gv-pillar-score { color:var(--wtf-aurora); font-family:Georgia,serif; font-size:1.05rem; }
+.wtf-gv-pillar-score { color:var(--wtf-aurora); font-family:var(--wtf-font-serif); font-size:1.05rem; }
 .wtf-gv-pillar-score-suffix { font-size:0.65rem; color:#6b7280; }
 .wtf-gv-pillar-meta { margin-top:6px; color:#4b5563; font-size:0.62rem; line-height:1.5; }
 .wtf-gv-provisional-tag { color:#b45309; border:1px solid #b4530955; border-radius:3px; padding:0 4px; margin-left:4px; }

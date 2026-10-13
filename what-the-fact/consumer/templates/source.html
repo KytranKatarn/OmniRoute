@@ -61,11 +61,10 @@
    appended alpha suffix. Same trap documented on /crtc and /cross_watch this
    session.
 
-   font-family:Georgia,serif (4 occurrences: h1 title, 3 stat values) is
-   deliberately LEFT literal — Georgia,serif is not byte-identical to the
-   --wtf-font-serif token value ('Newsreader', Georgia, 'Times New Roman',
-   serif), so swapping it would silently change the rendered font stack (same
-   reasoning as /governance this session).
+   The h1 title uses var(--wtf-font-serif) (mockup .oname) and the three stat values
+   var(--wtf-font-mono) (mockup .stat-n); all four were hard-coded Georgia,serif, left
+   literal during the token sweep only because swapping would silently change the font
+   (design port, task #6604).
 
    'Orbitron' (paywall title) WAS the never-loaded-font bug — base.html's <head>
    loads only Newsreader + IBM Plex Sans + IBM Plex Mono via Google Fonts
@@ -90,7 +89,7 @@
 .wtf-src-header { margin-bottom:28px; }
 .wtf-src-eyebrow { font-size:0.55rem; letter-spacing:3px; color:#4b5563; text-transform:uppercase; margin-bottom:8px; }
 .wtf-src-eyebrow-link { color:#4b5563; text-decoration:none; }
-.wtf-src-title { font-family:Georgia,serif; font-size:1.9rem; color:#f0f0f0; margin:0 0 6px; }
+.wtf-src-title { font-family:var(--wtf-font-serif); font-size:1.9rem; color:#f0f0f0; margin:0 0 6px; }
 .wtf-src-meta-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 .wtf-src-chip { font-size:0.65rem; border-radius:3px; padding:2px 10px; text-transform:uppercase; letter-spacing:1px; font-weight:600; }
 .wtf-src-owner-type { font-size:0.65rem; color:#6b7280; }
@@ -99,7 +98,7 @@
 
 .wtf-src-stats-row { display:flex; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
 .wtf-src-stat-card { background:#0a0f1a; border:1px solid #1f2937; border-radius:6px; padding:16px 22px; text-align:center; min-width:110px; }
-.wtf-src-stat-value { font-family:Georgia,serif; font-size:1.6rem; font-weight:700; }
+.wtf-src-stat-value { font-family:var(--wtf-font-mono); font-size:1.6rem; font-weight:700; }
 .wtf-src-stat-label { font-size:0.55rem; color:#4b5563; letter-spacing:1.5px; text-transform:uppercase; margin-top:2px; }
 
 .wtf-src-panel { background:#0a0f1a; border:1px solid #1f2937; border-radius:6px; padding:18px; margin-bottom:24px; }

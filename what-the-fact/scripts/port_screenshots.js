@@ -67,8 +67,20 @@ function measure() {
   let h1m = null;
   if (h1) {
     const r = h1.getBoundingClientRect(), c = cs(h1);
+    // Where the TEXT sits, not the box: a full-width block's box is always page-centred, so a box check cannot see a left-aligned title (the
+    // first version of this rig under-reported exactly that). lineOffset = first text line's centre minus the heading box's centre;
+    // slack = how much narrower than the box that line is (a line that fills the box is aligned either way and cannot be told apart).
+    const range = document.createRange(); range.selectNodeContents(h1);
+    // The FIRST LINE is the union of every rect on the first text row: an inline icon/emoji at the start of the heading is its own rect, and
+    // taking only rects[0] measured the icon instead of the line (municipal and economy read 250px off while visibly centred).
+    const rects = [...range.getClientRects()].filter(x => x.width > 0);
+    const top0 = rects.length ? rects[0].top : r.top;
+    const row = rects.filter(x => Math.abs(x.top - top0) < Math.max(6, (rects[0] || r).height * 0.5));
+    const lineL = row.length ? Math.min(...row.map(x => x.left)) : r.left, lineR = row.length ? Math.max(...row.map(x => x.right)) : r.right;
+    const line = { left: lineL, width: lineR - lineL };
     h1m = { text: (h1.textContent || '').trim().slice(0, 90), font: (c.fontFamily || '').split(',')[0].replace(/["']/g, '').trim(),
-            size: c.fontSize, align: c.textAlign, left: Math.round(r.left), centreOffset: Math.round(Math.abs(r.left + r.width / 2 - vw / 2)) };
+            size: c.fontSize, align: c.textAlign, left: Math.round(r.left), centreOffset: Math.round(Math.abs(r.left + r.width / 2 - vw / 2)),
+            lineOffset: Math.round(Math.abs(line.left + line.width / 2 - (r.left + r.width / 2))), slack: Math.round(r.width - line.width) };
   }
   const main = first('main') || first('[role=main]') || document.body;
   const mr = main.getBoundingClientRect();
@@ -254,8 +266,10 @@ function report(manifest, unresolved, uncovered) {
     if (lv.status !== exp) { notes.push(`live HTTP ${lv.status} (expected ${exp})`); issues.status++; }
     if ((lv.overflowX || 0) > 1) { notes.push(`live overflows ${lv.overflowX}px${(lv.overflowCulprits || []).length ? ' (' + lv.overflowCulprits.join(', ') + ')' : ''}`); issues.overflow++; }
     if (lv.h1 && dg.h1) {
-      const dCentred = dg.h1.centreOffset <= 24, lCentred = lv.h1.centreOffset <= 24;
-      if (dCentred !== lCentred) { notes.push(`h1 ${dCentred ? 'centred in design, not live' : 'left in design, centred live'}`); issues.headerAlign++; }
+      // A title is "centred" when its text-align is center, or its first line sits at the box centre; a line that fills the box (slack <= 48px) is indistinguishable and is not flagged.
+      const centred = (h) => h.align === 'center' || h.lineOffset <= 8;
+      const dCentred = centred(dg.h1), lCentred = centred(lv.h1);
+      if (dCentred !== lCentred && Math.min(dg.h1.slack, lv.h1.slack) > 48) { notes.push(`h1 ${dCentred ? 'centred in design, not live' : 'left in design, centred live'}`); issues.headerAlign++; }
       if (dg.h1.font && lv.h1.font && dg.h1.font !== lv.h1.font) { notes.push(`h1 font ${lv.h1.font} vs design ${dg.h1.font}`); issues.font++; }
     } else if (dg.h1 && !lv.h1) notes.push('live has no <h1>');
     const liveH = new Set((lv.h2 || []).map(norm));

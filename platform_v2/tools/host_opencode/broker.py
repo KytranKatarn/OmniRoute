@@ -1633,53 +1633,42 @@ def handle_broker_connection(
                 publication_observe=publication_observe,
             )
 
-            # Check trusted completion via independent observers (fail closed
-            # when observers are absent: caller strings alone never suffice).
-            trusted = check_trusted_completion(
-                entries,
-                details,
-                pinned_public_key_pem=pinned,
-                docker_observe=docker_observe,
-                host_observe=host_observe,
-                publication_observe=publication_observe,
-            )
-
-            # If trusted, atomically consume the fence token.
-            # The unique constraint on assignment_id ensures only one TRUSTED
-            # completion can succeed per assignment — atomic, no race.
-            if trusted:
-                db_path = _journal_db_path(journal_db)
-                try:
-                    sql_conn = sqlite3.connect(db_path)
-                    sql_conn.execute("PRAGMA journal_mode=WAL")
-                    sql_conn.execute(
-                        "INSERT INTO fence_consumed (assignment_id, fence_token) VALUES (?, ?)",
-                        (assignment_id, fence_token),
-                    )
-                    sql_conn.commit()
-                    sql_conn.close()
-                except sqlite3.IntegrityError:
-                    # Token already consumed by another trusted completion
+            # Verify fence start/stop pair exists (read-only check, before atomic writes)
+            try:
+                _record_fence_stop(assignment_id, journal_db, fence_token)
+            except Exception:
+                # Database write failed during fence stop recording
+                response = {
+                    "type": "completion_response",
+                    "success": False,
+                    "assignment_id": assignment_id,
+                    "trusted": False,
+                    "error": "journal_persist_failed",
+                }
+                conn.sendall(json.dumps(response).encode())
+                return
+            try:
+                if not _check_fence(assignment_id, journal_db, fence_token):
                     response = {
                         "type": "completion_response",
                         "success": False,
                         "assignment_id": assignment_id,
                         "trusted": False,
-                        "error": "fence_token_consumed",
+                        "error": "fence_verification_failed",
                     }
                     conn.sendall(json.dumps(response).encode())
                     return
-                except Exception:
-                    # Any other error: fail closed
-                    response = {
-                        "type": "completion_response",
-                        "success": False,
-                        "assignment_id": assignment_id,
-                        "trusted": False,
-                        "error": "fence_token_error",
-                    }
-                    conn.sendall(json.dumps(response).encode())
-                    return
+            except Exception:
+                # Database read failed during fence verification (e.g., read-only DB with WAL)
+                response = {
+                    "type": "completion_response",
+                    "success": False,
+                    "assignment_id": assignment_id,
+                    "trusted": False,
+                    "error": "journal_persist_failed",
+                }
+                conn.sendall(json.dumps(response).encode())
+                return
 
             # Build the exact signed receipt envelope and persist it verbatim.
             # The stored signature must match these exact bytes.
@@ -1698,14 +1687,50 @@ def handle_broker_connection(
             signed = sign_payload(receipt_payload, private_key_pem)
             receipt_blob = signed["signed_blob"]
             receipt_sig = signed["signature_b64"]
-            persisted = journal_append_fn(
-                assignment_id=assignment_id,
-                event_type="assignment_completed",
-                payload={"envelope": receipt_blob, "trusted": trusted},
-                signature=receipt_sig,
-                db_path=journal_db,
-            )
-            if not persisted:
+
+            # Atomically: consume fence token (if trusted) and persist receipt
+            # in a single SQLite transaction. This ensures receipt and token
+            # consumption are all-or-nothing — no partial state.
+            db_path = _journal_db_path(journal_db)
+            try:
+                sql_conn = sqlite3.connect(db_path, timeout=5.0)
+                sql_conn.execute("PRAGMA journal_mode=WAL")
+                sql_conn.execute("PRAGMA busy_timeout=5000")
+                sql_conn.execute("BEGIN IMMEDIATE")
+                try:
+                    # If trusted, consume fence token atomically
+                    if trusted:
+                        sql_conn.execute(
+                            "INSERT INTO fence_consumed (assignment_id, fence_token) VALUES (?, ?)",
+                            (assignment_id, fence_token),
+                        )
+                    # Persist receipt in same transaction
+                    sql_conn.execute(
+                        "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, datetime('now'))",
+                        (assignment_id, "assignment_completed", json.dumps({"envelope": receipt_blob, "trusted": trusted}, sort_keys=True), receipt_sig, 1 if trusted else 0),
+                    )
+                    sql_conn.commit()
+                except sqlite3.IntegrityError:
+                    sql_conn.rollback()
+                    # Token already consumed by another trusted completion
+                    response = {
+                        "type": "completion_response",
+                        "success": False,
+                        "assignment_id": assignment_id,
+                        "trusted": False,
+                        "error": "fence_token_consumed",
+                    }
+                    conn.sendall(json.dumps(response).encode())
+                    sql_conn.close()
+                    return
+                except Exception:
+                    sql_conn.rollback()
+                    raise
+                finally:
+                    sql_conn.close()
+            except Exception:
+                # Any error in atomic block: fail closed
                 response = {
                     "type": "completion_response",
                     "success": False,

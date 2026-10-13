@@ -523,38 +523,51 @@ class BrokerSecurityTests(unittest.TestCase):
         self.assertIn("assignment", assign_resp2)
         fence_token = assign_resp2["assignment"]["fence_token"]
         docker, host, pub, _ = _terminal_observers("c-handler-001")
-        conn2 = _FakeConn(
-            json.dumps(
-                {
-                    "type": "complete_assignment",
-                    "assignment_id": "a-handler-001",
-                    "runner_id": "r-1",
-                    "success": True,
-                    "details": {
-                        "docker_state": "stopped",
-                        "stop_observation": "verified",
-                        "container_id": "c-handler-001",
-                        "fence_token": fence_token,
-                    },
-                }
-            ).encode(),
-            uid=1000,
-        )
-        B.handle_broker_connection(
-            conn2,
-            self.priv_pem,
-            failing_append,
-            journal_db=self.db,
-            keys_dir=self.keys_dir,
-            peer_uid=1000,
-            docker_observe=docker,
-            host_observe=host,
-            publication_observe=pub,
-        )
-        resp2 = json.loads(conn2.sent.decode())
-        self.assertFalse(resp2["success"], "failed completion persist must not succeed")
-        self.assertFalse(resp2.get("trusted", True), "failed persist must not be trusted")
-        self.assertEqual(resp2.get("error"), "journal_persist_failed")
+
+        # Test completion failure with read-only database file (atomic transaction fails)
+        import tempfile
+        import os
+        import stat
+        import shutil
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Copy the database to a new location and make it read-only
+            bad_db = os.path.join(tmpdir, "journal.db")
+            shutil.copy2(self.db, bad_db)
+            os.chmod(bad_db, stat.S_IRUSR)  # read-only
+            conn2 = _FakeConn(
+                json.dumps(
+                    {
+                        "type": "complete_assignment",
+                        "assignment_id": "a-handler-001",
+                        "runner_id": "r-1",
+                        "success": True,
+                        "details": {
+                            "docker_state": "stopped",
+                            "stop_observation": "verified",
+                            "container_id": "c-handler-001",
+                            "fence_token": fence_token,
+                        },
+                    }
+                ).encode(),
+                uid=1000,
+            )
+            B.handle_broker_connection(
+                conn2,
+                self.priv_pem,
+                B.journal_append,
+                journal_db=bad_db,
+                keys_dir=self.keys_dir,
+                peer_uid=1000,
+                docker_observe=docker,
+                host_observe=host,
+                publication_observe=pub,
+            )
+            resp2 = json.loads(conn2.sent.decode())
+            self.assertFalse(resp2["success"], "failed completion persist must not succeed")
+            self.assertFalse(resp2.get("trusted", True), "failed persist must not be trusted")
+            # Read-only DB causes either journal_persist_failed (write) or
+            # fence_verification_failed (read with WAL on read-only) — both valid
+            self.assertIn(resp2.get("error"), ("journal_persist_failed", "fence_verification_failed"))
 
     def test_observation_targets_bound_to_seal(self):
         """Caller container mismatch rejected; observers get sealed identity."""

@@ -898,6 +898,7 @@ def _record_reap(assignment_id: str, pid: int, reaped_ok: bool, journal_db: str)
     """
     import json as _json
 
+    conn = None
     try:
         conn = sqlite3.connect(journal_db)
         conn.execute("PRAGMA journal_mode=WAL")
@@ -907,10 +908,12 @@ def _record_reap(assignment_id: str, pid: int, reaped_ok: bool, journal_db: str)
             (assignment_id, pid, int(reaped_ok), "", f"reap pid={pid} ok={reaped_ok}"),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception:
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _fence_token() -> str:
@@ -920,8 +923,38 @@ def _fence_token() -> str:
     return str(_uuid.uuid4())
 
 
+def _assignment_fence(assignment_id: str, journal_db: str):
+    """Return one durable token for an assignment, including identical retries."""
+    from contextlib import closing
+
+    try:
+        with closing(sqlite3.connect(_journal_db_path(journal_db), timeout=5.0)) as db:
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                rows = db.execute(
+                    "SELECT payload FROM broker_journal WHERE assignment_id=? AND event_type='fence_start' ORDER BY id",
+                    (assignment_id,),
+                ).fetchall()
+                if rows:
+                    tokens = {json.loads(row[0])["token"] for row in rows}
+                    if len(tokens) != 1:
+                        return None
+                    token = tokens.pop()
+                    return token if isinstance(token, str) and token else None
+                token = _fence_token()
+                db.execute(
+                    "INSERT INTO broker_journal (assignment_id,event_type,payload,signature,verified) "
+                    "VALUES (?,'fence_start',?,'{}',0)",
+                    (assignment_id, json.dumps({"token": token}, sort_keys=True)),
+                )
+            return token
+    except Exception:
+        return None
+
+
 def _record_fence_start(assignment_id: str, journal_db: str, token: str) -> bool:
     """Record a start-fence token in the journal. Returns True on success."""
+    conn = None
     try:
         conn = sqlite3.connect(journal_db)
         conn.execute("PRAGMA journal_mode=WAL")
@@ -931,14 +964,17 @@ def _record_fence_start(assignment_id: str, journal_db: str, token: str) -> bool
             (assignment_id, json.dumps({"token": token}, sort_keys=True)),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception:
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _record_fence_stop(assignment_id: str, journal_db: str, token: str) -> bool:
     """Record a stop-fence token in the journal. Returns True on success."""
+    conn = None
     try:
         conn = sqlite3.connect(journal_db)
         conn.execute("PRAGMA journal_mode=WAL")
@@ -948,10 +984,12 @@ def _record_fence_stop(assignment_id: str, journal_db: str, token: str) -> bool:
             (assignment_id, json.dumps({"token": token}, sort_keys=True)),
         )
         conn.commit()
-        conn.close()
         return True
     except Exception:
         return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def _check_fence(assignment_id: str, journal_db: str, token: str) -> bool:
@@ -1512,8 +1550,14 @@ def handle_broker_connection(
             out_signature = existing["signature"] if seal_status == "identical" and existing else sealed.signature
 
             # Generate and persist fence start token for this assignment
-            fence_token = _fence_token()
-            _record_fence_start(sealed.assignment_id, journal_db, fence_token)
+            fence_token = _assignment_fence(sealed.assignment_id, journal_db)
+            if fence_token is None:
+                conn.sendall(
+                    json.dumps(
+                        {"type": "assignment_response", "assignment": None, "error": "journal_persist_failed"}
+                    ).encode()
+                )
+                return
 
             # Return sealed assignment to poller with fence token
             response = {
@@ -1598,21 +1642,8 @@ def handle_broker_connection(
                 conn.sendall(json.dumps(response).encode())
                 return
 
-            # Verify fence start/stop pair exists (read-only, no consumption yet)
-            _record_fence_stop(assignment_id, journal_db, fence_token)
-            if not _check_fence(assignment_id, journal_db, fence_token):
-                response = {
-                    "type": "completion_response",
-                    "success": False,
-                    "assignment_id": assignment_id,
-                    "trusted": False,
-                    "error": "fence_verification_failed",
-                }
-                conn.sendall(json.dumps(response).encode())
-                return
-
-            # Check trusted completion via independent observers (fail closed
-            # when observers are absent: caller strings alone never suffice).
+            # Observe once. Token validation and all completion writes occur below
+            # in one transaction; concurrent callers cannot consume the same attempt.
             trusted = check_trusted_completion(
                 entries,
                 details,
@@ -1621,54 +1652,6 @@ def handle_broker_connection(
                 host_observe=host_observe,
                 publication_observe=publication_observe,
             )
-
-            # Check trusted completion via independent observers (fail closed
-            # when observers are absent: caller strings alone never suffice).
-            trusted = check_trusted_completion(
-                entries,
-                details,
-                pinned_public_key_pem=pinned,
-                docker_observe=docker_observe,
-                host_observe=host_observe,
-                publication_observe=publication_observe,
-            )
-
-            # Verify fence start/stop pair exists (read-only check, before atomic writes)
-            try:
-                _record_fence_stop(assignment_id, journal_db, fence_token)
-            except Exception:
-                # Database write failed during fence stop recording
-                response = {
-                    "type": "completion_response",
-                    "success": False,
-                    "assignment_id": assignment_id,
-                    "trusted": False,
-                    "error": "journal_persist_failed",
-                }
-                conn.sendall(json.dumps(response).encode())
-                return
-            try:
-                if not _check_fence(assignment_id, journal_db, fence_token):
-                    response = {
-                        "type": "completion_response",
-                        "success": False,
-                        "assignment_id": assignment_id,
-                        "trusted": False,
-                        "error": "fence_verification_failed",
-                    }
-                    conn.sendall(json.dumps(response).encode())
-                    return
-            except Exception:
-                # Database read failed during fence verification (e.g., read-only DB with WAL)
-                response = {
-                    "type": "completion_response",
-                    "success": False,
-                    "assignment_id": assignment_id,
-                    "trusted": False,
-                    "error": "journal_persist_failed",
-                }
-                conn.sendall(json.dumps(response).encode())
-                return
 
             # Build the exact signed receipt envelope and persist it verbatim.
             # The stored signature must match these exact bytes.
@@ -1692,23 +1675,55 @@ def handle_broker_connection(
             # in a single SQLite transaction. This ensures receipt and token
             # consumption are all-or-nothing — no partial state.
             db_path = _journal_db_path(journal_db)
+            sql_conn = None
             try:
                 sql_conn = sqlite3.connect(db_path, timeout=5.0)
                 sql_conn.execute("PRAGMA journal_mode=WAL")
                 sql_conn.execute("PRAGMA busy_timeout=5000")
                 sql_conn.execute("BEGIN IMMEDIATE")
+                token_inserted = False
                 try:
+                    starts = sql_conn.execute(
+                        "SELECT payload FROM broker_journal WHERE assignment_id=? AND event_type='fence_start'",
+                        (assignment_id,),
+                    ).fetchall()
+                    if not any(json.loads(row[0]).get("token") == fence_token for row in starts):
+                        sql_conn.rollback()
+                        conn.sendall(
+                            json.dumps(
+                                {
+                                    "type": "completion_response",
+                                    "success": False,
+                                    "trusted": False,
+                                    "assignment_id": assignment_id,
+                                    "error": "fence_verification_failed",
+                                }
+                            ).encode()
+                        )
+                        return
+                    sql_conn.execute(
+                        "INSERT INTO broker_journal (assignment_id,event_type,payload,signature,verified) "
+                        "VALUES (?,'fence_stop',?,'{}',0)",
+                        (assignment_id, json.dumps({"token": fence_token}, sort_keys=True)),
+                    )
                     # If trusted, consume fence token atomically
                     if trusted:
                         sql_conn.execute(
                             "INSERT INTO fence_consumed (assignment_id, fence_token) VALUES (?, ?)",
                             (assignment_id, fence_token),
                         )
+                        token_inserted = True
                     # Persist receipt in same transaction
                     sql_conn.execute(
                         "INSERT INTO broker_journal (assignment_id, event_type, payload, signature, verified, created_at) "
                         "VALUES (?, ?, ?, ?, ?, datetime('now'))",
-                        (assignment_id, "assignment_completed", json.dumps({"envelope": receipt_blob, "trusted": trusted}, sort_keys=True), receipt_sig, 1 if trusted else 0),
+                        (
+                            assignment_id,
+                            "assignment_completed",
+                            json.dumps({"envelope": receipt_blob, "trusted": trusted}, sort_keys=True),
+                            receipt_sig,
+                            1 if trusted else 0,
+                        ),
                     )
                     sql_conn.commit()
                 except sqlite3.IntegrityError:
@@ -1719,16 +1734,13 @@ def handle_broker_connection(
                         "success": False,
                         "assignment_id": assignment_id,
                         "trusted": False,
-                        "error": "fence_token_consumed",
+                        "error": "fence_token_consumed" if trusted and not token_inserted else "journal_persist_failed",
                     }
                     conn.sendall(json.dumps(response).encode())
-                    sql_conn.close()
                     return
                 except Exception:
                     sql_conn.rollback()
                     raise
-                finally:
-                    sql_conn.close()
             except Exception:
                 # Any error in atomic block: fail closed
                 response = {
@@ -1740,6 +1752,10 @@ def handle_broker_connection(
                 }
                 conn.sendall(json.dumps(response).encode())
                 return
+
+            finally:
+                if sql_conn is not None:
+                    sql_conn.close()
 
             response = {
                 "type": "completion_response",

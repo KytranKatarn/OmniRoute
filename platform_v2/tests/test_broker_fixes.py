@@ -529,6 +529,7 @@ class BrokerSecurityTests(unittest.TestCase):
         import os
         import stat
         import shutil
+
         with tempfile.TemporaryDirectory() as tmpdir:
             # Copy the database to a new location and make it read-only
             bad_db = os.path.join(tmpdir, "journal.db")
@@ -1037,72 +1038,127 @@ class BrokerSecurityTests(unittest.TestCase):
         self.assertEqual(captured["cg"], "host-opencode-runner", "host must receive sealed cgroup")
         self.assertEqual(captured["aid"], "a-handler-001", "host must receive sealed assignment_id")
 
-    def test_integrated_host_exercise(self):
-        """Integrated exercise with real disposable host resources.
+    def test_unprovisioned_live_path_cannot_certify_completion(self):
+        """Exercise actual provisioning without claiming a real host exercise."""
+        from unittest.mock import patch
+        from tools.host_opencode import observers
+        import sqlite3
 
-        This test requires:
-        - BROKER_SERVICE_UNIT: systemd service unit for the runner
-        - BROKER_CGROUP_PATH: cgroup path for the runner
-        - Docker daemon accessible
-
-        Skips gracefully if environment not configured.
-        """
-        import os
-
-        if not all(k in os.environ for k in ("BROKER_SERVICE_UNIT", "BROKER_CGROUP_PATH")):
-            self.skipTest("Live host exercise requires BROKER_SERVICE_UNIT and BROKER_CGROUP_PATH")
-
-        # Use live observers
-        docker, host, pub = B._provision_observers(self.db)
-        if docker is None or host is None or pub is None:
-            self.skipTest("Live observers not fully provisioned")
-
-        # Create assignment with real fence token
-        assign_resp = self._handle(
-            {"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)},
-            peer_uid=1000,
-        )
-        self.assertIn("assignment", assign_resp)
-        fence_token = assign_resp["assignment"]["fence_token"]
-
-        # Complete with live observers - this exercises the real host/docker/publication path
-        response = self._handle(
-            {
-                "type": "complete_assignment",
-                "assignment_id": "a-handler-001",
-                "runner_id": "r-1",
-                "success": True,
-                "details": {
-                    "docker_state": "stopped",
-                    "stop_observation": "verified",
-                    "container_id": "c-handler-001",
-                    "fence_token": fence_token,
+        token = self._get_fence_token()
+        with patch.dict(os.environ, {"GITHUB_TOKEN": ""}), patch.object(
+            observers, "docker_inspect_live", return_value=None
+        ):
+            live = B._provision_observers(self.db)
+            response = self._handle(
+                {
+                    "type": "complete_assignment",
+                    "assignment_id": "a-handler-001",
+                    "success": True,
+                    "details": {
+                        "container_id": "c-handler-001",
+                        "docker_state": "stopped",
+                        "stop_observation": "verified",
+                        "fence_token": token,
+                    },
                 },
-            },
-            observers=(docker, host, pub),
-        )
-        # With live observers, completion should be trusted
-        self.assertTrue(response.get("trusted"), f"Integrated host exercise failed: {response}")
-        self.assertIn("receipt_blob", response)
-        self.assertIn("receipt_signature", response)
+                observers=live,
+            )
+        self.assertFalse(response.get("trusted"), response)
+        self.assertFalse(response.get("success"), response)
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM fence_consumed").fetchone()[0], 0)
 
-        # Verify the receipt is valid
-        self.assertTrue(
-            B.verify_receipt(
-                response["receipt_blob"],
-                response["receipt_signature"],
-                "a-handler-001",
-                1000,
-                pinned_public_key_pem=self.pub_pem,
-                journal_db=self.db,
-                peer_uid=1000,
-            ),
-            "Integrated exercise receipt must verify",
-        )
+    def test_simultaneous_completions_have_one_durable_winner(self):
+        import concurrent.futures
+        import threading
+        import sqlite3
 
-def test_fence_atomic_consumption_sequential(self):
+        token = self._get_fence_token()
+        barrier = threading.Barrier(2)
+
+        def complete():
+            docker, host, pub, _ = _terminal_observers("c-handler-001")
+
+            def synchronized_docker(*args, **kwargs):
+                barrier.wait(timeout=10)
+                return docker(*args)
+
+            return self._handle(
+                {
+                    "type": "complete_assignment",
+                    "assignment_id": "a-handler-001",
+                    "success": True,
+                    "details": {
+                        "container_id": "c-handler-001",
+                        "docker_state": "stopped",
+                        "stop_observation": "verified",
+                        "fence_token": token,
+                    },
+                },
+                observers=(synchronized_docker, host, pub),
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(complete) for _ in range(2)]
+            results = [future.result(timeout=20) for future in futures]
+        self.assertEqual(sum(r.get("trusted") is True for r in results), 1, results)
+        self.assertEqual([r.get("error") for r in results if not r.get("trusted")], ["fence_token_consumed"])
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM fence_consumed").fetchone()[0], 1)
+            self.assertEqual(
+                db.execute("SELECT count(*) FROM broker_journal WHERE event_type='assignment_completed'").fetchone()[0],
+                1,
+            )
+            self.assertEqual(
+                db.execute("SELECT count(*) FROM broker_journal WHERE event_type='fence_stop'").fetchone()[0], 1
+            )
+
+    def test_receipt_failure_rolls_back_token_and_stop_then_retries(self):
+        import sqlite3
+
+        token = self._get_fence_token()
+        with sqlite3.connect(self.db) as db:
+            db.execute(
+                "CREATE TRIGGER fail_receipt BEFORE INSERT ON broker_journal "
+                "WHEN NEW.event_type='assignment_completed' BEGIN SELECT RAISE(FAIL,'fixture failure'); END"
+            )
+        failed = self._complete_terminal(fence_token=token)
+        self.assertEqual(failed.get("error"), "journal_persist_failed", failed)
+        with sqlite3.connect(self.db) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM fence_consumed").fetchone()[0], 0)
+            self.assertEqual(
+                db.execute("SELECT count(*) FROM broker_journal WHERE event_type='fence_stop'").fetchone()[0], 0
+            )
+            db.execute("DROP TRIGGER fail_receipt")
+        retried = self._complete_terminal(fence_token=token)
+        self.assertTrue(retried.get("trusted"), retried)
+
+    def test_assignment_fence_write_failure_returns_no_assignment(self):
+        import sqlite3
+
+        with sqlite3.connect(self.db) as db:
+            db.execute(
+                "CREATE TRIGGER fail_start BEFORE INSERT ON broker_journal "
+                "WHEN NEW.event_type='fence_start' BEGIN SELECT RAISE(FAIL,'fixture failure'); END"
+            )
+        failed = self._handle({"type": "assign_task", "assignment_data": dict(_ASSIGNMENT)})
+        self.assertIsNone(failed.get("assignment"), failed)
+        self.assertEqual(failed.get("error"), "journal_persist_failed", failed)
+        with sqlite3.connect(self.db) as db:
+            db.execute("DROP TRIGGER fail_start")
+        token = self._get_fence_token()
+        self.assertTrue(token)
+
+    def test_identical_assignment_retry_preserves_fence_token(self):
+        first = self._get_fence_token()
+        second = self._get_fence_token()
+        self.assertEqual(first, second)
+        entries = B.journal_get_entries(assignment_id="a-handler-001", db_path=self.db)
+        self.assertEqual(sum(e["event_type"] == "fence_start" for e in entries), 1)
+
+    def test_fence_atomic_consumption_sequential(self):
         """Sequential test verifying atomic fence token consumption.
-        
+
         Two sequential completions with the same fence token:
         first succeeds (trusted), second fails with fence_token_consumed.
         This verifies the atomic consumption logic without SQLite locking
@@ -1153,7 +1209,7 @@ def test_fence_atomic_consumption_sequential(self):
         self.assertFalse(resp2["success"])
         self.assertEqual(resp2.get("error"), "fence_token_consumed")
 
-def test_fence_untrusted_then_trusted_sequential(self):
+    def test_fence_untrusted_then_trusted_sequential(self):
         """Sequential test: untrusted completion doesn't consume token,
         subsequent trusted completion succeeds."""
         assign_resp = self._handle(

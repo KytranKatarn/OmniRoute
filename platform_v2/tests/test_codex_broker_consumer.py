@@ -346,7 +346,8 @@ def test_current_broker_completion_roundtrip(tmp_path, keys, monkeypatch):
         broker.handle_broker_connection(conn, pem, broker.journal_append, journal_db=db, **kwargs)
         return json.loads(conn.sendall.call_args.args[0])
 
-    assert request({"type": "assign_task", "assignment_data": assignment})["assignment"]
+    assigned = request({"type": "assign_task", "assignment_data": assignment})["assignment"]
+    assert assigned
     response = request(
         {
             "type": "complete_assignment",
@@ -357,6 +358,7 @@ def test_current_broker_completion_roundtrip(tmp_path, keys, monkeypatch):
                 "docker_state": "stopped",
                 "stop_observation": "verified",
                 "container_id": "c" * 64,
+                "fence_token": assigned["fence_token"],
             },
         },
         docker_observe=lambda cid, aid: {

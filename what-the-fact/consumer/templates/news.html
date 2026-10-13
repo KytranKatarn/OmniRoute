@@ -63,10 +63,14 @@
            an option. 37 of 46 sources resolved — the rest (mostly Postmedia, which
            bot-blocks) fall through to the monogram, which is the correct render
            for a publisher with no usable icon. #}
+        {# Request the icon ONLY when its file exists (consumer/favicons.py): a source with none gets the badge directly instead of a guaranteed
+           404 first. onerror stays for a file that exists but cannot be decoded. #}
+        {% if has_favicon(s.slug) %}
         <img src="/static/favicons/{{ s.slug }}.png"
              width="24" height="24" alt="" loading="lazy"
              onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-        <span class="wtf-nw-src-fallback" style="color:{{ col }};">
+        {% endif %}
+        <span class="wtf-nw-src-fallback" style="color:{{ col }};{% if not has_favicon(s.slug) %} display:flex;{% endif %}">
           {{ s.name[:2] | upper }}
         </span>
       </div>

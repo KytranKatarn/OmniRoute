@@ -24,6 +24,10 @@ import logging
 
 bp = Blueprint("wtf", __name__)
 
+from .favicons import has_favicon as _has_favicon  # noqa: E402  (news.html asks for an icon only when its file exists)
+
+bp.add_app_template_global(_has_favicon, "has_favicon")
+
 # Module logger. Error paths in the API-key routes (#2138) use this; before it
 # existed the only logging here was an inline `import logging` at one call site.
 logger = logging.getLogger(__name__)

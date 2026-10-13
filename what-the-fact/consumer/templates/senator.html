@@ -14,7 +14,9 @@
 .wtf-sen-photo-ph { width:96px; height:96px; border-radius:50%; background:#0a0505; border:2px solid #4b0000; display:flex; align-items:center; justify-content:center; font-size:40px; color:#4b0000; flex-shrink:0; }
 .wtf-sen-photo-ph--hidden { display:none; }
 .wtf-sen-info { flex:1; min-width:200px; }
-.wtf-sen-name { font-family:var(--wtf-font-mono); font-size:18px; color:#e5e7eb; margin:0 0 6px; }
+/* Name follows the mockup (.wtf-mp-name: serif 31px/600); phones step down (task #6604). */
+.wtf-sen-name { font-family:var(--wtf-font-serif);font-size:31px;font-weight:600;line-height:1.08;letter-spacing:-.022em;color:#e5e7eb; margin:0 0 6px; }
+@media (max-width: 600px) { .wtf-sen-name { font-size: 26px; } }
 .wtf-sen-badge { font-size:11px; padding:3px 10px; border-radius:10px; font-weight:600; display:inline-block; margin-bottom:8px; }
 .wtf-sen-badge--former { background:#37415122; color:#9ca3af; border:1px solid #37415188; }
 .wtf-sen-badge--cabinet { background:#78350f22; color:#f59e0b; border:1px solid #78350f44; margin-left:4px; }

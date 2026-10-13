@@ -15,7 +15,9 @@
 <style>
 .wtf-fa-head { margin-bottom:26px }
 .wtf-fa-kicker { font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:2px;color:#ef4444;text-transform:uppercase;margin-bottom:10px }
-.wtf-fa-title { font-size:1.6rem;line-height:1.2;color:#f9fafb;margin-bottom:12px;max-width:820px }
+/* The live title is a sentence (the mockup's is "Forecast accuracy"): mockup face, weight and tracking at 30px, not 38px. */
+.wtf-fa-title { font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;letter-spacing:-.015em;line-height:1.2;color:#f9fafb;margin-bottom:12px;max-width:820px }
+@media (max-width: 600px) { .wtf-fa-title { font-size: 26px; } }
 .wtf-fa-lede { font-size:13px;line-height:1.7;color:#9ca3af;max-width:720px }
 .wtf-fa-tiles { display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:26px }
 .wtf-fa-tile { background:var(--wtf-bg);border:1px solid #1f2937;border-radius:4px;padding:16px }

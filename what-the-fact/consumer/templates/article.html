@@ -98,7 +98,9 @@
 }
 .wtf-art-header { margin-bottom: 20px; }
 .wtf-art-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; font-size: 11px; color: #666; }
-.wtf-art-title { font-size: 20px; font-weight: bold; color: #e8e8e8; line-height: 1.4; margin-bottom: 12px; }
+/* Page title follows the mockup (serif 38px/600); phones step down so it does not take three lines (task #6604). */
+.wtf-art-title { font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;line-height:1.15;letter-spacing:-.026em;color: #e8e8e8; margin-bottom: 12px; }
+@media (max-width: 600px) { .wtf-art-title { font-size: 30px; } }
 .wtf-art-badge { font-size: 10px; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
 .wtf-badge-ai  { background: #0a2a1a; color: #4a9; border: 1px solid #1a4a2a; }
 .wtf-badge-quick { background: #1a1a0a; color: #aa9; border: 1px solid #2a2a1a; }

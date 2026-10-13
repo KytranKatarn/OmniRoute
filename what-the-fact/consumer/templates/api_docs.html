@@ -22,9 +22,12 @@
   .wtf-doc-note { font-size: .85rem; opacity: .75; margin-top: .5rem; line-height: 1.5; }
   .wtf-doc-cta { display: inline-block; margin-top: .6rem; padding: .5rem .9rem; border-radius: 6px;
                  background: rgba(127,127,127,.18); text-decoration: none; }
+/* Page title follows the mockup (serif 38px/600); phones step down so it does not take three lines (task #6604). */
+.wtf-doc-title { font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;line-height:1.1;letter-spacing:-.015em; }
+@media (max-width: 600px) { .wtf-doc-title { font-size: 30px; } }
 </style>
 <div class="wtf-doc-wrap">
-  <h1>Public API</h1>
+  <h1 class="wtf-doc-title">Public API</h1>
   <p class="wtf-doc-lede">
     Read-only access to What The Fact's article, outlet and bias data, plus the
     cross-product accountability signals behind <a href="/cross-watch">Cross-Watch</a>.

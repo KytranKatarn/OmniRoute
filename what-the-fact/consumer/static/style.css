@@ -2021,6 +2021,9 @@ p { text-wrap: pretty; }
    individual title / label / intro when they are siblings of other content. An intro with a max-width keeps its width and is centred as a
    block; !important beats the inline `margin:0` several templates set on it. */
 .wtf-pg-centre { text-align:center; }
+/* Page title follows the mockup (Newsreader 38px/600/-.015em); phones step down so it does not take three lines (task #6604). */
+.wtf-pg-h1 { font-family:var(--wtf-font-serif, Georgia, serif); font-size:38px; font-weight:600; line-height:1.1; letter-spacing:-.015em; }
+@media (max-width:600px) { .wtf-pg-h1 { font-size:30px; } }
 p.wtf-pg-centre, .wtf-pg-centre > p, .wtf-pg-centre .wtf-a-tile-d, .wtf-pg-centre [class*="lede"], .wtf-pg-centre [class*="-sub"] { margin-left:auto !important; margin-right:auto !important; }
 .wtf-pg-wrap .wtf-a-tile { text-align:center; align-items:center; }
 .wtf-pg-wrap .wtf-a-tile-n { order:-1; font-size:26px; }

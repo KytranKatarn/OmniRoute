@@ -5,13 +5,10 @@
 <meta name="description" content="Current conditions and forecast for {{ city.name }}, {{ city.prov }} — from Environment and Climate Change Canada, via What The Fact.">
 {% endblock %}
 {% block content %}
-{# Scoped-down /weather/city/<name> — see the route's own docstring in
-   routes.py for the full list of design-mockup sections (hourly forecast,
-   14-day outlook, precipitation chart, AQI, sun/moon, 30-day A.U.R.O.R.A.
-   outlook) deliberately NOT built here: none of them are backed by real
-   ingest, and the mockup's numbers for all of them are fabricated. This
-   page renders only what wtf.aurora_city_obs/_city_forecast actually hold —
-   the same fields /weather's own city cards already render honestly. #}
+{# /weather/city/<name> renders only what is ingested: current conditions, the forecast periods, and (task 7235) the next 24 hours, sunrise and
+   sunset, yesterday, and the regional normal, all from the MSC city-page feed. The mockup's 14-day outlook, AQI dial, moon panel and 30-day outlook
+   are still NOT built: there is no data behind them. Symbols are the constant SVG fragments from consumer/wx_symbols.py (no data inside them). #}
+{% macro wxsym(key, size) -%}{%- if key and wx_glyphs and wx_glyphs.get(key) -%}<span class="wx-sym" data-glyph="{{ key }}"><svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">{{ wx_glyphs[key] | safe }}</svg></span>{%- endif -%}{%- endmacro %}
 <style>
 .wtf-wxc-top { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:16px; }
 .wtf-wxc-pick { background:#0a1520; border:1px solid #1a3a5a; border-radius:7px; color:#e5e7eb;
@@ -41,6 +38,22 @@
 .wtf-wxc-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 button.wtf-wxc-back { cursor:pointer; }
 .wtf-wxc-back.is-on { border-color:#38bdf8; color:#38bdf8; }
+.wtf-wxc-hero .wx-sym { display:inline-flex; margin-right:12px; vertical-align:middle; }
+.wtf-wxc-hours { display:flex; gap:0; overflow-x:auto; padding-bottom:6px; border:1px solid #1a3a5a; border-radius:8px; background:#0a1520; }
+.wtf-wxc-hour { flex:0 0 66px; text-align:center; padding:10px 4px; border-right:1px solid #0d1f2d; }
+.wtf-wxc-hour:last-child { border-right:0; }
+.wtf-wxc-hour.is-daybreak { border-left:2px solid #1a3a5a; }
+.wtf-wxc-hour-t { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.06em; color:#9ca3af; }
+.wtf-wxc-hour-wd { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.1em; text-transform:uppercase; color:#6b7280; min-height:11px; }
+.wtf-wxc-hour .wx-sym { display:flex; justify-content:center; margin:6px 0; min-height:30px; }
+.wtf-wxc-hour-temp { font-family:var(--wtf-font-mono); font-size:15px; color:#e5e7eb; }
+.wtf-wxc-hour-pop { font-family:var(--wtf-font-mono); font-size:10.5px; color:#38bdf8; min-height:14px; margin-top:3px; }
+.wtf-wxc-hour-wind { font-family:var(--wtf-font-mono); font-size:9.5px; color:#6b7280; margin-top:3px; }
+.wtf-wxc-line { width:100%; height:auto; display:block; margin-top:10px; }
+.wtf-wxc-line polyline { fill:none; stroke:#38bdf8; stroke-width:2; stroke-linejoin:round; }
+.wtf-wxc-line circle { fill:#38bdf8; }
+.wtf-wxc-line text { fill:#9ca3af; font:10px var(--wtf-font-mono); }
+.wtf-wxc-fc-row .wx-sym { display:inline-flex; min-width:28px; }
 .wtf-wxc-badge { font-size:9.5px; padding:2px 8px; border-radius:10px; background:#78350f22; color:#f59e0b; border:1px solid #78350f44; margin-left:8px; vertical-align:middle; }
 </style>
 
@@ -64,6 +77,7 @@ button.wtf-wxc-back { cursor:pointer; }
 </div>
 
 <div class="wtf-wxc-hero">
+  {% if city.glyph %}<div>{{ wxsym(city.glyph, 72) }}</div>{% endif %}
   <div>
     <div class="wtf-wxc-eyebrow">{{ city.prov or 'Canada' }}{% if city.is_capital %} &middot; Provincial capital{% endif %}</div>
     <h1 class="wtf-wxc-title">{{ city.name }} weather</h1>
@@ -101,12 +115,61 @@ button.wtf-wxc-back { cursor:pointer; }
   <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Pressure</div><div class="wtf-wxc-v">{{ measurement(city.pressure, " kPa") }}</div></div>
 </div>
 
+{% if window and window.any %}
+{% if window.hours %}
+<div class="wtf-wxc-section">Next 24 hours</div>
+<div class="wtf-wxc-hours" role="list" aria-label="Hourly forecast">
+  {% for h in window.hours %}
+  <div class="wtf-wxc-hour{% if h.day_break and not loop.first %} is-daybreak{% endif %}" role="listitem" title="{{ h.condition or '' }}">
+    <div class="wtf-wxc-hour-wd">{% if h.day_break %}{{ h.weekday }}{% endif %}</div>
+    <div class="wtf-wxc-hour-t">{{ h.label }}</div>
+    {{ wxsym(h.glyph, 28) }}
+    <div class="wtf-wxc-hour-temp">{% if h.temp is not none %}{{ h.temp }}&deg;{% else %}&mdash;{% endif %}</div>
+    <div class="wtf-wxc-hour-pop">{% if h.lop is not none and h.lop > 0 %}{{ h.lop }}%{% endif %}</div>
+    <div class="wtf-wxc-hour-wind">{% if h.calm %}calm{% elif h.wind is not none %}{{ h.wind }}{% if h.wind_dir %} {{ h.wind_dir }}{% endif %}{% endif %}</div>
+  </div>
+  {% endfor %}
+</div>
+{% if window.line %}
+<svg class="wtf-wxc-line" viewBox="0 0 {{ window.line.width }} {{ window.line.height }}" role="img" aria-label="Temperature over the next 24 hours, {{ window.line.min }} to {{ window.line.max }} degrees">
+  <polyline points="{% for p in window.line.points %}{{ p.x }},{{ p.y }} {% endfor %}"/>
+  {% for p in window.line.points %}{% if p.temp == window.line.max or p.temp == window.line.min %}
+  <circle cx="{{ p.x }}" cy="{{ p.y }}" r="3.5"/><text x="{{ p.x }}" y="{{ p.y - 8 if p.temp == window.line.max else p.y + 16 }}" text-anchor="middle">{{ p.temp }}&deg;</text>
+  {% endif %}{% endfor %}
+</svg>
+{% endif %}
+{% endif %}
+
+{% if window.sun or window.yesterday or window.normals %}
+<div class="wtf-wxc-section">Today in context</div>
+<div class="wtf-wxc-grid">
+  {% if window.sun %}
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Sunrise</div><div class="wtf-wxc-v">{{ window.sun.sunrise }}</div></div>
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Sunset</div><div class="wtf-wxc-v">{{ window.sun.sunset }}</div>{% if window.sun.daylight %}<div class="wtf-wxc-k" style="margin-top:4px">{{ window.sun.daylight }} of daylight</div>{% endif %}</div>
+  {% endif %}
+  {% if window.normals %}
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Normal high / low</div><div class="wtf-wxc-v">{% if window.normals.high is not none %}{{ window.normals.high }}&deg;{% else %}&mdash;{% endif %} / {% if window.normals.low is not none %}{{ window.normals.low }}&deg;{% else %}&mdash;{% endif %}</div>
+    {% if window.normals.today_vs_normal is not none %}<div class="wtf-wxc-k" style="margin-top:4px">today {% if window.normals.today_vs_normal == 0 %}at normal{% else %}{{ window.normals.today_vs_normal | abs }}&deg; {{ 'above' if window.normals.today_vs_normal > 0 else 'below' }} normal{% endif %}</div>{% endif %}</div>
+  {% endif %}
+  {% if window.yesterday %}
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Yesterday high / low</div><div class="wtf-wxc-v">{% if window.yesterday.high is not none %}{{ window.yesterday.high }}&deg;{% else %}&mdash;{% endif %} / {% if window.yesterday.low is not none %}{{ window.yesterday.low }}&deg;{% else %}&mdash;{% endif %}</div></div>
+  {% if window.yesterday.rain or window.yesterday.snow %}
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Yesterday precipitation</div><div class="wtf-wxc-v">{% if window.yesterday.rain %}{{ window.yesterday.rain }} rain{% endif %}{% if window.yesterday.rain and window.yesterday.snow %}<br>{% endif %}{% if window.yesterday.snow %}{{ window.yesterday.snow }} snow{% endif %}</div></div>
+  {% endif %}
+  {% if window.yesterday.gust is not none %}
+  <div class="wtf-wxc-kv"><div class="wtf-wxc-k">Yesterday peak gust</div><div class="wtf-wxc-v">{{ window.yesterday.gust }} km/h</div>{% if window.yesterday.gust_dir %}<div class="wtf-wxc-k" style="margin-top:4px">from {{ window.yesterday.gust_dir }}</div>{% endif %}</div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
 {% if city.forecast %}
 <div class="wtf-wxc-section">Forecast</div>
 <div>
   {% for p in city.forecast %}
   <div class="wtf-wxc-fc-row">
-    <span class="wtf-wxc-fc-label">{{ p.label }}</span>
+    <span class="wtf-wxc-fc-label">{{ wxsym(p.glyph, 26) }} {{ p.label }}</span>
     <span class="wtf-wxc-fc-temps">{% if p.high is not none %}{{ p.high }}&deg;{% endif %}{% if p.low is not none %} <span style="color:#6b7280">/ {{ p.low }}&deg;</span>{% endif %}</span>
     {# p.pop resolves to dict.pop() in Jinja (attribute lookup wins over item
        lookup for a name that collides with a real dict method) — use
@@ -120,8 +183,8 @@ button.wtf-wxc-back { cursor:pointer; }
 
 <p class="wtf-wxc-note">
   Observations and forecast: Environment and Climate Change Canada (MSC Datamart citypage feed).
-  This page shows only what is actually ingested — current conditions and the newest forecast
-  issue. For the national wildfire and fire-weather picture, coverage sources, and every
+  This page shows only what is actually ingested — current conditions, the newest forecast
+  issue and its hourly series. The regional normal is Environment Canada's for the area, not this exact station. For the national wildfire and fire-weather picture, coverage sources, and every
   province's station count, see <a href="/weather" style="color:#38bdf8">the full weather &amp; climate page &rarr;</a>.
 </p>
 

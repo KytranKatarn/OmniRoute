@@ -151,8 +151,8 @@ class TestNoFabricatedSections:
 
     def test_no_hourly_or_aqi_or_thirty_day_markup(self, env):
         html = _render(env, FRESH_CITY)
-        for banned in ("Hourly forecast", "Air quality", "AQI", "30-day outlook",
-                       "Sun and moon", "14 days"):
+        # Hourly series, sunrise/sunset, yesterday and the normal are real now (task 7235, tests/test_city_window.py); these four still have no data.
+        for banned in ("Air quality", "AQI", "30-day outlook", "Sun and moon", "14 days"):
             assert banned not in html, f"fabricated section leaked in: {banned!r}"
 
 

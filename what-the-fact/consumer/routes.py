@@ -940,6 +940,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
     match_city_alerts,
     wx_glyph,
 )
+from . import city_window as _city_window  # pure: the city page's hourly/sun/yesterday/normals block (task 7235)
 from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
 from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
 from .aurora_verify import (  # pure, DB-free (see module docstring)
@@ -1373,7 +1374,7 @@ def weather_city(name: str):
         forecast_rows = c.execute(text("""
             SELECT f.site_code, f.period_index, f.period_label,
                    f.temp_high_c, f.temp_low_c, f.pop_pct,
-                   f.abbrev_summary, f.text_summary
+                   f.abbrev_summary, f.text_summary, f.icon_code
             FROM wtf.aurora_city_forecast f
             JOIN (SELECT site_code, max(issued_utc) AS latest
                   FROM wtf.aurora_city_forecast GROUP BY site_code) m
@@ -1400,14 +1401,54 @@ def weather_city(name: str):
             _city_stale_min = int(_l["stale_after_hours"]) * 60
             break
 
+    # The S2 tables (task 7235). A symbol per forecast period, from the ECCC icon_code of the SAME row the period came from: the payload keeps
+    # the periods in period_index order, so the i-th period lines up with the i-th row of this site.
+    _icons = [r["icon_code"] for r in forecast_rows if r["site_code"] == city["code"]]
+    for _i, _p in enumerate(city["forecast"]):
+        _p["glyph"] = _wx_symbols.wx_symbol(_icons[_i] if _i < len(_icons) else None, _p.get("summary"))
+    city["glyph"] = _wx_symbols.wx_symbol(next((r.get("icon_code") for r in city_rows if r["site_code"] == city["code"]), None), city.get("condition"))
+    window = _city_window_for(city)
+
     return render_template(
         "weather_city.html",
         city=city,
+        window=window,
+        wx_glyphs=_wx_symbols.GLYPH_SVG,
         cities=sorted(all_cities, key=lambda c: c["name"]),
         city_stale_min=_city_stale_min,
         source_count=source_count,
         is_subscriber=is_subscriber(),
     )
+
+
+def _city_window_for(city):
+    """The hourly / sun / yesterday / normals block for one city (task 7235). Each query is for ONE site and its LATEST issue only; if the migration
+    that creates these tables is not applied the page still renders without the block, rather than 500ing."""
+    from datetime import datetime, timezone
+    code = city["code"]
+    try:
+        with _db().begin() as c:
+            hourly = c.execute(text("""
+                SELECT hour_utc, condition, icon_code, temp_c, lop_pct, wind_speed_kmh, wind_is_calm, wind_dir, wind_gust_kmh
+                FROM wtf.aurora_city_hourly
+                WHERE site_code = :c AND issued_utc = (SELECT max(issued_utc) FROM wtf.aurora_city_hourly WHERE site_code = :c)
+                ORDER BY hour_utc
+            """), {"c": code}).mappings().all()
+            sun = c.execute(text("""
+                SELECT sun_date, sunrise_utc, sunset_utc FROM wtf.aurora_city_sun WHERE site_code = :c ORDER BY sun_date DESC LIMIT 3
+            """), {"c": code}).mappings().all()
+            yest = c.execute(text("""
+                SELECT obs_date, high_c, low_c, rain_mm, rain_trace, snow_cm, snow_trace, gust_kmh, gust_dir
+                FROM wtf.aurora_city_yesterday WHERE site_code = :c ORDER BY obs_date DESC LIMIT 1
+            """), {"c": code}).mappings().first()
+            normals = c.execute(text("""
+                SELECT normal_high_c, normal_low_c FROM wtf.aurora_city_normals WHERE site_code = :c
+            """), {"c": code}).mappings().first()
+    except Exception:  # noqa: BLE001 — a missing table must cost the block, never the page
+        logger.exception("weather_city: window tables unavailable for %s", code)
+        return None
+    return _city_window.build_window(city, [dict(r) for r in hourly], [dict(r) for r in sun], dict(yest) if yest else None,
+                                     dict(normals) if normals else None, datetime.now(timezone.utc), _wx_symbols.wx_symbol)
 
 
 def _aurora_accuracy_payload(S):

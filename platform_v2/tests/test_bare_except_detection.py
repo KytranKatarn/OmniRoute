@@ -42,3 +42,24 @@ def test_auditor_ignores_historical_comment_but_retains_actual_handler(tmp_path)
     path.write_text("try:\n    pass\nexcept:\n    pass\n")
     _, _, issues = _audit_module_python("fixture", str(tmp_path))
     assert any(i["code"] == "BARE_EXCEPT" for i in issues)
+
+
+def test_detector_does_not_execute_or_suppress_application_errors():
+    source = "raise RuntimeError('application failure')"
+    assert bare_except_present(source) is False  # Inspection does not run the raise.
+    with pytest.raises(RuntimeError, match="application failure"):
+        exec(compile(source, "<isolated-test>", "exec"), {})
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "try: pass\nexcept: broken(",
+        'exec("try: pass\\nexcept: pass")',
+    ],
+)
+def test_unknown_detection_keeps_auditor_finding_open(tmp_path, source):
+    assert bare_except_present(source) is None
+    (tmp_path / "uncertain.py").write_text(source)
+    _, _, issues = _audit_module_python("fixture", str(tmp_path))
+    assert any(i["code"] == "BARE_EXCEPT" for i in issues)

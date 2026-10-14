@@ -4,7 +4,12 @@ import ast
 
 
 def bare_except_present(source):
-    """Ignore mentions in comments/strings, retaining unknown for invalid Python."""
+    """Inspect source syntax only; never execute it or handle application errors.
+
+    True identifies a real bare handler; False excludes only comments/strings
+    and typed handlers. None means unknown, so the auditor retains its text
+    fallback rather than declaring invalid/dynamic source clean.
+    """
     try:
         tree = ast.parse(source)
         compile(tree, "<bare-except-finding>", "exec")

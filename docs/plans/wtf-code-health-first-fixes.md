@@ -24,13 +24,20 @@ configuration and does not execute the manual bias backfill.
 
 ## Verification
 
-45 isolated tests pass, including real consumer app/nav registration, both
+48 isolated tests pass, including real consumer app/nav registration, both
 factories' signing initialization, cross-key signature rejection, quoted hostile
 schema identifiers, update bindings, cleanup on failure, actual bare handlers,
 comment false positives and conservative invalid-source detection. HTTP/database
 access is blocked. The full tech SSO test suite could not collect on this host
 because `flask_cors` is unavailable; run it in the product's isolated test image
 before release. No production dependencies were installed.
+
+F.O.R.G.E. review clarification: the bare-handler detector analyzes source
+syntax; it neither executes inspected code nor catches its runtime failures.
+Regression tests explicitly show an application exception still propagating
+and the full auditor retaining findings when detection returns unknown. Thus
+the `None` fallback is necessary to prevent false clean results, not an
+application error-suppression mechanism. Real bare handlers remain findings.
 
 ```bash
 WTF_DATABASE_URL=postgresql+psycopg2://invalid@127.0.0.1/isolated_not_a_database \

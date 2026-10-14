@@ -879,6 +879,7 @@ _PLACEHOLDER_MAP = {
     "standalone_archie_comms/": "archie-comms/",
     "standalone_media_hub/": "standalone/media_hub/",
     "standalone_creed_governance/": "kytran-creed/",
+    "standalone_what_the_fact/": "what-the-fact/",
     "website_kytranempowerment/": "website/kytranempowerment.com/",
     "website_creed_ai/": "website/creed-ai.org/",
     "website_what_the_fact/": "website/what-the-fact.com/",
@@ -886,6 +887,26 @@ _PLACEHOLDER_MAP = {
 
 # Synthetic placeholders that don't represent real files (e.g., routing rules) — skip rather than fail noisily.
 _SKIP_PREFIXES = ("[dispatch_routing]/",)
+_REPAIR_REPO_ROOT = "/mnt/archie_brain"
+
+
+def _external_website_source(file_path):
+    """Identify a registered external source without pretending this repo owns it."""
+    key, _, relative = file_path.partition("/")
+    if key != "website_what_the_fact" or not relative:
+        return None
+    from services.code_metrics_service import WEBSITE_PRODUCTS
+
+    for site in WEBSITE_PRODUCTS:
+        if site["module_key"] != key:
+            continue
+        root = os.path.realpath(site["path"])
+        target = os.path.realpath(os.path.join(root, relative))
+        if os.path.commonpath([root, target]) != root:
+            return None
+        if os.path.isfile(target):
+            return target
+    return None
 
 
 def resolve_proposal_source(file_path):
@@ -898,6 +919,8 @@ def resolve_proposal_source(file_path):
       status 'skip'    -> synthetic non-file label (_SKIP_PREFIXES); abs_path None; display == input
       status 'ok'      -> abs_path is an existing, readable file; display is the substituted path
       status 'missing' -> resolved (or unresolved) but no on-disk file; abs_path None
+      status 'external_owner' -> source exists in a registered separate tree;
+                                 preserve finding for owner routing, do not patch here
     """
     if not file_path:
         return (None, file_path, "missing")
@@ -915,11 +938,18 @@ def resolve_proposal_source(file_path):
     if os.path.isabs(resolved) or ".." in resolved.replace("\\", "/").split("/"):
         return (None, resolved, "missing")
     # Try /mnt/archie_brain first (host + container mount), fall back to /app/ (Docker)
-    abs_path = os.path.join("/mnt/archie_brain", resolved)
+    abs_path = os.path.join(_REPAIR_REPO_ROOT, resolved)
+    if os.path.commonpath([os.path.realpath(_REPAIR_REPO_ROOT), os.path.realpath(abs_path)]) != os.path.realpath(
+        _REPAIR_REPO_ROOT
+    ):
+        return (None, resolved, "missing")
     if not os.path.isfile(abs_path) and resolved.startswith("platform_v2/"):
         abs_path = os.path.join("/app", resolved[len("platform_v2/") :])
     if os.path.isfile(abs_path):
         return (abs_path, resolved, "ok")
+    external = _external_website_source(file_path)
+    if external:
+        return (external, file_path, "external_owner")
     return (None, resolved, "missing")
 
 
@@ -1309,6 +1339,10 @@ def dispatch_proposal_fix(proposal_id):
 
     # Read source file — resolve module placeholders to a real on-disk path.
     abs_path, file_path, _resolve_status = resolve_proposal_source(file_path)
+    if _resolve_status == "external_owner":
+        if session_id:
+            fail_work_session(session_id, error_msg="External website source requires owner-routed repair")
+        return {"success": False, "blocked": True, "error": "external_owner:website", "file_path": file_path}
     if _resolve_status == "skip":
         # Synthetic/placeholder target (routing rule, etc.) — no real file to fix.
         # Self-clean: archive rather than leave it approved+attempted forever (autonomy).
@@ -1891,7 +1925,7 @@ def archive_unfixable_audit_proposals(dry_run=False):
             scanned += 1
             fp = row["file_path"] or ""
             _abs, _display, status = resolve_proposal_source(fp)
-            if status == "ok":
+            if status in ("ok", "external_owner"):
                 kept += 1
                 continue
             reason = _archive_reason_for(fp, status)

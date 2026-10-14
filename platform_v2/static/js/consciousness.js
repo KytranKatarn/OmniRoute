@@ -3118,11 +3118,13 @@ function loadCodeHealth() {
 
     // Build module status + display name + proposal count + audit date lookups
     var moduleStatusMap = {};
+    window._chModuleHealthDetails = {};
     var moduleDisplayNames = {};
     var moduleProposalCounts = {};
     var moduleAuditDates = {};
     (statusData.modules || []).forEach(function(m) {
       moduleStatusMap[m.module_name] = m.status;
+      window._chModuleHealthDetails[m.module_name] = m;
       if (m.display_name) moduleDisplayNames[m.module_name] = m.display_name;
       if (m.pending_proposals) moduleProposalCounts[m.module_name] = m.pending_proposals;
       if (m.last_audit_date) moduleAuditDates[m.module_name] = m.last_audit_date;
@@ -4260,7 +4262,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     } else if (healthStatus === "orange") {
       badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
     } else if (healthStatus === "yellow") {
-      badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
+      badgeClass = "ch-badge-amber"; badgeLabel = _codeHealthYellowLabel(name);
     } else {
       badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
     }
@@ -4347,6 +4349,13 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
   });
 }
 
+function _codeHealthYellowLabel(moduleKey) {
+    var details = (window._chModuleHealthDetails || {})[moduleKey] || {};
+    if (details.stale === true) return "STALE";
+    if (details.last_audit_status === "findings_open") return "FINDINGS OPEN";
+    return "ATTENTION";
+}
+
 function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
     var el = document.getElementById("chStandaloneTable");
     if (!el) return;
@@ -4381,7 +4390,7 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         } else if (healthStatus === "orange") {
             badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES";
         } else if (healthStatus === "yellow") {
-            badgeClass = "ch-badge-amber"; badgeLabel = "STALE";
+            badgeClass = "ch-badge-amber"; badgeLabel = _codeHealthYellowLabel(key);
         } else {
             badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED";
         }
@@ -4472,7 +4481,7 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         if (healthStatus === "green") { badgeClass = "ch-badge-green"; badgeLabel = "CLEAN"; }
         else if (healthStatus === "purple") { badgeClass = "ch-badge-purple"; badgeLabel = "IN REPAIR"; }
         else if (healthStatus === "orange") { badgeClass = "ch-badge-amber"; badgeLabel = "ISSUES"; }
-        else if (healthStatus === "yellow") { badgeClass = "ch-badge-amber"; badgeLabel = "STALE"; }
+        else if (healthStatus === "yellow") { badgeClass = "ch-badge-amber"; badgeLabel = _codeHealthYellowLabel(key); }
         else { badgeClass = "ch-badge-red"; badgeLabel = "UNAUDITED"; }
         var badgeHtml = '<span class="ch-badge ' + badgeClass + '"><span class="ch-badge-dot"></span>' + badgeLabel + '</span>';
         var nameColor = healthStatus === "green" ? "#22c55e" : healthStatus === "purple" ? "#a78bfa" : healthStatus === "orange" ? "#f59e0b" : healthStatus === "yellow" ? "#f59e0b" : "#ef4444";

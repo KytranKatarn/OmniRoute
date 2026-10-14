@@ -3,6 +3,18 @@
 import ast
 
 
+def bare_except_present(source):
+    """Ignore mentions in comments/strings, retaining unknown for invalid Python."""
+    try:
+        tree = ast.parse(source)
+        compile(tree, "<bare-except-finding>", "exec")
+    except (SyntaxError, ValueError, TypeError, RecursionError):
+        return None
+    if direct_call_present(source, {"exec", "eval"}) is not False:
+        return None
+    return any(isinstance(node, ast.ExceptHandler) and node.type is None for node in ast.walk(tree))
+
+
 def direct_call_present(source, names):
     """Detect named provider calls, ignoring scanner strings and comments.
 

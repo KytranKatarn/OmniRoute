@@ -1744,7 +1744,10 @@ def _audit_module_python(module_name, module_path):
                         _add_issue("DIRECT_CLOUD", fname)
 
             # Check 3: Bare except
-            if re.search(r"\bexcept\s*:", content):
+            from services.code_health_checks import bare_except_present
+
+            bare_except = bare_except_present(content)
+            if bare_except is True or bare_except is None and re.search(r"\bexcept\s*:", content):
                 _add_issue("BARE_EXCEPT", fname)
 
             # Check 4: Hardcoded secrets (exclude test fixtures, shell templates, env lookups)

@@ -104,3 +104,129 @@ class BrokerClient:
         except BrokerUnavailable as exc:
             return ReceiptObservation(False, str(exc))
         return verify_current_receipt(blob, signature, pin=pin, expected=expected, journal_entries=entries)
+
+    def assign_task(self, assignment_data: dict) -> dict:
+        """Request assignment; returns {'assignment': {...}, 'error': ...}."""
+        if not self.enabled:
+            raise BrokerUnavailable("broker_disabled")
+        try:
+            path = Path(self.socket_path)
+            info = path.lstat()
+            parent = path.parent.lstat()
+            if (
+                not stat.S_ISSOCK(info.st_mode)
+                or info.st_uid != self.broker_uid
+                or not stat.S_ISDIR(parent.st_mode)
+                or parent.st_uid != self.broker_uid
+                or parent.st_mode & 0o022
+            ):
+                raise BrokerUnavailable("broker_endpoint_untrusted")
+            deadline = time.monotonic() + self.timeout
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+
+                def remaining():
+                    seconds = deadline - time.monotonic()
+                    if seconds <= 0:
+                        raise BrokerUnavailable("broker_timeout")
+                    conn.settimeout(seconds)
+
+                remaining()
+                conn.connect(self.socket_path)
+                credentials = conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+                _pid, uid, _gid = struct.unpack("3i", credentials)
+                if uid != self.broker_uid:
+                    raise BrokerUnavailable("broker_peer_untrusted")
+
+                payload = canonical_bytes({"type": "assign_task", "assignment_data": assignment_data})
+                conn.sendall(payload)
+                conn.shutdown(socket.SHUT_WR)
+                remaining()
+                response = b""
+                while len(response) < MAX_RESPONSE_BYTES:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        break
+                    response += chunk
+                data = strict_json(response)
+                if data.get("type") != "assignment_response":
+                    raise BrokerUnavailable("broker_invalid_response")
+                return {"assignment": data.get("assignment"), "error": data.get("error")}
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            UnicodeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise BrokerUnavailable("broker_unavailable") from None
+
+    def complete_assignment(
+        self, assignment_id: str, runner_id: str = "", success: bool = False, details: dict = None
+    ) -> dict:
+        """Complete assignment; returns {'success': ..., 'error': ...}."""
+        if not self.enabled:
+            raise BrokerUnavailable("broker_disabled")
+        if type(assignment_id) is not str or not assignment_id or len(assignment_id) > 128:
+            raise BrokerUnavailable("assignment_invalid")
+        if details is None:
+            details = {}
+        try:
+            path = Path(self.socket_path)
+            info = path.lstat()
+            parent = path.parent.lstat()
+            if (
+                not stat.S_ISSOCK(info.st_mode)
+                or info.st_uid != self.broker_uid
+                or not stat.S_ISDIR(parent.st_mode)
+                or parent.st_uid != self.broker_uid
+                or parent.st_mode & 0o022
+            ):
+                raise BrokerUnavailable("broker_endpoint_untrusted")
+            deadline = time.monotonic() + self.timeout
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+
+                def remaining():
+                    seconds = deadline - time.monotonic()
+                    if seconds <= 0:
+                        raise BrokerUnavailable("broker_timeout")
+                    conn.settimeout(seconds)
+
+                remaining()
+                conn.connect(self.socket_path)
+                credentials = conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+                _pid, uid, _gid = struct.unpack("3i", credentials)
+                if uid != self.broker_uid:
+                    raise BrokerUnavailable("broker_peer_untrusted")
+
+                payload = canonical_bytes(
+                    {
+                        "type": "complete_assignment",
+                        "assignment_id": assignment_id,
+                        "runner_id": runner_id,
+                        "success": bool(success),
+                        "details": details,
+                    }
+                )
+                conn.sendall(payload)
+                conn.shutdown(socket.SHUT_WR)
+                remaining()
+                response = b""
+                while len(response) < MAX_RESPONSE_BYTES:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        break
+                    response += chunk
+                data = strict_json(response)
+                if data.get("type") != "completion_response":
+                    raise BrokerUnavailable("broker_invalid_response")
+                return {"success": data.get("success", False), "error": data.get("error")}
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            UnicodeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise BrokerUnavailable("broker_unavailable") from None

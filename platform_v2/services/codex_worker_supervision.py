@@ -66,7 +66,9 @@ def service_state(unit: str) -> dict:
     return data
 
 
-def run_supervised(task: dict, prompt: str, *, runner: str, timeout: int, observe, owns) -> tuple[str, str]:
+def run_supervised(
+    task: dict, prompt: str, *, runner: str, timeout: int, observe, owns, broker_client=None
+) -> tuple[str, str]:
     """Default-off user-service integration; never certifies stopped execution.
 
     User-service containment has NOT been approved as an issuer security boundary.
@@ -94,26 +96,63 @@ def run_supervised(task: dict, prompt: str, *, runner: str, timeout: int, observ
         if not owns(tid, attempt):
             return "", "supervisor_claim_lost"
         launched = True  # launch may succeed even if its client loses the response
-        supervisor_command(
-            [
-                "systemd-run",
-                "--user",
-                "--quiet",
-                f"--unit={unit}",
-                "--service-type=exec",
-                "--property=KillMode=control-group",
-                "--property=Restart=no",
-                "--property=TimeoutStopSec=10s",
-                f"--property=RuntimeMaxSec={int(timeout)}s",
-                f"--property=StandardOutput=append:{log}",
-                f"--property=StandardError=append:{log}",
-                "--setenv=CODEX_SUPERVISED=1",
-                f"--setenv=CODEX_ATTEMPT_ID={attempt}",
-                f"--setenv=CODEX_TASK_ID={tid}",
-                runner,
-                prompt,
-            ]
-        )
+        # Opt-in broker assignment (fail-closed)
+        fence_token = None
+        assignment_id_res = None
+        if broker_client is not None and getattr(broker_client, "enabled", False):
+            try:
+                host_boot_id = None
+                try:
+                    with open("/proc/sys/kernel/random/boot_id", "r") as f:
+                        host_boot_id = f.read().strip()
+                except Exception:
+                    host_boot_id = "unknown"
+                assignment_data = {
+                    "task_id": str(tid),
+                    "attempt_id": str(attempt),
+                    "runner_id": f"supervisor:{os.getuid()}",
+                    "scope": {"paths": []},
+                    "container_name": f"archie-codex-{attempt}",
+                    "repo": task.get("repo", "archie_brain"),
+                    "branch": (
+                        task.get("metadata", {}).get("codex_branch", "")
+                        if isinstance(task.get("metadata"), dict)
+                        else ""
+                    ),
+                    "cgroup": "",
+                    "host_id": __import__("socket").gethostname(),
+                    "host_boot_id": host_boot_id,
+                }
+                res = broker_client.assign_task(assignment_data)
+                if res.get("assignment") and res["assignment"].get("fence_token"):
+                    fence_token = res["assignment"]["fence_token"]
+                    assignment_id_res = res["assignment"].get("assignment_id")
+                    observation = {"unit": unit, "stage": "broker_assigned", "assignment_id": assignment_id_res}
+                    observe(tid, attempt, observation)
+            except Exception:
+                raise ValueError("broker_assignment_failed")
+        cmd = [
+            "systemd-run",
+            "--user",
+            "--quiet",
+            f"--unit={unit}",
+            "--service-type=exec",
+            "--property=KillMode=control-group",
+            "--property=Restart=no",
+            "--property=TimeoutStopSec=10s",
+            f"--property=RuntimeMaxSec={int(timeout)}s",
+            f"--property=StandardOutput=append:{log}",
+            f"--property=StandardError=append:{log}",
+            "--setenv=CODEX_SUPERVISED=1",
+            f"--setenv=CODEX_ATTEMPT_ID={attempt}",
+            f"--setenv=CODEX_TASK_ID={tid}",
+        ]
+        if fence_token:
+            cmd.append(f"--setenv=CODEX_FENCE_TOKEN={fence_token}")
+        if assignment_id_res:
+            cmd.append(f"--setenv=CODEX_ASSIGNMENT_ID={assignment_id_res}")
+        cmd.extend([runner, prompt])
+        supervisor_command(cmd)
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if not owns(tid, attempt):

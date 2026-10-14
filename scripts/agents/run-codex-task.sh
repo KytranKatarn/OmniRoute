@@ -42,6 +42,13 @@ CODEX_RUN_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/codex-run/$BRANCH"
 
 # Attempt-owned Docker lifecycle paths (supervisor-owned directory)
 if [ "$SUPERVISED" = "1" ]; then
+    # Broker fencing (disabled by default)
+    FENCE_TOKEN=""
+    ASSIGNMENT_ID=""
+    if [ "${CODEX_BROKER_ENABLED:-0}" = "1" ] && [ -n "${BROKER_SOCKET:-}" ]; then
+        # Broker integration may be invoked by supervisor; runner receives tokens via env
+        :
+    fi
     SUPERVISOR_DIR="/run/user/$(id -u)/codex-attempt-${ATTEMPT_ID}"
     mkdir -p "$SUPERVISOR_DIR"
     chmod 700 "$SUPERVISOR_DIR"
@@ -210,6 +217,28 @@ if [ "$SUPERVISED" = "1" ]; then
     [ -f "$CIDFILE" ] || { echo "FAIL: cidfile not created at $CIDFILE"; exit 4; }
     CREATED_CID="$(cat "$CIDFILE" | tr -d '\n')"
     [ -n "$CREATED_CID" ] || { echo "FAIL: empty container ID in cidfile"; exit 4; }
+
+    # Pass broker fencing env vars if set (if docker create needs updating, but easier to inject via labels+env)
+    if [ -n "${CODEX_FENCE_TOKEN:-}" ] || [ -n "${CODEX_ASSIGNMENT_ID:-}" ]; then
+        # Remove and recreate with env (fail-closed if broker enabled)
+        docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+        ENV_ARGS=()
+        [ -n "${CODEX_FENCE_TOKEN:-}" ] && ENV_ARGS+=(--env CODEX_FENCE_TOKEN="${CODEX_FENCE_TOKEN}")
+        [ -n "${CODEX_ASSIGNMENT_ID:-}" ] && ENV_ARGS+=(--env CODEX_ASSIGNMENT_ID="${CODEX_ASSIGNMENT_ID}")
+        if ! docker create \
+            "${DOCKER_ARGS[@]}" \
+            "${LABELS[@]}" \
+            "${ENV_ARGS[@]}" \
+            --cidfile "$CIDFILE" \
+            --name "$CONTAINER_NAME" \
+            "$CODEX_IMG" \
+            exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" >/dev/null; then
+            echo "FAIL: docker create with broker env exited with code $?"
+            exit 4
+        fi
+        [ -f "$CIDFILE" ] || { echo "FAIL: cidfile not created at $CIDFILE"; exit 4; }
+        CREATED_CID="$(cat "$CIDFILE" | tr -d '\n')"
+    fi
     echo "Created container $CREATED_CID (attempt $ATTEMPT_ID, task $TASK_ID)"
 
     # Start/stop race: check stop signal at TOP of loop, always

@@ -348,7 +348,17 @@ def main() -> int:
         if supervised:
             # Imported only for the separately activated host integration.
             sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "platform_v2"))
+            from services.codex_broker_client import BrokerClient
             from services.codex_worker_supervision import run_supervised
+
+            broker = None
+            try:
+                broker_sock = os.environ.get("CODEX_BROKER_SOCKET", "/run/host-opencode-broker/broker.sock")
+                broker_uid = int(os.environ.get("CODEX_BROKER_UID", os.getuid()))
+                if os.environ.get("CODEX_WORKER_BROKER_ENABLED", "0") == "1" and os.path.exists(broker_sock):
+                    broker = BrokerClient(broker_sock, broker_uid, enabled=True, timeout=3.0)
+            except Exception:
+                broker = None
 
             out, outcome = run_supervised(
                 task,
@@ -357,6 +367,7 @@ def main() -> int:
                 timeout=RUNNER_TIMEOUT,
                 observe=lifecycle_observation,
                 owns=owns_attempt,
+                broker_client=broker,
             )
         else:
             r = subprocess.run([RUNNER, prompt], capture_output=True, text=True, timeout=RUNNER_TIMEOUT)

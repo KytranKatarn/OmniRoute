@@ -500,9 +500,8 @@ def make_live_host_observer(
 def make_live_publication_observer(repo, branch, sha, token, *, api_get_fn=None):
     """Fail closed until a supervisor-owned publication fence is available.
 
-    GitHub snapshots cannot establish that no push or PR creation is still in
-    flight. An empty listing cannot justify pending_ops=[]. Preserve the factory
-    interface without issuing settlement evidence from these snapshots.
+    GitHub snapshots cannot prove no in-flight push/PR operations.
+    The factory preserves its interface but returns None (fail-closed).
     """
 
     def _observe(assignment_id):

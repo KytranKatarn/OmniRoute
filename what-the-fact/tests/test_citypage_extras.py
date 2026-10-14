@@ -198,6 +198,18 @@ def test_store_extras_writes_each_section_to_its_own_table_and_counts_them():
     assert (st["hourly_rows"], st["normals"], st["yesterday"], st["sun"], st["extras_error"]) == (24, 1, 1, 1, 0)
 
 
+def test_the_forecast_update_backfills_uv_category_only_where_it_is_empty():
+    """An issue stored before the parser fix keeps a NULL uv_category (the core insert is ON CONFLICT DO NOTHING); the guarded UPDATE fills it, and COALESCE
+    guarantees a stored value is never overwritten."""
+    eng = FakeEngine()
+    _, _, fcs = cp.parse_document(FIXTURE, "fx.xml")
+    citypage._update_forecast_extras(eng, "s0000047", fcs)
+    sql, params = eng.log[0]
+    assert "uv_category = COALESCE(uv_category, :uv_category)" in sql
+    assert params[0]["uv_category"] == "low" and params[1]["uv_category"] is None  # period 0 has a UV block, period 1 (night) does not
+    assert len(params) == 13
+
+
 def test_a_missing_migration_costs_the_new_data_only_and_never_raises():
     eng, st = FakeEngine(fail_on=("aurora_city_hourly", "aurora_city_normals", "aurora_city_yesterday", "aurora_city_sun", "SET icon_code")), _stats()
     _, _, fcs = cp.parse_document(FIXTURE, "fx.xml")

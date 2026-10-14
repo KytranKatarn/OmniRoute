@@ -276,11 +276,14 @@ def _update_forecast_extras(engine, code, fcs):
     columns, which exist only after migration 105, can never break the forecast feed itself."""
     if not fcs:
         return 0
-    stmt = text("UPDATE wtf.aurora_city_forecast SET icon_code = :icon_code, humidex = :humidex, rel_humidity_pct = :rel_humidity_pct "
+    # uv_category is filled ONLY where it is still empty. The core insert is ON CONFLICT DO NOTHING, so an issue stored before the parser fix (it read the
+    # category as a child element; it is an attribute) would otherwise keep NULL until the next issue. COALESCE never overwrites a stored value.
+    stmt = text("UPDATE wtf.aurora_city_forecast SET icon_code = :icon_code, humidex = :humidex, rel_humidity_pct = :rel_humidity_pct, "
+                "uv_category = COALESCE(uv_category, :uv_category) "
                 "WHERE site_code = :site_code AND issued_utc = :issued_utc AND period_index = :period_index")
     with engine.begin() as c:
         c.execute(stmt, [{"site_code": code, "issued_utc": r["issued_utc"], "period_index": r["period_index"], "icon_code": r.get("icon_code"),
-                          "humidex": r.get("humidex"), "rel_humidity_pct": r.get("rel_humidity_pct")} for r in fcs])
+                          "humidex": r.get("humidex"), "rel_humidity_pct": r.get("rel_humidity_pct"), "uv_category": r.get("uv_category")} for r in fcs])
     return len(fcs)
 
 

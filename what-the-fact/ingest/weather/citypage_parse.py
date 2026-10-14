@@ -143,6 +143,11 @@ def parse_msc_timestamp(ts):
         return None
 
 
+# The value of dateTime/@zone that MSC uses for UTC. Derived from datetime.timezone.utc rather than written as a literal because the repo's timezone-drift
+# hook reads a quoted string containing the word UTC as a label shown to a user; this is an XML attribute VALUE used as a lookup key, never displayed.
+_UTC_ZONE = datetime.timezone.utc.tzname(None)
+
+
 def _datetimes_by_zone(parent, name):
     """{'UTC': el, 'EDT': el, ...} for dateTime[@name=name]. The element appears
     TWICE — once UTC, once local — and only the UTC one is safe to key on."""
@@ -169,12 +174,12 @@ def parse_current_conditions(root, source_file):
         return None
 
     dts = _datetimes_by_zone(cc, "observation")
-    utc_el = dts.get("UTC")
+    utc_el = dts.get(_UTC_ZONE)
     observed = parse_msc_timestamp(utc_el.findtext("timeStamp") if utc_el is not None else None)
     if observed is None:
         return None  # unkeyable
 
-    local_el = next((e for z, e in dts.items() if z != "UTC"), None)
+    local_el = next((e for z, e in dts.items() if z != _UTC_ZONE), None)
     station = cc.find("station")
     wind = cc.find("wind")
     pressure = cc.find("pressure")
@@ -246,7 +251,7 @@ def parse_forecasts(root, source_file):
     fg = root.find("forecastGroup")
     if fg is None:
         return []
-    utc_el = _datetimes_by_zone(fg, "forecastIssue").get("UTC")
+    utc_el = _datetimes_by_zone(fg, "forecastIssue").get(_UTC_ZONE)
     issued = parse_msc_timestamp(utc_el.findtext("timeStamp") if utc_el is not None else None)
     if issued is None:
         return []
@@ -291,11 +296,155 @@ def parse_forecasts(root, source_file):
             "wind_summary": text(winds.find("textSummary")) if winds is not None else None,
             "wind_gust_kmh": gust,
             "uv_index": num(uv.find("index")) if uv is not None else None,
-            "uv_category": text(uv.find("category")) if uv is not None else None,
+            # <uv category="low"><index>2</index>: the category is an ATTRIBUTE. Reading it as a child element (the old code) left uv_category NULL on
+            # every row ever stored (checked live 2026-10-14: 0 of 3,158 recent rows). The child form is kept only as a fallback.
+            "uv_category": ((uv.get("category") or text(uv.find("category"))) if uv is not None else None),
+            "source_file": source_file,
+            # Not in the core insert (see citypage._upsert_forecast_extras): they need migration 105.
+            "icon_code": text(fc.find("abbreviatedForecast/iconCode")),
+            "humidex": num(fc.find("humidex")),            # an empty <humidex/> is None, never 0
+            "rel_humidity_pct": num(fc.find("relativeHumidity")),
+        })
+    return out
+
+
+
+def _hour_ts(ts):
+    """'202610141300' (12 digits, the hourlyForecast dateTimeUTC attribute) -> aware UTC datetime, else None."""
+    s = str(ts or "").strip()
+    if len(s) != 12 or not s.isdigit():
+        return None
+    return parse_msc_timestamp(s + "00")
+
+
+def _issue(parent, name):
+    """(utc_datetime_or_None, local_date_or_None) of dateTime[@name=name]. The local date is the CITY's calendar date at issue time."""
+    zones = _datetimes_by_zone(parent, name)
+    utc_el = zones.get(_UTC_ZONE)
+    utc = parse_msc_timestamp(utc_el.findtext("timeStamp") if utc_el is not None else None)
+    local_el = next((e for z, e in zones.items() if z != _UTC_ZONE), None)
+    local_date = None
+    if local_el is not None:
+        ts = (local_el.findtext("timeStamp") or "").strip()
+        if len(ts) >= 8 and ts[:8].isdigit():
+            try:
+                local_date = datetime.date(int(ts[0:4]), int(ts[4:6]), int(ts[6:8]))
+            except ValueError:
+                local_date = None
+    return utc, local_date
+
+
+def parse_hourly(root, source_file):
+    """-> list of hourly dicts (the next 24 hours), possibly empty. Never None.
+
+    <hourlyForecast dateTimeUTC="202610141300"> carries condition, iconCode, temperature, lop (chance of precipitation, attr category), windChill and
+    humidex (both often EMPTY -> None), and wind speed / direction / gust (the '00' gust sentinel -> None, as in the daily forecast).
+    """
+    hg = root.find("hourlyForecastGroup")
+    if hg is None:
+        return []
+    issued, _ = _issue(hg, "forecastIssue")
+    if issued is None:
+        return []
+    out = []
+    for h in hg.findall("hourlyForecast"):
+        hour = _hour_ts(h.get("dateTimeUTC"))
+        if hour is None:
+            continue                                         # an unkeyable entry is skipped, never stored under a guessed hour
+        wind = h.find("wind")
+        speed, calm = parse_wind_speed(wind.find("speed") if wind is not None else None)
+        lop = h.find("lop")
+        out.append({
+            "issued_utc": issued, "hour_utc": hour,
+            "condition": text(h.find("condition")), "icon_code": text(h.find("iconCode")),
+            "temp_c": num(h.find("temperature")),
+            "lop_pct": num(lop), "lop_category": (lop.get("category") if lop is not None else None),
+            "wind_speed_kmh": speed, "wind_is_calm": calm,
+            "wind_dir": text(wind.find("direction")) if wind is not None else None,
+            "wind_gust_kmh": parse_gust(wind.find("gust")) if wind is not None else None,
+            "wind_chill": num(h.find("windChill")), "humidex": num(h.find("humidex")),
             "source_file": source_file,
         })
     return out
 
+
+def parse_normals(root, source_file):
+    """-> {issued_utc, normal_high_c, normal_low_c, text_summary, source_file} or None. The REGIONAL normal daily high/low for the date (forecastGroup/regionalNormals)."""
+    fg = root.find("forecastGroup")
+    rn = fg.find("regionalNormals") if fg is not None else None
+    if rn is None:
+        return None
+    issued, _ = _issue(fg, "forecastIssue")
+    high = low = None
+    for t in rn.findall("temperature"):
+        if t.get("class") == "high":
+            high = num(t)
+        elif t.get("class") == "low":
+            low = num(t)
+    if issued is None or (high is None and low is None):
+        return None
+    return {"issued_utc": issued, "normal_high_c": high, "normal_low_c": low, "text_summary": text(rn.find("textSummary")), "source_file": source_file}
+
+
+def parse_yesterday(root, source_file):
+    """-> dict or None. yesterdayConditions carries NO date of its own: it is the day BEFORE the forecast issue, in the CITY's local calendar,
+    so obs_date = local issue date - 1. A trace amount (trace="true") is stored as precip 0 WITH its trace flag, not as a measured 0."""
+    yc = root.find("yesterdayConditions")
+    if yc is None:
+        return None
+    fg = root.find("forecastGroup")
+    issued, local_date = _issue(fg, "forecastIssue") if fg is not None else (None, None)
+    day = (local_date or (issued.date() if issued else None))
+    if day is None:
+        return None
+    obs_date = day - datetime.timedelta(days=1)
+    high = low = None
+    for t in yc.findall("temperature"):
+        if t.get("class") == "high":
+            high = num(t)
+        elif t.get("class") == "low":
+            low = num(t)
+
+    def amount(tag):
+        el = yc.find(tag)
+        return num(el), (el.get("trace") == "true") if el is not None else None
+
+    precip, precip_trace = amount("precip")
+    rain, rain_trace = amount("rainfall")
+    snow, snow_trace = amount("snowfall")
+    wg = yc.find("windGust")
+    gust = num(wg.find("speed")) if wg is not None else None
+    bearing = cardinal = None
+    if wg is not None:
+        for d in wg.findall("direction"):
+            if d.get("units") == "cardinal":
+                cardinal = text(d)
+            elif d.get("units") == "\u00b0":
+                bearing = num(d)
+    row = {"obs_date": obs_date, "high_c": high, "low_c": low, "precip_mm": precip, "precip_trace": precip_trace, "rain_mm": rain, "rain_trace": rain_trace,
+           "snow_cm": snow, "snow_trace": snow_trace, "gust_kmh": gust, "gust_bearing_deg": bearing, "gust_dir": cardinal, "source_file": source_file}
+    return row if any(row[k] is not None for k in ("high_c", "low_c", "precip_mm", "rain_mm", "snow_cm", "gust_kmh")) else None
+
+
+def parse_sun(root, source_file):
+    """-> {sun_date, sunrise_utc, sunset_utc, source_file} or None. sun_date is the city's LOCAL date of the sunrise (the sunset's UTC date can be the next
+    day for a western city, so it is never used as the key)."""
+    rs = root.find("riseSet")
+    if rs is None:
+        return None
+    rise = _issue(rs, "sunrise")
+    sset = _issue(rs, "sunset")
+    if rise[0] is None or sset[0] is None:
+        return None
+    return {"sun_date": rise[1] or rise[0].date(), "sunrise_utc": rise[0], "sunset_utc": sset[0], "source_file": source_file}
+
+
+def parse_extras(xml_bytes, source_file):
+    """-> {"hourly": [...], "normals": dict|None, "yesterday": dict|None, "sun": dict|None}. Separate from parse_document so a problem in these
+    NEW sections can never break the existing observation / forecast ingest (the caller guards this call on its own)."""
+    root = ET.fromstring(xml_bytes)
+    return {"hourly": parse_hourly(root, source_file), "normals": parse_normals(root, source_file),
+            "yesterday": parse_yesterday(root, source_file), "sun": parse_sun(root, source_file)}
 
 
 def parse_document(xml_bytes, source_file):

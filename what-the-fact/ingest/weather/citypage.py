@@ -29,7 +29,7 @@ import urllib.request
 
 from sqlalchemy import text
 
-from .citypage_parse import parse_document
+from .citypage_parse import parse_document, parse_extras
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +94,15 @@ _FCST_COLS = (
 )
 
 
+# The sections added by migration 105 (Dev HQ 7234). Written by guarded helpers, never by the core insert above, so applying the migration late
+# costs the new data only and can never break the existing observation / forecast feed.
+_HOURLY_COLS = (
+    "site_code, issued_utc, hour_utc, condition, icon_code, temp_c, lop_pct, lop_category, wind_speed_kmh, "
+    "wind_is_calm, wind_dir, wind_gust_kmh, wind_chill, humidex, source_file"
+)
+_HOURLY_RETENTION = "3 days"
+
+
 def run_aurora_citypage(engine, dry_run=False):
     """Entry point. NEVER raises — returns a per-task summary dict.
 
@@ -133,7 +142,8 @@ def _run_obs_and_forecasts(engine, dry_run):
         return {"error": "no cities in wtf.aurora_city_site — migration 055 not applied?"}
 
     stats = {"sites": len(sites), "fetched": 0, "upserted": 0, "forecast_rows": 0,
-             "no_observations": 0, "fetch_error": 0, "parse_error": 0}
+             "no_observations": 0, "fetch_error": 0, "parse_error": 0,
+             "hourly_rows": 0, "normals": 0, "yesterday": 0, "sun": 0, "extras_error": 0}
 
     for s in sites:
         code, prov = s["site_code"], s["source_prov"]
@@ -172,7 +182,115 @@ def _run_obs_and_forecasts(engine, dry_run):
         if fcs:
             stats["forecast_rows"] += _upsert_forecasts(engine, code, fcs)
 
+        _store_extras(engine, code, raw, fname, fcs, stats)
+
+    if not dry_run:
+        _prune_hourly(engine, stats)
+    if stats["extras_error"]:
+        logger.warning("citypage: %d extras write/parse failure(s) this run (is migration 105 applied on this database?)", stats["extras_error"])
     return stats
+
+
+def _store_extras(engine, code, raw, fname, fcs, stats):
+    """Parse and store the hourly / normals / yesterday / sun sections and the new forecast-period fields.
+
+    EVERY step is guarded on its own: a failure here (migration 105 not applied yet, an unexpected element) is counted and logged but NEVER raises, so
+    the observation and forecast that were just stored are untouched and the remaining sites still run.
+    """
+    try:
+        extras = parse_extras(raw, fname)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("citypage: %s extras parse failed: %s", code, exc)
+        stats["extras_error"] += 1
+        return
+    steps = (
+        ("hourly_rows", lambda: _upsert_hourly(engine, code, extras["hourly"])),
+        ("normals", lambda: _upsert_normals(engine, code, extras["normals"])),
+        ("yesterday", lambda: _upsert_yesterday(engine, code, extras["yesterday"])),
+        ("sun", lambda: _upsert_sun(engine, code, extras["sun"])),
+        (None, lambda: _update_forecast_extras(engine, code, fcs)),
+    )
+    for key, fn in steps:
+        try:
+            n = fn()
+            if key:
+                stats[key] += int(n or 0)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("citypage: %s extras write (%s) failed: %s", code, key or "forecast_extras", exc)
+            stats["extras_error"] += 1
+
+
+def _upsert_hourly(engine, code, rows):
+    if not rows:
+        return 0
+    cols = [c.strip() for c in _HOURLY_COLS.split(",")]
+    stmt = text("INSERT INTO wtf.aurora_city_hourly (%s) VALUES (%s) ON CONFLICT (site_code, issued_utc, hour_utc) DO NOTHING"
+                % (", ".join(cols), ", ".join(":" + k for k in cols)))
+    with engine.begin() as c:
+        c.execute(stmt, [dict(r, site_code=code) for r in rows])
+    return len(rows)
+
+
+def _upsert_normals(engine, code, row):
+    if not row:
+        return 0
+    with engine.begin() as c:
+        c.execute(text(
+            "INSERT INTO wtf.aurora_city_normals (site_code, issued_utc, normal_high_c, normal_low_c, text_summary, source_file) "
+            "VALUES (:site_code, :issued_utc, :normal_high_c, :normal_low_c, :text_summary, :source_file) "
+            "ON CONFLICT (site_code) DO UPDATE SET issued_utc = EXCLUDED.issued_utc, normal_high_c = EXCLUDED.normal_high_c, "
+            "normal_low_c = EXCLUDED.normal_low_c, text_summary = EXCLUDED.text_summary, source_file = EXCLUDED.source_file, fetched_at = now() "
+            "WHERE EXCLUDED.issued_utc >= wtf.aurora_city_normals.issued_utc"), dict(row, site_code=code))
+    return 1
+
+
+def _upsert_yesterday(engine, code, row):
+    if not row:
+        return 0
+    with engine.begin() as c:
+        c.execute(text(
+            "INSERT INTO wtf.aurora_city_yesterday (site_code, obs_date, high_c, low_c, precip_mm, precip_trace, rain_mm, rain_trace, snow_cm, snow_trace, "
+            "gust_kmh, gust_bearing_deg, gust_dir, source_file) VALUES (:site_code, :obs_date, :high_c, :low_c, :precip_mm, :precip_trace, :rain_mm, "
+            ":rain_trace, :snow_cm, :snow_trace, :gust_kmh, :gust_bearing_deg, :gust_dir, :source_file) "
+            "ON CONFLICT (site_code, obs_date) DO UPDATE SET high_c = EXCLUDED.high_c, low_c = EXCLUDED.low_c, precip_mm = EXCLUDED.precip_mm, "
+            "precip_trace = EXCLUDED.precip_trace, rain_mm = EXCLUDED.rain_mm, rain_trace = EXCLUDED.rain_trace, snow_cm = EXCLUDED.snow_cm, "
+            "snow_trace = EXCLUDED.snow_trace, gust_kmh = EXCLUDED.gust_kmh, gust_bearing_deg = EXCLUDED.gust_bearing_deg, "
+            "gust_dir = EXCLUDED.gust_dir, source_file = EXCLUDED.source_file, fetched_at = now()"), dict(row, site_code=code))
+    return 1
+
+
+def _upsert_sun(engine, code, row):
+    if not row:
+        return 0
+    with engine.begin() as c:
+        c.execute(text(
+            "INSERT INTO wtf.aurora_city_sun (site_code, sun_date, sunrise_utc, sunset_utc, source_file) "
+            "VALUES (:site_code, :sun_date, :sunrise_utc, :sunset_utc, :source_file) "
+            "ON CONFLICT (site_code, sun_date) DO UPDATE SET sunrise_utc = EXCLUDED.sunrise_utc, sunset_utc = EXCLUDED.sunset_utc, "
+            "source_file = EXCLUDED.source_file, fetched_at = now()"), dict(row, site_code=code))
+    return 1
+
+
+def _update_forecast_extras(engine, code, fcs):
+    """icon_code / humidex / rel_humidity_pct on the forecast periods just stored. A separate UPDATE (not part of the core insert) so these three
+    columns, which exist only after migration 105, can never break the forecast feed itself."""
+    if not fcs:
+        return 0
+    stmt = text("UPDATE wtf.aurora_city_forecast SET icon_code = :icon_code, humidex = :humidex, rel_humidity_pct = :rel_humidity_pct "
+                "WHERE site_code = :site_code AND issued_utc = :issued_utc AND period_index = :period_index")
+    with engine.begin() as c:
+        c.execute(stmt, [{"site_code": code, "issued_utc": r["issued_utc"], "period_index": r["period_index"], "icon_code": r.get("icon_code"),
+                          "humidex": r.get("humidex"), "rel_humidity_pct": r.get("rel_humidity_pct")} for r in fcs])
+    return len(fcs)
+
+
+def _prune_hourly(engine, stats):
+    """The hourly forecast is only ever read for the latest issue, so rows older than the retention window are dropped each run (bounded growth)."""
+    try:
+        with engine.begin() as c:
+            c.execute(text("DELETE FROM wtf.aurora_city_hourly WHERE issued_utc < now() - interval '%s'" % _HOURLY_RETENTION))
+    except Exception as exc:  # noqa: BLE001 — pruning must never fail the run
+        logger.warning("citypage: hourly prune failed: %s", exc)
 
 
 def _mark_site(engine, code, status, seen, lat, lon):

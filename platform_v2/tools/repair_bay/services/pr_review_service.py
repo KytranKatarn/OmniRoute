@@ -813,6 +813,16 @@ _SAFE_AUTOMERGE_PATTERNS = (
     r"^platform_v2/qa_suites/",  # P.R.O.B.E. test specs
     r"^platform_v2/qa/",  # P.R.O.B.E. harness tests
     r"^platform_v2/tests/",  # unit tests
+    # What The Fact PRESENTATION layer (owner decision 2026-10-14). WTF is image-baked, so a
+    # merge never deploys it: production only changes on an explicit owner "deploy", which
+    # is why markup and styles can skip the merge click but server code, schema and data
+    # cannot. Deliberately NOT listed: what-the-fact/consumer/*.py, ingest/, migrations/,
+    # consumer/data/, static JS and static images (the asset reviewer never approves).
+    r"^what-the-fact/tests/",  # WTF tests
+    r"^what-the-fact/docs/",  # WTF docs
+    r"^what-the-fact/design-handoff/",  # design reference + port tracker
+    r"^what-the-fact/consumer/templates/",  # Jinja page markup
+    r"^what-the-fact/consumer/static/(?:[^/]+/)*[^/]+\.css$",  # stylesheets only
 )
 
 # Per-repo allowlists for the NON-default repos permitted to auto-merge (owner

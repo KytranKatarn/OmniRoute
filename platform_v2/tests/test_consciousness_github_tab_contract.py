@@ -22,6 +22,8 @@ import pytest
 PLATFORM = Path(__file__).resolve().parents[1]
 JS = PLATFORM / "static" / "js" / "consciousness.js"
 TEMPLATE = PLATFORM / "tools" / "consciousness" / "templates" / "consciousness_dashboard.html"
+REPO_ROUTES = PLATFORM / "tools" / "consciousness" / "github_repo_routes.py"
+GITHUB_ROUTES = PLATFORM / "tools" / "consciousness" / "github_routes.py"
 
 # The JS names the under_review count `ghFilterReview`, not ghFilterUnderReview.
 # Encoded here rather than derived, because deriving it is how the test lied.
@@ -94,7 +96,7 @@ def test_repo_review_filter_is_reachable(js, tpl):
         assert _element_by_id(tpl, eid), f"missing filter count element {eid} ({status})"
         btn = _element_by_id(tpl, "ghFilterBar")
         assert btn, "filter bar container missing"
-        assert f"data-gh-filter=\"{status}\"" in tpl, f"no button for status {status!r}"
+        assert f'data-gh-filter="{status}"' in tpl, f"no button for status {status!r}"
 
 
 def test_view_toggle_is_not_swept_by_the_filter_active_reset(js, tpl):
@@ -129,9 +131,9 @@ def test_filter_buttons_pass_their_element_explicitly(js, tpl):
     )
     assert re.search(r"function filterRepos\(status,\s*btn\)", js)
     calls = re.findall(r"filterRepos\('([a-z_]+)',\s*this\)", tpl)
-    assert sorted(calls) == sorted(FILTER_IDS), (
-        f"every filter button must call filterRepos('<status>', this); got {calls}"
-    )
+    assert sorted(calls) == sorted(
+        FILTER_IDS
+    ), f"every filter button must call filterRepos('<status>', this); got {calls}"
 
 
 def test_every_github_panel_onclick_handler_is_defined(js, tpl):
@@ -148,3 +150,21 @@ def test_every_github_panel_onclick_handler_is_defined(js, tpl):
         and not re.search(r"window\.%s\s*=\s*function" % re.escape(h), js)
     ]
     assert not undefined, f"onclick handlers with no JS definition: {undefined}"
+
+
+def test_github_search_scopes_before_limiting_results():
+    """Filtering after a global top-N search made indexed repos undiscoverable."""
+    source = REPO_ROUTES.read_text()
+    assert 'semantic_search(query, source_types=["github_file"]' in source
+    assert 'source_types=["knowledge_base"]' not in source
+
+
+def test_all_index_paths_queue_skill_discovery_and_embeddings():
+    """Manual ingest/reindex must not wait for unrelated periodic sweeps."""
+    shared = GITHUB_ROUTES.read_text()
+    repo = REPO_ROUTES.read_text()
+    assert "def _queue_github_postprocessing(" in shared
+    assert shared.count("_queue_github_postprocessing(repo_full)") >= 2
+    assert '_queue_github_postprocessing(f"{owner}/{repo}")' in repo
+    assert "INSERT INTO github_skills" in shared
+    assert 'job_type="github_embedding"' in shared

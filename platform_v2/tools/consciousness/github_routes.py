@@ -17,6 +17,7 @@ import logging
 import os
 from database import _get_db_password
 import subprocess
+import threading
 import traceback
 
 import psycopg2
@@ -290,6 +291,103 @@ MAX_CONTENT_STORE = 100_000  # 100 KB stored in DB
 MAX_FILES_PER_REPO = 2000  # global default cap per repo
 
 
+def _queue_github_postprocessing(repo_full):
+    """Discover skills and embed every unembedded file for one indexed repo.
+
+    Indexing is only complete when the rows are usable by semantic search.  The
+    scheduled skill/embedding loops remain the retry path; this fast path makes
+    a manual ingest self-contained instead of waiting up to the next cycle.
+    """
+    conn = None
+    cur = None
+    discovered = 0
+    items = []
+    try:
+        conn = _get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            r"""
+            INSERT INTO github_skills
+                (kb_entry_id, repo_name, skill_name, description,
+                 file_path, status, created_at, updated_at)
+            SELECT kb.id,
+                   kb.memory_metadata->>'repo',
+                   COALESCE(NULLIF(split_part(kb.title, ': ', 2), ''), kb.file_name, kb.title),
+                   LEFT(kb.content, 300),
+                   kb.file_path,
+                   'discovered', NOW(), NOW()
+            FROM knowledge_base kb
+            WHERE kb.knowledge_type = 'github_file'
+              AND kb.memory_metadata->>'repo' = %s
+              AND kb.content IS NOT NULL
+              AND (
+                    kb.file_path ~* '(^|/)(skills?|agents?|plugins?)(/|$)'
+                 OR kb.file_name ~* '^(skill|agent|plugin)(\.md)?$'
+                 OR kb.content ~* '(^|\n)#{1,3}[[:space:]]+(skill|agent|plugin)'
+              )
+            ON CONFLICT (repo_name, file_path) DO UPDATE SET
+                kb_entry_id = EXCLUDED.kb_entry_id,
+                description = EXCLUDED.description,
+                updated_at = NOW()
+            """,
+            (repo_full,),
+        )
+        discovered = cur.rowcount
+        cur.execute(
+            """SELECT id, title, content, 'knowledge_base' AS source
+               FROM knowledge_base
+               WHERE knowledge_type = 'github_file'
+                 AND memory_metadata->>'repo' = %s
+                 AND embedding IS NULL
+                 AND content IS NOT NULL
+                 AND LENGTH(content) > 50
+               ORDER BY id""",
+            (repo_full,),
+        )
+        items = [(row["id"], row["title"], row["content"], row["source"]) for row in cur.fetchall()]
+        conn.commit()
+    except Exception as exc:
+        if conn:
+            conn.rollback()
+        logger.warning("[GitHub] Post-processing setup failed for %s: %s", repo_full, exc)
+        return {"skills_discovered": 0, "embedding_job_id": None, "embedding_count": 0}
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+    job_id = None
+    if items:
+        try:
+            from tools.consciousness.processing_routes import _run_embedding_job
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+            dispatcher = get_dispatcher()
+            job_id = dispatcher.create_job(
+                job_type="github_embedding",
+                module_source="consciousness",
+                description=f"Embed {len(items)} GitHub files from {repo_full}",
+                total_steps=len(items),
+                capability="embedding",
+                metadata={"repo": repo_full, "file_count": len(items)},
+            )
+            if job_id:
+                threading.Thread(
+                    target=_run_embedding_job,
+                    args=(items, job_id),
+                    daemon=True,
+                ).start()
+        except Exception as exc:
+            logger.warning("[GitHub] Embedding queue failed for %s: %s", repo_full, exc)
+
+    return {
+        "skills_discovered": discovered,
+        "embedding_job_id": job_id,
+        "embedding_count": len(items),
+    }
+
+
 # ============================================================================
 # INCREMENTAL REINDEX
 # ============================================================================
@@ -453,6 +551,8 @@ def _incremental_reindex_from_disk(owner, repo, repo_type, local_path, changed_f
             (repo_full, repo_full),
         )
         conn.commit()
+
+        _queue_github_postprocessing(repo_full)
 
     finally:
         if cur:
@@ -743,6 +843,8 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
             ),
         )
         conn.commit()
+
+        _queue_github_postprocessing(repo_full)
 
     finally:
         if cur:

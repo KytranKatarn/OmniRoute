@@ -85,6 +85,9 @@ def register_github_insights_routes(bp, admin_required):
         """Scan GitHub repos for dependency updates and vulnerabilities."""
         from .dependency_scanner import DependencyScanner
 
+        conn = None
+        cur = None
+
         data = request.get_json() or {}
         repo_id = data.get("repo_id")
         include_platform = data.get("include_platform", True)
@@ -216,10 +219,10 @@ def register_github_insights_routes(bp, admin_required):
             logger.error(f"Dependency scan failed: {e}")
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # DEPENDENCY REPORTS & SUGGESTIONS
@@ -230,6 +233,8 @@ def register_github_insights_routes(bp, admin_required):
     @admin_required
     def github_dependency_report():
         """Get summary report of dependency scan results."""
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -290,10 +295,10 @@ def register_github_insights_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     @bp.route("/github/upgrade-suggestions", methods=["GET"])
     @login_required
@@ -304,6 +309,8 @@ def register_github_insights_routes(bp, admin_required):
         ecosystem = request.args.get("ecosystem")
         source = request.args.get("source")
         limit = request.args.get("limit", 50, type=int)
+        conn = None
+        cur = None
 
         try:
             conn = _get_db()
@@ -344,10 +351,10 @@ def register_github_insights_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()
 
     # ==================================================================
     # GITHUB-SPECIFIC STATS
@@ -358,6 +365,8 @@ def register_github_insights_routes(bp, admin_required):
     @admin_required
     def github_stats():
         """GitHub-specific file counts and embedding coverage."""
+        conn = None
+        cur = None
         try:
             conn = _get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -419,7 +428,7 @@ def register_github_insights_routes(bp, admin_required):
             logger.error(f"GitHub stats error: {e}")
             return jsonify(success=False, error=str(e)), 500
         finally:
-
-            cur.close()
-
-            conn.close()
+            if cur:
+                cur.close()
+            if conn:
+                conn.close()

@@ -338,8 +338,8 @@ function NeuralCore(container, libs, opts) {
 
 NeuralCore.prototype._initScene = function() {
   var T = this._THREE;
-  var w = this._container.clientWidth;
-  var h = this._container.clientHeight;
+  var w = Math.max(1, this._container.clientWidth);
+  var h = Math.max(1, this._container.clientHeight);
 
   this._camera = new T.PerspectiveCamera(50, w / h, 0.1, 100);
   this._camera.position.set(0, 0, 10);
@@ -363,6 +363,8 @@ NeuralCore.prototype._initScene = function() {
   this._boundResize = function() {
     var w = self._container.clientWidth;
     var h = self._container.clientHeight;
+    // Hidden tabs have no geometry; resize when the panel becomes visible.
+    if (!w || !h) return;
     self._camera.aspect = w / h;
     self._camera.updateProjectionMatrix();
     self._renderer.setSize(w, h);
@@ -370,6 +372,10 @@ NeuralCore.prototype._initScene = function() {
     if (self._css2dRenderer) self._css2dRenderer.setSize(w, h);
   };
   window.addEventListener("resize", this._boundResize);
+  if (typeof ResizeObserver !== "undefined") {
+    this._resizeObserver = new ResizeObserver(this._boundResize);
+    this._resizeObserver.observe(this._container);
+  }
 
   this._boundVisibility = function() {
     self._paused = document.hidden;
@@ -1159,6 +1165,7 @@ NeuralCore.prototype.destroy = function() {
   }
 
   // Remove event listeners
+  if (this._resizeObserver) this._resizeObserver.disconnect();
   if (this._boundResize) window.removeEventListener("resize", this._boundResize);
   if (this._boundVisibility) document.removeEventListener("visibilitychange", this._boundVisibility);
   if (this._boundClick && this._renderer) {

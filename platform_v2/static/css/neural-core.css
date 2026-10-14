@@ -12,8 +12,9 @@
 .nc-hero {
   position: relative;
   width: 100%;
-  height: 65vh;
-  min-height: 400px;
+  height: min(65vh, 65svh);
+  min-height: min(400px, 65svh);
+  min-width: 0;
   max-height: 800px;
   overflow: hidden;
   border-radius: 4px;
@@ -22,8 +23,8 @@
 
 .nc-hero #neuralCore canvas {
   display: block;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
+  height: 100%;
 }
 
 /* ---- Scanning sweep overlay ---- */
@@ -88,8 +89,12 @@
   pointer-events: none;
 }
 
-.nc-loading::after {
-  content: "INITIALIZING NEURAL CORE";
+.nc-loading-text {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
   font-family: "Orbitron", sans-serif;
   font-size: 0.85rem;
   letter-spacing: 0.25em;
@@ -129,7 +134,7 @@
   left: 16px;
   right: 16px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   z-index: 5;
   pointer-events: none;
@@ -322,7 +327,7 @@
 /* ---- Responsive ---- */
 @media (max-width: 1024px) {
   .nc-hud {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
   .nc-hud-value { font-size: 1rem; }
@@ -330,10 +335,11 @@
 
 @media (max-width: 768px) {
   .nc-hero {
-    height: 50vh;
+    height: min(50vh, 50svh);
+    min-height: min(400px, 50svh);
   }
   .nc-hud {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
   .nc-hud-item { padding: 8px 10px; }
@@ -342,11 +348,11 @@
 
 @media (max-width: 480px) {
   .nc-hero {
-    height: 40vh;
-    min-height: 300px;
+    height: min(40vh, 40svh);
+    min-height: min(300px, 40svh);
   }
   .nc-hud {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
     bottom: 8px;
     left: 8px;
@@ -363,14 +369,14 @@
 
 @media (max-width: 360px) {
   .nc-hero {
-    height: 35vh;
-    min-height: 250px;
+    height: min(35vh, 35svh);
+    min-height: min(250px, 35svh);
   }
 }
 
 /* ---- Reduced motion ---- */
 @media (prefers-reduced-motion: reduce) {
-  .nc-loading::after,
+  .nc-loading-text,
   .nc-loading::before,
   .nc-hero::before,
   .nc-hud-item::after {

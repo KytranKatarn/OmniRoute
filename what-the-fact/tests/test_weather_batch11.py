@@ -67,9 +67,12 @@ def _render(**overrides):
 
 def _weather_accuracy_route_body() -> str:
     src = ROUTES.read_text(encoding="utf-8")
+    # The queries live in the shared payload builder (#7220: /weather embeds the same numbers), so the "route body" is the builder + the route.
+    h0 = src.index("def _aurora_accuracy_payload(S)")
+    helper = src[h0:src.index("_ACC_CACHE =", h0)]
     start = src.index("def weather_accuracy")
     end = src.index("\n@bp.get", start + 1)
-    return src[start:end]
+    return helper + src[start:end]
 
 
 def test_weather_page_renders_with_no_optional_data():

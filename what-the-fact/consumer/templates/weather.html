@@ -262,6 +262,31 @@
 .wtf-wx-accuracy-link { color:var(--wtf-aurora); font-size:12px; font-weight:600; text-decoration:none; }
 .wtf-wx-accuracy-link:hover { text-decoration:underline; }
 .wtf-wx-accuracy-note { font-size:10px; color:#6b7280; margin-top:4px; line-height:1.5; }
+/* Forecast accuracy section (task #7220): server-rendered bars, no JS. Same data as /weather/accuracy. */
+.wtf-wx-acc { margin-top:34px; padding-top:24px; border-top:1px solid var(--wtf-border); }
+.wtf-wx-acc-eyebrow { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--wtf-text-muted); }
+.wtf-wx-acc-h { font-family:var(--wtf-font-serif); font-size:26px; font-weight:600; margin:7px 0; }
+.wtf-wx-acc-sub { font-size:12.5px; line-height:1.65; color:var(--wtf-text-muted); margin:0 0 18px; max-width:80ch; }
+.wtf-wx-acc-sub a { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; }
+.wtf-wx-acc-note { font-size:11.5px; line-height:1.7; color:var(--wtf-text-muted); margin:14px 0 0; max-width:80ch; }
+.wtf-wx-acc-grid { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:22px; align-items:start; }
+.wtf-wx-acc-card { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; padding:16px 18px; }
+.wtf-wx-acc-label { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--wtf-text-muted); margin-bottom:10px; }
+.wtf-wx-acc-bars { display:flex; align-items:flex-end; gap:6px; height:150px; }
+.wtf-wx-acc-bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; position:relative; }
+.wtf-wx-acc-bar { width:100%; max-width:60px; background:#55606e; border-radius:2px 2px 0 0; }
+.wtf-wx-acc-bar.beat { background:#22c55e; } .wtf-wx-acc-bar.lose { background:#ef4444; }
+.wtf-wx-acc-val { font-family:var(--wtf-font-mono); font-size:10.5px; color:var(--wtf-text-2); margin-bottom:5px; }
+.wtf-wx-acc-persist { position:absolute; left:6%; right:6%; height:0; border-top:1px dashed #6b7280; z-index:2; }
+.wtf-wx-acc-axis { display:flex; gap:6px; margin-top:7px; }
+.wtf-wx-acc-x { flex:1; text-align:center; font-family:var(--wtf-font-mono); font-size:9px; color:var(--wtf-text-muted); }
+.wtf-wx-acc-x small { display:block; font-size:8px; color:#4b5563; }
+.wtf-wx-acc-side { display:flex; flex-direction:column; gap:12px; }
+.wtf-wx-acc-stat { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:5px; padding:11px 14px; }
+.wtf-wx-acc-stat-n { font-family:var(--wtf-font-mono); font-size:22px; color:var(--wtf-text-2); }
+.wtf-wx-acc-stat-l { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--wtf-text-muted); margin-top:3px; line-height:1.5; }
+.wtf-wx-acc-worst { border-left:3px solid #f59e0b; }
+@media (max-width:720px) { .wtf-wx-acc-grid { grid-template-columns:minmax(0,1fr); } }
 
 /* ── Alert strip (Dev HQ #6621 item 5) ──────────────────────────────────
    Real EC alerts only — no fabricated severity, no province canonicalization
@@ -576,7 +601,8 @@
         {% endfor %}
       </div>
       {% endif %}
-      <div class="wtf-wx-section-title">Recent climate &amp; science stories</div>
+      <div class="wtf-wx-section-title">Recent climate and science stories</div>
+      <p class="wtf-wx-acc-sub">Coverage from the climate and science beats, scored on the same lean scale as everything else on this site. A band here reads the framing of one story against the rest of its cluster &mdash; it is not a verdict on the underlying science.</p>
 
       <div class="wtf-wx-article-list">
         {% if articles %}
@@ -606,6 +632,7 @@
         </div>
         {% endif %}
       </div>
+      <p class="wtf-wx-acc-note">Climate and science stories are the beat where lean scoring is least reliable, because an outlet can be scrupulous about the research and pointed about the policy in the same paragraph. Read the cluster.</p>
       <div class="wtf-wx-more-links">
         <a href="/news?beat=climate">All Climate →</a>
         <a href="/news?beat=science-tech">All Science & Tech →</a>
@@ -730,6 +757,54 @@
       {% endif %}
   </aside>
 </div>
+
+{# Forecast accuracy (task #7220). Real, DB-backed, the SAME payload as /weather/accuracy. No sample numbers: when there is no data the
+   section is omitted rather than drawn empty. #}
+{% if accuracy and accuracy.skill_curve and accuracy.chart_max_mae %}
+{% set s = accuracy.summary %}
+<section class="wtf-wx-acc" id="accuracy">
+  <div class="wtf-wx-acc-eyebrow">Scoring the forecaster</div>
+  <h2 class="wtf-wx-acc-h">Forecast accuracy</h2>
+  <p class="wtf-wx-acc-sub">Every Environment Canada city forecast we store is written down when it is issued and compared with what the stations actually measured. A forecaster that never publishes its misses is not a forecaster, so the misses are here too. <a href="/weather/accuracy">Full accuracy report &rarr;</a></p>
+  <div class="wtf-wx-acc-grid">
+    <div class="wtf-wx-acc-card">
+      <div class="wtf-wx-acc-label">Average miss on the daily high, by days ahead</div>
+      <div class="wtf-wx-acc-bars">
+        {% for pt in accuracy.skill_curve %}
+        {% set p = accuracy.persistence_curve.get(pt.lead_days) %}
+        {% set beats = p and pt.mae_c is not none and p.mae_c is not none and pt.mae_c < p.mae_c %}
+        {% set loses = p and pt.mae_c is not none and p.mae_c is not none and pt.mae_c >= p.mae_c %}
+        <div class="wtf-wx-acc-bar-wrap">
+          <div class="wtf-wx-acc-val">{{ '%.1f'|format(pt.mae_c) }}&deg;</div>
+          <div class="wtf-wx-acc-bar{% if beats %} beat{% elif loses %} lose{% endif %}" style="height:{{ (pt.mae_c / accuracy.chart_max_mae * 100) | round(1) }}%"
+               title="{{ pt.lead_days }} day{{ '' if pt.lead_days == 1 else 's' }} ahead &middot; {{ pt.pairs }} checks &middot; average miss {{ '%.2f'|format(pt.mae_c) }}&deg;C{% if pt.thin %} (thin sample){% endif %}"></div>
+          {% if p %}<span class="wtf-wx-acc-persist" style="bottom:{{ (p.mae_c / accuracy.chart_max_mae * 100) | round(1) }}%" title="Persistence baseline: average miss {{ '%.2f'|format(p.mae_c) }}&deg;C"></span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="wtf-wx-acc-axis">
+        {% for pt in accuracy.skill_curve %}<div class="wtf-wx-acc-x">{% if pt.lead_days == 0 %}TODAY{% else %}+{{ pt.lead_days }}D{% endif %}<small>n={{ pt.pairs }}</small></div>{% endfor %}
+      </div>
+      <p class="wtf-wx-acc-note">Degrees Celsius of error on the daily high. {% if s.window_days %}Checked over the {{ s.window_days }} day{{ '' if s.window_days == 1 else 's' }} we have observed so far. {% endif %}Each bar carries its own sample size, so a thin lead time is visible.{% if accuracy.persistence_curve %} The dashed line is persistence &mdash; predicting that the target day will be like the day the forecast was issued. A green bar beats it; a red bar does not.{% endif %}</p>
+    </div>
+    <aside class="wtf-wx-acc-side">
+      {% if s.same_day_mae_c is not none %}
+      <div class="wtf-wx-acc-stat"><div class="wtf-wx-acc-stat-n">&plusmn;{{ '%.1f'|format(s.same_day_mae_c) }}&deg;</div><div class="wtf-wx-acc-stat-l">Same-day average miss{% if s.same_day_within3_pct is not none %} &middot; {{ s.same_day_within3_pct }}% within 3&deg;{% endif %}</div></div>
+      {% endif %}
+      {% if s.longest_mae_c is not none %}
+      <div class="wtf-wx-acc-stat"><div class="wtf-wx-acc-stat-n">&plusmn;{{ '%.1f'|format(s.longest_mae_c) }}&deg;</div><div class="wtf-wx-acc-stat-l">{{ s.longest_lead_days }}-day average miss{% if s.longest_within3_pct is not none %} &middot; {{ s.longest_within3_pct }}% within 3&deg;{% endif %}</div></div>
+      {% endif %}
+      {% if accuracy.worst_miss %}
+      {% set wm = accuracy.worst_miss %}
+      <div class="wtf-wx-acc-stat wtf-wx-acc-worst">
+        <div class="wtf-wx-acc-stat-l" style="margin:0 0 5px;color:#f59e0b">Worst call this month</div>
+        <div style="font-size:13px;line-height:1.6;color:var(--wtf-text-2)">Called {{ '%.0f'|format(wm.forecast_c) }}&deg;C for {{ wm.city or 'a city' }} on {{ wm.target_day.strftime('%-d %B') }}, {{ wm.lead_days }} day{{ '' if wm.lead_days == 1 else 's' }} out. It reached {{ '%.0f'|format(wm.observed_c) }}&deg;C.</div>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+{% endif %}
 
 {% if aurora_map %}
 <script src="/static/vendor/internmap.min.js"></script>

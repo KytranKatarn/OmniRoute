@@ -1284,8 +1284,16 @@ def weather():
             _city_stale_min = int(_l["stale_after_hours"]) * 60
             break
 
+    # Compact Forecast accuracy section (task #7220). A failure here must degrade only that section, never the page.
+    try:
+        accuracy_payload = _aurora_accuracy_payload_cached(S)
+    except Exception:  # noqa: BLE001
+        logger.exception("weather(): forecast-accuracy payload failed; section omitted")
+        accuracy_payload = None
+
     return render_template("weather.html",
                            city_stale_min=_city_stale_min,
+                           accuracy=accuracy_payload,
                            articles=rows,
                            climate_count=climate_count,
                            sci_count=sci_count,
@@ -1392,50 +1400,13 @@ def weather_city(name: str):
     )
 
 
-@bp.get("/weather/accuracy")
-def weather_accuracy():
-    """A.U.R.O.R.A. — how accurate the forecast actually turned out to be.
+def _aurora_accuracy_payload(S):
+    """The forecast-accuracy payload (skill curve, persistence baseline, worst miss, within-3 shares).
 
-    We already store every published daily high alongside the moment it was
-    issued, and we observe the stations hourly. Joining the two lets us say
-    something nobody else publishes for Canada: how far off the forecast was,
-    per city, per lead time.
-
-    Two things this route is careful about, both of which would otherwise
-    flatter the numbers:
-
-    * Only EVEN period_index rows carry a daytime high (odd ones are nights),
-      so joining without that filter silently compares a high against a
-      low and manufactures a large fake error.
-    * The observed high is the MAX of the station's readings for that day. A
-      day we did not observe produces no row at all — the aggregation in
-      `aurora_verify` skips it rather than scoring it as a perfect forecast.
-
-    All arithmetic lives in `consumer.aurora_verify`, which is stdlib-only so
-    its guard tests can never silently skip (KB #290497).
-
-    Batch 11 (#6254 audit) adds two more real, DB-computed panels on top of
-    the same fc/ob shape, both folded onto the payload here rather than
-    inside `aurora_verify` (that module is out of this batch's touch-scope):
-
-    * A **persistence baseline** — the naive "the target day will turn out
-      like the day this forecast was issued" forecast. It needs no LLM and
-      no new table: it is `aurora_city_obs` joined to itself, offset by the
-      SAME lead_days bucket as the real forecast above, so its dashed
-      reference line lands on the real skill curve's own x-axis. Lead 0 is
-      excluded on purpose — `target_day - 0 == target_day`, so a "day-0
-      persistence forecast" would compare the actual high against itself
-      (0.00 error, always), which is not a baseline, just an identity.
-    * A **worst-call-this-month** callout — the single largest miss in the
-      current calendar month, deduped to one row per (site, target_day) at
-      the shortest lead we hold for that miss (the most recent, most
-      informed call), so a story that missed at three lead times is not
-      counted three times. No causal narrative is attached: we have no
-      column that names *why* a forecast missed (see the deferred
-      "where the model is weakest" panel — not buildable from this schema),
-      so only the measured numbers are shown.
+    ONE definition for both `/weather/accuracy` (the full report) and the compact Forecast accuracy section on
+    `/weather`, so the two can never disagree. Body moved verbatim from weather_accuracy(); see its docstring for why
+    each choice (even period_index only, per-day max, persistence baseline, one worst miss per site/day) was made.
     """
-    S = _schema()
     with _db().connect() as c:
         pairs = _aurora_forecast_pairs(c, S)
 
@@ -1602,6 +1573,74 @@ def weather_accuracy():
         _city["within3_pct"] = (
             round(100.0 * sum(_hits) / len(_hits)) if _hits else None
         )
+
+    return payload
+
+
+_ACC_CACHE = {"t": 0.0, "v": None}
+_ACC_TTL_S = 900
+
+
+def _aurora_accuracy_payload_cached(S):
+    """Same payload with a 15-minute in-process cache, for the busy /weather page.
+
+    The inputs are daily-grain (a forecast is only scored once its target day ends), so a quarter-hour of staleness is
+    invisible, while the three aggregate queries over the observation table on EVERY /weather view would not be.
+    /weather/accuracy itself stays uncached.
+    """
+    now = time.monotonic()
+    if _ACC_CACHE["v"] is not None and now - _ACC_CACHE["t"] < _ACC_TTL_S:
+        return _ACC_CACHE["v"]
+    payload = _aurora_accuracy_payload(S)
+    _ACC_CACHE["t"], _ACC_CACHE["v"] = now, payload
+    return payload
+
+
+@bp.get("/weather/accuracy")
+def weather_accuracy():
+    """A.U.R.O.R.A. — how accurate the forecast actually turned out to be.
+
+    We already store every published daily high alongside the moment it was
+    issued, and we observe the stations hourly. Joining the two lets us say
+    something nobody else publishes for Canada: how far off the forecast was,
+    per city, per lead time.
+
+    Two things this route is careful about, both of which would otherwise
+    flatter the numbers:
+
+    * Only EVEN period_index rows carry a daytime high (odd ones are nights),
+      so joining without that filter silently compares a high against a
+      low and manufactures a large fake error.
+    * The observed high is the MAX of the station's readings for that day. A
+      day we did not observe produces no row at all — the aggregation in
+      `aurora_verify` skips it rather than scoring it as a perfect forecast.
+
+    All arithmetic lives in `consumer.aurora_verify`, which is stdlib-only so
+    its guard tests can never silently skip (KB #290497).
+
+    Batch 11 (#6254 audit) adds two more real, DB-computed panels on top of
+    the same fc/ob shape, both folded onto the payload here rather than
+    inside `aurora_verify` (that module is out of this batch's touch-scope):
+
+    * A **persistence baseline** — the naive "the target day will turn out
+      like the day this forecast was issued" forecast. It needs no LLM and
+      no new table: it is `aurora_city_obs` joined to itself, offset by the
+      SAME lead_days bucket as the real forecast above, so its dashed
+      reference line lands on the real skill curve's own x-axis. Lead 0 is
+      excluded on purpose — `target_day - 0 == target_day`, so a "day-0
+      persistence forecast" would compare the actual high against itself
+      (0.00 error, always), which is not a baseline, just an identity.
+    * A **worst-call-this-month** callout — the single largest miss in the
+      current calendar month, deduped to one row per (site, target_day) at
+      the shortest lead we hold for that miss (the most recent, most
+      informed call), so a story that missed at three lead times is not
+      counted three times. No causal narrative is attached: we have no
+      column that names *why* a forecast missed (see the deferred
+      "where the model is weakest" panel — not buildable from this schema),
+      so only the measured numbers are shown.
+    """
+    S = _schema()
+    payload = _aurora_accuracy_payload(S)
 
     return render_template("forecast_accuracy.html",
                            verification=payload,

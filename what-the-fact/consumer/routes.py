@@ -940,6 +940,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
     match_city_alerts,
     wx_glyph,
 )
+from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
 from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
 from .aurora_verify import (  # pure, DB-free (see module docstring)
     verification_payload as _verification_payload,
@@ -1168,7 +1169,7 @@ def weather():
         city_rows = c.execute(text("""
             SELECT s.site_code, s.name_en, s.display_name, s.source_prov,
                    s.lat, s.lon, s.last_obs_status,
-                   o.observed_utc, o.temp_c, o.condition_text, o.rel_humidity_pct,
+                   o.observed_utc, o.temp_c, o.condition_text, o.icon_code, o.rel_humidity_pct,
                    o.wind_speed_kmh, o.wind_is_calm, o.wind_gust_kmh, o.wind_dir,
                    o.humidex, o.pressure_kpa,
                    EXTRACT(EPOCH FROM (now() - o.observed_utc))/60 AS age_min
@@ -1198,6 +1199,7 @@ def weather():
     map_payload = _aurora_map_payload(station_rows, station_provinces,
                                       fire_provinces, obs_time)
     city_payload = _aurora_city_payload(city_rows, forecast_rows)
+    _wx_symbols.attach_glyphs(city_payload["cities"])
 
     # AQHI layer (#6621) — no province in the payload itself (see
     # ingest/weather/aqhi.py's docstring), so this is a flat station list
@@ -1301,6 +1303,7 @@ def weather():
     return render_template("weather.html",
                            city_stale_min=_city_stale_min,
                            accuracy=accuracy_payload,
+                           wx_glyphs=_wx_symbols.GLYPH_SVG,
                            articles=rows,
                            climate_count=climate_count,
                            sci_count=sci_count,

@@ -247,6 +247,9 @@ def _aurora_city_payload(city_rows, forecast_rows):
             "dir": r["wind_dir"],
             "humidex": _r(r["humidex"]),
             "pressure": _r(r["pressure_kpa"]),
+            # The raw ECCC icon_code (task 7233). This module stays stdlib-only and standalone-importable, so the glyph KEY is attached by the route
+            # (wx_symbols.attach_glyphs), not here.
+            "icon_code": r.get("icon_code"),
             "forecast": by_site.get(code, [])[:14],  # whole ECCC set (12-14); the compact card slices to 4 client-side
         })
 

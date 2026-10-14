@@ -1,12 +1,8 @@
 """Async F.O.R.G.E. review callback (project #375).
 
-When the code_review model is cold/saturated the dispatcher enqueues the job and
-returns queued=True with a queue_id. These tests prove the review no longer dead-
-ends as "pending forever":
-  * a queued review attaches a pr_review_result callback to the queue row,
-  * when the cold-load job finishes, _handle_callback writes the verdict back to
-    pr_reviews and flips review_status='reviewed'.
-DB boundaries are mocked.
+Queued passes retain their dispatch identity. Only the live owner may assemble
+and publish a whole-review verdict; raw and legacy callbacks cannot overwrite it.
+DB and dispatch boundaries are mocked.
 """
 
 from __future__ import annotations
@@ -15,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 
 # ---- callback handler: writes the verdict back to pr_reviews -----------------
-def test_handle_callback_pr_review_writes_verdict():
+def test_handle_callback_pr_review_cannot_publish_raw_pass():
     from services.model_dispatch_service import _handle_callback
 
     cur = MagicMock()
@@ -26,10 +22,7 @@ def test_handle_callback_pr_review_writes_verdict():
     _handle_callback(cur, task_id=999, response="SUMMARY ok\nVERDICT: APPROVE")
 
     updates = [c for c in cur.execute.call_args_list if "UPDATE pr_reviews" in c.args[0]]
-    assert len(updates) == 1, "must write the verdict back to pr_reviews exactly once"
-    sql, params = updates[0].args[0], updates[0].args[1]
-    assert "review_status = 'reviewed'" in sql
-    assert params == ("SUMMARY ok\nVERDICT: APPROVE", 1527, "KytranKatarn/archie-platform")
+    assert updates == [], "raw/legacy callback must not replace the whole-review verdict"
 
 
 def test_handle_callback_pr_review_skips_when_empty_response():
@@ -62,22 +55,22 @@ def test_attach_pr_review_callback_tags_queue_row():
     assert params[1] == 77
 
 
-def test_run_forge_review_attaches_callback_when_queued():
+def test_run_forge_review_polls_original_dispatch_when_queued():
     from tools.repair_bay.services import pr_diff_analyzer as pda
 
     queued = MagicMock(queued=True, queue_id=77)
     fake_dispatch = MagicMock(return_value=queued)
     stub_mod = MagicMock(dispatch=fake_dispatch)
 
-    attached = {}
     with patch.dict(
         "sys.modules",
         {"tools.department_hq.services.department_dispatcher": stub_mod},
-    ), patch.object(pda, "_attach_pr_review_callback", lambda q, p, r: attached.update(q=q, p=p, r=r)):
+    ), patch("services.review_attempts.await_existing_queue", return_value=None) as poll:
         out = pda._run_forge_review("prompt", pr_number=1527, repo="repoX")
 
-    assert out is None, "queued dispatch returns None (lands async)"
-    assert attached == {"q": 77, "p": 1527, "r": "repoX"}
+    assert out is None, "a pass without a result cannot manufacture a verdict"
+    poll.assert_called_once_with(77)
+    assert fake_dispatch.call_count == 1
 
 
 def test_run_forge_review_returns_summary_when_synchronous():

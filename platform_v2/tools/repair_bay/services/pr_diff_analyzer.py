@@ -101,7 +101,11 @@ class reviewer_override:  # noqa: N801 — used as a context manager, not a type
         return self
 
     def __exit__(self, *exc):
-        _reviewer_local.agent = self._prev
+        if self._prev is None:
+            if hasattr(_reviewer_local, "agent"):
+                del _reviewer_local.agent
+        else:
+            _reviewer_local.agent = self._prev
         return False
 
 
@@ -195,7 +199,26 @@ _TAIL_REMINDER = (
 )
 
 
-def review_pr(pr_number: int, repo: str = None) -> dict:
+def review_pr(pr_number: int, repo: str = None, wide: bool = False) -> dict:
+    from services.review_attempts import owned_attempt, ReviewBusy, ReviewCancelled
+
+    row = get_review(pr_number, repo)
+    if not row:
+        poll_open_prs(repo)
+        row = get_review(pr_number, repo)
+    if not row:
+        return {"ok": False, "error": "PR not tracked"}
+    repo = row.get("repo") or repo
+    try:
+        with owned_attempt(repo, pr_number, (row.get("metadata") or {}).get("head_sha")):
+            return _review_pr_owned(pr_number, repo, wide)
+    except ReviewBusy as exc:
+        return {"ok": False, "status": "in_progress", "error": str(exc)}
+    except ReviewCancelled as exc:
+        return {"ok": False, "status": "cancelled", "error": str(exc)}
+
+
+def _review_pr_owned(pr_number: int, repo: str = None, wide: bool = False) -> dict:
     """Grounded on-demand review of a single PR.
 
     Single entry point for diff-grounded F.O.R.G.E. review: fetches the REAL
@@ -228,7 +251,7 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
     try:
         mark_review_started(pr_number, _repo)
         diff = _fetch_diff(diff_url)
-        summary = _obtain_review_summary(review, diff, pr_number, _repo)
+        summary = _obtain_review_summary(review, diff, pr_number, _repo, wide=wide)
         if not summary:
             mark_review_pending(pr_number, _repo)
             return {
@@ -237,7 +260,10 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
                 "status": "queued",
                 "error": "queued — F.O.R.G.E. model cold-loading; verdict lands async via callback",
             }
-        mark_review_done(pr_number, summary, _repo)
+        from services.review_attempts import assert_active
+
+        assert_active()
+        mark_review_done(pr_number, summary, _repo, auto_merge=False, reviewer=_review_prefer_agent())
         _notify_pr_reviewed(pr_number, _repo, review.get("title", ""), summary)
         # Single source of truth — same parser the merge gate + tier classifier use.
         verdict = parse_verdict(summary)
@@ -261,39 +287,12 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
     processed = failed = skipped = 0
 
     for review in reviews:
-        pr_number = review["pr_number"]
-        repo = review.get("repo", "KytranKatarn/archie-platform")
-
-        try:
-            mark_review_started(pr_number, repo)
-
-            diff_url = review.get("diff_url")
-            if not diff_url:
-                logger.warning("[PR Review] PR #%s has no diff_url — skipping", pr_number)
-                from tools.repair_bay.services.pr_review_service import mark_review_skipped
-
-                mark_review_skipped(pr_number, repo)
-                skipped += 1
-                continue
-
-            diff = _fetch_diff(diff_url)
-            summary = _obtain_review_summary(review, diff, pr_number, repo)
-
-            if summary:
-                mark_review_done(pr_number, summary, repo)
-                _notify_pr_reviewed(pr_number, repo, review.get("title", ""), summary)
-                processed += 1
-            else:
-                logger.warning("[PR Review] F.O.R.G.E. returned empty summary for PR #%s", pr_number)
-                mark_review_pending(pr_number, repo)
-                failed += 1
-
-        except Exception as exc:
-            logger.error("[PR Review] PR #%s analysis failed: %s", pr_number, exc)
-            try:
-                mark_review_pending(pr_number, repo)
-            except Exception as reset_err:
-                logger.error("[PR Review] Failed to reset PR #%s status: %s", pr_number, reset_err)
+        result = review_pr(review["pr_number"], review.get("repo"))
+        if result.get("ok"):
+            processed += 1
+        elif result.get("status") == "in_progress":
+            skipped += 1
+        else:
             failed += 1
 
     logger.info(
@@ -455,7 +454,22 @@ def _attach_pr_review_callback(queue_id: int, pr_number: int, repo: str) -> None
                        callback_data = %s::jsonb
                  WHERE id = %s AND status IN ('queued', 'running')
                 """,
-                (json.dumps({"pr_number": pr_number, "repo": repo}), queue_id),
+                (
+                    json.dumps(
+                        {
+                            "pr_number": pr_number,
+                            "repo": repo,
+                            "attempt_id": (
+                                __import__("services.review_attempts", fromlist=["CURRENT"]).CURRENT.get() or {}
+                            ).get("id"),
+                            "head_sha": (
+                                __import__("services.review_attempts", fromlist=["CURRENT"]).CURRENT.get() or {}
+                            ).get("head_sha"),
+                            "pass_only": True,
+                        }
+                    ),
+                    queue_id,
+                ),
             )
     except Exception as exc:
         logger.warning("[PR Review] failed to attach callback to queue #%s: %s", queue_id, exc)
@@ -2504,7 +2518,10 @@ def _dispatch_json_review(prompt: str, kw: dict):
     attempt and the ST-1 JSON re-prompt so both honor the same node pinning, num_ctx, and tier model.
     Only 'parse_fail' (a real non-JSON response) warrants a re-prompt — queued/error/empty go straight
     to the freeform fallback, exactly as before."""
-    from tools.department_hq.services.department_dispatcher import dispatch, dispatch_awaiting_queue
+    from services.review_attempts import assert_active
+
+    assert_active()
+    from tools.department_hq.services.department_dispatcher import dispatch
 
     _pa = _review_prefer_agent()  # #6040: P.R.O.B.E. reviews machine-authored PRs
     # #6779 — THE PIN MUST FOLLOW THE MODEL. _review_preferred_nodes() is the 7B cluster
@@ -2542,43 +2559,11 @@ def _dispatch_json_review(prompt: str, kw: dict):
         logger.warning("[PR Review] structured dispatch error, falling back: %s", exc)
         return None, "error"
     if getattr(result, "queued", False):
-        # #6779 — a queued ESCALATION must be AWAITED, not abandoned. Returning "queued"
-        # here drops to the freeform fallback, which runs at the WEAK cap — the very cap
-        # that cannot cover the diff that triggered the escalation. So bailing does not
-        # degrade gracefully; it GUARANTEES the coverage demotion we escalated to avoid.
-        #
-        # dispatch_awaiting_queue exists for precisely this and says so in its own
-        # docstring: "The F.O.R.G.E. review path is the caller that never got the
-        # workaround — so an escalated review silently degraded to the weak model on a
-        # truncated diff (#6023)." It was wired into the freeform path (#6247) and not
-        # this one.
-        #
-        # ONLY for a model-pinned call. The default 7B path keeps its fast return and
-        # async callback, byte-identical — waiting there would block a review that the
-        # callback already lands correctly.
-        if not _want_model:
-            return None, "queued"
-        try:
-            text = dispatch_awaiting_queue(
-                capability="code_review",
-                prompt=prompt,
-                module_id="repair_bay",
-                json_mode=True,
-                preferred_node=_pin,
-                num_ctx=_review_num_ctx(),
-                **({"prefer_agent": _pa} if _pa else {}),
-                **kw,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("[PR Review] awaiting the queued escalation failed: %s", exc)
-            return None, "queued"
-        if not text:
-            logger.warning(
-                "[PR Review] escalated review still produced no text after awaiting the "
-                "queue — falling back to the weak cap (coverage will report it)"
-            )
-            return None, "queued"
-        parsed = _parse_review_json(text)
+        from services.review_attempts import await_existing_queue
+
+        text = await_existing_queue(getattr(result, "queue_id", None))
+        assert_active()
+        parsed = _parse_review_json(text) if text else None
         return (parsed, "parsed") if parsed else (None, "parse_fail")
     if not (getattr(result, "success", False) and getattr(result, "response", "")):
         return None, "empty"
@@ -3426,6 +3411,9 @@ def _obtain_text_review_summary(
     stop_reason = None
     new_passes = 0
     for _idx, _chunk in enumerate(_chunks):
+        from services.review_attempts import assert_active
+
+        assert_active()
         cached = checkpoint.lookup(_chunk, _cap) if checkpoint else None
         if cached and parse_verdict(cached) in {"APPROVE", "REQUEST CHANGES", "NEEDS REVIEW"}:
             _summaries.append(cached)
@@ -3606,57 +3594,18 @@ def _run_forge_review(
     diff: str = None,
     await_queue: bool = False,
 ) -> str | None:
-    """Dispatch the review prompt to F.O.R.G.E. via Bridge.
+    """Dispatch once through DHQ, poll the same queued ID, then apply gates.
 
-    Returns the summary string from F.O.R.G.E., or ``None``. ``None`` means
-    either a hard failure OR that the dispatch was deferred to the cold-load
-    queue — in the queued case an async ``pr_review_result`` callback is
-    attached (when ``pr_number`` is known) so the verdict lands when the model
-    warms, instead of the review staying stuck pending.
-
-    ``await_queue`` (#6247) — WAIT for a cold-loading model instead of returning
-    ``None``. Used ONLY by the CHUNKED path, and the distinction is the whole bug:
-
-    * SINGLE pass: returning fast + landing the verdict via the async callback is
-      correct and deliberate. Do not make this blocking — the callback writes the
-      one review row, and a caller on a web thread must not hold a worker.
-    * CHUNKED: the merge needs EVERY pass in hand before it can fold them, so a
-      ``None`` is indistinguishable from a lost pass. ``_merge_chunk_summaries``
-      then applies the fail-closed lattice and a clean APPROVE is demoted to
-      NEEDS REVIEW — which ``parse_verdict`` reads, so the PR can only be merged
-      by human override. Reliability got WORSE as chunk count rose, which is very
-      likely why max_chunks was flipped 1->3 and rolled back the same day (#5861).
-      Per-chunk callbacks would also be wrong: N callbacks racing to overwrite the
-      SAME ``pr_reviews`` row with one chunk's verdict.
-
-    ⚠️ Fail-closed itself is CORRECT and stays. The bug was only ever
-    misclassifying "queued" (live work) as "unparseable" (lost work) — KB #276153,
-    now reaching the chunked reviewer.
+    Queue polling is background-worker-only. No raw queued pass publishes a
+    whole-review verdict; cancellation is checked before dispatch and polling.
+    ``await_queue`` remains accepted for compatibility; all queued reviews wait.
     """
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
 
-        if await_queue:
-            from tools.department_hq.services.department_dispatcher import dispatch_awaiting_queue
+        from services.review_attempts import assert_active
 
-            text = dispatch_awaiting_queue(
-                capability="code_review",
-                prompt=prompt,
-                module_id="repair_bay",
-                num_ctx=_review_num_ctx(),
-                preferred_node=_review_preferred_nodes(),
-                **({"prefer_agent": _pa} if (_pa := _review_prefer_agent()) else {}),
-            )
-            if not text:
-                # Poll timeout / hard failure. The queue row survives for the worker,
-                # so nothing is lost — but THIS pass has no content, and the caller's
-                # fail-closed merge is the right answer for a pass we cannot read.
-                logger.warning(
-                    "[PR Review] chunked pass produced no text after awaiting the queue — "
-                    "failing closed for this pass (#6247)"
-                )
-                return None
-            return _gate_freeform_review(text.strip(), diff, pr_number, repo)
+        assert_active()
 
         result = dispatch(
             capability="code_review",
@@ -3675,16 +3624,11 @@ def _run_forge_review(
             **({"prefer_agent": _pa} if (_pa := _review_prefer_agent()) else {}),
         )
         if getattr(result, "queued", False):
-            qid = getattr(result, "queue_id", None)
-            if qid and pr_number:
-                _attach_pr_review_callback(qid, pr_number, repo)
-                logger.info(
-                    "[PR Review] F.O.R.G.E. dispatch queued (#%s) — callback attached, completes async",
-                    qid,
-                )
-            else:
-                logger.info("[PR Review] F.O.R.G.E. dispatch queued — model cold-loading, will retry")
-            return None
+            from services.review_attempts import await_existing_queue
+
+            text = await_existing_queue(getattr(result, "queue_id", None))
+            assert_active()
+            return _gate_freeform_review(text.strip(), diff, pr_number, repo) if text else None
         if result.success and result.response:
             return _gate_freeform_review(result.response.strip(), diff, pr_number, repo)
         logger.warning("[PR Review] F.O.R.G.E. dispatch returned no response: success=%s", result.success)

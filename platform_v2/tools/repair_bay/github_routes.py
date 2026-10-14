@@ -1208,18 +1208,11 @@ def register_github_routes(bp, admin_required):
         from .services.pr_review_service import (
             _is_valid_repo,
             get_review,
-            mark_review_started,
-            mark_review_done,
             mark_review_pending,
             repos_for_pr_number,
         )
         from .services.pr_diff_analyzer import (
             REVIEWER_ALLOWLIST,
-            _fetch_diff,
-            _build_prompt,
-            _run_forge_review,
-            _obtain_review_summary,
-            _notify_pr_reviewed,
             reviewer_override,
             review_scope_override,
         )
@@ -1271,23 +1264,15 @@ def register_github_routes(bp, admin_required):
             return jsonify({"error": f"PR #{pr_number} not found in pr_reviews"}), 404
 
         if review.get("review_status") == "in_progress":
-            # Allow re-trigger if stuck > 5 minutes (thread likely died silently)
-            from datetime import datetime, timezone
-
-            updated = review.get("updated_at")
-            stuck = False
-            if updated:
-                try:
-                    age = (datetime.now(timezone.utc) - updated).total_seconds()
-                    stuck = age > 300
-                except Exception:
-                    stuck = False
-            if not stuck:
-                return jsonify({"status": "in_progress", "message": "Review already running — check back in 30s"}), 200
-            # Fall through to re-trigger — reset to pending first
-            from .services.pr_review_service import _DEFAULT_REPO, mark_review_pending as _reset
-
-            _reset(pr_number, review.get("repo") or _repo_in or _DEFAULT_REPO)
+            return (
+                jsonify(
+                    {
+                        "status": "in_progress",
+                        "message": "Review already running; use Retry to request cancellation first",
+                    }
+                ),
+                409,
+            )
 
         diff_url = review.get("diff_url")
         if not diff_url:
@@ -1332,8 +1317,6 @@ def register_github_routes(bp, admin_required):
                 400,
             )
 
-        _who = _reviewer or "F.O.R.G.E."
-
         def _run_in_background():
             # The override is THREAD-LOCAL, so it has to be entered inside the
             # thread. Wrapping the Thread(...) construction instead would set it
@@ -1346,34 +1329,9 @@ def register_github_routes(bp, admin_required):
                 mark_review_pending(pr_number, repo)
 
         def _do_review():
-            try:
-                mark_review_started(pr_number, repo)
-                diff = _fetch_diff(diff_url)
-                if wide:
-                    # Re-review the FILES the last pass never saw. The freeform prompt
-                    # below would use the SAME capped window and drop the SAME files, so
-                    # route the whole diff through the coverage-aware path instead: its
-                    # size rule (#6023) already escalates an over-window diff to the
-                    # patient full-window reviewer, and it re-stamps an honest coverage
-                    # note if anything still falls out — a clean re-review can never read
-                    # like the #5836 approval that only saw part of the diff.
-                    summary = _obtain_review_summary(review, diff, pr_number, repo, wide=True)
-                else:
-                    prompt = _build_prompt(review, diff)
-                    # DHQ dispatch — goes through queue+orchestration pipeline
-                    summary = _run_forge_review(prompt)
-                if summary:
-                    # `reviewer` decides WHERE the verdict lands: F.O.R.G.E. owns ai_summary
-                    # (the merge gate's field); any other reviewer is stored apart and cannot
-                    # gate. Passing it is what stops a QA verdict from overwriting the code
-                    # review's verdict with no attribution — measured on #3627.
-                    mark_review_done(pr_number, summary, repo, reviewer=_who)
-                    _notify_pr_reviewed(pr_number, repo, review.get("title", ""), summary)
-                else:
-                    mark_review_pending(pr_number, repo)
-            except Exception as exc:
-                logger.error("[PRAnalyze] PR #%s failed: %s", pr_number, exc)
-                mark_review_pending(pr_number, repo)
+            from .services.pr_diff_analyzer import review_pr
+
+            return review_pr(pr_number, repo, wide=wide)
 
         t = threading.Thread(target=_run_in_background, daemon=True)
         t.start()
@@ -1496,53 +1454,28 @@ def register_github_routes(bp, admin_required):
         """
         import threading
 
-        from .services.pr_review_service import (
-            get_pending_reviews,
-            mark_review_started,
-            mark_review_done,
-            mark_review_pending,
-        )
-        from .services.pr_diff_analyzer import (
-            _fetch_diff,
-            _build_prompt,
-            _run_forge_review,
-            _notify_pr_reviewed,
-        )
+        from .services.pr_review_service import get_pending_reviews
 
         reviews = get_pending_reviews(limit=50)
         if not reviews:
             return jsonify({"success": True, "queued": 0, "message": "No pending PRs to review"}), 200
 
-        def _analyze_one(review):
-            pr_number = review["pr_number"]
-            repo = review.get("repo", "KytranKatarn/archie-platform")
-            diff_url = review.get("diff_url")
-            if not diff_url:
-                return
-            try:
-                mark_review_started(pr_number, repo)
-                diff = _fetch_diff(diff_url)
-                prompt = _build_prompt(review, diff)
-                summary = _run_forge_review(prompt)
-                if summary:
-                    mark_review_done(pr_number, summary, repo)
-                    _notify_pr_reviewed(pr_number, repo, review.get("title", ""), summary)
-                else:
-                    mark_review_pending(pr_number, repo)
-            except Exception as exc:
-                logger.error("[PRAnalyzeAll] PR #%s failed: %s", pr_number, exc)
-                mark_review_pending(pr_number, repo)
+        def _run_serial():
+            from .services.pr_diff_analyzer import review_pr
 
-        for review in reviews:
-            t = threading.Thread(target=_analyze_one, args=(review,), daemon=True)
-            t.start()
+            for review in reviews:
+                result = review_pr(review["pr_number"], review.get("repo"))
+                if not result.get("ok") and result.get("status") != "in_progress":
+                    break  # Queue/failure pauses the batch; do not fan out more work.
+
+        threading.Thread(target=_run_serial, daemon=True).start()
 
         return (
             jsonify(
                 {
                     "success": True,
                     "queued": len(reviews),
-                    "message": f"F.O.R.G.E. reviewing {len(reviews)} PRs — check back in a few minutes",
+                    "message": f"F.O.R.G.E. will review {len(reviews)} PRs sequentially; queue or failure pauses the batch",
                 }
             ),
             202,
@@ -1583,7 +1516,6 @@ def register_github_routes(bp, admin_required):
         from .services.pr_review_service import (
             _is_valid_repo,
             get_review,
-            mark_review_pending,
             review_progress,
         )
 
@@ -1618,7 +1550,9 @@ def register_github_routes(bp, admin_required):
             started_at=_meta.get("review_started_at"),
             file_progress=_meta.get("review_file_progress"),
         )
-        mark_review_pending(pr_number, repo=_repo_in or None)
+        from services.review_attempts import cancel_review
+
+        cancel_review(pr_number, review.get("repo") or _repo_in or "KytranKatarn/archie-platform", retry=True)
         logger.info(
             "[F.O.R.G.E.] review retry: PR #%s (%s) reset after %sm in_progress by %s",
             pr_number,

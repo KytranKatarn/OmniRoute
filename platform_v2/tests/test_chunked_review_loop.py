@@ -91,10 +91,11 @@ def test_single_pass_does_NOT_await_the_queue():
         seen["await_queue"] = await_queue
         return "SUMMARY\nx\n\nVERDICT: APPROVE"
 
-    with mock.patch.object(pda, "_review_max_chunks", return_value=1), \
-         mock.patch.object(pda, "_structured_review", return_value=None), \
-         mock.patch.object(pda, "_run_forge_review", side_effect=_fake_run), \
-         mock.patch.object(pda, "_gate_freeform_review", side_effect=lambda s, *a, **k: s):
+    with mock.patch.object(pda, "_review_max_chunks", return_value=1), mock.patch.object(
+        pda, "_structured_review", return_value=None
+    ), mock.patch.object(pda, "_run_forge_review", side_effect=_fake_run), mock.patch.object(
+        pda, "_gate_freeform_review", side_effect=lambda s, *a, **k: s
+    ):
         pda._obtain_review_summary({"pr_number": 1, "title": "t", "body": ""}, "diff --git a/x b/x\n+1\n", 1, "o/r")
 
     assert seen.get("await_queue") is False, "single-pass must not block on the queue"
@@ -108,12 +109,12 @@ def test_chunked_DOES_await_the_queue():
         seen.append(await_queue)
         return "SUMMARY\nx\n\nVERDICT: APPROVE"
 
-    big = "\n".join(f"diff --git a/f{i} b/f{i}\n--- a/f{i}\n+++ b/f{i}\n" + "+x\n" * 400
-                    for i in range(6))
-    with mock.patch.object(pda, "_review_max_chunks", return_value=3), \
-         mock.patch.object(pda, "_structured_review", return_value=None), \
-         mock.patch.object(pda, "_run_forge_review", side_effect=_fake_run), \
-         mock.patch.object(pda, "_gate_freeform_review", side_effect=lambda s, *a, **k: s):
+    big = "\n".join(f"diff --git a/f{i} b/f{i}\n--- a/f{i}\n+++ b/f{i}\n" + "+x\n" * 400 for i in range(6))
+    with mock.patch.object(pda, "_review_max_chunks", return_value=3), mock.patch.object(
+        pda, "_structured_review", return_value=None
+    ), mock.patch.object(pda, "_run_forge_review", side_effect=_fake_run), mock.patch.object(
+        pda, "_gate_freeform_review", side_effect=lambda s, *a, **k: s
+    ):
         pda._obtain_review_summary({"pr_number": 2, "title": "t", "body": ""}, big, 2, "o/r")
 
     assert seen, "the freeform fallback should have run for each chunk"
@@ -132,21 +133,28 @@ def test_await_path_keeps_num_ctx_AND_preferred_node():
     """
     captured = {}
 
-    def _fake_await(**kw):
+    def _fake_dispatch(**kw):
         captured.update(kw)
-        return "SUMMARY\nx\n\nVERDICT: APPROVE"
+        from types import SimpleNamespace
+
+        return SimpleNamespace(queued=True, queue_id=42)
 
     import tools.department_hq.services.department_dispatcher as dd
-    with mock.patch.object(dd, "dispatch_awaiting_queue", side_effect=_fake_await), \
-         mock.patch.object(pda, "_review_num_ctx", return_value=8192), \
-         mock.patch.object(pda, "_review_preferred_nodes", return_value=["node-a"]), \
-         mock.patch.object(pda, "_gate_freeform_review", side_effect=lambda s, *a, **k: s):
+
+    with mock.patch.object(dd, "dispatch", side_effect=_fake_dispatch), mock.patch(
+        "services.review_attempts.await_existing_queue", return_value="SUMMARY\nx\nVERDICT: APPROVE"
+    ) as poll, mock.patch.object(pda, "_review_num_ctx", return_value=8192), mock.patch.object(
+        pda, "_review_preferred_nodes", return_value=["node-a"]
+    ), mock.patch.object(
+        pda, "_gate_freeform_review", side_effect=lambda s, *a, **k: s
+    ):
         out = pda._run_forge_review("p", 3, "o/r", diff="d", await_queue=True)
 
     assert out and "APPROVE" in out
     assert captured.get("num_ctx") == 8192, "the review window must survive the await path"
     assert captured.get("preferred_node") == ["node-a"], "routing must survive the await path"
     assert captured.get("capability") == "code_review"
+    poll.assert_called_once_with(42)
 
 
 def test_await_timeout_still_fails_closed():
@@ -156,9 +164,13 @@ def test_await_timeout_still_fails_closed():
     It means THIS pass has no content to merge.
     """
     import tools.department_hq.services.department_dispatcher as dd
-    with mock.patch.object(dd, "dispatch_awaiting_queue", return_value=None), \
-         mock.patch.object(pda, "_review_num_ctx", return_value=4096), \
-         mock.patch.object(pda, "_review_preferred_nodes", return_value=[]):
+    from types import SimpleNamespace
+
+    with mock.patch.object(dd, "dispatch", return_value=SimpleNamespace(queued=True, queue_id=43)), mock.patch(
+        "services.review_attempts.await_existing_queue", return_value=None
+    ), mock.patch.object(pda, "_review_num_ctx", return_value=4096), mock.patch.object(
+        pda, "_review_preferred_nodes", return_value=[]
+    ):
         assert pda._run_forge_review("p", 4, "o/r", diff="d", await_queue=True) is None
 
 
@@ -184,8 +196,11 @@ def test_dispatch_awaiting_queue_FORWARDS_the_kwargs():
 
     with mock.patch.object(dd, "get_dispatcher", return_value=_D()):
         out = dd.dispatch_awaiting_queue(
-            capability="code_review", prompt="p", module_id="repair_bay",
-            num_ctx=8192, preferred_node=["node-a"],
+            capability="code_review",
+            prompt="p",
+            module_id="repair_bay",
+            num_ctx=8192,
+            preferred_node=["node-a"],
         )
     assert out == "ok"
     assert captured.get("num_ctx") == 8192

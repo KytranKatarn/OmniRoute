@@ -1032,39 +1032,14 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                         ),
                     )
         elif cb_type == "pr_review_result":
-            # A queued F.O.R.G.E. code_review (model cold-load) finished. Write
-            # the verdict back to pr_reviews + flip review_status='reviewed' so
-            # the review is no longer stuck pending/queued. Mirrors
-            # pr_review_service.mark_review_done's UPDATE, inline (we already
-            # hold the cursor/transaction). NO auto-merge from the async path —
-            # a PR must not merge itself minutes later; the merge gate stays in
-            # the synchronous review flow / human hands.
-            pr_number = cb_data.get("pr_number")
-            repo = cb_data.get("repo") or "KytranKatarn/archie-platform"
-            resp = (response or "").strip()
-            if pr_number and resp:
-                cur.execute(
-                    """
-                    UPDATE pr_reviews
-                       SET review_status = 'reviewed', ai_summary = %s,
-                           ai_review_at = now(), updated_at = now()
-                     WHERE pr_number = %s AND repo = %s
-                    """,
-                    (resp, pr_number, repo),
-                )
-                # #5780: an UPDATE matching ZERO rows is a SILENT no-op — the review
-                # succeeded, the artifact exists, and the verdict is simply dropped. That is
-                # invisible today, and the merge gate then fails closed on a missing verdict
-                # with no explanation. Make the miss loud; never guess at a repair here.
-                if cur.rowcount == 0:
-                    log.warning(
-                        "model_dispatch: pr_review_result callback matched NO pr_reviews row "
-                        "(pr=%s repo=%s, %d chars of verdict DROPPED) — the review ran and its "
-                        "result is being lost",
-                        pr_number,
-                        repo,
-                        len(resp),
-                    )
+            # Individual queued passes lack whole-diff coverage and integrity gates.
+            # Never promote their raw output to a final PR verdict, even for a
+            # matching attempt. Legacy callbacks are unsafe for the same reason.
+            log.info(
+                "model_dispatch: PR review pass #%s retained in queue result; "
+                "whole-review publication requires its live owner",
+                task_id,
+            )
 
         elif cb_type == "webhook":
             # Fire async — don't block the worker cycle

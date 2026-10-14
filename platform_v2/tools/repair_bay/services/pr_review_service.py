@@ -649,21 +649,27 @@ def get_pending_reviews(limit: int = 10) -> list:
 
 
 def mark_review_started(pr_number: int, repo: str = None) -> None:
-    with get_db_cursor(commit=True) as (conn, cur):
+    from services.review_attempts import CURRENT, ReviewBusy
+    from psycopg2.extras import Json
+
+    attempt = CURRENT.get()
+    if not attempt:
+        raise ReviewBusy("Review must enter through review_pr ownership")
+    with get_db_cursor(commit=True) as (_, cur):
         cur.execute(
-            """
-            UPDATE pr_reviews
-            SET review_status='in_progress',
-                updated_at=NOW(),
-                metadata = COALESCE(metadata, '{}'::jsonb)
-                           || jsonb_build_object(
-                               'review_started_at', NOW(),
-                               'review_file_progress', '{}'::jsonb
-                           )
-            WHERE pr_number=%s AND repo=%s
-            """,
-            (pr_number, repo or _DEFAULT_REPO),
+            "UPDATE pr_reviews SET review_status='in_progress', updated_at=NOW(), "
+            "metadata=COALESCE(metadata,'{}'::jsonb) || %s::jsonb || "
+            "jsonb_build_object('review_started_at',NOW(),'review_file_progress','{}'::jsonb) "
+            "WHERE pr_number=%s AND repo=%s AND state='open' AND metadata->>'head_sha'=%s",
+            (
+                Json({"review_attempt_id": attempt["id"], "review_cancelled": False}),
+                pr_number,
+                repo or _DEFAULT_REPO,
+                attempt["head_sha"],
+            ),
         )
+        if not cur.rowcount:
+            raise ReviewBusy("Review head changed or PR closed before claim")
 
 
 def mark_review_progress(pr_number: int, repo: str = None) -> bool:
@@ -692,6 +698,9 @@ def mark_review_progress(pr_number: int, repo: str = None) -> bool:
     the write is a no-op and the return value says so.
     """
     with get_db_cursor(commit=True) as (conn, cur):
+        from services.review_attempts import guarded_cursor
+
+        cur = guarded_cursor(cur)
         cur.execute(
             "UPDATE pr_reviews SET updated_at=NOW() " "WHERE pr_number=%s AND repo=%s AND review_status='in_progress'",
             (pr_number, repo or _DEFAULT_REPO),
@@ -706,6 +715,9 @@ def mark_review_file_progress(pr_number: int, repo: str = None, progress: dict =
     from psycopg2.extras import Json as _Json  # noqa: PLC0415
 
     with get_db_cursor(commit=True) as (conn, cur):
+        from services.review_attempts import guarded_cursor
+
+        cur = guarded_cursor(cur)
         cur.execute(
             """
             UPDATE pr_reviews
@@ -975,11 +987,20 @@ def mark_review_done(
     # 02:38:36Z predated commit c787958fc at 02:41:41Z and had never seen the file that
     # commit changed, yet the gate reported a clean approval.
     _head = pr_head_sha(pr_number, repo)
+    from services.review_attempts import CURRENT, ReviewCancelled, assert_active
+
+    assert_active()
+    attempt = CURRENT.get()
+    if attempt and _head != attempt["head_sha"]:
+        raise ReviewCancelled("GitHub head changed before verdict publication")
     _who = reviewer or "F.O.R.G.E."
     _gating = _who in GATE_REVIEWERS
 
     if _gating:
         with get_db_cursor(commit=True) as (conn, cur):
+            from services.review_attempts import guarded_cursor
+
+            cur = guarded_cursor(cur)
             cur.execute(
                 """
                 UPDATE pr_reviews
@@ -996,6 +1017,9 @@ def mark_review_done(
         # reviewed_head_sha — all three belong to the gating review. review_status moves to
         # 'reviewed' only so this run cannot leave the row stuck in 'in_progress'.
         with get_db_cursor(commit=True) as (conn, cur):
+            from services.review_attempts import guarded_cursor
+
+            cur = guarded_cursor(cur)
             cur.execute(
                 """
                 UPDATE pr_reviews
@@ -1102,6 +1126,9 @@ def mark_review_done(
     # tracked by sha here, so the window self-clears — a human /merge-pr always works.
     if _changes_requested_recently(_review, _os.getenv("FORGE_CHANGES_REQUESTED_DEFER_HOURS")):
         with get_db_cursor(commit=True) as (conn, cur):
+            from services.review_attempts import guarded_cursor
+
+            cur = guarded_cursor(cur)
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "
                 "VALUES (%s, %s, 'warning', 'forge', 'all')",
@@ -1128,6 +1155,9 @@ def mark_review_done(
     _branch = _review.get("branch") or _review.get("head_branch") or ""
     if machine_authored_reason(_review):
         with get_db_cursor(commit=True) as (conn, cur):
+            from services.review_attempts import guarded_cursor
+
+            cur = guarded_cursor(cur)
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "
                 "VALUES (%s, %s, 'warning', 'forge', 'all')",
@@ -1158,6 +1188,9 @@ def mark_review_done(
         _mark_forge_escalated(pr_number, _tier)
         _next = "A.R.C.H.I.E. (COO)" if _tier == 2 else "Kytran"
         with get_db_cursor(commit=True) as (conn, cur):
+            from services.review_attempts import guarded_cursor
+
+            cur = guarded_cursor(cur)
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "
                 "VALUES (%s, %s, 'info', 'forge', 'all')",
@@ -1201,6 +1234,9 @@ def mark_review_done(
     if not _paths_ok:
         _shown = ", ".join(_blocking[:5]) + (f" (+{len(_blocking) - 5} more)" if len(_blocking) > 5 else "")
         with get_db_cursor(commit=True) as (conn, cur):
+            from services.review_attempts import guarded_cursor
+
+            cur = guarded_cursor(cur)
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "
                 "VALUES (%s, %s, 'warning', 'forge', 'all')",
@@ -1260,6 +1296,9 @@ def mark_review_done(
             sha = result.get("sha") or ""
             logger.info("[F.O.R.G.E.] PR #%s auto-merged after approval (sha=%s)", pr_number, sha[:8])
             with get_db_cursor(commit=True) as (conn, cur):
+                from services.review_attempts import guarded_cursor
+
+                cur = guarded_cursor(cur)
                 cur.execute(
                     "INSERT INTO system_notifications (title, message, type, source, visibility) "
                     "VALUES (%s, %s, 'success', 'forge', 'all')",
@@ -1275,16 +1314,17 @@ def mark_review_done(
 
 
 def mark_review_skipped(pr_number: int, repo: str = None) -> None:
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "UPDATE pr_reviews SET review_status='skipped', updated_at=NOW() WHERE pr_number=%s AND repo=%s",
-            (pr_number, repo or _DEFAULT_REPO),
-        )
+    from services.review_attempts import cancel_review
+
+    cancel_review(pr_number, repo or _DEFAULT_REPO)
 
 
 def mark_review_pending(pr_number: int, repo: str = None) -> None:
     """Reset a review back to pending so it will be re-processed next cycle."""
     with get_db_cursor(commit=True) as (conn, cur):
+        from services.review_attempts import guarded_cursor
+
+        cur = guarded_cursor(cur)
         cur.execute(
             "UPDATE pr_reviews SET review_status='pending', updated_at=NOW() WHERE pr_number=%s AND repo=%s",
             (pr_number, repo or _DEFAULT_REPO),

@@ -98,8 +98,15 @@ class TestMarkReviewProgress:
         # Returning False rather than raising lets the caller log-and-continue: a
         # review whose row was reaped out from under it should finish, not crash.
         assert prs.mark_review_progress(42, repo="o/r") is False
+
     def test_start_stamps_a_total_run_clock(self, cur):
-        prs.mark_review_started(42, repo="o/r")
+        from services.review_attempts import CURRENT
+
+        token = CURRENT.set({"id": "attempt", "head_sha": "a" * 40})
+        try:
+            prs.mark_review_started(42, repo="o/r")
+        finally:
+            CURRENT.reset(token)
         assert "review_started_at" in cur.sql, cur.sql
         assert "review_file_progress" in cur.sql, cur.sql
 

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ event.title_en }} — Canadian History Atlas{% endblock %}
+{% block meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='history/atlas.css') }}">
+<article class="wtf-ha-shell">
+  <a href="{{ url_for('history.atlas') }}">← Canadian History Atlas</a>
+  <p class="wtf-section-label">{{ event.id }} · RESEARCH DRAFT</p>
+  <h1>{{ event.title_en }}</h1><p class="wtf-ha-meta">{{ event.date_label }} · Dating precision: {{ event.date_precision }}</p>
+  <p class="wtf-ha-lead">{{ event.summary_en }}</p>
+  <p class="wtf-ha-notice"><strong>Not publication-ready.</strong> {{ event.uncertainty_note }}</p>
+  <dl class="wtf-ha-facts">
+    <dt>Historical place</dt><dd>{{ event.historical_place or 'Unknown' }}</dd>
+    <dt>Present-day context</dt><dd>{{ event.present_day_context or 'Unknown' }} — navigation aid, not historical jurisdiction</dd>
+    <dt>Peoples named in this record</dt><dd>{{ event.peoples|join(', ') if event.peoples else 'Further community-specific sourcing required; absence here does not imply absence of Indigenous peoples.' }}</dd>
+    <dt>Review state</dt><dd>{{ event.review_status|replace('_', ' ') }} — source-supported draft is not independent verification</dd>
+    <dt>Catalogue updated</dt><dd>{{ event.updated_on }}</dd>
+    <dt>French text</dt><dd>{% if event.title_fr %}<span lang="fr">{{ event.title_fr }} — {{ event.summary_fr or 'Résumé à venir.' }}</span>{% else %}Translation pending; English research text shown.{% endif %}</dd>
+  </dl>
+  <h2>Map context</h2><p>{{ event.map_note }}</p>
+  {% if snapshot %}<figure class="wtf-ha-detail-map"><img src="{{ url_for('static', filename='history/' + snapshot.file) }}" alt="Generalized political reference for {{ snapshot.year }}" width="520" height="380"><figcaption>Preceding available snapshot: {{ snapshot.year }}. This is not exact event-date geometry; within-year commencement is unresolved.</figcaption></figure>{% else %}<p>No dated political snapshot is available for this event. No historical boundary is inferred.</p>{% endif %}
+  <h2>Source evidence</h2>
+  <ul class="wtf-ha-sources">{% for source in sources %}<li>
+    <h3>{% if source.safe_url %}<a href="{{ source.safe_url }}" rel="noopener noreferrer">{{ source.title }}</a>{% else %}{{ source.title }} — source URL unavailable{% endif %}</h3>
+    <p>{{ source.publisher }} · {{ source.source_kind|replace('_', ' ') }} · Review: {{ source.review_level|replace('_', ' ') }}</p>
+    <p>Recorded retrieval date: {{ source.retrieved_on }}. This date does not prove a complete document was reviewed.</p>
+    <p>{{ source.notes }}</p>
+  </li>{% endfor %}</ul>
+  {% if event.related_event_ids %}<h2>Related research</h2><ul>{% for related in event.related_event_ids %}<li><a href="{{ url_for('history.event_detail', event_id=related) }}">{{ related }}</a></li>{% endfor %}</ul>{% endif %}
+</article>
+{% endblock %}

@@ -35,6 +35,9 @@
                 ('/cross-watch', 'Cross-Watch'), ('/claims', 'Claims'),
                 ('/api/docs', 'Developer API'), ('/edu', 'Education API'),
                 ('/search', 'Search everything')] %}
+{% if config.get('WTF_HISTORY_ATLAS_ENABLED') %}
+  {% set _ = _data.insert(4, ('/history/atlas', 'Canadian History Atlas')) %}
+{% endif %}
 {% set _about = [('/methodology', 'Methodology'), ('/team', 'The newsroom'),
                  ('/governance', 'Governance & ethics'), ('/creed', 'C.R.E.E.D.'),
                  ('/literacy', 'Media literacy'), ('/score', 'Score an article')] %}

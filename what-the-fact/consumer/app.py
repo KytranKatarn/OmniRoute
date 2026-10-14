@@ -43,6 +43,9 @@ def create_app():
     init_billing_table()
     app.register_blueprint(billing_bp)
     app.register_blueprint(bp)
+    from .history_routes import history_bp
+    app.config["WTF_HISTORY_ATLAS_ENABLED"] = os.environ.get("WTF_HISTORY_ATLAS_ENABLED") == "1"
+    app.register_blueprint(history_bp)
     app.register_blueprint(auth_bp)
     # Cross-Watch proxy — server-side relay to hub (Task #3023)
     from .cross_watch import cross_watch_bp

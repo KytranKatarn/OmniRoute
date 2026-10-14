@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Migration &amp; movement — Canadian History Atlas{% endblock %}
+{% block meta %}<meta name="robots" content="noindex, nofollow">{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='history/atlas.css') }}">
+<section class="wtf-ha-shell"><a href="{{ url_for('history.atlas') }}">← Canadian History Atlas</a>
+<p class="wtf-section-label">HISTORY · RESEARCH PREVIEW</p><h1>Migration &amp; movement</h1>
+<p class="wtf-ha-notice">These {{ movements|length }} selected records are research drafts. Movement windows are not annual flow measurements. Routes are unknown; no exact travel lines are drawn. Record counts are not numbers of migrants.</p>
+<ol class="wtf-ha-events">{% for movement in movements %}<li><article>
+  <p class="wtf-ha-meta">{{ movement.id }} · {{ movement.date_label }} · {{ movement.type|replace('_', ' ') }}</p>
+  <h2>{{ movement.title }}</h2>
+  <dl><dt>Origin</dt><dd>{{ movement.origin_label or 'Unknown' }}</dd><dt>Destination context</dt><dd>{{ movement.destination_label or 'Unknown' }}</dd><dt>People counted</dt><dd>{{ movement.count if movement.count is not none else 'Unknown — not zero' }}</dd></dl>
+  <p>{{ movement.precision_note }}</p><p><a href="{{ url_for('history.event_detail', event_id=movement.event_id) }}">Related event and source evidence</a></p>
+</article></li>{% endfor %}</ol>
+</section>
+{% endblock %}

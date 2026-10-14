@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Canadian History Atlas — What The Fact{% endblock %}
+{% block meta %}<meta name="robots" content="noindex, nofollow"><meta name="description" content="A source-linked Canadian history research preview, with dated map snapshots and visible uncertainty.">{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='history/atlas.css') }}">
+<section class="wtf-ha-shell" aria-labelledby="atlas-title">
+  <header class="wtf-ha-header">
+    <p class="wtf-section-label">HISTORY · RESEARCH PREVIEW</p>
+    <h1 id="atlas-title">Canadian History Atlas</h1>
+    <p>Explore places, political boundaries and the records behind them.</p>
+    <p class="wtf-ha-notice"><strong>159 research drafts, not verified findings.</strong> Sources vary in review depth; some were read only as search excerpts. Dates, translations and historical geometry remain incomplete. Missing records do not mean nothing happened.</p>
+    <nav aria-label="History views"><a href="{{ url_for('history.atlas') }}">Events &amp; maps</a> · <a href="{{ url_for('history.movements') }}">Migration &amp; movement</a> · <a href="#coverage">Coverage &amp; sources</a></nav>
+  </header>
+  <section class="wtf-ha-map-panel" aria-labelledby="map-heading">
+    <h2 id="map-heading">Political map snapshots</h2>
+    <p>These are generalized, source-derived maps from 1867 onward. They do not reconstruct Indigenous territories, pre-1867 boundaries, exact municipal boundaries, or legal treaty areas.</p>
+    <div class="wtf-ha-map-controls" id="atlas-controls" hidden>
+      <label for="atlas-frame">Snapshot <output id="atlas-year">1867</output></label>
+      <input id="atlas-frame" type="range" min="0" max="{{ maps|length - 1 }}" value="0" aria-label="Political map snapshot year">
+      <button id="atlas-play" type="button" aria-pressed="false">Play snapshots</button>
+      <label><input id="atlas-compare" type="checkbox"> Compare preceding snapshot</label>
+    </div>
+    <p id="atlas-status" role="status" aria-live="polite">1867 snapshot. Within-year legal commencement dates are unresolved.</p>
+    <div class="wtf-ha-map-grid" id="atlas-map-grid">
+      <figure><img id="atlas-current" src="{{ url_for('static', filename='history/' + maps[0].file) }}" alt="Generalized political map snapshot for 1867" width="520" height="380"><figcaption id="atlas-current-label">1867 · source-derived political reference</figcaption></figure>
+      <figure id="atlas-previous-panel" hidden><img id="atlas-previous" alt="" width="520" height="380"><figcaption id="atlas-previous-label"></figcaption></figure>
+    </div>
+    <p class="wtf-ha-small">A preceding snapshot is an administrative reference, not a calculated area of territorial gain or loss. Map controls do not filter the event catalogue below.</p>
+    <details><summary>All 23 dated maps and attribution</summary>
+      <ul class="wtf-ha-map-links">{% for map in maps %}<li><a href="{{ url_for('static', filename='history/' + map.file) }}">{{ map.year }} map</a></li>{% endfor %}</ul>
+      <p>{{ manifest.map_attribution }} Contains information licensed under the Open Government Licence — Canada. Made with Natural Earth. No government endorsement is implied.</p>
+      <p><a href="{{ manifest.map_dataset_url }}" rel="noopener noreferrer">NRCan source dataset</a> · <a href="{{ manifest.map_license_url }}" rel="noopener noreferrer">Open Government Licence — Canada</a></p>
+    </details>
+  </section>
+  <section aria-labelledby="events-heading">
+    <h2 id="events-heading">Event catalogue</h2>
+    <form class="wtf-ha-filters" method="get" action="{{ url_for('history.atlas') }}">
+      <label>Search<input type="search" name="q" value="{{ selected.query }}" maxlength="120" placeholder="Place, event or phrase"></label>
+      <label>Present-day region<select name="region"><option value="">All regions</option>{% for region in regions %}<option value="{{ region }}" {% if selected.region == region %}selected{% endif %}>{{ region }}</option>{% endfor %}</select></label>
+      <label>Province / territory context<select name="province"><option value="">All / not recorded</option>{% for province in provinces %}<option value="{{ province }}" {% if selected.province == province %}selected{% endif %}>{{ province }}</option>{% endfor %}</select></label>
+      <label>Theme<select name="theme"><option value="">All themes</option>{% for theme in themes %}<option value="{{ theme }}" {% if selected.theme == theme %}selected{% endif %}>{{ theme }}</option>{% endfor %}</select></label>
+      <label>Year within recorded range<input type="number" name="year" min="-20000" max="2100" value="{{ selected.year if selected.year is not none else '' }}" placeholder="Any year"></label>
+      <label class="wtf-ha-check"><input type="checkbox" name="undated" value="1" {% if selected.undated %}checked{% endif %}> Undated only</label>
+      <button type="submit">Find events</button><a href="{{ url_for('history.atlas') }}">Reset</a>
+    </form>
+    <p class="wtf-ha-small">Present-day regions are navigation aids, not jurisdictions at the event date. “Arctic” groups northern records; it does not place every northern city in the geographic Arctic. Undated records are excluded from year searches.</p>
+    <p role="status">{{ total }} matching research draft{{ '' if total == 1 else 's' }} · Page {{ page }}</p>
+    <ol class="wtf-ha-events" start="{{ (page - 1) * 40 + 1 }}">
+      {% for event in events %}<li><article>
+        <p class="wtf-ha-meta">{{ event.id }} · {{ event.date_label }} · {{ event.date_precision }}</p>
+        <h3><a href="{{ url_for('history.event_detail', event_id=event.id) }}">{{ event.title_en }}</a></h3>
+        <p>{{ event.summary_en }}</p>
+        <p class="wtf-ha-small">{{ event.source_ids|length }} source reference{{ '' if event.source_ids|length == 1 else 's' }} · Draft · {{ event.regions|join(', ') }}</p>
+      </article></li>{% else %}<li>No matching drafts. Try a wider search; catalogue absence is not evidence of historical absence.</li>{% endfor %}
+    </ol>
+    <nav class="wtf-ha-pagination" aria-label="Event catalogue pages">
+      {% if page > 1 %}<a href="{{ url_for('history.atlas', q=selected.query, region=selected.region, theme=selected.theme, province=selected.province, year=selected.year if selected.year is not none else '', undated='1' if selected.undated else '', page=page-1) }}">Previous page</a>{% endif %}
+      {% if page * 40 < total %}<a href="{{ url_for('history.atlas', q=selected.query, region=selected.region, theme=selected.theme, province=selected.province, year=selected.year if selected.year is not none else '', undated='1' if selected.undated else '', page=page+1) }}">Next page</a>{% endif %}
+    </nav>
+  </section>
+  <section id="coverage" class="wtf-ha-map-panel" aria-labelledby="coverage-heading">
+    <h2 id="coverage-heading">Coverage, sources &amp; uncertainty</h2>
+    <p>This preview preserves {{ manifest.events_count }} draft events, {{ manifest.sources_count }} source records and {{ manifest.movements_count }} selected movement records. It is a cumulative research base, not a complete history. Each event links to its evidence and research limitations.</p>
+    <p>Nation-authored Indigenous histories, municipal histories, modern treaties, migration and many social histories need further research. Incorporation dates do not date human occupation. Empty peoples fields do not imply an absence of Indigenous peoples.</p>
+    <p>Native Land reference territory geometry is not distributed here while commercial licensing is unresolved. Pre-1867 political geometry and exact movement routes are unavailable. French translations are incomplete; missing translations are not generated or presented as reviewed.</p>
+    <p class="wtf-ha-small">Source collection: October 11–12, 2026. This is not a live feed. Corrections require a reviewed catalogue update; original source identifiers and version hashes are retained. Map images are rendered references, not archival photographs.</p>
+  </section>
+</section>
+<script id="atlas-map-data" type="application/json">{{ maps|tojson }}</script>
+<script src="{{ url_for('static', filename='history/atlas.js') }}" defer></script>
+{% endblock %}

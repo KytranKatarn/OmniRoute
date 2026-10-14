@@ -38,6 +38,9 @@ Regression tests explicitly show an application exception still propagating
 and the full auditor retaining findings when detection returns unknown. Thus
 the `None` fallback is necessary to prevent false clean results, not an
 application error-suppression mechanism. Real bare handlers remain findings.
+The added integration test exposed an escaped-newline edge case in the text
+fallback (`\\nexcept:` lacked the regex word boundary); the fallback now retains
+that finding too. This broadens only uncertain-source detection.
 
 ```bash
 WTF_DATABASE_URL=postgresql+psycopg2://invalid@127.0.0.1/isolated_not_a_database \

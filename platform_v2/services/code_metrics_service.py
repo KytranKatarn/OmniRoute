@@ -1747,7 +1747,10 @@ def _audit_module_python(module_name, module_path):
             from services.code_health_checks import bare_except_present
 
             bare_except = bare_except_present(content)
-            if bare_except is True or bare_except is None and re.search(r"\bexcept\s*:", content):
+            # Unknown source may contain an escaped newline ("\\nexcept:").
+            # A word boundary would miss that spelling because the preceding
+            # literal 'n' is a word character. Err toward retaining the finding.
+            if bare_except is True or bare_except is None and re.search(r"except\s*:", content):
                 _add_issue("BARE_EXCEPT", fname)
 
             # Check 4: Hardcoded secrets (exclude test fixtures, shell templates, env lookups)

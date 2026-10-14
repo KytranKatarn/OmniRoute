@@ -659,6 +659,38 @@ class ModelService:
             return ModelPriority.MEDIUM
         return ModelPriority.LOW
 
+    def capacity_status(self, needed_gb: float) -> dict:
+        """Read-only placement diagnostics shared by DHQ, review and queue clients.
+
+        RAM here is the configured model-residency budget, not physical free RAM.
+        This method never loads/evicts models or promises a GPU reservation.
+        """
+        try:
+            ram_available = self.get_available_ram()
+            gpu_available = self.get_gpu_fit_budget()
+            gpu_required = needed_gb * _GPU_FIT_HEADROOM if needed_gb > 4.0 else 0.0
+            ram_ok = ram_available >= needed_gb
+            gpu_ok = gpu_available >= gpu_required
+            reason = (
+                "ready"
+                if ram_ok and gpu_ok
+                else (
+                    "ram_and_gpu_budget"
+                    if not ram_ok and not gpu_ok
+                    else "ram_budget" if not ram_ok else "gpu_headroom"
+                )
+            )
+            return {
+                "ready": ram_ok and gpu_ok,
+                "blocked_reason": reason,
+                "ram_required_gb": round(needed_gb, 3),
+                "ram_available_budget_gb": round(ram_available, 3),
+                "gpu_required_gb": round(gpu_required, 3),
+                "gpu_available_fit_gb": round(gpu_available, 3),
+            }
+        except Exception:
+            return {"ready": False, "blocked_reason": "capacity_unknown"}
+
     def ensure_capacity(self, needed_gb: float) -> bool:
         """
         Free enough RAM and VRAM for *needed_gb* by evicting low-priority models.
@@ -937,7 +969,7 @@ class ModelService:
         if needed_gb is None:
             needed_gb = self.estimate_model_size(model)
         if not self.ensure_capacity(needed_gb):
-            logger.warning("model_service: not enough RAM for %s (need %.1f GB)", model, needed_gb)
+            logger.warning("model_service: capacity blocked for %s: %s", model, self.capacity_status(needed_gb))
             return False
         return self.load_model(model)
 
@@ -1144,17 +1176,16 @@ class ModelService:
         if target_host is None:
             needed_gb = self.estimate_model_size(model)
             if not self.ensure_capacity(needed_gb):
-                logger.warning(
-                    "[ModelService] Not enough RAM for %s on %s (need %.1fGB)",
-                    model,
-                    host_label,
-                    needed_gb,
-                )
+                capacity = self.capacity_status(needed_gb)
+                logger.warning("[ModelService] Capacity blocked for %s on %s: %s", model, host_label, capacity)
                 return {
                     "ready": False,
                     "tier": "cold",
                     "host": host_label,
                     "warm_boot_ms": int(_time.time() * 1000 - start_ms),
+                    "blocked_reason": capacity["blocked_reason"],
+                    "capacity": capacity,
+                    "retry_after": _CACHE_TTL_SECONDS,
                 }
 
         # Step 3: Warm-boot the model ON THE TARGET HOST (the node when

@@ -761,3 +761,25 @@
 .cs-lang-dialect-note{font-size:.8rem;color:#8b949e;line-height:1.4}
 .cs-lang-dialect-badge{position:absolute;top:.5rem;right:.5rem;font-size:.65rem;background:#30363d;padding:.1rem .4rem;border-radius:3px;color:#8b949e}
 .cs-lang-roadmap{background:rgba(139,92,246,.2);color:#a78bfa}
+
+/* Code Health: accessible sortable column headings. */
+.ch-sort-button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 4px 2px;
+  text-transform: inherit;
+  white-space: nowrap;
+}
+.ch-sort-button:hover,
+.ch-table th[aria-sort="ascending"],
+.ch-table th[aria-sort="descending"] { color: var(--archie-cyan); }
+.ch-sort-button:focus-visible {
+  outline: 2px solid var(--archie-cyan);
+  outline-offset: 3px;
+  border-radius: 2px;
+}

@@ -4201,6 +4201,93 @@ function _detectProfile(mod) {
   return "python";
 }
 
+// Each section retains its own selection while Code Health refreshes.
+var _chTableSortState = {};
+
+function _enableCodeHealthSorting(container, section, columns, defaultColumn) {
+  var table = container.querySelector("table.ch-table");
+  if (!table || !table.tHead || !table.tBodies.length) return;
+  var headers = Array.from(table.tHead.rows[0].cells);
+  var body = table.tBodies[0];
+  var labels = {};
+  var state = _chTableSortState[section] || {column: defaultColumn, direction: "desc"};
+  _chTableSortState[section] = state;
+
+  function value(row, column) {
+    var cell = row.cells[column];
+    var text = cell ? cell.textContent.trim() : "";
+    if (columns[column] === "number") {
+      var numeric = Number(text.replace(/,/g, "").match(/^-?\d+(?:\.\d+)?/)?.[0]);
+      return text && /^-?\d/.test(text.replace(/,/g, "")) && Number.isFinite(numeric) ? numeric : null;
+    }
+    if (columns[column] === "date") {
+      var stamp = row.getAttribute("data-sort-date");
+      return stamp === null || stamp === "" || !Number.isFinite(Number(stamp)) ? null : Number(stamp);
+    }
+    if (columns[column] === "status") {
+      var ranks = {ISSUES: 0, "IN REPAIR": 1, FINDINGS: 2, "FINDINGS OPEN": 2,
+        ATTENTION: 3, STALE: 4, UNAUDITED: 5, PENDING: 5, CLEAN: 6};
+      return Object.prototype.hasOwnProperty.call(ranks, text.toUpperCase()) ? ranks[text.toUpperCase()] : 5;
+    }
+    return text || null;
+  }
+
+  function sortRows() {
+    var rows = Array.from(body.rows);
+    // Summary rows with colspan stay at the bottom, outside the module order.
+    var sortable = rows.filter(function(row) { return row.cells.length === headers.length; });
+    var pinned = rows.filter(function(row) { return row.cells.length !== headers.length; });
+    sortable.sort(function(a, b) {
+      var av = value(a, state.column), bv = value(b, state.column);
+      if (av === null && bv !== null) return 1;
+      if (bv === null && av !== null) return -1;
+      var compared = av === null ? 0 : typeof av === "number" ? av - bv :
+        av.localeCompare(bv, undefined, {numeric: true, sensitivity: "base"});
+      if (compared) return state.direction === "asc" ? compared : -compared;
+      return a.cells[0].textContent.trim().localeCompare(b.cells[0].textContent.trim(), undefined,
+        {numeric: true, sensitivity: "base"});
+    });
+    sortable.concat(pinned).forEach(function(row) { body.appendChild(row); });
+    Object.keys(columns).forEach(function(column) {
+      var header = headers[Number(column)];
+      var active = state.column === Number(column);
+      header.setAttribute("aria-sort", active ? (state.direction === "asc" ? "ascending" : "descending") : "none");
+      var button = header.querySelector("button.ch-sort-button");
+      button.textContent = labels[column] + (active ? (state.direction === "asc" ? " \u25b2" : " \u25bc") : " \u2195");
+      var next = active && state.direction === "asc" ? "descending" : active ? "ascending" :
+        columns[column] === "number" || columns[column] === "date" ? "descending" : "ascending";
+      button.setAttribute("aria-label", "Sort by " + labels[column] + ", " + next);
+    });
+  }
+
+  Object.keys(columns).forEach(function(column) {
+    var header = headers[Number(column)];
+    labels[column] = header.textContent.trim();
+    header.setAttribute("scope", "col");
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "ch-sort-button";
+    button.addEventListener("click", function() {
+      var selected = Number(column);
+      state.direction = state.column === selected ? (state.direction === "asc" ? "desc" : "asc") :
+        columns[column] === "number" || columns[column] === "date" ? "desc" : "asc";
+      state.column = selected;
+      sortRows();
+    });
+    header.replaceChildren(button);
+  });
+  sortRows();
+}
+
+function _codeHealthAuditTimestamp(value) {
+  if (!value) return "";
+  var raw = String(value);
+  // Audit storage is UTC; naive ISO values must not adopt the browser timezone.
+  if (!/(Z|[+-]\d{2}:?\d{2})$/i.test(raw)) raw += "Z";
+  var stamp = Date.parse(raw);
+  return Number.isFinite(stamp) ? String(stamp) : "";
+}
+
 function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisplayNames) {
   var el = document.getElementById("chModuleTable");
   if (!el) return;
@@ -4214,15 +4301,8 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
     if (!issuesMap[e.module_name]) issuesMap[e.module_name] = e.issues_found || 0;
   });
 
-  // Sort: tool modules by lines desc, then infra modules at the bottom (matching chart order)
-  var infraKeys = {"[SHARED]":1, "[APP_CORE]":1, "[AI_BRIDGE]":1, "[MIGRATIONS]":1};
-  var toolKeys = Object.keys(modules).filter(function(k) { return !infraKeys[k]; }).sort(function(a, b) {
-    return (modules[b].lines || 0) - (modules[a].lines || 0);
-  });
-  var infraSorted = Object.keys(modules).filter(function(k) { return infraKeys[k]; }).sort(function(a, b) {
-    return (modules[b].lines || 0) - (modules[a].lines || 0);
-  });
-  var sorted = toolKeys.concat(infraSorted);
+  // The shared table sorter applies the selected order after rendering.
+  var sorted = Object.keys(modules);
 
   // Search filter
   var searchHtml = '<div style="display:flex;justify-content:center;margin-bottom:8px;">'
@@ -4301,6 +4381,7 @@ function _renderModuleTable(modules, auditedModules, moduleStatusMap, moduleDisp
 
   html += '</tbody></table>';
   setHtml(el, searchHtml + html);
+  _enableCodeHealthSorting(el, "modules", {0: "text", 1: "text", 2: "status", 3: "number", 4: "number", 5: "number"}, 5);
 
   // Search handler
   var searchInput = document.getElementById("chModuleSearch");
@@ -4431,6 +4512,7 @@ function _renderStandaloneTable(modules, moduleStatusMap, tierMap) {
         + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
+  _enableCodeHealthSorting(el, "standalones", {0: "text", 1: "text", 2: "status", 3: "number", 4: "number", 5: "number"}, 5);
     // Audit buttons
     el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
       btn.addEventListener("click", function(evt) {
@@ -4520,6 +4602,7 @@ function _renderWebsiteTable(modules, moduleStatusMap) {
         + '<th class="center"></th>'
         + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
     setHtml(el, html);
+  _enableCodeHealthSorting(el, "websites", {0: "text", 1: "text", 2: "status", 3: "number", 4: "number", 5: "number"}, 5);
     // Audit buttons
     el.querySelectorAll(".ch-audit-row-btn").forEach(function(btn) {
       btn.addEventListener("click", function(evt) {
@@ -5156,7 +5239,7 @@ function _renderAuditTable(entries) {
     } else {
       proposalCell = '<span style="font-size:0.6rem;color:rgba(255,255,255,0.15);">\u2014</span>';
     }
-    html += '<tr data-audit-id="' + e.id + '">' +
+    html += '<tr data-sort-date="' + _codeHealthAuditTimestamp(e.audited_at) + '" data-audit-id="' + e.id + '">' +
       '<td><span style="color:' + nameColor + ';font-weight:600;">' + escHtml(window._chDisplayNames && window._chDisplayNames[e.module_name] || e.module_name) + '</span></td>' +
       '<td class="center">' + profileCell + '</td>' +
       '<td class="center">' + triggerCell + '</td>' +
@@ -5192,6 +5275,7 @@ function _renderAuditTable(entries) {
 
   html += '</tbody></table>';
   setHtml(el, html);
+  _enableCodeHealthSorting(el, "audits", {0: "text", 1: "text", 2: "text", 3: "number", 4: "number", 5: "number", 6: "status", 7: "number", 9: "date"}, 9);
 
   // Report button click handler
   el.querySelectorAll(".ch-report-btn").forEach(function(btn) {

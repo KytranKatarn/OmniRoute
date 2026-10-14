@@ -151,7 +151,10 @@
    tabular-nums, which is the point of a data face: digits share a width, so a
    column of temperatures aligns and stops shimmering as values update. */
 .wtf-wx-citygrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(208px,1fr));
-  gap:10px; margin-bottom:22px; }
+  gap:10px; margin-bottom:22px;
+  /* Cards size to their OWN content. With the default stretch, the tall My-city card made every neighbour in its row as tall
+     as itself: a column of empty stretched tiles. */
+  align-items:start; }
 .wtf-wx-citycard {
   background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
   border-left:3px solid var(--wtf-local);
@@ -167,7 +170,9 @@
 .wtf-wx-citycard.is-capital { border-left-width:4px; }
 /* home-city highlight (task #17) — an outline ring so it never fights with
    the is-stale/is-silent border-left colour coding above. */
-.wtf-wx-citycard.is-home { outline:2px solid var(--wtf-aurora); outline-offset:-2px; }
+.wtf-wx-citycard.is-home { outline:2px solid var(--wtf-aurora); outline-offset:-2px;
+  /* My city leads the grid and spans its full width, so its whole forecast reads as a wide wrapping row, not a tall narrow tile. */
+  grid-column:1 / -1; }
 .wtf-wx-city-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
 .wtf-wx-city-name { font-size:14px; font-weight:600; color:var(--wtf-text);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1512,6 +1517,7 @@
       if (!!b.is_capital !== !!a.is_capital) return b.is_capital ? 1 : -1;
       return (a.name || "").localeCompare(b.name || "", "en");
     });
+    list = _homeFirst(list, homeCity);
     if (!list.length) {
       var d = document.createElement("div"); d.className = "wtf-wx-nodata";
       d.textContent = "No city in this area is in the A.U.R.O.R.A. city set yet.";
@@ -1643,6 +1649,17 @@
       var e = document.createElement("span"); e.innerHTML = x[0] + " "; e.append(x[1]); rw.appendChild(e);
     });
     return rw;
+  }
+
+  // My city goes first, so its full-width card leads the grid instead of leaving holes where it would have sat. Pure: returns a new array,
+  // unchanged when there is no home city or it is not in this (possibly province-filtered) list.
+  function _homeFirst(list, homeName) {
+    if (!homeName) return list;
+    var i = -1;
+    for (var k = 0; k < list.length; k++) { if (list[k].name === homeName) { i = k; break; } }
+    if (i < 1) return list;
+    var out = list.slice(); out.unshift(out.splice(i, 1)[0]);
+    return out;
   }
 
   // Forecast-period label for a narrow slot. The old clip to 9 characters turned "Thursday night" into a

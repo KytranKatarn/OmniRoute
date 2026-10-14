@@ -247,7 +247,7 @@ def _aurora_city_payload(city_rows, forecast_rows):
             "dir": r["wind_dir"],
             "humidex": _r(r["humidex"]),
             "pressure": _r(r["pressure_kpa"]),
-            "forecast": by_site.get(code, [])[:4],
+            "forecast": by_site.get(code, [])[:14],  # whole ECCC set (12-14); the compact card slices to 4 client-side
         })
 
     temps = [c["temp"] for c in cities if c["temp"] is not None]

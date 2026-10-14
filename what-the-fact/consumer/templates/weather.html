@@ -196,6 +196,11 @@
 .wtf-wx-fc-t { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums;
   font-size:11.5px; color:var(--wtf-text-2); margin-top:3px; }
 .wtf-wx-fc-pop { font-family:var(--wtf-font-mono); font-size:9px; color:var(--wtf-local); }
+/* Your city's card shows the whole forecast: periods wrap instead of scrolling sideways, each with its summary. */
+.wtf-wx-city-fc.is-full { flex-wrap:wrap; overflow-x:visible; }
+.wtf-wx-city-fc.is-full .wtf-wx-fc-day { min-width:92px; max-width:120px; }
+.wtf-wx-fc-sum { font-size:9px; line-height:1.35; color:var(--wtf-text-muted); margin-top:3px; }
+.wtf-wx-fc-more { font-family:var(--wtf-font-mono); font-size:9px; color:var(--wtf-local); margin-top:8px; }
 .wtf-wx-city-age { font-family:var(--wtf-font-mono); font-size:9px;
   letter-spacing:.04em; margin-top:7px; }
 .wtf-wx-age-ok     { color:var(--wtf-text-muted); }
@@ -1321,12 +1326,7 @@
       pv.textContent = s.p || "province not reported";
       var tp = document.createElement("div"); tp.className = "wtf-wx-card-temp";
       tp.textContent = s.t + "°C";
-      var rw = document.createElement("div"); rw.className = "wtf-wx-card-row";
-      [[WXI.wind, s.w === null ? null : s.w + " km/h"], [WXI.droplet, s.h === null ? null : s.h + "%"],
-       [WXI.fire, s.f === null ? null : "FWI " + s.f]].forEach(function (x) {
-        if (x[1] === null) return;
-        var e = document.createElement("span"); e.textContent = x[0] + " " + x[1]; rw.appendChild(e);
-      });
+      var rw = _stationRow(s);
       [nm, pv, tp, rw].forEach(function (e) { c.appendChild(e); });
       wrap.appendChild(c);
     });
@@ -1504,11 +1504,11 @@
       card.appendChild(row);
 
       if (c.forecast && c.forecast.length) {
-        var fc = document.createElement("div"); fc.className = "wtf-wx-city-fc";
-        c.forecast.forEach(function (p) {
+        var fc = document.createElement("div"); fc.className = "wtf-wx-city-fc" + (isHome ? " is-full" : "");
+        (isHome ? c.forecast : c.forecast.slice(0, 4)).forEach(function (p) {
           var d = document.createElement("div"); d.className = "wtf-wx-fc-day";
           var l = document.createElement("div"); l.className = "wtf-wx-fc-lbl";
-          l.textContent = (p.label || "").slice(0, 9);
+          l.textContent = _fcLabel(p.label); l.title = p.label || "";
           var v = document.createElement("div"); v.className = "wtf-wx-fc-t";
           v.textContent = p.high !== null ? p.high + "°" : (p.low !== null ? p.low + "°" : "—");
           d.appendChild(l); d.appendChild(v);
@@ -1518,9 +1518,16 @@
             var pp = document.createElement("div"); pp.className = "wtf-wx-fc-pop";
             pp.textContent = p.pop + "%"; d.appendChild(pp);
           }
+          if (isHome && p.summary) {
+            var sm = document.createElement("div"); sm.className = "wtf-wx-fc-sum"; sm.textContent = p.summary; d.appendChild(sm);
+          }
           fc.appendChild(d);
         });
         card.appendChild(fc);
+        if (isHome) {
+          var more = document.createElement("div"); more.className = "wtf-wx-fc-more";
+          more.textContent = "Full forecast for " + (c.name || "this city") + " \u2192"; card.appendChild(more);
+        }
       }
 
       var age = document.createElement("div"); age.className = "wtf-wx-city-age";
@@ -1549,6 +1556,27 @@
   }
 
   function _chip(s) { var e = document.createElement("span"); e.textContent = s; return e; }
+
+  // Station-card readings row. The icon is a CONSTANT SVG string (no data in it), so it goes in with
+  // innerHTML; the reading is written as a text node. Writing both with textContent printed the SVG
+  // source on the page (task #7220 follow-up, found live 2026-10-14).
+  function _stationRow(s) {
+    var rw = document.createElement("div"); rw.className = "wtf-wx-card-row";
+    [[WXI.wind, s.w === null ? null : s.w + " km/h"], [WXI.droplet, s.h === null ? null : s.h + "%"],
+     [WXI.fire, s.f === null ? null : "FWI " + s.f]].forEach(function (x) {
+      if (x[1] === null) return;
+      var e = document.createElement("span"); e.innerHTML = x[0] + " "; e.append(x[1]); rw.appendChild(e);
+    });
+    return rw;
+  }
+
+  // Forecast-period label for a narrow slot. The old clip to 9 characters turned "Thursday night" into a
+  // second "Thursday" slot; keep the weekday short and say "night".
+  function _fcLabel(label) {
+    var s = String(label || "");
+    var m = s.match(/^(\w{3})\w*\s+night$/i);
+    return m ? m[1] + " night" : s.slice(0, 9);
+  }
   function _ago(m) {
     m = Math.round(m);
     if (m < 1) return "just now";

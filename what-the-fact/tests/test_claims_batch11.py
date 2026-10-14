@@ -124,9 +124,10 @@ def test_no_established_contested_developing_taxonomy_invented():
 
 # ── template rendering ──────────────────────────────────────────────────
 
-def test_stat_row_renders_on_index_with_real_zero_data():
-    """The exact shape /claims produces today: claim_tracker is empty, so
-    every tile is a real, honestly-computed zero -- not hidden, not faked."""
+def test_stat_row_is_omitted_when_nothing_is_tracked():
+    """DECISION CHANGED 2026-10-14 (design-port audit): batch 11 rendered claim_tracker's empty state as honest zeros. A row of "0" / "0%" still
+    reads as a measurement when nothing was measured, so with zero claims platform-wide the tiles are omitted and the empty state says why.
+    The tile row itself (non-zero data) is pinned by test_stat_row_renders_real_nonzero_percentages below."""
     zero_tiles = [
         {"label": "Claims checked", "value": 0, "detail": None},
         {"label": "Verified True", "value": "0%", "detail": "0 claims"},
@@ -136,11 +137,8 @@ def test_stat_row_renders_on_index_with_real_zero_data():
         {"label": "Contested", "value": "0%", "detail": "0 claims"},
     ]
     html = _render(claim_stats=zero_tiles)
-    assert "Claims checked" in html
-    tiles_start = html.index("wtf-a-tiles")
-    tiles_end = html.index("</div>\n</div>", tiles_start) + len("</div>\n</div>")
-    tiles_html = html[tiles_start:tiles_end]
-    assert tiles_html.count("0 claims") == 5
+    assert 'class="wtf-a-tiles' not in html and "0 claims" not in html
+    assert "Nothing is tracked yet" in html
 
 
 def test_stat_row_renders_real_nonzero_percentages():
@@ -172,6 +170,7 @@ def test_stat_row_absent_on_index_when_claim_stats_is_empty():
 def test_existing_filter_bar_and_claim_list_still_render():
     """Regression guard: adding the stat row must not disturb the existing
     index-page filter bar or the claim-card list."""
-    html = _render(claim_stats=[{"label": "Claims checked", "value": 0, "detail": None}])
-    assert "wtf-claims-filters" in html
+    # With claims tracked the filter bar is there (it is omitted only when nothing is tracked and no filter is active: design-port audit 2026-10-14).
+    html = _render(claim_stats=[{"label": "Claims checked", "value": 3, "detail": None}])
+    assert 'class="wtf-claims-filters"' in html
     assert 'href="/claims?status=contested"' in html

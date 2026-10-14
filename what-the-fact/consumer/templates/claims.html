@@ -62,28 +62,32 @@
 </style>
 
 <div class="wtf-claims-container">
-  <div class="wtf-claims-header">
+  {# Shared centred page header (.wtf-pg-head, style.css), per the design. The emoji is dropped from the title (host-font dependent, see PORT-STATUS). #}
+  <header class="wtf-pg-head">
     {% if politician_name is defined and politician_slug is defined %}
-    <div class="wtf-claims-title">&#x1F4CB; Claims — {{ politician_name }}</div>
-    <div class="wtf-claims-subtitle">ELECTION CLAIM TRACKER &nbsp;&bull;&nbsp; <a href="/claims" class="wtf-cl-back-link">&#x2190; All Claims</a></div>
+    <div class="wtf-pg-eyebrow">Election claim tracker &nbsp;&bull;&nbsp; <a href="/claims" class="wtf-cl-back-link">&#x2190; All claims</a></div>
+    <h1 class="wtf-pg-title">Claims — {{ politician_name }}</h1>
     {% else %}
-    <h1 class="wtf-claims-title">&#x1F4CB; Election Claim Tracker</h1>
-    <div class="wtf-claims-subtitle">TRACKING MP PROMISES AND STATEMENTS</div>
-    <p class="wtf-claims-lede">Specific, checkable statements by MPs, each matched to the primary
+    <div class="wtf-pg-eyebrow">Tracking MP promises and statements</div>
+    <h1 class="wtf-pg-title">Election Claim Tracker</h1>
+    <p class="wtf-pg-lede">Specific, checkable statements by MPs, each matched to the primary
       document that settles it. A claim is only listed once V.E.R.I.F.Y. has found a source that
       can confirm or refute it.</p>
     {% endif %}
-  </div>
+  </header>
 
-  {% if politician_slug is not defined and claim_stats %}
-  <!-- Aggregate stat row (#6284 batch 11) — sitewide totals, index page only.
-       Real values from claim_tracker; with 0 rows platform-wide (2026-09)
-       this honestly renders "0" / "0%" until real fact-check data lands. -->
+  {# Zero is only a measurement when something was measured. With nothing tracked platform-wide, the tiles (every one "0" / "0%") and the filter
+     chips (which filter nothing) are omitted and the empty state says why. #}
+  {% set has_tracked = claim_stats and claim_stats[0].value %}
+  {% set filtering = active_status and active_status != 'all' %}
+
+  {% if politician_slug is not defined and has_tracked %}
+  <!-- Aggregate stat row (#6284 batch 11) — sitewide totals, index page only. Real values from claim_tracker; omitted while nothing is tracked. -->
   {{ stat_tiles(claim_stats) }}
   {% endif %}
 
-  {% if politician_slug is not defined %}
-  <!-- Filter bar — only on the index page -->
+  {% if politician_slug is not defined and (has_tracked or filtering) %}
+  <!-- Filter bar — only on the index page, and only when there is something to filter -->
   <div class="wtf-claims-filters">
     <a href="/claims" class="wtf-filter-btn {% if active_status == 'all' %}wtf-filter-btn--active{% endif %}">All</a>
     <a href="/claims?status=verified_true" class="wtf-filter-btn {% if active_status == 'verified_true' %}wtf-filter-btn--active{% endif %}">Verified True</a>
@@ -94,7 +98,7 @@
   </div>
   {% endif %}
 
-  <div class="wtf-claims-count">{{ claims | length }} claim{% if claims | length != 1 %}s{% endif %}</div>
+  {% if claims %}<div class="wtf-claims-count">{{ claims | length }} claim{% if claims | length != 1 %}s{% endif %}</div>{% endif %}
 
   {% if claims %}
     {% for claim in claims %}
@@ -126,8 +130,9 @@
     {% endfor %}
   {% else %}
   <div class="wtf-claims-empty">
-    <div class="wtf-cl-empty-icon">&#x1F4CB;</div>
-    No claims tracked yet{% if active_status and active_status != 'all' %} with status <strong>{{ active_status }}</strong>{% endif %}.
+    {% if filtering %}No claims with status <strong>{{ active_status }}</strong>.
+    {% elif politician_slug is defined %}No claims are tracked for this person yet.
+    {% else %}Nothing is tracked yet. A claim appears here only once V.E.R.I.F.Y. has matched a statement to a primary document that confirms or refutes it, so this page stays empty rather than show zeros.{% endif %}
   </div>
   {% endif %}
 

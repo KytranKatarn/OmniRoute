@@ -63,7 +63,7 @@ def test_persistence_query_excludes_lead_zero():
     against itself would always read 0.00 error, which is not a baseline,
     it's an identity. The route must filter it out before aggregating."""
     body = _weather_accuracy_route_body()
-    assert "(period_index / 2) >= 1" in body, (
+    assert "(f.period_index / 2) >= 1" in body, (
         "persistence rows must exclude lead_days=0 or the baseline "
         "silently reports a trivial 0.00 at TODAY"
     )
@@ -88,7 +88,8 @@ def test_worst_miss_query_dedupes_by_site_and_day():
 
 def test_worst_miss_query_scoped_to_calendar_month():
     body = _weather_accuracy_route_body()
-    assert "date_trunc('month', CURRENT_DATE)" in body
+    # the month boundary is the CITY's local month since #7226 (was CURRENT_DATE in the server's zone)
+    assert "date_trunc('month', now() AT TIME ZONE fc.tz)" in body
 
 
 def test_worst_miss_picks_the_shortest_lead_per_story():

@@ -940,6 +940,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
     match_city_alerts,
     wx_glyph,
 )
+from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
 from .aurora_verify import (  # pure, DB-free (see module docstring)
     verification_payload as _verification_payload,
 )
@@ -950,24 +951,30 @@ def _aurora_forecast_pairs(c, S):
     fc/ob join `weather_accuracy()` uses, factored out so `/team`'s A.U.R.O.R.A.
     weak-spot line (see team()) can feed the same real rows into
     `aurora_verify.verification_payload()` without duplicating this query."""
+    # Days are the CITY's local days (task 7226, aurora_tz): grouping by UTC date put a western city's warm evening into the
+    # next day's "observed high" and scored forecasts against it. A site with no known zone falls back to UTC (the old behaviour).
     return c.execute(text(f"""
-        WITH fc AS (
-            SELECT site_code,
-                   (period_index / 2) AS lead_days,
-                   temp_high_c AS forecast_c,
-                   ((issued_utc AT TIME ZONE 'UTC')::date
-                    + (period_index / 2)) AS target_day
-              FROM {S}.aurora_city_forecast
-             WHERE temp_high_c IS NOT NULL
-               AND period_index % 2 = 0
+        WITH {_aurora_tz.site_tz_cte(S)},
+        fc AS (
+            SELECT f.site_code,
+                   (f.period_index / 2) AS lead_days,
+                   f.temp_high_c AS forecast_c,
+                   ((f.issued_utc AT TIME ZONE COALESCE(st.tz, 'Etc/UTC'))::date
+                    + (f.period_index / 2)) AS target_day,
+                   COALESCE(st.tz, 'Etc/UTC') AS tz
+              FROM {S}.aurora_city_forecast f
+              LEFT JOIN site_tz st ON st.site_code = f.site_code
+             WHERE f.temp_high_c IS NOT NULL
+               AND f.period_index % 2 = 0
         ),
         ob AS (
-            SELECT site_code,
-                   (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
-                   max(temp_c) AS observed_c,
-                   max(station_name) AS station_name
-              FROM {S}.aurora_city_obs
-             WHERE temp_c IS NOT NULL
+            SELECT o.site_code,
+                   (o.observed_utc AT TIME ZONE COALESCE(st.tz, 'Etc/UTC'))::date AS obs_day,
+                   max(o.temp_c) AS observed_c,
+                   max(o.station_name) AS station_name
+              FROM {S}.aurora_city_obs o
+              LEFT JOIN site_tz st ON st.site_code = o.site_code
+             WHERE o.temp_c IS NOT NULL
              GROUP BY 1, 2
         )
         SELECT fc.site_code, fc.lead_days, fc.forecast_c,
@@ -978,7 +985,7 @@ def _aurora_forecast_pairs(c, S):
           JOIN ob ON ob.site_code = fc.site_code
                  AND ob.obs_day  = fc.target_day
           LEFT JOIN {S}.aurora_city_site s ON s.site_code = fc.site_code
-         WHERE fc.target_day < CURRENT_DATE
+         WHERE fc.target_day < (now() AT TIME ZONE fc.tz)::date
     """)).mappings().all()
 
 
@@ -1411,23 +1418,27 @@ def _aurora_accuracy_payload(S):
         pairs = _aurora_forecast_pairs(c, S)
 
         persistence_rows = c.execute(text(f"""
-            WITH ob AS (
-                SELECT site_code,
-                       (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
-                       max(temp_c) AS observed_c
-                  FROM {S}.aurora_city_obs
-                 WHERE temp_c IS NOT NULL
+            WITH {_aurora_tz.site_tz_cte(S)},
+            ob AS (
+                SELECT o.site_code,
+                       (o.observed_utc AT TIME ZONE COALESCE(st.tz, 'Etc/UTC'))::date AS obs_day,
+                       max(o.temp_c) AS observed_c
+                  FROM {S}.aurora_city_obs o
+                  LEFT JOIN site_tz st ON st.site_code = o.site_code
+                 WHERE o.temp_c IS NOT NULL
                  GROUP BY 1, 2
             ),
             fc_days AS (
-                SELECT DISTINCT site_code,
-                       (period_index / 2) AS lead_days,
-                       ((issued_utc AT TIME ZONE 'UTC')::date
-                        + (period_index / 2)) AS target_day
-                  FROM {S}.aurora_city_forecast
-                 WHERE temp_high_c IS NOT NULL
-                   AND period_index % 2 = 0
-                   AND (period_index / 2) >= 1
+                SELECT DISTINCT f.site_code,
+                       (f.period_index / 2) AS lead_days,
+                       ((f.issued_utc AT TIME ZONE COALESCE(st.tz, 'Etc/UTC'))::date
+                        + (f.period_index / 2)) AS target_day,
+                       COALESCE(st.tz, 'Etc/UTC') AS tz
+                  FROM {S}.aurora_city_forecast f
+                  LEFT JOIN site_tz st ON st.site_code = f.site_code
+                 WHERE f.temp_high_c IS NOT NULL
+                   AND f.period_index % 2 = 0
+                   AND (f.period_index / 2) >= 1
             )
             SELECT fd.lead_days,
                    issued_ob.observed_c AS persistence_c,
@@ -1437,26 +1448,30 @@ def _aurora_accuracy_payload(S):
                                AND issued_ob.obs_day = fd.target_day - fd.lead_days
               JOIN ob target_ob ON target_ob.site_code = fd.site_code
                                AND target_ob.obs_day = fd.target_day
-             WHERE fd.target_day < CURRENT_DATE
+             WHERE fd.target_day < (now() AT TIME ZONE fd.tz)::date
         """)).mappings().all()
 
         worst_row = c.execute(text(f"""
-            WITH fc AS (
-                SELECT site_code,
-                       (period_index / 2) AS lead_days,
-                       temp_high_c AS forecast_c,
-                       ((issued_utc AT TIME ZONE 'UTC')::date
-                        + (period_index / 2)) AS target_day
-                  FROM {S}.aurora_city_forecast
-                 WHERE temp_high_c IS NOT NULL
-                   AND period_index % 2 = 0
+            WITH {_aurora_tz.site_tz_cte(S)},
+            fc AS (
+                SELECT f.site_code,
+                       (f.period_index / 2) AS lead_days,
+                       f.temp_high_c AS forecast_c,
+                       ((f.issued_utc AT TIME ZONE COALESCE(st.tz, 'Etc/UTC'))::date
+                        + (f.period_index / 2)) AS target_day,
+                       COALESCE(st.tz, 'Etc/UTC') AS tz
+                  FROM {S}.aurora_city_forecast f
+                  LEFT JOIN site_tz st ON st.site_code = f.site_code
+                 WHERE f.temp_high_c IS NOT NULL
+                   AND f.period_index % 2 = 0
             ),
             ob AS (
-                SELECT site_code,
-                       (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
-                       max(temp_c) AS observed_c
-                  FROM {S}.aurora_city_obs
-                 WHERE temp_c IS NOT NULL
+                SELECT o.site_code,
+                       (o.observed_utc AT TIME ZONE COALESCE(st.tz, 'Etc/UTC'))::date AS obs_day,
+                       max(o.temp_c) AS observed_c
+                  FROM {S}.aurora_city_obs o
+                  LEFT JOIN site_tz st ON st.site_code = o.site_code
+                 WHERE o.temp_c IS NOT NULL
                  GROUP BY 1, 2
             ),
             deduped AS (
@@ -1465,8 +1480,8 @@ def _aurora_accuracy_payload(S):
                        ob.observed_c, fc.target_day
                   FROM fc
                   JOIN ob ON ob.site_code = fc.site_code AND ob.obs_day = fc.target_day
-                 WHERE fc.target_day < CURRENT_DATE
-                   AND fc.target_day >= date_trunc('month', CURRENT_DATE)
+                 WHERE fc.target_day < (now() AT TIME ZONE fc.tz)::date
+                   AND fc.target_day >= date_trunc('month', now() AT TIME ZONE fc.tz)::date
                  ORDER BY fc.site_code, fc.target_day, fc.lead_days ASC
             )
             SELECT d.lead_days, d.forecast_c, d.observed_c, d.target_day,

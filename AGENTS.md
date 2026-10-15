@@ -11,11 +11,18 @@ scope file and a ship command you do not have:
 |---|---|---|
 | runs | headless `run-codex-task.sh`, or the `codex.kytranempowerment.com` terminal | the `archie_opencode_terminal` container |
 | your scope | `config/agents/codex.yaml` | `config/agents/opencode.yaml` |
-| git credentials | yes | none in your own `git`/`gh`; shipping goes through helpers that use the platform's token (a bare `gh` shows "not logged in" — expected) |
-| how work ships | you run `codex-pr` yourself | you run **`ship-branch.sh`** (host-direct) or **`opencode-pr`** (contained terminal) yourself; headless runs are shipped by a HOST runner |
+| git credentials | yes | container lanes: none in your own `git`/`gh`; shipping goes through helpers that use the platform's token (a bare `gh` shows "not logged in" — expected). Host instance: real authenticated `gh` (see note below) |
+| how work ships | you run `codex-pr` yourself | container: **`opencode-pr`** yourself; **host instance: worktree off `origin/main` + real `gh pr create`** (no helper scripts exist there); headless runs are shipped by a HOST runner |
 
 Tell them apart: if your checkout is `/work/archie-platform`, you are **opencode**.
-`codex-pr` does not exist for you; your equivalents are `ship-branch.sh` / `opencode-pr`. See "Workflow" below.
+`codex-pr` does not exist for you; your equivalent is `opencode-pr` (container). See "Workflow" below.
+
+A **third opencode runtime** exists: the **host instance** — the native `opencode` binary
+running as `kytran` directly on the host, checkout `/mnt/archie_brain` (no container, no
+`/opencode-home`). It has no scope guard, a real authenticated `gh`, and different ship
+steps. Its doc is `scripts/opencode_host_lane_docs/GUARDRAILS.md`, and **it wins where it
+conflicts with this file.** Detect it: `hostname` is `archie`, `pwd` is `/mnt/archie_brain`,
+`ls /.dockerenv` fails.
 
 ## Who we are & what you're building
 **Kytran Empowerment Inc.** runs A.R.C.H.I.E., a self-hosted platform (a hub + a small
@@ -110,6 +117,16 @@ They are written for Claude Code's slash commands, so a step may name a tool you
 have. **Take the reasoning, not the keystrokes** — the ordering and the gates are the
 part that matters, and they apply to any agent doing that job.
 
+**Lane tool mapping** (translate the name, don't fail the step):
+
+| Written in a procedure | What it means for you |
+|---|---|
+| `mcp__archie__<tool>` / `mcp__archie_kb__<tool>` | Your MCP namespace for the same tool — in opencode lanes it's `archie-kb_<tool>`. If a name isn't in your catalog, `search` for the tool before declaring the step impossible. |
+| `create_project`, `complete_task`, `log_decision`, `update_project_understanding` and other skill-named Dev HQ tools | The mcp-gateway exposes only a **subset** of the platform MCP server's tools; if one is missing, create via the DB/HTTP path the underlying handler uses and report the gap. |
+| `Bash` / `Read` / `Edit` / `Write` / `ctx_execute` | Your harness's equivalents. Gate rules ("no tools until X") bind regardless of the name. |
+| `mcp__Claude_Browser__*`, Playwright / chrome-devtools MCP | Claude-lane browser tools. In opencode terminals they exist only after an agent restart — say "not available yet" rather than silently skipping a verification step. |
+| `/model`, `/rewind`, `/clear`, `/ship` | Claude Code slash commands; absent in terminal/headless lanes. Skip the line, don't improvise an equivalent. |
+
 Worth reading before the matching task:
 
 | You are about to… | Read |
@@ -167,19 +184,31 @@ keep rediscovering them the expensive way:
 **opencode — you CAN open a PR; do not tell the owner you can't.** Which command depends on
 where you run (check `pwd` and `git rev-parse --show-toplevel`):
 
-- **Host-direct lane (checkout is `/mnt/archie_brain`, the usual interactive case):** commit
-  to a feature branch (never `main`; stage explicit paths, never `git add -A` — the tree is
-  shared with the owner), then run **`/opencode-home/bin/ship-branch.sh <branch> "<title>"`**
-  (or the `/ship` command). It pushes via the platform's token and opens or repoints the PR.
+- **Host instance (checkout is `/mnt/archie_brain`, native `opencode` on the host):**
+  `ship-branch.sh` and `opencode-pr` do **NOT** exist there — do not look for them. Ship
+  the GUARDRAILS.md way: build off the shared live tree, never in it —
+  ```
+  git -C /mnt/archie_brain worktree add -b opencode/<short> <scratch> origin/main
+  # edit in <scratch>, then stage EXPLICIT paths (never git add -A):
+  git -C <scratch> add <files> && git -C <scratch> commit -m "feat(<module>): ..."
+  git -C <scratch> push -u origin opencode/<short>
+  gh pr create --base main --head opencode/<short> --title "..."
+  ```
+  The live tree is served from a bind mount and shared with the owner + every other lane:
+  never commit to `main` there, never stage another lane's in-flight files. `gh` on the
+  host is the **real** authenticated CLI (`KytranKatarn`) — which changes nothing about
+  the merge ban below.
 - **Contained terminal (checkout is `/work/archie-platform`):** run
   **`opencode-pr "feat(<module>): <what you did>"`**. It refuses to run in `/mnt/archie_brain`.
 - **Headless `run-opencode-task.sh`:** the run holds no credential. Leave the changes in the
   working tree — do not commit, branch or push; the host runner scope-checks, runs
   pre-commit and tests, and opens the PR.
 
-In every case `gh` is a guard wrapper that shows "not logged in" by design: do not use it to
-create PRs, and never run `gh pr merge` or approve (refused). If a ship command fails, report
-the exact error — do not conclude "this lane cannot create PRs".
+In the **container lanes** `gh` is a guard wrapper that shows "not logged in" by design: do
+not use it to create PRs. On the **host instance** `gh` is real and can open PRs — that is
+the documented ship path. Everywhere: **never run `gh pr merge` or approve your own PR.**
+If a ship command fails, report the exact error — do not conclude "this lane cannot create
+PRs".
 
 **Both lanes:** **F.O.R.G.E.** (Repair Bay) reviews the PR and a **human merges**. You
 never merge. If you cannot finish the task, say so plainly and say why — a clear refusal

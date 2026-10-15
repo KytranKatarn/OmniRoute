@@ -110,6 +110,16 @@
   transition:opacity .3s ease; opacity:1;
 }
 .wtf-wx-copy-status.is-fading { opacity:0; }
+.wtf-wx-ovinfo { padding:10px 12px; border-top:1px solid #0a1a2a; font-size:11px; color:#9ca3af; line-height:1.6; }
+.wtf-wx-ovinfo[hidden] { display:none; }
+.wtf-wx-ovinfo .ov-head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:#e5e7eb; font-size:12px; font-weight:600; }
+.wtf-wx-ovinfo .ov-kind { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; padding:2px 8px; border-radius:999px; border:1px solid currentColor; }
+.wtf-wx-ovinfo .ov-kind.is-observed { color:#38bdf8; }
+.wtf-wx-ovinfo .ov-kind.is-forecast { color:#c4b5fd; }
+.wtf-wx-ovinfo .ov-stale { color:#f59e0b; font-weight:600; }
+.wtf-wx-ovinfo .ov-bad { color:#f87171; font-weight:600; }
+.wtf-wx-ovinfo img.ov-legend { display:block; margin:8px 0 2px; max-width:100%; background:#fff; border-radius:3px; padding:2px; }
+.wtf-wx-ovinfo .ov-fine { font-size:10px; color:#6b7280; margin-top:4px; }
 .wtf-wx-maplegend { padding:8px 12px; border-top:1px solid #0a1a2a; font-size:10px; color:#6b7280; line-height:1.7; }
 .wtf-wx-legend-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
 .wtf-wx-swatch { display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:4px;
@@ -529,6 +539,8 @@
           <button class="wtf-wx-layer-btn" data-layer="wx" type="button">{{ wx_icon("thermo") }} Fire weather</button>
           <button class="wtf-wx-layer-btn" data-layer="cities" type="button">{{ wx_icon("cloudsun") }} Current weather</button>
           <button class="wtf-wx-layer-btn" data-layer="aqhi" type="button">{{ wx_icon("haze") }} Air quality</button>
+          <button class="wtf-wx-layer-btn" data-layer="radar" type="button">{{ wx_icon("rain") }} Rain radar</button>
+          <button class="wtf-wx-layer-btn" data-layer="cloud" type="button">{{ wx_icon("cloud") }} Cloud forecast</button>
           <div class="wtf-wx-toolbar-extra">
             <label class="wtf-wx-toolbar-label" for="wtf-wx-city-select">My city</label>
             <select id="wtf-wx-city-select" class="wtf-wx-city-select"
@@ -546,6 +558,9 @@
         <div id="wtf-wx-copy-status" class="wtf-wx-copy-status" role="status" aria-live="polite" hidden></div>
         <div id="wtf-wx-map"></div>
         <div class="wtf-wx-maplegend" id="wtf-wx-legend"></div>
+        {# Radar / cloud overlay readout (WX-1b). Filled by the map's onOverlay callback from the frame's OWN metadata; every string is written with
+           textContent. It names what the image is (observed vs forecast), which frame, how old, and says so when the frame is stale or missing. #}
+        <div class="wtf-wx-ovinfo" id="wtf-wx-overlay-info" role="status" aria-live="polite" hidden></div>
       </div>
 
       {# A.U.R.O.R.A. readout for whatever area is selected. Phase 1 renders
@@ -827,6 +842,7 @@
    below, which calls WTFMap.create(). Referencing the path in a comment does
    not load it: this tag was missing on the first pass and the page would have
    thrown "WTFMap is not defined", taking the whole map with it. #}
+<script src="{{ url_for('static', filename='js/wtf-raster.js') }}"></script>
 <script src="{{ url_for('static', filename='js/wtf-map.js') }}"></script>
 <script>
   /* Inline SVG twins of the Jinja wx_icon() macros, for the JS-rendered chips.
@@ -1134,6 +1150,46 @@
       + " province. Hollow markers are stale or not reporting.";
   }
 
+  // ── Radar + cloud overlays (WX-1b, ADR #1134). Images come from OUR proxy (/weather/overlay/...), never from the agency directly; each is a
+  // frame with its own metadata, labelled from that metadata. Radar is OBSERVED; cloud is a MODEL FORECAST and is labelled as one.
+  var OVERLAY_COPY = {
+    radar: { name: "Rain radar", off: "Rain radar is unavailable right now, so this map is not showing rain. That does not mean it is dry." },
+    cloud: { name: "Cloud forecast", off: "The cloud forecast is unavailable right now." }
+  };
+  var LOCAL_FMT = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  function fmtLocal(iso) { var d = new Date(iso); return isNaN(d) ? iso : LOCAL_FMT.format(d); }
+  function ovAge(s) { return s < 90 ? "just now" : s < 5400 ? Math.round(s / 60) + " min old" : (s / 3600).toFixed(1) + " h old"; }
+  function ovRow(parent, cls, text) { var d = document.createElement("div"); if (cls) d.className = cls; d.textContent = text; parent.appendChild(d); return d; }
+  function renderOverlayInfo(e) {
+    var box = document.getElementById("wtf-wx-overlay-info");
+    if (!box) return;
+    box.textContent = "";
+    var copy = e && OVERLAY_COPY[e.layer];
+    if (!copy) { box.hidden = true; return; }
+    box.hidden = false;
+    if (e.state === "loading") { ovRow(box, "", "Loading " + copy.name.toLowerCase() + "…"); return; }
+    if (e.state === "error" && !e.meta) { ovRow(box, "ov-bad", copy.off); return; }
+    var m = e.meta, head = document.createElement("div"); head.className = "ov-head";
+    var kind = document.createElement("span"); kind.className = "ov-kind is-" + m.kind; kind.textContent = m.kind === "observed" ? "Observed" : "Model forecast";
+    head.appendChild(kind); head.appendChild(document.createTextNode(m.title)); box.appendChild(head);
+    var when = m.kind === "observed" ? "Radar frame from " + fmtLocal(m.valid_time) : "Forecast valid " + fmtLocal(m.valid_time) + (m.reference_time ? ", model run " + fmtLocal(m.reference_time) : "");
+    ovRow(box, "", when + " · " + ovAge(Math.round(e.ageNowS === null ? m.age_s : e.ageNowS)));
+    if (e.stale) ovRow(box, "ov-stale", "STALE: this frame is older than it should be. " + (m.kind === "observed" ? "Do not read it as the current rain." : "A newer model run is expected."));
+    if (e.error) ovRow(box, "ov-bad", "The latest refresh failed; showing the last frame we have.");
+    var img = document.createElement("img"); img.className = "ov-legend"; img.src = m.legend_url; img.alt = m.title + " legend (units " + m.units + ")"; img.loading = "lazy";
+    box.appendChild(img);
+    ovRow(box, "", m.note);
+    if (m.domain_note) ovRow(box, "", m.domain_note);
+    ovRow(box, "ov-fine", m.attribution);
+  }
+  function overlayCoverage(id) {
+    return function () {
+      return id === "radar"
+        ? "Observed rain from Environment Canada's radar network. A blank area means no rain detected or no radar coverage, not clear skies."
+        : "A cloud-cover FORECAST from Environment Canada's HRDPS model, covering only part of the country; blank areas are outside the model.";
+    };
+  }
+
   var WX_LAYERS = [
     { id: "fire",   label: "Fire activity",   ramp: FIRE_STOPS, metric: fireMetric,
       tooltip: provinceTooltip, coverageNote: fireCoverage },
@@ -1142,7 +1198,11 @@
     { id: "cities", label: "Current weather", ramp: TEMP_STOPS, metric: cityMetric,
       tooltip: provinceTooltip, coverageNote: cityCoverage, points: cityPoints },
     { id: "aqhi", label: "Air Quality Health Index", ramp: AQHI_STOPS, metric: aqhiMetric,
-      tooltip: provinceTooltip, coverageNote: aqhiCoverage, points: aqhiPoints }
+      tooltip: provinceTooltip, coverageNote: aqhiCoverage, points: aqhiPoints },
+    { id: "radar", label: "Rain radar", ramp: null, metric: function () { return null; }, tooltip: provinceTooltip, coverageNote: overlayCoverage("radar"),
+      overlay: { baseUrl: "/weather/overlay/radar", opacity: 0.9, refreshMs: 300000 } },
+    { id: "cloud", label: "Cloud forecast", ramp: null, metric: function () { return null; }, tooltip: provinceTooltip, coverageNote: overlayCoverage("cloud"),
+      overlay: { baseUrl: "/weather/overlay/cloud", opacity: 0.6, refreshMs: 900000 } }
   ];
 
   // ── Layer index (mockup #layerindex — no ingest of its own; ranks the SAME
@@ -1151,6 +1211,9 @@
   // selection — only highlighting changes with `selected`, same as the map's
   // own province fills, so clicking a row and clicking the map agree.
   function layerIndexRows() {
+    // Radar and cloud are images, with no per-province or per-city value to rank. They must NOT fall through to the "cities" branch below, which
+    // would list city temperatures under a "Rain radar" heading.
+    if (OVERLAY_COPY[activeLayer]) return [];
     if (activeLayer === "fire") {
       return A.prov_order.map(function (code) {
         var p = A.provinces[code];
@@ -1207,7 +1270,8 @@
     var withData = rows.filter(function (r) { return r.col; }).length;
     var L = null;
     for (var i = 0; i < WX_LAYERS.length; i++) if (WX_LAYERS[i].id === activeLayer) L = WX_LAYERS[i];
-    headEl.textContent = (L ? L.label : activeLayer) + " · " + withData + " reporting";
+    headEl.textContent = OVERLAY_COPY[activeLayer] ? (L ? L.label : activeLayer) + " · image layer, nothing to rank"
+                                                   : (L ? L.label : activeLayer) + " · " + withData + " reporting";
     listEl.textContent = "";
     rows.forEach(function (r) {
       var row = document.createElement("div");
@@ -1296,6 +1360,7 @@
     legendEl: "wtf-wx-legend",
     layers: WX_LAYERS,
     active: "fire",
+    onOverlay: renderOverlayInfo,
     // One selection, one filtered view: a province chosen on the map drives
     // the A.U.R.O.R.A. panel, station cards and city grid — and vice versa.
     onSelect: function (code) {
@@ -1312,6 +1377,7 @@
     },
     onLayer: function (id) {
       activeLayer = id;
+      if (!OVERLAY_COPY[id]) renderOverlayInfo(null);   // leaving a radar/cloud layer hides its readout
       document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (x) {
         x.classList.toggle("active", x.getAttribute("data-layer") === id);
       });

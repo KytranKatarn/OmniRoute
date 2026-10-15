@@ -142,6 +142,115 @@ class TestCache:
         assert self._cache(up, lambda: NOW).get("cloud") is None
 
 
+class TestLockDiscipline:
+    """The refresh lock is released exactly once per acquire, on every path, and never when it was not acquired (review #3879)."""
+
+    def _free(self, cache, key):
+        lk = cache._lock[key]
+        got = lk.acquire(blocking=False)
+        if got:
+            lk.release()
+        return got
+
+    def test_lock_is_free_after_a_successful_refresh(self):
+        up, t = Upstream(), [NOW]
+        c = wo.OverlayCache(up.text, up.blob, clock=lambda: t[0])
+        c.get("radar")
+        assert self._free(c, "radar")
+
+    def test_lock_is_free_after_a_failed_refresh(self):
+        c = wo.OverlayCache(Upstream(fail=True).text, Upstream(fail=True).blob, clock=lambda: NOW)
+        assert c.get("radar") is None
+        assert self._free(c, "radar")
+
+    def test_the_fresh_entry_fast_path_never_takes_the_lock(self):
+        up, t = Upstream(), [NOW]
+        c = wo.OverlayCache(up.text, up.blob, clock=lambda: t[0])
+        c.get("radar")
+        lk = c._lock["radar"]
+        lk.acquire()                                   # held by "someone else"; a fresh hit must not need it
+        try:
+            assert c.get("radar") is not None
+        finally:
+            lk.release()
+
+    def test_a_lock_we_never_acquired_is_never_released(self):
+        up = Upstream()
+        c = wo.OverlayCache(up.text, up.blob, clock=lambda: NOW, lock_wait=0.05)
+        lk = c._lock["radar"]
+        lk.acquire()                                   # another holder
+        try:
+            assert c.get("radar") is None              # timed out: old entry (none), no exception
+            assert lk.locked(), "the other holder's lock must still be held, we must not have released it"
+        finally:
+            lk.release()
+
+    def test_eight_threads_on_an_expired_entry_cause_one_upstream_build(self):
+        import threading
+        import time as _t
+        up, now = Upstream(), [NOW]
+        slow = lambda u: (_t.sleep(0.05), up.text(u))[1]
+        c = wo.OverlayCache(slow, up.blob, clock=lambda: now[0])
+        results, errors = [], []
+
+        def worker():
+            try:
+                results.append(c.get("radar"))
+            except Exception as e:  # noqa: BLE001
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        [th.start() for th in threads]
+        [th.join() for th in threads]
+        assert not errors and len(results) == 8 and all(r is not None for r in results)
+        assert len([u for u in up.urls if "GetCapabilities" in u]) == 1, "exactly one upstream build for eight simultaneous callers"
+        assert self._free(c, "radar")
+
+
+class TestSnapshotConsistency:
+    """Readers never see a torn state: an entry paired with another refresh's timestamp (review #3879)."""
+
+    def test_state_is_one_immutable_tuple_replaced_not_edited(self):
+        c = wo.OverlayCache(Upstream().text, Upstream().blob, clock=lambda: NOW)
+        before = c._snap["radar"]
+        c.get("radar")
+        after = c._snap["radar"]
+        assert isinstance(before, tuple) and isinstance(after, tuple) and before is not after and after[0] is not None
+
+    def test_failed_refresh_replaces_the_snapshot_and_keeps_the_entry(self):
+        up, t = Upstream(), [NOW]
+        c = wo.OverlayCache(up.text, up.blob, clock=lambda: t[0])
+        good = c.get("radar")
+        t[0] += 301; up.fail = True
+        assert c.get("radar") is good
+        entry, stored_at, failed_at = c._snap["radar"]
+        assert entry is good and stored_at == NOW and failed_at == NOW + 301
+
+    def test_readers_hammering_while_a_writer_refreshes_never_see_a_mismatched_pair(self):
+        import threading
+        up, now = Upstream(), [NOW]
+        c = wo.OverlayCache(up.text, up.blob, clock=lambda: now[0])
+        c.get("radar")
+        stop, bad = threading.Event(), []
+
+        def reader():
+            while not stop.is_set():
+                e, ts, fa = c._snap["radar"]
+                # every published snapshot is self-consistent: an entry always comes with the time it was stored, a failure never erases the entry
+                if e is None or not isinstance(ts, float) or "png" not in e or (fa is not None and fa < ts):
+                    bad.append((e is None, ts, fa))
+
+        readers = [threading.Thread(target=reader) for _ in range(4)]
+        [r.start() for r in readers]
+        for i in range(200):
+            now[0] += 301                                   # expire, then refresh (alternating success and failure)
+            up.fail = (i % 3 == 0)
+            c.get("radar")
+        stop.set()
+        [r.join() for r in readers]
+        assert not bad, f"{len(bad)} torn snapshots observed"
+
+
 class TestRoutes:
     @pytest.fixture
     def client(self, monkeypatch):

@@ -114,7 +114,7 @@ def describe(key, entry, now):
     return {
         "key": key, "title": o["title"], "kind": o["kind"], "units": o["units"], "nearest": o["nearest"],
         "valid_time": entry["valid_time"], "reference_time": entry["reference_time"], "fetched_at": entry["fetched_at"],
-        "age_s": age, "stale": age > o["stale_after_s"],
+        "age_s": age, "stale": age > o["stale_after_s"], "stale_after_s": o["stale_after_s"],
         "note": o["note"], "domain_note": o["domain_note"], "attribution": ATTRIBUTION,
         "bbox": list(BBOX), "size": list(SIZE),
     }
@@ -128,33 +128,46 @@ class OverlayCache:
     * a failed refresh keeps the previous entry (which `describe` will label stale) and backs off for `retry_after_fail` seconds, so a service outage costs
       one failed request a minute per layer, not one per visitor;
     * with no entry at all and the service down, `get` returns None and the route answers 503.
+
+    CONCURRENCY MODEL (review #3879). The cache state of each key is ONE immutable snapshot, `(entry, stored_at, failed_at)`, held in `_snap[key]` and
+    REPLACED, never edited. A reader takes the snapshot with a single attribute read and then works only on that local tuple, so it can never see an
+    entry from one refresh paired with the timestamp of another. Writers hold the per-key lock for the whole refresh, and replace the snapshot exactly
+    once, after the upstream call has finished. The lock decides who refreshes; it is not what makes reads safe.
     """
 
     def __init__(self, fetch_text, fetch_bytes, clock=time.time, retry_after_fail=60, lock_wait=15, log=None):
         self._ft, self._fb, self._clock = fetch_text, fetch_bytes, clock
         self._retry, self._lock_wait, self._log = retry_after_fail, lock_wait, log
-        self._st = {k: {"entry": None, "ts": 0.0, "fail_ts": None, "lock": threading.Lock()} for k in OVERLAYS}
+        self._snap = {k: (None, 0.0, None) for k in OVERLAYS}
+        self._lock = {k: threading.Lock() for k in OVERLAYS}
 
     def get(self, key):
-        st, o = self._st[key], OVERLAYS[key]
+        o = OVERLAYS[key]
+        entry, stored_at, failed_at = self._snap[key]          # one read: a consistent snapshot
         now = self._clock()
-        if st["entry"] and now - st["ts"] < o["cache_s"]:
-            return st["entry"]
-        if st["fail_ts"] is not None and now - st["fail_ts"] < self._retry:
-            return st["entry"]
-        if not st["lock"].acquire(timeout=self._lock_wait):
-            return st["entry"]
+        if entry and now - stored_at < o["cache_s"]:
+            return entry
+        if failed_at is not None and now - failed_at < self._retry:
+            return entry
+        # LOCK DISCIPLINE. Released in exactly ONE place, the `finally` below, and only on the path that acquired it: if the acquire times out we return
+        # HERE, before the `try`, so a lock we never held is never released (releasing an unheld threading.Lock raises). tests/test_wx_overlay.py
+        # ::TestLockDiscipline pins each path, including 8 threads hitting an expired entry (one upstream build, not eight).
+        lock = self._lock[key]
+        if not lock.acquire(timeout=self._lock_wait):
+            return entry
         try:
+            entry, stored_at, failed_at = self._snap[key]      # re-read: someone else may have refreshed while we waited
             now = self._clock()
-            if st["entry"] and now - st["ts"] < o["cache_s"]:      # someone else refreshed while we waited
-                return st["entry"]
+            if entry and now - stored_at < o["cache_s"]:
+                return entry
             try:
-                st["entry"] = build_entry(key, self._ft, self._fb, datetime.fromtimestamp(now, tz=timezone.utc))
-                st["ts"], st["fail_ts"] = now, None
+                fresh = build_entry(key, self._ft, self._fb, datetime.fromtimestamp(now, tz=timezone.utc))
+                self._snap[key] = (fresh, now, None)           # the ONLY write of the cache state, one atomic replacement
+                return fresh
             except Exception as exc:  # noqa: BLE001 - upstream trouble must never become a 500 on the page
-                st["fail_ts"] = now
+                self._snap[key] = (entry, stored_at, now)      # keep the old entry; remember only that we failed, and when
                 if self._log:
                     self._log("wx overlay %s refresh failed: %s", key, exc)
-            return st["entry"]
+                return entry
         finally:
-            st["lock"].release()
+            lock.release()

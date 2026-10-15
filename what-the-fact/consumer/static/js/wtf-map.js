@@ -148,9 +148,13 @@
     host.classList.add("wtf-map-d3");
     var svg = el("svg", { class: "wtf-map-svg", role: "img" });
     var gProv = el("g", { class: "wtf-map-provinces" });
+    var gOv = el("g", { class: "wtf-map-overlay", "pointer-events": "none" });            // raster overlay (radar, cloud), WX-1b
+    var gOut = el("g", { class: "wtf-map-outlines", fill: "none", "pointer-events": "none" }); // outlines redrawn ABOVE the overlay so it never hides the borders
     var gLab = el("g", { class: "wtf-map-labels" });
     var gPts = el("g", { class: "wtf-map-points" });
     svg.appendChild(gProv);
+    svg.appendChild(gOv);
+    svg.appendChild(gOut);
     svg.appendChild(gLab);
     svg.appendChild(gPts);
     host.appendChild(svg);
@@ -463,7 +467,132 @@
       }
     }
 
-    function restyle() { drawProvinces(); drawPoints(); }
+    // ── raster overlays (WX-1b, ADR #1134) ────────────────────────────────────────────────────────────────────────────────────────────────
+    // A layer may declare `overlay: { baseUrl, opacity, refreshMs }`. The component then: reads `<baseUrl>/meta.json` (the frame's time, kind, labels, bbox),
+    // fetches the image the metadata NAMES (`png_url`, which carries the frame time), decodes it, resamples it through THIS map's projection with
+    // WTFRaster (so it lands on the coastlines whatever the projection), and draws it under the outlines. The page is told what is happening through
+    // `opts.onOverlay({layer, state: "loading"|"ready"|"error", meta, error, stale})`; a label is only ever built from the meta of the frame on screen.
+    // Failure is shown, never papered over: on error nothing is drawn and the state says so.
+    var ovCache = {};
+
+    function ovReport(def, state, st, err) {
+      if (!opts.onOverlay) return;
+      var meta = st && st.meta ? st.meta : null, stale = false, ageNow = null;
+      if (meta) {
+        // Staleness is re-derived at REPORT time from the server's age plus the time since we read it, so a page left open does not keep claiming a fresh frame.
+        ageNow = (meta.age_s || 0) + Math.max(0, (Date.now() - (st.metaAt || Date.now())) / 1000);
+        stale = !!meta.stale || (meta.stale_after_s ? ageNow > meta.stale_after_s : false);
+      }
+      opts.onOverlay({ layer: def.id, state: state, meta: meta, error: err ? String(err.message || err) : null, stale: stale, ageNowS: ageNow });
+    }
+
+    function ovFetchJson(url) {
+      return global.fetch(url, { credentials: "same-origin" }).then(function (r) {
+        if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+        return r.json();
+      });
+    }
+
+    function ovDecodeDefault(blob) {
+      return new Promise(function (resolve, reject) {
+        var url = global.URL.createObjectURL(blob), img = new global.Image();
+        img.onload = function () {
+          var c = global.document.createElement("canvas");
+          c.width = img.naturalWidth; c.height = img.naturalHeight;
+          var cx = c.getContext("2d"); cx.drawImage(img, 0, 0);
+          var d = cx.getImageData(0, 0, c.width, c.height);
+          global.URL.revokeObjectURL(url);
+          resolve({ data: d.data, width: d.width, height: d.height });
+        };
+        img.onerror = function () { global.URL.revokeObjectURL(url); reject(new Error("image could not be decoded")); };
+        img.src = url;
+      });
+    }
+
+    function ovEncodeDefault(rgba, w, h) {
+      var c = global.document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").putImageData(new global.ImageData(rgba, w, h), 0, 0);
+      return c.toDataURL("image/png");
+    }
+
+    /** meta.json, then the PNG it names. A 409 means the frame rolled over between the two reads: read meta again, once. */
+    function ovFetchFrame(ov, retried) {
+      return ovFetchJson(ov.baseUrl + "/meta.json").then(function (meta) {
+        return global.fetch(meta.png_url, { credentials: "same-origin" }).then(function (r) {
+          if (r.status === 409 && !retried) return ovFetchFrame(ov, true);
+          if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+          return r.blob().then(function (blob) {
+            return (opts.decodeImage || ovDecodeDefault)(blob);
+          }).then(function (img) { return { meta: meta, img: img, metaAt: Date.now() }; });
+        });
+      });
+    }
+
+    function ovLoad(def, st, refresh) {
+      // ONE frame load per layer at a time. A second trigger (a refresh timer firing while a retry is still running, the layer re-selected mid-load)
+      // joins the load already in flight instead of starting a parallel meta+image chain. The 409 retry inside ovFetchFrame is sequential by
+      // construction (it returns the next attempt), so a layer never has more than one request outstanding.
+      if (st.inflight) return st.inflight;
+      var ov = def.overlay;
+      if (!refresh) { st.status = "loading"; ovReport(def, "loading", st); }
+      var done = function () { st.inflight = null; };
+      st.inflight = ovFetchFrame(ov, false).then(function (f) {
+        st.meta = f.meta; st.img = f.img; st.metaAt = f.metaAt; st.rendered = null; st.status = "ready"; st.err = null;
+        if (active === def.id) { drawOverlay(); }
+        ovSchedule(def, st);
+      }).catch(function (e) {
+        if (refresh && st.img) {                    // keep showing the last good frame, and say so (its age keeps growing, so it turns stale)
+          st.err = e; ovReport(def, "ready", st, e); ovSchedule(def, st); return;
+        }
+        st.status = "error"; st.err = e; st.errAt = Date.now();
+        if (active === def.id) ovReport(def, "error", st, e);
+      }).then(done, done);
+      return st.inflight;
+    }
+
+    function ovSchedule(def, st) {
+      clearTimeout(st.timer);
+      var ms = def.overlay && def.overlay.refreshMs;
+      if (!ms) return;
+      st.timer = setTimeout(function () {
+        if (active !== def.id) { st.status = st.img ? "ready" : "idle"; return; }   // not on screen: refetch when it is selected again
+        ovLoad(def, st, true);
+      }, ms);
+    }
+
+    function ovPaint(def, st) {
+      if (!projection || !st.img) return;
+      var wh = size(), sig = wh[0] + "x" + wh[1] + "|" + scope + "|" + (focusCode || "");
+      if (!st.rendered || st.rendered.sig !== sig) {
+        var meta = st.meta, inv = function (x, y) { return projection.invert([x, y]); };
+        var rgba = global.WTFRaster.reproject(st.img.data, st.img.width, st.img.height, meta.bbox, wh[0], wh[1], inv, { nearest: !!meta.nearest });
+        st.rendered = { sig: sig, href: (opts.encodeImage || ovEncodeDefault)(rgba, wh[0], wh[1]) };
+      }
+      var im = el("image", { x: 0, y: 0, width: wh[0], height: wh[1], preserveAspectRatio: "none", opacity: def.overlay.opacity === undefined ? 0.85 : def.overlay.opacity });
+      im.setAttribute("href", st.rendered.href);
+      gOv.appendChild(im);
+      if (geo && path) {
+        geo.features.forEach(function (f) {
+          gOut.appendChild(el("path", { d: path(f), stroke: "#e2e8f0", "stroke-opacity": 0.55, "stroke-width": 0.8 }));
+        });
+      }
+      ovReport(def, "ready", st, st.err);
+    }
+
+    function drawOverlay() {
+      gOv.textContent = ""; gOut.textContent = "";
+      var def = layerDef(active);
+      if (!def || !def.overlay) return;
+      if (!global.WTFRaster) { ovReport(def, "error", null, new Error("overlay helper (wtf-raster.js) is not loaded")); return; }
+      var st = ovCache[def.id] || (ovCache[def.id] = { status: "idle" });
+      if (st.status === "ready") { ovPaint(def, st); return; }
+      if (st.status === "loading") return;                                   // the load in flight repaints when it lands
+      if (st.status === "error" && Date.now() - (st.errAt || 0) < 30000) { ovReport(def, "error", st, st.err); return; }
+      ovLoad(def, st, false);
+    }
+
+    function restyle() { drawProvinces(); drawOverlay(); drawPoints(); }
 
     function select(code) {
       selected = code;

@@ -217,7 +217,10 @@ class TestEveryLayerDeclaresItsCoverage:
 
     def test_every_registered_layer_has_a_coverage_note(self):
         block = SRC[SRC.index("var WX_LAYERS"):SRC.index("wtfmap = WTFMap.create")]
-        assert block.count("coverageNote:") == 3, (
+        # Count the layers actually registered instead of a hard-coded number: this was pinned at 3 and went stale when AQHI (and later radar and
+        # cloud) were added. The rule is "every layer declares coverage", which holds for any count.
+        layers = block.count('{ id: "')
+        assert layers >= 3 and block.count("coverageNote:") == layers, (
             "a layer without coverageNote renders as if it covered the whole country"
         )
 

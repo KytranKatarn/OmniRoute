@@ -6639,6 +6639,72 @@ def api_internal_knowledge_store():
     return jsonify(result), 201
 
 
+# ---- Dev HQ project-level writes for the coder lanes (#7261) ----------------
+# The archie-project skill names create_project / log_decision /
+# update_project_understanding; the gateway withholds every write tool it cannot
+# reach (its Postgres role is read-only) and no internal route existed for these,
+# so agents hit "Unknown tool" and improvised with direct INSERTs (observed
+# 2026-10-15: a project row had to be hand-INSERTed, mirroring the MCP handler).
+# Same thin pass-through shape as knowledge/store above — into the platform MCP
+# server's OWN handlers, one writer each, so validation and behavior match every
+# other MCP caller. Fenced by the devhq:write scope, held ONLY by coder_lanes:
+# stretching tasks:write would silently widen archie_comms / archie_engine to
+# routes they never had.
+@app.route("/api/internal/projects", methods=["POST"])
+@require_internal_scope("devhq:write")
+def api_internal_project_create():
+    import asyncio
+
+    from mcp_server.tools.project_tools import create_project_handler
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = asyncio.run(create_project_handler(data))
+    except Exception as exc:
+        logger.error("internal project create failed: %s", exc)
+        return jsonify({"success": False, "error": "project create failed"}), 500
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
+@app.route("/api/internal/decisions", methods=["POST"])
+@require_internal_scope("devhq:write")
+def api_internal_decision_log():
+    import asyncio
+
+    from mcp_server.tools.project_tools import log_decision_handler
+
+    data = request.get_json(silent=True) or {}
+    try:
+        result = asyncio.run(log_decision_handler(data))
+    except Exception as exc:
+        logger.error("internal decision log failed: %s", exc)
+        return jsonify({"success": False, "error": "decision log failed"}), 500
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result), 201
+
+
+@app.route("/api/internal/projects/<int:project_id>/understanding", methods=["POST"])
+@require_internal_scope("devhq:write")
+def api_internal_project_understanding(project_id):
+    import asyncio
+
+    from mcp_server.tools.project_tools import update_project_understanding_handler
+
+    data = request.get_json(silent=True) or {}
+    data["project_id"] = project_id  # the path is authoritative, not the body
+    try:
+        result = asyncio.run(update_project_understanding_handler(data))
+    except Exception as exc:
+        logger.error("internal project understanding update failed: %s", exc)
+        return jsonify({"success": False, "error": "project understanding update failed"}), 500
+    if not result.get("success"):
+        return jsonify(result), 400
+    return jsonify(result), 200
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @require_internal_scope("delegation")
 def api_internal_delegation_submit():

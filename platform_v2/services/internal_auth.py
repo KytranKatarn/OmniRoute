@@ -96,6 +96,11 @@ SCOPES: frozenset[str] = frozenset(
         "tasks:write",  # cockpit Work pane: create/status/priority/note/delegate — comms only (#6679 Phase 4b)
         "infra:read",  # V.I.G.I.L. infra heartbeat READ — the hub holds the docker socket, the gateway does not
         "knowledge:write",  # coder lanes keep their own memory (store_memory) — the /archie-end close-out gate
+        # project-level Dev HQ writes the archie-project skill names: create_project /
+        # log_decision / update_project_understanding (#7261). Separate from tasks:write
+        # on purpose — folding it in would silently widen archie_comms and archie_engine
+        # to routes they have never had.
+        "devhq:write",
     }
 )
 
@@ -155,8 +160,21 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
     # knowledge:write (owner decision 2026-10-09) lets the lanes keep their OWN memory —
     # the store_memory write the close-out procedure requires — through the hub's one
     # memory writer, so validation + the C.R.E.E.D. PII scan apply as for any caller.
+    # devhq:write (#7261) adds the project-level Dev HQ writes (create_project,
+    # log_decision, update_project_understanding) the archie-project skill names —
+    # tasks alone could not answer them. Held by coder_lanes ONLY, same reasoning as
+    # knowledge:write above: the lanes need it, no other caller's job does.
     "coder_lanes": frozenset(
-        {"tasks:read", "tasks:write", "agents:read", "agents:manage", "delegation", "infra:read", "knowledge:write"}
+        {
+            "tasks:read",
+            "tasks:write",
+            "agents:read",
+            "agents:manage",
+            "delegation",
+            "infra:read",
+            "knowledge:write",
+            "devhq:write",
+        }
     ),
 }
 

@@ -87,6 +87,7 @@ class TestCoderLaneScopes:
             "delegation",
             "infra:read",
             "knowledge:write",
+            "devhq:write",  # #7261: create_project / log_decision / understanding
         }
 
     def test_coder_lanes_cannot_approve_their_own_work(self):
@@ -130,7 +131,16 @@ class TestGatewayWriteGating:
 
     def test_every_mutating_tool_calls_the_write_guard(self):
         src = self._src()
-        for tool in ("create_task", "set_task_status", "add_task_note", "store_memory"):
+        for tool in (
+            "create_task",
+            "set_task_status",
+            "add_task_note",
+            "store_memory",
+            "create_project",  # #7261
+            "complete_task",
+            "log_decision",
+            "update_project_understanding",
+        ):
             body = re.search(r"async def %s\(.*?(?=\n@mcp\.tool|\nclass )" % tool, src, re.S)
             assert body, "tool %s not found in gateway" % tool
             assert "_needs_write()" in body.group(0), (
@@ -171,6 +181,23 @@ class TestGatewayWriteGating:
         assert body, "store_memory not found in gateway"
         assert "_needs_write()" in body.group(0)
         assert "codex_ro" in src, "the read-only DB role note must survive"
+
+    def test_devhq_project_tools_go_over_the_hub_routes(self):
+        """#7261 — create_project / log_decision / update_project_understanding and
+        complete_task are hub-backed writes like the rest: scoped internal-API routes
+        behind devhq:write, gated on the write bearer, Postgres never touched from
+        this read-only-role container. complete_task composes the two audited task
+        routes rather than inventing a third."""
+        src = self._src()
+        for route in ("/api/internal/projects", "/api/internal/decisions", "/understanding"):
+            assert route in src, "gateway does not post to %s" % route
+        for tool in ("create_project", "log_decision", "update_project_understanding", "complete_task"):
+            body = re.search(r"async def %s\(.*?(?=\n@mcp\.tool|\nclass )" % tool, src, re.S)
+            assert body, "tool %s not found in gateway" % tool
+            assert "_needs_write()" in body.group(0), "%s does not check _needs_write()" % tool
+        # complete_task must close ONLY after its closure note landed
+        body = re.search(r"async def complete_task\(.*?(?=\n@mcp\.tool|\nclass )", src, re.S).group(0)
+        assert body.index('"status": "completed"') > body.index("if not note.get")
 
 
 class TestGatewayKeepsTheReadOnlyDatabaseRole:

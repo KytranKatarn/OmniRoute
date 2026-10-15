@@ -48,6 +48,7 @@ PROBES = {
     "tasks:read": ("GET", "/api/internal/tasks"),
     "tasks:write": ("POST", "/api/internal/tasks/0/note"),
     "knowledge:write": ("POST", "/api/internal/knowledge/store"),
+    "devhq:write": ("POST", "/api/internal/projects"),
 }
 
 
@@ -89,6 +90,11 @@ def test_sharp_edges_are_where_the_design_put_them():
     assert "mail" not in ia.CALLER_SCOPES["archie_engine"]
     assert ia.CALLER_SCOPES["browser"] == {"sessions"}
     assert ia.CALLER_SCOPES["scripts"] == {"notify"}
+    # #7261: the project-level Dev HQ writes go to the coder lanes and nobody else —
+    # stretching tasks:write to cover them would have widened comms/engine silently.
+    assert "devhq:write" in ia.CALLER_SCOPES["coder_lanes"]
+    assert "devhq:write" not in ia.CALLER_SCOPES["archie_comms"]
+    assert "devhq:write" not in ia.CALLER_SCOPES["archie_engine"]
 
 
 def test_unknown_scope_is_a_programming_error():
@@ -484,10 +490,15 @@ def test_cloud_code_status_returns_the_job(client, keys, monkeypatch):
 # ---- Phase 4 (#6653 cockpit UI): the agents:read scope ------------------------------
 
 
-def test_agents_read_scope_exists_and_is_granted_to_comms_only():
+def test_agents_read_scope_exists_and_is_granted_to_comms_and_the_coder_lanes():
+    # #6653 shipped this comms-only; #6749 then granted coder_lanes agents:read so the
+    # gateway's read tools (agent roster / detail) could answer "who can do X" from a
+    # lane. The engine deliberately does NOT hold it (agents:manage only — asserted
+    # below), and the exact grant set is pinned in test_coder_lane_task_scopes.py.
     assert "agents:read" in ia.SCOPES
     holders = [c for c, s in ia.CALLER_SCOPES.items() if "agents:read" in s]
-    assert holders == ["archie_comms"], holders
+    assert holders == ["archie_comms", "coder_lanes"], holders
+    assert "agents:read" not in ia.CALLER_SCOPES["archie_engine"]
 
 
 def test_agents_list_returns_roster_and_facets(client, keys, monkeypatch):
@@ -639,8 +650,13 @@ def test_list_agents_echoes_clamped_paging(client, keys, monkeypatch):
 # ---- Phase 4b (#6679 cockpit Work pane): the tasks:read / tasks:write scopes --------
 
 
-def test_tasks_scopes_exist_and_are_granted_to_comms_only():
+def test_tasks_scopes_exist_and_are_granted_to_comms_engine_and_coder_lanes():
+    # #6679 shipped comms-only; #6749 then granted archie_engine tasks:read/write so
+    # archie-tui could SEE and CLOSE its own Dev HQ work (it had been write-only and
+    # blind), and coder_lanes the same scopes as the gateway's task tools. A caller
+    # outside these three holding either scope is the regression this guards against;
+    # the exact set is pinned in test_coder_lane_task_scopes.py.
     for scope in ("tasks:read", "tasks:write"):
         assert scope in ia.SCOPES, scope
         holders = [c for c, s in ia.CALLER_SCOPES.items() if scope in s]
-        assert holders == ["archie_comms"], (scope, holders)
+        assert holders == ["archie_comms", "archie_engine", "coder_lanes"], (scope, holders)

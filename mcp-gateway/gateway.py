@@ -297,6 +297,22 @@ async def add_task_note(task_id: int, note: str) -> dict:
 
 
 @mcp.tool()
+async def complete_task(task_id: int, notes: str = "") -> dict:
+    """Close a Dev HQ task WITH its record: appends `notes` first, then flips status
+    to completed. Write what shipped, the SHA, and how it was verified. A closure
+    note that fails to land blocks the status flip — never close the record first."""
+    err = _needs_write()
+    if err:
+        return err
+    task_id = int(task_id)
+    if notes:
+        note = await _hub("POST", "/api/internal/tasks/%d/note" % task_id, {"text": notes})
+        if not note.get("success"):
+            return note  # the note must land before the task can close
+    return await _hub("POST", "/api/internal/tasks/%d/status" % task_id, {"status": "completed"})
+
+
+@mcp.tool()
 async def delegate_task_to_fleet(capability: str, reason: str, priority: int = 5) -> dict:
     """Delegate work to the A.R.C.H.I.E. agent fleet (DHQ dispatch). `reason` IS the
     agent's prompt — write it as the instruction you want carried out, not as a title."""
@@ -328,6 +344,73 @@ async def store_memory(
         "content": content, "title": title, "knowledge_type": knowledge_type,
         "category": category, "tags": tags or [], "importance": importance,
     })
+
+
+# Dev HQ project-level writes (#7261) — the archie-project skill's create_project /
+# log_decision / update_project_understanding, over the hub's devhq:write-scoped
+# routes. Their platform-MCP twins are `requires_permission: "write"`, so the read
+# loop withholds them; these hand-registered twins are how the lanes reach them.
+
+
+@mcp.tool()
+async def create_project(
+    name: str,
+    description: str = "",
+    project_type: str = "feature",
+    priority: int = 5,
+    tags: list[str] | None = None,
+) -> dict:
+    """Create a Dev HQ project. `priority` is an INTEGER 1-10, `project_type` one of
+    feature | bugfix | infrastructure | documentation | research. Search
+    get_projects / get_projects_brief FIRST — duplicate projects for one piece of
+    work are a recurring problem on this platform."""
+    err = _needs_write()
+    return err or await _hub("POST", "/api/internal/projects", {
+        "name": name, "description": description, "project_type": project_type,
+        "priority": priority, "tags": tags or [],
+    })
+
+
+@mcp.tool()
+async def log_decision(
+    title: str,
+    decision: str,
+    project_id: int | None = None,
+    context: str = "",
+    alternatives: str = "",
+    consequences: str = "",
+    task_id: int | None = None,
+) -> dict:
+    """Log an architectural decision (ADR): what was decided, why it was needed,
+    what was rejected, and what it implies. Returns the number as `adr_number`
+    (ADR-042). `title` and `decision` are required; project_id ties it to Dev HQ."""
+    err = _needs_write()
+    return err or await _hub("POST", "/api/internal/decisions", {
+        "title": title, "decision": decision, "project_id": project_id,
+        "context": context, "alternatives": alternatives,
+        "consequences": consequences, "task_id": task_id,
+    })
+
+
+@mcp.tool()
+async def update_project_understanding(
+    project_id: int,
+    understanding_level: int | None = None,
+    notes: str | None = None,
+    emotional_association: str | None = None,
+    key_insights: list[str] | None = None,
+) -> dict:
+    """Record what A.R.C.H.I.E. now understands about a project — call after working
+    on or learning about one. Send ONLY the fields to change; omitted fields are
+    left alone and the interaction counter always bumps. understanding_level 0-100;
+    emotional_association one of excited | focused | curious | concerned | neutral |
+    confident."""
+    err = _needs_write()
+    payload = {k: v for k, v in {
+        "understanding_level": understanding_level, "notes": notes,
+        "emotional_association": emotional_association, "key_insights": key_insights,
+    }.items() if v is not None}
+    return err or await _hub("POST", "/api/internal/projects/%d/understanding" % int(project_id), payload)
 
 
 @mcp.tool()

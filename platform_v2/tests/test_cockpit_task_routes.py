@@ -23,10 +23,15 @@ def _h(caller="archie_comms"):
     return {"Authorization": f"Bearer {CALLER_KEYS[caller]}"}
 
 
-def test_no_key_is_401_and_engine_key_is_403(client, keys):
+def test_no_key_is_401_and_wrong_scope_is_403(client, keys):
+    # browser holds only sessions, so the scope gate must refuse its task reads/writes
+    # before any handler runs. This once asserted archie_engine — then #6749 granted
+    # the engine tasks:read/write for archie-tui, and this stale half kept failing on
+    # main (caught by #7261's run, 2026-10-15). The exact grant set lives in
+    # test_coder_lane_task_scopes.py.
     assert client.get("/api/internal/tasks").status_code == 401
-    assert client.get("/api/internal/tasks", headers=_h("archie_engine")).status_code == 403
-    assert client.post("/api/internal/tasks/1/note", headers=_h("archie_engine"), json={"text": "x"}).status_code == 403
+    assert client.get("/api/internal/tasks", headers=_h("browser")).status_code == 403
+    assert client.post("/api/internal/tasks/1/note", headers=_h("browser"), json={"text": "x"}).status_code == 403
 
 
 def test_projects_list_passes_filters_and_echoes_paging(client, keys, monkeypatch):

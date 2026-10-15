@@ -50,6 +50,32 @@ if [ "${TEST_DOCKER_SOCK:-1}" != "0" ] && [ -S /var/run/docker.sock ]; then
   DOCKER_SOCK_ARG="-v /var/run/docker.sock:/var/run/docker.sock"
 fi
 
+# THE DB PASSWORD (#7261's run, 2026-10-15). database.py reads it from
+# /run/secrets/db_password; the value moved out of .env into secrets/ AFTER this
+# script was written, and nothing mounted it here — so every test since then died
+# at setup with "fe_sendauth: no password supplied". secrets/ is gitignored: it
+# exists in the live checkout only, never in a worktree or fresh clone. So SEARCH the
+# documented locations rather than pinning one host path (SECRETS_DIR still wins), and
+# mount ONLY when the file is actually found: a `-v` whose source is missing is created
+# by docker as a DIRECTORY, which then reads back as an empty password — the confusing
+# failure this replaces. A missing secret is reported, not fatal, so the script stays
+# runnable (e.g. for a subset that needs no DB); the DB-backed tests then fail honestly.
+SECRETS="${SECRETS_DIR:-}"
+if [ -z "$SECRETS" ]; then
+  for _candidate in "$REPO/secrets" /mnt/archie_brain/secrets; do
+    if [ -f "$_candidate/database/password.txt" ]; then
+      SECRETS="$_candidate"
+      break
+    fi
+  done
+fi
+DB_SECRET_ARG=""
+if [ -n "$SECRETS" ] && [ -f "$SECRETS/database/password.txt" ]; then
+  DB_SECRET_ARG="-v $SECRETS/database/password.txt:/run/secrets/db_password:ro"
+else
+  echo "[run_tests] WARNING: no DB secret found (SECRETS_DIR wins, else $REPO/secrets or /mnt/archie_brain/secrets); DB-backed tests will fail with 'no password supplied'" >&2
+fi
+
 echo "[run_tests] image=$IMAGE mem=$MEM net=$NET db=$TEST_DB_NAME"
 echo "[run_tests] tree=$REPO/platform_v2 (this repo, NOT the sandbox copy)"
 
@@ -101,6 +127,14 @@ echo "[run_tests] tree=$REPO/platform_v2 (this repo, NOT the sandbox copy)"
 # sets for archie_platform; it lives in `environment:`, NOT in .env, so --env-file does
 # not carry it. Without it: 10 collection errors, all ModuleNotFoundError: ai_bridge.
 # scripts/ is mounted too — three tests locate repo scripts under /mnt/archie_brain/scripts.
+#
+# DB_HOST is the same class of drift (#7261's run, 2026-10-15): docker-compose sets it in
+# `environment:` (archie_database), .env has no DB_* keys, and conftest.py:76 does
+# os.environ.setdefault("DB_HOST", "localhost") — so in THIS container, which inherits
+# neither, every test died at setup with "connection to server at localhost ... refused".
+# Mirror the compose value, but keep it overridable (TEST_DB_HOST) rather than baking the
+# literal in, and set it once so the value on the command line is the value that ran.
+DB_HOST="${TEST_DB_HOST:-archie_database}"
 exec docker run --rm \
   --name "archie_tests_$$" \
   --network "$NET" \
@@ -116,10 +150,12 @@ exec docker run --rm \
   -v "$REPO/standalone:/mnt/archie_brain/standalone:ro" \
   -v "$REPO/kytran-auth:/mnt/archie_brain/kytran-auth:ro" \
   -v "$REPO/.git:/mnt/archie_brain/.git:ro" \
+  $DB_SECRET_ARG \
   $DOCKER_SOCK_ARG \
   --env-file "$REPO/.env" \
   -e "TEST_DB_NAME=$TEST_DB_NAME" \
   -e "PYTHONPATH=/mnt/archie_brain" \
+  -e "DB_HOST=$DB_HOST" \
   -e "ARCHIE_RUN_SCHEDULER=0" \
   -e "TELEGRAM_BOT_TOKEN=" \
   -e "ARCHIE_TELEGRAM_BOT_TOKEN=" \

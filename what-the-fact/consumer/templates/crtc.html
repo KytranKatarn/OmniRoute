@@ -58,6 +58,9 @@
 .wtf-crtc-own-legend { display:flex; gap:14px; flex-wrap:wrap; margin-top:9px; }
 .wtf-crtc-own-legend-item { display:inline-flex; align-items:center; gap:6px; font-size:10px; color:#6b7280; }
 .wtf-crtc-own-legend-item i { width:9px; height:9px; display:inline-block; border-radius:2px; }
+.wtf-crtc-shape { display:inline-block; width:9px; height:9px; margin-right:7px; vertical-align:-1px; flex:none; }
+.wtf-crtc-shape.is-square { border-radius:2px; }
+.wtf-crtc-shape.is-circle { border-radius:50%; }
 
 .wtf-crtc-about { margin-top:24px; padding:12px 14px; background:#060d14; border:1px solid #1a3a5a; border-radius:6px; font-size:12px; color:#6b7280; line-height:1.8; }
 .wtf-crtc-about-h { color:#9ca3af; }
@@ -82,7 +85,7 @@
 {% if owners_summary %}
 <div class="wtf-crtc-own">
   <div class="wtf-crtc-own-head">
-    <div class="wtf-crtc-own-title">🏢 Media Ownership Concentration</div>
+    <div class="wtf-crtc-own-title">Media ownership concentration</div>
     {% if concentration_badge %}
     <span class="wtf-crtc-badge" style="background:{{ concentration_badge.colour }}22;color:{{ concentration_badge.colour }};border:1px solid {{ concentration_badge.colour }}44;">
       {{ concentration_badge.label }} · top 3 own {{ concentration_badge.pct_top3 }}% of tracked outlets
@@ -91,17 +94,20 @@
   </div>
   {# Owner bars #}
   {% set max_count = owners_summary[0].outlet_count if owners_summary else 1 %}
-  {% set TYPE_COLOURS = {'corporate':'#ef4444','public':'#3b82f6','non_profit':'#22c55e','independent':'#a78bfa'} %}
-  {% set TYPE_ICONS = {'corporate':'🏢','public':'🏛','non_profit':'🤝','independent':'👤'} %}
+  {# OWNER-TYPE PALETTE (design-handoff/wtf-crtc.html). Red and blue are the lean scale's ends, so a red "corporate" bar beside a red LEFT pill read as if
+     the two meant the same thing. Owner type is marked by SHAPE (square / circle) plus a colour that is not on the lean scale: grey, purple, green, amber.
+     Literal hex on purpose: each is alpha-blended elsewhere with a string suffix, which a var() cannot take. #}
+  {% set TYPE_COLOURS = {'corporate':'#6b7280','public':'#a78bfa','non_profit':'#10b981','independent':'#f59e0b'} %}
+  {% set TYPE_SHAPES = {'corporate':'is-square','public':'is-circle','non_profit':'is-square','independent':'is-circle'} %}
   {% set TYPE_LABELS = {'corporate':'Corporate','public':'Public','non_profit':'Non-profit','independent':'Independent'} %}
   <div class="wtf-crtc-own-bars">
   {% for o in owners_summary %}
   {% set tc = TYPE_COLOURS.get(o.owner_type or '', '#6b7280') %}
-  {% set ti = TYPE_ICONS.get(o.owner_type or '', '📰') %}
+  {% set ts = TYPE_SHAPES.get(o.owner_type or '', 'is-square') %}
   {% set bar_pct = (o.outlet_count / max_count * 100)|int %}
   <div class="wtf-crtc-own-row">
     <div class="wtf-crtc-own-name" title="{{ o.owner_name }}">
-      {{ ti }} {{ o.owner_name }}
+      <i class="wtf-crtc-shape {{ ts }}" style="background:{{ tc }};" aria-hidden="true"></i>{{ o.owner_name }}
     </div>
     <div class="wtf-crtc-own-track">
       <div class="wtf-crtc-own-fill" style="width:{{ bar_pct }}%;background:{{ tc }};"></div>
@@ -115,7 +121,7 @@
   </div>
   <div class="wtf-crtc-own-legend">
   {% for tk, tl in TYPE_LABELS.items() %}
-    <span class="wtf-crtc-own-legend-item"><i style="background:{{ TYPE_COLOURS[tk] }};"></i>{{ TYPE_ICONS[tk] }} {{ tl }}</span>
+    <span class="wtf-crtc-own-legend-item"><i class="wtf-crtc-shape {{ TYPE_SHAPES[tk] }}" style="background:{{ TYPE_COLOURS[tk] }};" aria-hidden="true"></i>{{ tl }}</span>
   {% endfor %}
   </div>
   <div class="wtf-crtc-own-note">
@@ -150,7 +156,7 @@
       {{ TYPE_LABELS.get(d.decision_type or '', d.decision_type or '') }}
     </span>
     {% if d.wtf_source_slug %}
-    <a class="wtf-crtc-source-link" href="/source/{{ d.wtf_source_slug }}">🔗 WTF source →</a>
+    <a class="wtf-crtc-source-link" href="/source/{{ d.wtf_source_slug }}">WTF source →</a>
     {% endif %}
   </div>
   {% if d.subject %}
@@ -160,7 +166,7 @@
   <div class="wtf-crtc-desc">{{ d.description[:200] }}{% if d.description|length > 200 %}…{% endif %}</div>
   {% endif %}
   {% if d.scope %}
-  <div class="wtf-crtc-scope">📍 {{ d.scope }}</div>
+  <div class="wtf-crtc-scope">Scope: {{ d.scope }}</div>
   {% endif %}
 </div>
 {% endfor %}
@@ -177,7 +183,7 @@
   <strong class="wtf-crtc-about-h">About CRTC decisions</strong><br>
   The CRTC regulates Canada's broadcasting system (TV, radio, streaming) and telecommunications (internet, wireless, phone).
   Its decisions affect every media outlet, telecom provider, and online platform operating in Canada.
-  🔗 items indicate the subject matches a WTF-tracked news outlet.
+  A &ldquo;WTF source&rdquo; link marks a ruling whose subject matches a WTF-tracked news outlet.
   <br><br>
   <a href="https://crtc.gc.ca/eng/dno.htm" target="_blank" rel="noopener" class="wtf-crtc-about-link">Full CRTC index ↗</a>
   &nbsp;&nbsp;

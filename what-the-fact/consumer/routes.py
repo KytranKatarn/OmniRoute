@@ -957,6 +957,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
 from . import city_window as _city_window  # pure: the city page's hourly/sun/yesterday/normals block (task 7235)
 from . import riding_index as _riding_index  # pure: /ridings province counts + A-Z jump index
 from . import sources_stats as _sources_stats  # pure: /sources header tiles + filter-chip counts
+from . import team_attribution as _team_attribution  # pure: card initials + the unattributed-work breakdown
 from . import lobby_window as _lobby_window  # pure: real zero vs data that does not reach the window
 from . import wx_overlay as _wx_overlay  # radar/cloud overlay allowlist, metadata and cache (WX-1)
 from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
@@ -2171,10 +2172,26 @@ def _newsroom_agents(S):
         """)).mappings().all()
     agents = [dict(r) for r in rows if r["agent"]]
     unattributed = sum(int(r["events"]) for r in rows if not r["agent"])
+    # How the unattributed BIAS scores were produced. fact_checks carries no tier column, so its share stays "not recorded".
+    try:
+        with _db().begin() as c:
+            c.execute(text("SET LOCAL jit = off"))
+            tier_rows = c.execute(text(f"""
+                SELECT COALESCE(analysis_tier, '') AS tier, COUNT(*) AS n
+                  FROM {S}.bias_scores bs
+                 WHERE computed_at > NOW() - INTERVAL '24 hours'
+                   AND COALESCE(agent_name, '') = ''
+                   AND EXISTS (SELECT 1 FROM {S}.articles a WHERE a.id = bs.article_id AND a.suppressed_reason IS NULL)
+                 GROUP BY 1
+            """)).mappings().all()
+        by_tier = {r["tier"]: int(r["n"]) for r in tier_rows}
+    except Exception:  # noqa: BLE001 - the breakdown is an explanation; the chart must still render without it
+        by_tier = {}
     return {
         "agents": agents,
         "unattributed": unattributed,
         "attributed": sum(int(a["events"]) for a in agents),
+        "unattributed_by_tier": by_tier,
     }
 
 
@@ -2915,6 +2932,7 @@ def team():
         if live_url:
             a["portrait_url"] = live_url
         a["welfare"] = welfare_lookup.get(agent["name"])  # None if unavailable
+        a["initials"] = _team_attribution.initials(agent["name"])
         a["status_label"], a["status_is_active"] = _team_badge(a["welfare"])
         # The remaining named agents' weak_spot (if any) is hand-curated
         # text already sitting on their TEAM_AGENTS entry — see the dict
@@ -2947,7 +2965,7 @@ def team():
     try:
         newsroom = _newsroom_agents(S)
     except Exception:
-        newsroom = {"agents": [], "unattributed": 0, "attributed": 0}
+        newsroom = {"agents": [], "unattributed": 0, "attributed": 0, "unattributed_by_tier": {}}
     # _newsroom_agents() already computes fact_checks/bias_scores as separate
     # columns in one query — keep the split instead of collapsing to a single
     # combined total (that used to feed a vague "N fact-check/bias" label
@@ -2971,6 +2989,8 @@ def team():
             "shift_state": (w or {}).get("shift_state") or "",
             "events_24h": ev["events"],
             "work_label": _team_work_label(ev["fact_checks"], ev["bias_scores"]),
+            "portrait_url": portrait_lookup.get(name),    # the directory already publishes most of these; the card used to ignore it
+            "initials": _team_attribution.initials(name),
         })
     dept_agents.sort(key=lambda a: a["events_24h"], reverse=True)
 
@@ -2998,6 +3018,7 @@ def team():
         source_count=source_count,
         dept_agents=dept_agents,
         roster_rows=roster_rows,
+        unattributed_tiers=_team_attribution.unattributed_breakdown(newsroom.get("unattributed_by_tier")),
         dept_total=dept_total,
         named_count=len(TEAM_AGENTS),
     )

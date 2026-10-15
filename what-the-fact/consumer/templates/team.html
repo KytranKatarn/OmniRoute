@@ -13,6 +13,7 @@
 .wtf-team-section-note { font-size:12.5px; line-height:1.7; color:#9ca3af; margin:0 0 14px;
   max-width:80ch; }
 .wtf-team-dept-card { padding:16px 14px 14px; }
+.wtf-team-initials { display:flex; align-items:center; justify-content:center; font-family:var(--wtf-font-mono); font-weight:600; letter-spacing:.06em; color:var(--wtf-text-2); }
 .wtf-team-weak { font-size:11.5px; line-height:1.55; color:var(--wtf-text-muted); margin-top:8px;
   padding-top:8px; border-top:1px dashed var(--wtf-border); }
 .wtf-team-weak a { color:inherit; text-decoration:underline; }
@@ -48,7 +49,7 @@
          style="background-image: url('{{ agent.portrait_url }}'); border-color: {{ agent.accent_colour }};">
     </div>
     {% else %}
-    <div class="wtf-team-portrait" style="border-color: {{ agent.accent_colour }};">📍</div>
+    <div class="wtf-team-portrait wtf-team-initials" style="border-color: {{ agent.accent_colour }};" aria-hidden="true">{{ agent.initials }}</div>
     {% endif %}
 
     <div class="wtf-team-name" style="color: {{ agent.accent_colour }};">{{ agent.name }}</div>
@@ -96,10 +97,14 @@
   {% for d in dept_agents %}
   <div class="wtf-team-card wtf-team-card--active wtf-team-dept-card">
     <span class="wtf-team-badge {{ 'wtf-badge-active' if d.shift_state == 'active' else 'wtf-badge-soon' }}">{{ d.shift_state | replace('_', ' ') if d.shift_state else 'unknown' }}</span>
-    <div class="wtf-team-portrait">📍</div>
+    {% if d.portrait_url %}
+    <div class="wtf-team-portrait" style="background-image: url('{{ d.portrait_url }}');" role="img" aria-label="Portrait of {{ d.name }}"></div>
+    {% else %}
+    <div class="wtf-team-portrait wtf-team-initials" aria-hidden="true">{{ d.initials }}</div>
+    {% endif %}
     <div class="wtf-team-name">{{ d.name }}</div>
     <span class="wtf-team-model">{{ d.work_label }}</span>
-    <div class="wtf-team-weak">Expansion and portrait: from the directory when published.</div>
+    {% if not d.portrait_url %}<div class="wtf-team-weak">No portrait is published for this agent yet.</div>{% endif %}
   </div>
   {% endfor %}
 </div>
@@ -123,6 +128,16 @@
   {{ _attributed | int }} attributed &middot; {{ _unattributed | int }} unattributed{% if dept_total %} &middot;
   {{ dept_total }} agents in News &amp; Media, {{ _attr_rows | length }} active on these two tasks this window{% endif %}
 </div>
+{% if not _attr_rows %}
+<div class="wtf-team-section-note" style="margin-top:6px">No named agent was recorded for any work in this window.</div>
+{% endif %}
+{% if unattributed_tiers %}
+<div class="wtf-team-section-note" style="margin-top:6px">
+  Unattributed bias scores, by how they were produced (the Tier-1 quick model records no agent):
+  {% for u in unattributed_tiers %}{{ u.label }} {{ u.events | int }}{{ ' · ' if not loop.last }}{% endfor %}.
+  Fact-checks carry no tier record.
+</div>
+{% endif %}
 {% endif %}
 
 </div>

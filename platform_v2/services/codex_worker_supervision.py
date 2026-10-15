@@ -95,7 +95,6 @@ def run_supervised(
     try:
         if not owns(tid, attempt):
             return "", "supervisor_claim_lost"
-        launched = True  # launch may succeed even if its client loses the response
         # Opt-in broker assignment (fail-closed)
         fence_token = None
         assignment_id_res = None
@@ -124,13 +123,21 @@ def run_supervised(
                     "host_boot_id": host_boot_id,
                 }
                 res = broker_client.assign_task(assignment_data)
-                if res.get("assignment") and res["assignment"].get("fence_token"):
-                    fence_token = res["assignment"]["fence_token"]
-                    assignment_id_res = res["assignment"].get("assignment_id")
-                    observation = {"unit": unit, "stage": "broker_assigned", "assignment_id": assignment_id_res}
-                    observe(tid, attempt, observation)
+                assignment = res.get("assignment") if isinstance(res, dict) else None
+                if not isinstance(assignment, dict) or res.get("error"):
+                    raise ValueError("broker_assignment_rejected")
+                assignment_id_res = assignment.get("assignment_id")
+                fence_token = assignment.get("fence_token")
+                for value in (assignment_id_res, fence_token):
+                    if type(value) is not str or not value or len(value) > 128 or any(c.isspace() for c in value):
+                        raise ValueError("broker_assignment_invalid")
+                observation.update(stage="broker_assigned", assignment_id=assignment_id_res)
+                if observe(tid, attempt, observation) is not True or not owns(tid, attempt):
+                    outcome = "supervisor_claim_lost"
+                    return "", outcome
             except Exception:
-                raise ValueError("broker_assignment_failed")
+                outcome = "supervisor_broker_assignment_unconfirmed"
+                raise ValueError("broker_assignment_failed") from None
         cmd = [
             "systemd-run",
             "--user",
@@ -152,6 +159,7 @@ def run_supervised(
         if assignment_id_res:
             cmd.append(f"--setenv=CODEX_ASSIGNMENT_ID={assignment_id_res}")
         cmd.extend([runner, prompt])
+        launched = True  # command may launch even if its client loses the response
         supervisor_command(cmd)
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:

@@ -106,6 +106,7 @@ def run(supervisor, simulation, **kwargs):
         timeout=10,
         observe=kwargs.get("observe", observe),
         owns=kwargs.get("owns", lambda *args: True),
+        broker_client=kwargs.get("broker_client"),
     )
 
 
@@ -205,3 +206,91 @@ def test_timeout_never_certifies_stop(supervisor, simulation, monkeypatch):
     assert outcome == "supervisor_timeout_stop_unconfirmed"
     assert simulation[3][-1]["stop_confirmed"] is False
     assert (simulation[1] / "stop.signal").exists()
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        [],
+        {},
+        {"assignment": None, "error": "denied"},
+        {"assignment": {"assignment_id": "a", "fence_token": "t"}, "error": "denied"},
+        {"assignment": {"fence_token": "t"}},
+        {"assignment": {"assignment_id": "a"}},
+        {"assignment": {"assignment_id": 7, "fence_token": "t"}},
+        {"assignment": {"assignment_id": "a", "fence_token": False}},
+        {"assignment": {"assignment_id": "a", "fence_token": "bad token"}},
+    ],
+)
+def test_broker_denial_never_launches_or_releases_barrier(supervisor, simulation, response):
+    broker = Mock(enabled=True)
+    broker.assign_task.return_value = response
+    _, outcome = run(supervisor, simulation, broker_client=broker)
+    assert outcome == "supervisor_broker_assignment_unconfirmed"
+    assert simulation[2] == []
+    assert not (simulation[1] / "start.barrier").exists()
+    assert simulation[3][-1]["stop_confirmed"] is False
+
+
+def test_broker_transport_error_never_launches(supervisor, simulation):
+    broker = Mock(enabled=True)
+    broker.assign_task.side_effect = RuntimeError("unavailable")
+    _, outcome = run(supervisor, simulation, broker_client=broker)
+    assert outcome == "supervisor_broker_assignment_unconfirmed"
+    assert simulation[2] == []
+
+
+@pytest.mark.parametrize("failure", ["persist", "claim"])
+def test_broker_assignment_must_be_persisted_and_owned_before_launch(supervisor, simulation, failure):
+    broker = Mock(enabled=True)
+    broker.assign_task.return_value = {"assignment": {"assignment_id": "assignment-a", "fence_token": "token-a"}}
+    _, outcome = run(
+        supervisor,
+        simulation,
+        broker_client=broker,
+        observe=lambda tid, attempt, e: not (failure == "persist" and e["stage"] == "broker_assigned"),
+        owns=Mock(side_effect=[True, False]) if failure == "claim" else lambda *args: True,
+    )
+    assert outcome == "supervisor_claim_lost"
+    assert simulation[2] == []
+    assert not (simulation[1] / "start.barrier").exists()
+
+
+def test_valid_broker_assignment_is_persisted_before_launch(supervisor, simulation):
+    broker = Mock(enabled=True)
+    broker.assign_task.return_value = {"assignment": {"assignment_id": "assignment-a", "fence_token": "token-a"}}
+
+    def observe(tid, attempt, e):
+        if e["stage"] == "broker_assigned":
+            assert simulation[2] == []
+            assert e["assignment_id"] == "assignment-a"
+            assert e["stop_confirmed"] is False
+        return simulation[4](tid, attempt, e)
+
+    _, outcome = run(supervisor, simulation, broker_client=broker, observe=observe)
+    assert outcome == "runner_returned"
+    assert "--setenv=CODEX_ASSIGNMENT_ID=assignment-a" in simulation[2][0]
+    assert "--setenv=CODEX_FENCE_TOKEN=token-a" in simulation[2][0]
+    assert (simulation[1] / "start.barrier").exists()
+    assert all(e["stop_confirmed"] is False for e in simulation[3])
+
+
+def test_broker_error_guard_mutation_is_detected(supervisor, simulation, monkeypatch):
+    """A complete assignment carrying an error must not grant launch authority."""
+    import inspect
+
+    source = inspect.getsource(supervisor.run_supervised)
+    mutant = source.replace(' or res.get("error")', "")
+    assert mutant != source
+    namespace = dict(supervisor.__dict__)
+    exec(compile(mutant, "<unsafe-supervisor-copy>", "exec"), namespace)
+    monkeypatch.setattr(supervisor, "run_supervised", namespace["run_supervised"])
+    broker = Mock(enabled=True)
+    broker.assign_task.return_value = {
+        "assignment": {"assignment_id": "assignment-a", "fence_token": "token-a"},
+        "error": "denied",
+    }
+    run(supervisor, simulation, broker_client=broker)
+    with pytest.raises(AssertionError):
+        assert simulation[2] == []

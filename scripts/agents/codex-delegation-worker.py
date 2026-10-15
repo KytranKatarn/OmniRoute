@@ -352,13 +352,15 @@ def main() -> int:
             from services.codex_worker_supervision import run_supervised
 
             broker = None
-            try:
-                broker_sock = os.environ.get("CODEX_BROKER_SOCKET", "/run/host-opencode-broker/broker.sock")
-                broker_uid = int(os.environ.get("CODEX_BROKER_UID", os.getuid()))
-                if os.environ.get("CODEX_WORKER_BROKER_ENABLED", "0") == "1" and os.path.exists(broker_sock):
+            if os.environ.get("CODEX_WORKER_BROKER_ENABLED", "0") == "1":
+                # Explicit opt-in must never downgrade to broker=None. Missing
+                # sockets fail through assign_task; bad configuration blocks here.
+                try:
+                    broker_sock = os.environ.get("CODEX_BROKER_SOCKET", "/run/host-opencode-broker/broker.sock")
+                    broker_uid = int(os.environ.get("CODEX_BROKER_UID", os.getuid()))
                     broker = BrokerClient(broker_sock, broker_uid, enabled=True, timeout=3.0)
-            except Exception:
-                broker = None
+                except (TypeError, ValueError):
+                    raise ValueError("broker_configuration_invalid") from None
 
             out, outcome = run_supervised(
                 task,

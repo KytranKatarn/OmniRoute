@@ -196,3 +196,38 @@ def test_lifecycle_metadata_cannot_certify_stop(worker, monkeypatch):
     observation = json.loads(bytes.fromhex(encoded))
     assert observation["stop_confirmed"] is False
     assert observation["trusted_receipt"] is False
+
+
+def test_enabled_missing_broker_socket_is_not_silently_disabled(running, monkeypatch, tmp_path):
+    from services import codex_worker_supervision
+
+    monkeypatch.setenv(running.SUPERVISED_ENV, "1")
+    monkeypatch.setenv("CODEX_WORKER_BROKER_ENABLED", "1")
+    missing = tmp_path / "missing-broker.sock"
+    monkeypatch.setenv("CODEX_BROKER_SOCKET", str(missing))
+    monkeypatch.setenv("CODEX_BROKER_UID", "1000")
+    supervised = Mock(return_value=("", "supervisor_broker_assignment_unconfirmed"))
+    monkeypatch.setattr(codex_worker_supervision, "run_supervised", supervised)
+    assert running.main() == 0
+    broker = supervised.call_args.kwargs["broker_client"]
+    assert broker is not None and broker.enabled is True
+    assert broker.socket_path == str(missing)
+    running.fallback_pr.assert_not_called()
+    running.queue_promote.assert_not_called()
+    assert running.set_status.call_args.kwargs["outcome"] == "supervisor_broker_assignment_unconfirmed"
+
+
+def test_invalid_enabled_broker_configuration_blocks_before_supervision(running, monkeypatch):
+    from services import codex_worker_supervision
+
+    monkeypatch.setenv(running.SUPERVISED_ENV, "1")
+    monkeypatch.setenv("CODEX_WORKER_BROKER_ENABLED", "1")
+    monkeypatch.setenv("CODEX_BROKER_UID", "invalid")
+    supervised = Mock()
+    monkeypatch.setattr(codex_worker_supervision, "run_supervised", supervised)
+    with pytest.raises(ValueError, match="broker_configuration_invalid"):
+        running.main()
+    supervised.assert_not_called()
+    running.fallback_pr.assert_not_called()
+    running.queue_promote.assert_not_called()
+    assert running.set_status.call_args.args[1] == "blocked"

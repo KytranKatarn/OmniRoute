@@ -44,8 +44,9 @@ def _render(sources, q="", sort="articles", min_n=5):
         FileSystemLoader(str(TPL_DIR)),
     ]))
     env.globals["url_for"] = lambda *a, **k: "#"
+    from consumer.sources_stats import build_stats
     return env.get_template("sources.html").render(
-        sources=sources, q=q, sort=sort, min_n=min_n,
+        sources=sources, q=q, sort=sort, min_n=min_n, stats=build_stats(sources),
     )
 
 

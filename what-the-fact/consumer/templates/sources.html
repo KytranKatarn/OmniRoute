@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_archetypes.html" import lean_pill, segment %}
+{% from "_archetypes.html" import lean_pill, segment, stat_tiles %}
 {% block title %}Canadian News Sources — Bias Profiles · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Bias profiles for 46 Canadian news outlets tracked by What The Fact. See rolling bias scores, article counts, and ownership for CBC, Globe and Mail, National Post, and more.">
@@ -56,6 +56,22 @@
 {% set TYPE_LABEL = {'corporate':'Corporate', 'public':'Public',
                      'non_profit':'Non-profit', 'independent':'Independent'} %}
 
+<style>
+/* Lean marker bar (design-handoff/wtf-sources.html, reduced to what the data supports: the outlet's single rolling mean, not its band range).
+   The bar is the five lean tokens left to right; the tick sits at (score+1)/2 of the width. Drawn only for an outlet at or above the MIN_N floor,
+   so an unmeasured outlet shows no tick at all rather than a tick in the middle. */
+.wtf-src-bar { position:relative; height:5px; border-radius:3px; margin:9px 0 3px;
+  background:linear-gradient(to right, var(--wtf-left), var(--wtf-center-left), var(--wtf-center), var(--wtf-center-right), var(--wtf-right)); opacity:.85; }
+.wtf-src-tick { position:absolute; top:-3px; width:3px; height:11px; border-radius:1px; background:var(--wtf-text); box-shadow:0 0 0 1px var(--wtf-bg, #0d1117); transform:translateX(-50%); }
+.wtf-src-bar-l { display:flex; justify-content:space-between; font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.06em; color:var(--wtf-text-muted); }
+.wtf-src-filters { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 12px; }
+.wtf-src-filters[hidden] { display:none; }
+.wtf-src-chip { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.06em; padding:5px 11px; border-radius:999px; cursor:pointer;
+  background:var(--wtf-bg-card); border:1px solid var(--wtf-border); color:var(--wtf-text-2); }
+.wtf-src-chip[aria-pressed="true"] { border-color:var(--wtf-accent); color:var(--wtf-accent); }
+.wtf-src-sep { width:1px; height:16px; background:var(--wtf-border); margin:0 4px; }
+.wtf-a-pcard[hidden] { display:none; }
+</style>
 <div style="max-width:900px;margin:40px auto;padding:0 16px;">
   <div class="wtf-pg-centre" style="margin-bottom:26px;">
     <div class="wtf-a-tile-l" style="margin-bottom:8px;">What The Fact</div>
@@ -68,6 +84,15 @@
       {%- endif -%}
     </p>
   </div>
+
+  {% if stats.outlets %}
+  {{ stat_tiles([
+    {'label': 'Outlets tracked', 'value': stats.outlets, 'detail': stats.measured ~ ' with a measured band'},
+    {'label': 'Articles scored', 'value': '{:,}'.format(stats.scored_articles), 'detail': 'in the current scoring window'},
+    {'label': 'Owners', 'value': stats.owners, 'detail': 'distinct owner groups'},
+    {'label': 'Ownership', 'value': stats.types.public ~ ' · ' ~ stats.types.corporate ~ ' · ' ~ stats.types.non_profit ~ ' · ' ~ stats.types.independent, 'detail': 'public · corporate · non-profit · independent'},
+  ]) }}
+  {% endif %}
 
   {# Plain GET form, works without JavaScript — same pattern as /gic. No
      is_subscriber gate: this page has never had a paywall, and adding one to
@@ -86,6 +111,21 @@
     {{ segment('Most fact-checked', '/sources?sort=checked' ~ ('&q=' ~ (q|urlencode) if q else ''), active=(sort == 'checked')) }}
   </div>
 
+  {# Ownership and language filters. They only narrow the cards already on the page (data attributes, no request), so without JavaScript the
+     whole row stays hidden rather than showing buttons that do nothing. Counts come from the route and describe the outlets shown. #}
+  {% if stats.outlets > 1 %}
+  <div class="wtf-src-filters" id="wtf-src-filters" role="group" aria-label="Filter outlets" hidden>
+    {% for key, label in [('public','Public'), ('corporate','Corporate'), ('non_profit','Non-profit'), ('independent','Independent')] %}
+    {% if stats.types[key] %}<button type="button" class="wtf-src-chip" data-kind="type" data-val="{{ key }}" aria-pressed="false">{{ label }} · {{ stats.types[key] }}</button>{% endif %}
+    {% endfor %}
+    <span class="wtf-src-sep" aria-hidden="true"></span>
+    {% for key, label in [('en','English'), ('fr','Français')] %}
+    {% if stats.languages[key] %}<button type="button" class="wtf-src-chip" data-kind="lang" data-val="{{ key }}" aria-pressed="false">{{ label }} · {{ stats.languages[key] }}</button>{% endif %}
+    {% endfor %}
+    <button type="button" class="wtf-src-chip" id="wtf-src-clear" hidden>Clear filters</button>
+  </div>
+  {% endif %}
+
   {% if q and not sources %}
   <p class="wtf-a-tile-d" style="padding:20px 0;">No outlets match &ldquo;{{ q }}&rdquo;. <a href="/sources">Clear search</a></p>
   {% endif %}
@@ -101,7 +141,7 @@
     {% set band = 'unscored' if s.below_min_n else (s.rolling_band or s.bias_lean or 'unscored') %}
     {# Colour NEVER appears without its text label — the spine is accompanied by
        the band name in the pill, per the lean-scale rule. #}
-    <a class="wtf-a-pcard" href="/source/{{ s.slug }}">
+    <a class="wtf-a-pcard" href="/source/{{ s.slug }}" data-type="{{ s.owner_type or '' }}" data-lang="{{ s.language or '' }}">
       <span class="wtf-a-spine" style="background:var({{ BAND_TOKEN.get(band, '--wtf-text-muted') }});" aria-hidden="true"></span>
       <span style="flex:1;min-width:0;">
         <span class="wtf-a-prow" style="align-items:flex-start;margin-bottom:6px;">
@@ -114,6 +154,11 @@
             <span class="wtf-a-chip">Unscored</span>
           {% endif %}
         </span>
+        {% if s.avg_score is not none %}
+        {% set _pos = ([0, [100, ((s.avg_score | float) + 1) / 2 * 100] | min] | max) %}
+        <span class="wtf-src-bar" role="img" aria-label="{{ s.name }} lean {{ '%+.2f' | format(s.avg_score | float) }}, {{ band | replace('-', ' ') }}"><span class="wtf-src-tick" style="left:{{ '%.1f' | format(_pos) }}%"></span></span>
+        <span class="wtf-src-bar-l" aria-hidden="true"><span>LEFT</span><span>{{ '%+.2f' | format(s.avg_score | float) }}</span><span>RIGHT</span></span>
+        {% endif %}
         <span class="wtf-a-tile-d" style="display:flex;flex-wrap:wrap;gap:14px;">
           {% if s.owner_name %}<span>{{ s.owner_name }}{% if s.owner_type %} · {{ TYPE_LABEL.get(s.owner_type, s.owner_type) }}{% endif %}</span>{% endif %}
           <span style="margin-left:auto;">{{ s.total_articles | default(0) }} articles</span>
@@ -142,4 +187,32 @@
     recorded fact-check claim, not every article published.
   </p>
 </div>
+<script>
+(function () {
+  var bar = document.getElementById("wtf-src-filters");
+  if (!bar) return;
+  bar.hidden = false;
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".wtf-a-pcard[data-type]"));
+  var chips = Array.prototype.slice.call(bar.querySelectorAll(".wtf-src-chip[data-kind]"));
+  var clear = document.getElementById("wtf-src-clear");
+  var on = { type: null, lang: null };
+  function apply() {
+    cards.forEach(function (c) {
+      var okT = !on.type || c.getAttribute("data-type") === on.type;
+      var okL = !on.lang || c.getAttribute("data-lang") === on.lang;
+      c.hidden = !(okT && okL);
+    });
+    chips.forEach(function (b) { b.setAttribute("aria-pressed", on[b.getAttribute("data-kind")] === b.getAttribute("data-val") ? "true" : "false"); });
+    clear.hidden = !(on.type || on.lang);
+  }
+  chips.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var k = b.getAttribute("data-kind"), v = b.getAttribute("data-val");
+      on[k] = on[k] === v ? null : v;   // one value per axis; click again to release
+      apply();
+    });
+  });
+  clear.addEventListener("click", function () { on.type = null; on.lang = null; apply(); });
+})();
+</script>
 {% endblock %}

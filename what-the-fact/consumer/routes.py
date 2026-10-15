@@ -941,6 +941,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
     wx_glyph,
 )
 from . import city_window as _city_window  # pure: the city page's hourly/sun/yesterday/normals block (task 7235)
+from . import sources_stats as _sources_stats  # pure: /sources header tiles + filter-chip counts
 from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
 from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
 from .aurora_verify import (  # pure, DB-free (see module docstring)
@@ -4445,7 +4446,7 @@ def sources_list():
         params["q"] = f"%{q}%"
     with _db().begin() as c:
         rows = c.execute(text(f"""
-            SELECT s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
+            SELECT s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type, s.language,
                    obs.avg_score, obs.band AS rolling_band,
                    COALESCE(obs.article_count, 0) AS scored_article_count,
                    COUNT(a.id) AS total_articles,
@@ -4454,7 +4455,7 @@ def sources_list():
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
             LEFT JOIN {S}.articles a ON a.source_id = s.id AND a.suppressed_reason IS NULL
             {where}
-            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type,
+            GROUP BY s.id, s.slug, s.name, s.url, s.bias_lean, s.owner_name, s.owner_type, s.language,
                      obs.avg_score, obs.band, obs.article_count
             ORDER BY {_SOURCES_SORTS[sql_sort]}
         """), params).mappings().all()
@@ -4479,8 +4480,9 @@ def sources_list():
         # value would render an average the page has decided not to show.
         sources.sort(key=lambda d: (d["avg_score"] is None,
                                      d["avg_score"] if d["avg_score"] is not None else 0.0))
+    stats = _sources_stats.build_stats(sources)  # header tiles + filter-chip counts, from the rows above (no new query)
     return render_template(
-        "sources.html", sources=sources, q=q, sort=sort, min_n=_SOURCES_MIN_N,
+        "sources.html", sources=sources, q=q, sort=sort, min_n=_SOURCES_MIN_N, stats=stats,
     )
 
 

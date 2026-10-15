@@ -943,6 +943,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
 from . import city_window as _city_window  # pure: the city page's hourly/sun/yesterday/normals block (task 7235)
 from . import riding_index as _riding_index  # pure: /ridings province counts + A-Z jump index
 from . import sources_stats as _sources_stats  # pure: /sources header tiles + filter-chip counts
+from . import lobby_window as _lobby_window  # pure: real zero vs data that does not reach the window
 from . import wx_overlay as _wx_overlay  # radar/cloud overlay allowlist, metadata and cache (WX-1)
 from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
 from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
@@ -6310,6 +6311,9 @@ def _lobbying_payload(org: str, q: str = "") -> dict:
             SELECT max(run_at) FROM parliament.ingest_log
             WHERE task = 'lobbying' AND COALESCE(error, '') = ''
         """)).scalar()
+        # "Last 30 days: 0" is only honest when the data reaches the window. The registry's reports arrive weeks late, so an empty window usually means
+        # "not published yet", which must read as "—" with the date the data ends, not as a measured zero.
+        stats["last_30d_tile"] = _lobby_window.last_30d_tile(stats.get("last_30d"), stats.get("last_seen"), datetime.date.today())
 
         if org:
             detail = c.execute(text(f"""

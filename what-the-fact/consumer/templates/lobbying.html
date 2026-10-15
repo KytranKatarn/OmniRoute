@@ -102,7 +102,7 @@
   {'label': 'Communications', 'value': '{:,}'.format(stats.contacts or 0)},
   {'label': 'Organizations', 'value': '{:,}'.format(stats.orgs or 0)},
   {'label': 'MPs lobbied', 'value': stats.mps or 0},
-  {'label': 'Last 30 days', 'value': stats.last_30d or 0},
+  {'label': 'Last 30 days', 'value': (stats.last_30d_tile.value if stats.last_30d_tile else (stats.last_30d or 0)), 'detail': (stats.last_30d_tile.detail if stats.last_30d_tile else none)},
 ] %}
 {% if stats.first_seen %}
 {% set _lob_tiles = _lob_tiles + [{'label': 'Coverage', 'value': '%s–%s'|format(stats.first_seen.year, stats.last_seen.year)}] %}

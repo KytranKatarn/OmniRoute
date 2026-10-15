@@ -943,6 +943,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
 from . import city_window as _city_window  # pure: the city page's hourly/sun/yesterday/normals block (task 7235)
 from . import riding_index as _riding_index  # pure: /ridings province counts + A-Z jump index
 from . import sources_stats as _sources_stats  # pure: /sources header tiles + filter-chip counts
+from . import wx_overlay as _wx_overlay  # radar/cloud overlay allowlist, metadata and cache (WX-1)
 from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
 from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
 from .aurora_verify import (  # pure, DB-free (see module docstring)
@@ -1451,6 +1452,82 @@ def _city_window_for(city):
         return None
     return _city_window.build_window(city, [dict(r) for r in hourly], [dict(r) for r in sun], dict(yest) if yest else None,
                                      dict(normals) if normals else None, datetime.now(timezone.utc), _wx_symbols.wx_symbol)
+
+
+_WX_UA = "WhatTheFact/1 (+https://what-the-fact.com; weather overlays)"
+
+
+def _wx_http(url, limit, timeout=12):
+    """One bounded GET to an ALLOWLISTED GeoMet URL built by consumer/wx_overlay.py (never from request input)."""
+    req = urllib.request.Request(url, headers={"User-Agent": _WX_UA})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        blob = resp.read(limit + 1)
+    if len(blob) > limit:
+        raise ValueError("upstream response too large")
+    return blob
+
+
+_WX_OVERLAYS = _wx_overlay.OverlayCache(
+    fetch_text=lambda u: _wx_http(u, 1_000_000).decode("utf-8", "replace"),
+    fetch_bytes=lambda u: _wx_http(u, _wx_overlay.MAX_BYTES),
+    log=logger.warning,
+)
+_WX_LEGENDS: dict = {}
+
+
+@bp.get("/weather/overlay/<key>/meta.json")
+def weather_overlay_meta(key: str):
+    """What frame the overlay image is, how old it is, and the labels the page must show with it. 503 if the service has never answered."""
+    if not _wx_overlay.known(key):
+        abort(404)
+    entry = _WX_OVERLAYS.get(key)
+    if entry is None:
+        return jsonify({"error": "unavailable", "key": key}), 503
+    meta = _wx_overlay.describe(key, entry, datetime.datetime.now(datetime.timezone.utc))
+    meta["png_url"] = f"/weather/overlay/{key}.png?v={entry['valid_time']}"
+    meta["legend_url"] = f"/weather/overlay/{key}/legend.png"
+    resp = jsonify(meta)
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@bp.get("/weather/overlay/<key>.png")
+def weather_overlay_png(key: str):
+    """The overlay image. `?v=<valid_time>` is REQUIRED and must match the cached frame: a client that read meta.json for one frame can never be
+    handed a different frame under that label (409 -> re-read meta.json)."""
+    if not _wx_overlay.known(key):
+        abort(404)
+    entry = _WX_OVERLAYS.get(key)
+    if entry is None:
+        return jsonify({"error": "unavailable", "key": key}), 503
+    v = request.args.get("v", "")
+    if not v:
+        return jsonify({"error": "missing v (valid_time from meta.json)"}), 400
+    if v != entry["valid_time"]:
+        return jsonify({"error": "frame changed", "valid_time": entry["valid_time"]}), 409
+    return Response(entry["png"], 200, {"Content-Type": "image/png", "Cache-Control": f"public, max-age={_wx_overlay.OVERLAYS[key]['cache_s']}",
+                                        "X-Content-Type-Options": "nosniff"})
+
+
+@bp.get("/weather/overlay/<key>/legend.png")
+def weather_overlay_legend(key: str):
+    """The service's OWN legend for the style we request, proxied so the page never calls a third party. Cached a day."""
+    if not _wx_overlay.known(key):
+        abort(404)
+    st = _WX_LEGENDS.setdefault(key, {"ts": 0.0, "png": None, "fail": 0.0})
+    now = time.time()
+    if not (st["png"] and now - st["ts"] < 86400) and now - st["fail"] > 60:
+        try:
+            blob = _wx_http(_wx_overlay.legend_url(key), 200_000)
+            if not _wx_overlay.png_ok(blob):
+                raise ValueError("not a PNG")
+            st["png"], st["ts"] = blob, now
+        except Exception:  # noqa: BLE001
+            st["fail"] = now
+            logger.warning("wx overlay legend %s unavailable", key, exc_info=True)
+    if not st["png"]:
+        return jsonify({"error": "unavailable", "key": key}), 503
+    return Response(st["png"], 200, {"Content-Type": "image/png", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"})
 
 
 def _aurora_accuracy_payload(S):

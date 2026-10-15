@@ -2004,12 +2004,17 @@ p { text-wrap: pretty; }
 .wtf-pg-wrap { max-width:1080px; margin:0 auto; padding:0 20px 40px; }
 
 /* Page container — the design shell's `.wrap` (design-handoff/wtf-shell.css L42): content
-   centres at 1180px with the shared --gut gutter. <main> in base.html is a bare element, so
+   centres at 1180px (self-centred; see the note on the rule below). <main> in base.html is a bare element, so
    a page that does not wrap itself runs edge to edge: left-aligned title flush at x=0,
    cards touching the viewport edge, and (on /weather) a horizontal scrollbar. Found by a
    live layout audit 2026-10-05 across 41 pages; 13 had no container at all.
    Distinct from .wtf-pg-wrap above (1080px, no --gut) which five pages already use. */
-.wtf-pg-container { max-width:1180px; margin:0 auto; padding:26px var(--gut) 60px; }
+.wtf-pg-container { max-width:1180px; margin:0 auto; padding:26px 18px 60px; }
+/* ⚠️ Fixed 2026-10-15: this rule used `padding: 26px var(--gut) 60px`. --gut is `max(18px, (100vw - 1180px) / 2)`: the gutter that pads a
+   FULL-WIDTH band into a centred 1180px column. This box is already centred by max-width + margin:auto, so adding --gut padding counted the gutter
+   twice, and the content got NARROWER as the screen got wider: 1144px at 1280, 920 at 1440, 440 at 1920, and nothing at all past ~2400.
+   Every page using it (17 templates) collapsed into a one-column strip on a large monitor. Fixed side padding is correct here; keep --gut for
+   full-width bands only. tests/test_pg_container_gutter.py pins it. */
 .wtf-pg-head { max-width:760px; margin:0 auto; padding:44px 0 22px; text-align:center;
   border-bottom:1px solid var(--wtf-border, #1f2937); margin-bottom:22px; }
 .wtf-pg-eyebrow { font-family:var(--wtf-font-mono, monospace); font-size:11px; letter-spacing:.16em;

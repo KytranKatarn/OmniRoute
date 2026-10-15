@@ -58,6 +58,31 @@ def _evaluate_gate(tier1: dict, body_len: int, source_slug: str,
     return False, "no gate hit"
 
 
+# Tier-1 outcomes that mean "the hub is busy or asked us to back off". They must NOT escalate to Tier 2: the full model is the slower, heavier call, so
+# escalating on overload turns a hub that is struggling into one that is drowning (measured 2026-10-15: hub load average 36, /analyze calls up to 664 s,
+# the news poll starved for hours). A genuine Tier-1 failure (the hub answered but the result was unusable) still falls through to Tier 2 so no article is lost.
+_BACKOFF_STATUSES = ("rate_limited", "unavailable")
+
+
+def _tier1_backoff(tier1_outcome: dict, article_id: int, flow: str) -> dict | None:
+    """The result to return when Tier 1 asked us to back off, or None when the normal gate/fall-through logic should run."""
+    status = tier1_outcome.get("status")
+    if status not in _BACKOFF_STATUSES:
+        return None
+    logger.warning("[tier_router] %s article=%s tier1 %s: deferring, not escalating", flow, article_id, status)
+    return {
+        "result": None,
+        "status": "rate_limited",      # the workers already treat this as "skip, retry next cycle" (no persist, no failure counted)
+        "tier_meta": {
+            "analysis_tier": "pending",
+            "tier1_ok": False,
+            "tier2_ran": False,
+            "tier2_status": "skipped",
+            "gate_reason": f"tier1_backoff:{status}",
+        },
+    }
+
+
 def _tier1_only_sections(tier1: dict) -> dict:
     """Synthesize a deep_analysis-shaped dict from Tier-1 signal alone.
 
@@ -114,6 +139,9 @@ def analyze_tiered(article_id: int, title: str, body: str,
         source_slug=source_slug,
         prefer_node=_TIER1_PREFER_NODE,
     )
+    backoff = _tier1_backoff(tier1_outcome, article_id, "bias")
+    if backoff is not None:
+        return backoff
     tier1_ok = tier1_outcome["status"] == "ok" and tier1_outcome["result"] is not None
     tier1_result = tier1_outcome["result"] if tier1_ok else {}
 
@@ -249,6 +277,9 @@ def analyze_factcheck_tiered(article_id: int, title: str, body: str,
         source_slug=source_slug,
         prefer_node=_TIER1_PREFER_NODE,
     )
+    backoff = _tier1_backoff(tier1_outcome, article_id, "factcheck")
+    if backoff is not None:
+        return backoff
     tier1_ok = tier1_outcome["status"] == "ok" and tier1_outcome["result"] is not None
     tier1_result = tier1_outcome["result"] if tier1_ok else {}
     tier1_claims = tier1_result.get("claims") if tier1_ok else []

@@ -76,7 +76,9 @@ def analyze_quick(task: str, article_id: int, title: str, body: str,
       rate_limited  — hub returned rate_limited (shouldn't happen for quick
                       tier — quick endpoint has no per-task throttle today,
                       but kept for forward compat)
-      failed        — dispatcher disabled, timeout, network error, or
+      unavailable   — the hub did not answer (timeout / connection error).
+                      The tier router backs off on this instead of escalating.
+      failed        — dispatcher disabled, hub answered but rejected, or
                       response couldn't be coerced to dict
     """
     if not _ENABLED:
@@ -120,11 +122,13 @@ def analyze_quick(task: str, article_id: int, title: str, body: str,
         return {"result": coerced, "status": "ok"}
 
     except requests.Timeout:
+        # The hub did not ANSWER in time. That is load, not a bad article: "unavailable" tells the tier router to back off rather than escalate
+        # to the heavier model (which would add more load to the very hub that just failed to answer).
         logger.warning("quick_analyzer: task=%s timed out after %ss", task, _TIMEOUT)
-        return {"result": None, "status": "failed"}
+        return {"result": None, "status": "unavailable"}
     except requests.RequestException as exc:
         logger.error("quick_analyzer: task=%s connectivity error: %s", task, exc)
-        return {"result": None, "status": "failed"}
+        return {"result": None, "status": "unavailable"}
     except Exception as exc:
         logger.warning("quick_analyzer: task=%s unexpected error: %s", task, exc)
         return {"result": None, "status": "failed"}

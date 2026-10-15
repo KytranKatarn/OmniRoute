@@ -73,6 +73,20 @@
 .wtf-band-chip--center-right { color:var(--wtf-center-right); }
 .wtf-band-chip--right { color:var(--wtf-right); }
 .wtf-band-row > span:last-child { color:var(--wtf-text-muted); }
+
+/* Archive visual port: connected process rail and continuous measured spectrum. */
+.wtf-process-grid{display:grid;grid-template-columns:1fr;gap:0;margin:18px 0 18px 12px;padding:0 0 0 26px;list-style:none;border-left:1px solid var(--wtf-border);counter-reset:process}
+.wtf-process-step{border:1px solid var(--wtf-border);border-radius:10px;padding:18px 20px 18px 66px;margin:0 0 13px;background:linear-gradient(115deg,var(--wtf-bg-panel),var(--wtf-bg-card));box-shadow:0 8px 24px rgba(0,0,0,.14)}
+.wtf-process-step::before{counter-increment:process;position:absolute;left:-42px;top:17px;width:30px;height:30px;display:grid;place-items:center;margin:0;content:"0" counter(process);border:1px solid var(--wtf-aurora);border-radius:50%;background:var(--wtf-bg);color:var(--wtf-aurora)}
+.wtf-process-step h3{font-family:var(--wtf-font-serif);font-size:1.12rem;margin:0 0 6px}
+.wtf-process-step p{font-size:.84rem;max-width:78ch}
+.wtf-process-icon{position:absolute;left:16px;top:18px;width:30px;height:30px;color:var(--wtf-aurora)}
+.wtf-spectrum-ramp{height:16px;border:1px solid rgba(255,255,255,.18);border-radius:999px;margin:18px 0 8px;background:linear-gradient(90deg,var(--wtf-left),var(--wtf-center-left) 25%,var(--wtf-center) 50%,var(--wtf-center-right) 75%,var(--wtf-right));box-shadow:0 0 22px rgba(139,92,246,.12)}
+.wtf-spectrum-band{position:relative;overflow:hidden}
+.wtf-spectrum-band::before{content:"";display:block;height:3px;margin:-11px -12px 10px;background:currentColor;opacity:.75}
+.wtf-spectrum-band--left{color:var(--wtf-left)} .wtf-spectrum-band--center-left{color:var(--wtf-center-left)} .wtf-spectrum-band--center{color:var(--wtf-center)} .wtf-spectrum-band--center-right{color:var(--wtf-center-right)} .wtf-spectrum-band--right{color:var(--wtf-right)}
+@media(max-width:600px){.wtf-process-grid{margin-left:5px;padding-left:23px}.wtf-process-step{padding:15px 14px 15px 54px}.wtf-process-icon{left:12px;width:26px;height:26px}}
+
 </style>
 
 <div class="wtf-trans-hero">
@@ -105,11 +119,11 @@
     <div class="wtf-section-title" id="process-title">THE PROCESS · FROM SOURCE TO STORY</div>
     <p class="wtf-method-block">This is the current ingest path, based on the WTF worker code. It runs in a cycle with separate backlog workers; it is not a guaranteed, one-agent-after-another workflow for every story.</p>
     <ol class="wtf-process-grid" aria-label="How What The Fact currently ingests and analyzes stories">
-      <li class="wtf-process-step"><h3>Collect and prepare</h3><p>The ingest worker polls configured feeds (30-minute default), normalizes items, applies a rules-based framing score and deduplicates before saving new articles.</p></li>
-      <li class="wtf-process-step"><h3>Group related coverage</h3><p>A title-token Jaccard similarity check groups articles within a 24-hour window. This is algorithmic clustering; the ingest path does not call a separate I.N.K. agent for each match.</p></li>
-      <li class="wtf-process-step"><h3>Select deeper analysis</h3><p>F.A.C.T.'s priority selector chooses some new articles. For selected items, the current cycle requests B.I.A.S. framing, V.E.R.I.F.Y. claims, beat classification and L.O.C.A.L. geography; backlog workers cover eligible older or pending items separately.</p></li>
-      <li class="wtf-process-step"><h3>Summarize and record</h3><p>After a cluster is updated, a summary attempt runs. Analysis and summary results are stored when available; failures and unselected items can leave fields empty or pending.</p></li>
-      <li class="wtf-process-step"><h3>Publish what is available</h3><p>Article and source pages show recorded signals and links to reporting. A page may have only a subset of the workflow results.</p></li>
+      <li class="wtf-process-step"><svg class="wtf-process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M7 9h10M7 13h7"/></svg><h3>Collect and prepare</h3><p>The ingest worker polls configured feeds (30-minute default), normalizes items, applies a rules-based framing score and deduplicates before saving new articles.</p></li>
+      <li class="wtf-process-step"><svg class="wtf-process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4M8 10h5"/></svg><h3>Group related coverage</h3><p>A title-token Jaccard similarity check groups articles within a 24-hour window. This is algorithmic clustering; the ingest path does not call a separate I.N.K. agent for each match.</p></li>
+      <li class="wtf-process-step"><svg class="wtf-process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12 9 17 20 6"/></svg><h3>Select deeper analysis</h3><p>F.A.C.T.'s priority selector chooses some new articles. For selected items, the current cycle requests B.I.A.S. framing, V.E.R.I.F.Y. claims, beat classification and L.O.C.A.L. geography; backlog workers cover eligible older or pending items separately.</p></li>
+      <li class="wtf-process-step"><svg class="wtf-process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="m8 13 2.5 2.5L16 10"/></svg><h3>Summarize and record</h3><p>After a cluster is updated, a summary attempt runs. Analysis and summary results are stored when available; failures and unselected items can leave fields empty or pending.</p></li>
+      <li class="wtf-process-step"><svg class="wtf-process-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg><h3>Publish what is available</h3><p>Article and source pages show recorded signals and links to reporting. A page may have only a subset of the workflow results.</p></li>
     </ol>
     <p class="wtf-process-note">Selection, backlog configuration, queue capacity and service availability affect coverage. A missing signal does not mean “neutral,” “verified,” or “no issue.” Automated analysis can be wrong; follow the linked reporting and primary sources.</p>
   </section>
@@ -119,6 +133,7 @@
     <div class="wtf-method-block">
       <h4>Five framing bands</h4>
       <p>This key explains the score bands. It is an illustration of the scale, not a live ranking or a placement of named outlets.</p>
+      <div class="wtf-spectrum-ramp" role="img" aria-label="Continuous scale from left-leaning framing through center to right-leaning framing"></div>
       <div class="wtf-spectrum-key" role="list" aria-label="Bias score bands and thresholds">
         <div class="wtf-spectrum-band wtf-spectrum-band--left" role="listitem"><strong>LEFT</strong><span>score &lt; −0.6</span></div>
         <div class="wtf-spectrum-band wtf-spectrum-band--center-left" role="listitem"><strong>CENTER-LEFT</strong><span>−0.6 ≤ score &lt; −0.2</span></div>

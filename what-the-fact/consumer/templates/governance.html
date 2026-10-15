@@ -91,6 +91,15 @@
 .wtf-gv-part-head { color:#9ca3af; font-size:0.72rem; font-weight:600; margin-bottom:5px; }
 .wtf-gv-part-note { color:#6b7280; font-size:0.68rem; line-height:1.6; }
 .wtf-gv-part-links { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+
+/* Archive C.R.E.E.D. badge framing, keeping live data and the unavailable state. */
+.wtf-gv-scorecard{border-color:#8b5cf6;border-radius:12px;position:relative;overflow:hidden}
+.wtf-gv-scorecard::before{content:"C.R.E.E.D. · LIVE";align-self:flex-start;color:#c4b5fd;font:9px var(--wtf-font-mono);letter-spacing:.14em;border:1px solid #4c1d95;border-radius:999px;padding:5px 9px}
+.wtf-gv-pillar-card,.wtf-gv-part-card{border-radius:9px}
+.wtf-gv-panel{border-radius:10px;background:linear-gradient(145deg,rgba(139,92,246,.045),transparent 55%)}
+.wtf-gv-badge{margin-left:auto;object-fit:contain}
+@media(max-width:720px){.wtf-gv-scorecard::before{width:100%}.wtf-gv-badge{margin-left:0}}
+
 </style>
 
 <div class="wtf-gv-wrap">

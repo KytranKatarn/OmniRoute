@@ -35,6 +35,20 @@
     flex: 1 1 220px; min-width: 180px; padding: 7px 10px; background: var(--wtf-bg-card);
     border: 1px solid var(--wtf-border); border-radius: 6px; color: var(--wtf-text);
   }
+  .wtf-rd-chart { margin: 8px 0 4px; display: grid; gap: 5px; }
+  .wtf-rd-chart a { display: grid; grid-template-columns: 38px 1fr 34px; gap: 10px; align-items: center; text-decoration: none; color: var(--wtf-text-2);
+                    font-family: var(--wtf-font-mono); font-size: 0.7rem; }
+  .wtf-rd-chart a:hover .wtf-rd-fill { background: var(--wtf-accent); }
+  .wtf-rd-chart a[aria-current="true"] { color: var(--wtf-text); }
+  .wtf-rd-track { height: 9px; border-radius: 5px; background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); overflow: hidden; }
+  .wtf-rd-fill { display: block; height: 100%; background: var(--wtf-text-muted); }
+  .wtf-rd-n { text-align: right; }
+  .wtf-rd-az { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 10px; }
+  .wtf-rd-az a, .wtf-rd-az span { min-width: 24px; text-align: center; padding: 3px 0; border-radius: 4px; font-family: var(--wtf-font-mono); font-size: 0.7rem; }
+  .wtf-rd-az a { border: 1px solid var(--wtf-border); color: var(--wtf-text-2); text-decoration: none; }
+  .wtf-rd-az a:hover { border-color: var(--wtf-accent); color: var(--wtf-accent); }
+  .wtf-rd-az span { color: var(--wtf-text-muted); opacity: .45; }
+  .wtf-rd-top { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: .1em; text-transform: uppercase; }
   .wtf-rd-note { color: var(--wtf-text-muted); font-size: 0.72rem; margin-top: 18px; line-height: 1.5; }
 </style>
 <div class="wtf-rd">
@@ -56,6 +70,23 @@
   </p>
 
   {{ stat_tiles(tiles) }}
+
+  {# Ridings per province, over the WHOLE election (not the filtered view). Every bar is a link that applies the province filter, and its count is
+     printed beside it, so the chart never relies on bar length alone. #}
+  {% if province_counts|length > 1 %}
+  <div class="wtf-rd-sec">Ridings by province</div>
+  {% set _max = province_counts[0][1] %}
+  <div class="wtf-rd-chart" role="list">
+    {% for p, n in province_counts %}
+    <a role="listitem" href="/ridings?ge={{ ge }}&province={{ p | urlencode }}{% if q %}&q={{ q | urlencode }}{% endif %}"
+       {% if p == province %}aria-current="true"{% endif %} aria-label="{{ p }}: {{ n }} ridings">
+      <span>{{ p }}</span>
+      <span class="wtf-rd-track"><span class="wtf-rd-fill" style="width:{{ '%.1f' | format(n / _max * 100) }}%"></span></span>
+      <span class="wtf-rd-n">{{ n }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% if elections|length > 1 %}
   <div class="wtf-rd-bar">
@@ -102,12 +133,19 @@
     {{ ridings|length }} of {{ total_ridings }} ridings, A to Z
   </div>
 
+  {# A-Z jump over the rows listed: a letter with no riding in this view is shown muted, never as a dead link. #}
+  {% if ridings|length > 12 %}
+  <nav class="wtf-rd-az" aria-label="Jump to letter">
+    {% for lt, present in az %}{% if present %}<a href="#az-{{ lt }}">{{ lt }}</a>{% else %}<span aria-hidden="true">{{ lt }}</span>{% endif %}{% endfor %}
+  </nav>
+  {% endif %}
+
   {# Same block-set idiom /races uses: {{ cell }} renders the yielded Markup as
      HTML, while every interpolated value inside is still autoescaped. String
      concatenation with ~ gets both of those backwards. #}
   {% set rows = [] %}
   {% for r in ridings %}
-    {% set _riding %}<a href="/races/{{ r.district_number }}?ge={{ ge }}">{{ r.district_name }}</a>{% endset %}
+    {% set _riding %}{% if r.district_number in az_first %}<span id="az-{{ az_first[r.district_number] }}"></span>{% endif %}<a href="/races/{{ r.district_number }}?ge={{ ge }}">{{ r.district_name }}</a>{% endset %}
     {% set _won %}<span class="wtf-rd-win">{{ r.candidate_name }}</span>{% endset %}
     {% set _ = rows.append([
         _riding,

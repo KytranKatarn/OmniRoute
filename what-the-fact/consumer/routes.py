@@ -941,6 +941,7 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
     wx_glyph,
 )
 from . import city_window as _city_window  # pure: the city page's hourly/sun/yesterday/normals block (task 7235)
+from . import riding_index as _riding_index  # pure: /ridings province counts + A-Z jump index
 from . import sources_stats as _sources_stats  # pure: /sources header tiles + filter-chip counts
 from . import wx_symbols as _wx_symbols  # pure: ECCC icon_code -> glyph key + the SVG table (task 7233)
 from . import aurora_tz as _aurora_tz  # pure, stdlib-only: province -> IANA zone for local-day bucketing (task 7226)
@@ -10854,12 +10855,15 @@ def ridings():
     empty_msg = (f"No ridings match “{q}”." if q
                  else "No ridings match this filter.")
 
+    _az = _riding_index.build_index(rows)
     return render_template(
         "ridings.html",
         elections=B["elections"], ge=B["ge"], election_date=B["election_date"],
         tiles=B["tiles"], ridings=rows, total_ridings=len(B["ridings"]),
         provinces=sorted({r["province"] for r in B["ridings"] if r["province"]}),
         province=province, q=q, empty_msg=empty_msg,
+        province_counts=_riding_index.province_counts(B["ridings"]),
+        az=_az[0], az_first=_az[1],
     )
 
 

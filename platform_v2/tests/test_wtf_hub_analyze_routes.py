@@ -118,3 +118,78 @@ def test_task_allowlist_matches_agent_names_keys():
         f"allowlist {allowlist} != agent_names keys {agent_names_tasks} — "
         f"a task can pass the gate with no agent_names entry, or vice versa"
     )
+
+
+# ── concurrency cap on the synchronous /api/analyze (hub overload, 2026-10-15) ─────────────────────────────────────────────────────────────
+
+
+def _cap_app(monkeypatch, limit, auth_ok=True):
+    """A throwaway Flask app whose single view is wrapped by the REAL decorator, with auth stubbed."""
+    import importlib
+    import sys
+    import threading
+
+    from flask import Flask, jsonify
+
+    sys.path.insert(0, str(ROUTES.parents[2]))
+    routes = importlib.import_module("tools.wtf_hub.routes")
+    monkeypatch.setattr(routes, "_auth_ok", lambda req: auth_ok)
+
+    gate = threading.Event()
+    entered = threading.Event()
+    app = Flask(__name__)
+
+    @app.post("/slow")
+    @routes._cap_concurrency(limit, 7)
+    def slow():
+        entered.set()
+        gate.wait(5)
+        return jsonify({"ok": True, "result": {"done": True}})
+
+    return app, gate, entered
+
+
+def test_analyze_is_wrapped_by_the_cap():
+    tree = ast.parse(ROUTES.read_text())
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "analyze")
+    names = [ast.unparse(d) for d in fn.decorator_list]
+    assert any("_cap_concurrency" in n for n in names), names
+
+
+def test_cap_defers_over_limit_with_existing_rate_limited_shape(monkeypatch):
+    import threading
+
+    app, gate, entered = _cap_app(monkeypatch, 1)
+    first = {}
+
+    def hold():
+        first["r"] = app.test_client().post("/slow").get_json()
+
+    t = threading.Thread(target=hold)
+    t.start()
+    assert entered.wait(5)
+    over = app.test_client().post("/slow").get_json()
+    gate.set()
+    t.join(5)
+    assert over == {"ok": True, "result": None, "rate_limited": True, "retry_after": 7}
+    assert first["r"]["result"] == {"done": True}
+
+
+def test_cap_releases_slot_after_each_request(monkeypatch):
+    app, gate, _ = _cap_app(monkeypatch, 1)
+    gate.set()
+    for _ in range(3):
+        assert app.test_client().post("/slow").get_json()["result"] == {"done": True}
+
+
+def test_cap_zero_disables_it(monkeypatch):
+    app, gate, _ = _cap_app(monkeypatch, 0)
+    gate.set()
+    assert app.test_client().post("/slow").get_json()["result"] == {"done": True}
+
+
+def test_unauthenticated_caller_does_not_consume_a_slot(monkeypatch):
+    app, gate, _ = _cap_app(monkeypatch, 1, auth_ok=False)
+    gate.set()
+    for _ in range(3):  # would be deferred after the first if a slot were taken while unauthenticated
+        assert app.test_client().post("/slow").get_json().get("rate_limited") is None

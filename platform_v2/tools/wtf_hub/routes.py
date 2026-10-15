@@ -120,6 +120,42 @@ def _auth_ok(req) -> bool:
     return auth == f"Bearer {_HUB_TOKEN}"
 
 
+_ANALYZE_MAX_CONCURRENT = int(os.environ.get("WTF_ANALYZE_MAX_CONCURRENT", "3"))
+_ANALYZE_BUSY_RETRY_S = int(os.environ.get("WTF_ANALYZE_BUSY_RETRY_S", "30"))
+
+
+def _cap_concurrency(limit: int, retry_after: int):
+    """Cap how many requests the wrapped view holds a web thread at once, PER gunicorn worker.
+
+    /api/analyze is synchronous: it holds a gunicorn thread until a model finishes. Measured 2026-10-15 (2.8 h of log) it used 25,469 s of
+    thread time with a 664 s maximum, which starved every other route (the platform answered /health but timed out on / and /login: 35-45 s
+    queueing behind 4 workers x 8 threads). Over the cap we return the SAME rate_limited shape the endpoint already uses for its per-task
+    pacing, so callers (which must honour retry_after) back off with no change, and no web thread is held. limit <= 0 disables the cap.
+    The auth check runs first so an unauthenticated caller can neither consume a slot nor learn the hub is busy.
+    """
+    import functools
+    import threading
+
+    slots = threading.BoundedSemaphore(limit) if limit > 0 else None
+
+    def decorate(view):
+        @functools.wraps(view)
+        def wrapped(*args, **kwargs):
+            if slots is None or not _auth_ok(request):
+                return view(*args, **kwargs)
+            if not slots.acquire(blocking=False):
+                logger.info("[WTFHub] %s at concurrency cap (%d) - deferring", view.__name__, limit)
+                return jsonify({"ok": True, "result": None, "rate_limited": True, "retry_after": retry_after})
+            try:
+                return view(*args, **kwargs)
+            finally:
+                slots.release()
+
+        return wrapped
+
+    return decorate
+
+
 @wtf_hub_bp.route("/")
 @login_required
 def index():
@@ -128,6 +164,7 @@ def index():
 
 
 @wtf_hub_bp.route("/api/analyze", methods=["POST"])
+@_cap_concurrency(_ANALYZE_MAX_CONCURRENT, _ANALYZE_BUSY_RETRY_S)
 def analyze():
     """Dispatch a WTF analysis task to the appropriate News & Media agent.
 

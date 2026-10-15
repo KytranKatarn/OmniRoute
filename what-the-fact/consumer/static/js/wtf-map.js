@@ -111,6 +111,16 @@
     return n;
   }
 
+  /** Append a page-supplied CONSTANT svg fragment to `parent` by PARSING it, never by assigning innerHTML (the rule this file keeps: external
+   *  text never reaches innerHTML). A fragment that does not parse draws nothing; the plate still carries its reading. */
+  function appendFragment(parent, svg) {
+    try {
+      var doc = new global.DOMParser().parseFromString('<svg xmlns="' + SVG_NS + '">' + svg + "</svg>", "image/svg+xml");
+      var kids = doc.documentElement.childNodes;
+      for (var i = 0; i < kids.length; i++) parent.appendChild(global.document.importNode(kids[i], true));
+    } catch (e) { /* no symbol */ }
+  }
+
   function create(opts) {
     var host = typeof opts.el === "string" ? document.getElementById(opts.el) : opts.el;
     if (!host) return null;
@@ -304,7 +314,7 @@
     function drawPoints() {
       gPts.textContent = "";
       offscreen = 0; invalidCount = 0;
-      var drawnPts = [], offPts = [], invalidPts = [];
+      var drawnPts = [], offPts = [], invalidPts = [], platesPlaced = [];
       var def = layerDef(active);
       if (!def || !def.points || !projection) { drawLegend(); return; }
       var wh = size();
@@ -337,6 +347,40 @@
           return;
         }
         drawnPts.push(p);
+        // A point may ask for a GLYPH PLATE (a small weather symbol with its reading beside it) instead of a dot. It is placed only if its box
+        // clears every plate already placed; otherwise it falls back to the dot below, which keeps the tooltip and the click, so crowding can
+        // cost a symbol but never a city. `p.glyph = {svg, label}`: svg is a CONSTANT fragment owned by the page (never data), label is plain
+        // text and is written with textContent.
+        if (p.glyph && p.glyph.svg) {
+          var label = String(p.glyph.label === null || p.glyph.label === undefined ? "" : p.glyph.label);
+          var pw = 22 + label.length * 7, ph = 20;
+          var box = { x: xy[0] - pw / 2, y: xy[1] - ph / 2, w: pw, h: ph };
+          var clear = !platesPlaced.some(function (b) {
+            return box.x < b.x + b.w + 2 && box.x + box.w + 2 > b.x && box.y < b.y + b.h + 2 && box.y + box.h + 2 > b.y;
+          });
+          if (clear) {
+            platesPlaced.push(box);
+            var g = el("g", { transform: "translate(" + xy[0] + "," + xy[1] + ")", class: "wtf-map-pt wtf-map-plate",
+                              opacity: p.faded ? 0.5 : 1, style: "cursor:pointer" });
+            g.appendChild(el("rect", { x: -pw / 2, y: -ph / 2, width: pw, height: ph, rx: 4, fill: "rgba(13,17,23,.78)",
+                                       stroke: p.faded ? "#6b7280" : (p.col || NO_DATA), "stroke-width": p.home ? 2.4 : 1.2,
+                                       "stroke-dasharray": p.faded ? "2,2" : null }));
+            var sym = el("g", { transform: "translate(" + (-pw / 2 + 3) + ",-8) scale(0.667)" });
+            appendFragment(sym, p.glyph.svg);
+            g.appendChild(sym);
+            var tx = el("text", { x: -pw / 2 + 21, y: 0, "dominant-baseline": "central", "font-size": 11.5, "font-weight": 500,
+                                  "font-family": "var(--wtf-font-mono, monospace)", fill: p.faded ? "#9ca3af" : (p.col || "#e5e7eb") });
+            tx.textContent = label;
+            g.appendChild(tx);
+            if (p.tip) {
+              g.addEventListener("mousemove", function (e) { showTip(p.tip, e); });
+              g.addEventListener("mouseleave", hideTip);
+            }
+            if (p.onClick) g.addEventListener("click", function () { p.onClick(p); });
+            gPts.appendChild(g);
+            return;
+          }
+        }
         var c = el("circle", {
           cx: xy[0], cy: xy[1],
           r: p.r === undefined ? 5 : p.r,

@@ -1061,8 +1061,14 @@
   }
 
   function cityPoints(sel) {
+    // Home city first, then fresh before stale: the map places symbol plates in this order and a plate that would overlap an earlier one
+    // falls back to a dot, so the order decides who keeps the symbol when cities crowd (Toronto/Ottawa/Montreal, the Maritimes).
     return ((CITIES && CITIES.cities) || []).filter(function (c) {
       return c.lat !== null && c.lon !== null && (!sel || c.prov === sel);
+    }).sort(function (a, b) {
+      var ra = (homeCity && a.name === homeCity ? 0 : 2) + (cityIsFresh(a) ? 0 : 1);
+      var rb = (homeCity && b.name === homeCity ? 0 : 2) + (cityIsFresh(b) ? 0 : 1);
+      return ra - rb;
     }).map(function (c) {
       var fresh = cityIsFresh(c);
       var lines = [c.name];
@@ -1078,10 +1084,15 @@
         lines.push(c.temp === null ? "no current reading"
                  : "reading " + Math.round(c.age_min / 60) + "h old — shown as stale");
       }
+      // A symbol plate (symbol + temperature) when the city has a glyph AND a reading; otherwise the plain dot. WX_GLYPHS holds CONSTANT SVG
+      // fragments from wx_symbols.py, so handing one to the map as markup carries no data into innerHTML.
+      var g = c.glyph && c.temp !== null ? WX_GLYPHS[c.glyph] : null;
       return {
         lat: c.lat, lon: c.lon, r: 6,
         col: fresh ? WTFMap.ramp(TEMP_STOPS, c.temp) : WTFMap.NO_DATA,
         faded: !fresh,
+        home: !!homeCity && c.name === homeCity,
+        glyph: g ? { svg: g, label: c.temp + "\u00b0" } : null,
         tip: lines.join(" · ")
       };
     });

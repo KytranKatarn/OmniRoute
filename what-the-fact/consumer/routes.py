@@ -136,6 +136,8 @@ def _fetch_creed_scan() -> dict | None:
 
 
 _WELFARE_CACHE: dict = {}
+_WELFARE_FETCH_TIMEOUT_S = 12
+_WELFARE_RETRY_AFTER_FAIL_S = 30   # with no data yet, a failed fetch is not retried (and waited on) by every request for this long
 _WELFARE_CACHE_TTL = 120  # 2 min — welfare is live data
 
 
@@ -185,7 +187,9 @@ def _fetch_welfare() -> dict:
         f"{hub_url}/tools/department-hq/api/creed/fleet-agents",
         headers=headers,
     )
-    with urllib.request.urlopen(req, timeout=3) as resp:
+    # 12 s, not 3: the hub caches this endpoint for 60 s and REBUILDS it on demand, and a rebuild takes ~5.2 s (measured 2026-10-15: 0.13 s on a hit, 5.1-5.4 s
+    # on a miss). A 3 s timeout failed on every rebuild, so roughly a third of first-fetches returned no welfare and the page fell back to a false "Active".
+    with urllib.request.urlopen(req, timeout=_WELFARE_FETCH_TIMEOUT_S) as resp:
         data = json.loads(resp.read())
     seen: set = set()
     lookup: dict = {}
@@ -216,7 +220,13 @@ def _get_welfare_lookup() -> dict:
     #3356 bug). 2-min TTL, stale-while-revalidate (#5726), fails open so
     /team always renders.
     """
-    return _swr(_WELFARE_CACHE, _WELFARE_CACHE_TTL, _fetch_welfare)
+    cache = _WELFARE_CACHE
+    if cache.get("data") is None and time.time() - cache.get("failed_at", 0.0) < _WELFARE_RETRY_AFTER_FAIL_S:
+        return {}                         # a recent attempt failed and we hold nothing: do not make every visitor wait on the hub again
+    data = _swr(cache, _WELFARE_CACHE_TTL, _fetch_welfare)
+    if cache.get("data") is None and not data:
+        cache["failed_at"] = time.time()
+    return data
 
 
 # Platform shift states (CLAUDE.md): active, deployed, barracked, off_duty,
@@ -253,7 +263,11 @@ def _team_badge(welfare):
     label = _SHIFT_STATE_LABELS.get(shift)
     if label:
         return label, shift == "active"
-    return "Active", True
+    if shift:                                       # a state this table does not know yet: report the platform's own word, never a guess
+        return shift.replace("_", " ").capitalize(), False
+    # No welfare data at all. This used to read "Active", which is itself a claim, and a false one for an agent that is off duty (live, 2026-10-15,
+    # while the footnote said "Welfare is live"). Say what is true: we do not know right now.
+    return "Status unavailable", False
 
 
 def _team_work_label(fact_checks: int, bias_scores: int) -> str:

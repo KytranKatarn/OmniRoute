@@ -102,21 +102,45 @@ def test_all_six_platform_shift_states_map_to_a_real_label():
         assert label != "" and label is not None
 
 
-def test_missing_welfare_fails_open_to_active():
+def test_missing_welfare_says_status_unavailable_not_active():
+    # CHANGED 2026-10-15: this used to fail open to "Active", which asserted a state we did not know (live: I.N.K. is off duty, the card said Active).
     label, is_active = R._team_badge(None)
-    assert (label, is_active) == ("Active", True)
+    assert (label, is_active) == ("Status unavailable", False)
 
 
-def test_empty_welfare_dict_fails_open_to_active():
+def test_empty_welfare_dict_says_status_unavailable_not_active():
     label, is_active = R._team_badge({})
-    assert (label, is_active) == ("Active", True)
+    assert (label, is_active) == ("Status unavailable", False)
 
 
-def test_unrecognized_shift_state_fails_open_never_fabricates_a_specific_state():
-    # A future platform shift-state value this table doesn't know about yet
-    # must never be reported as a specific (possibly wrong) non-active state.
+def test_unrecognized_shift_state_reports_the_platforms_own_word_never_active():
+    # A future platform shift-state value this table does not know yet is shown as the platform's own word, never guessed and never as "Active".
     label, is_active = R._team_badge({"shift_state": "some_future_state"})
-    assert (label, is_active) == ("Active", True)
+    assert (label, is_active) == ("Some future state", False)
+
+
+def test_welfare_fetch_timeout_outlasts_the_hubs_cache_rebuild():
+    # The hub rebuilds fleet-agents in ~5.2 s on a cache miss; a timeout at or under that fails every rebuild.
+    assert R._WELFARE_FETCH_TIMEOUT_S >= 10
+
+
+def test_a_failed_first_fetch_is_not_retried_by_every_request(monkeypatch):
+    calls = []
+    monkeypatch.setattr(R, "_WELFARE_CACHE", {})
+
+    def boom():
+        calls.append(1)
+        raise OSError("hub down")
+
+    monkeypatch.setattr(R, "_fetch_welfare", boom)
+    assert R._get_welfare_lookup() == {} and R._get_welfare_lookup() == {} and R._get_welfare_lookup() == {}
+    assert len(calls) == 1, "one failed attempt, then the 30 s back-off"
+
+
+def test_a_later_success_is_picked_up_after_the_backoff(monkeypatch):
+    monkeypatch.setattr(R, "_WELFARE_CACHE", {"failed_at": 0.0})      # failure long ago
+    monkeypatch.setattr(R, "_fetch_welfare", lambda: {"F.A.C.T.": {"welfare_score": 80, "shift_state": "active"}})
+    assert R._get_welfare_lookup()["F.A.C.T."]["welfare_score"] == 80
 
 
 # ────────────────────────── _team_work_label ──────────────────────────────
@@ -190,9 +214,11 @@ def test_active_agent_still_shows_the_green_active_badge():
     assert 'wtf-badge-active">Active<' in html
 
 
-def test_agent_with_no_welfare_data_fails_open_to_active_badge():
+def test_agent_with_no_welfare_data_says_status_unavailable_never_active():
+    # CHANGED 2026-10-15 (was: fails open to the green Active badge). With the hub's welfare feed missing, the card must not assert a state.
     html = _render(agents=[_agent("A.U.R.O.R.A.", None)])
-    assert 'wtf-badge-active">Active<' in html
+    assert 'wtf-badge-soon">Status unavailable<' in html
+    assert ">Active<" not in html and 'wtf-badge-active' not in html.split("Status unavailable")[0].rsplit("wtf-team-card", 1)[-1]
 
 
 def test_dept_agent_card_shows_the_split_work_label():

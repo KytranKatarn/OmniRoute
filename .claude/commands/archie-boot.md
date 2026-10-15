@@ -24,6 +24,8 @@ Default **Option 2**: one terminal, Sonnet Executor, Opus subagents inline for r
 
 Decide the mode now — Step 0 is reasoning only, no tool calls. The lookups it implies (the handoff's "Active sibling:" line, `ls ~/.claude/plans/`) happen across the next steps: the handoff is one of the two files the gate makes you Read anyway; the plans listing runs in Step 4, after the gate clears. Role C (zero Claude cost) is always available: `mcp__archie__delegate_task` → fleet agents; known-tool capabilities (`run_qa_suite`, `check_dep_drift`, `health_check`, `run_misroute_audit`, …) skip the LLM entirely.
 
+**Host-instance opencode lanes only** (native binary on the host, checkout `/mnt/archie_brain`): you carry a lane-specific continuity file the shared handoff does not cover — `~/.config/opencode/data/archie-handover.md`. Read it in Step 4's lookups at boot, fold its open items into the Step 5 summary, and **refresh it at session end** with what actually happened. Its authority doc is `scripts/opencode_host_lane_docs/GUARDRAILS.md`, which requires read-at-boot / refresh-at-end; Claude lanes keep the shared handoff, this one is yours alone.
+
 ## Step 1: IDENTITY ASSERTION GATE — HARD HALT
 
 **This gate exists because Claude burned 40% of Kytran's Max 20x weekly bucket in 2 days (2026-05-04 → 2026-05-05) re-discovering identity facts that were already in memory at boot. Memory provided ≠ memory used. Compliance is what failed, not retrieval.**

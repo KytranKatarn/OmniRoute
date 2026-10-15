@@ -171,7 +171,11 @@ class TestCallSites:
 
     def test_warm_check_call_site_uses_the_matcher(self):
         src = self._src()
-        assert "_model_is_warm(next_model, all_warm_by_model)" in src
+        # #6080: step 4 no longer tests membership inline — it asks
+        # `_cold_load_candidates`, which answers with `_model_is_warm`. That helper
+        # must stay the ONE place "is this model warm?" is decided.
+        assert "_model_is_warm(model, warm_by_model)" in src
+        assert "_cold_load_candidates(all_warm_by_model" in src
         assert not re.search(
             r"next_model\s+not\s+in\s+all_warm_by_model", src
         ), "the raw membership test is back — bare vs :latest will always miss"

@@ -60,10 +60,10 @@
 /* Lean marker bar (design-handoff/wtf-sources.html, reduced to what the data supports: the outlet's single rolling mean, not its band range).
    The bar is the five lean tokens left to right; the tick sits at (score+1)/2 of the width. Drawn only for an outlet at or above the MIN_N floor,
    so an unmeasured outlet shows no tick at all rather than a tick in the middle. */
-.wtf-src-bar { position:relative; height:5px; border-radius:3px; margin:9px 0 3px;
+.wtf-src-bar { display:block; width:100%; position:relative; height:5px; border-radius:3px; margin:9px 0 3px;
   background:linear-gradient(to right, var(--wtf-left), var(--wtf-center-left), var(--wtf-center), var(--wtf-center-right), var(--wtf-right)); opacity:.85; }
 .wtf-src-tick { position:absolute; top:-3px; width:3px; height:11px; border-radius:1px; background:var(--wtf-text); box-shadow:0 0 0 1px var(--wtf-bg, #0d1117); transform:translateX(-50%); }
-.wtf-src-bar-l { display:flex; justify-content:space-between; font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.06em; color:var(--wtf-text-muted); }
+.wtf-src-bar-l { width:100%; display:flex; justify-content:space-between; font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.06em; color:var(--wtf-text-muted); }
 .wtf-src-filters { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 12px; }
 .wtf-src-filters[hidden] { display:none; }
 .wtf-src-chip { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.06em; padding:5px 11px; border-radius:999px; cursor:pointer;
@@ -90,7 +90,7 @@
     {'label': 'Outlets tracked', 'value': stats.outlets, 'detail': stats.measured ~ ' with a measured band'},
     {'label': 'Articles scored', 'value': '{:,}'.format(stats.scored_articles), 'detail': 'in the current scoring window'},
     {'label': 'Owners', 'value': stats.owners, 'detail': 'distinct owner groups'},
-    {'label': 'Ownership', 'value': stats.types.public ~ ' · ' ~ stats.types.corporate ~ ' · ' ~ stats.types.non_profit ~ ' · ' ~ stats.types.independent, 'detail': 'public · corporate · non-profit · independent'},
+    {'label': 'Public outlets', 'value': stats.types.public, 'detail': 'of ' ~ stats.outlets ~ ' · ' ~ stats.types.corporate ~ ' corporate, ' ~ stats.types.non_profit ~ ' non-profit, ' ~ stats.types.independent ~ ' independent'},
   ]) }}
   {% endif %}
 

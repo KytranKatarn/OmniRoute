@@ -36,9 +36,11 @@
     border: 1px solid var(--wtf-border); border-radius: 6px; color: var(--wtf-text);
   }
   .wtf-rd-chart { margin: 8px 0 4px; display: grid; gap: 5px; }
-  .wtf-rd-chart a { display: grid; grid-template-columns: 38px 1fr 34px; gap: 10px; align-items: center; text-decoration: none; color: var(--wtf-text-2);
+  .wtf-rd-chart a { display: grid; grid-template-columns: minmax(96px, 180px) 1fr 34px; gap: 10px; align-items: center; text-decoration: none; color: var(--wtf-text-2);
                     font-family: var(--wtf-font-mono); font-size: 0.7rem; }
   .wtf-rd-chart a:hover .wtf-rd-fill { background: var(--wtf-accent); }
+  /* full province names, not 2-letter codes: the label column must be wide enough for "Newfoundland and Labrador" without overlapping its bar */
+  .wtf-rd-chart a > span:first-child { overflow-wrap: anywhere; line-height: 1.25; }
   .wtf-rd-chart a[aria-current="true"] { color: var(--wtf-text); }
   .wtf-rd-track { height: 9px; border-radius: 5px; background: var(--wtf-bg-card); border: 1px solid var(--wtf-border); overflow: hidden; }
   .wtf-rd-fill { display: block; height: 100%; background: var(--wtf-text-muted); }

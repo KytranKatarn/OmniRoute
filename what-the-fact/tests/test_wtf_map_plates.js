@@ -86,6 +86,19 @@ const dots = a => a.filter(n => n.tag === "circle" && n.attrs.class === "wtf-map
   r = await run([{ lat: 50, lon: -100, col: "#0f0", tip: "t", onClick: () => clicked++, glyph: { svg: SVG, label: "9°" } }]);
   const pl = plates(r.all)[0]; pl.listeners.click && pl.listeners.click();
   ok(clicked === 1 && !!pl.listeners.mousemove, "plate keeps click and tooltip");
+  // 8. a plate for a city at the map edge is moved inward, never clipped (St. John's, live 2026-10-15). With the stub projection x = (lon+141)*5 and the
+  // host is 800 wide, so lon 18 lands at x = 795: the plate (half-width 28) would overhang the edge if it were not clamped.
+  r = await run([{ lat: 50, lon: 18, col: "#0f0", glyph: { svg: SVG, label: "12.8\u00b0" } }]);
+  const ed = plates(r.all)[0];
+  if (ed) { const m = /translate\(([-\d.]+),([-\d.]+)\)/.exec(ed.attrs.transform); const half = (22 + "12.8\u00b0".length * 7) / 2;
+    ok(parseFloat(m[1]) + half <= 800 && parseFloat(m[1]) - half >= 0, "an edge plate is clamped inside the map (translate x " + m[1] + ", half-width " + half + ")"); }
+  else ok(false, "edge plate was drawn");
+  // 9. the dot of a crowded city is drawn BEFORE (under) every plate
+  r = await run([{ lat: 50, lon: -100, col: "#0f0", glyph: { svg: SVG, label: "12\u00b0" } }, { lat: 50.1, lon: -100.1, col: "#0f0", glyph: { svg: SVG, label: "13\u00b0" } }]);
+  const pts = r.all.find(n => (n.attrs.class || "") === "wtf-map-points");
+  const order = pts ? pts.children.map(n => (n.attrs.class || "").indexOf("plate") >= 0 ? "plate" : "dot") : [];
+  ok(order.join() === "dot,plate", "fallback dot sits under the plate (order: " + order.join() + ")");
+
   console.log(`  ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })();

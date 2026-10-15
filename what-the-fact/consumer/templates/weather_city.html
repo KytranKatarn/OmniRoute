@@ -5,6 +5,7 @@
 <meta name="description" content="Current conditions and forecast for {{ city.name }}, {{ city.prov }} — from Environment and Climate Change Canada, via What The Fact.">
 {% endblock %}
 {% block content %}
+<div class="wtf-pg-container">
 {# /weather/city/<name> renders only what is ingested: current conditions, the forecast periods, and (task 7235) the next 24 hours, sunrise and
    sunset, yesterday, and the regional normal, all from the MSC city-page feed. The mockup's 14-day outlook, AQI dial, moon panel and 30-day outlook
    are still NOT built: there is no data behind them. Symbols are the constant SVG fragments from consumer/wx_symbols.py (no data inside them). #}
@@ -218,4 +219,5 @@ button.wtf-wxc-back { cursor:pointer; }
   paint();
 })();
 </script>
+</div>
 {% endblock %}

@@ -318,7 +318,7 @@
     function drawPoints() {
       gPts.textContent = "";
       offscreen = 0; invalidCount = 0;
-      var drawnPts = [], offPts = [], invalidPts = [], platesPlaced = [];
+      var drawnPts = [], offPts = [], invalidPts = [], platesPlaced = [], plateNodes = [];
       var def = layerDef(active);
       if (!def || !def.points || !projection) { drawLegend(); return; }
       var wh = size();
@@ -358,13 +358,16 @@
         if (p.glyph && p.glyph.svg) {
           var label = String(p.glyph.label === null || p.glyph.label === undefined ? "" : p.glyph.label);
           var pw = 22 + label.length * 7, ph = 20;
-          var box = { x: xy[0] - pw / 2, y: xy[1] - ph / 2, w: pw, h: ph };
+          // Keep the whole plate on the map: a city on the far east or north edge (St. John's) would otherwise have its reading clipped by the SVG edge.
+          // The plate moves inward; the tooltip still names the city.
+          var cx = Math.min(Math.max(xy[0], pw / 2 + 2), wh[0] - pw / 2 - 2), cy = Math.min(Math.max(xy[1], ph / 2 + 2), wh[1] - ph / 2 - 2);
+          var box = { x: cx - pw / 2, y: cy - ph / 2, w: pw, h: ph };
           var clear = !platesPlaced.some(function (b) {
             return box.x < b.x + b.w + 2 && box.x + box.w + 2 > b.x && box.y < b.y + b.h + 2 && box.y + box.h + 2 > b.y;
           });
           if (clear) {
             platesPlaced.push(box);
-            var g = el("g", { transform: "translate(" + xy[0] + "," + xy[1] + ")", class: "wtf-map-pt wtf-map-plate",
+            var g = el("g", { transform: "translate(" + cx + "," + cy + ")", class: "wtf-map-pt wtf-map-plate",
                               opacity: p.faded ? 0.5 : 1, style: "cursor:pointer" });
             g.appendChild(el("rect", { x: -pw / 2, y: -ph / 2, width: pw, height: ph, rx: 4, fill: "rgba(13,17,23,.78)",
                                        stroke: p.faded ? "#6b7280" : (p.col || NO_DATA), "stroke-width": p.home ? 2.4 : 1.2,
@@ -381,7 +384,7 @@
               g.addEventListener("mouseleave", hideTip);
             }
             if (p.onClick) g.addEventListener("click", function () { p.onClick(p); });
-            gPts.appendChild(g);
+            plateNodes.push(g);   // appended after the loop, so a fallback dot can never be drawn over a plate's text
             return;
           }
         }
@@ -402,6 +405,7 @@
         if (p.onClick) c.addEventListener("click", function () { p.onClick(p); });
         gPts.appendChild(c);
       });
+      plateNodes.forEach(function (n) { gPts.appendChild(n); });
       drawLegend();
       // The page gets the two lists so its own legend can describe what is on
       // SCREEN rather than what was handed in.

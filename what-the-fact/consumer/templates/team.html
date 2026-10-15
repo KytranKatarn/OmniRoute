@@ -137,9 +137,9 @@
 {% endif %}
 {% if unattributed_tiers %}
 <div class="wtf-team-section-note" style="margin-top:6px">
-  Unattributed bias scores, by how they were produced (the Tier-1 quick model records no agent):
+  Unattributed fact-checks, by how they were produced (the Tier-1 quick model records no agent):
   {% for u in unattributed_tiers %}{{ u.label }} {{ u.events | int }}{{ ' · ' if not loop.last }}{% endfor %}.
-  Fact-checks carry no tier record.
+  Bias scores carry no tier record.
 </div>
 {% endif %}
 {% endif %}

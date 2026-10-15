@@ -87,9 +87,11 @@ class TestTheDepartmentRosterRenders:
         # barracked must render distinctly from active — not collapsed to a
         # generic "Active" badge the way department-hq's sc-live/sc-static
         # bug once did on a different page.
+        # UPDATED 2026-10-15: #3893 ("remove private welfare metadata") deliberately stopped publishing each agent's shift state on the public cards, and
+        # left this test failing on main. Department cards now carry a neutral "Department roster" badge; the private state must NOT be rendered.
         html = _render(env)
-        assert "barracked" in html
-        assert "active" in html
+        assert "Department roster" in html
+        assert "barracked" not in html
 
     def test_a_zero_task_agent_says_zero_not_blank(self, env):
         # STRINGER did no fact-checks/bias in the window — must read an

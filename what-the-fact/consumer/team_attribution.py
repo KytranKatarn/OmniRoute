@@ -1,8 +1,9 @@
 """Small pure helpers for /team: card initials, and an honest breakdown of the 'unattributed' work.
 
 Pure and stdlib-only. Found 2026-10-15: the 'Who actually did the work' chart showed only 'unattributed' (5,941), because in a given 24 h window almost
-no row records an agent. Over 24 h only ~3.5% of bias scores name one: the Tier-1 quick model, which produces most of them, records no agent at all.
-'Unattributed' is true but unhelpful when the tier that produced the work IS recorded, so the bucket is explained by tier instead of left opaque.
+no row records an agent. Over 24 h only ~3.5% of FACT-CHECKS name one (166 of ~4,700); ~3,000 came from the Tier-1 quick model, which records no agent at all.
+(analysis_tier exists on wtf.fact_checks only, not on bias_scores.) 'Unattributed' is true but unhelpful when the tier IS recorded, so the bucket is
+explained by tier instead of left opaque.
 """
 
 import re
@@ -23,7 +24,7 @@ def initials(name, length=2):
 
 
 def unattributed_breakdown(by_tier):
-    """[{'label', 'events'}] largest first, from {analysis_tier: count} for bias scores with no agent recorded. Unknown or empty tiers are grouped as NO_TIER."""
+    """[{'label', 'events'}] largest first, from {analysis_tier: count} for fact-checks with no agent recorded. Unknown or empty tiers are grouped as NO_TIER."""
     merged = {}
     for tier, n in (by_tier or {}).items():
         n = int(n or 0)

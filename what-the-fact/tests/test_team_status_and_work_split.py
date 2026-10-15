@@ -119,28 +119,93 @@ def test_unrecognized_shift_state_reports_the_platforms_own_word_never_active():
     assert (label, is_active) == ("Some future state", False)
 
 
+def _wait_idle(cache, limit=3.0):
+    """The cold fetch runs in a background thread: wait for it to finish (it is the thing under test, not a race to win)."""
+    import time as _t
+    end = _t.time() + limit
+    while _t.time() < end and cache.get("refreshing"):
+        _t.sleep(0.01)
+
+
 def test_welfare_fetch_timeout_outlasts_the_hubs_cache_rebuild():
-    # The hub rebuilds fleet-agents in ~5.2 s on a cache miss; a timeout at or under that fails every rebuild.
-    assert R._WELFARE_FETCH_TIMEOUT_S >= 10
+    # The hub rebuilds fleet-agents in ~5 s at light load and >12 s under load; the (background) fetch must outlast that.
+    assert R._WELFARE_FETCH_TIMEOUT_S >= 20
+
+
+def test_a_cold_cache_never_makes_a_visitor_wait_on_the_hub(monkeypatch):
+    import time as _t
+    cache = {}
+    monkeypatch.setattr(R, "_WELFARE_CACHE", cache)
+    monkeypatch.setattr(R, "_fetch_welfare", lambda: (_t.sleep(0.4), {"F.A.C.T.": {"welfare_score": 80, "shift_state": "active"}})[1])
+    t0 = _t.time()
+    first = R._get_welfare_lookup()
+    assert first == {} and _t.time() - t0 < 0.2, "the visitor must be answered at once with nothing, not held for the fetch"
+    _wait_idle(cache)
+    assert R._get_welfare_lookup()["F.A.C.T."]["welfare_score"] == 80, "the background fetch fills the cache for the next visitor"
+
+
+def test_only_one_background_fetch_runs_at_a_time(monkeypatch):
+    import time as _t
+    calls = []
+    cache = {}
+    monkeypatch.setattr(R, "_WELFARE_CACHE", cache)
+
+    def slow():
+        calls.append(1)
+        _t.sleep(0.3)
+        return {"X": {"welfare_score": 1}}
+
+    monkeypatch.setattr(R, "_fetch_welfare", slow)
+    for _ in range(8):
+        R._get_welfare_lookup()
+    _wait_idle(cache)
+    assert len(calls) == 1
 
 
 def test_a_failed_first_fetch_is_not_retried_by_every_request(monkeypatch):
     calls = []
-    monkeypatch.setattr(R, "_WELFARE_CACHE", {})
+    cache = {}
+    monkeypatch.setattr(R, "_WELFARE_CACHE", cache)
 
     def boom():
         calls.append(1)
         raise OSError("hub down")
 
     monkeypatch.setattr(R, "_fetch_welfare", boom)
-    assert R._get_welfare_lookup() == {} and R._get_welfare_lookup() == {} and R._get_welfare_lookup() == {}
-    assert len(calls) == 1, "one failed attempt, then the 30 s back-off"
+    assert R._get_welfare_lookup() == {}
+    _wait_idle(cache)
+    assert R._get_welfare_lookup() == {} and R._get_welfare_lookup() == {}
+    _wait_idle(cache)
+    assert len(calls) == 1, "one failed background attempt, then the 30 s back-off"
 
 
 def test_a_later_success_is_picked_up_after_the_backoff(monkeypatch):
-    monkeypatch.setattr(R, "_WELFARE_CACHE", {"failed_at": 0.0})      # failure long ago
+    cache = {"failed_at": 0.0}                                          # a failure long ago
+    monkeypatch.setattr(R, "_WELFARE_CACHE", cache)
     monkeypatch.setattr(R, "_fetch_welfare", lambda: {"F.A.C.T.": {"welfare_score": 80, "shift_state": "active"}})
+    R._get_welfare_lookup()
+    _wait_idle(cache)
     assert R._get_welfare_lookup()["F.A.C.T."]["welfare_score"] == 80
+
+
+def test_once_there_is_data_a_stale_entry_is_served_while_it_refreshes(monkeypatch):
+    import time as _t
+    cache = {"data": {"OLD": {}}, "ts": _t.time() - 10_000}          # expired
+    monkeypatch.setattr(R, "_WELFARE_CACHE", cache)
+    monkeypatch.setattr(R, "_fetch_welfare", lambda: (_t.sleep(0.2), {"NEW": {}})[1])
+    t0 = _t.time()
+    assert "OLD" in R._get_welfare_lookup() and _t.time() - t0 < 0.15, "stale data is served immediately"
+    import threading
+    for th in threading.enumerate():
+        if th is not threading.current_thread() and th.daemon:
+            th.join(timeout=1)
+    assert "NEW" in R._get_welfare_lookup()
+
+
+def test_portraits_use_the_same_non_blocking_path():
+    src = open(R.__file__, encoding="utf-8").read()
+    assert "_warm_lookup(_PORTRAIT_CACHE, _PORTRAIT_CACHE_TTL, _fetch_portraits)" in src
+    assert "_warm_lookup(_WELFARE_CACHE, _WELFARE_CACHE_TTL, _fetch_welfare)" in src
 
 
 # ────────────────────────── _team_work_label ──────────────────────────────

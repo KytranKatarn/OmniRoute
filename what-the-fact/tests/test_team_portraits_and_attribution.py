@@ -87,7 +87,7 @@ class TestAttributionExplained:
     def test_only_unattributed_says_so_and_explains_by_tier(self, env):
         h = _render(env, roster_rows=self.ONLY_UNATTR, unattributed_tiers=[{"label": "Tier-1 quick triage (small model)", "events": 2972}, {"label": TA.NO_TIER, "events": 1290}])
         assert "No named agent was recorded for any work in this window." in h
-        assert "Tier-1 quick triage (small model) 2972" in h and "no tier recorded 1290" in h and "Fact-checks carry no tier record." in h
+        assert "Tier-1 quick triage (small model) 2972" in h and "no tier recorded 1290" in h and "Bias scores carry no tier record." in h and "Unattributed fact-checks" in h
 
     def test_named_rows_present_means_no_none_recorded_message(self, env):
         h = _render(env, roster_rows=[{"label": "V.E.R.I.F.Y.", "value": 39}, {"label": "unattributed", "value": 100}])
@@ -95,6 +95,16 @@ class TestAttributionExplained:
 
     def test_no_breakdown_no_extra_line(self, env):
         assert "by how they were produced" not in _render(env, roster_rows=self.ONLY_UNATTR)
+
+    def test_the_tier_query_targets_fact_checks_because_bias_scores_has_no_such_column(self):
+        """analysis_tier exists on wtf.fact_checks ONLY. An earlier version queried bias_scores, raised UndefinedColumn, and the best-effort wrapper hid it."""
+        src = (ROOT / "consumer" / "routes.py").read_text()
+        i = src.index("def _newsroom_agents")
+        body = src[i:src.index("_AGENT_SOURCES", i)]
+        q = body[body.index("SELECT COALESCE(analysis_tier"):]
+        q = q[:q.index("GROUP BY 1")]
+        assert "fact_checks fc" in q and "bias_scores" not in q
+        assert "logger.warning(\"team: unattributed-by-tier query failed\", exc_info=True)" in body, "a failure here must be logged, not swallowed silently"
 
     def test_route_passes_the_breakdown_and_portraits(self):
         src = (ROOT / "consumer" / "routes.py").read_text()

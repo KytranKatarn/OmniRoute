@@ -136,7 +136,7 @@ def _fetch_creed_scan() -> dict | None:
 
 
 _WELFARE_CACHE: dict = {}
-_WELFARE_FETCH_TIMEOUT_S = 12
+_WELFARE_FETCH_TIMEOUT_S = 30    # background fetch only: a visitor never waits on it (see _warm_lookup). The hub's rebuild measured 5 s at light load and >12 s under load.
 _WELFARE_RETRY_AFTER_FAIL_S = 30   # with no data yet, a failed fetch is not retried (and waited on) by every request for this long
 _WELFARE_CACHE_TTL = 120  # 2 min — welfare is live data
 
@@ -220,13 +220,34 @@ def _get_welfare_lookup() -> dict:
     #3356 bug). 2-min TTL, stale-while-revalidate (#5726), fails open so
     /team always renders.
     """
-    cache = _WELFARE_CACHE
-    if cache.get("data") is None and time.time() - cache.get("failed_at", 0.0) < _WELFARE_RETRY_AFTER_FAIL_S:
-        return {}                         # a recent attempt failed and we hold nothing: do not make every visitor wait on the hub again
-    data = _swr(cache, _WELFARE_CACHE_TTL, _fetch_welfare)
-    if cache.get("data") is None and not data:
+    return _warm_lookup(_WELFARE_CACHE, _WELFARE_CACHE_TTL, _fetch_welfare)
+
+
+def _warm_lookup(cache: dict, ttl: int, fetch_fn) -> dict:
+    """Stale-while-revalidate whose FIRST fetch is also off the request path.
+
+    `_swr` makes the first request per worker wait for the hub. Under hub load that wait ran to the full timeout (12 s measured live 2026-10-15) and then
+    returned nothing anyway. Here a cold cache answers {} immediately, starts one background fetch, and the page degrades honestly meanwhile (welfare pills
+    omitted, "Status unavailable"). A failed fetch is not retried for _WELFARE_RETRY_AFTER_FAIL_S, so an outage costs one background call, not one per visitor.
+    Once there is data, behaviour is exactly `_swr` (serve stale, refresh in the background).
+    """
+    if cache.get("data") is not None:
+        return _swr(cache, ttl, fetch_fn)
+    if not cache.get("refreshing") and time.time() - cache.get("failed_at", 0.0) >= _WELFARE_RETRY_AFTER_FAIL_S:
+        cache["refreshing"] = True
+        threading.Thread(target=_warm_refresh, args=(cache, fetch_fn), daemon=True).start()
+    return {}
+
+
+def _warm_refresh(cache: dict, fetch_fn) -> None:
+    try:
+        cache["data"] = fetch_fn()
+        cache["ts"] = time.time()
+    except Exception:  # noqa: BLE001 - fail open: the page renders without the lookup
         cache["failed_at"] = time.time()
-    return data
+        logger.warning("team: background lookup failed", exc_info=True)
+    finally:
+        cache["refreshing"] = False
 
 
 # Platform shift states (CLAUDE.md): active, deployed, barracked, off_duty,
@@ -296,7 +317,7 @@ def _fetch_portraits() -> dict:
         f"{_PLATFORM}/api/public/directory",
         headers={"Accept": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=5) as resp:
+    with urllib.request.urlopen(req, timeout=_WELFARE_FETCH_TIMEOUT_S) as resp:   # background fetch: nobody waits on it
         data = json.loads(resp.read())
     return {
         a["display_name"]: a.get("avatar_thumb_url") or a.get("avatar_url")
@@ -308,7 +329,7 @@ def _fetch_portraits() -> dict:
 def _get_portrait_lookup() -> dict:
     """Return {display_name: portrait_url} from the platform directory.
     1h TTL, stale-while-revalidate (#5726)."""
-    return _swr(_PORTRAIT_CACHE, _PORTRAIT_CACHE_TTL, _fetch_portraits)
+    return _warm_lookup(_PORTRAIT_CACHE, _PORTRAIT_CACHE_TTL, _fetch_portraits)
 
 
 def _db():
@@ -2172,20 +2193,22 @@ def _newsroom_agents(S):
         """)).mappings().all()
     agents = [dict(r) for r in rows if r["agent"]]
     unattributed = sum(int(r["events"]) for r in rows if not r["agent"])
-    # How the unattributed BIAS scores were produced. fact_checks carries no tier column, so its share stays "not recorded".
+    # How the unattributed FACT-CHECKS were produced. `analysis_tier` exists on wtf.fact_checks ONLY: wtf.bias_scores has no such column (an earlier version of
+    # this query targeted bias_scores, raised UndefinedColumn, and the best-effort wrapper below hid it, so the explanation never rendered).
     try:
         with _db().begin() as c:
             c.execute(text("SET LOCAL jit = off"))
             tier_rows = c.execute(text(f"""
                 SELECT COALESCE(analysis_tier, '') AS tier, COUNT(*) AS n
-                  FROM {S}.bias_scores bs
-                 WHERE computed_at > NOW() - INTERVAL '24 hours'
+                  FROM {S}.fact_checks fc
+                 WHERE checked_at > NOW() - INTERVAL '24 hours'
                    AND COALESCE(agent_name, '') = ''
-                   AND EXISTS (SELECT 1 FROM {S}.articles a WHERE a.id = bs.article_id AND a.suppressed_reason IS NULL)
+                   AND EXISTS (SELECT 1 FROM {S}.articles a WHERE a.id = fc.article_id AND a.suppressed_reason IS NULL)
                  GROUP BY 1
             """)).mappings().all()
         by_tier = {r["tier"]: int(r["n"]) for r in tier_rows}
     except Exception:  # noqa: BLE001 - the breakdown is an explanation; the chart must still render without it
+        logger.warning("team: unattributed-by-tier query failed", exc_info=True)   # logged, so a wrong column can never hide again
         by_tier = {}
     return {
         "agents": agents,

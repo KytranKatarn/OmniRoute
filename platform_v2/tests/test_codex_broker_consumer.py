@@ -479,3 +479,60 @@ def test_extended_fields_are_signed(extended_evidence):
     extended_evidence["journal_entries"][0]["payload"]["repo"] = "other/repo"
     extended_evidence["expected"] = replace(extended_evidence["expected"], repo="other/repo")
     assert not verify_current_receipt(**extended_evidence).evidence_verified
+
+
+def _binding(assignment_id, **overrides):
+    binding = {
+        "assignment_id": assignment_id,
+        "disposition": "publication_settled",
+        "sequence": 7,
+        "digest": "b" * 64,
+        "operations": [
+            {"operation_id": "push-1", "operation": "push", "request_id": "req-1", "disposition": "confirmed"}
+        ],
+    }
+    binding.update(overrides)
+    return binding
+
+
+def _with_binding(evidence, keys, binding, settled=True):
+    envelope = json.loads(evidence["blob"])
+    envelope["payload"]["publication_binding"] = binding
+    envelope["payload"]["publication_settled"] = settled
+    evidence["blob"] = canonical_bytes(envelope).decode()
+    evidence["signature"] = sign(evidence["blob"].encode(), keys[0])
+    evidence["journal_entries"][1]["payload"] = {"envelope": evidence["blob"], "trusted": settled}
+    evidence["journal_entries"][1]["signature"] = evidence["signature"]
+    return evidence
+
+
+def test_publication_binding_verified_but_never_authorizes_recovery(evidence, keys):
+    _with_binding(evidence, keys, _binding(evidence["expected"].assignment_id), settled=True)
+    result = verify_current_receipt(**evidence)
+    assert result.evidence_verified and result.code == "terminal_diagnostic_only"
+    assert result.stop_confirmed is False and result.recovery_eligible is False
+
+
+def test_receipt_without_binding_still_verifies(evidence):
+    # The legacy exact-field-set contract is unchanged.
+    result = verify_current_receipt(**evidence)
+    assert result.evidence_verified and result.code == "terminal_diagnostic_only"
+
+
+@pytest.mark.parametrize(
+    "mutate,code",
+    [
+        (lambda b: b.update(extra=1), "binding_invalid"),
+        (lambda b: b.update(digest="x" * 10), "binding_invalid"),
+        (lambda b: b.update(operations="nope"), "binding_invalid"),
+        (lambda b: b["operations"][0].update(operation="rm"), "binding_invalid"),
+        (lambda b: b.update(assignment_id="elsewhere"), "binding_mismatch"),
+        (lambda b: b.update(disposition="unsettled"), "binding_inconsistent"),
+        (lambda b: b["operations"][0].update(disposition="pending"), "binding_inconsistent"),
+    ],
+)
+def test_inconsistent_publication_binding_is_rejected(evidence, keys, mutate, code):
+    binding = _binding(evidence["expected"].assignment_id)
+    mutate(binding)
+    _with_binding(evidence, keys, binding, settled=True)
+    assert verify_current_receipt(**evidence).code == code

@@ -117,6 +117,19 @@ def _signature_valid(raw, signature, pem):
     return True
 
 
+def _verify_publication_binding(binding):
+    """Verify a receipt publication binding via the single-source-of-truth verifier.
+
+    Fails closed if the verifier cannot be imported: an unverifiable binding must
+    never be treated as verified. Returns (code, settled_bool|None).
+    """
+    try:
+        from tools.host_opencode.publication_gate import verify_publication_binding
+    except Exception:
+        return "binding_unverifiable", None
+    return verify_publication_binding(binding)
+
+
 def verify_current_receipt(
     blob: str,
     signature: str,
@@ -172,7 +185,9 @@ def verify_current_receipt(
             "success",
             "observed_at",
         }
-        if not isinstance(payload, dict) or set(payload) != fields:
+        # publication_binding is optional and solely additive: receipts without it
+        # keep the original exact-set contract. When present it is verified below.
+        if not isinstance(payload, dict) or set(payload) not in (fields, fields | {"publication_binding"}):
             return reject("payload_invalid")
         for key in (
             "execution_stopped",
@@ -271,6 +286,18 @@ def verify_current_receipt(
         terminal = payload["execution_stopped"] and payload["publication_settled"] and payload["assignment_sealed"]
         if any(type(e["payload"].get("trusted")) is not bool or e["payload"]["trusted"] != terminal for e in matching):
             return reject("completion_inconsistent")
+        # Optional publication binding: independently verify the fence disposition,
+        # sequence, digest and per-operation outcomes the broker bound into the
+        # receipt. A present-but-inconsistent binding is a hard reject; a missing
+        # binding is simply the legacy receipt and never grants recovery.
+        if "publication_binding" in payload:
+            binding_code, binding_settled = _verify_publication_binding(payload["publication_binding"])
+            if binding_code != "ok":
+                return reject(binding_code)
+            if payload["publication_binding"]["assignment_id"] != expected.assignment_id:
+                return reject("binding_mismatch")
+            if binding_settled != bool(payload["publication_settled"]):
+                return reject("binding_inconsistent")
         return ReceiptObservation(True, "terminal_diagnostic_only" if terminal else "execution_unknown")
     except ImportError:
         return reject("crypto_unavailable")

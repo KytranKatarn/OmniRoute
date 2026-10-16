@@ -76,7 +76,7 @@ class PublicationFence:
             (sequence, assignment, kind, payload, previous, digest),
         )
 
-    def register(self, assignment, *, repo, branch, head_sha, host_id, boot_id):
+    def register(self, assignment, *, repo, branch, head_sha, host_id, boot_id, attempt_id=None, generation=None):
         context = dict(
             repo=repo,
             branch=branch,
@@ -84,6 +84,12 @@ class PublicationFence:
             host_id=host_id,
             boot_id=boot_id,
         )
+        # Optional durable bindings (current attempt / generation). Omitted when
+        # not supplied, so the pre-existing 5-field context contract still holds.
+        if attempt_id is not None:
+            context["attempt_id"] = attempt_id
+        if generation is not None:
+            context["generation"] = generation
         if not all(type(v) is str and v for v in [assignment, *context.values()]):
             raise PublicationBlocked("identity_missing")
         if len(head_sha) != 40 or any(c not in "0123456789abcdef" for c in head_sha):
@@ -96,9 +102,11 @@ class PublicationFence:
                 return
             self._append(conn, assignment, "register", context, sequence, previous)
 
-    def begin(self, assignment, operation_id, *, operation):
+    def begin(self, assignment, operation_id, *, operation, request_id=None):
         if operation not in {"push", "pr_create"} or type(operation_id) is not str or not operation_id:
             raise PublicationBlocked("operation_invalid")
+        if request_id is not None and (type(request_id) is not str or not request_id):
+            raise PublicationBlocked("request_identity_invalid")
         with self._transaction() as conn:
             events, sequence, previous = self._events(conn, assignment)
             if not events or any(e[0] == "stop" for e in events):
@@ -106,14 +114,11 @@ class PublicationFence:
             if any(e[0] == "intent" and e[1]["operation_id"] == operation_id for e in events):
                 # Never grant a second execution capability on a retry, even if identical.
                 raise PublicationBlocked("operation_already_registered")
-            self._append(
-                conn,
-                assignment,
-                "intent",
-                dict(operation_id=operation_id, operation=operation),
-                sequence,
-                previous,
-            )
+            intent = dict(operation_id=operation_id, operation=operation)
+            if request_id is not None:
+                # Retained operation/request identity for independent reconciliation.
+                intent["request_id"] = request_id
+            self._append(conn, assignment, "intent", intent, sequence, previous)
 
     def stop(self, assignment):
         with self._transaction() as conn:
@@ -159,6 +164,38 @@ class PublicationFence:
                     settled=False,
                     recovery_eligible=False,
                 )
+        except (
+            OSError,
+            sqlite3.Error,
+            ValueError,
+            TypeError,
+            KeyError,
+            PublicationBlocked,
+        ):
+            return None
+
+    def snapshot(self, assignment, *, expected):
+        """Ordered, continuity-checked view of one assignment's journal events.
+
+        Diagnostic only. Callers MUST compare the returned sequence/digest against
+        an externally pinned value: a rewritten/truncated journal (tail rollback)
+        is internally consistent and cannot be detected here. Never auto-provisions.
+        """
+        try:
+            with self._transaction() as conn:
+                events, sequence, digest = self._events(conn, assignment)
+                if not events or events[0][0] != "register" or events[0][1] != expected:
+                    raise PublicationBlocked("assignment_context_mismatch")
+                return {
+                    "assignment_id": assignment,
+                    "context": expected,
+                    "sequence": sequence - 1,
+                    "digest": digest,
+                    "events": [
+                        {"kind": kind, "payload": payload, "sequence": seq, "digest": dig}
+                        for (kind, payload, seq, dig) in events
+                    ],
+                }
         except (
             OSError,
             sqlite3.Error,

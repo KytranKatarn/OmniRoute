@@ -269,10 +269,24 @@ def run_mailhq_draft_proposals() -> dict:
         cur.execute(
             """SELECT m.id, m.subject, m.from_address, m.body_text, m.body_preview,
                       m.mailbox_id, m.thread_id, m.message_id AS rfc_message_id,
-                      mb.address AS mailbox_address, mb.mailbox_type,
-                      mb.display_name AS mailbox_name
-                 FROM email_messages m
-                 JOIN email_mailboxes mb ON mb.id = m.mailbox_id
+                       mb.address AS mailbox_address, mb.mailbox_type,
+                       mb.display_name AS mailbox_name,
+                       mb.owner_agent_id AS business_owner_agent_id,
+                       a.id AS collaborator_agent_id,
+                       COALESCE(a.display_name, a.name) AS collaborator_name,
+                       a.system_prompt AS collaborator_system_prompt
+                  FROM email_messages m
+                  JOIN email_mailboxes mb ON mb.id = m.mailbox_id
+                  LEFT JOIN agents a ON a.id = mb.owner_agent_id
+                      AND a.worker_type = 'internal'
+                      AND a.shift_state != 'decommissioned'
+                      AND EXISTS (
+                          SELECT 1 FROM email_mailboxes personal
+                          JOIN users u ON lower(u.email) = lower(personal.address)
+                          WHERE personal.owner_agent_id = a.id
+                            AND personal.mailbox_type = 'human_agent'
+                            AND personal.active = TRUE AND u.is_active = TRUE
+                      )
                 WHERE m.ai_priority = 'action'
                   AND mb.mailbox_type = ANY(%s)
                   AND m.received_at >= %s
@@ -315,6 +329,17 @@ def run_mailhq_draft_proposals() -> dict:
 
 def _create_proposal(c: dict) -> bool:
     """Draft a reply for one message and enqueue an approve-to-send proposal."""
+    if c.get("mailbox_type") == "business" and c.get("business_owner_agent_id") is not None:
+        # An explicitly assigned business account uses its owner's persona,
+        # never silently a generic voice or another agent. Preserve both gates
+        # and the existing no-fabrication / owner-approval send controls.
+        if not _collaborators_enabled() or not c.get("collaborator_agent_id"):
+            logger.warning(
+                "Business reply owner unavailable or collaborator drafts disabled: mailbox=%s", c.get("mailbox_id")
+            )
+            return False
+        return _create_collaborator_proposal(c)
+
     from psycopg2.extras import Json
 
     from database import get_db_cursor

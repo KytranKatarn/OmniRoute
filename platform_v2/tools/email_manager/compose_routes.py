@@ -21,7 +21,7 @@ def register_compose_routes(bp, admin_required):
     def email_compose_mailboxes():
         """List provisioned mailboxes available as From addresses.
 
-        COLLABORATOR callers only see their own department's mailboxes.
+        COLLABORATOR callers see their own/owned business mailboxes and grants.
         """
         visible = get_visible_mailbox_ids(current_user)
         with get_db_cursor() as (conn, cur):
@@ -53,7 +53,7 @@ def register_compose_routes(bp, admin_required):
         """Send an email from a provisioned mailbox via Stalwart SMTP.
 
         COLLABORATOR callers may only send FROM a mailbox in their visible set.
-        Attempting to send from another department's mailbox returns 403.
+        Department membership alone never grants send-as permission.
         """
         data = request.get_json() or {}
         from_address = (data.get("from_address") or "").strip()

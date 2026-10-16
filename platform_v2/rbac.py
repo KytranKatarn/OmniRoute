@@ -225,6 +225,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.GOOGLE_CALENDAR,
         # ADMIN specific
         Permission.ADMIN_ACCESS,
+        Permission.EMAIL_INBOX_VIEW,
         Permission.ADMIN_AGENTS,
         Permission.ADMIN_IMPROVEMENTS,
         Permission.ADMIN_USERS,
@@ -271,6 +272,11 @@ def get_user_role(user=None) -> Role:
         return Role.SUPER_ADMIN
     elif hasattr(user, "is_admin") and user.is_admin:
         return Role.ADMIN
+    elif str(getattr(user, "role", "") or "").lower() == "collaborator":
+        # Account Center's explicit collaborator assignment is not a paid
+        # subscription tier. Free-tier human-agent accounts must retain their
+        # non-admin collaborator permissions (never infer admin from role text).
+        return Role.COLLABORATOR
     elif hasattr(user, "subscription_tier"):
         # Map subscription tiers to roles
         tier = user.subscription_tier.lower() if user.subscription_tier else "free"

@@ -54,7 +54,9 @@ def admin_required(f):
 # Import user context helpers
 try:
     from services.user_context import is_admin_user
+    from .access_control import email_access_required
 except ImportError:
+    email_access_required = None
 
     def is_admin_user():
         return getattr(current_user, "is_admin", False)
@@ -115,6 +117,7 @@ def get_smtp_for_sending(cur, account_id=None):
 
 @email_manager_bp.route("/")
 @login_required
+@email_access_required
 def index():
     """Main Email Manager dashboard"""
     try:
@@ -203,6 +206,7 @@ def index():
             smtp_status=smtp_status,
             is_admin=is_admin_user(),
             email_unread_count=email_unread_count,
+            email_access_required=email_access_required,
         )
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Error loading dashboard: {e}")
@@ -221,6 +225,7 @@ def index():
             campaigns=[],
             smtp_status=None,
             error=str(e),
+            email_access_required=email_access_required,
         )
     finally:
         try:
@@ -237,6 +242,7 @@ def index():
 
 @email_manager_bp.route("/api/templates", methods=["GET"])
 @login_required
+@email_access_required
 def get_templates():
     """Get all email templates"""
     try:
@@ -456,6 +462,7 @@ def delete_template(template_id):
 
 @email_manager_bp.route("/api/settings", methods=["GET"])
 @login_required
+@email_access_required
 def get_settings():
     """Get SMTP settings"""
     try:
@@ -927,6 +934,7 @@ def send_bulk():
 
 @email_manager_bp.route("/api/logs", methods=["GET"])
 @login_required
+@email_access_required
 def get_logs():
     """Get email logs"""
     try:

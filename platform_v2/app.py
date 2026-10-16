@@ -322,6 +322,7 @@ class User(UserMixin):
         oauth_picture=None,
         created_at=None,
         must_change_password=False,
+        agent_department=None,
     ):
         self.id = id
         self.username = username
@@ -336,6 +337,7 @@ class User(UserMixin):
         self.oauth_picture = oauth_picture
         self.created_at = created_at
         self.must_change_password = bool(must_change_password)
+        self.agent_department = agent_department
         # Note: is_authenticated, is_active, is_anonymous are provided by UserMixin
 
 
@@ -369,6 +371,7 @@ def load_user(user_id):
                 oauth_picture=user_data.get("oauth_picture"),
                 created_at=user_data.get("created_at"),
                 must_change_password=user_data.get("must_change_password", False),
+                agent_department=user_data.get("agent_department"),
             )
     except Exception as e:
         print(f"Error loading user: {e}")

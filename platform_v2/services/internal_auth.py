@@ -101,6 +101,10 @@ SCOPES: frozenset[str] = frozenset(
         # on purpose — folding it in would silently widen archie_comms and archie_engine
         # to routes they have never had.
         "devhq:write",
+        # the shared lane handover board (migration 024) — read/write. Its own family
+        # rather than folding into tasks: it is a lane-facing surface, not owner work.
+        "handover:read",
+        "handover:write",
     }
 )
 
@@ -174,6 +178,10 @@ CALLER_SCOPES: dict[str, frozenset[str]] = {
             "infra:read",
             "knowledge:write",
             "devhq:write",
+            # shared handover board (migration 024): every lane reads the others' state
+            # and keeps its own current, via the gateway's read_handover/update_handover.
+            "handover:read",
+            "handover:write",
         }
     ),
 }

@@ -6615,6 +6615,107 @@ def api_internal_task_delegate(task_id):
     )
 
 
+# ---- internal handover board: the shared handover every coder lane reads and writes ----
+# One row per lane (migration 024). The MCP gateway's read_handover / update_handover
+# tools call these, so a lane keeps its handover current without leaving its session, and
+# every lane sees the others. Fenced by handover:read / handover:write, held ONLY by
+# coder_lanes: this is a lane-facing surface, so folding it into tasks:write would
+# silently widen archie_comms / archie_engine to routes they have never had.
+_HANDOVER_LANES = ("opencode", "codex", "claude")
+_HANDOVER_STATES = ("idle", "working", "blocked", "reviewing", "done")
+
+
+@app.route("/api/internal/handover", methods=["GET"])
+@require_internal_scope("handover:read")
+def api_internal_handover_list():
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT lane, status, headline, working_on, blockers, next_step, branch,"
+            " pr_url, updated_by, updated_at FROM lane_handover ORDER BY lane"
+        )
+        rows = [
+            {
+                "lane": r[0],
+                "status": r[1],
+                "headline": r[2],
+                "working_on": r[3],
+                "blockers": r[4],
+                "next_step": r[5],
+                "branch": r[6],
+                "pr_url": r[7],
+                "updated_by": r[8],
+                "updated_at": r[9].isoformat() if r[9] else None,
+            }
+            for r in cur.fetchall()
+        ]
+    return jsonify({"success": True, "lanes": rows})
+
+
+@app.route("/api/internal/handover", methods=["POST"])
+@require_internal_scope("handover:write")
+def api_internal_handover_update():
+    from database import get_db_cursor
+
+    data = request.get_json(silent=True) or {}
+    lane = (data.get("lane") or "").strip().lower()
+    if lane not in _HANDOVER_LANES:
+        return jsonify({"success": False, "error": "lane must be one of %s" % ", ".join(_HANDOVER_LANES)}), 400
+    status = (data.get("status") or "working").strip().lower()
+    if status not in _HANDOVER_STATES:
+        return jsonify({"success": False, "error": "status must be one of %s" % ", ".join(_HANDOVER_STATES)}), 400
+
+    updated_by = (data.get("updated_by") or lane)[:64]
+    with get_db_cursor(commit=True) as (conn, cur):
+        # NULLs on omitted fields keep the columns a lane did not mention (COALESCE),
+        # except blockers, which is cleared deliberately when a lane is unblocked.
+        cur.execute(
+            """INSERT INTO lane_handover
+                 (lane, status, headline, working_on, blockers, next_step, branch, pr_url,
+                  updated_by, updated_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+               ON CONFLICT (lane) DO UPDATE SET
+                 status = EXCLUDED.status,
+                 headline = COALESCE(EXCLUDED.headline, lane_handover.headline),
+                 working_on = COALESCE(EXCLUDED.working_on, lane_handover.working_on),
+                 blockers = EXCLUDED.blockers,
+                 next_step = COALESCE(EXCLUDED.next_step, lane_handover.next_step),
+                 branch = COALESCE(EXCLUDED.branch, lane_handover.branch),
+                 pr_url = COALESCE(EXCLUDED.pr_url, lane_handover.pr_url),
+                 updated_by = EXCLUDED.updated_by,
+                 updated_at = NOW()""",
+            (
+                lane,
+                status,
+                data.get("headline"),
+                data.get("working_on"),
+                data.get("blockers"),
+                data.get("next_step"),
+                data.get("branch"),
+                data.get("pr_url"),
+                updated_by,
+            ),
+        )
+        cur.execute(
+            """INSERT INTO lane_handover_log
+                 (lane, status, headline, working_on, blockers, branch, pr_url, updated_by)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                lane,
+                status,
+                data.get("headline"),
+                data.get("working_on"),
+                data.get("blockers"),
+                data.get("branch"),
+                data.get("pr_url"),
+                updated_by,
+            ),
+        )
+    # Hand the writer the whole board back, so one call both records and reveals.
+    return api_internal_handover_list()
+
+
 # ---- internal knowledge writes: coder-lane store_memory (owner decision 2026-10-09) ----
 # The containerised coder lanes (codex/opencode) keep their own memory — the write the
 # close-out procedure's Step 3a requires. A thin pass-through to the platform's ONE memory

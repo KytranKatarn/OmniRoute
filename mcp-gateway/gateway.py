@@ -67,6 +67,25 @@ _auth = MCPAuthenticator()
 # concurrent callers holding different bearers cannot observe each other's grants.
 _PERMS: contextvars.ContextVar[tuple] = contextvars.ContextVar("perms", default=())
 
+# Which lane this request's bearer belongs to ("opencode" / "codex" / "claude"), read
+# from the mcp_api_keys row name. Same ContextVar reasoning as _PERMS: two lanes share
+# this gateway process, and one must not write its handover into the other's row.
+_LANE: contextvars.ContextVar[str] = contextvars.ContextVar("lane", default="")
+
+
+def _lane_from_name(name: str) -> str:
+    """Map a bearer name ('codex-full', 'opencode-full', ...) to its handover lane.
+
+    Defaults to the empty string rather than guessing 'opencode': a bearer this code
+    cannot place must not silently overwrite the opencode lane's row.
+    """
+    lowered = (name or "").lower()
+    for lane in ("opencode", "codex", "claude"):
+        if lane in lowered:
+            return lane
+    return ""
+
+
 _HUB_URL = os.getenv("ARCHIE_HUB_URL", "http://archie_platform:3000").rstrip("/")
 _HUB_KEY = os.getenv("INTERNAL_API_KEY_CODER_LANES", "")
 
@@ -189,7 +208,7 @@ mcp = FastMCP("archie-platform", host="0.0.0.0", port=7800)
 # infra_heartbeat_service.py now raises DockerObserverUnavailable instead of
 # conflating "cannot see" with "not there", which stops the lie. This table stops
 # the blindness by giving the answer to a process that can actually see.
-_HUB_PROXIED_READS = {"check_infra_heartbeat"}
+_HUB_PROXIED_READS = {"check_infra_heartbeat", "read_handover"}
 
 _read, _skipped, _withheld, _proxied = 0, [], 0, 0
 for _spec in get_all_tools():
@@ -257,6 +276,25 @@ async def check_infra_heartbeat() -> dict:
     return await _hub("GET", "/api/internal/infra/heartbeat")
 
 
+@mcp.tool()
+async def read_handover() -> dict:
+    """Read the SHARED handover board — where every coder lane (opencode, codex,
+    claude) currently is: status, what it is working on, its blockers, its next step,
+    the branch and PR it is on, and when it last said so.
+
+    Call this BEFORE starting work, so you build on what the other lanes already did
+    instead of colliding with it, and to see whether the PR you are about to touch is
+    already being worked. Read-only.
+
+    A lane that has never reported appears with status 'idle' (migration 024 seeds the
+    rows), so an empty headline means "nothing handed over", not "no such lane".
+    """
+    err = _needs_read()
+    if err:
+        return err
+    return await _hub("GET", "/api/internal/handover")
+
+
 # ---------------------------------------------------------------------------
 # WRITE tools — through the hub's scoped internal API
 # ---------------------------------------------------------------------------
@@ -310,6 +348,56 @@ async def complete_task(task_id: int, notes: str = "") -> dict:
         if not note.get("success"):
             return note  # the note must land before the task can close
     return await _hub("POST", "/api/internal/tasks/%d/status" % task_id, {"status": "completed"})
+
+
+@mcp.tool()
+async def update_handover(
+    status: str,
+    headline: str = "",
+    working_on: str = "",
+    blockers: str = "",
+    next_step: str = "",
+    branch: str = "",
+    pr_url: str = "",
+    lane: str = "",
+) -> dict:
+    """Publish YOUR lane onto the shared handover board, so the other coder lanes and
+    the owner (Dev HQ -> Lanes) can see where you are. Call it when you START a piece of
+    work and again when you STOP or change state — a handover nobody updates is worse
+    than none, because the others trust it.
+
+    `status` is required, one of: idle | working | blocked | reviewing | done.
+    Omitted text fields KEEP their previous value; `blockers` does NOT — pass "" to clear
+    it when you are unblocked, or the next lane will think you are still stuck.
+
+    `lane` is normally left blank: the gateway knows your lane from your bearer and fills
+    it in. Pass it only to correct that. Returns the whole board, so this call also shows
+    you where the other lanes are.
+    """
+    err = _needs_write()
+    if err:
+        return err
+    lane = (lane or _LANE.get()).strip().lower()
+    if lane not in ("opencode", "codex", "claude"):
+        return {
+            "success": False,
+            "error": "could not tell which lane this bearer belongs to; pass lane="
+            "opencode|codex|claude explicitly",
+        }
+    return await _hub(
+        "POST",
+        "/api/internal/handover",
+        {
+            "lane": lane,
+            "status": status,
+            "headline": headline or None,
+            "working_on": working_on or None,
+            "blockers": blockers,
+            "next_step": next_step or None,
+            "branch": branch or None,
+            "pr_url": pr_url or None,
+        },
+    )
 
 
 @mcp.tool()
@@ -460,6 +548,7 @@ class BearerAuth(BaseHTTPMiddleware):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         # Set INSIDE dispatch so it is scoped to this request's context.
         _PERMS.set(perms)
+        _LANE.set(_lane_from_name(info.get("name") or ""))
         return await call_next(request)
 
 

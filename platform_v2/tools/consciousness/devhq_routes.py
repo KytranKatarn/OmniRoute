@@ -1586,6 +1586,121 @@ def register_devhq_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"success": False, "error": str(e)})
 
+    # ---- Lanes: the shared handover board (migration 024) --------------------------
+    # The same table the MCP gateway's read_handover / update_handover tools write,
+    # surfaced here so a human can see all coder lanes at a glance — and correct one
+    # that has gone quiet. The lane-facing write path stays the gateway's; this exists
+    # because Dev HQ is the owner's view of the same board, not a second board.
+    _HANDOVER_LANES = ("opencode", "codex", "claude")
+    _HANDOVER_STATES = ("idle", "working", "blocked", "reviewing", "done")
+
+    def _handover_row(r):
+        row = dict(r)
+        for key in ("updated_at", "created_at"):
+            if row.get(key) is not None:
+                row[key] = row[key].isoformat()
+        return row
+
+    @bp.route("/api/devhq/lanes")
+    @login_required
+    @admin_required
+    def devhq_api_lanes():
+        with get_db_connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(
+                    """SELECT lane, status, headline, working_on, blockers, next_step,
+                              branch, pr_url, updated_by, updated_at
+                       FROM lane_handover ORDER BY lane"""
+                )
+                lanes = [_handover_row(r) for r in cur.fetchall()]
+                cur.execute(
+                    """SELECT lane, status, headline, working_on, blockers, branch, pr_url,
+                              updated_by, created_at
+                       FROM lane_handover_log ORDER BY created_at DESC LIMIT 50"""
+                )
+                log = [_handover_row(r) for r in cur.fetchall()]
+            except Exception as e:
+                return jsonify({"success": False, "error": str(e)}), 500
+            finally:
+                cur.close()
+        return jsonify(
+            {
+                "success": True,
+                "lanes": lanes,
+                "log": log,
+                "states": list(_HANDOVER_STATES),
+            }
+        )
+
+    @bp.route("/api/devhq/lanes/<lane>", methods=["POST"])
+    @login_required
+    @admin_required
+    def devhq_api_lane_update(lane):
+        lane = (lane or "").strip().lower()
+        if lane not in _HANDOVER_LANES:
+            return jsonify({"success": False, "error": "unknown lane"}), 400
+        data = request.get_json(silent=True) or {}
+        status = (data.get("status") or "").strip().lower()
+        if status not in _HANDOVER_STATES:
+            return jsonify({"success": False, "error": "status must be one of %s" % ", ".join(_HANDOVER_STATES)}), 400
+
+        with get_db_connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                # NULLs keep the fields the owner did not retype (COALESCE), except
+                # blockers, which is cleared deliberately when a lane is unblocked.
+                cur.execute(
+                    """INSERT INTO lane_handover
+                         (lane, status, headline, working_on, blockers, next_step, branch,
+                          pr_url, updated_by, updated_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                       ON CONFLICT (lane) DO UPDATE SET
+                         status = EXCLUDED.status,
+                         headline = COALESCE(EXCLUDED.headline, lane_handover.headline),
+                         working_on = COALESCE(EXCLUDED.working_on, lane_handover.working_on),
+                         blockers = EXCLUDED.blockers,
+                         next_step = COALESCE(EXCLUDED.next_step, lane_handover.next_step),
+                         branch = COALESCE(EXCLUDED.branch, lane_handover.branch),
+                         pr_url = COALESCE(EXCLUDED.pr_url, lane_handover.pr_url),
+                         updated_by = EXCLUDED.updated_by,
+                         updated_at = NOW()""",
+                    (
+                        lane,
+                        status,
+                        data.get("headline"),
+                        data.get("working_on"),
+                        data.get("blockers"),
+                        data.get("next_step"),
+                        data.get("branch"),
+                        data.get("pr_url"),
+                        ("owner:%s" % current_user.id)[:64],
+                    ),
+                )
+                cur.execute(
+                    """INSERT INTO lane_handover_log
+                         (lane, status, headline, working_on, blockers, branch, pr_url,
+                          updated_by)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        lane,
+                        status,
+                        data.get("headline"),
+                        data.get("working_on"),
+                        data.get("blockers"),
+                        data.get("branch"),
+                        data.get("pr_url"),
+                        ("owner:%s" % current_user.id)[:64],
+                    ),
+                )
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                return jsonify({"success": False, "error": str(e)}), 500
+            finally:
+                cur.close()
+        return devhq_api_lanes()
+
 
 def _run_and_store_health_check():
     """Run health checks on all services and store results in history table."""

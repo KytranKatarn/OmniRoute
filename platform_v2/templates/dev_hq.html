@@ -76,6 +76,10 @@
             <i data-lucide="scale"></i>
             <span data-i18n="devhq.tabs.decisions">Decisions</span>
         </button>
+        <button class="devhq-tab" data-tab="lanes" onclick="switchDevHQTab('lanes')">
+            <i data-lucide="users"></i>
+            <span>Lanes</span>
+        </button>
         <button class="devhq-tab" data-tab="system" onclick="switchDevHQTab('system')">
             <i data-lucide="settings"></i>
             <span data-i18n="devhq.tabs.system">System</span>
@@ -336,6 +340,36 @@
             <button class="devhq-btn small secondary" id="decisionsPrev" onclick="decisionPage(-1)" data-i18n="devhq.pagination.prev">Prev</button>
             <span id="decisionsPageInfo">--</span>
             <button class="devhq-btn small secondary" id="decisionsNext" onclick="decisionPage(1)" data-i18n="devhq.pagination.next">Next</button>
+        </div>
+    </div>
+
+    <!-- ===== TAB 6: LANES (shared handover board) ===== -->
+    <div class="devhq-panel" id="panel-lanes">
+        <div class="devhq-card">
+            <div class="devhq-card-header">
+                <span><i data-lucide="users" style="width:14px;height:14px;"></i> Lane Handover</span>
+                <span id="lanesUpdatedAt" style="font-size:0.65rem;color:var(--archie-text-muted);font-family:'IBM Plex Mono',monospace;">SHARED BOARD</span>
+            </div>
+            <div class="devhq-card-body">
+                <p style="font-size:0.75rem;color:var(--archie-text-muted);margin:0 0 12px 0;line-height:1.5;">
+                    One shared handover for every coder lane (opencode, codex, claude). Each lane reads and writes its
+                    own row through the <code>read_handover</code> / <code>update_handover</code> MCP tools; this is the
+                    same board, from the owner's side.
+                </p>
+                <div id="lanesBoard">
+                    <div class="devhq-loading">Loading lane handover…</div>
+                </div>
+            </div>
+        </div>
+        <div class="devhq-card" style="margin-top:12px;">
+            <div class="devhq-card-header">
+                <span><i data-lucide="history" style="width:14px;"></i> Handover History</span>
+            </div>
+            <div class="devhq-card-body">
+                <div id="lanesLog" style="max-height:340px;overflow-y:auto;font-size:0.75rem;">
+                    <div class="devhq-loading">Loading…</div>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -140,6 +140,7 @@
       case "ideas":      loadIdeas(); break;
       case "knowledge":  loadKnowledge(); break;
       case "decisions":  loadDecisions(); break;
+      case "lanes":      loadLanes(); break;
       case "system":     loadSystem(); break;
     }
   }
@@ -2016,6 +2017,265 @@
   window.loadProjectTasks = loadProjectTasks;
 
   /* ========================================================================
+     LANES TAB — the shared handover board (migration 024)
+     ======================================================================== */
+
+  /* Station colors match the module's conventions: opencode cyan, codex orange,
+     claude purple. Kept here so the board reads the same as the rest of LCARS. */
+  var _LANE_META = {
+    opencode: { color: "#22d3ee", note: "host instance + opencode terminal" },
+    codex: { color: "#FFAA00", note: "codex terminal / headless runner" },
+    claude: { color: "#a855f7", note: "Claude Code lane" },
+  };
+  var _LANE_STATUS_COLOR = {
+    idle: "#8b949e",
+    working: "#22c55e",
+    blocked: "#ef4444",
+    reviewing: "#22d3ee",
+    done: "#3b82f6",
+  };
+
+  /* escHtml escapes text but not quotes; attribute values need both. */
+  function escAttr(str) {
+    return escHtml(str).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function _laneField(label, value, opts) {
+    if (!value) return "";
+    opts = opts || {};
+    var body = opts.code
+      ? '<code style="font-family:' + "'IBM Plex Mono',monospace" + ';font-size:0.72rem;">' + escHtml(value) + "</code>"
+      : escHtml(value);
+    return (
+      '<div style="margin-top:8px;">' +
+      '<div style="font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--archie-text-muted,#8b949e);margin-bottom:2px;">' + escHtml(label) + "</div>" +
+      '<div style="font-size:0.78rem;color:' + (opts.color || "var(--archie-text-primary,#e6edf3)") + ';line-height:1.5;white-space:pre-wrap;">' + opts.html + "</div>" +
+      "</div>"
+    );
+  }
+
+  function _laneStatusMenu(lane, status) {
+    var states = ["idle", "working", "blocked", "reviewing", "done"];
+    return (
+      '<select id="laneStatus-' + escAttr(lane) + '" style="background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:4px 6px;font-size:0.75rem;">' +
+      states
+        .map(function (s) {
+          return '<option value="' + s + '"' + (s === status ? " selected" : "") + ">" + s + "</option>";
+        })
+        .join("") +
+      "</select>"
+    );
+  }
+
+  function _laneForm(lane, l) {
+    var inputStyle =
+      "width:100%;background:#0d1117;color:#e6edf3;border:1px solid #30363d;border-radius:6px;" +
+      "padding:6px 8px;font-size:0.78rem;box-sizing:border-box;font-family:inherit;";
+    var field = function (key, label, value, multiline) {
+      var elId = "lane" + key + "-" + lane;
+      var control = multiline
+        ? '<textarea id="' + elId + '" rows="2" style="' + inputStyle + '">' + escHtml(value) + "</textarea>"
+        : '<input type="text" id="' + elId + '" value="' + escAttr(value) + '" style="' + inputStyle + '">';
+      return (
+        '<div style="margin-bottom:8px;">' +
+        '<label style="display:block;font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--archie-text-muted,#8b949e);margin-bottom:2px;">' +
+        escHtml(label) +
+        "</label>" +
+        control +
+        "</div>"
+      );
+    };
+    return (
+      '<div id="laneForm-' + escAttr(lane) + '" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed #30363d;">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+      '<label style="font-size:0.65rem;text-transform:uppercase;color:var(--archie-text-muted,#8b949e);">Status</label>' +
+      _laneStatusMenu(lane, l.status) +
+      "</div>" +
+      field("Headline", "Headline", l.headline || "") +
+      field("Working", "Working on", l.working_on || "", true) +
+      field("Blockers", "Blockers (empty clears)", l.blockers || "", true) +
+      field("Next", "Next step", l.next_step || "", true) +
+      field("Branch", "Branch", l.branch || "") +
+      field("Pr", "PR URL", l.pr_url || "") +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;">' +
+      '<button class="devhq-btn secondary" onclick="toggleLaneForm(\'' + escAttr(lane) + '\')">Cancel</button>' +
+      '<button class="devhq-btn primary" onclick="saveLaneHandover(\'' + escAttr(lane) + '\')">Save handover</button>' +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function renderLanes(lanes) {
+    var board = document.getElementById("lanesBoard");
+    if (!board) return;
+    if (!lanes || !lanes.length) {
+      setHtml(board, '<div class="devhq-empty">No lane rows yet — apply migration 024.</div>');
+      return;
+    }
+    setHtml(
+      board,
+      lanes
+        .map(function (l) {
+          var meta = _LANE_META[l.lane] || { color: "#8b949e", note: "" };
+          var statusColor = _LANE_STATUS_COLOR[l.status] || "#8b949e";
+          var blockers = (l.blockers || "").trim();
+          return (
+            '<div class="devhq-lane-card" style="border-left:3px solid ' +
+            meta.color +
+            ';background:rgba(255,255,255,0.02);border-radius:8px;padding:12px 14px;margin-bottom:12px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<span style="font-family:\'Antonio\',sans-serif;letter-spacing:2px;text-transform:uppercase;font-size:0.85rem;color:' +
+            meta.color +
+            ';">' +
+            escHtml(l.lane) +
+            "</span>" +
+            '<span style="font-size:0.62rem;text-transform:uppercase;letter-spacing:1px;padding:2px 8px;border-radius:10px;color:' +
+            statusColor +
+            ";border:1px solid " +
+            statusColor +
+            ';">' +
+            escHtml(l.status) +
+            "</span>" +
+            '<span style="font-size:0.65rem;color:var(--archie-text-muted,#8b949e);">' +
+            escHtml(meta.note) +
+            "</span>" +
+            '<div style="flex:1"></div>' +
+            '<span style="font-size:0.65rem;color:var(--archie-text-muted,#8b949e);white-space:nowrap;">' +
+            escHtml(l.updated_by || "?") +
+            " · " +
+            escHtml(formatAge(l.updated_at)) +
+            "</span>" +
+            '<button class="devhq-btn secondary" onclick="toggleLaneForm(\'' +
+            escAttr(l.lane) +
+            '\')">Edit</button>' +
+            "</div>" +
+            (l.headline
+              ? '<div style="font-size:0.8rem;color:var(--archie-text-primary,#e6edf3);margin-top:8px;">' +
+                escHtml(l.headline) +
+                "</div>"
+              : "") +
+            _laneField("Working on", l.working_on) +
+            _laneField("Blockers", blockers, { color: "#ff7b72" }) +
+            _laneField("Next step", l.next_step) +
+            (l.branch || l.pr_url
+              ? _laneField("Branch / PR", null, {
+                  html:
+                    (l.branch ? '<code style="font-size:0.75rem;">' + escHtml(l.branch) + "</code>" : "") +
+                    (l.pr_url
+                      ? (l.branch ? " · " : "") +
+                        '<a href="' +
+                        escAttr(l.pr_url) +
+                        '" target="_blank" rel="noopener" style="color:#58a6ff;">' +
+                        escHtml(l.pr_url) +
+                        "</a>"
+                      : ""),
+                })
+              : "") +
+            _laneForm(l.lane, l) +
+            "</div>"
+          );
+        })
+        .join("")
+    );
+    refreshIcons();
+  }
+
+  function renderLaneLog(log) {
+    var el = document.getElementById("lanesLog");
+    if (!el) return;
+    if (!log || !log.length) {
+      setHtml(el, '<div class="devhq-empty">No handover history yet</div>');
+      return;
+    }
+    setHtml(
+      el,
+      log
+        .map(function (e) {
+          var meta = _LANE_META[e.lane] || { color: "#8b949e" };
+          return (
+            '<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">' +
+            '<span style="color:' +
+            meta.color +
+            ";font-family:'IBM Plex Mono',monospace;width:74px;flex-shrink:0;\">" +
+            escHtml(e.lane) +
+            "</span>" +
+            '<span style="width:80px;flex-shrink:0;color:var(--archie-text-muted,#8b949e);">' +
+            escHtml(e.status || "") +
+            "</span>" +
+            '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--archie-text-primary,#e6edf3);">' +
+            escHtml(e.headline || e.working_on || "") +
+            "</span>" +
+            '<span style="flex-shrink:0;color:var(--archie-text-muted,#8b949e);">' +
+            escHtml(formatAge(e.created_at)) +
+            "</span>" +
+            "</div>"
+          );
+        })
+        .join("")
+    );
+  }
+
+  function loadLanes() {
+    api("/api/lanes")
+      .then(function (data) {
+        if (!data || !data.success) {
+          setHtml("lanesBoard", '<div class="devhq-empty">' + escHtml((data && data.error) || "Could not load the handover board") + "</div>");
+          return;
+        }
+        renderLanes(data.lanes);
+        renderLaneLog(data.log);
+        var newest = "";
+        (data.lanes || []).forEach(function (l) {
+          if (l.updated_at && l.updated_at > newest) newest = l.updated_at;
+        });
+        var stamp = document.getElementById("lanesUpdatedAt");
+        if (stamp) stamp.textContent = newest ? "UPDATED " + formatAge(newest).toUpperCase() : "SHARED BOARD";
+      })
+      .catch(function () {
+        setHtml("lanesBoard", '<div class="devhq-empty">Could not load the handover board</div>');
+      });
+  }
+
+  function toggleLaneForm(lane) {
+    var el = document.getElementById("laneForm-" + lane);
+    if (el) el.style.display = el.style.display === "none" ? "block" : "none";
+  }
+
+  function saveLaneHandover(lane) {
+    var v = function (id) {
+      var e = document.getElementById("lane" + id + "-" + lane);
+      return e ? e.value : "";
+    };
+    var statusEl = document.getElementById("laneStatus-" + lane);
+    var body = {
+      status: statusEl ? statusEl.value : "working",
+      headline: v("Headline"),
+      working_on: v("Working"),
+      blockers: v("Blockers"),
+      next_step: v("Next"),
+      branch: v("Branch"),
+      pr_url: v("Pr"),
+    };
+    api("/api/lanes/" + encodeURIComponent(lane), { method: "POST", body: body })
+      .then(function (data) {
+        if (!data.success) {
+          alert("Could not save handover: " + (data.error || "unknown error"));
+          return;
+        }
+        _cache.lanes = false;
+        renderLanes(data.lanes);
+        renderLaneLog(data.log);
+      })
+      .catch(function () {
+        alert("Could not save handover — the request failed.");
+      });
+  }
+
+  window.loadLanes = loadLanes;
+  window.toggleLaneForm = toggleLaneForm;
+  window.saveLaneHandover = saveLaneHandover;
+
+  /* ========================================================================
      INIT
      ======================================================================== */
 
@@ -2033,7 +2293,7 @@
       setInterval(updateClock, 1000);
 
       var hash = window.location.hash.replace("#", "");
-      var validTabs = ["overview", "projects", "ideas", "knowledge", "decisions", "system"];
+      var validTabs = ["overview", "projects", "board", "ideas", "knowledge", "decisions", "lanes", "system"];
       if (hash && validTabs.indexOf(hash) !== -1) {
         switchDevHQTab(hash);
       } else {

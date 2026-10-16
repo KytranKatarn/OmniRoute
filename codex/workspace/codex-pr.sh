@@ -6,14 +6,23 @@
 # Usage:
 #   codex-pr "feat(faith): add reading-plan endpoint"     # title for commit+PR
 #
-# Requires: /run/secrets/codex_github_token (fine-grained PAT, this repo only,
-# Contents+PR write). The push runs through the pre-push scope guard.
+# Requires: /run/secrets/codex_github_token, or on the host secrets/codex/github_token.txt
+# (fine-grained PAT, Contents+PR write). The push runs through the pre-push scope guard.
 set -euo pipefail
 
 TITLE="${1:?usage: codex-pr \"<pr title>\"}"
 REPO_SLUG="KytranKatarn/archie-platform"
-TOKEN_FILE="/run/secrets/codex_github_token"
-[ -s "$TOKEN_FILE" ] || { echo "codex-pr: missing $TOKEN_FILE (PAT not configured)"; exit 1; }
+# Token: the container mounts it at /run/secrets/codex_github_token; the host runner has
+# no such mount, so fall back to the same secret file the container mounts.
+TOKEN_FILE="${CODEX_GITHUB_TOKEN_FILE:-/mnt/archie_brain/secrets/codex/github_token.txt}"
+if [ -s /run/secrets/codex_github_token ]; then TOKEN_FILE=/run/secrets/codex_github_token; fi
+if [ ! -s "$TOKEN_FILE" ]; then
+  echo "codex-pr: no Codex PAT — looked for /run/secrets/codex_github_token and $TOKEN_FILE" >&2
+  exit 1
+fi
+# `git push` below must authenticate as the CODEX lane, not whatever the host git helper defaults to
+# (scripts/lane/archie-git-credential reads this variable; harmless where that helper is not installed).
+export ARCHIE_LANE=codex
 
 # ⚠️ REFUSE TO SHIP FROM THE LIVE SHARED TREE.
 #

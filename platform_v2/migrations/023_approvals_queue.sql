@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS approvals_queue (
 CREATE INDEX IF NOT EXISTS idx_approvals_queue_source_res ON approvals_queue(source, resource_type, resource_id) WHERE status = 'pending';
 
 -- Index for reviewing by status
-CREATE INDEX IF NOT EXISTS idx_approvals_queue_status ON approvals_queue(status) WHERE status IN ('pending', 'approved', 'rejected'));
+CREATE INDEX IF NOT EXISTS idx_approvals_queue_status ON approvals_queue(status) WHERE status IN ('pending', 'approved', 'rejected');
 
 -- Add comment
 COMMENT ON TABLE approvals_queue IS 'Queue of pending approvals from across the platform (GitHub skills, code health, etc.). Syncable between GitHub tab and Department HQ APPROVALS tab.';

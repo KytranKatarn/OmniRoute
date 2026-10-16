@@ -384,11 +384,11 @@ if [ -n "$EXISTING_HELPER" ]; then
   say "  credential.helper already set — NOT touching it: $EXISTING_HELPER"
   say "    (that is what Claude-CLI pushes through; overwriting it would break host git auth)"
   say "    If opencode cannot push, set it per-repo instead:"
-  say "      git -C /mnt/archie_brain config --local credential.helper '!f() { echo username=x-access-token; echo \"password=\$(cat '"$GH_SECRET"')\"; }; f'"
+  say "      git -C /mnt/archie_brain config --local credential.helper /mnt/archie_brain/scripts/lane/archie-git-credential"
 else
   git config --global credential.helper \
-    "!f() { echo username=x-access-token; echo \"password=\$(cat $GH_SECRET)\"; }; f" 2>/dev/null || true
-  say "  credential.helper set -> $GH_SECRET"
+    /mnt/archie_brain/scripts/lane/archie-git-credential 2>/dev/null || true
+  say "  credential.helper set -> /mnt/archie_brain/scripts/lane/archie-git-credential (auto-detects the opencode lane)"
 fi
 say "  NOTE: that token is Contents-only (measured 2026-09-30: GET/POST /pulls -> 403)."
 say "        The host can PUSH. To open a PR, use your own gh login instead."

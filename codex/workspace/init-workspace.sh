@@ -19,8 +19,10 @@ if [ ! -s "$TOKEN_FILE" ]; then
 fi
 
 # Credential helper reads the secret on demand → token never lands in .git/config.
-git config --global credential.helper \
-  '!f() { echo username=x-access-token; echo "password=$(cat /run/secrets/codex_github_token)"; }; f'
+# Uses the shared lane helper: it detects this process as the `codex` lane and reads
+# /mnt/archie_brain/secrets/codex/github_token.txt (the same file mounted at
+# /run/secrets/codex_github_token), so every lane pushes through one audited script.
+git config --global credential.helper /mnt/archie_brain/scripts/lane/archie-git-credential
 git config --global user.name "Codex (CLI)"
 git config --global user.email "codex@kytranempowerment.com"
 git config --global --add safe.directory "$REPO_DIR"

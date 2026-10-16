@@ -1,0 +1,16 @@
+{
+  "migrations": [
+    {
+      "filename": "022_skill_review_columns.sql",
+      "sha256": "eca1077bd363aab0d59c6511c7e014bdc2a8ec7529c41a70fd49247d702226de"
+    },
+    {
+      "filename": "023_approvals_queue.sql",
+      "sha256": "8d949798baa7d5d0178d43e9aee04dcb64efb5c50051c09df79654ccb632c433"
+    },
+    {
+      "filename": "024_lane_handover.sql",
+      "sha256": "80be8788ecf10d0d1360514dd33acc461ac65a52c442e0d033cdb15d5f878418"
+    }
+  ]
+}

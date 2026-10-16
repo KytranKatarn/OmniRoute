@@ -74,6 +74,15 @@ trust_level = "trusted"
 [mcp_servers.archie_kb]
 url = "${ARCHIE_KB_GATEWAY:-http://archie_mcp_gateway:7800/mcp}"
 bearer_token_env_var = "ARCHIE_KB_BEARER"
+
+# Lane capability parity (added 2026-10-16): the same public design-systems MCP server
+# the opencode and claude lanes already reach (see .mcp.json). No secret involved, so
+# nothing extra has to be mounted for this lane.
+# hostinger-api is deliberately NOT listed here: it needs an API token that this bounded
+# container has no mount for. Adding it means a new secret mount in docker-compose.yml,
+# which is tracked separately from this change.
+[mcp_servers.design_systems]
+url = "https://design-systems-mcp.southleft.com/mcp"
 EOF
 
 # Prepare the working repo: clone/sync into /work, wire token credential helper,

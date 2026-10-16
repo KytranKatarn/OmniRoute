@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cartographer"
+  short_description: "Codex adapter for cartographer workflow"
+  default_prompt: "Use $cartographer to run this A.R.C.H.I.E. workflow."

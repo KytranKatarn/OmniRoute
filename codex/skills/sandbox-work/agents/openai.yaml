@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sandbox Work"
+  short_description: "Codex adapter for sandbox work workflow"
+  default_prompt: "Use $sandbox-work to run this A.R.C.H.I.E. workflow."

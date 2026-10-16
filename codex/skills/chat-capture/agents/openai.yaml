@@ -1,0 +1,4 @@
+interface:
+  display_name: "Chat Capture"
+  short_description: "Codex adapter for chat capture workflow"
+  default_prompt: "Use $chat-capture to run this A.R.C.H.I.E. workflow."

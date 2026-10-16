@@ -1,0 +1,4 @@
+interface:
+  display_name: "Webapp Testing"
+  short_description: "Codex adapter for webapp testing workflow"
+  default_prompt: "Use $webapp-testing to run this A.R.C.H.I.E. workflow."

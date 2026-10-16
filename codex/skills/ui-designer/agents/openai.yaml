@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ui Designer"
+  short_description: "Codex adapter for ui designer workflow"
+  default_prompt: "Use $ui-designer to run this A.R.C.H.I.E. workflow."

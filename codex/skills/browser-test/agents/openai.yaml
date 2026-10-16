@@ -1,0 +1,4 @@
+interface:
+  display_name: "Browser Test"
+  short_description: "Codex adapter for browser test workflow"
+  default_prompt: "Use $browser-test to run this A.R.C.H.I.E. workflow."

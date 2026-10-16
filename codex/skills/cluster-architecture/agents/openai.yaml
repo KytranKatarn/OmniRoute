@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cluster Architecture"
+  short_description: "Codex adapter for cluster architecture workflow"
+  default_prompt: "Use $cluster-architecture to run this A.R.C.H.I.E. workflow."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Admin System Operations"
+  short_description: "Codex adapter for admin system operations workflow"
+  default_prompt: "Use $admin-system-operations to run this A.R.C.H.I.E. workflow."

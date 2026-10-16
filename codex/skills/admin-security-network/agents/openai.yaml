@@ -1,0 +1,4 @@
+interface:
+  display_name: "Admin Security Network"
+  short_description: "Codex adapter for admin security network workflow"
+  default_prompt: "Use $admin-security-network to run this A.R.C.H.I.E. workflow."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Warden Agent"
+  short_description: "Codex adapter for warden agent workflow"
+  default_prompt: "Use $warden-agent to run this A.R.C.H.I.E. workflow."

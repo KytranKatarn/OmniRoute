@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scout"
+  short_description: "Codex adapter for scout workflow"
+  default_prompt: "Use $scout to run this A.R.C.H.I.E. workflow."

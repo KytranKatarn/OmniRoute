@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vps Deploy"
+  short_description: "Codex adapter for vps deploy workflow"
+  default_prompt: "Use $vps-deploy to run this A.R.C.H.I.E. workflow."

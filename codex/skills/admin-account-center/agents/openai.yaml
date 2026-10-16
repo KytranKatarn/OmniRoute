@@ -1,0 +1,4 @@
+interface:
+  display_name: "Admin Account Center"
+  short_description: "Codex adapter for admin account center workflow"
+  default_prompt: "Use $admin-account-center to run this A.R.C.H.I.E. workflow."

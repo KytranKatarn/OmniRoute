@@ -1,0 +1,4 @@
+interface:
+  display_name: "Admin Backup Manager"
+  short_description: "Codex adapter for admin backup manager workflow"
+  default_prompt: "Use $admin-backup-manager to run this A.R.C.H.I.E. workflow."

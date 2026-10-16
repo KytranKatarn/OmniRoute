@@ -1,0 +1,4 @@
+interface:
+  display_name: "Enterprise Ui Design"
+  short_description: "Codex adapter for enterprise ui design workflow"
+  default_prompt: "Use $enterprise-ui-design to run this A.R.C.H.I.E. workflow."

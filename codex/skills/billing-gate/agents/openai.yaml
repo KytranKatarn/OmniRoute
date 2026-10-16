@@ -1,0 +1,4 @@
+interface:
+  display_name: "Billing Gate"
+  short_description: "Codex adapter for billing gate workflow"
+  default_prompt: "Use $billing-gate to run this A.R.C.H.I.E. workflow."

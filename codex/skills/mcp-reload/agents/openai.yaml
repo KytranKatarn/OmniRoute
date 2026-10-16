@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mcp Reload"
+  short_description: "Codex adapter for mcp reload workflow"
+  default_prompt: "Use $mcp-reload to run this A.R.C.H.I.E. workflow."

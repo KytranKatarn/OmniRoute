@@ -1,0 +1,4 @@
+interface:
+  display_name: "Recall"
+  short_description: "Codex adapter for recall workflow"
+  default_prompt: "Use $recall to run this A.R.C.H.I.E. workflow."

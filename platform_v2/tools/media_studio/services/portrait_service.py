@@ -903,7 +903,9 @@ def generate_variant(
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT p.identity_prompt, p.ip_adapter_ref_path, p.canonical_image_path,
+            SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                       AS identity_prompt,
+                   p.ip_adapter_ref_path, p.canonical_image_path,
                    p.face_seed, p.approved, a.name, a.display_name,
                    a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes
             FROM agents a
@@ -1542,13 +1544,14 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         cur.execute(
             """
             INSERT INTO agent_portraits
-                (agent_id, canonical_image_path, ip_adapter_ref_path, face_seed, approved, updated_at)
-            VALUES (%s, %s, %s, %s, true, NOW())
+                (agent_id, canonical_image_path, ip_adapter_ref_path, face_seed, approved, generation_status, updated_at)
+            VALUES (%s, %s, %s, %s, true, 'completed', NOW())
             ON CONFLICT (agent_id) DO UPDATE SET
                 canonical_image_path = EXCLUDED.canonical_image_path,
                 ip_adapter_ref_path = EXCLUDED.ip_adapter_ref_path,
                 face_seed = COALESCE(EXCLUDED.face_seed, agent_portraits.face_seed),
                 approved = true,
+                generation_status = 'completed',
                 updated_at = NOW()
             """,
             (agent_id, file_path, file_path, seed),

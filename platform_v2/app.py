@@ -6635,21 +6635,14 @@ def api_internal_handover_list():
             "SELECT lane, status, headline, working_on, blockers, next_step, branch,"
             " pr_url, updated_by, updated_at FROM lane_handover ORDER BY lane"
         )
-        rows = [
-            {
-                "lane": r[0],
-                "status": r[1],
-                "headline": r[2],
-                "working_on": r[3],
-                "blockers": r[4],
-                "next_step": r[5],
-                "branch": r[6],
-                "pr_url": r[7],
-                "updated_by": r[8],
-                "updated_at": r[9].isoformat() if r[9] else None,
-            }
-            for r in cur.fetchall()
-        ]
+        # get_db_cursor hands back RealDictCursor rows, not tuples. Integer indexing
+        # (r[0]) raises KeyError: 0 and 500s the whole board — index by column name.
+        rows = []
+        for r in cur.fetchall():
+            row = dict(r)
+            if row.get("updated_at") is not None:
+                row["updated_at"] = row["updated_at"].isoformat()
+            rows.append(row)
     return jsonify({"success": True, "lanes": rows})
 
 

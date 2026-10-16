@@ -163,7 +163,10 @@ def run_scan(pack_ids=None, triggered_by="manual"):
         packs = cur.fetchall()
 
     if not packs:
-        return {"scan_id": scan_id, "error": "No rule packs loaded"}
+        return {"status": "error", "error": "No rule packs loaded"}
+
+    if not any(p["rules"] if isinstance(p["rules"], list) else json.loads(p["rules"]) for p in packs):
+        return {"status": "error", "error": "Selected rule packs contain no rules"}
 
     # Create scan record (pack_ids is text[] not jsonb)
     with get_db_cursor(commit=True) as (conn, cur):
@@ -184,6 +187,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
     passed = 0
     failed = 0
     errors = 0
+    result_persistence_errors = 0
     pack_scores = {}
 
     for pack in packs:
@@ -244,6 +248,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
                     )
             except Exception as exc:
                 logger.error("Failed to store result for %s: %s", rule_id, exc)
+                result_persistence_errors += 1
 
         pack_scores[pack_id] = {
             "name": pack["name"],
@@ -255,6 +260,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
     # Calculate overall score
     score = round((passed / total) * 100, 1) if total > 0 else 0
     completed_at = datetime.now(timezone.utc)
+    persisted_completed_at = completed_at if result_persistence_errors == 0 else None
 
     # Update scan record
     with get_db_cursor(commit=True) as (conn, cur):
@@ -270,7 +276,7 @@ def run_scan(pack_ids=None, triggered_by="manual"):
             WHERE scan_id = %s
             """,
             (
-                completed_at,
+                persisted_completed_at,
                 total,
                 passed,
                 failed,
@@ -283,18 +289,25 @@ def run_scan(pack_ids=None, triggered_by="manual"):
     duration_s = (completed_at - started_at).total_seconds()
     summary = {
         "scan_id": scan_id,
-        "status": "completed",
+        "status": "completed" if result_persistence_errors == 0 else "persistence_error",
         "score": score,
         "total": total,
         "passed": passed,
         "failed": failed,
         "errors": errors,
+        "result_persistence_errors": result_persistence_errors,
         "duration_seconds": round(duration_s, 2),
         "pack_scores": pack_scores,
     }
+    if result_persistence_errors:
+        summary["error"] = (
+            f"Could not save {result_persistence_errors} compliance result row(s); "
+            "this scan is incomplete and was excluded from latest scores."
+        )
     logger.info(
-        "Compliance scan %s complete: %.1f%% (%d/%d passed)",
+        "Compliance scan %s %s: %.1f%% (%d/%d passed)",
         scan_id,
+        summary["status"],
         score,
         passed,
         total,

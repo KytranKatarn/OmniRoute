@@ -328,12 +328,14 @@ function loadNocOverview() {
 
         /* service health panel */
         _renderNocServiceHealth(svc);
+        _renderPlatformContext(d.platform_connectivity, d.ssh_origin_observation);
 
         /* recent activity feed */
         _renderNocActivity(d.recent_activity || []);
 
     }).catch(function(e) {
         console.warn('NOC overview error:', e);
+        _renderPlatformContext(null, null);
     });
 
     /* compliance summary panel */
@@ -362,6 +364,32 @@ function loadNocOverview() {
     }).catch(function(e) {
         console.debug('Compliance panel error:', e);
     });
+}
+
+function _renderPlatformContext(connectivity, observation) {
+    var statusEl = document.getElementById('sn-platform-mesh-status');
+    var detailEl = document.getElementById('sn-platform-mesh-detail');
+    var status = connectivity && ['online', 'offline', 'stale'].indexOf(connectivity.status) >= 0
+        ? connectivity.status : 'unknown';
+    var labels = {online: 'Starbase mesh connected', offline: 'Starbase mesh disconnected',
+        stale: 'Starbase mesh probe is stale', unknown: 'Starbase mesh status unavailable'};
+    if (statusEl) statusEl.textContent = labels[status];
+    if (detailEl) {
+        var details = [];
+        if (connectivity && connectivity.last_seen) {
+            var seen = new Date(connectivity.last_seen);
+            if (!Number.isNaN(seen.getTime())) details.push('Last mesh probe ' + _timeAgo(seen));
+        }
+        if (connectivity && connectivity.latency_ms != null && Number.isFinite(Number(connectivity.latency_ms))) {
+            details.push(Math.round(Number(connectivity.latency_ms)) + ' ms');
+        }
+        detailEl.textContent = details.length ? details.join(' · ') : 'No recent mesh probe is available.';
+    }
+    var addressEl = document.getElementById('sn-egress-address');
+    var sourceEl = document.getElementById('sn-egress-source');
+    if (addressEl) addressEl.textContent = observation ? observation.address : 'Unavailable';
+    if (sourceEl) sourceEl.textContent = observation
+        ? 'Observed ' + observation.observed_on + ' · ' + observation.source : 'Historical audit observation unavailable.';
 }
 
 function _renderNocServiceHealth(svc) {

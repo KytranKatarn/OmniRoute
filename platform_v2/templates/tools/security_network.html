@@ -157,6 +157,30 @@
         </div>
 
         <!-- Traffic Sparkline + Top Consumers -->
+        <div class="sn-platform-context-grid">
+            <section class="card" aria-labelledby="sn-platform-connectivity-title">
+                <div class="card-header">
+                    <span class="card-title" id="sn-platform-connectivity-title">Platform Connectivity</span>
+                    <a class="btn btn-sm" href="/external/kso" target="_blank" rel="noopener noreferrer">Open KSO</a>
+                </div>
+                <div class="sn-platform-context-body">
+                    <strong id="sn-platform-mesh-status">Checking Starbase mesh…</strong>
+                    <div class="sn-platform-context-detail" id="sn-platform-mesh-detail">Uses the independent mesh reachability probe.</div>
+                    <p class="sn-platform-context-note">KSO remains the standalone host-operations and server-controls surface.</p>
+                </div>
+            </section>
+            <section class="card" aria-labelledby="sn-ssh-origin-title">
+                <div class="card-header">
+                    <span class="card-title" id="sn-ssh-origin-title">SSH Origin Observation</span>
+                    <span class="badge badge-secondary">HISTORICAL</span>
+                </div>
+                <div class="sn-platform-context-body">
+                    <strong id="sn-egress-address">Unavailable</strong>
+                    <div class="sn-platform-context-detail" id="sn-egress-source">Loading dated audit observation…</div>
+                    <p class="sn-platform-context-note">Codex recorded this egress observation on October 16, 2026. It has not been reverified here. Egress may change; an IP match alone does not prove identity or justify an allowlist.</p>
+                </div>
+            </section>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
             <div class="card">
                 <div class="card-header">

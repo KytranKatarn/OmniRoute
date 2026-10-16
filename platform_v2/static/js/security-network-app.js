@@ -4028,7 +4028,7 @@ async function runComplianceScan() {
         });
         const data = await resp.json();
 
-        if (data.scan_id) {
+        if (resp.ok && data.status === 'completed' && data.scan_id && !data.error) {
             _lastScanId = data.scan_id;
             statusEl.textContent = 'Last scan: ' + data.score + '% \u2022 ' + data.passed + ' passed \u2022 ' + data.failed + ' failed';
             statusEl.style.color = _compScoreColor(data.score);
@@ -4040,8 +4040,10 @@ async function runComplianceScan() {
             loadEvidenceStatus();
             loadHardeningContent(data.scan_id);
         } else {
-            statusEl.textContent = 'Scan failed: ' + (data.error || 'Unknown error');
+            _lastScanId = null;
+            statusEl.textContent = 'Scan not completed: ' + (data.error || 'Results could not be confirmed as saved.');
             statusEl.style.color = '#ef4444';
+            if (data.scan_id) loadComplianceScanHistory();
         }
     } catch (e) {
         statusEl.textContent = 'Error: ' + e.message;

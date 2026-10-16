@@ -14,6 +14,40 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
+# Dated Codex audit observation, not an identity check or a permanent allowlist.
+STARBASE_SSH_ORIGIN_OBSERVATION = {
+    "address": "209.107.108.214",
+    "observed_on": "2026-10-16",
+    "source": "Codex SSH-origin audit (historical; not reverified by this request)",
+    "caveat": "Egress may change. An IP match alone does not prove identity or justify an allowlist.",
+}
+
+
+def _platform_connectivity():
+    result = {"status": "unknown", "last_seen": None, "latency_ms": None}
+    try:
+        # Separate transaction: an unavailable telemetry column must not poison
+        # the remaining NOC queries on their shared cursor.
+        with get_db_cursor(commit=False) as (_, cur):
+            cur.execute(
+                """SELECT mesh_status, mesh_latency_ms, mesh_last_seen,
+                          (mesh_last_seen >= NOW() - INTERVAL '5 minutes') AS mesh_fresh
+                   FROM remote_nodes WHERE deployment_mode = 'starbase' AND is_active = true
+                   ORDER BY id LIMIT 1"""
+            )
+            node = cur.fetchone()
+            if node and node.get("mesh_last_seen"):
+                result["status"] = (
+                    {"connected": "online", "disconnected": "offline"}.get(node.get("mesh_status"), "unknown")
+                    if node.get("mesh_fresh")
+                    else "stale"
+                )
+                result["last_seen"] = node["mesh_last_seen"].isoformat()
+                result["latency_ms"] = node.get("mesh_latency_ms")
+    except Exception:
+        logger.debug("Starbase mesh status unavailable", exc_info=True)
+    return result
+
 
 def register_noc_routes(bp, admin_required_decorator):
     """Register all NOC overview endpoints on the security_network blueprint."""
@@ -413,6 +447,8 @@ def register_noc_routes(bp, admin_required_decorator):
                 "top_consumers": top_consumers,
                 "traffic_sparkline": traffic_sparkline,
                 "last_scan": last_scan,
+                "platform_connectivity": _platform_connectivity(),
+                "ssh_origin_observation": STARBASE_SSH_ORIGIN_OBSERVATION,
             }
         )
 

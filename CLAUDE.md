@@ -26,13 +26,17 @@
 □ 6. CLAIM   — Only NOW say "done" — with proof
 ```
 
-**Branch naming:**
+**Branch naming — start with YOUR LANE (2026-10-15):**
 ```
-feat/short-description    — new features
-fix/short-description     — bug fixes
-chore/short-description   — maintenance, docs, deps
-auto/short-description    — AI/automation-initiated changes
+claude/<type>-<slug>      — Claude CLI          e.g. claude/fix-env-guard
+codex/<type>-<slug>       — Codex CLI           (codex-pr.sh already requires this)
+opencode/<type>-<slug>    — OpenCode            <type> = feat | fix | chore
+auto/short-description    — automation          (engine/, cockpit/, dependabot/ keep their own prefixes)
 ```
+Every lane pushes as the same GitHub user, so the branch prefix is the only machine-checkable signal of who opened a PR
+(Repair Bay stores it as `pr_reviews.metadata.lane`; `unlabelled` = old-style `feat/`/`fix/` names). **Never push to another lane's
+prefix, and branch from the real `origin/main`** (`KytranKatarn/archie-platform`). Each lane's git token is chosen automatically by
+`scripts/lane/archie-git-credential` (process name, or `ARCHIE_LANE=`).
 
 **Direct push to main is ONLY allowed for:**
 - Emergency hotfixes with explicit user approval

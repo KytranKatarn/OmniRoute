@@ -413,6 +413,9 @@ def poll_open_prs(repo: str = None) -> dict:
                             {
                                 "draft": bool(pr.get("draft")),
                                 "head_sha": (pr.get("head_sha") or ""),
+                                "lane": lane_for_pr(
+                                    (pr.get("head") or {}).get("ref") or pr.get("head_ref"), pr.get("title")
+                                ),
                             }
                         ),
                     ),
@@ -778,6 +781,34 @@ def no_automerge_branch_prefixes() -> tuple:
         for p in os.getenv("FORGE_NO_AUTOMERGE_BRANCH_PREFIXES", _NO_AUTOMERGE_BRANCH_PREFIXES_DEFAULT).split(",")
         if p.strip()
     )
+
+
+# Which AI lane (or machine producer) opened a PR, read from the head branch. Every PR is authored by the same GitHub user, so the
+# token cannot say who pushed: the branch prefix is the machine-checkable signal. Convention: `<lane>/<type>-<slug>`
+# (e.g. `claude/fix-env-guard`). A lane never pushes to another lane's prefix, which also keeps lanes off each other's branches.
+LANE_BRANCH_PREFIXES = (
+    ("claude/", "claude"),
+    ("codex/", "codex"),
+    ("opencode/", "opencode"),
+    ("engine/", "engine"),
+    ("cockpit/", "cockpit"),
+    ("auto/", "automation"),
+    ("dependabot/", "dependabot"),
+)
+LANE_UNLABELLED = "unlabelled"
+
+
+def lane_for_pr(head_branch: str | None, title: str | None = None) -> str:
+    """The lane that opened a PR, or ``"unlabelled"``. Pure: no DB, no network. Advisory only - it never gates a merge."""
+    branch = (head_branch or "").strip().lower()
+    for prefix, lane in LANE_BRANCH_PREFIXES:
+        if branch.startswith(prefix):
+            return lane
+    t = (title or "").strip().lower()
+    for prefix, lane in (("[engine]", "engine"), ("[cockpit]", "cockpit")):
+        if t.startswith(prefix):
+            return lane
+    return LANE_UNLABELLED
 
 
 def machine_authored_reason(review: dict | None) -> str | None:

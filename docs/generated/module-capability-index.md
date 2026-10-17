@@ -7,7 +7,7 @@
 
 # Master Module Capability Index
 
-**Generated**: 2026-10-16 18:20:26 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
+**Generated**: 2026-10-16 19:40:08 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
 
 **42 modules registered** — 37 enabled, 5 disabled/coming-soon, 0 absent. 35 carry curated notes.
 

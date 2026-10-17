@@ -7,6 +7,7 @@ Removes database schemas for destroyed sandboxes
 import psycopg2
 import os
 from database import _get_db_password
+from tools.repair_bay.services.sandbox_sql import drop_sandbox_schema_statement
 
 
 def get_db():
@@ -76,7 +77,7 @@ def cleanup_orphaned_schemas():
     for schema_name in orphaned_schemas:
         try:
             print(f"Dropping schema: {schema_name}...", end=" ")
-            cur.execute(f"DROP SCHEMA IF EXISTS {schema_name} CASCADE")
+            cur.execute(drop_sandbox_schema_statement(schema_name))
             conn.commit()
             print("✅ DONE")
             cleaned += 1

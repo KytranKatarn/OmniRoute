@@ -5,6 +5,7 @@
 {% block extra_head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/repair-bay.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/repair-bay-pr-analysis.css') }}">
 <script src="{{ url_for('static', filename='js/repair-bay-chat.js') }}"></script>
 {% endblock %}
 
@@ -1236,23 +1237,11 @@
     var prNum = document.getElementById('forgeReviewPrNum').value;
     var status = document.getElementById('forgeReviewStatus');
     if (!prNum) { status.textContent = 'Enter a PR number.'; status.style.color = '#ff6b6b'; return; }
-    status.textContent = 'Triggering…'; status.style.color = '#94a3b8';
+    status.textContent = 'Choose an analysis type…'; status.style.color = '#94a3b8';
     try {
-      var res = await fetch('/tools/repair-bay/api/forge/pr-reviews/' + prNum + '/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      var data = await res.json();
-      // This box takes a bare NUMBER, which is ambiguous across repos (#6776). The server
-      // now refuses rather than guessing; name the candidates so the operator can pick.
-      if (res.status === 409 && data.repos) {
-        status.textContent = 'PR #' + prNum + ' exists in: ' + data.repos.join(', ')
-          + ' — open it from the PR Review list instead, so the repo comes with it.';
-        status.style.color = '#fbbf24';
-        return;
-      }
-      if (data.success) {
-        status.textContent = '✅ F.O.R.G.E. review queued — check PR Review tab.'; status.style.color = '#00ff41';
-      } else {
-        status.textContent = '⚠ ' + (data.error || 'Failed'); status.style.color = '#ff6b6b';
-      }
+      var result = await triggerPRAnalysis(prNum, null);
+      status.textContent = result && result.accepted
+        ? 'Review request accepted — check PR Review progress.' : 'No review submitted.';
     } catch (err) {
       status.textContent = 'Error: ' + err.message; status.style.color = '#ff6b6b';
     }
@@ -1525,6 +1514,7 @@
 <script src="{{ url_for('static', filename='js/department-ops.js') }}"></script>
 <script src="{{ url_for('static', filename='js/repair-bay-qa.js') }}"></script>
 <script src="{{ url_for('static', filename='js/repair-bay-main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/repair-bay-pr-analysis.js') }}"></script>
 <script>
 var API = '/tools/repair-bay/api';
 var _selectedFiles = [];
@@ -4106,7 +4096,7 @@ window.loadPRReviews = function(state) {
             } else {
                 analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);color:#a78bfa;border-radius:4px;cursor:pointer;';
                 analyzeBtn.textContent = 'Analyze';
-                analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number, pr.repo); };
+                analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number, pr.repo, pr.changed_files); };
             }
 
             actions.appendChild(analyzeBtn);
@@ -4822,47 +4812,7 @@ function _prScopeBody(extra) {
 
 
   function triggerPRReReview(prNumber, repo, scopeEl) {
-      var body = _prScopeBody({wide: true, repo: repo || null});
-      var who = _prSelectedReviewer(scopeEl);
-      if (who) { body.reviewer = who; }
-      // #6769 — re-review with the WHOLE diff routed through the coverage-aware
-      // full-window reviewer, so the files the last pass never saw get read this time.
-      fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
-            {method:'POST', headers:{'Content-Type':'application/json'},
-             // #6776 — the ROW's repo, never the number alone. archie-code #71 and
-             // archie-platform #71 are different PRs; sending only the number had the
-             // server re-review a Dependabot bump while this pane showed an engine PR.
-             body: JSON.stringify(body)})
-          .then(function(r){ return r.json(); }).then(function(d) {
-              if (d.error) {
-                  _rbLcarsAlert({
-                      title: 'RE-REVIEW FAILED',
-                      message: d.error,
-                      okText: 'CLOSE',
-                      accent: '#ef4444',
-                      accentRgb: '239,68,68'
-                  });
-                  return;
-              }
-              _rbLcarsAlert({
-                  title: (d.reviewer && d.reviewer !== 'default' ? d.reviewer : 'F.O.R.G.E.')
-                         + ' RE-REVIEW DISPATCHED',
-                  message: 'Full diff review started (' + _prScopeLabel() + ').\n\nThe Reviews list refreshes when it lands.',
-                okText: 'OK',
-                accent: '#fbbf24',
-                accentRgb: '251,191,36'
-            }).then(function() {
-                setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);
-            });
-        }).catch(function(e){
-            _rbLcarsAlert({
-                title: 'F.O.R.G.E. RE-REVIEW FAILED',
-                message: e && e.message ? e.message : 'The re-review request could not be sent.',
-                okText: 'CLOSE',
-                accent: '#ef4444',
-                accentRgb: '239,68,68'
-            });
-        });
+      return triggerPRAnalysis(prNumber, repo, null, scopeEl);
 }
 
 function prFileUrl(pr, path) {
@@ -4875,14 +4825,19 @@ function prFileUrl(pr, path) {
     return 'https://github.com/' + pr.repo + '/blob/' + encodeURIComponent(ref) + '/' + seg;
 }
 
-function triggerPRAnalysis(prNumber, repo) {
-    fetch(API + '/forge/pr-reviews/' + prNumber + '/analyze',
-          {method:'POST', headers:{'Content-Type':'application/json'},
-           body: JSON.stringify(_prScopeBody({repo: repo || null}))})
-        .then(function(r){ return r.json(); }).then(function(d) {
-            if (d.error) { alert('Analyze failed: ' + d.error); return; }
-            setTimeout(function(){ window.loadPRReviews(_prStateFilter); }, 3000);
-        }).catch(function(e){ alert('Analyze request failed.'); });
+function triggerPRAnalysis(prNumber, repo, changedFiles, scopeEl) {
+    if (!window.RepairBayPRAnalysis) {
+        return Promise.reject(new Error('Analysis choices could not load. Reload Repair Bay before trying again.'));
+    }
+    return window.RepairBayPRAnalysis.open({
+        prNumber: prNumber,
+        repo: repo || null,
+        changedFiles: changedFiles,
+        reviewer: _prSelectedReviewer(scopeEl),
+        scope: _prScopeBody({}),
+        apiBase: API,
+        onAccepted: function() { window.loadPRReviews(_prStateFilter); }
+    });
 }
 
 function confirmMergePR(prNumber, coverageAck, repo) {

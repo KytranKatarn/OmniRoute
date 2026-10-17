@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, Literal, List
 import json
 import logging
+from tools.repair_bay.services.sandbox_sql import drop_sandbox_schema_statement
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -231,7 +232,7 @@ class SandboxManager:
             if old_type == "schema_separation" and old_sandbox["schema_name"]:
                 try:
                     # Drop the old schema
-                    cur.execute(f"DROP SCHEMA IF EXISTS {old_sandbox['schema_name']} CASCADE")
+                    cur.execute(drop_sandbox_schema_statement(old_sandbox["schema_name"]))
                     conn.commit()
                 except Exception as e:
                     logger.warning(f"Could not drop schema {old_sandbox['schema_name']}: {e}")
@@ -1075,7 +1076,7 @@ class SandboxManager:
 
             # Drop schema if schema-based
             if sandbox["sandbox_type"] == "schema" and sandbox["schema_name"]:
-                cur.execute(f"DROP SCHEMA IF EXISTS {sandbox['schema_name']} CASCADE")
+                cur.execute(drop_sandbox_schema_statement(sandbox["schema_name"]))
 
             # Update status
             cur.execute(

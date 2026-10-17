@@ -70,9 +70,12 @@ class TestPartialPathsAreParsed(unittest.TestCase):
             [{"path": "archie_engine/inference.py", "shown_pct": 89}],
         )
 
-    def test_dropped_and_partial_do_not_bleed_into_each_other(self):
-        """Each reader must claim only its own listing, or one file is counted twice."""
-        self.assertEqual(coverage_dropped_paths(BOTH), ["platform_v2/deploy.py"])
+    def test_ack_retains_both_categories_but_display_does_not_double_count(self):
+        """Merge acknowledgement covers every unread byte, display categories differ."""
+        self.assertEqual(
+            coverage_dropped_paths(BOTH), ["platform_v2/deploy.py", "platform_v2/services/patch_sanity.py"]
+        )
+        self.assertEqual(merge_state("reviewed", BOTH)["dropped_files"], ["platform_v2/deploy.py"])
         self.assertEqual(
             coverage_partial_paths(BOTH),
             [{"path": "platform_v2/services/patch_sanity.py", "shown_pct": 49}],
@@ -96,6 +99,40 @@ class TestPartialPathsAreParsed(unittest.TestCase):
     def test_no_marker_and_empty_are_safe(self):
         for bad in (None, "", "VERDICT: APPROVE"):
             self.assertEqual(coverage_partial_paths(bad), [])
+
+    def test_bound_only_files_are_not_lost_from_ack_or_display(self):
+        from services.review_coverage import coverage_note
+
+        note = "VERDICT: APPROVE\n\n" + coverage_note(
+            {
+                "reviewed": 1,
+                "total": 2,
+                "dropped": ["app/not_sent.py"],
+                "dropped_by_bound": ["app/not_sent.py"],
+                "partial": [],
+            }
+        )
+        self.assertEqual(coverage_dropped_paths(note), ["app/not_sent.py"])
+        self.assertEqual(merge_state("reviewed", note)["label"], "COVERAGE · 1 unread")
+
+    def test_partial_overflow_is_not_a_file(self):
+        from services.review_coverage import coverage_note
+
+        note = "VERDICT: APPROVE\n\n" + coverage_note(
+            {
+                "reviewed": 0,
+                "total": 2,
+                "dropped": [],
+                "partial": [{"path": "app/a.py", "shown_pct": 40}, {"path": "app/b.py", "shown_pct": 50}],
+            },
+            max_listed=1,
+        )
+        self.assertEqual(coverage_partial_paths(note), [{"path": "app/a.py", "shown_pct": 40}])
+        self.assertEqual(coverage_dropped_paths(note), ["app/a.py"])
+
+    def test_malformed_partial_percentage_does_not_double_count(self):
+        note = PARTIAL_ONLY.replace("89%", "???%")
+        self.assertEqual(merge_state("reviewed", note)["label"], "COVERAGE · 1 partly read")
 
 
 class TestMergeStateTellsTheTruth(unittest.TestCase):
@@ -147,16 +184,20 @@ class TestTheButtonIsReachable(unittest.TestCase):
         """If the button moves out from under the gate this test stops meaning anything,
         so pin that it is still the panel that carries it."""
         start = self.tpl.index("msCov.state === 'coverage_only'")
-        panel = self.tpl[start : start + 6000]
-        self.assertIn("F.O.R.G.E. re-review — full diff", panel)
+        end = self.tpl.index("if (pr.review_status === 'reviewed' && !coverageReviewActionRendered)", start)
+        panel = self.tpl[start:end]
+        self.assertIn("re-review — full diff", panel)
         self.assertIn("triggerPRReReview", panel)
 
     def test_the_button_requests_the_wide_path(self):
         """A button that re-runs the SAME narrow window would be theatre. `wide: true` is
         what routes the whole diff through the coverage-aware reviewer."""
         fn = self.tpl[self.tpl.index("function triggerPRReReview") :][:1200]
-        self.assertIn("wide: true", fn)
-        self.assertIn("/analyze", fn)
+        self.assertIn("triggerPRAnalysis(prNumber, repo", fn)
+        chooser = (_TEMPLATE.parents[2] / "static/js/repair-bay-pr-analysis.js").read_text()
+        self.assertIn("['full', 'Full diff — recommended']", chooser)
+        self.assertIn("wide: mode.value === 'full'", chooser)
+        self.assertIn("/analyze", chooser)
 
     def test_completed_reviews_without_coverage_have_a_rereview_action(self):
         source = self.tpl
@@ -169,7 +210,9 @@ class TestTheButtonIsReachable(unittest.TestCase):
         start = self.tpl.index("function triggerPRReReview")
         end = self.tpl.index("function prFileUrl", start)
         fn = self.tpl[start:end]
-        self.assertIn("_rbLcarsAlert", fn)
+        self.assertIn("triggerPRAnalysis", fn)
+        chooser = (_TEMPLATE.parents[2] / "static/js/repair-bay-pr-analysis.js").read_text()
+        self.assertIn("bm-overlay active rb-pr-analysis", chooser)
         self.assertNotRegex(fn, r"\balert\s*\(")
 
     def test_partial_files_are_rendered_with_their_percentage(self):
@@ -222,10 +265,11 @@ class TestTheButtonReviewsTheRightPR(unittest.TestCase):
 
     def test_every_analyze_caller_sends_a_repo(self):
         for fn in ("triggerPRReReview", "triggerPRAnalysis"):
-            sig = f"function {fn}(prNumber, repo)"
-            self.assertIn(sig, self.tpl, f"{fn} still takes only a PR number")
-        for call in ("triggerPRReReview(pr.pr_number, pr.repo)", "triggerPRAnalysis(pr.pr_number, pr.repo)"):
-            self.assertIn(call, self.tpl, f"a caller still passes the number alone: {call}")
+            self.assertRegex(self.tpl, rf"function {fn}\(prNumber, repo(?:,|\))", f"{fn} still takes only a PR number")
+        for fn in ("triggerPRReReview", "triggerPRAnalysis"):
+            self.assertRegex(self.tpl, rf"{fn}\(pr\.pr_number, pr\.repo(?:,|\))")
+        chooser = (_TEMPLATE.parents[2] / "static/js/repair-bay-pr-analysis.js").read_text()
+        self.assertIn("repo: options.repo || null", chooser)
 
     def test_repos_for_pr_number_sees_the_collision(self):
         """NON-VACUITY against live data: if PR 71 stopped existing in two repos this

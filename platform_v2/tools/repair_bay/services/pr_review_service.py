@@ -136,11 +136,13 @@ def coverage_dropped_paths(summary_or_text: str | None) -> list:
         return []
     block = summary_or_text.split(MARKER, 1)[1]
     out = []
-    in_dropped = False
+    # Older persisted notes list dropped paths directly after the marker. Newer
+    # notes split them into window-truncated and per-file-bound sections.
+    in_dropped = True
     in_partial = False
     for line in block.splitlines():
         stripped = line.strip()
-        if stripped.startswith("NOT REVIEWED"):
+        if stripped.startswith(("NOT REVIEWED", "NOT SENT TO THE REVIEWER AT ALL")):
             in_dropped, in_partial = True, False
             continue
         if stripped.startswith("READ ONLY IN PART"):
@@ -232,11 +234,15 @@ def coverage_partial_paths(summary_or_text: str | None) -> list:
         if not stripped.startswith("* "):
             break  # a non-item line ends the section (the closing prose)
         entry = stripped[2:].strip()
+        if entry.startswith("...and "):
+            continue
         pct = None
         m = re.search(r"about\s+(\d+)%\s+shown\s*$", entry)
         if m:
             pct = int(m.group(1))
             entry = entry[: m.start()].rstrip().rstrip("-\u2014\u2013").rstrip()
+        elif " — " in entry:
+            entry = entry.split(" — ", 1)[0].strip()
         if entry:
             out.append({"path": entry, "shown_pct": pct})
     return out
@@ -1588,6 +1594,10 @@ def merge_state(
     if coverage_only_demotion(summary):
         dropped = coverage_dropped_paths(summary) or []
         partial = coverage_partial_paths(summary) or []
+        # coverage_dropped_paths is also the merge-ack list and MUST retain
+        # partial paths there. The display categories, however, are disjoint.
+        partial_paths = {entry["path"] for entry in partial}
+        dropped = [path for path in dropped if path not in partial_paths]
         # A demotion with NO fully-dropped file is the #5910 partial-read case. Labelling
         # that "0 unread" reads as "nothing is unread" — the opposite of why the row was
         # demoted — and it is what hid the re-review button (see coverage_partial_paths).

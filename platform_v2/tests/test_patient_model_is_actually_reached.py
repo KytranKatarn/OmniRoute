@@ -141,7 +141,9 @@ class TestNodeResolutionIsSafe(unittest.TestCase):
     def test_it_requires_capacity_AND_presence(self):
         """can_node_run_model and node_has_model disagree on real nodes (#5862); a pin to a
         node that fits the model but has not pulled it is the same wasted dispatch."""
-        src = inspect.getsource(A._nodes_for_model)
+        from services.review_placement import ready_review_nodes
+
+        src = inspect.getsource(ready_review_nodes)
         self.assertIn("can_node_run_model", src)
         self.assertIn("node_has_model", src)
 
@@ -213,10 +215,9 @@ class TestAQueuedEscalationIsAwaitedNotAbandoned(unittest.TestCase):
     diff that triggered the escalation. So abandoning a queued escalation is not a
     graceful degradation; it is the coverage demotion, with extra steps.
 
-    dispatch_awaiting_queue was built for exactly this and says so: "The F.O.R.G.E.
-    review path is the caller that never got the workaround — so an escalated review
-    silently degraded to the weak model on a truncated diff (#6023)." It was wired into
-    the freeform path (#6247) and not this one.
+    Owned reviews now await the ORIGINAL queue ID through review_attempts, never
+    redispatch to obtain an answer. This applies to ordinary and escalated passes;
+    the pass callback cannot publish a whole-review verdict without the live owner.
     """
 
     def _run(self, kw, *, queued_text=None):
@@ -226,17 +227,20 @@ class TestAQueuedEscalationIsAwaitedNotAbandoned(unittest.TestCase):
             queued = True
             success = False
             response = ""
+            queue_id = 42
 
         def _fake_dispatch(**kwargs):
+            seen["dispatch_kw"] = kwargs
             return _Q()
 
-        def _fake_await(**kwargs):
+        def _fake_await(queue_id):
+            self.assertEqual(queue_id, 42)
             seen["awaited"] = True
-            seen["await_kw"] = kwargs
+            seen["await_kw"] = seen["dispatch_kw"]
             return queued_text
 
         with mock.patch("tools.department_hq.services.department_dispatcher.dispatch", _fake_dispatch), mock.patch(
-            "tools.department_hq.services.department_dispatcher.dispatch_awaiting_queue",
+            "services.review_attempts.await_existing_queue",
             _fake_await,
         ), mock.patch.object(A, "_nodes_for_model", return_value=["archie-starbase"]), mock.patch.object(
             A, "_review_preferred_nodes", return_value=["starship_5501c2766526e746"]
@@ -258,18 +262,16 @@ class TestAQueuedEscalationIsAwaitedNotAbandoned(unittest.TestCase):
         self.assertEqual(seen["await_kw"]["model_override"], "gemma3:12b")
         self.assertEqual(seen["await_kw"]["preferred_node"], ["archie-starbase"])
 
-    def test_the_default_7b_path_does_NOT_block(self):
-        """NON-REGRESSION, and the reason this is conditional: the single-pass 7B path
-        returns fast and lands its verdict via the async callback. Waiting there would
-        stall every ordinary review for no gain."""
+    def test_default_path_awaits_the_owned_pass_without_redispatch(self):
+        """Queued passes need their live owner; raw callbacks cannot publish a verdict."""
         parsed, status, seen = self._run({})
-        self.assertFalse(seen["awaited"], "the default path now blocks on the queue")
-        self.assertEqual(status, "queued")
+        self.assertTrue(seen["awaited"])
+        self.assertEqual(status, "parse_fail")
         self.assertIsNone(parsed)
 
     def test_a_wait_that_yields_nothing_degrades_honestly(self):
-        """It must report 'queued' so the coverage note tells the truth about the cap."""
+        """An empty pass cannot become a parsed review or a whole-review verdict."""
         parsed, status, seen = self._run({"model_override": "gemma3:12b"}, queued_text=None)
         self.assertTrue(seen["awaited"])
-        self.assertEqual(status, "queued")
+        self.assertEqual(status, "parse_fail")
         self.assertIsNone(parsed)

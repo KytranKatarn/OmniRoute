@@ -1016,7 +1016,7 @@ def _apply_severity_gate(review_text: str) -> str:
 
 # --- Phase-1 PR-B: structured JSON review + confidence gate + tier model escalation (#381) ---
 
-_TIER3_REVIEW_MODEL = "gemma3:12b"  # stronger model for big/breaking/security/migration PRs
+_TIER3_REVIEW_MODEL = "gemma3:12b"  # escalation candidate, only with a ready GPU placement
 
 _REVIEW_JSON_SCHEMA = (
     '{"summary": "<one paragraph>", "confidence": <float 0.0-1.0, your certainty>, '
@@ -2098,11 +2098,11 @@ def _review_is_strong(review: dict, diff: str | None = None) -> bool:
     weaker freeform path — the #1901 failure. Escalating to the patient model is the lever;
     widening the impatient one re-opens a known bug.
 
-    ⚠️ HONEST TRADE-OFF: gemma3:12b measures ~56% fleet-wide (nothing here GPU-fits its
-    15.6GB), so this does not guarantee a good review — it fails over to freeform at the
-    weak cap, which is exactly where such a PR already was. So the change is strictly
-    non-worse: previously 100% of oversized diffs were reviewed at 2%; now the majority get
-    read in full and the remainder land where they used to.
+    Large-model RAM fit is not serving readiness: a CPU-only runner can repeatedly
+    consume the entire dispatch timeout. Escalation now requires a fresh, available,
+    already-GPU-serving placement. Otherwise retain the roster model and smaller
+    bounded segments; the planner/coverage gate must still account for every file.
+    Readiness is a snapshot, not a reservation or an Academy quality certification.
 
     Fails CLOSED to the narrow path on any error, so an unclassifiable PR still errs toward
     flagging rather than toward a silent wide window.
@@ -2431,7 +2431,11 @@ _TIER3_PLACEABLE_CACHE = {"at": 0.0, "nodes": None}
 
 
 def _nodes_for_model(model: str) -> list:
-    """Online node_ids that can ACTUALLY hold ``model``. 60s TTL. Fail-closed to [].
+    """Fresh, already-GPU-serving placements for large-model review. Fail closed.
+
+    Five-second readiness cache. Read-only status probes never load/evict a model.
+    The generic resource router may allow CPU fallback for other workloads; a
+    large review window must not opt into that fallback merely because RAM fits.
 
     #6779 — the bug this exists to end. ``_dispatch_json_review`` passed
     ``preferred_node=_review_preferred_nodes()`` (the 7B cluster: Runabout, Defiant)
@@ -2459,27 +2463,24 @@ def _nodes_for_model(model: str) -> list:
         return []
     now = _t.time()
     cache = _TIER3_PLACEABLE_CACHE
-    if cache["nodes"] is not None and (now - cache["at"]) < 60 and cache.get("model") == model:
+    if cache["nodes"] is not None and (now - cache["at"]) < 5 and cache.get("model") == model:
         return list(cache["nodes"])
     out: list = []
     try:
         from database import get_db_cursor  # noqa: PLC0415
-        from services.fleet_resource_router import can_node_run_model, node_has_model  # noqa: PLC0415
+        from services.review_placement import ready_review_nodes  # noqa: PLC0415
+        from tools.department_hq.fleet_helpers import is_starships_undocked  # noqa: PLC0415
 
         with get_db_cursor() as (_c, cur):
             cur.execute(
-                "SELECT node_id, node_name, gpu_available, gpu_vram_gb, ram_gb, "
+                "SELECT node_id, node_name, status, is_active, last_heartbeat, "
+                "gpu_available, gpu_vram_gb, gpu_model, ram_gb, mesh_ip, vpn_ip, hostname, port, "
+                "current_load, max_concurrent, priority, deployment_mode, "
                 "ollama_available, extra_capabilities, bridge_priority "
                 "FROM remote_nodes WHERE status = 'online'"
             )
             rows = [dict(r) for r in cur.fetchall()]
-        for n in rows:
-            # BOTH predicates: capacity says it FITS, presence says it is PULLED. They
-            # disagree on real nodes (#5862), and a pin to a node missing the model is
-            # the same wasted dispatch in a different costume.
-            if can_node_run_model(n, model) and node_has_model(n, model):
-                out.append(n.get("node_id"))
-        out = [n for n in out if n]
+        out = ready_review_nodes(rows, model, starships_undocked=is_starships_undocked())
     except Exception as exc:  # noqa: BLE001
         logger.warning("[PR Review] _nodes_for_model(%s) failed, treating as unplaceable: %s", model, exc)
         out = []

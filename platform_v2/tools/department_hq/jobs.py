@@ -6371,18 +6371,9 @@ def _register_own_jobs(scheduler, flask_app):
                     agent_idle[row["id"]] = float(row["idle_minutes"] if row["idle_minutes"] is not None else 999)
 
             # Pass 3 — queue depths per capability in dispatch_pending_queue
-            queue_depths: dict = {}
-            with get_db_cursor() as (_, cur):
-                cur.execute(
-                    """
-                    SELECT capability, COUNT(*) AS depth
-                    FROM dispatch_pending_queue
-                    WHERE status = 'pending'
-                    GROUP BY capability
-                """
-                )
-                for row in cur.fetchall() or []:
-                    queue_depths[row["capability"]] = row["depth"]
+            from services.model_dispatch_service import get_queued_capability_depths
+
+            queue_depths = get_queued_capability_depths()
 
             # Synthetic geo backlog — WTF articles awaiting geo live in the wtf DB,
             # not dispatch_pending_queue, so the orchestration score would always see

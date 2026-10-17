@@ -46,17 +46,12 @@ def register_orchestration_routes(bp, admin_required):
                         }
                     )
 
-            queues = []
-            with get_db_cursor() as (_, cur):
-                cur.execute(
-                    """
-                    SELECT capability, COUNT(*) AS depth
-                    FROM dispatch_pending_queue
-                    WHERE status = 'pending'
-                    GROUP BY capability ORDER BY depth DESC
-                    """
-                )
-                queues = [{"capability": r["capability"], "depth": r["depth"]} for r in (cur.fetchall() or [])]
+            from services.model_dispatch_service import get_queued_capability_depths
+
+            queues = [
+                {"capability": capability, "depth": depth}
+                for capability, depth in get_queued_capability_depths().items()
+            ]
 
             global_paused = False
             with get_db_cursor() as (_, cur):

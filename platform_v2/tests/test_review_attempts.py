@@ -106,7 +106,7 @@ def test_queue_wait_consumes_same_id_and_cancellation_prevents_polling(db, monke
     cur.fetchone.side_effect = [True]
     token = attempts.CURRENT.set({"id": "owned", "repo": "o/r", "number": 1, "head_sha": "a" * 40})
     monkeypatch.setattr(attempts, "assert_active", Mock())
-    poll = Mock(return_value={"status": "completed", "result_response": "answer"})
+    poll = Mock(return_value={"status": "done", "result_response": "answer"})
     monkeypatch.setattr(worker, "get_pending_queue_result", poll)
     try:
         assert attempts.await_existing_queue(42) == "answer"
@@ -116,6 +116,72 @@ def test_queue_wait_consumes_same_id_and_cancellation_prevents_polling(db, monke
         with pytest.raises(attempts.ReviewCancelled):
             attempts.await_existing_queue(42)
         assert poll.call_count == 1
+    finally:
+        attempts.CURRENT.reset(token)
+
+
+def test_real_queue_producer_result_is_consumed_without_sleep_or_redispatch(db, monkeypatch):
+    """Exercise the real producer/getter/waiter contract, not a made-up status."""
+    _, owner_cur = db
+    owner_cur.fetchone.side_effect = [True]
+    state = {"status": "running", "result_response": None, "error": None}
+    queue_cur = Mock()
+
+    def execute(query, params):
+        if "SET status = 'done'" in query:
+            state.update(status="done", result_response=params[0])
+        else:
+            assert query.startswith("SELECT status, result_response, error")
+
+    queue_cur.execute.side_effect = execute
+    queue_cur.fetchone.side_effect = lambda: dict(state)
+
+    @contextmanager
+    def queue_db(**kwargs):
+        yield Mock(), queue_cur
+
+    monkeypatch.setattr(worker, "get_db_cursor", queue_db)
+    monkeypatch.setattr(worker, "_handle_callback", Mock())
+    monkeypatch.setattr(attempts, "assert_active", Mock())
+    monkeypatch.setattr(attempts.time, "monotonic", Mock(side_effect=[0, 0, 2]))
+    sleep = Mock()
+    monkeypatch.setattr(attempts.time, "sleep", sleep)
+    worker._mark_done(42, "actual pass result", "fixture-model", 10, None)
+    assert state["status"] == "done"
+    token = attempts.CURRENT.set({"id": "owned", "repo": "o/r", "number": 1, "head_sha": "a" * 40})
+    try:
+        assert attempts.await_existing_queue(42, timeout=1) == "actual pass result"
+        sleep.assert_not_called()
+        assert attempts.assert_active.call_count == 2
+    finally:
+        attempts.CURRENT.reset(token)
+
+
+@pytest.mark.parametrize("status", ["failed", "expired", "cancelled"])
+def test_terminal_queue_failure_is_not_success(db, monkeypatch, status):
+    _, cur = db
+    cur.fetchone.side_effect = [True]
+    monkeypatch.setattr(attempts, "assert_active", Mock())
+    monkeypatch.setattr(worker, "get_pending_queue_result", Mock(return_value={"status": status}))
+    token = attempts.CURRENT.set({"id": "owned", "repo": "o/r", "number": 1, "head_sha": "a" * 40})
+    try:
+        with pytest.raises(attempts.ReviewCancelled, match="failed, expired or cancelled"):
+            attempts.await_existing_queue(42)
+    finally:
+        attempts.CURRENT.reset(token)
+
+
+def test_cancellation_during_successful_result_read_still_blocks_consumption(db, monkeypatch):
+    _, cur = db
+    cur.fetchone.side_effect = [True]
+    monkeypatch.setattr(attempts, "assert_active", Mock(side_effect=[None, attempts.ReviewCancelled("cancelled")]))
+    monkeypatch.setattr(
+        worker, "get_pending_queue_result", Mock(return_value={"status": "done", "result_response": "pass"})
+    )
+    token = attempts.CURRENT.set({"id": "owned", "repo": "o/r", "number": 1, "head_sha": "a" * 40})
+    try:
+        with pytest.raises(attempts.ReviewCancelled, match="cancelled"):
+            attempts.await_existing_queue(42)
     finally:
         attempts.CURRENT.reset(token)
 

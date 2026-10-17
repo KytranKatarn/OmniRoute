@@ -184,7 +184,10 @@ def await_existing_queue(queue_id, timeout=1200):
         row = get_pending_queue_result(queue_id)
         if not row or row["status"] in {"failed", "expired", "cancelled"}:
             raise ReviewCancelled("queued dispatch failed, expired or cancelled")
-        if row["status"] == "completed":
+        if row["status"] == "done":
+            # The dispatch producer writes 'done'. Domain-task 'completed' is
+            # not this queue's vocabulary. Recheck cancellation after the read.
+            assert_active()
             return row.get("result_response")
         with get_db_cursor(commit=True) as (_, cur):
             cur = guarded_cursor(cur)

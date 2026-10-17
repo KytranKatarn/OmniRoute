@@ -124,6 +124,20 @@ def _submit_task(task: dict, node_id=None):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
+def get_queued_capability_depths() -> dict[str, int]:
+    """Actual waiting demand, shared by orchestration scoring and its status API.
+
+    dispatch_pending_queue uses queued/running/done, not the pending/completed
+    vocabulary of domain queues. Keep consumers behind this owner-level query.
+    """
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            "SELECT capability, COUNT(*) AS depth FROM dispatch_pending_queue "
+            "WHERE status = 'queued' GROUP BY capability ORDER BY depth DESC"
+        )
+        return {row["capability"]: int(row["depth"]) for row in cur.fetchall()}
+
+
 def get_pending_queue_result(queue_id: int) -> Optional[dict]:
     """Read a dispatch_pending_queue row's terminal-relevant fields.
 

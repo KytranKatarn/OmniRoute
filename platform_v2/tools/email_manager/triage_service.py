@@ -199,14 +199,14 @@ def run_triage_health_check() -> dict:
         mailbox_types = _health_mailbox_types()
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                f"""SELECT count(*) AS total,
+                """SELECT count(*) AS total,
                            count(*) FILTER (WHERE m.ai_priority IS NULL) AS untriaged
                       FROM email_messages m
                       JOIN email_mailboxes mb ON mb.id = m.mailbox_id
                      WHERE mb.mailbox_type = ANY(%s)
                        AND m.received_at >= NOW() - INTERVAL '24 hours'
-                       AND m.received_at <= NOW() - INTERVAL '{_HEALTH_GRACE_MIN} minutes'""",
-                (mailbox_types,),
+                       AND m.received_at <= NOW() - INTERVAL '1 minute' * %s""",
+                (mailbox_types, _HEALTH_GRACE_MIN),
             )
             row = cur.fetchone() or {}
         total = int(row.get("total", 0))

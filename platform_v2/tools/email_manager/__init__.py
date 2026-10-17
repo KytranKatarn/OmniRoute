@@ -12,6 +12,27 @@ from .access_control import email_access_required  # noqa: F401, E402
 # Import IMAP routes to register them on the same blueprint
 from . import imap_routes  # noqa: F401, E402
 
+# Importing imap_routes registers endpoints on the shared blueprint. It is an
+# intentional package export, not an unused dependency to remove during repair.
+__all__ = [
+    "email_manager_bp",
+    "admin_required",
+    "email_access_required",
+    "imap_routes",
+    "register_overview_routes",
+    "register_mailbox_routes",
+    "register_inbox_routes",
+    "register_sent_routes",
+    "register_compose_routes",
+    "register_hq_routes",
+    "register_email_messages_routes",
+    "register_email_rules_routes",
+    "register_sla_routes",
+    "register_human_sla_routes",
+    "register_sync_routes",
+    "register_settings_routes",
+]
+
 # Overview tab routes — scoped by get_visible_mailbox_ids() (T3279)
 from .overview_routes import register_overview_routes  # noqa: F401, E402
 

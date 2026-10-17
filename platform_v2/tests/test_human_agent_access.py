@@ -17,6 +17,7 @@ from psycopg2.extras import RealDictCursor
 
 from rbac import Role, Permission, get_user_role, has_permission, can_access_module
 from tools.email_manager import access_control, compose_routes, draft_proposal_service as drafts
+from tools.email_manager import draft_proposal_jobs
 
 
 def user(uid=1, **kw):
@@ -90,8 +91,8 @@ class RoleTests(unittest.TestCase):
 class BusinessDraftTests(unittest.TestCase):
     def test_assigned_business_uses_owners_persona_pipeline(self):
         c = {"mailbox_type": "business", "business_owner_agent_id": 10, "collaborator_agent_id": 10}
-        with patch.object(drafts, "_collaborators_enabled", return_value=True), patch.object(
-            drafts, "_create_collaborator_proposal", return_value=True
+        with patch.object(draft_proposal_jobs, "_collaborators_enabled", return_value=True), patch.object(
+            draft_proposal_jobs, "_create_collaborator_proposal", return_value=True
         ) as create:
             self.assertTrue(drafts._create_proposal(c))
             create.assert_called_once_with(c)
@@ -99,8 +100,8 @@ class BusinessDraftTests(unittest.TestCase):
     def test_disabled_or_unavailable_owner_does_not_fall_back_to_another_voice(self):
         for enabled, owner in [(False, 10), (True, None)]:
             c = {"mailbox_type": "business", "business_owner_agent_id": 10, "collaborator_agent_id": owner}
-            with patch.object(drafts, "_collaborators_enabled", return_value=enabled), patch.object(
-                drafts, "_create_collaborator_proposal"
+            with patch.object(draft_proposal_jobs, "_collaborators_enabled", return_value=enabled), patch.object(
+                draft_proposal_jobs, "_create_collaborator_proposal"
             ) as create:
                 self.assertFalse(drafts._create_proposal(c))
                 create.assert_not_called()

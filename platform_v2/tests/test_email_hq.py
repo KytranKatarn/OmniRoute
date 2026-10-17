@@ -1,7 +1,16 @@
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 
 class TestStalwartService:
+    @pytest.fixture(autouse=True)
+    def _mock_admin_password(self, monkeypatch):
+        from tools.email_manager import stalwart_service
+
+        # These HTTP-mocked tests must not depend on production credentials.
+        monkeypatch.setattr(stalwart_service, "_PASS", "test-only-placeholder")
+
     def test_create_mailbox_accepts_quota_gb(self):
         with patch("tools.email_manager.stalwart_service.requests.post") as mock_post:
             mock_post.return_value = MagicMock(status_code=200)

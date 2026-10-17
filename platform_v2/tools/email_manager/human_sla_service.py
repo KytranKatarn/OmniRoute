@@ -147,14 +147,12 @@ def per_agent_stats(days=7, visible_mailbox_ids=None):
     """
     target_hours = get_sla_target_hours()
     target_seconds = int(target_hours * 3600)
-    scoped = visible_mailbox_ids is not None
-    mb_clause = "AND m.id = ANY(%s)" if scoped else ""
 
     with get_db_cursor() as (conn, cur):
         # 1) reply metrics per human_agent mailbox
-        reply_params = [target_seconds, days] + ([visible_mailbox_ids] if scoped else [])
+        reply_params = [target_seconds, days, visible_mailbox_ids, visible_mailbox_ids]
         cur.execute(
-            f"""
+            """
             SELECT m.id AS mailbox_id, m.address, m.owner_agent_id,
                    COALESCE(a.display_name, a.name, m.address) AS agent_name,
                    COUNT(e.id)                                              AS reply_count,
@@ -167,7 +165,8 @@ def per_agent_stats(days=7, visible_mailbox_ids=None):
             LEFT JOIN email_reply_events e
               ON e.mailbox_id = m.id
              AND e.sent_at >= NOW() - INTERVAL '1 day' * %s
-            WHERE m.mailbox_type = 'human_agent' AND m.active = TRUE {mb_clause}
+            WHERE m.mailbox_type = 'human_agent' AND m.active = TRUE
+              AND (%s::int[] IS NULL OR m.id = ANY(%s::int[]))
             GROUP BY m.id, m.address, m.owner_agent_id, a.display_name, a.name
             """,
             reply_params,
@@ -175,16 +174,17 @@ def per_agent_stats(days=7, visible_mailbox_ids=None):
         reply_rows = {r["mailbox_id"]: dict(r) for r in cur.fetchall()}
 
         # 2) inbound + open (unreplied) per human_agent mailbox in the window
-        inbound_params = [days] + ([visible_mailbox_ids] if scoped else [])
+        inbound_params = [visible_mailbox_ids, visible_mailbox_ids, days]
         cur.execute(
-            f"""
+            """
             SELECT im.mailbox_id,
                    COUNT(*)                             AS inbound_count,
                    COUNT(*) FILTER (WHERE e.id IS NULL) AS open_threads
             FROM email_messages im
             JOIN email_mailboxes m ON m.id = im.mailbox_id
             LEFT JOIN email_reply_events e ON e.source_message_id = im.id
-            WHERE m.mailbox_type = 'human_agent' AND m.active = TRUE {mb_clause}
+            WHERE m.mailbox_type = 'human_agent' AND m.active = TRUE
+              AND (%s::int[] IS NULL OR m.id = ANY(%s::int[]))
               AND im.received_at >= NOW() - INTERVAL '1 day' * %s
             GROUP BY im.mailbox_id
             """,

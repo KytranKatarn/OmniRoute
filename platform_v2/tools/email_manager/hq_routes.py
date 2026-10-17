@@ -146,26 +146,10 @@ def register_hq_routes(bp, admin_required, real_admin_required=None):
         visible = get_visible_mailbox_ids(current_user)
 
         with get_db_cursor() as (_, cur):
-            where_clauses = []
-            params = []
-
             if mailbox_filter:
                 # Scope guard: COLLABORATOR may only request their own mailboxes.
                 if visible is not None and mailbox_filter not in visible:
                     abort(403)
-                where_clauses.append("m.id = %s")
-                params.append(mailbox_filter)
-            elif visible is not None:
-                where_clauses.append("m.id = ANY(%s)")
-                params.append(visible)
-
-            if status_filter == "unread":
-                where_clauses.append("al.read_at IS NULL")
-            elif status_filter == "read":
-                where_clauses.append("al.read_at IS NOT NULL")
-
-            where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-            params.append(limit)
             cur.execute(
                 """
                 SELECT al.id, m.id AS mailbox_id, al.direction, al.from_address,
@@ -176,13 +160,14 @@ def register_hq_routes(bp, admin_required, real_admin_required=None):
                 JOIN email_mailboxes m ON m.address = al.mailbox_address
                 LEFT JOIN email_assignments ea ON ea.email_id = al.id
                   AND ea.status = 'open'
-                """
-                + where_sql
-                + """
+                WHERE (%s::int IS NULL OR m.id = %s)
+                  AND (%s::int[] IS NULL OR m.id = ANY(%s::int[]))
+                  AND (%s <> 'unread' OR al.read_at IS NULL)
+                  AND (%s <> 'read' OR al.read_at IS NOT NULL)
                 ORDER BY al.logged_at DESC NULLS LAST
                 LIMIT %s
                 """,
-                params,
+                [mailbox_filter or None, mailbox_filter or None, visible, visible, status_filter, status_filter, limit],
             )
             rows = cur.fetchall()
         emails = [
@@ -351,12 +336,6 @@ def register_hq_routes(bp, admin_required, real_admin_required=None):
         limit = min(int(request.args.get("limit", 50)), 200)
         visible = get_visible_mailbox_ids(current_user)
 
-        scope_clause = ""
-        scope_params: list = []
-        if visible is not None:
-            scope_clause = " AND al.mailbox_address IN " "(SELECT address FROM email_mailboxes WHERE id = ANY(%s))"
-            scope_params = [visible]
-
         with get_db_cursor() as (_, cur):
             cur.execute(
                 """
@@ -375,13 +354,12 @@ def register_hq_routes(bp, admin_required, real_admin_required=None):
                         AND r.to_address = al.from_address
                         AND r.logged_at > al.logged_at
                   )
-                """
-                + scope_clause
-                + """
+                  AND (%s::int[] IS NULL OR al.mailbox_address IN
+                       (SELECT address FROM email_mailboxes WHERE id = ANY(%s::int[])))
                 ORDER BY al.logged_at ASC
                 LIMIT %s
                 """,
-                [str(threshold)] + scope_params + [limit],
+                [str(threshold), visible, visible, limit],
             )
             rows = cur.fetchall()
         emails = [

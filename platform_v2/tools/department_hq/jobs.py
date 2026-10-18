@@ -638,6 +638,7 @@ def code_health_reconcile_job():
 
     from services.code_issue_reconciler import reconcile_open_issues, reconcile_open_proposals
 
+    start = time.time()
     out = {}
     try:
         out["issues"] = reconcile_open_issues(limit=3000, dry_run=False)
@@ -673,6 +674,31 @@ def code_health_reconcile_job():
         (out.get("issues") or {}).get("closed", "?"),
         (out.get("proposals") or {}).get("archived", "?"),
         (out.get("attribution") or {}).get("fixed", "?"),
+    )
+    # _log_cycle: this job previously only did logger.info, so it was invisible in
+    # autonomy_loop_log — every sibling code_health job logs there, and the missing
+    # rows made "is the hourly reconcile even running?" unanswerable from the DB.
+    issues = out.get("issues") or {}
+    proposals = out.get("proposals") or {}
+    attribution = out.get("attribution") or {}
+    items_processed = (
+        int(issues.get("closed") or 0) + int(proposals.get("archived") or 0) + int(attribution.get("fixed") or 0)
+    )
+    pass_errors = sum(
+        1
+        for key in ("issues", "proposals", "attribution")
+        if isinstance(out.get(key), dict) and "error" in (out.get(key) or {})
+    )
+    _log_cycle(
+        "code_health_reconcile",
+        items_processed,
+        pass_errors,
+        int((time.time() - start) * 1000),
+        details={
+            "issues_closed": issues.get("closed", 0),
+            "proposals_archived": proposals.get("archived", 0),
+            "attribution_fixed": attribution.get("fixed", 0),
+        },
     )
     return out
 

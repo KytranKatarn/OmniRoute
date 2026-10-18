@@ -1697,7 +1697,25 @@ def dispatch_audit_proposals(limit=20, module_name=None, dry_run=False):
                  AND metadata->>'source' = 'code_health_audit'
                  AND (COALESCE(metadata->>'severity_tier', 'yellow') <> 'red'
                       OR status IN ('approved', 'fix_requested'))
-                 AND (metadata->>'dispatch_attempted') IS NULL
+                 AND (
+                     (metadata->>'dispatch_attempted') IS NULL
+                     -- Fix-quality cooldown retry: a failed FIX APPLICATION
+                     -- (find_not_located / unparseable / find_ambiguous — never a
+                     -- C.R.E.E.D. denial or transient deferral, whose errors don't
+                     -- start with 'fix_apply:') gets ONE fresh attempt after 14
+                     -- days. Without this, ~130 proposals whose fix failed on an
+                     -- older code state sat "in repair" forever; the finding may
+                     -- still be real but the fixer has since improved. The retry
+                     -- is self-limiting: a second failure re-stamps
+                     -- dispatch_attempted_at, restarting the cooldown — so a
+                     -- chronically unfixable finding retries at most once per
+                     -- 14 days, never more than once per batch.
+                     OR (
+                         COALESCE(metadata->>'dispatch_error', '') LIKE 'fix_apply:%'
+                         AND (metadata->>'dispatch_attempted_at') IS NOT NULL
+                         AND (metadata->>'dispatch_attempted_at')::timestamptz < NOW() - INTERVAL '14 days'
+                     )
+                 )
                  AND COALESCE(metadata->>'issue_code', '') <> ALL(%s)"""
             + module_filter
             + """

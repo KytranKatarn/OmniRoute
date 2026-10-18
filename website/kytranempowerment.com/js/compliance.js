@@ -39,6 +39,28 @@ var Compliance = {
         }).format(date);
     },
 
+    _renderStats: function (data) {
+        var stats = document.getElementById('complianceScanStats');
+        if (!stats) return;
+        while (stats.firstChild) stats.removeChild(stats.firstChild);
+
+        var items = [
+            ['Latest complete scan', this._formatDate(data.last_scan) || 'Timestamp unavailable'],
+            ['Frameworks represented', String(Number(data.framework_count || 0))],
+            ['Applicable checks recorded', String(Number(data.evaluated_rules || 0))],
+            ['Previous comparable scan', this._formatDate(data.previous_scan) || 'No prior complete scan']
+        ];
+        var self = this;
+        items.forEach(function (item) {
+            var cardClass = item[0].indexOf('scan') !== -1 ? 'tc-scanstat tc-scanstat--date' : 'tc-scanstat';
+            var card = self._element('div', cardClass);
+            card.appendChild(self._element('div', 'tc-scanstat__value', item[1]));
+            card.appendChild(self._element('div', 'tc-scanstat__label', item[0]));
+            stats.appendChild(card);
+        });
+        stats.setAttribute('aria-busy', 'false');
+    },
+
     render: function (data) {
         var container = document.getElementById('complianceBadges');
         var summary = document.getElementById('complianceScanSummary');
@@ -50,13 +72,10 @@ var Compliance = {
             return;
         }
 
-        var scanDate = this._formatDate(data.last_scan);
         if (summary) {
-            summary.textContent = 'Latest complete rule-level scan'
-                + (scanDate ? ' · ' + scanDate : '')
-                + ' · ' + Number(data.framework_count || data.badges.length) + ' frameworks'
-                + ' · ' + Number(data.evaluated_rules || 0) + ' applicable checks';
+            summary.textContent = 'Results below use the most recent scan with all expected rule results persisted.';
         }
+        this._renderStats(data);
 
         var self = this;
         data.badges.forEach(function (badge) {
@@ -105,11 +124,20 @@ var Compliance = {
     renderUnavailable: function () {
         var container = document.getElementById('complianceBadges');
         var summary = document.getElementById('complianceScanSummary');
+        var stats = document.getElementById('complianceScanStats');
         if (container) {
             while (container.firstChild) container.removeChild(container.firstChild);
             container.setAttribute('aria-busy', 'false');
             container.appendChild(this._element('p', 'tc-score-card__detail', 'No complete rule-level scan is currently available.'));
         }
         if (summary) summary.textContent = 'Scan results are temporarily unavailable.';
+        if (stats) {
+            while (stats.firstChild) stats.removeChild(stats.firstChild);
+            var unavailable = this._element('div', 'tc-scanstat');
+            unavailable.appendChild(this._element('div', 'tc-scanstat__value', 'Unavailable'));
+            unavailable.appendChild(this._element('div', 'tc-scanstat__label', 'No complete scan to summarize'));
+            stats.appendChild(unavailable);
+            stats.setAttribute('aria-busy', 'false');
+        }
     }
 };

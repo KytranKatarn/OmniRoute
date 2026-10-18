@@ -40,7 +40,8 @@ def test_public_badges_use_complete_persisted_scan_and_exclude_na_from_rate(monk
                 "evaluated_rules": 10,
                 "not_applicable_rules": 3,
                 "manual_rules": 2,
-                "last_scan": datetime(2026, 10, 18, tzinfo=timezone.utc),
+                "scan_completed_at": datetime(2026, 10, 18, tzinfo=timezone.utc),
+                "previous_scan_completed_at": datetime(2026, 10, 17, tzinfo=timezone.utc),
             }
         ],
     )
@@ -50,12 +51,14 @@ def test_public_badges_use_complete_persisted_scan_and_exclude_na_from_rate(monk
     assert "persisted.result_count = cs.total_rules" in cursor.query
     assert "cs.completed_at IS NOT NULL" in cursor.query
     assert "sr.status IN ('pass', 'fail', 'error')" in cursor.query
+    assert "previous.pack_ids = latest.pack_ids" in cursor.query
     assert result["available"] is True
     assert result["badges"][0]["score"] == 80.0
     assert result["badges"][0]["evaluated_rules"] == 10
     assert result["badges"][0]["not_applicable_rules"] == 3
     assert result["framework_count"] == 1
     assert result["evaluated_rules"] == 10
+    assert result["previous_scan"] == "2026-10-17T00:00:00+00:00"
 
 
 def test_public_badges_report_unavailable_when_no_complete_scan(monkeypatch):
@@ -70,4 +73,5 @@ def test_public_badges_report_unavailable_when_no_complete_scan(monkeypatch):
         "framework_count": 0,
         "evaluated_rules": 0,
         "last_scan": None,
+        "previous_scan": None,
     }

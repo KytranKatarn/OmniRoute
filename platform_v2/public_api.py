@@ -594,8 +594,8 @@ def _fetch_compliance_badges():
             # a scan when every expected rule result was persisted.
             cur.execute(
                 """
-                WITH latest_complete_scan AS (
-                    SELECT cs.scan_id
+                WITH complete_scans AS (
+                    SELECT cs.scan_id, cs.pack_ids, cs.completed_at
                     FROM compliance_scans cs
                     JOIN (
                         SELECT scan_id, COUNT(*) AS result_count
@@ -605,8 +605,25 @@ def _fetch_compliance_badges():
                     WHERE cs.completed_at IS NOT NULL
                       AND cs.total_rules > 0
                       AND persisted.result_count = cs.total_rules
-                    ORDER BY cs.completed_at DESC
+                ),
+                latest_complete_scan AS (
+                    SELECT scan_id, pack_ids, completed_at
+                    FROM complete_scans
+                    ORDER BY completed_at DESC, scan_id DESC
                     LIMIT 1
+                ),
+                previous_complete_scan AS (
+                    SELECT MAX(previous.completed_at) AS completed_at
+                    FROM complete_scans previous
+                    JOIN latest_complete_scan latest
+                      ON previous.pack_ids = latest.pack_ids
+                     AND (
+                         previous.completed_at < latest.completed_at
+                         OR (
+                             previous.completed_at = latest.completed_at
+                             AND previous.scan_id < latest.scan_id
+                         )
+                     )
                 )
                 SELECT
                     rp.pack_id,
@@ -619,11 +636,13 @@ def _fetch_compliance_badges():
                         WHERE sr.status = 'not_applicable'
                     ) AS not_applicable_rules,
                     COUNT(*) FILTER (WHERE sr.status = 'manual') AS manual_rules,
-                    MAX(sr.scanned_at) AS last_scan
+                    latest.completed_at AS scan_completed_at,
+                    previous.completed_at AS previous_scan_completed_at
                 FROM compliance_scan_results sr
                 JOIN compliance_rule_packs rp ON sr.pack_id = rp.pack_id
                 JOIN latest_complete_scan latest ON latest.scan_id = sr.scan_id
-                GROUP BY rp.pack_id, rp.name
+                CROSS JOIN previous_complete_scan previous
+                GROUP BY rp.pack_id, rp.name, latest.completed_at, previous.completed_at
                 ORDER BY rp.name
             """
             )
@@ -643,7 +662,10 @@ def _fetch_compliance_badges():
                         "passing_rules": passing,
                         "not_applicable_rules": row["not_applicable_rules"] or 0,
                         "manual_rules": row["manual_rules"] or 0,
-                        "last_scan": row["last_scan"].isoformat() if row["last_scan"] else None,
+                        "last_scan": row["scan_completed_at"].isoformat() if row["scan_completed_at"] else None,
+                        "previous_scan": (
+                            row["previous_scan_completed_at"].isoformat() if row["previous_scan_completed_at"] else None
+                        ),
                     }
                 )
 
@@ -656,6 +678,10 @@ def _fetch_compliance_badges():
                     (badge["last_scan"] for badge in badges if badge["last_scan"]),
                     default=None,
                 ),
+                "previous_scan": max(
+                    (badge["previous_scan"] for badge in badges if badge["previous_scan"]),
+                    default=None,
+                ),
             }
     except Exception as e:
         logger.error("public_api /compliance/badges failed: %s", e)
@@ -665,6 +691,7 @@ def _fetch_compliance_badges():
             "framework_count": 0,
             "evaluated_rules": 0,
             "last_scan": None,
+            "previous_scan": None,
         }
 
 

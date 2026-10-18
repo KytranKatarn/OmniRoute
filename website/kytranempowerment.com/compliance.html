@@ -235,6 +235,11 @@
             font-weight: 700;
             color: #00e5ff;
         }
+        .tc-scanstat--date .tc-scanstat__value {
+            font-size: 0.95rem;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
         .tc-scanstat__label {
             font-size: 0.7rem;
             color: rgba(255, 255, 255, 0.5);
@@ -574,7 +579,8 @@
             <div class="container">
                 <h2 class="section__title" data-split>Latest Compliance Check Results</h2>
                 <p style="text-align:center;color:rgba(255,255,255,0.5);margin-bottom:2rem;">Pass rates from the latest complete rule-level scan. These automated checks are not an independent certification or attestation.</p>
-                <div id="complianceScanSummary" class="tc-scan-summary" aria-live="polite">Loading latest scan data&hellip;</div>
+                <div id="complianceScanSummary" class="tc-scan-summary" aria-live="polite">Loading Security &amp; Network&rsquo;s latest complete rule-level scan, recorded check totals, and previous comparable scan&hellip;</div>
+                <div id="complianceScanStats" class="tc-scanstats-grid" aria-live="polite" aria-busy="true"></div>
                 <div id="complianceBadges" class="tc-scores-grid" aria-live="polite" aria-busy="true"></div>
             </div>
         </section>

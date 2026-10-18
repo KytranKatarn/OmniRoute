@@ -320,6 +320,7 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
         "cards_cancelled": 0,
         "dry_run": dry_run,
         "samples": [],
+        "unverifiable_samples": [],
     }
 
     module_filter = ""
@@ -371,6 +372,10 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
         verdict = finding_still_reproduces(proposal_message(row["issue_code"], row["detail"]), text, line_no)
         if verdict is None:
             stats["unverifiable"] += 1
+            if len(stats["unverifiable_samples"]) < 10:
+                stats["unverifiable_samples"].append(
+                    {"id": row["id"], "code": row["issue_code"], "detail": (row["detail"] or "")[:70]}
+                )
         elif verdict:
             stats["still_present"] += 1
         else:
@@ -389,7 +394,8 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
                        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                            'archived_by',   'reconciler_5004',
                            'archive_reason', %s,
-                           'archived_at',    NOW()::text)
+                           'archived_at',    NOW()::text,
+                           'fix_verified',   true)
                    WHERE id = ANY(%s) AND status = ANY(%s)""",
                 (PROPOSAL_STALE_REASON, to_archive, list(statuses)),
             )
@@ -424,6 +430,11 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
             stats["unverifiable"],
             stats["unreadable"],
         )
+        if stats["unverifiable_samples"]:
+            logger.info(
+                "[proposal-reconciler] unverifiable samples: %s",
+                stats["unverifiable_samples"],
+            )
     return stats
 
 

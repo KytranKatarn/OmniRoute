@@ -1,6 +1,10 @@
 """Shared attribution and active counts for Code Health repair proposals."""
 
+import logging
+
 from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = ("archived", "implemented", "rejected", "deployed", "failed", "superseded")
 
@@ -118,3 +122,72 @@ def open_proposal_counts(code_health_only=True):
         if module:
             counts[module] = counts.get(module, 0) + row["cnt"]
     return counts
+
+
+def reconcile_module_attribution(dry_run=True):
+    """Fix module attribution drift on active proposals.
+
+    When a proposal's file_path clearly identifies a module (e.g.
+    ``[APP_CORE]/tools/email_manager/hq_routes.py``) but module_name is NULL
+    or metadata->>'module_name' is a placeholder like ``[APP_CORE]``, the
+    open_proposal_counts function can still attribute it correctly via
+    module_from_file_path. However, the Consciousness > Code Health tab and
+    the Department Orchestration panel read module_name directly, so drift
+    there shows as incorrect per-module counts.
+
+    This corrects module_name (and metadata.module_name) to the module
+    derived from file_path, for active proposals only. Idempotent: a second
+    run finds 0 to fix.
+    """
+    stats = {"examined": 0, "fixed": 0, "dry_run": dry_run, "samples": []}
+    with get_db_cursor(commit=False) as (_, cur):
+        cur.execute(
+            """SELECT id, module_name, metadata->>'module_name' AS metadata_module,
+                      metadata->>'file_path' AS file_path
+               FROM improvement_proposals
+               WHERE status NOT IN %s
+                 AND metadata->>'file_path' IS NOT NULL
+                 AND (module_name IS NULL OR module_name = ''
+                      OR module_name IN ('[APP_CORE]', '[AI_BRIDGE]', '[MIGRATIONS]')
+                      OR metadata->>'module_name' IN ('[APP_CORE]', '[AI_BRIDGE]', '[MIGRATIONS]'))
+               ORDER BY id""",
+            (TERMINAL_STATUSES,),
+        )
+        rows = cur.fetchall()
+
+    updates = []
+    for row in rows:
+        stats["examined"] += 1
+        derived = module_from_file_path(row["file_path"])
+        if not derived or derived in ("[APP_CORE]", "[AI_BRIDGE]", "[MIGRATIONS]"):
+            continue  # path doesn't yield a useful module — leave alone
+        needs_scalar = not row["module_name"] or row["module_name"] in ("[APP_CORE]", "[AI_BRIDGE]", "[MIGRATIONS]")
+        needs_meta = (row["metadata_module"] or "") in ("[APP_CORE]", "[AI_BRIDGE]", "[MIGRATIONS]", "")
+        if needs_scalar or needs_meta:
+            updates.append({"id": row["id"], "module": derived})
+            if len(stats["samples"]) < 5:
+                stats["samples"].append(
+                    {
+                        "id": row["id"],
+                        "file_path": row["file_path"],
+                        "old_module": row["module_name"] or row["metadata_module"],
+                        "new_module": derived,
+                    }
+                )
+
+    if updates and not dry_run:
+        with get_db_cursor(commit=True) as (_, cur):
+            for upd in updates:
+                cur.execute(
+                    """UPDATE improvement_proposals
+                       SET module_name = %s,
+                           metadata = COALESCE(metadata, '{}'::jsonb) ||
+                               jsonb_build_object('module_name', %s)
+                       WHERE id = %s""",
+                    (upd["module"], upd["module"], upd["id"]),
+                )
+            stats["fixed"] = len(updates)
+        logger.info("[attribution-reconciler] fixed module attribution on %d proposal(s)", stats["fixed"])
+    else:
+        stats["fixed"] = len(updates)  # dry-run: report what WOULD be fixed
+    return stats

@@ -655,11 +655,24 @@ def code_health_reconcile_job():
     except Exception as exc:
         logger.warning("code_health_reconcile: proposal pass failed: %s", exc)
         out["proposals"] = {"error": str(exc)}
+    try:
+        # Module attribution drift fix: proposals whose file_path clearly identifies
+        # a module but module_name / metadata.module_name is NULL or a placeholder
+        # like [APP_CORE]. Without this, the Code Health tab and Department
+        # Orchestration panel miscount per-module totals even though
+        # open_proposal_counts() can attribute them via path.
+        from services.code_health_repairs import reconcile_module_attribution
+
+        out["attribution"] = reconcile_module_attribution(dry_run=False)
+    except Exception as exc:
+        logger.warning("code_health_reconcile: attribution pass failed: %s", exc)
+        out["attribution"] = {"error": str(exc)}
 
     logger.info(
-        "code_health_reconcile: closed %s issue(s), archived %s proposal(s)",
+        "code_health_reconcile: closed %s issue(s), archived %s proposal(s), fixed %s attribution(s)",
         (out.get("issues") or {}).get("closed", "?"),
         (out.get("proposals") or {}).get("archived", "?"),
+        (out.get("attribution") or {}).get("fixed", "?"),
     )
     return out
 

@@ -142,6 +142,23 @@ def sql_finding_present(source):
         query = call.args[0] if call.args else None
         if isinstance(query, ast.JoinedStr) or isinstance(query, ast.BinOp) and isinstance(query.op, ast.Mod):
             return True
-        if not isinstance(query, ast.Constant) or not isinstance(query.value, str):
+        if isinstance(query, ast.BinOp) and isinstance(query.op, ast.Add):
+            # String concatenation of constants is still a literal string.
+            # Recursively check both sides to handle nested concatenations.
+            def _is_literal_string(node):
+                if isinstance(node, ast.Constant):
+                    return isinstance(node.value, str)
+                if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                    return _is_literal_string(node.left) and _is_literal_string(node.right)
+                return False
+
+            if _is_literal_string(query):
+                continue  # literal concatenation — not interpolated
+            # A variable in the concatenation (e.g. `base_sql + where_sql + tail`) means
+            # we cannot prove the query is safe. Return None (unverifiable), not True:
+            # the reconciler must not close what it cannot check, but it also must not
+            # treat this as a confirmed injection — the variable may be parameterized.
+            unknown = True
+        elif not isinstance(query, ast.Constant) or not isinstance(query.value, str):
             unknown = True
     return None if unknown else False

@@ -9,6 +9,27 @@ codex:
   - scripts/
   - config/
   - scripts/agents/codex-delegation-worker.py
+  # 2026-10-18 owner decision — lane capability parity with opencode. These two
+  # prefixes were the ONLY scope where opencode.yaml was broader than this file, and
+  # `website/` was the concrete wall Codex hit: it was refused the Trust Center
+  # live-score work (Trust Center hard-coded percentages → sanitized public frameworks
+  # API) purely because the prefix was absent, while opencode has held `website/` since
+  # 2026-09-23. `codex/` is the mirror of opencode's own `opencode/` entry — so the lane
+  # can fix its own tooling instead of asking the owner for every ship-script fix.
+  #
+  # ⚠️ blocked_globs below are UNCHANGED and remain the real control. Nothing here
+  # loosens secrets/*, .env*, docker-compose*, scripts/dr/*, .github/*, config/agents/*,
+  # scripts/agents/*, agent_service.py or **/department_dispatcher.py.
+  #
+  # ⚠️ ENFORCEMENT IS SPLIT BY RUNTIME and this is the part that matters on review:
+  #   - headless (scripts/agents/run-codex-task.sh) reads this TREE file directly, so it
+  #     picks the widening up on the next run;
+  #   - the container lane reads the BAKED copy (codex/Dockerfile.terminal COPYs this
+  #     file to /opt/codex-guard/allowlist.yaml), so it stays inert until an image rebuild;
+  #   - the HOST `codex resume` session runs with NO scope guard at push time at all
+  #     (codex/workspace/codex-pr.sh), so this file is policy there, not enforcement.
+  - website/            # kytranempowerment.com + Trust Center (mirrors opencode 2026-09-23)
+  - codex/              # the lane's own tooling (mirrors opencode/ in opencode.yaml)
   auth_mode: chatgpt_signin
   blocked_globs:
   - '*.env'

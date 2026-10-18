@@ -585,46 +585,45 @@ def translate():
 # ---------------------------------------------------------------------------
 
 
-def _score_to_grade(score):
-    """Convert numeric score to letter grade + color."""
-    if score >= 95:
-        return "A+", "#22c55e"
-    elif score >= 90:
-        return "A", "#22c55e"
-    elif score >= 85:
-        return "B+", "#3b82f6"
-    elif score >= 80:
-        return "B", "#3b82f6"
-    elif score >= 70:
-        return "C", "#eab308"
-    elif score >= 60:
-        return "D", "#f97316"
-    else:
-        return "F", "#ef4444"
-
-
 def _fetch_compliance_badges():
-    """Fetch compliance badge data from scan results."""
+    """Fetch public-safe framework pass rates from a complete persisted scan."""
     try:
         with get_db_cursor() as (conn, cur):
-            # Get latest scan per rule pack with pass/fail counts
+            # Summary-only uploads (for example, a KSO scan header) can have a
+            # completed_at timestamp without any per-rule evidence. Only expose
+            # a scan when every expected rule result was persisted.
             cur.execute(
                 """
+                WITH latest_complete_scan AS (
+                    SELECT cs.scan_id
+                    FROM compliance_scans cs
+                    JOIN (
+                        SELECT scan_id, COUNT(*) AS result_count
+                        FROM compliance_scan_results
+                        GROUP BY scan_id
+                    ) persisted ON persisted.scan_id = cs.scan_id
+                    WHERE cs.completed_at IS NOT NULL
+                      AND cs.total_rules > 0
+                      AND persisted.result_count = cs.total_rules
+                    ORDER BY cs.completed_at DESC
+                    LIMIT 1
+                )
                 SELECT
                     rp.pack_id,
                     rp.name AS display_name,
-                    rp.total_rules,
                     COUNT(*) FILTER (WHERE sr.status = 'pass') AS passing_rules,
-                    COUNT(*) AS total_checked,
+                    COUNT(*) FILTER (
+                        WHERE sr.status IN ('pass', 'fail', 'error')
+                    ) AS evaluated_rules,
+                    COUNT(*) FILTER (
+                        WHERE sr.status = 'not_applicable'
+                    ) AS not_applicable_rules,
+                    COUNT(*) FILTER (WHERE sr.status = 'manual') AS manual_rules,
                     MAX(sr.scanned_at) AS last_scan
                 FROM compliance_scan_results sr
                 JOIN compliance_rule_packs rp ON sr.pack_id = rp.pack_id
-                WHERE sr.scan_id = (
-                    SELECT scan_id FROM compliance_scans
-                    ORDER BY completed_at DESC NULLS LAST
-                    LIMIT 1
-                )
-                GROUP BY rp.pack_id, rp.name, rp.total_rules
+                JOIN latest_complete_scan latest ON latest.scan_id = sr.scan_id
+                GROUP BY rp.pack_id, rp.name
                 ORDER BY rp.name
             """
             )
@@ -632,27 +631,41 @@ def _fetch_compliance_badges():
 
             badges = []
             for row in rows:
-                total = row["total_checked"] or 1
+                total = row["evaluated_rules"] or 0
                 passing = row["passing_rules"] or 0
-                score = round(passing / total * 100, 1)
-                grade, color = _score_to_grade(score)
+                score = round(passing / total * 100, 1) if total else None
                 badges.append(
                     {
                         "framework": row["pack_id"],
                         "display_name": row["display_name"],
                         "score": score,
-                        "grade": grade,
-                        "color": color,
-                        "total_rules": total,
+                        "evaluated_rules": total,
                         "passing_rules": passing,
+                        "not_applicable_rules": row["not_applicable_rules"] or 0,
+                        "manual_rules": row["manual_rules"] or 0,
                         "last_scan": row["last_scan"].isoformat() if row["last_scan"] else None,
                     }
                 )
 
-            return {"badges": badges, "available": True}
+            return {
+                "badges": badges,
+                "available": bool(badges),
+                "framework_count": len(badges),
+                "evaluated_rules": sum(badge["evaluated_rules"] for badge in badges),
+                "last_scan": max(
+                    (badge["last_scan"] for badge in badges if badge["last_scan"]),
+                    default=None,
+                ),
+            }
     except Exception as e:
         logger.error("public_api /compliance/badges failed: %s", e)
-        return {"badges": [], "available": False}
+        return {
+            "badges": [],
+            "available": False,
+            "framework_count": 0,
+            "evaluated_rules": 0,
+            "last_scan": None,
+        }
 
 
 @public_api_bp.route("/compliance/frameworks")

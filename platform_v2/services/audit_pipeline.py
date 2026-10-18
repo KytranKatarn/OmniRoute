@@ -1711,7 +1711,10 @@ def dispatch_audit_proposals(limit=20, module_name=None, dry_run=False):
                      -- chronically unfixable finding retries at most once per
                      -- 14 days, never more than once per batch.
                      OR (
-                         COALESCE(metadata->>'dispatch_error', '') LIKE 'fix_apply:%'
+                         -- doubled percent = literal percent sign for psycopg2's
+                         -- pyformat paramstyle. A single one here is parsed as a
+                         -- placeholder start and the whole query dies at execute.
+                         COALESCE(metadata->>'dispatch_error', '') LIKE 'fix_apply:%%'
                          AND (metadata->>'dispatch_attempted_at') IS NOT NULL
                          AND (metadata->>'dispatch_attempted_at')::timestamptz < NOW() - INTERVAL '14 days'
                      )

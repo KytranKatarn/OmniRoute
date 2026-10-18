@@ -88,6 +88,31 @@ def _dispatch_cursor(rows):
     return _Ctx(), captured
 
 
+def _assert_psycopg2_safe_percent_escapes(sql):
+    """Fail if the SQL contains a bare '%' psycopg2 would misparse.
+
+    psycopg2's pyformat paramstyle scans the raw query text — comments
+    included — and every '%' must start one of '%%' (literal), '%s'
+    (positional) or '%(' (named). Anything else makes ``cur.execute``
+    raise ``IndexError: tuple index out of range`` **at runtime only**,
+    which fake-cursor unit tests cannot see. (Regression: an undoubled
+    % in the fix_apply cooldown clause shipped in #3917 and broke every
+    live dispatch until a manual dry-run caught it.)
+    """
+    i = 0
+    while True:
+        i = sql.find("%", i)
+        if i == -1:
+            return
+        nxt = sql[i + 1 : i + 2]
+        assert nxt in ("%", "s", "("), (
+            f"bare '%' at offset {i}: ...{sql[max(0, i - 20):i + 20]!r}... — " "double it as %% for psycopg2"
+        )
+        # advance past the whole escape (%% , %s or %( ) so the second char of a
+        # two-character escape is not re-examined as if it were a fresh '%'
+        i += 2
+
+
 def test_dispatch_eligibility_has_fix_apply_cooldown():
     """The drain's SELECT keeps the 14-day cooldown for fix_apply failures."""
     ctx, captured = _dispatch_cursor([])
@@ -99,11 +124,15 @@ def test_dispatch_eligibility_has_fix_apply_cooldown():
     assert result == {"dry_run": True, "module": None, "eligible": []}
     sql = captured["sql"]
     assert "(metadata->>'dispatch_attempted') IS NULL" in sql
-    # the cooldown branch: only fix_apply:* errors, only after 14 days
-    assert "LIKE 'fix_apply:%'" in sql
+    # the cooldown branch: only fix_apply:* errors, only after 14 days.
+    # The literal percent MUST be doubled — psycopg2 parses a bare % as a
+    # placeholder start and the execute dies with IndexError (fake cursors
+    # don't parse, so only the escaped form is correct here).
+    assert "LIKE 'fix_apply:%%'" in sql
     assert "INTERVAL '14 days'" in sql
     # excluded codes must still gate BOTH branches (AND binds looser than the OR group)
     assert "<> ALL(%s)" in sql
+    _assert_psycopg2_safe_percent_escapes(sql)
 
 
 def test_dispatch_cooldown_never_matches_non_fix_errors():

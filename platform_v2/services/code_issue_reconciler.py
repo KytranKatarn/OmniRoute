@@ -57,6 +57,30 @@ _BARE_EXCEPT_RE = re.compile(r"bare except", re.IGNORECASE)
 # flake8-style code Repair Bay stores on a pyflakes finding ("F401 'os' imported but unused").
 _PYFLAKES_CODE_RE = re.compile(r"\b(?:F\d{3}|PYFLAKES)\b", re.IGNORECASE)
 
+# Security issue checkers (bandit-style findings).
+_SECURITY_SQL_INJECTION_RE = re.compile(r"potential\s+sql\s+injection", re.IGNORECASE)
+_SECURITY_HARDCODED_SECRET_RE = re.compile(
+    r"hardcoded\s+secret|hardcoded\s+password|hardcoded\s+key|database\s+password\s+is\s+hardcoded|password\s+is\s+stored\s+in\s+plain\s+text|hardcoded\s+ip",
+    re.IGNORECASE,
+)
+_SECURITY_SUBPROCESS_RE = re.compile(
+    r"subprocess.*elevated|subprocess.*shell.*true|subprocess.*run.*without.*check", re.IGNORECASE
+)
+_SECURITY_DB_CRED_RE = re.compile(
+    r"database\s+credential|_get_db_password|environment\s+variable.*database|database\s+password", re.IGNORECASE
+)
+_SECURITY_INSECURE_REF_RE = re.compile(
+    r"insecure\s+direct\s+object\s+reference|direct\s+object\s+reference", re.IGNORECASE
+)
+_SECURITY_OS_ENV_RE = re.compile(
+    r"os\.getenv|environment\s+variable.*without\s+default|missing\s+default", re.IGNORECASE
+)
+_SECURITY_OS_FDOPEN_RE = re.compile(r"os\.fdopen|fdopen", re.IGNORECASE)
+_SECURITY_EXCEPTION_HANDLING_RE = re.compile(
+    r"exception\s+handling|bare\s+except|catching\s+all\s+exceptions", re.IGNORECASE
+)
+_SECURITY_LOGGING_RE = re.compile(r"logging.*exception|exc_info|exception.*logging", re.IGNORECASE)
+
 
 def _parse(file_text: str):
     """AST for the source, or None when it does not parse.
@@ -232,6 +256,111 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
         # Per-finding match: an unrelated warning elsewhere in the file must not mask a
         # genuine fix, and must not keep a dead finding alive.
         return any(needle in line for line in findings)
+
+    # Security issue checkers (bandit-style findings)
+    # SQL injection - check for interpolated/parameterized queries
+    if _SECURITY_SQL_INJECTION_RE.search(msg):
+        from services.code_health_checks import sql_finding_present
+
+        return sql_finding_present(file_text)
+
+    # Hardcoded secrets / passwords / keys / IPs
+    if _SECURITY_HARDCODED_SECRET_RE.search(msg):
+        # True if the hardcoded pattern is still present in the file
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        # Look for hardcoded string literals that look like secrets
+        source = file_text or ""
+        patterns = [
+            r'password\s*[=:]\s*["\'][^"\']{8,}["\']',  # password = "xxx"
+            r'api[_-]?key\s*[=:]\s*["\'][^"\']{16,}["\']',  # api_key = "xxx"
+            r'secret\s*[=:]\s*["\'][^"\']{16,}["\']',  # secret = "xxx"
+            r'token\s*[=:]\s*["\'][^"\']{16,}["\']',  # token = "xxx"
+            r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",  # IP address
+        ]
+        for pattern in patterns:
+            if re.search(pattern, source, re.IGNORECASE):
+                return True
+        return False
+
+    # Subprocess security issues
+    if _SECURITY_SUBPROCESS_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(
+            isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr in ("run", "Popen", "call")
+            and any(
+                isinstance(kw, ast.keyword)
+                and kw.arg in ("shell", "check")
+                and isinstance(kw.value, ast.Constant)
+                and kw.value.value is True
+                for kw in n.keywords
+            )
+            for n in ast.walk(tree)
+        )
+
+    # Database credential / password handling
+    if _SECURITY_DB_CRED_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        # Look for direct credential access patterns
+        source = file_text or ""
+        patterns = [
+            r"_get_db_password\s*\(",
+            r'os\.getenv\s*\(\s*["\'].*PASSWORD["\']',
+            r'os\.getenv\s*\(\s*["\'].*DATABASE["\']',
+            r'database.*password.*["\']',
+        ]
+        for pattern in patterns:
+            if re.search(pattern, source, re.IGNORECASE):
+                return True
+        return False
+
+    # Insecure direct object reference
+    if _SECURITY_INSECURE_REF_RE.search(msg):
+        # Can't reliably disprove without context; keep open
+        return None
+
+    # os.getenv / environment variable issues
+    if _SECURITY_OS_ENV_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(
+            isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "getenv"
+            and isinstance(n.func.value, ast.Name)
+            and n.func.value.id == "os"
+            for n in ast.walk(tree)
+        )
+
+    # os.fdopen usage
+    if _SECURITY_OS_FDOPEN_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(
+            isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "fdopen"
+            for n in ast.walk(tree)
+        )
+
+    # Exception handling issues
+    if _SECURITY_EXCEPTION_HANDLING_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(isinstance(n, ast.ExceptHandler) and n.type is None for n in ast.walk(tree))
+
+    # Logging issues
+    if _SECURITY_LOGGING_RE.search(msg):
+        # Can't reliably check; keep open
+        return None
 
     # #6054 -- LAST resort, deliberately scoped to messages NO checker recognised.
     # code_issues #8393 ('performance' prose at line 25847 of a 744-line file) had no

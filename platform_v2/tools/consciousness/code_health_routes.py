@@ -384,6 +384,7 @@ def _deep_scan_worker(target="platform", progress_cb=None):
             "severity": finding.get("severity", "yellow"),
             "file": finding.get("rel_file") or finding.get("file", ""),
             "detail": finding.get("message") or finding.get("detail", ""),
+            "issue_code": finding.get("issue_code"),  # e.g., "B608" from bandit — enables bandit checker map
             "meta_extra": {
                 "scan_tier": "static",
                 "tool": finding.get("tool"),

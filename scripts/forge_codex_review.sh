@@ -211,7 +211,16 @@ while IFS=$'\t' read -r pr sha title; do
     continue
   fi
 
-  if timeout "$REVIEW_TIMEOUT" "$REVIEWER" "$pr" --post; then
+  # </dev/null is load-bearing, not hygiene. The loop above feeds the PR list to `read`
+  # on stdin, and every command in the body inherits that stdin. The reviewer ends in
+  # `codex exec`, which READS STDIN — so without this redirect the first review drains
+  # the rest of the list and the sweep stops after one PR.
+  #
+  # 2026-10-19: the live repo listed 10 open PRs and reviewed exactly 1, reporting
+  # "1 reviewed, 0 unchanged-skipped, 0 failed". The tell was that --dry-run listed all
+  # ten: dry-run invokes no reviewer, so the bug cannot appear there. The reviewer takes
+  # its diff from a file and its prompt from argv; it has no use for stdin.
+  if timeout "$REVIEW_TIMEOUT" "$REVIEWER" "$pr" --post < /dev/null; then
     record "$pr" "$sha" "posted"
     printf '    %s\n' "$(c_ok 'review posted')"
     reviewed=$((reviewed + 1))

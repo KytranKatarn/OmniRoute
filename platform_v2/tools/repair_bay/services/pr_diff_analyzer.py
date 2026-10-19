@@ -2531,6 +2531,15 @@ def _review_preferred_nodes() -> list:
         return ["starship_76583490e36955ab", "archie-starbase"]
 
 
+def _review_leg_timeout(kw: dict = None) -> int:
+    """Per-leg dispatch budget (#7349). 240s for the default 7B legs, 600s for a patient-model
+    escalation (model_override / prefer_model). Tunable: platform_settings forge:review_leg_timeout_seconds."""
+    from services.review_leg_policy import leg_timeout
+
+    patient = bool(kw and (kw.get("model_override") or kw.get("prefer_model")))
+    return leg_timeout(_get_setting("forge:review_leg_timeout_seconds", None), patient)
+
+
 def _dispatch_json_review(prompt: str, kw: dict):
     """One structured (json_mode) review dispatch. Returns ``(parsed_dict_or_None, status)`` where
     status is 'parsed' | 'parse_fail' | 'queued' | 'error' | 'empty'. Shared by the first structured
@@ -2572,7 +2581,8 @@ def _dispatch_json_review(prompt: str, kw: dict):
             preferred_node=_pin,
             num_ctx=_review_num_ctx(),
             **({"prefer_agent": _pa} if _pa else {}),
-            **kw,
+            # #7349: a stuck leg costs 240s, not 600s (a caller-supplied timeout in kw still wins).
+            **{"timeout": _review_leg_timeout(kw), **kw},
         )
     except Exception as exc:
         logger.warning("[PR Review] structured dispatch error, falling back: %s", exc)
@@ -3641,6 +3651,7 @@ def _run_forge_review(
             preferred_node=_review_preferred_nodes(),
             # #6040: P.R.O.B.E. reviews machine-authored PRs (see _review_prefer_agent)
             **({"prefer_agent": _pa} if (_pa := _review_prefer_agent()) else {}),
+            timeout=_review_leg_timeout(),  # #7349: same per-leg budget as the structured path
         )
         if getattr(result, "queued", False):
             from services.review_attempts import await_existing_queue

@@ -4062,7 +4062,7 @@ class AgentLoop:
 
             with get_db_cursor(commit=False) as (_conn, cur):
                 cur.execute(
-                    "SELECT mesh_ip, hostname, status, "
+                    "SELECT mesh_ip, hostname, status, extra_capabilities, "
                     "EXTRACT(EPOCH FROM (NOW() - last_heartbeat)) AS hb_age "
                     "FROM remote_nodes WHERE node_id = %s",
                     (review_node_id,),
@@ -4092,6 +4092,17 @@ class AgentLoop:
                 opts["num_ctx"] = nc
         except Exception:
             pass  # default num_ctx — matches a flag-off review
+        # #7349: the node's num_ctx_default map is the single source of truth for this model's
+        # context size on this node (the dispatcher injects it for callers that send none), so the
+        # warm runner matches EVERY caller, not just reviews. Falls back to the review setting above.
+        try:
+            from services.node_ctx import node_default_ctx
+
+            _nd = node_default_ctx(row.get("extra_capabilities"), model)
+            if _nd:
+                opts["num_ctx"] = _nd
+        except Exception:
+            pass
 
         try:
             import requests as req

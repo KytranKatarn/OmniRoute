@@ -3111,6 +3111,17 @@ class DepartmentDispatcher:
             else:
                 _node_keep_alive = "30m"
             _dispatch_t0 = time.time()  # honest duration for the #5700 failure row
+            # #7349: one num_ctx per (node, model). A different num_ctx is a different Ollama
+            # runner (= unload + reload of the model on a one-request-at-a-time 8GB card), and
+            # reviews/keep-warm ask for 8192 while every other caller sent none (default 4096).
+            # The node's remote_nodes.extra_capabilities.num_ctx_default map fills the gap; an
+            # explicit caller num_ctx always wins; no map entry = unchanged.
+            try:
+                from services.node_ctx import apply_node_default_ctx
+
+                options = apply_node_default_ctx(options, (_nr or {}).get("extra_capabilities"), model)
+            except Exception:
+                logger.debug("[BridgeDispatcher] node default num_ctx skipped", exc_info=True)
             payload = {
                 "model": model,
                 "prompt": prompt,

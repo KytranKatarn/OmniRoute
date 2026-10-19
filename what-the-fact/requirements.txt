@@ -12,4 +12,3 @@ stripe>=9.0
 # xml.etree doesn't guard against XXE/entity-expansion; defusedxml does,
 # with no extra transitive deps. Tiny, safe to have in every container.
 defusedxml>=0.7.1
-torch>=2.8.0

@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
 
 COPY requirements.txt requirements-ingest.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+# The classifier runs on CPU. Install Torch from its CPU-only index before
+# Transformers so the resolver cannot select the CUDA-enabled PyPI wheel.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch==2.8.0"
 RUN pip install --no-cache-dir -r requirements-ingest.txt
 
 # Pre-download the DistilBERT zero-shot classifier used by bias_v2.py.

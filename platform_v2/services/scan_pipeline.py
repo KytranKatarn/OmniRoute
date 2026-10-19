@@ -301,3 +301,147 @@ def batch_medium_issues():
 
     logger.info(f"Batch medium issues complete: {proposals_created} proposals created")
     return {"proposals_created": proposals_created}
+
+
+def batch_high_critical_issues():
+    """Daily job: collect open high/critical issues and create security/quality proposals.
+
+    Groups issues by file_path, creates one proposal per file.
+    Called by the consciousness scheduler (daily 03:00).
+    """
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """
+            SELECT file_path, COUNT(*) as issue_count,
+                   array_agg(id) as issue_ids,
+                   array_agg(message) as messages,
+                   array_agg(severity) as severities,
+                   array_agg(issue_type) as issue_types
+            FROM code_issues
+            WHERE severity IN ('critical', 'high')
+              AND status = 'open'
+              AND proposal_id IS NULL
+            GROUP BY file_path
+            ORDER BY issue_count DESC
+            """
+        )
+        groups = cur.fetchall()
+
+    if not groups:
+        logger.info("Batch high/critical issues: no eligible issues found")
+        return {"proposals_created": 0}
+
+    proposals_created = 0
+    for group in groups:
+        try:
+            file_path = group["file_path"]
+            issue_count = group["issue_count"]
+            issue_ids = group["issue_ids"]
+            messages = group["messages"]
+            severities = group["severities"]
+            issue_types = group["issue_types"]
+
+            # Determine dominant issue type and severity for the proposal
+            has_critical = "critical" in severities
+            dominant_type = issue_types[0] if issue_types else "security"
+            dominant_severity = "critical" if has_critical else "high"
+
+            # Check if there's an existing open proposal for this file + type
+            # If so, link issues to it instead of creating a new proposal
+            existing_proposal_id = None
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT id FROM improvement_proposals
+                    WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed', 'superseded')
+                      AND metadata->>'source' IN ('code_health_audit', 'code_sentinel')
+                      AND metadata->>'file_path' = %s
+                      AND metadata->>'issue_type' = %s
+                    LIMIT 1
+                    """,
+                    (file_path, dominant_type),
+                )
+                row = cur.fetchone()
+                if row:
+                    existing_proposal_id = row["id"]
+                    # Link these issues to the existing proposal
+                    with get_db_cursor(commit=True) as (conn2, cur2):
+                        cur2.execute(
+                            """
+                            UPDATE code_issues
+                            SET proposal_id = %s, status = 'open'
+                            WHERE id = ANY(%s)
+                            """,
+                            (existing_proposal_id, issue_ids),
+                        )
+                    proposals_created += 1
+                    logger.info(
+                        f"Linked {len(issue_ids)} high/critical issues to existing proposal #{existing_proposal_id} for {file_path}"
+                    )
+                    continue
+
+            # Build issue list for description
+            issue_list = "\n".join(f"- [{s}] {m}" for s, m in zip(severities, messages[:10]))
+            if issue_count > 10:
+                issue_list += f"\n- ... and {issue_count - 10} more"
+
+            title = f"[{dominant_severity.upper()}] {dominant_type.title()}: {file_path} ({issue_count} issues)"
+            description = (
+                f"Daily batch: {issue_count} {dominant_severity}-severity {dominant_type} issues in `{file_path}`.\n\n"
+                f"**Issues:**\n{issue_list}"
+            )
+
+            # Determine category and priority based on issue type and severity
+            if dominant_type == "security":
+                category = "security"
+                priority = "critical" if has_critical else "high"
+                risk_level = "critical" if has_critical else "high"
+            else:
+                category = dominant_type
+                priority = "high" if has_critical else "medium"
+                risk_level = "high" if has_critical else "medium"
+
+            metadata = json.dumps(
+                {
+                    "source": "code_health_audit",
+                    "batch": True,
+                    "file_path": file_path,
+                    "issue_type": dominant_type,
+                    "severity": dominant_severity,
+                    "issue_count": issue_count,
+                    "auto_generated": True,
+                }
+            )
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """
+                    INSERT INTO improvement_proposals
+                    (title, category, description, rationale, priority, risk_level,
+                     status, metadata, collaboration_enabled)
+                    VALUES (%s, %s, %s, 'Daily batch from Code Health audit',
+                            %s, %s, 'pending', %s::jsonb, false)
+                    RETURNING id
+                    """,
+                    (title, category, description, priority, risk_level, metadata),
+                )
+                proposal_id = cur.fetchone()["id"]
+
+                cur.execute(
+                    """
+                    UPDATE code_issues
+                    SET proposal_id = %s, status = 'open'
+                    WHERE id = ANY(%s)
+                    """,
+                    (proposal_id, issue_ids),
+                )
+                proposals_created += 1
+                logger.info(
+                    f"Batch high/critical proposal #{proposal_id}: {issue_count} {dominant_severity} {dominant_type} issues in {file_path}"
+                )
+
+        except Exception as e:
+            logger.warning(f"Failed to batch high/critical issues for {group['file_path']}: {e}")
+
+    logger.info(f"Batch high/critical issues complete: {proposals_created} proposals created")
+    return {"proposals_created": proposals_created}

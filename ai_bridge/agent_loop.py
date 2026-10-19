@@ -2419,6 +2419,17 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Batch high/critical issues (Daily 3 AM)
+        self.scheduler.add_job(
+            with_app_context(self._batch_high_critical_issues),
+            trigger=CronTrigger(hour=3, minute=0, timezone="America/Toronto"),
+            id="agent_batch_high_critical_issues",
+            name="Agent Loop: Daily High/Critical Code Issue Batch",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # Auto log ingestion (every 30 min)
         self.scheduler.add_job(
             with_app_context(self._auto_log_ingestion),
@@ -11111,6 +11122,20 @@ class AgentLoop:
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("batch_medium_issues", 0, 1, duration_ms, error_message=str(e))
+
+    def _batch_high_critical_issues(self):
+        """Daily high/critical code issue batch (Daily 3AM) — processes high/critical issues."""
+        start = time.time()
+        try:
+            from services.scan_pipeline import batch_high_critical_issues
+
+            result = batch_high_critical_issues()
+            duration_ms = int((time.time() - start) * 1000)
+            processed = result.get("proposals_created", 0) if isinstance(result, dict) else 0
+            self._log_cycle("batch_high_critical_issues", processed, 0, duration_ms)
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            self._log_cycle("batch_high_critical_issues", 0, 1, duration_ms, error_message=str(e))
 
     def _auto_log_ingestion(self):
         """Auto-ingest conversation logs every 30 min — migrated from app.py."""

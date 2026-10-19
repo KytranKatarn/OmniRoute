@@ -229,6 +229,13 @@ JOB_ENTRIES = {
         "interval": "weekly Sun 02:00",
         "source_file": "ai_bridge/agent_loop.py",
     },
+    "agent_batch_high_critical_issues": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "Daily batch of high/critical code issues (Daily 3 AM)",
+        "interval": "daily 03:00",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
     "agent_weekly_dependency_scan": {
         "department": "Engineering & Technology",
         "director": "F.O.R.G.E.",

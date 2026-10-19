@@ -29,6 +29,11 @@ bad()  { FAIL=$((FAIL+1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '  
 cat > "$STUB_DIR/codex_pr_review.sh" <<EOF
 #!/bin/sh
 echo "\$@" >> "$LOG"
+# REVIEWER_EATS_STDIN models the REAL reviewer: codex_pr_review.sh ends in
+# \`codex exec\`, which reads stdin. The driver feeds its PR list to the loop on stdin,
+# so a reviewer that drains stdin silently truncates the sweep. The default stub reads
+# nothing, which is why this went unnoticed for so long.
+[ -n "\${REVIEWER_EATS_STDIN:-}" ] && cat >/dev/null 2>&1
 exit \${REVIEWER_RC:-0}
 EOF
 
@@ -248,6 +253,25 @@ run_stubbed >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 0 ] && [ ! -s "$LOG" ] \
   && ok "an untargeted sweep with an empty queue still reviews nothing" \
   || bad "empty-queue sweep changed (rc=$rc)"
+
+# ── 15. a reviewer that reads stdin must not truncate the sweep ──────────────────
+# Found 2026-10-19 on the live repo: the driver listed 10 open PRs, reviewed exactly 1,
+# and reported "1 reviewed, 0 unchanged-skipped, 0 failed". The dry run listed all 10,
+# which is the tell — --dry-run invokes no reviewer, so it never triggers the bug.
+#
+# Cause: `while IFS=$'\t' read -r pr sha title; do ... done <<< "$PR_LIST"` gives the
+# loop's stdin to the here-string, and every command in the body INHERITS it. The real
+# reviewer ends in `codex exec`, which drains stdin, so the first review swallowed the
+# remaining nine entries and `read` then saw EOF.
+#
+# Every other test here missed it because the stub reviewer reads nothing — the stub was
+# simpler than the tool it stands in for. A test that cannot fail proves nothing.
+printf '1001\tshaA\tone\n1002\tshaB\ttwo\n1003\tshaC\tthree\n' > "$STUB_DIR/prs.tsv"
+: > "$STATE"; : > "$LOG"
+out="$(PR_FIXTURE="$STUB_DIR/prs.tsv" REVIEWER_EATS_STDIN=1 run_stubbed)"
+calls=$(wc -l < "$LOG")
+[ "$calls" -eq 3 ] && ok "a stdin-consuming reviewer does not truncate the sweep" \
+  || bad "sweep truncated to $calls of 3 — the reviewer ate the PR list" "$out"
 
 printf '\n  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

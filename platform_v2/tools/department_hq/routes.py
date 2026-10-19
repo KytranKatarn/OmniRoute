@@ -340,14 +340,20 @@ def register_routes(bp, _admin_required=None):
                     conn.rollback()
 
                 # Security issues from scans — surfaced in Repair Bay Diagnose
+                # Count OPEN high/critical issues from code_issues (not cumulative scan totals)
                 try:
-                    cur.execute("SELECT SUM(security_issues) FROM code_scans WHERE security_issues > 0")
+                    cur.execute(
+                        """
+                        SELECT COUNT(*) FROM code_issues
+                        WHERE severity IN ('critical', 'high') AND status = 'open'
+                        """
+                    )
                     sec = cur.fetchone()[0]
                     if sec and sec > 0:
                         attention.append(
                             {
                                 "level": "warn" if sec < 50 else "error",
-                                "text": f"{int(sec)} security issues across code scans",
+                                "text": f"{int(sec)} open high/critical security issues",
                                 "link_url": "/tools/repair-bay",
                                 "link_label": "Repair Bay",
                                 "category": "security",

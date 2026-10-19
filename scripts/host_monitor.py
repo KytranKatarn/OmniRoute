@@ -25,6 +25,9 @@ import glob
 from datetime import datetime
 from pathlib import Path
 
+# Ensure platform_v2 is in the Python path for imports like services.hub_deploy_state
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
 OUTPUT_FILE = "/mnt/archie_brain/host_monitor_data.json"
 BANDWIDTH_FILE = os.path.join(os.path.dirname(OUTPUT_FILE), "bandwidth_history.json")
 
@@ -6008,8 +6011,9 @@ def handle_hub_deploy(params):
         try:
             from services.hub_deploy_state import _container_starts
 
-            head_ok, head_time = _hub_run_git(checkout, ["log", "-1", "--format=%ct", "HEAD"])
-            head_time = int(head_time.strip()) if head_ok else 0
+            git_result = _hub_run_git(checkout, ["log", "-1", "--format=%ct", "HEAD"])
+            head_ok = git_result["returncode"] == 0
+            head_time = int(git_result["stdout"].strip()) if head_ok else 0)
             if head_time > 0:
                 starts = _container_starts()
                 for name in ("archie_platform", "archie_scheduler"):

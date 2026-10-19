@@ -80,7 +80,14 @@ def _git(*args: str) -> tuple[bool, str]:
 
 
 def _container_starts() -> dict:
-    """{name: epoch_seconds} for the bind-mounting containers. {} when undiscoverable."""
+    """{name: epoch_seconds} for the bind-mounting containers. {} when undiscoverable.
+
+    Tries the Python `docker` module first (present in the hub containers), then falls
+    back to the `docker inspect` CLI via subprocess. The host_monitor service runs as
+    root on the host where the Python module is NOT installed — without this fallback
+    it silently gets {} and can never detect stale containers.
+    """
+    # Path 1: Python docker module (container)
     try:
         import docker
         from dateutil import parser as _dt  # docker ships this
@@ -94,6 +101,30 @@ def _container_starts() -> dict:
                 if started:
                     out[name] = _dt.parse(started).timestamp()
             except Exception:  # noqa: BLE001 - one missing container must not blank the rest
+                continue
+        if out:
+            return out
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[hub_deploy] python docker module unavailable: %s", exc)
+
+    # Path 2: docker CLI via subprocess (host root)
+    try:
+        import subprocess
+        from dateutil import parser as _dt
+
+        out = {}
+        for name in HUB_CONTAINERS:
+            try:
+                r = subprocess.run(
+                    ["docker", "inspect", name, "--format", "{{.State.StartedAt}}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                started = (r.stdout or "").strip()
+                if r.returncode == 0 and started and started != "0001-01-01T00:00:00Z":
+                    out[name] = _dt.parse(started).timestamp()
+            except Exception:  # noqa: BLE001
                 continue
         return out
     except Exception as exc:  # noqa: BLE001

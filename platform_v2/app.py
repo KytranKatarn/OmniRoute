@@ -2662,13 +2662,18 @@ def _get_agent_models():
     """
     from database import get_db_cursor
 
+    from services.warmup_demand import Thresholds, filter_by_demand, load_thresholds
+
     agent_models_ordered = []
+    demand_rows = []  # rows with demand data; stays empty if only the fallback query worked
+    thresholds = Thresholds()
     try:
         with get_db_cursor(commit=False) as (conn, cur):
+            thresholds = load_thresholds(cur)
             # Get agent models ordered by dispatch frequency (last 7 days)
             cur.execute(
                 """
-                SELECT a.model, COUNT(tel.id) AS dispatch_count
+                SELECT a.model, COUNT(tel.id) AS dispatch_count, COUNT(DISTINCT a.id) AS agent_count
                 FROM agents a
                 LEFT JOIN task_execution_log tel
                     ON tel.agent_name = a.name
@@ -2684,8 +2689,9 @@ def _get_agent_models():
             )
             for row in cur.fetchall():
                 agent_models_ordered.append(row["model"])
+                demand_rows.append(dict(row))
     except Exception:
-        # Fallback: just get distinct models without ordering
+        # Fallback: just get distinct models without ordering (no demand data -> no threshold)
         try:
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute(
@@ -2708,22 +2714,29 @@ def _get_agent_models():
     # Models that must NOT be pre-loaded during warmup — cold-load on first dispatch instead.
     # qwen2.5vl:7b  — vision model; HTTP 500 on /api/generate without an image payload
     # dolphin3:latest — consistently times out (>300s cold load); blocks all subsequent warmup
-    # phi3.5:latest — assigned to ONE agent (L.E.D.G.E.R.), zero recorded runs in 7d; 3.7GB of
-    #   hub VRAM for a model nothing uses (#6106, measured 2026-10-19).
-    # qwen2.5-coder:7b — one agent (Q.U.I.L.L.), 16 runs/7d at 50% ok; a preload with a 5m keep-alive
-    #   buys no durable warmth, but its 4.6GB of VRAM squeezed the 7B (21,988 runs/7d) onto the CPU.
-    #   Its real warm path is the AUX POWER focus pin (fleet_dispatch_profile.FAMILY_WARM_MODELS).
-    WARMUP_SKIP = {"qwen2.5vl:7b", "dolphin3:latest", "phi3.5:latest", "qwen2.5-coder:7b"}
+    # Those two are explicit overrides with non-demand reasons. Low-demand models (phi3.5: 0 runs/7d,
+    # qwen2.5-coder:7b: ~100 runs/7d, which together took ~8GB of VRAM and pushed the 7B onto the CPU,
+    # #6106) are no longer hand-listed: services/warmup_demand.py drops anything under
+    # platform_settings warmup:min_runs_7d (default 200) and logs why (#7330).
+    WARMUP_SKIP = {"qwen2.5vl:7b", "dolphin3:latest"}
+
+    if demand_rows:
+        agent_models_kept, dropped = filter_by_demand(
+            demand_rows, thresholds=thresholds, infra=infra_models, hard_skip=WARMUP_SKIP
+        )
+        for model, why in dropped:
+            logger.info(f"Ollama warmup: not preloading {model} ({why})")
+    else:
+        agent_models_kept = [m for m in agent_models_ordered if m not in infra_models and m not in WARMUP_SKIP]
 
     # Build load list: infrastructure first, then agent models by dispatch priority
     models_to_load = []
     for m in infra_models:
         endpoint = "embed" if "embed" in m else "generate"
         models_to_load.append((m, endpoint))
-    for m in agent_models_ordered:
-        if m not in infra_models and m not in WARMUP_SKIP:
-            endpoint = "embed" if "embed" in m else "generate"
-            models_to_load.append((m, endpoint))
+    for m in agent_models_kept:
+        endpoint = "embed" if "embed" in m else "generate"
+        models_to_load.append((m, endpoint))
     return models_to_load
 
 

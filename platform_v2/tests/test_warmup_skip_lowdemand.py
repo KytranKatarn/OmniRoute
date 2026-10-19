@@ -26,10 +26,19 @@ def _warmup_skip() -> set:
     raise AssertionError("WARMUP_SKIP assignment not found inside _get_agent_models")
 
 
-def test_low_demand_single_agent_models_are_skipped():
-    skip = _warmup_skip()
-    assert "phi3.5:latest" in skip
-    assert "qwen2.5-coder:7b" in skip
+def test_low_demand_models_are_dropped_by_data_not_a_hand_list():
+    """#7330: phi3.5 / coder are no longer hand-listed; the demand threshold drops them."""
+    from services.warmup_demand import Thresholds, filter_by_demand
+
+    assert not ({"phi3.5:latest", "qwen2.5-coder:7b"} & _warmup_skip())
+    rows = [
+        {"model": "qwen2.5:7b", "dispatch_count": 52445, "agent_count": 99},
+        {"model": "qwen2.5-coder:7b", "dispatch_count": 102, "agent_count": 1},
+        {"model": "phi3.5:latest", "dispatch_count": 0, "agent_count": 1},
+    ]
+    kept, dropped = filter_by_demand(rows, thresholds=Thresholds(), infra=(), hard_skip=_warmup_skip())
+    assert kept == ["qwen2.5:7b"]
+    assert {m for m, _ in dropped} == {"qwen2.5-coder:7b", "phi3.5:latest"}
 
 
 def test_the_original_exclusions_are_kept():

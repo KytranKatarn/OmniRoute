@@ -357,6 +357,26 @@ def register_github_routes(bp, admin_required):
                         result["deploy"] = {"enqueued": False, "error": str(deploy_exc)}
                 else:
                     result["deploy"] = {"enqueued": False, "reason": "cross-repo merge does not deploy the hub"}
+                # EVENT-DRIVEN RECONCILER: immediately re-validate code_issues in changed files
+                # instead of waiting for the hourly batch. This closes the "stale finding"
+                # window from 1hr to seconds.
+                try:
+                    changed = pr_files(pr_number, repo=_repo)
+                    if changed:
+                        from services.code_issue_reconciler import enqueue_reconciler_for_files
+
+                        reconciler_result = enqueue_reconciler_for_files(changed)
+                        logger.info(
+                            "[FORGE] PR #%s merged — event reconciler examined %d, closed %d in changed files: %s",
+                            pr_number,
+                            reconciler_result.get("examined", 0),
+                            reconciler_result.get("closed", 0),
+                            ", ".join(changed[:10]) + ("..." if len(changed) > 10 else ""),
+                        )
+                        result["event_reconciler"] = reconciler_result
+                except Exception as reconciler_exc:
+                    logger.warning("[FORGE] PR #%s merged but event reconciler failed: %s", pr_number, reconciler_exc)
+                    result["event_reconciler"] = {"error": str(reconciler_exc)}
             except Exception as exc:  # noqa: BLE001 — bookkeeping never fails a real merge
                 logger.warning("[FORGE] PR #%s merged but post-merge bookkeeping failed: %s", pr_number, exc)
         return jsonify(result)

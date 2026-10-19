@@ -268,12 +268,14 @@ def _bandit(target: str, files: list) -> list:
     findings = []
     for row in rows:
         line = row.get("line_number") or 0
+        issue_code = row.get("test_id", "").upper()  # e.g., "B608"
         findings.append(
             {
                 "file": row.get("filename", ""),
                 "line": line,
                 "tool": "bandit",
                 "code": "SECURITY_STATIC",
+                "issue_code": issue_code,  # e.g., "B608" — enables bandit checker map
                 "severity": "yellow",
                 "confidence": "medium",
                 "message": f"{row.get('issue_text', '')} (line {line})",

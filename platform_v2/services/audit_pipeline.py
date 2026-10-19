@@ -652,11 +652,14 @@ def _proposal_metadata(issue, module_name, file_path):
     scan_tier/tool/verified_by/line from the static-analysis tier) are merged in
     but can never override the core pipeline keys the fix/dedup/reverify paths
     depend on."""
+    # issue_code from bandit (e.g., "B608") — enables bandit checker map in reconciler
+    bandit_issue_code = issue.get("issue_code")
     return {
         **(issue.get("meta_extra") or {}),
         "source": "code_health_audit",
         "file_path": file_path,
-        "issue_code": issue["code"],
+        "issue_code": issue["code"],  # pipeline category code (SECURITY_STATIC, etc.)
+        "bandit_issue_code": issue.get("issue_code"),  # bandit rule code (e.g., B608)
         "severity_tier": issue["severity"],
         "module_name": module_name,
         "detail": issue.get("detail", ""),

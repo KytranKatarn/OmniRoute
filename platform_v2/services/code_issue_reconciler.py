@@ -802,7 +802,8 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             f"""SELECT id,
-                      metadata->>'issue_code'   AS issue_code,
+                      metadata->>'issue_code'      AS issue_code,
+                      metadata->>'bandit_issue_code' AS bandit_issue_code,
                       metadata->>'detail'       AS detail,
                       metadata->>'runtime_file' AS runtime_file,
                       metadata->>'file_path'    AS file_path,
@@ -835,12 +836,19 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
         if raw_line.isdigit():
             line_no = int(raw_line)
 
-        verdict = finding_still_reproduces(proposal_message(row["issue_code"], row["detail"]), text, line_no)
+        # Use bandit_issue_code for bandit checker dispatch (e.g., B608, B602)
+        bandit_code = row.get("bandit_issue_code")
+        msg_for_checker = proposal_message((bandit_code or row["issue_code"]), row["detail"])
+        verdict = finding_still_reproduces(msg_for_checker, text, line_no)
         if verdict is None:
             stats["unverifiable"] += 1
             if len(stats["unverifiable_samples"]) < 10:
                 stats["unverifiable_samples"].append(
-                    {"id": row["id"], "code": row["issue_code"], "detail": (row["detail"] or "")[:70]}
+                    {
+                        "id": row["id"],
+                        "code": row.get("bandit_issue_code") or row["issue_code"],
+                        "detail": (row["detail"] or "")[:70],
+                    }
                 )
         elif verdict:
             stats["still_present"] += 1
@@ -849,7 +857,11 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
             to_archive.append(row["id"])
             if len(stats["samples"]) < 5:
                 stats["samples"].append(
-                    {"id": row["id"], "code": row["issue_code"], "detail": (row["detail"] or "")[:70]}
+                    {
+                        "id": row["id"],
+                        "code": row.get("bandit_issue_code") or row["issue_code"],
+                        "detail": (row["detail"] or "")[:70],
+                    }
                 )
 
     if to_archive and not dry_run:

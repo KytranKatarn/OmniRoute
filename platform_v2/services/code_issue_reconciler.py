@@ -136,6 +136,46 @@ _SECURITY_EXCEPTION_HANDLING_RE = re.compile(
 )
 _SECURITY_LOGGING_RE = re.compile(r"logging.*exception|exc_info|exception.*logging", re.IGNORECASE)
 
+# Additional security issue regexes for specific findings
+_SECURITY_JWT_RE = re.compile(r"jwt\s+validation.*error.*message", re.IGNORECASE)
+_SECURITY_SENSITIVE_INFO_RE = re.compile(r"sensitive\s+information.*password.*generated.*not\s+securely", re.IGNORECASE)
+_SECURITY_HARDCODED_URL_CREDS_RE = re.compile(
+    r"hardcoded\s+(?:base\s+url|test\s+credentials|ip\s+address)", re.IGNORECASE
+)
+_SECURITY_DB_CURSOR_COMMIT_RE = re.compile(r"get_db_cursor.*commit\s*=\s*true", re.IGNORECASE)
+_SECURITY_INSECURE_REF_RE = re.compile(
+    r"insecure\s+direct\s+object\s+reference|direct\s+object\s+reference", re.IGNORECASE
+)
+_SECURITY_HARDCODED_IP_RE = re.compile(
+    r"hardcoded\s+ip\s+address|hard.?coded\s+ip.*(?:environment|variable|sandbox_url|ollama_url)", re.IGNORECASE
+)
+_SECURITY_INPUT_VALIDATION_RE = re.compile(r"does\s+not\s+validate\s+(?:the\s+)?input\s+types", re.IGNORECASE)
+_SECURITY_SSL_TLS_RE = re.compile(r"(?:connection\s+pool|ssl|tls).*without\s+(?:ssl|tls)\s+enforcement", re.IGNORECASE)
+_SECURITY_EVAL_RE = re.compile(r"eval\s+(?:is\s+used|in\s+page\.evaluate)", re.IGNORECASE)
+_SECURITY_SMTP_CREDS_RE = re.compile(r"smtp\s+credentials.*environment\s+variable.*without\s+validation", re.IGNORECASE)
+_SECURITY_DB_CURSOR_COMMIT_RE = re.compile(r"get_db_cursor.*commit\s*=\s*true", re.IGNORECASE)
+_SECURITY_DIRECT_DB_EXEC_RE = re.compile(
+    r"direct\s+execution\s+of\s+(?:database\s+commands|a\s+query).*without\s+parameterized", re.IGNORECASE
+)
+_SECURITY_STRING_INTERPOLATION_WHERE_RE = re.compile(
+    r"string\s+interpolation.*where\s+clause.*sql\s+injection", re.IGNORECASE
+)
+_SECURITY_DETERMINISTIC_SEED_RE = re.compile(
+    r"detectorfactory\.seed.*set\s+to\s+0|deterministic.*behavior.*language\s+detection", re.IGNORECASE
+)
+_SECURITY_LOGGING_SENSITIVE_RE = re.compile(
+    r"logging\s+sensitive\s+information|exposing\s+sensitive\s+information\s+in\s+logs", re.IGNORECASE
+)
+_SECURITY_OS_PATH_ISDIR_RE = re.compile(r"os\.path\.isdir\s+without\s+checking\s+(?:file\s+)?existence", re.IGNORECASE)
+_SECURITY_GETLOGGER_RE = re.compile(r"using\s+getlogger\s+directly.*expose.*logging\s+config", re.IGNORECASE)
+_SECURITY_WEAK_SECRET_RE = re.compile(r"hardcoded\s+or\s+weak\s+secret\s+values", re.IGNORECASE)
+_SECURITY_INSECURE_FILE_READ_RE = re.compile(r"reading\s+password\s+from\s+a\s+file.*insecure", re.IGNORECASE)
+_SECURITY_VERIFY_INTEGRITY_RE = re.compile(r"verify_integrity.*string\s+formatting.*sql\s+injection", re.IGNORECASE)
+_SECURITY_BROAD_EXCEPT_RE = re.compile(r"broad\s+exception\s+handler|catching\s+all\s+exceptions", re.IGNORECASE)
+_SECURITY_SQL_FORMAT_WHERE_RE = re.compile(
+    r"sql\s+query.*string\s+formatting.*where\s+clause.*sql\s+injection", re.IGNORECASE
+)
+
 # Bandit rule code → checker function mapping.
 # When a finding carries an `issue_code` (e.g., "B608"), we dispatch directly
 # instead of relying on message text matching. This is more reliable and
@@ -504,6 +544,134 @@ _register_bandit_checker("B608", _bandit_b608_sqlalchemy_core)
 
 # ============================================================
 # Line-precise security checkers (use line_number when available)
+
+
+def _check_jwt_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for JWT validation error message issues."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    import re
+
+    # Only flag if verify=False is explicitly used, or options disable verification
+    # Direct verify=False
+    if re.search(r"jwt\.decode.*verify\s*=\s*False", line, re.IGNORECASE):
+        return True
+    # Options dict with verify_signature: False (with or without quotes)
+    if re.search(
+        r'options\s*=\s*\{[^}]*(?:"verify_signature"|\'verify_signature\'|verify_signature)\s*:\s*False',
+        line,
+        re.IGNORECASE,
+    ):
+        return True
+    # Options dict with verify: False
+    if re.search(r'options\s*=\s*\{[^}]*(?:"verify"|\'verify\'|verify)\s*:\s*False', line, re.IGNORECASE):
+        return True
+    # Direct verify=False parameter
+    if re.search(r"jwt\.decode.*verify\s*=\s*False", line, re.IGNORECASE):
+        return True
+    return False
+
+
+def _check_sensitive_info_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for sensitive info generated but not securely handled."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    import re
+
+    if re.search(r"password\s*=.*secrets|password.*generate|generate.*password|secrets\.token", line, re.IGNORECASE):
+        if not re.search(r"hash|bcrypt|argon2|scrypt|pbkdf2", line, re.IGNORECASE):
+            return True
+    return False
+
+
+def _check_input_validation_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for functions that don't validate input types."""
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    target_line = lines[line_number - 1].strip()
+    # Check if this line defines a function that takes parameters without type hints
+    if re.search(r"def\s+\w+\s*\([^)]*\)\s*:", target_line):
+        # Check if function has type hints or validation
+        return True  # Conservative: flag as potentially missing validation
+    return None
+
+
+def _check_ssl_tls_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for SSL/TLS enforcement in connection pools."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1].strip()
+    import re
+
+    # Check for connection creation without SSL/TLS - flag if no SSL/TLS indicators
+    if re.search(
+        r"create_pool\s*\(|create_engine\s*\(|MongoClient\s*\(|redis\.ConnectionPool\s*\(", line, re.IGNORECASE
+    ):
+        # Check if SSL/TLS is explicitly enabled
+        ssl_indicators = [
+            "sslmode=require",
+            "ssl=true",
+            "tls=true",
+            "ssl_cert",
+            "ssl_ca",
+            "ssl_certfile",
+            "ssl_keyfile",
+            "ssl_verify_cert",
+            "ssl_verify_identity",
+        ]
+        if not any(indicator in line.lower() for indicator in ssl_indicators):
+            return True  # No SSL/TLS indicator found - potentially insecure
+    return False
+
+
+def _check_logging_sensitive_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for logging sensitive information."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1].strip()
+    import re
+
+    # Check for logging with potentially sensitive data
+    if re.search(
+        r"\.(info|warning|error|debug|log)\s*\([^)]*(?:password|token|secret|key|credential|ssn|credit)",
+        line,
+        re.IGNORECASE,
+    ):
+        return True
+    return False
+
+
+def _check_bare_except_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for bare except handlers."""
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ExceptHandler)
+            and node.type is None
+            and hasattr(node, "lineno")
+            and node.lineno == line_number
+        ):
+            return True
+    return False
+
+
+# ============================================================
+# The main finding_still_reproduces function
+# ============================================================
 # ============================================================
 
 
@@ -776,6 +944,8 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
     Mirrors archie_engine/fix_efficacy.py (#5003). The platform cannot import from the
     archie-code repo, so the rules are restated. KEEP THE TWO IN STEP.
     """
+    import re
+
     if (message or "").startswith("LARGE_FILE "):
         # Match the Python-module scanner's threshold and newline counting.
         # The stored detail is a historical size, not the current threshold.
@@ -892,31 +1062,15 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
     if _SECURITY_SQL_INJECTION_RE.search(msg):
         if line_number:
             return _check_sql_injection_at_line(file_text, line_number)
-        # Fallback to whole-file checker if no line number
-        from services.code_health_checks import sql_finding_present
-
-        return sql_finding_present(file_text)
+        # Heuristic detector - cannot be disproved without line number
+        return None
 
     # Hardcoded secrets / passwords / keys / IPs - LINE PRECISE
     if _SECURITY_HARDCODED_SECRET_RE.search(msg):
         if line_number:
             return _check_hardcoded_secret_at_line(file_text, line_number)
-        # Fallback to whole-file checker
-        tree = _parse(file_text)
-        if tree is None:
-            return None
-        source = file_text or ""
-        patterns = [
-            r'password\s*[=:]\s*["\'][^"\']{8,}["\']',
-            r'api[_-]?key\s*[=:]\s*["\'][^"\']{16,}["\']',
-            r'secret\s*[=:]\s*["\'][^"\']{16,}["\']',
-            r'token\s*[=:]\s*["\'][^"\']{16,}["\']',
-            r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
-        ]
-        for pattern in patterns:
-            if re.search(pattern, source, re.IGNORECASE):
-                return True
-        return False
+        # Heuristic detector - cannot be disproved without line number
+        return None
 
     # Subprocess security issues - LINE PRECISE
     if _SECURITY_SUBPROCESS_RE.search(msg):
@@ -1009,6 +1163,233 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
     if _SECURITY_LOGGING_RE.search(msg):
         # Can't reliably check; keep open
         return None
+
+    # JWT validation error messages
+    if _SECURITY_JWT_RE.search(msg):
+        if line_number:
+            return _check_jwt_at_line(file_text, line_number)
+        return None
+
+    # Sensitive information (password) generated but not securely handled
+    if _SECURITY_SENSITIVE_INFO_RE.search(msg):
+        if line_number:
+            return _check_sensitive_info_at_line(file_text, line_number)
+        # Heuristic detector - cannot be disproved by simple pattern matching
+        return None
+
+    # Hardcoded base URL and test credentials
+    if _SECURITY_HARDCODED_URL_CREDS_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(
+                    r'(?:base_url|base_url|sandbox_url|test_cred|test.*cred).*[:=]\s*["\']', line, re.IGNORECASE
+                ):
+                    return True
+        return None
+
+    # get_db_cursor with commit=True
+    if _SECURITY_DB_CURSOR_COMMIT_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"get_db_cursor\s*\([^)]*commit\s*=\s*True", line, re.IGNORECASE):
+                    return True
+        return None
+
+    # Insecure direct object reference - can't reliably check
+    if _SECURITY_INSECURE_REF_RE.search(msg):
+        return None
+
+    # Hardcoded IP address
+    if _SECURITY_HARDCODED_IP_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", line):
+                    return True
+        return None
+
+    # Input validation - function doesn't validate input types
+    if _SECURITY_INPUT_VALIDATION_RE.search(msg):
+        if line_number:
+            return _check_input_validation_at_line(file_text, line_number)
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        # Check if function has type hints or validation
+        for node in ast.walk(ast.parse(file_text or "")):
+            if isinstance(node, ast.FunctionDef):
+                # Check if function has no type hints on args and no validation
+                pass
+        return None
+
+    # SSL/TLS enforcement
+    if _SECURITY_SSL_TLS_RE.search(msg):
+        if line_number:
+            return _check_ssl_tls_at_line(file_text, line_number)
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(
+            re.search(
+                r"(?:create_pool|create_engine|connect|MongoClient)\s*\([^)]*(?!sslmode=require|ssl=true|tls=true)",
+                line,
+                re.IGNORECASE,
+            )
+            for line in (file_text or "").splitlines()
+        )
+
+    # Eval in page.evaluate
+    if _SECURITY_EVAL_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                if "eval" in line and ("page.evaluate" in line or "execute_script" in line):
+                    return True
+        return None
+
+    # SMTP credentials without validation
+    if _SECURITY_SMTP_CREDS_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r'(?:smtp|email).*os\.getenv\s*\(\s*["\']', line, re.IGNORECASE):
+                    return True
+        return None
+
+    # get_db_cursor with commit=True (redundant with above but different message)
+    if _SECURITY_DB_CURSOR_COMMIT_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"get_db_cursor\s*\([^)]*commit\s*=\s*True", line, re.IGNORECASE):
+                    return True
+        return None
+
+    # Direct execution of database commands without parameterized queries
+    if _SECURITY_DIRECT_DB_EXEC_RE.search(msg):
+        if line_number:
+            return _check_sql_injection_at_line(file_text, line_number)
+        return _check_sql_injection_at_line(file_text, None)
+
+    # String interpolation for WHERE clause
+    if _SECURITY_STRING_INTERPOLATION_WHERE_RE.search(msg):
+        if line_number:
+            return _check_sql_injection_at_line(file_text, line_number)
+        return _check_sql_injection_at_line(file_text, None)
+
+    # Deterministic seed in language detection
+    if _SECURITY_DETERMINISTIC_SEED_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"DetectorFactory\.seed\s*=\s*0|seed\s*=\s*0.*language", line, re.IGNORECASE):
+                    return True
+        return None
+
+    # Logging sensitive information
+    if _SECURITY_LOGGING_SENSITIVE_RE.search(msg):
+        if line_number:
+            return _check_logging_sensitive_at_line(file_text, line_number)
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(
+            isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr in ("info", "warning", "error", "debug", "log")
+            and any(isinstance(arg, (ast.JoinedStr, ast.BinOp)) for arg in n.args)
+            for n in ast.walk(ast.parse(file_text or ""))
+        )
+
+    # os.path.isdir without existence check
+    if _SECURITY_OS_PATH_ISDIR_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"os\.path\.isdir\s*\(", line) and not re.search(r"exists|is_file", line):
+                    return True
+        return None
+
+    # Using GETLogger directly
+    if _SECURITY_GETLOGGER_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"logging\.getLogger|getLogger\s*\(", line):
+                    return True
+        return None
+
+    # Weak secret values
+    if _SECURITY_WEAK_SECRET_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r'(?:secret|key|token|password)\s*=\s*["\'][^"\']{1,8}["\']', line, re.IGNORECASE):
+                    return True
+        return None
+
+    # Reading password from file
+    if _SECURITY_INSECURE_FILE_READ_RE.search(msg):
+        if line_number:
+            lines = (file_text or "").splitlines()
+            if 1 <= line_number <= len(lines):
+                line = lines[line_number - 1]
+                import re
+
+                if re.search(r"(?:open|read).*password|password.*(?:open|read)", line, re.IGNORECASE):
+                    return True
+        return None
+
+    # verify_integrity uses string formatting for SQL
+    if _SECURITY_VERIFY_INTEGRITY_RE.search(msg):
+        if line_number:
+            return _check_sql_injection_at_line(file_text, line_number)
+        return _check_sql_injection_at_line(file_text, None)
+
+    # Broad exception handler
+    if _SECURITY_BROAD_EXCEPT_RE.search(msg):
+        if line_number:
+            return _check_bare_except_at_line(file_text, line_number)
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(isinstance(n, ast.ExceptHandler) and n.type is None for n in ast.walk(tree))
+
+    # SQL string formatting in WHERE clause
+    if _SECURITY_SQL_FORMAT_WHERE_RE.search(msg):
+        if line_number:
+            return _check_sql_injection_at_line(file_text, line_number)
+        return _check_sql_injection_at_line(file_text, None)
 
     # #6054 -- LAST resort, deliberately scoped to messages NO checker recognised.
     # code_issues #8393 ('performance' prose at line 25847 of a 744-line file) had no

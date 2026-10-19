@@ -389,6 +389,8 @@ def main():
     _last_report_date = None
     _last_parliament_date = None
     _last_aurora_date = None
+    _last_aurora_hotspot_hour = None
+    _last_aurora_firms_hour = None
     _last_city_hour = None
     _last_elections_week = None
     _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
@@ -622,6 +624,30 @@ def main():
             except Exception:
                 log.exception("aurora citypage crashed")
             _last_city_hour = _city_hour
+
+        # CWFIS exposes satellite hotspots as a rolling 24-hour layer. Archive
+        # point records hourly so a transient detection is not lost between
+        # daily aggregate runs; daily station FWI remains on its daily cadence.
+        if _last_aurora_hotspot_hour != _city_hour:
+            try:
+                from ingest.weather.cwfis import run_aurora_hotspot_capture
+                _hotspot_result = run_aurora_hotspot_capture(engine)
+                log.info("aurora hotspot evidence: %s", _hotspot_result)
+            except Exception:
+                log.exception("aurora hotspot evidence capture crashed")
+            _last_aurora_hotspot_hour = _city_hour
+
+        # NASA FIRMS is optional and authenticated. Poll only when the key is
+        # provisioned; the collector redacts it from logs and stored URLs.
+        _firms_enabled = bool(os.environ.get("NASA_FIRMS_MAP_KEY"))
+        if _firms_enabled and _last_aurora_firms_hour != _city_hour:
+            try:
+                from ingest.weather.firms import run_aurora_firms_capture
+                _firms_result = run_aurora_firms_capture(engine)
+                log.info("aurora NASA FIRMS evidence: %s", _firms_result)
+            except Exception:
+                log.exception("aurora NASA FIRMS evidence capture crashed")
+            _last_aurora_firms_hour = _city_hour
 
         # A.U.R.O.R.A. AQHI + EC alerts — HOURLY, same gate as citypage
         # (Dev HQ #6621 item 5). Both never raise and write their own

@@ -43,6 +43,8 @@ from defusedxml.common import DefusedXmlException
 
 from sqlalchemy import text
 
+from ingest.weather.evidence import capture_source_records
+
 logger = logging.getLogger(__name__)
 
 _BASE = "https://dd.weather.gc.ca"
@@ -169,6 +171,7 @@ def _parse_cap(raw, fname):
 
 
 def _run_alerts(engine, dry_run):
+    started_at = datetime.datetime.now(datetime.timezone.utc)
     now = datetime.datetime.now(datetime.timezone.utc)
     date_str = now.strftime("%Y%m%d")
     stats = {"offices": 0, "fetched": 0, "upserted": 0, "parse_error": 0}
@@ -182,8 +185,9 @@ def _run_alerts(engine, dry_run):
             hour = t.strftime("%H")
             fnames = _files_for_office_hour(date_str, office, hour)
             for fname in fnames:
-                st, raw = _fetch("%s/%s/WXO-DD/alerts/cap/%s/%s/%s/%s" % (
-                    _BASE, date_str, date_str, office, hour, fname))
+                source_url = "%s/%s/WXO-DD/alerts/cap/%s/%s/%s/%s" % (
+                    _BASE, date_str, date_str, office, hour, fname)
+                st, raw = _fetch(source_url)
                 if st != 200:
                     stats["parse_error"] += 1
                     continue
@@ -192,6 +196,8 @@ def _run_alerts(engine, dry_run):
                     stats["parse_error"] += 1
                     continue
                 row["office_code"] = office
+                row["raw_payload"] = raw.decode("utf-8", "replace")
+                row["source_url"] = source_url
                 stats["fetched"] += 1
                 rows.append(row)
 
@@ -202,8 +208,36 @@ def _run_alerts(engine, dry_run):
     if not rows and stats["offices"] == 0:
         return {"error": "no alert offices listed for %s — path shape may have changed" % date_str}
 
+    capture_rows = []
+    for row in rows:
+        source_key = "%s|%s|%s" % (
+            row["identifier"],
+            row.get("msg_type") or "",
+            row.get("sent_utc") or "",
+        )
+        capture_rows.append({
+            "source_record_key": source_key,
+            "source_observed_at": row.get("effective_utc"),
+            "source_published_at": row.get("sent_utc"),
+            "source_url": row.get("source_url"),
+            "payload": {
+                key: value for key, value in row.items()
+                if key not in {"raw_payload", "source_url"}
+            },
+            "raw_payload": row["raw_payload"],
+        })
+
     with engine.begin() as c:
+        capture_source_records(
+            c,
+            dataset_key="eccc_cap",
+            source_url=_BASE,
+            started_at=started_at,
+            rows=capture_rows,
+        )
         for row in rows:
+            row.pop("raw_payload", None)
+            row.pop("source_url", None)
             result = c.execute(text("""
                 INSERT INTO wtf.aurora_alerts
                     (identifier, office_code, status, msg_type, event, urgency,

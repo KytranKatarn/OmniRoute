@@ -30,6 +30,36 @@
 .wtf-wx-outlet-link { color:#60a5fa; text-decoration:none; }
 .wtf-wx-empty { color:#6b7280; font-size:13px; padding:30px 0; text-align:center; }
 .wtf-wx-scroll { overflow-x:auto; }
+/* Evidence history uses the weather page's existing night-sky palette. The
+   signature is a four-clock provenance strip: event, publication, first seen,
+   and operational receipt remain visually distinct instead of becoming one
+   misleading "time" column. */
+.wtf-wx-history { margin:26px 0; padding:16px; background:#050d1a; border:1px solid #112233; border-radius:6px; }
+.wtf-wx-history-head { display:flex; justify-content:space-between; gap:16px; align-items:end; flex-wrap:wrap; margin-bottom:12px; }
+.wtf-wx-history-title { color:var(--wtf-text); font:600 20px var(--wtf-font-serif); margin:0 0 4px; }
+.wtf-wx-history-copy { color:#8a96a5; font-size:11px; line-height:1.6; max-width:720px; margin:0; }
+.wtf-wx-history-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:end; }
+.wtf-wx-history-controls label { display:grid; gap:4px; color:#8a96a5; font-size:9px; letter-spacing:.07em; text-transform:uppercase; }
+.wtf-wx-history-controls select,.wtf-wx-history-controls input,.wtf-wx-history-controls button { min-height:32px; background:#060d14; border:1px solid #16304a; border-radius:4px; color:#d5deea; padding:5px 8px; font:11px var(--wtf-font-mono); }
+.wtf-wx-history-controls button { cursor:pointer; color:#93c5fd; }
+.wtf-wx-history-controls :focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+.wtf-wx-history-state { min-height:20px; color:#8a96a5; font-size:11px; margin:8px 0; }
+.wtf-wx-history-grid { display:grid; grid-template-columns:minmax(220px, .8fr) minmax(0, 1.6fr); gap:12px; align-items:start; }
+.wtf-wx-history-map { background:#080f18; border:1px solid #142538; border-radius:4px; min-height:190px; padding:8px; }
+.wtf-wx-history-map svg { display:block; width:100%; height:180px; }
+.wtf-wx-history-map-note { color:#748194; font-size:9px; line-height:1.5; margin:4px 2px 0; }
+.wtf-wx-history-list { display:grid; gap:7px; }
+.wtf-wx-history-item { background:#080f18; border:1px solid #142538; border-left:2px solid #38bdf8; border-radius:4px; padding:9px 11px; min-width:0; }
+.wtf-wx-history-item.is-alert { border-left-color:#fbbf24; }
+.wtf-wx-history-item.is-thermal { border-left-color:#fb923c; }
+.wtf-wx-history-item-top { display:flex; justify-content:space-between; gap:10px; color:#e5e7eb; font-size:11px; }
+.wtf-wx-history-kind { color:#93c5fd; font:9px var(--wtf-font-mono); text-transform:uppercase; letter-spacing:.08em; }
+.wtf-wx-history-times { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:8px; }
+.wtf-wx-history-time { color:#8a96a5; font:9px/1.5 var(--wtf-font-mono); overflow-wrap:anywhere; }
+.wtf-wx-history-time b { display:block; color:#5f7185; font:8px var(--wtf-font-sans); text-transform:uppercase; letter-spacing:.07em; }
+.wtf-wx-history-source { display:inline-block; color:#60a5fa; font-size:10px; margin-top:7px; }
+.wtf-wx-history-empty { border:1px dashed #20364c; border-radius:4px; color:#8a96a5; padding:18px; font-size:11px; line-height:1.6; }
+@media(max-width:760px) { .wtf-wx-history-grid { grid-template-columns:1fr; } .wtf-wx-history-times { grid-template-columns:1fr; } }
 /* ── interactive map + A.U.R.O.R.A. panel (task #5756) ───────────────────── */
 .wtf-wx-scope { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }
 .wtf-wx-scope-btn { background:#060d14; border:1px solid #16304a; color:#9ca3af; border-radius:20px;
@@ -834,6 +864,179 @@
 </section>
 {% endif %}
 
+{# Historical evidence reader: this calls the bounded, read-only provenance API.
+   It makes no claim that public-source availability equals operational receipt. #}
+<section class="wtf-wx-history" id="aurora-evidence-history" aria-labelledby="wtf-wx-history-title">
+  <div class="wtf-wx-history-head">
+    <div>
+      <div class="wtf-wx-eyebrow">A.U.R.O.R.A. · source archive</div>
+      <h2 class="wtf-wx-history-title" id="wtf-wx-history-title">Historical evidence</h2>
+      <p class="wtf-wx-history-copy">Review captured alerts, fire-weather station records and satellite thermal anomalies. Filter by when a record was first retrieved to ask what this archive held by a given time. That does not establish when an operational team received it.</p>
+    </div>
+    <form class="wtf-wx-history-controls" id="wtf-wx-history-form">
+      <label>Evidence feed
+        <select id="wtf-wx-history-dataset">
+          <option value="">All captured feeds</option>
+          <option value="eccc_cap">Public alerts</option>
+          <option value="cwfis_firewx_station_daily">Fire-weather stations</option>
+          <option value="cwfis_hotspot_point">Satellite thermal anomalies</option>
+          <option value="nasa_firms_point">Satellite thermal anomalies · alternate feed</option>
+        </select>
+      </label>
+      <label>Archive held by (UTC)
+        <input id="wtf-wx-history-cutoff" type="datetime-local" aria-describedby="wtf-wx-history-cutoff-help">
+      </label>
+      <button type="submit">Search archive</button>
+    </form>
+  </div>
+  <p class="wtf-wx-history-copy" id="wtf-wx-history-cutoff-help">Optional cutoff uses UTC. Times below are shown in UTC; missing timestamps remain blank.</p>
+  <div class="wtf-wx-history-state" id="wtf-wx-history-state" role="status" aria-live="polite">Loading captured source records…</div>
+  <div class="wtf-wx-history-grid">
+    <div>
+      <div class="wtf-wx-history-map" id="wtf-wx-history-map" aria-label="Coordinate plot of geolocated source records"></div>
+      <p class="wtf-wx-history-map-note">This is a coordinate plot, not a perimeter or basemap. Points show only returned source coordinates. A thermal anomaly is not, by itself, a confirmed fire. No points means no geolocated records in this result page.</p>
+    </div>
+    <div class="wtf-wx-history-list" id="wtf-wx-history-list"></div>
+  </div>
+  <button type="button" class="wtf-wx-toolbar-btn" id="wtf-wx-history-more" hidden>Load older records</button>
+</section>
+<script>
+(function () {
+  "use strict";
+  var form = document.getElementById("wtf-wx-history-form");
+  if (!form) return;
+  var dataset = document.getElementById("wtf-wx-history-dataset");
+  var cutoff = document.getElementById("wtf-wx-history-cutoff");
+  var state = document.getElementById("wtf-wx-history-state");
+  var list = document.getElementById("wtf-wx-history-list");
+  var map = document.getElementById("wtf-wx-history-map");
+  var more = document.getElementById("wtf-wx-history-more");
+  var keys = ["eccc_cap", "cwfis_firewx_station_daily", "cwfis_hotspot_point", "nasa_firms_point"];
+  var offset = 0;
+  var allRows = [];
+  var pageSize = 100;
+  function el(tag, cls, value) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (value !== undefined && value !== null) node.textContent = String(value);
+    return node;
+  }
+  function iso(value) {
+    if (!value) return "Not recorded";
+    var date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "Unparseable source time" : date.toISOString().replace("T", " ").replace(".000Z", " UTC");
+  }
+  function recordTitle(row) {
+    var p = row.payload || {};
+    var d = p.detection || {};
+    return p.headline || p.event || d.product || p.product || row.source_record_key || "Source record";
+  }
+  function feedLabel(row) {
+    if (row.dataset_key === "eccc_cap") return "Public alert";
+    if (row.dataset_key === "cwfis_firewx_station_daily") return "Fire-weather station";
+    if (row.dataset_key === "cwfis_hotspot_point" || row.dataset_key === "nasa_firms_point") return "Satellite thermal anomaly";
+    return "Source record";
+  }
+  function coordinates(row) {
+    var p = row.payload || {};
+    var d = p.detection || p.properties || {};
+    var g = p.geometry || {};
+    var c = g.coordinates || [];
+    var lat = Number(d.latitude !== undefined ? d.latitude : (d.LATITUDE !== undefined ? d.LATITUDE : c[1]));
+    var lon = Number(d.longitude !== undefined ? d.longitude : (d.LONGITUDE !== undefined ? d.LONGITUDE : c[0]));
+    return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lat, lon] : null;
+  }
+  function drawMap(rows) {
+    map.replaceChildren();
+    var points = rows.map(function (r) { return {row:r, xy:coordinates(r)}; }).filter(function (p) { return p.xy; });
+    if (!points.length) {
+      map.appendChild(el("div", "wtf-wx-history-empty", "No geolocated point records in this result page."));
+      return;
+    }
+    var xs = points.map(function (p) { return p.xy[1]; }), ys = points.map(function (p) { return p.xy[0]; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    if (x0 === x1) { x0 -= .05; x1 += .05; } if (y0 === y1) { y0 -= .05; y1 += .05; }
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 420 180"); svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", points.length + " geolocated source records on a longitude and latitude plot; extent fits this result page");
+    var line = document.createElementNS(svg.namespaceURI, "path");
+    line.setAttribute("d", "M24 12V156H408"); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#294158"); svg.appendChild(line);
+    [["LAT", 5, 16], ["LON", 390, 174]].forEach(function (label) {
+      var axis = document.createElementNS(svg.namespaceURI, "text");
+      axis.setAttribute("x", label[1]); axis.setAttribute("y", label[2]);
+      axis.setAttribute("fill", "#748194"); axis.setAttribute("font-size", "8"); axis.textContent = label[0]; svg.appendChild(axis);
+    });
+    points.forEach(function (p) {
+      var d = p.row.payload && p.row.payload.detection || {};
+      var anomaly = p.row.dataset_key.indexOf("point") >= 0 || p.row.dataset_key.indexOf("firms") >= 0;
+      var dot = document.createElementNS(svg.namespaceURI, "circle");
+      dot.setAttribute("cx", 30 + ((p.xy[1] - x0) / (x1 - x0)) * 366);
+      dot.setAttribute("cy", 150 - ((p.xy[0] - y0) / (y1 - y0)) * 126);
+      dot.setAttribute("r", "4"); dot.setAttribute("fill", anomaly ? "#fb923c" : "#38bdf8");
+      var tip = document.createElementNS(svg.namespaceURI, "title");
+      tip.textContent = recordTitle(p.row) + " · " + iso(p.row.source_observed_at) + " · " + p.xy[0] + ", " + p.xy[1];
+      dot.appendChild(tip); svg.appendChild(dot);
+    });
+    map.appendChild(svg);
+    map.appendChild(el("p", "wtf-wx-history-map-note", points.length + " records · fitted extent " + y0.toFixed(2) + "–" + y1.toFixed(2) + "° latitude, " + x0.toFixed(2) + "–" + x1.toFixed(2) + "° longitude"));
+  }
+  function render(rows) {
+    list.replaceChildren();
+    rows.forEach(function (row) {
+      var thermal = row.dataset_key.indexOf("point") >= 0 || row.dataset_key.indexOf("firms") >= 0;
+      var alert = row.dataset_key === "eccc_cap";
+      var card = el("article", "wtf-wx-history-item" + (thermal ? " is-thermal" : alert ? " is-alert" : ""));
+      var top = el("div", "wtf-wx-history-item-top");
+      top.appendChild(el("span", "wtf-wx-history-kind", feedLabel(row)));
+      top.appendChild(el("span", "", recordTitle(row))); card.appendChild(top);
+      var times = el("div", "wtf-wx-history-times");
+      [["Observed / effective", row.source_observed_at], ["Published", row.source_published_at], ["First retrieved", row.first_retrieved_at]].forEach(function (pair) {
+        var t = el("div", "wtf-wx-history-time"); t.appendChild(el("b", "", pair[0])); t.appendChild(document.createTextNode(iso(pair[1]))); times.appendChild(t);
+      });
+      card.appendChild(times);
+      var received = el("div", "wtf-wx-history-time"); received.appendChild(el("b", "", "Operational receipt")); received.appendChild(document.createTextNode(iso(row.operational_received_at))); card.appendChild(received);
+      var url = row.source_url;
+      if (typeof url === "string" && /^https:\/\//i.test(url)) {
+        var link = el("a", "wtf-wx-history-source", "Open original source ↗"); link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; card.appendChild(link);
+      }
+      list.appendChild(card);
+    });
+    drawMap(rows);
+  }
+  async function load(event, append) {
+    if (event) event.preventDefault();
+    if (!append) { offset = 0; allRows = []; }
+    state.textContent = "Searching the captured archive…";
+    var params = new URLSearchParams({limit:String(pageSize), offset:String(offset)});
+    if (dataset.value && keys.indexOf(dataset.value) !== -1) params.set("dataset", dataset.value);
+    if (cutoff.value) {
+      var date = new Date(cutoff.value + "Z");
+      if (Number.isNaN(date.getTime())) { state.textContent = "Enter a valid UTC cutoff."; return; }
+      params.set("available_before", date.toISOString());
+    }
+    try {
+      var response = await fetch("/api/weather/evidence?" + params.toString(), {headers:{Accept:"application/json"}});
+      var body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Archive query failed");
+      var rows = Array.isArray(body.evidence) ? body.evidence : [];
+      allRows = allRows.concat(rows);
+      render(allRows);
+      more.hidden = rows.length < pageSize;
+      offset += rows.length;
+      state.textContent = allRows.length ? allRows.length + " source records shown" + (more.hidden ? "." : "; more are available.") : "No captured records match this search. This may mean the archive has no coverage for the selected feed or cutoff.";
+    } catch (error) {
+      list.replaceChildren(el("div", "wtf-wx-history-empty", error.message === "Failed to fetch" ? "Evidence history is unavailable right now." : "Evidence history could not be loaded: " + error.message));
+      map.replaceChildren(el("div", "wtf-wx-history-empty", "Map unavailable until evidence records load."));
+      more.hidden = true;
+      state.textContent = "Archive query unavailable.";
+    }
+  }
+  form.addEventListener("submit", load);
+  more.addEventListener("click", function () { load(null, true); });
+  load();
+})();
+</script>
+
 {% if aurora_map %}
 <script src="/static/vendor/internmap.min.js"></script>
 <script src="/static/vendor/d3-array.min.js"></script>
@@ -952,7 +1155,7 @@
   // Standard AQHI health-message bands (1-10+): Low(1-3)/Moderate(4-6)/
   // High(7-10)/Very High(10+) — the same 4-band convention Canadian AQHI
   // reporting uses everywhere, not a scale invented for this page.
-  // ⚠️ WTFMap.ramp() treats each stop's number as an UPPER bound ("first stop
+  // Warning: WTFMap.ramp() treats each stop's number as an UPPER bound ("first stop
   // whose threshold >= v"). These were written as band STARTS (1/4/7/10), which
   // shifted every reading up a band: an AQHI of 3 (Low) drew as Moderate, a 5
   // (Moderate) as High, an 8 (High) as Very high. Thresholds are now the

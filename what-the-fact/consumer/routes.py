@@ -1461,6 +1461,114 @@ def weather_city(name: str):
     )
 
 
+def _parse_evidence_timestamp(value):
+    """Parse an ISO timestamp with an explicit offset; store it in UTC."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return False
+    return parsed.astimezone(datetime.timezone.utc)
+
+
+@bp.get("/api/weather/evidence")
+def api_weather_evidence():
+    """Read-only, bounded source search with an availability cutoff."""
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
+
+    allowed_datasets = {
+        "eccc_cap",
+        "cwfis_firewx_station_daily",
+        "cwfis_hotspot_point",
+        "nasa_firms_point",
+    }
+    dataset = request.args.get("dataset") or None
+    if dataset and dataset not in allowed_datasets:
+        return jsonify({"error": "unsupported dataset"}), 400
+
+    available_before = _parse_evidence_timestamp(
+        request.args.get("available_before")
+    )
+    observed_after = _parse_evidence_timestamp(
+        request.args.get("observed_after")
+    )
+    observed_before = _parse_evidence_timestamp(
+        request.args.get("observed_before")
+    )
+    if any(
+        value is False
+        for value in (available_before, observed_after, observed_before)
+    ):
+        return jsonify({
+            "error": "timestamps must be ISO 8601 with a timezone"
+        }), 400
+    if bool(observed_after) != bool(observed_before):
+        return jsonify({
+            "error": "observed_after and observed_before are a pair"
+        }), 400
+    if observed_after and observed_before:
+        span = observed_before - observed_after
+        span_seconds = span.total_seconds()
+        if span_seconds <= 0 or span_seconds > 31 * 86400:
+            return jsonify({
+                "error": "observation range must be positive and <= 31 days"
+            }), 400
+
+    try:
+        limit = int(request.args.get("limit", "100"))
+        offset = int(request.args.get("offset", "0"))
+    except ValueError:
+        return jsonify({"error": "limit and offset must be integers"}), 400
+    if not 1 <= limit <= 200 or not 0 <= offset <= 10000:
+        return jsonify({
+            "error": "limit must be 1-200 and offset 0-10000"
+        }), 400
+
+    try:
+        with _db().begin() as conn:
+            rows = conn.execute(text("""
+                SELECT dataset_key, source_record_key, source_url,
+                       payload_sha256, source_observed_at, source_published_at,
+                       operational_received_at, first_retrieved_at,
+                       ingested_at,
+                       payload
+                FROM wtf.aurora_source_version
+                WHERE (:dataset IS NULL OR dataset_key = :dataset)
+                  AND (:available_before IS NULL
+                       OR first_retrieved_at <= :available_before)
+                  AND (:observed_after IS NULL
+                       OR source_observed_at >= :observed_after)
+                  AND (:observed_before IS NULL
+                       OR source_observed_at < :observed_before)
+                ORDER BY COALESCE(source_observed_at, source_published_at,
+                                  first_retrieved_at) DESC,
+                         dataset_key, source_record_key
+                LIMIT :limit OFFSET :offset
+            """), {
+                "dataset": dataset,
+                "available_before": available_before,
+                "observed_after": observed_after,
+                "observed_before": observed_before,
+                "limit": limit,
+                "offset": offset,
+            }).mappings().all()
+        return jsonify({
+            "available_before": available_before,
+            "count": len(rows),
+            "limit": limit,
+            "offset": offset,
+            "evidence": [dict(row) for row in rows],
+        })
+    except Exception:  # noqa: BLE001 — migration may not yet be deployed
+        logger.exception("A.U.R.O.R.A. evidence history query failed")
+        return jsonify({"error": "evidence history is unavailable"}), 503
+
+
 def _city_window_for(city):
     """The hourly / sun / yesterday / normals block for one city (task 7235). Each query is for ONE site and its LATEST issue only; if the migration
     that creates these tables is not applied the page still renders without the block, rather than 500ing."""

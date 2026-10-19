@@ -9,8 +9,9 @@ nothing here):
         (wind speed, gust, direction) plus the full Canadian Fire Weather Index
         component set. THIS IS THE WIND LAYER.
   public:hotspots_last24hrs   — satellite hotspot detections. ~10k features and
-        it spans the US and Mexico, so it is rolled up to a Canadian
-        per-province daily row on ingest rather than stored raw.
+        it spans the US and Mexico. The public map uses Canadian provincial
+        daily summaries; a separate hourly capture now retains Canadian
+        source points and geometry for historical evidence.
   public:m3_polygons_current  — active fire perimeters. Thin attributes
         (hcount/firstdate/lastdate/area) with NO province or fire name, so we
         store a national daily summary and do not invent per-fire identity the
@@ -24,6 +25,7 @@ api.weather.gc.ca is deliberately NOT called — its robots.txt disallows
 Run: python -m ingest.weather.cwfis [--dry-run]
 """
 import json
+import hashlib
 import logging
 import os
 import re
@@ -33,6 +35,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
+
+from ingest.weather.evidence import capture_source_records
 
 logger = logging.getLogger("wtf-ingest.aurora.cwfis")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -71,13 +75,17 @@ _US_STATE_CODES = {
 
 
 def _fetch(layer: str, extra: str = "") -> dict:
+    req = urllib.request.Request(_source_url(layer, extra), headers=_HEADERS)
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
+        return json.loads(r.read().decode("utf-8", "replace"))
+
+
+def _source_url(layer: str, extra: str = "") -> str:
     qs = urllib.parse.urlencode({
         "service": "WFS", "version": "1.0.0", "request": "GetFeature",
         "outputFormat": "application/json", "typeName": layer,
     })
-    req = urllib.request.Request(f"{_WFS}?{qs}{extra}", headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
-        return json.loads(r.read().decode("utf-8", "replace"))
+    return f"{_WFS}?{qs}{extra}"
 
 
 def _clean(value):
@@ -109,6 +117,7 @@ def _ts(value):
 
 def run_firewx_sync(engine, dry_run: bool = False) -> dict:
     """Fire-weather stations → wtf.aurora_firewx_obs (the wind layer)."""
+    started_at = datetime.now(timezone.utc)
     try:
         data = _fetch("public:firewx_stns_current")
     except Exception as exc:
@@ -118,7 +127,7 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
     if not feats:
         return {"error": "firewx returned 0 features — layer renamed or WFS changed?"}
 
-    rows, skipped, foreign = [], 0, 0
+    rows, source_rows, skipped, foreign = [], [], 0, 0
     foreign_by_agency = defaultdict(int)
     for f in feats:
         p = f.get("properties") or {}
@@ -134,7 +143,7 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
             foreign += 1
             foreign_by_agency[agency or prov_code or "?"] += 1
             continue
-        rows.append({
+        normalized = {
             "k": key, "n": _clean(p.get("name")), "pv": _clean(p.get("prov")),
             "ag": _clean(p.get("agency")), "la": _num(p.get("lat")), "lo": _num(p.get("lon")),
             "rd": rep, "t": _num(p.get("temp")), "rh": _num(p.get("rh")),
@@ -143,6 +152,13 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
             "ffmc": _num(p.get("ffmc")), "dmc": _num(p.get("dmc")), "dc": _num(p.get("dc")),
             "isi": _num(p.get("isi")), "bui": _num(p.get("bui")), "fwi": _num(p.get("fwi")),
             "dsr": _num(p.get("dsr")),
+        }
+        rows.append(normalized)
+        source_rows.append({
+            "source_record_key": "%s|%s" % (key, rep.isoformat()),
+            "source_url": _source_url("public:firewx_stns_current"),
+            "source_observed_at": rep,
+            "payload": {"feature": f, "normalized": normalized},
         })
 
     # Surface key collisions rather than letting ON CONFLICT swallow them:
@@ -157,6 +173,8 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
         return result
 
     with engine.begin() as c:
+        capture_source_records(c, dataset_key="cwfis_firewx_station_daily",
+                               source_url=_WFS, started_at=started_at, rows=source_rows)
         c.execute(text("""
             INSERT INTO wtf.aurora_firewx_obs
                 (station_key, station_name, prov, agency, lat, lon, rep_date,
@@ -179,7 +197,7 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
 
 
 def run_fire_sync(engine, dry_run: bool = False) -> dict:
-    """Hotspots (rolled up per province) + perimeter summary."""
+    """Daily hotspots (rolled up per province) + perimeter summary."""
     out = {}
 
     # ── hotspots ─────────────────────────────────────────────────────────────
@@ -265,6 +283,78 @@ def run_fire_sync(engine, dry_run: bool = False) -> dict:
     return out
 
 
+def run_hotspot_capture(engine, dry_run: bool = False) -> dict:
+    """Archive Canadian points before the 24-hour layer rolls over."""
+    started_at = datetime.now(timezone.utc)
+    try:
+        data = _fetch("public:hotspots_last24hrs")
+    except Exception as exc:
+        return {"error": f"hotspot capture fetch failed: {exc}"}
+    feats = data.get("features") or []
+    if not feats:
+        return {
+            "error": "hotspot capture returned 0 features; check the WFS layer"
+        }
+
+    capture_rows = []
+    foreign = 0
+    for feature in feats:
+        props = feature.get("properties") or {}
+        province = (_clean(props.get("agency")) or "").upper()
+        if province not in _CA_PROV:
+            foreign += 1
+            continue
+        observed = _ts(props.get("rep_date"))
+        source_id = feature.get("id") or props.get("id") or props.get("fid")
+        feature_json = json.dumps(
+            feature, sort_keys=True, separators=(",", ":"),
+            ensure_ascii=False, default=str,
+        )
+        if source_id:
+            record_key = str(source_id)
+        else:
+            record_key = "sha256:" + hashlib.sha256(
+                feature_json.encode("utf-8")
+            ).hexdigest()
+        capture_rows.append({
+            "source_record_key": record_key,
+            "source_url": _source_url("public:hotspots_last24hrs"),
+            "source_observed_at": observed,
+            "payload": feature,
+        })
+    result = {
+        "fetched": len(feats),
+        "captured": len(capture_rows),
+        "foreign_skipped": foreign,
+    }
+    if dry_run:
+        return result
+    with engine.begin() as conn:
+        capture_stats = capture_source_records(
+            conn,
+            dataset_key="cwfis_hotspot_point",
+            source_url=_WFS,
+            started_at=started_at,
+            rows=capture_rows,
+        )
+    result["upserted"] = capture_stats["inserted_versions"]
+    return result
+
+
+def run_aurora_hotspot_capture(engine, dry_run: bool = False) -> dict:
+    """Scheduled entry point with the standard ingest heartbeat contract."""
+    try:
+        result = run_hotspot_capture(engine, dry_run=dry_run)
+        if not dry_run:
+            _heartbeat(engine, "aurora_hotspots", result, None)
+        return result
+    except Exception as exc:  # noqa: BLE001 — record failure for drift guard
+        logger.exception("aurora_hotspots capture crashed")
+        if not dry_run:
+            _heartbeat(engine, "aurora_hotspots", {}, exc)
+        return {"error": str(exc)}
+
+
 def _heartbeat(engine, task: str, result: dict, exc: Exception | None) -> None:
     """parliament.ingest_log row on BOTH paths — including a SWALLOWED
     {"error": ...} return, which is how lobbying and ethics rotted for months
@@ -278,7 +368,8 @@ def _heartbeat(engine, task: str, result: dict, exc: Exception | None) -> None:
                     "VALUES (:t, :f, :u)"),
                     {"t": task,
                      "f": int(result.get("fetched") or result.get("hotspots_fetched") or 0),
-                     "u": int(result.get("upserted") or result.get("provinces") or 0)})
+                     "u": int(result.get("upserted") or result.get("provinces") or
+                              result.get("captured") or 0)})
             else:
                 c.execute(text(
                     "INSERT INTO parliament.ingest_log (task, error) VALUES (:t, :e)"),

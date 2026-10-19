@@ -199,6 +199,62 @@ def test_collector_failures_create_feed_capture_attempts_without_storing_errors(
     assert "request failed" not in sql and "request failed" not in str(params)
 
 
+def test_firewx_retries_transient_empty_feature_collection(monkeypatch):
+    responses = iter([
+        {"type": "FeatureCollection", "features": []},
+        {"type": "FeatureCollection", "features": [{
+            "type": "Feature",
+            "properties": {"wmo": "71118", "rep_date": "2026-10-17T18:00:00Z", "agency": "MSC"},
+        }]},
+    ])
+    calls = []
+    delays = []
+    monkeypatch.setattr(cwfis_ingest, "_fetch", lambda layer: (calls.append(layer), next(responses))[1])
+    monkeypatch.setattr(cwfis_ingest.time, "sleep", delays.append)
+
+    result = cwfis_ingest.run_firewx_sync(None, dry_run=True)
+
+    assert result["fetched"] == 1
+    assert result["parsed"] == 1
+    assert calls == ["public:firewx_stns_current"] * 2
+    assert delays == [2.0]
+
+
+def test_firewx_fails_closed_after_all_empty_feature_attempts(monkeypatch):
+    calls = []
+    delays = []
+    monkeypatch.setattr(
+        cwfis_ingest,
+        "_fetch",
+        lambda layer: (calls.append(layer), {"type": "FeatureCollection", "features": []})[1],
+    )
+    monkeypatch.setattr(cwfis_ingest.time, "sleep", delays.append)
+
+    result = cwfis_ingest.run_firewx_sync(None, dry_run=True)
+
+    assert "0 features after 3 attempts" in result["error"]
+    assert calls == ["public:firewx_stns_current"] * 3
+    assert delays == [2.0, 6.0]
+
+
+def test_firewx_does_not_retry_fetch_errors(monkeypatch):
+    calls = []
+    delays = []
+
+    def fail_fetch(layer):
+        calls.append(layer)
+        raise RuntimeError("HTTP Error 404: Not Found")
+
+    monkeypatch.setattr(cwfis_ingest, "_fetch", fail_fetch)
+    monkeypatch.setattr(cwfis_ingest.time, "sleep", delays.append)
+
+    result = cwfis_ingest.run_firewx_sync(None, dry_run=True)
+
+    assert result == {"error": "firewx fetch failed: HTTP Error 404: Not Found"}
+    assert calls == ["public:firewx_stns_current"]
+    assert delays == []
+
+
 def test_cwfis_point_payload_retains_geometry_and_source_identity():
     feature = {
         "type": "Feature",

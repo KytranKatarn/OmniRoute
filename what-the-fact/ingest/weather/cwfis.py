@@ -29,6 +29,7 @@ import hashlib
 import logging
 import os
 import re
+import time
 import urllib.parse
 import urllib.request
 from collections import defaultdict
@@ -50,6 +51,7 @@ _HEADERS = {
     "Accept": "application/json",
 }
 _TIMEOUT = 120
+_FIREWX_RETRY_DELAYS = (2.0, 6.0)
 
 # CWFIS is a Canadian system but its layers carry FOREIGN stations and
 # detections too (US border coverage feeds the fire-weather models). A page
@@ -121,14 +123,30 @@ def _ts(value):
 def run_firewx_sync(engine, dry_run: bool = False) -> dict:
     """Fire-weather stations → wtf.aurora_firewx_obs (the wind layer)."""
     started_at = datetime.now(timezone.utc)
-    try:
-        data = _fetch("public:firewx_stns_current")
-    except Exception as exc:
-        return {"error": f"firewx fetch failed: {exc}"}
+    data = None
+    attempts = len(_FIREWX_RETRY_DELAYS) + 1
+    for attempt in range(attempts):
+        try:
+            data = _fetch("public:firewx_stns_current")
+        except Exception as exc:
+            # This guard addresses the observed failure mode: HTTP 200 with an
+            # empty FeatureCollection. Preserve the existing fail-fast behavior
+            # for transport/HTTP errors (especially permanent 4xx responses).
+            return {"error": f"firewx fetch failed: {exc}"}
+        else:
+            if isinstance(data, dict) and data.get("features"):
+                break
+            if attempt == attempts - 1:
+                break
+            logger.warning(
+                "firewx fetch attempt %d/%d returned no features; retrying in %.0fs",
+                attempt + 1, attempts, _FIREWX_RETRY_DELAYS[attempt],
+            )
+        time.sleep(_FIREWX_RETRY_DELAYS[attempt])
 
-    feats = data.get("features") or []
+    feats = (data.get("features") or []) if isinstance(data, dict) else []
     if not feats:
-        return {"error": "firewx returned 0 features — layer renamed or WFS changed?"}
+        return {"error": f"firewx returned 0 features after {attempts} attempts — layer unavailable or WFS changed?"}
 
     rows, source_rows, skipped, foreign = [], [], 0, 0
     foreign_by_agency = defaultdict(int)

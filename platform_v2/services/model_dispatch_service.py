@@ -419,7 +419,7 @@ def _model_is_warm(model: str, warm_by_model: dict) -> bool:
     return any(_canonical_model_name(k) == canon for k in warm_by_model)
 
 
-def _drain_order(warm_by_model: dict, head_ages: dict) -> list:
+def _drain_order(warm_by_model: dict, head_ages: dict, priority_models: Optional[set] = None) -> list:
     """Warm models ordered by QUEUE PRESSURE — oldest waiting row first (#6749).
 
     The drain used to walk `warm_by_model.items()` in dict INSERTION order while the
@@ -434,13 +434,22 @@ def _drain_order(warm_by_model: dict, head_ages: dict) -> list:
     starved indefinitely by a neighbour's standing backlog. Models with no queued
     work sort LAST (they cost only an empty claim query).
 
+    ``priority_models`` (canonical model names) is the AUX POWER family focus (#6080):
+    when supplied and non-empty, matching warm lanes sort FIRST, ahead of the head-age
+    order — the drain-order half of "auxiliary power to <family>". The split is stable,
+    so head-age order is preserved WITHIN each group and one focused lane never
+    displaces another. ``None``/empty is byte-identical to the pre-#6080 order.
+
     PURE: takes the inventory and a {canonical_model: head_age_seconds} map, so it is
     unit-testable without a DB. `head_ages` missing a model simply means "no work".
     """
+    _focus = {_canonical_model_name(m) for m in priority_models if m} if priority_models else set()
 
     def sort_key(item):
-        # Negated so the LARGEST head age sorts first; no queued work -> +1.0 -> last.
-        return -head_ages.get(_canonical_model_name(item[0]), -1.0)
+        canon = _canonical_model_name(item[0])
+        # Focused lanes first; then negated so the LARGEST head age sorts first;
+        # no queued work -> -1.0 -> +1.0 -> last.
+        return (0 if canon in _focus else 1, -head_ages.get(canon, -1.0))
 
     return sorted(warm_by_model.items(), key=sort_key)
 
@@ -1842,6 +1851,86 @@ def _get_highest_priority_queued_model() -> Optional[str]:
         return None
 
 
+def _focused_family_model_meta() -> dict:
+    """{model_needed: {'max_prio', 'cnt'}} for the AUX POWER focus family (#6080).
+
+    WHY THIS EXISTS. The focus reached exactly ONE scheduling decision — the row ORDER
+    inside a single model's claim pool (`_claim_tasks` → `_profile_ordered_ids`). A
+    focused family whose model is COLD (measured 2026-10-15: Repair Bay reviews on
+    `gemma3:12b`) had no row order to win — its pool held one row — and the two
+    decisions that actually gate it (which cold model gets the cycle's single load
+    slot; which warm lane drains first) did not consult the focus at all. So the
+    operator's "auxiliary power to Repair Bay" moved nothing, and the review sat
+    queued until its 30-minute TTL expired. This probe hands both decisions the family
+    view they were missing.
+
+    Returns {} (never None) whenever the focus cannot apply — mode != 'platform', no
+    or invalid focus, or any error — so the whole auto/news path AND the unfocused
+    platform path stay byte-identical to pre-#6080 behaviour.
+    """
+    try:
+        mode = _get_profile_mode()
+        if mode != "platform":
+            return {}
+        focus = _get_profile_focus(mode)
+        if not focus:
+            return {}
+        from services.fleet_dispatch_profile import is_family_queue_row
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT model_needed, MAX(priority) AS max_prio, COUNT(*) AS cnt,
+                       array_agg(DISTINCT module_id) AS mods
+                FROM dispatch_pending_queue
+                WHERE status = 'queued'
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND model_needed IS NOT NULL
+                  AND lower(trim(model_needed)) NOT IN ('', 'none', 'null', 'comfyui')
+                GROUP BY model_needed
+                """
+            )
+            out: dict = {}
+            for row in cur.fetchall():
+                mods = row.get("mods") or []
+                if any(is_family_queue_row(m, focus) for m in mods):
+                    out[row["model_needed"]] = {
+                        "max_prio": int(row["max_prio"] or 0),
+                        "cnt": int(row["cnt"] or 0),
+                    }
+            return out
+    except Exception as exc:
+        log.debug("model_dispatch: focused-family probe failed (ignoring focus): %s", exc)
+        return {}
+
+
+def _cold_load_candidates(warm_by_model: dict, focus_meta: dict) -> list:
+    """Cold models to try loading this cycle, focused family FIRST (#6080).
+
+    The one cold-load slot per cycle is what decides whether a model ever becomes
+    warm, so it is the lever the operator's focus must reach. Order: the focused
+    family's highest-priority cold model, then the plain MAX(priority)/COUNT pick.
+
+    Filtered to models that are actually COLD here, so a focused model that is
+    ALREADY warm cannot hold the slot — once `gemma3:12b` is warm, the slot falls
+    through to classify instead of being spent on a no-op. Duplicates collapse: when
+    the focused pick IS the plain pick, one attempt is made, not two.
+    """
+    ordered: list = []
+    if focus_meta:
+        ordered.append(max(focus_meta.items(), key=lambda kv: (kv[1]["max_prio"], kv[1]["cnt"]))[0])
+    plain = _get_highest_priority_queued_model()
+    if plain:
+        ordered.append(plain)
+    cold: list = []
+    seen: set = set()
+    for model in ordered:
+        if model and model not in seen and not _model_is_warm(model, warm_by_model):
+            seen.add(model)
+            cold.append(model)
+    return cold
+
+
 # ── Main worker ──────────────────────────────────────────────────────────────
 
 
@@ -1893,8 +1982,14 @@ def model_dispatch_worker() -> None:
     #    is claimed that cannot start; double-claim is impossible because _claim_tasks
     #    only touches status='queued'. Results/errors surface via _on_task_done.
     unpinned_budget = _unpinned_budget(free_slots)
+    # #6080 AUX POWER: ONE probe shared by the drain order (below) and the cold-load
+    # choice (step 4) — the two scheduling decisions the family focus previously could
+    # not reach. Empty on auto/news/no-focus, so those paths are unchanged.
+    _focus_meta = _focused_family_model_meta()
+    _focus_models = {_canonical_model_name(m) for m in _focus_meta}
+    _head_ages = _queue_head_age_by_model()
     # #6749: drain by queue pressure, never dict insertion order — see _drain_order.
-    for model_name, node_ids in _drain_order(all_warm_by_model, _queue_head_age_by_model()):
+    for model_name, node_ids in _drain_order(all_warm_by_model, _head_ages, priority_models=_focus_models):
         if total_executed >= unpinned_budget:
             break
         for node_id in node_ids:
@@ -1927,21 +2022,25 @@ def model_dispatch_worker() -> None:
     #    needing a cold model (classify — the dominant expiry class, 945 rows/7d)
     #    starved until something else happened to warm it. Trigger on the actual
     #    condition instead: queued work exists for a model with no warm home.
-    next_model = _get_highest_priority_queued_model()
-    if next_model and not _model_is_warm(next_model, all_warm_by_model):
+    #    #6080: the focused family's cold model is tried FIRST, then the plain pick —
+    #    so "auxiliary power to Repair Bay" actually reaches the load decision, while a
+    #    focused model that is already warm or unplaceable cannot hold the slot (the
+    #    plain candidate still gets its attempt in the same cycle).
+    for next_model in _cold_load_candidates(all_warm_by_model, _focus_meta):
         log.info("model_dispatch: no warm node has %s — preparing to load it", next_model)
         try:
             # Clear RAM before attempting load — evict idle models if needed
             ram_ok = _ensure_ram_for_model(next_model)
             if not ram_ok:
                 log.warning("model_dispatch: could not free enough RAM for %s — will retry", next_model)
-            else:
-                from tools.department_hq.services.department_dispatcher import get_dispatcher
+                continue
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
-                disp = get_dispatcher()
-                readiness = disp.ensure_model_ready("model_dispatch_worker", next_model)
-                if readiness and readiness.get("ready"):
-                    log.info("model_dispatch: %s now ready, will drain on next cycle", next_model)
+            disp = get_dispatcher()
+            readiness = disp.ensure_model_ready("model_dispatch_worker", next_model)
+            if readiness and readiness.get("ready"):
+                log.info("model_dispatch: %s now ready, will drain on next cycle", next_model)
+                break
         except Exception as exc:
             log.debug("model_dispatch: model load request failed for %s: %s", next_model, exc)
 

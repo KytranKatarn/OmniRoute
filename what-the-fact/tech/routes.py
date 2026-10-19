@@ -24,6 +24,19 @@ def _schema():
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
+def _split_fact_checks(fact_checks):
+    """Separate internal verdicts from Google Fact Check Tools records."""
+    verify_checks = []
+    partner_checks = []
+    for fact_check in fact_checks:
+        checker = fact_check.get("checker")
+        if isinstance(checker, str) and checker.startswith("GoogleFCT"):
+            partner_checks.append(fact_check)
+        else:
+            verify_checks.append(fact_check)
+    return verify_checks, partner_checks
+
+
 def _creed_api_url() -> str:
     """Return the C.R.E.E.D. API base URL from env — never exposed to browser JS (KB #267314)."""
     return os.environ.get("CREED_API_URL", "https://creed.kytranempowerment.com")
@@ -135,10 +148,14 @@ def transparency(article_id: int):
     except Exception:
         pass  # graceful degradation — template renders "audit pending"
 
+    fact_checks = [dict(r) for r in fc]
+    verify_checks, partner_checks = _split_fact_checks(fact_checks)
     return render_template(
         "transparency.html",
         a=art,
-        fact_checks=[dict(r) for r in fc],
+        fact_checks=fact_checks,
+        verify_checks=verify_checks,
+        partner_checks=partner_checks,
         cluster=dict(cluster) if cluster else None,
         trail=trail,
         creed_score=creed_score,

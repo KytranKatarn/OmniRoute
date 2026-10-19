@@ -152,8 +152,6 @@
   </section>
 
   <!-- Fact-checks section -->
-  {% set verify_checks = fact_checks | selectattr("checker", "defined") | rejectattr("checker", "match", "^GoogleFCT") | list %}
-  {% set partner_checks = fact_checks | selectattr("checker", "defined") | selectattr("checker", "match", "^GoogleFCT") | list %}
   <section style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
     <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">
       Fact-Check Claims · V.E.R.I.F.Y. ({{ verify_checks|length }})

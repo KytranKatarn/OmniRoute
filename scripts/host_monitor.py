@@ -5851,9 +5851,11 @@ def _hub_run_git(checkout, args, timeout=120):
     if token:
         env["GIT_ASKPASS"] = "/bin/echo"
         env["GIT_TERMINAL_PROMPT"] = "0"
-        env["GIT_CONFIG_COUNT"] = "1"
+        env["GIT_CONFIG_COUNT"] = "2"
         env["GIT_CONFIG_KEY_0"] = f"url.https://x-access-token:{token}@github.com/.insteadOf"
         env["GIT_CONFIG_VALUE_0"] = "https://github.com/"
+        env["GIT_CONFIG_KEY_1"] = "safe.directory"
+        env["GIT_CONFIG_VALUE_1"] = checkout
 
     cmd = ["git", "-C", checkout, "-c", f"safe.directory={checkout}"] + args
 
@@ -5997,7 +5999,29 @@ def handle_hub_deploy(params):
         }
 
     merged = "Already up to date" not in ((merge["stdout"] or "") + (merge["stderr"] or ""))
+
+    # Even if already up to date, check if containers need restart (started before current HEAD)
+    # This handles the case where a merge already happened but containers weren't restarted.
+    need_restart = False
     if not merged:
+        # Check container start times vs HEAD commit time using existing helper
+        try:
+            from services.hub_deploy_state import _container_starts
+
+            head_ok, head_time = _hub_run_git(checkout, ["log", "-1", "--format=%ct", "HEAD"])
+            head_time = int(head_time.strip()) if head_ok else 0
+            if head_time > 0:
+                starts = _container_starts()
+                for name in ("archie_platform", "archie_scheduler"):
+                    started = starts.get(name)
+                    if started and started < head_time:
+                        need_restart = True
+                        break
+        except Exception:
+            pass
+
+    should_restart = merged or need_restart
+    if not should_restart:
         return {
             "success": True,
             "applied": False,

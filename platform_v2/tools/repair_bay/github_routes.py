@@ -91,9 +91,14 @@ def register_github_routes(bp, admin_required):
 
         # Report the verdict AFTER the correction so the caller can re-render without a refetch.
         after = get_review(pr_number, repo) or {}
-        from .services.pr_review_service import merge_state
+        from .services.pr_review_service import _stored_codex, merge_state
 
-        ms = merge_state(after.get("review_status"), after.get("ai_summary") or "", pr_state=after.get("state"))
+        ms = merge_state(
+            after.get("review_status"),
+            after.get("ai_summary") or "",
+            pr_state=after.get("state"),
+            codex=_stored_codex(after.get("metadata")),
+        )
         return jsonify(
             {
                 "success": True,
@@ -264,6 +269,8 @@ def register_github_routes(bp, admin_required):
         try:
             from .services.github_service import verdict_refusal
             from .services.pr_review_service import (
+                _stored_codex,
+                codex_merge_refusal,
                 coverage_dropped_paths,
                 get_review,
                 verdict_is_approved,
@@ -274,6 +281,11 @@ def register_github_routes(bp, admin_required):
             _ack = bool(data.get("coverage_ack"))
             _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary), coverage_ack=_ack)
             _dropped = coverage_dropped_paths(_summary) if _refusal else []
+            # 2026-10-19: the whole-diff CODEX verdict was advisory (#3627), so this gate
+            # could not see the reviewer that actually found #3921/#3927/#3930. Same ONE
+            # definition as list_reviews and stamp_merge_states — codex_merge_refusal.
+            if not _refusal:
+                _refusal = codex_merge_refusal(_stored_codex(_row.get("metadata")))
         except Exception as _exc:  # noqa: BLE001
             # FAIL CLOSED — an unreadable verdict is not an approval, and this ends in an
             # unrevertable merge to main.
@@ -1180,14 +1192,16 @@ def register_github_routes(bp, admin_required):
         # green APPROVED row while CODEX held an open [high] finding on it.
         #
         # Open PRs only, by decision — history is backfilled on demand rather than
-        # sweeping every merged row on every poll. Advisory only: this never touches
-        # review_status or merge_state.
+        # sweeping every merged row on every poll. It writes neither review_status nor
+        # ai_summary: the verdict lives in metadata->'codex' and the gate reads it from
+        # there (`codex_merge_refusal`), so an ingest failure can never fabricate a
+        # F.O.R.G.E. verdict — and never fail the poll.
         codex = {"checked": 0, "recorded": 0, "reasons": ["skipped: nothing to check"]}
         try:
             from .services.codex_verdicts import ingest_for_open_prs
 
             codex = ingest_for_open_prs()
-        except Exception as exc:  # noqa: BLE001 - never fail the poll over an advisory side-channel
+        except Exception as exc:  # noqa: BLE001 - never fail the poll over a side-channel
             logger.warning("forge_pr_reviews_poll: codex ingest failed: %s", exc)
             codex = {"checked": 0, "recorded": 0, "reasons": [f"error: {exc}"]}
 
@@ -1595,12 +1609,21 @@ def register_github_routes(bp, admin_required):
         # non-None only proves a review ROW exists; it says nothing about the verdict.
         try:
             from .services.github_service import verdict_refusal
-            from .services.pr_review_service import coverage_dropped_paths, verdict_is_approved
+            from .services.pr_review_service import (
+                _stored_codex,
+                codex_merge_refusal,
+                coverage_dropped_paths,
+                verdict_is_approved,
+            )
 
             _summary = review.get("ai_summary") or ""
             _ack = bool((request.get_json(silent=True) or {}).get("coverage_ack"))
             _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary), coverage_ack=_ack)
             _dropped = coverage_dropped_paths(_summary) if _refusal else []
+            # Same rule as the other attended merge route (#5834 parity): the whole-diff
+            # CODEX verdict blocks unless the human's own verdict rule already did.
+            if not _refusal:
+                _refusal = codex_merge_refusal(_stored_codex(review.get("metadata")))
         except Exception as _exc:  # noqa: BLE001
             _refusal = f"could not verify the verdict ({_exc}) — refusing rather than guessing"
             _dropped = []

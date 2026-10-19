@@ -1494,12 +1494,82 @@ MERGE_STATE_NEEDS_REVIEW = "needs_review"
 MERGE_STATE_CLOSED = "closed"
 
 
+def _stored_codex(metadata) -> dict:
+    """The RAW ``metadata->'codex'`` verdict, or ``{}``.
+
+    Deliberately NOT ``codex_verdicts.verdict_for_row``: that is the UI projection, and
+    this is the gate input. Keeping them separate stops a projection change silently
+    changing what blocks a merge.
+    """
+    if not isinstance(metadata, dict):
+        return {}
+    codex = metadata.get("codex")
+    return codex if isinstance(codex, dict) else {}
+
+
+def codex_merge_refusal(codex: dict | None) -> str | None:
+    """Why a stored whole-diff CODEX verdict blocks a merge — or None if it does not.
+
+    REVERSAL (2026-10-19). `codex_verdicts` shipped this verdict ADVISORY by explicit
+    decision (#3627): surfaced on the row, never read by ``merge_state``. The 2026-10-19
+    review of ten open PRs measured what that cost here:
+
+      * F.O.R.G.E. had approved #3921, #3927 and #3930 — each carrying a defect later
+        confirmed by reading the file at the PR head;
+      * the whole-diff CODEX review refused all three. (It also refused #3923, which
+        reading the file DISPROVED — the reviewer quoted the removed line as if it were
+        the head. A refusal is a claim, not a verdict, which is why clearing it is one
+        command and never a dead end.)
+
+    So the reviewer that actually found the defects was the one the gate could not see.
+    It is read here.
+
+    Deliberately NARROW, because "any model can block a merge" is the failure mode this
+    codebase has refused merges over:
+
+      * only ``REQUEST_CHANGES`` blocks — an APPROVE, or no verdict, changes nothing;
+      * a verdict stored ``stale`` does NOT block. It described a commit that is no
+        longer the branch tip, so holding the refusal would fire forever after a genuine
+        fix. WHICH sha is stored is what makes that true: the verdict carries the commit the
+        review covers (``rev["commit_id"]``), never the branch tip, so the ingest re-decides
+        this flag against the poll's ``metadata->>'head_sha'`` on every tick and a pushed
+        fix clears it. Storing the tip made the flag flip back to False one tick after it
+        fired — i.e. this refusal would have been permanent. Measured 2026-10-19. The other
+        escape is the normal one: re-run the review, whose fresh verdict supersedes this one
+        (``codex_verdicts.record_verdict`` overwrites);
+      * absent/malformed metadata changes nothing, so every pre-2026-10-19 caller is
+        byte-identical.
+
+    Pure on purpose: the decision is testable without a DB, GitHub or Flask, and the ONE
+    definition can be shared by the merge route, `list_reviews` and the Approvals tab.
+    """
+    if not isinstance(codex, dict):
+        return None
+    verdict = str(codex.get("verdict") or "").strip().upper()
+    if verdict != "REQUEST_CHANGES":
+        return None
+    if codex.get("stale"):
+        return None
+    try:
+        findings = int(codex.get("finding_count") or 0)
+    except (TypeError, ValueError):
+        findings = 0
+    return (
+        "CODEX (whole-diff review) returned REQUEST_CHANGES"
+        + (f" with {findings} finding(s)" if findings else "")
+        + " on this head, and the gate reads it now. Resolve the finding and re-run the "
+        "review (scripts/forge_codex_review.sh --pr <N>); the fresh verdict supersedes "
+        "this one."
+    )
+
+
 def merge_state(
     review_status: str | None,
     ai_summary: str | None,
     base_branch: str | None = None,
     default_branch: str = "main",
     pr_state: str | None = None,
+    codex: dict | None = None,
 ) -> dict:
     """Derive what the UI should render for one PR row. Pure — no DB, no Flask.
 
@@ -1520,6 +1590,13 @@ def merge_state(
     carried a correct `state='closed'` while rendering `mergeable=True` behind a green
     Merge button, because this function was never handed the field that sat on the very
     row its result was being stamped onto.
+
+    ⚠️ `codex` is the OTHER half of the same question, and it is checked BEFORE the
+    F.O.R.G.E. verdict: a fresh (non-stale) CODEX REQUEST_CHANGES blocks even an APPROVED
+    summary. The reasoning lives in `codex_merge_refusal`; in short, on 2026-10-19
+    F.O.R.G.E. approved #3921/#3927/#3930, the whole-diff CODEX review refused all three on
+    defects a human then confirmed, and this function could not see it. An unknown/absent
+    `codex` is byte-identical to every pre-2026-10-19 caller.
 
     FAIL-SAFE on absence: an unknown/empty `pr_state` is treated as OPEN, so every
     pre-#6792 caller is byte-identical. Blocking a genuinely open PR on missing data
@@ -1570,6 +1647,25 @@ def merge_state(
                 "mergeable": False,
                 "label": "WAITING FOR REVIEW",
                 "hint": "No stored verdict yet — nothing has reviewed this PR.",
+                "dropped_files": [],
+                "partial_files": [],
+            },
+            base_branch,
+            default_branch,
+        )
+
+    # CODEX (whole-diff) BEFORE F.O.R.G.E.: #3627 made this advisory on purpose, and
+    # 2026-10-18 measured the cost — the reviewer that found #3921/#3927/#3930 was the
+    # one this gate could not see. It is read here, and only a fresh REQUEST_CHANGES
+    # fires (see codex_merge_refusal).
+    _codex_refusal = codex_merge_refusal(codex)
+    if _codex_refusal:
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_CHANGES,
+                "mergeable": False,
+                "label": "CHANGES REQUESTED · CODEX",
+                "hint": _codex_refusal,
                 "dropped_files": [],
                 "partial_files": [],
             },
@@ -1902,9 +1998,11 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     except Exception:  # noqa: BLE001 — a listing must render even if dismissals cannot be read
         _dis_cache = {}
     for row in rows:
-        # CODEX (CLI) verdict, projected for the list. ADVISORY: it is returned as its own
-        # field and is deliberately NOT folded into review_status/ai_summary, because those
-        # drive merge_state and CODEX must never gate a merge. See codex_verdicts.
+        # CODEX (CLI) verdict, projected for the list. It is returned as its own field and
+        # is deliberately NOT folded into review_status/ai_summary — those are F.O.R.G.E.'s
+        # — but since the 2026-10-19 reversal it IS read by the gate, from the RAW
+        # metadata->'codex' blob via `_stored_codex`, never from this projection. See
+        # codex_verdicts and codex_merge_refusal.
         try:
             from .codex_verdicts import probe_for_row, verdict_for_row
             from .verdict_staleness import staleness_for
@@ -1934,6 +2032,7 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
             row.get("ai_summary"),
             row.get("base_branch"),
             pr_state=row.get("state"),
+            codex=_stored_codex(row.get("metadata")),
         )
         row["review_progress"] = review_progress(
             row.get("review_status"),
@@ -1993,6 +2092,7 @@ def stamp_merge_states(prs: list, repo: str = None) -> list:
                         row["review_status"],
                         row["ai_summary"],
                         _m.get("reviewed_head_sha") if isinstance(_m, dict) else None,
+                        _stored_codex(_m),
                     )
         except Exception as e:  # fail-CLOSED: unknown verdict => not mergeable
             logger.warning(
@@ -2014,9 +2114,9 @@ def stamp_merge_states(prs: list, repo: str = None) -> list:
         _dis_cache = {}
 
     for pr in prs:
-        status, summary, _sha = stored.get(pr.get("number"), (None, None, None))
+        status, summary, _sha, _codex = stored.get(pr.get("number"), (None, None, None, None))
         summary = _summary_after_dismissals(pr.get("number"), _repo, summary, _sha, cache=_dis_cache)
-        pr["merge_state"] = merge_state(status, summary, pr_state=pr.get("state"))
+        pr["merge_state"] = merge_state(status, summary, pr_state=pr.get("state"), codex=_codex)
     return prs
 
 
@@ -2640,6 +2740,8 @@ def record_review_attempt(
     repo: str = None,
     head_sha: str = None,
     review_path: str = None,
+    review_source: str = "forge",
+    dedup_key: str = None,
 ) -> int | None:
     """Append THIS review attempt to ``forge_reviews`` (#5859, corpus for #5857).
 
@@ -2663,6 +2765,14 @@ def record_review_attempt(
     platform TIMESTAMPTZ convention — compute ages for it IN SQL, never by subtracting an
     aware ``now_utc()`` (that raises a naive/aware TypeError).
 
+    ``review_source`` names the WRITER (``'forge'``, ``'codex'``). The corpus wants the
+    false-blocking pairs, and "which reviewer said it" is half of that pair, so it cannot
+    be inferred from the summary text.
+
+    ``dedup_key`` makes a caller idempotent. The CODEX poller re-reads the same GitHub
+    review every tick, and without this the corpus would be a function of the poll
+    interval rather than of the code. A caller that can be re-invoked must pass one.
+
     NEVER raises and never blocks: a review that COMPLETED must not be lost because a
     bookkeeping INSERT failed. Returns the attempt number, or None."""
     try:
@@ -2671,19 +2781,32 @@ def record_review_attempt(
             "repo": repo or _DEFAULT_REPO,
             "head_sha": head_sha,
             "review_path": review_path,
+            "review_source": review_source,
+            "dedup_key": dedup_key,
             "verdict": verdict,
             "coverage_only": bool(coverage_only_demotion(summary or "")),
             "dropped_files": coverage_dropped_paths(summary or ""),
             "severities": _attempt_severity_counts(summary or ""),
         }
         with get_db_cursor(commit=True) as (conn, cur):
+            if dedup_key:
+                # A re-invokable caller (the CODEX poller) must not turn the corpus into a
+                # function of how often it ran. Matched on `pr_number` alone because the
+                # key embeds the GitHub review id, which is globally unique — nothing else
+                # can produce it.
+                cur.execute(
+                    "SELECT 1 FROM forge_reviews WHERE pr_number = %s AND raw_payload->>'dedup_key' = %s LIMIT 1",
+                    (pr_number, dedup_key),
+                )
+                if cur.fetchone():
+                    return None
             # attempt_number derived inside the INSERT so two concurrent reviews of the same
             # PR cannot both read the same MAX and collide on it.
             cur.execute(
                 """
                 INSERT INTO forge_reviews
                        (pr_number, review_source, review_status, summary, raw_payload, attempt_number)
-                SELECT %s, 'forge', %s, %s, %s::jsonb, COALESCE(MAX(attempt_number), 0) + 1
+                SELECT %s, %s, %s, %s, %s::jsonb, COALESCE(MAX(attempt_number), 0) + 1
                   FROM forge_reviews
                  WHERE pr_number = %s
                    AND COALESCE(raw_payload->>'repo', %s) = %s
@@ -2691,6 +2814,7 @@ def record_review_attempt(
                 """,
                 (
                     pr_number,
+                    review_source,
                     verdict,
                     summary,
                     json.dumps(payload),

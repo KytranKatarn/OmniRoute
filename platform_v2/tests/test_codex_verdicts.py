@@ -111,7 +111,12 @@ class TestVerdictForRow(unittest.TestCase):
 
 class TestAdvisoryContract(unittest.TestCase):
     def test_no_code_path_writes_a_merge_deciding_column(self):
-        """The single most important property: CODEX must never gate a merge.
+        """The load-bearing property of THIS module: it writes only `metadata->'codex'`.
+
+        CODEX does now gate a merge (reversed 2026-10-19) — but via
+        `pr_review_service.codex_merge_refusal`, which reads the verdict's own metadata. What
+        must stay true here is the MEANS: this module never touches a merge-deciding column,
+        so nothing in it can overwrite or forge F.O.R.G.E.'s `ai_summary`.
 
         Checked over the AST rather than the raw source, because the module's DOCSTRING
         necessarily names these columns in order to explain why it avoids them — a plain

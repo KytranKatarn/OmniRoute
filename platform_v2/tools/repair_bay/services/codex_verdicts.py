@@ -10,13 +10,30 @@ Measured 2026-10-05 on #3627 — F.O.R.G.E. said APPROVE, CODEX said REQUEST_CHA
 surfaced CODEX only if you clicked into the PR, which is precisely where nobody looks when
 scanning the list.
 
-ADVISORY, ALWAYS
-----------------
-This module NEVER influences `merge_state` and never blocks a merge. That is a decision,
-not an oversight: CODEX is a second opinion, F.O.R.G.E. is the authority, and a model that
-can stall every merge is a liability — especially given the false positives F.O.R.G.E.
-itself emits on ordinary code. What this buys is VISIBILITY: the F.O.R.G.E.-approves /
-CODEX-objects combination, which is the one worth a human's attention, is finally legible.
+ADVISORY 2026-10-05 → 2026-10-19, THEN REVERSED
+------------------------------------------------
+When this module shipped, the verdict was deliberately ADVISORY: `merge_state` never read
+it and it could not block a merge. CODEX is a second opinion, F.O.R.G.E. was the
+authority, and a model that can stall every merge is a liability — especially given the
+false positives F.O.R.G.E. itself emits on ordinary code. What it bought was VISIBILITY:
+the F.O.R.G.E.-approves / CODEX-objects combination, which is worth a human's attention,
+became legible on the row instead of only inside the PR.
+
+Then 2026-10-19 measured it on the open PRs and the ordering was wrong. F.O.R.G.E. had
+approved #3921, #3927 and #3930 — each carrying a real defect, confirmed by reading the file
+at the PR head — and the whole-diff CODEX review refused all three. The reviewer that found
+the bugs was the one the gate could not see.
+
+That same sweep also refused #3923, which reading the file disproved (the reviewer quoted
+the REMOVED line as if it were the head). So this is not a reviewer that is always right,
+and a refusal is a claim: see `codex_merge_refusal` for what it costs and the one command
+that clears it.
+
+So a *fresh* REQUEST_CHANGES from here now refuses a merge. `pr_review_service.
+codex_merge_refusal` is the single definition; `merge_state` reads it for the row, both
+attended merge routes read it for the refusal. An APPROVE changes nothing, and a verdict
+marked `stale` — its `head_sha` is no longer the branch tip — never blocks, so nobody is
+held behind a refusal that describes code they already replaced.
 
 Storage
 -------
@@ -30,6 +47,16 @@ A verdict is only meaningful for the commit it reviewed. Push a new commit and a
 REQUEST_CHANGES is no longer a statement about the current diff, so it is recorded as
 stale rather than silently presented as current. `list_reviews` surfaces that flag and the
 UI marks it.
+
+What makes that flag trustworthy is WHICH sha is stored. The verdict carries the commit the
+CODEX review actually covers (`rev["commit_id"]`, where GitHub supplies it), NOT the branch
+tip at poll time — the poll already writes the tip to `metadata->>'head_sha'`, and that
+right-biased merge leaves this key alone. Two readers compare the pair:
+`verdict_staleness.staleness_for` for the UI, and `pr_review_service.codex_merge_refusal`
+for the merge gate. Storing the TIP here (which this did until 2026-10-19) made both
+comparisons always-equal, so a verdict read as "current" forever — and the gate that now
+reads this flag would have refused a merge permanently once a fix was pushed. See
+`verdict_staleness` below, which decides the flag and is pure so it is unit-tested.
 """
 
 from __future__ import annotations
@@ -137,6 +164,52 @@ def record_verdict(
         return False
 
 
+def verdict_staleness(rev: dict[str, Any], tip: str | None) -> tuple[str, bool]:
+    """The sha this review covers, and whether the branch tip has moved past it. Pure.
+
+    Returns ``(covered_sha, stale)``. The rule is deliberately asymmetric about what it
+    cannot prove: with no review sha, or no tip, the answer is ``(tip, False)`` — "unproven
+    is not stale", the same rule the merge gate uses for a missing `reviewed_head_sha`, so
+    a GitHub response that omits `commit_id` cannot silently invalidate every verdict.
+
+    Extracted from the ingest loop because it is the ONE definition two readers depend on —
+    `verdict_staleness.staleness_for` for the UI, `codex_merge_refusal` for the merge gate
+    — and the loop it came out of needs GitHub and a DB to reach, so the comparison had no
+    test. It was wrong there, which is how the gate nearly shipped with an escape hatch
+    that closed itself one poll later.
+    """
+    covered = str(rev.get("commit_id") or rev.get("head_sha") or tip or "")
+    return covered, bool(tip and covered and tip != covered)
+
+
+def codex_reviews(reviews: list[dict[str, Any]] | None) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """The CODEX reviews in a `/pulls/{n}/reviews` payload, OLDEST FIRST. Pure.
+
+    Returns ``[(parsed_verdict, raw_review), ...]``, dropping non-CODEX reviews and
+    anything unparseable. Sorted explicitly by ``(submitted_at, id)`` rather than trusting
+    the response order: GitHub documents this endpoint as *chronological*, and the ingest
+    this replaced assumed the opposite ("reviews come newest-first") and therefore pinned
+    the oldest review on the PR forever — #3926's COMMENT outlived its APPROVE by three
+    minutes and would have outlived it by every poll thereafter. The sort is the fix, and
+    the ``id`` tiebreak keeps two reviews submitted in the same second ordered instead of
+    arbitrary.
+    """
+    found: list[tuple[tuple[str, int], dict[str, Any], dict[str, Any]]] = []
+    for rev in reviews or []:
+        if not isinstance(rev, dict):
+            continue
+        parsed = parse_codex_review(rev.get("body") or "")
+        if not parsed:
+            continue
+        try:
+            review_id = int(rev.get("id") or 0)
+        except (TypeError, ValueError):
+            review_id = 0
+        found.append(((str(rev.get("submitted_at") or ""), review_id), parsed, rev))
+    found.sort(key=lambda item: item[0])
+    return [(parsed, rev) for _key, parsed, rev in found]
+
+
 def ingest_for_open_prs(
     repo: str = DEFAULT_REPO,
     token: str | None = None,
@@ -148,9 +221,11 @@ def ingest_for_open_prs(
     history is backfilled on demand rather than sweeping every merged row on every poll.
     One request per open PR, and open PRs are few.
 
-    Staleness is decided HERE, where the current head sha is knowable, and stored as a
-    flag. It cannot be decided at read time: `pr_reviews` has no head-sha column, so a
-    row cannot tell whether the commit its verdict reviewed is still the branch tip.
+    Staleness is decided HERE, where BOTH shas are in hand — the branch tip the poll
+    recorded and the commit the review covers — and stored as a flag so `merge_state` never
+    needs a GitHub call. It is re-decided on every tick, which is what lets a pushed fix
+    clear it; the module docstring above says why the sha stored on the verdict has to be
+    the reviewed commit for that to hold.
     """
     import json
     import os
@@ -195,25 +270,27 @@ def ingest_for_open_prs(
             reasons.append(f"#{num}: {exc.__class__.__name__}")
             continue
 
-        newest = None
-        for rev in reviews or []:
-            parsed = parse_codex_review(rev.get("body") or "")
-            if not parsed:
-                continue
-            # Reviews come newest-first from GitHub; keep the first CODEX one.
-            newest = (parsed, rev)
-            break
-
-        if not newest:
+        found = codex_reviews(reviews)
+        if not found:
             continue
-        parsed, rev = newest
-        stored = _stored_verdict(int(num), repo)
-        stale = bool(head_sha and stored.get("head_sha") and head_sha != stored["head_sha"])
+        # The LAST entry: GitHub returns reviews in CHRONOLOGICAL order, so the newest
+        # CODEX review is the current verdict. Keeping the FIRST one — which this did until
+        # 2026-10-19, on a comment that claimed newest-first — pinned the OLDEST review on
+        # the PR forever: #3926 was COMMENTed and then APPROVEd three minutes later, and the
+        # stored verdict stayed the COMMENT on every subsequent tick. Harmless while nothing
+        # read it; a permanent false refusal once the gate does.
+        parsed, rev = found[-1]
+        # The sha the review COVERS, not the branch tip. `record_verdict` overwrites one
+        # JSONB key on every tick, so storing the tip made `metadata->'codex'->>'head_sha'`
+        # and the poll's `metadata->>'head_sha'` equal forever: `staleness_for` reported the
+        # verdict as current after any push, and the `stale` flag oscillated (True for the
+        # tick after a push, False from the next tick on). Measured 2026-10-19.
+        covered_sha, stale = verdict_staleness(rev, head_sha)
         if record_verdict(
             int(num),
             repo,
             verdict=parsed["verdict"],
-            head_sha=head_sha,
+            head_sha=covered_sha,
             stale=stale,
             summary=parsed["summary"],
             finding_count=parsed["finding_count"],
@@ -222,34 +299,59 @@ def ingest_for_open_prs(
             reviewed_at=rev.get("submitted_at"),
         ):
             recorded += 1
+            # EVERY CODEX review in the response, not just the current one: the corpus
+            # (#5859) is an append-only history of who said what about which head, and a
+            # review superseded inside one poll interval would otherwise be lost. The
+            # dedup key keeps a re-reading poller from appending it twice per tick.
+            for _parsed, _rev in found:
+                _record_attempt(int(num), repo, _rev)
 
     return {"checked": checked, "recorded": recorded, "reasons": reasons}
 
 
-def _stored_verdict(pr_number: int, repo: str = DEFAULT_REPO) -> dict[str, Any]:
-    """Whatever verdict is already recorded for this PR, or {}."""
-    try:
-        from database import get_db_cursor
+def _record_attempt(pr_number: int, repo: str, rev: dict) -> None:
+    """Append this post to ``forge_reviews`` as the ``codex`` writer.
 
-        with get_db_cursor() as (_conn, cur):
-            cur.execute(
-                "SELECT metadata FROM pr_reviews WHERE pr_number = %s AND repo = %s",
-                (pr_number, repo),
-            )
-            row = cur.fetchone()
-        meta = (row or {}).get("metadata") if isinstance(row, dict) else None
-        codex = (meta or {}).get("codex")
-        return codex if isinstance(codex, dict) else {}
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("codex stored-verdict read failed for #%s: %s", pr_number, exc)
-        return {}
+    ``forge_reviews`` is the review corpus (#5859) and until now its ONLY writer was
+    F.O.R.G.E.'s chunked path — the platform-side reviewer. The whole-diff CODEX verdict,
+    which is what actually caught #3921/#3927/#3930, existed nowhere in the corpus: it was
+    a GitHub comment and a `metadata->'codex'` blob. A corpus of "which reviewer said what
+    about which head" cannot answer which reviewer is worth listening to when it omits the
+    one that was.
+
+    Deliberately NOT folded into ``record_verdict``: that one is a strict overwrite of a
+    single field, this one is an append-only history, and a poller re-reads the same
+    GitHub review every tick. ``dedup_key`` on the GitHub review id is what keeps the
+    corpus a function of the code rather than of the cron interval.
+
+    ``head_sha`` is taken from the review's own ``commit_id`` where GitHub supplies it:
+    the corpus entry should describe the commit the reviewer actually read, not whatever
+    the branch tip happened to be at poll time.
+    """
+    if rev.get("id") is None:
+        return
+    try:
+        from .pr_review_service import record_review_attempt
+
+        record_review_attempt(
+            pr_number,
+            summary=(rev.get("body") or "").strip(),
+            repo=repo,
+            head_sha=rev.get("commit_id") or rev.get("head_sha") or "",
+            review_path="codex-whole-diff",
+            review_source="codex",
+            dedup_key=f"github-review:{rev['id']}",
+        )
+    except Exception as exc:  # noqa: BLE001 - bookkeeping must not stop the ingest
+        logger.warning("codex attempt record failed for #%s: %s", pr_number, exc)
 
 
 def verdict_for_row(metadata: dict[str, Any] | None) -> dict[str, Any]:
     """Project a stored verdict into what the list needs. Pure, so it is unit-tested.
 
     Returns `{}` when there is nothing to show, so the UI renders nothing at all rather
-    than an empty badge. `stale` was decided at ingest, where the head sha was knowable.
+    than an empty badge. `stale` was decided at ingest, where the review's commit and the
+    branch tip were both in hand (`verdict_staleness` above).
     """
     codex = (metadata or {}).get("codex")
     if not isinstance(codex, dict) or not codex.get("verdict"):
@@ -266,9 +368,10 @@ def verdict_for_row(metadata: dict[str, Any] | None) -> dict[str, Any]:
 def probe_for_row(metadata: dict[str, Any] | None) -> dict[str, Any]:
     """Project a stored P.R.O.B.E. (QA) verdict for the list. Pure, unit-tested.
 
-    Advisory, like `verdict_for_row` — `merge_state` never reads this. Kept here beside
-    the CODEX projection because both are "a second opinion the gate must not read", and
-    keeping one place for that decision stops a second reviewer being wired in quietly.
+    Advisory: `merge_state` never reads this. Kept beside the CODEX projection because
+    both are "a second opinion", and keeping one place for that decision stops a reviewer
+    being wired into the gate quietly — which is what happened to CODEX, deliberately, on
+    2026-10-19 (see the module docstring: a QA verdict is still not a code review).
 
     Returns `{}` when there is nothing stored, so no empty badge renders.
     """

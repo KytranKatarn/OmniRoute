@@ -192,6 +192,262 @@ _register_bandit_checker("B303", _bandit_b303_md5)
 _register_bandit_checker("B304", _bandit_b304_cipher_modes)
 
 # ============================================================
+# Additional SQL injection pattern checkers (framework-specific)
+# ============================================================
+
+
+def _check_django_raw_execute_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for Django ORM .raw() or .extra() with string interpolation.
+
+    Vulnerable: Model.objects.raw(f"SELECT * FROM table WHERE col = {val}")
+    Vulnerable: Model.objects.extra(where=[f"col = {val}"])
+    Safe: Model.objects.raw("SELECT * FROM table WHERE col = %s", [val])
+    """
+    import re
+
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # Check for .raw(f"...") or .raw("..." % ...) or .raw("...".format(...))
+    if re.search(r'\.raw\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r"\.raw\s*\(\s*[^)]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"\.raw\s*\(\s*[^)]*\.format\s*\(", target_line):
+        return True
+    if re.search(r'\.extra\s*\(\s*[^)]*where\s*=\s*\[[^\]]*f["\']', target_line):
+        return True
+    if re.search(r"\.extra\s*\(\s*[^)]*where\s*=\s*\[[^\]]*%[^)]*\)", target_line):
+        return True
+
+    return None
+
+
+def _check_sqlalchemy_text_execute_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for SQLAlchemy session.execute(text(f"...")) with interpolation.
+
+    Vulnerable: session.execute(text(f"SELECT * FROM users WHERE name = {name}"))
+    Vulnerable: session.execute(text("SELECT * FROM users WHERE name = %s" % name))
+    Safe: session.execute(text("SELECT * FROM users WHERE name = :name"), {"name": name})
+    """
+    import re
+
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # Check for text(f"...") or text("..." % ...) or text("...".format(...))
+    if re.search(r'text\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r"text\s*\(\s*[^)]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"text\s*\(\s*[^)]*\.format\s*\(", target_line):
+        return True
+
+    return None
+
+
+def _check_django_extra_raw_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check Django QuerySet.extra() and .raw() for string interpolation.
+
+    This is a more specific version that handles the exact Django patterns.
+    """
+    import re
+
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # .raw(f"...") or .raw("..." % ...) or .raw("...".format(...))
+    if re.search(r'\.raw\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r"\.raw\s*\(\s*[^)]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"\.raw\s*\(\s*[^)]*\.format\s*\(", target_line):
+        return True
+
+    # .extra(where=[f"..."]) or .extra(where=["..." % ...])
+    if re.search(r'\.extra\s*\([^)]*where\s*=\s*\[[^\]]*f["\']', target_line):
+        return True
+    if re.search(r"\.extra\s*\([^)]*where\s*=\s*\[[^\]]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"\.extra\s*\([^)]*where\s*=\s*\[[^\]]*\.format\s*\(", target_line):
+        return True
+
+    return None
+
+
+def _check_async_db_execute_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check for async database drivers (asyncpg, asyncmy, aiomysql) execute with interpolation.
+
+    Vulnerable: await conn.execute(f"SELECT * FROM users WHERE name = {name}")
+    Vulnerable: await cursor.execute(f"SELECT * FROM users WHERE name = {name}")
+    """
+    import re
+
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # asyncpg/asyncmy/aiomysql: await conn.execute(f"...") or await cursor.execute(f"...")
+    if re.search(r'await\s+\w+\.execute\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r"await\s+\w+\.execute\s*\(\s*[^)]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"await\s+\w+\.execute\s*\(\s*[^)]*\.format\s*\(", target_line):
+        return True
+
+    return None
+
+
+def _check_psycopg2_execute_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check psycopg2 cursor.execute for string interpolation.
+
+    Vulnerable: cursor.execute(f"SELECT * FROM users WHERE name = {name}")
+    Vulnerable: cursor.execute("SELECT * FROM users WHERE name = %s" % name)
+    """
+    import re
+
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # cursor.execute(f"...") or cursor.execute("..." % ...) or cursor.execute("...".format(...))
+    if re.search(r'\.execute\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r"\.execute\s*\(\s*[^)]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"\.execute\s*\(\s*[^)]*\.format\s*\(", target_line):
+        return True
+
+    return None
+
+
+def _check_sqlalchemy_core_execute_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check SQLAlchemy Core connection.execute for interpolation.
+
+    Vulnerable: conn.execute(text(f"SELECT * FROM users WHERE name = {name}"))
+    Vulnerable: conn.execute("SELECT * FROM users WHERE name = %s" % name)
+    """
+    import re
+
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # conn.execute(text(f"...")) or conn.execute(f"...")
+    if re.search(r'\.execute\s*\(\s*text\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r'\.execute\s*\(\s*f["\']', target_line):
+        return True
+    if re.search(r"\.execute\s*\(\s*[^)]*%[^)]*\)", target_line):
+        return True
+    if re.search(r"\.execute\s*\(\s*[^)]*\.format\s*\(", target_line):
+        return True
+
+    return None
+
+
+# ============================================================
+# Bandit rule checkers for new SQL injection patterns
+# ============================================================
+
+
+def _bandit_b608_django_raw(file_text: str, line_number: int = None) -> bool | None:
+    """B608 variant: Django ORM .raw() with interpolation."""
+    return _check_django_raw_execute_at_line(file_text, line_number)
+
+
+def _bandit_b608_sqlalchemy_text(file_text: str, line_number: int = None) -> bool | None:
+    """B608 variant: SQLAlchemy text() with interpolation."""
+    return _check_sqlalchemy_text_execute_at_line(file_text, line_number)
+
+
+def _bandit_b608_django_extra(file_text: str, line_number: int = None) -> bool | None:
+    """B608 variant: Django ORM .extra() with interpolation."""
+    return _check_django_extra_raw_at_line(file_text, line_number)
+
+
+def _bandit_b608_async_db(file_text: str, line_number: int = None) -> bool | None:
+    """B608 variant: async DB drivers with interpolation."""
+    return _check_async_db_execute_at_line(file_text, line_number)
+
+
+def _bandit_b608_psycopg2(file_text: str, line_number: int = None) -> bool | None:
+    """B608 variant: psycopg2 with interpolation."""
+    return _check_psycopg2_execute_at_line(file_text, line_number)
+
+
+def _bandit_b608_sqlalchemy_core(file_text: str, line_number: int = None) -> bool | None:
+    """B608 variant: SQLAlchemy Core with interpolation."""
+    return _check_sqlalchemy_core_execute_at_line(file_text, line_number)
+
+
+# Register bandit checkers
+_register_bandit_checker("B608", _bandit_b608_hardcoded_sql)
+_register_bandit_checker("B602", _bandit_b602_subprocess_shell)
+_register_bandit_checker("B108", _bandit_b108_hardcoded_password)
+_register_bandit_checker("B105", _bandit_b105_hardcoded_password_string)
+_register_bandit_checker("B104", _bandit_b104_hardcoded_binding)
+_register_bandit_checker("B106", _bandit_b106_hardcoded_password_funcarg)
+_register_bandit_checker("B107", _bandit_b107_hardcoded_password_default)
+_register_bandit_checker("B322", _bandit_b322_input_validation)
+_register_bandit_checker("B311", _bandit_b311_random)
+_register_bandit_checker("B303", _bandit_b303_md5)
+_register_bandit_checker("B304", _bandit_b304_cipher_modes)
+
+# Additional B608 variants for specific frameworks
+_register_bandit_checker("B608", _bandit_b608_django_raw)
+_register_bandit_checker("B608", _bandit_b608_sqlalchemy_text)
+_register_bandit_checker("B608", _bandit_b608_django_extra)
+_register_bandit_checker("B608", _bandit_b608_async_db)
+_register_bandit_checker("B608", _bandit_b608_psycopg2)
+_register_bandit_checker("B608", _bandit_b608_sqlalchemy_core)
+
+# ============================================================
 # Line-precise security checkers (use line_number when available)
 # ============================================================
 

@@ -594,19 +594,30 @@ Only return valid JSON, no other text."""
         scan_id = cur.fetchone()["id"]
 
         for issue in issues:
+            msg = issue.get("message", "")
+            # Deduplication: if an OPEN issue with same (file_path, line_number, message) exists,
+            # update its scan_id instead of inserting a duplicate. The partial unique index
+            # idx_code_issues_unique_open on (file_path, COALESCE(line_number, -1), message)
+            # WHERE status='open' enforces this at DB level; we use ON CONFLICT to update
+            # the scan_id and keep the original created_at.
             cur.execute(
                 """
                 INSERT INTO code_issues (scan_id, file_path, line_number, issue_type,
                                         severity, message, suggestion)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
+                ON CONFLICT (file_path, COALESCE(line_number, -1), message)
+                WHERE status = 'open' DO UPDATE SET
+                    scan_id = EXCLUDED.scan_id,
+                    severity = EXCLUDED.severity,
+                    suggestion = EXCLUDED.suggestion
+                """,
                 (
                     scan_id,
                     file_path,
                     issue.get("line"),
                     issue.get("type", "quality"),
                     issue.get("severity", "medium"),
-                    issue.get("message", ""),
+                    msg,
                     issue.get("suggestion", ""),
                 ),
             )

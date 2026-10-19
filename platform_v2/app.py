@@ -2708,7 +2708,12 @@ def _get_agent_models():
     # Models that must NOT be pre-loaded during warmup — cold-load on first dispatch instead.
     # qwen2.5vl:7b  — vision model; HTTP 500 on /api/generate without an image payload
     # dolphin3:latest — consistently times out (>300s cold load); blocks all subsequent warmup
-    WARMUP_SKIP = {"qwen2.5vl:7b", "dolphin3:latest"}
+    # phi3.5:latest — assigned to ONE agent (L.E.D.G.E.R.), zero recorded runs in 7d; 3.7GB of
+    #   hub VRAM for a model nothing uses (#6106, measured 2026-10-19).
+    # qwen2.5-coder:7b — one agent (Q.U.I.L.L.), 16 runs/7d at 50% ok; a preload with a 5m keep-alive
+    #   buys no durable warmth, but its 4.6GB of VRAM squeezed the 7B (21,988 runs/7d) onto the CPU.
+    #   Its real warm path is the AUX POWER focus pin (fleet_dispatch_profile.FAMILY_WARM_MODELS).
+    WARMUP_SKIP = {"qwen2.5vl:7b", "dolphin3:latest", "phi3.5:latest", "qwen2.5-coder:7b"}
 
     # Build load list: infrastructure first, then agent models by dispatch priority
     models_to_load = []

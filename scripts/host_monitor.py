@@ -6013,7 +6013,7 @@ def handle_hub_deploy(params):
 
             git_result = _hub_run_git(checkout, ["log", "-1", "--format=%ct", "HEAD"])
             head_ok = git_result["returncode"] == 0
-            head_time = int(git_result["stdout"].strip()) if head_ok else 0)
+            head_time = int(git_result["stdout"].strip()) if head_ok else 0
             if head_time > 0:
                 starts = _container_starts()
                 for name in ("archie_platform", "archie_scheduler"):

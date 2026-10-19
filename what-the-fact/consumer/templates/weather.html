@@ -46,8 +46,10 @@
 .wtf-wx-history-state { min-height:20px; color:#8a96a5; font-size:11px; margin:8px 0; }
 .wtf-wx-history-grid { display:grid; grid-template-columns:minmax(220px, .8fr) minmax(0, 1.6fr); gap:12px; align-items:start; }
 .wtf-wx-history-map { background:#080f18; border:1px solid #142538; border-radius:4px; min-height:190px; padding:8px; }
-.wtf-wx-history-map svg { display:block; width:100%; height:180px; }
 .wtf-wx-history-map-note { color:#748194; font-size:9px; line-height:1.5; margin:4px 2px 0; }
+.wtf-wx-history-map button { margin-top:10px; background:#0d1a29; border:1px solid #285078; border-radius:4px; color:#bfdbfe; padding:7px 10px; font:10px var(--wtf-font-mono); cursor:pointer; }
+.wtf-wx-history-map button:focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
+.wtf-wx-history-item.is-map-selected { outline:2px solid #60a5fa; outline-offset:2px; }
 .wtf-wx-history-list { display:grid; gap:7px; }
 .wtf-wx-history-item { background:#080f18; border:1px solid #142538; border-left:2px solid #38bdf8; border-radius:4px; padding:9px 11px; min-width:0; }
 .wtf-wx-history-item.is-alert { border-left-color:#fbbf24; }
@@ -571,6 +573,7 @@
           <button class="wtf-wx-layer-btn" data-layer="aqhi" type="button">{{ wx_icon("haze") }} Air quality</button>
           <button class="wtf-wx-layer-btn" data-layer="radar" type="button">{{ wx_icon("rain") }} Rain radar</button>
           <button class="wtf-wx-layer-btn" data-layer="cloud" type="button">{{ wx_icon("cloud") }} Cloud forecast</button>
+          <button class="wtf-wx-layer-btn" data-layer="history" type="button">Historical evidence</button>
           <div class="wtf-wx-toolbar-extra">
             <label class="wtf-wx-toolbar-label" for="wtf-wx-city-select">My city</label>
             <select id="wtf-wx-city-select" class="wtf-wx-city-select"
@@ -893,8 +896,11 @@
   <div class="wtf-wx-history-state" id="wtf-wx-history-state" role="status" aria-live="polite">Loading captured source records…</div>
   <div class="wtf-wx-history-grid">
     <div>
-      <div class="wtf-wx-history-map" id="wtf-wx-history-map" aria-label="Coordinate plot of geolocated source records"></div>
-      <p class="wtf-wx-history-map-note">This is a coordinate plot, not a perimeter or basemap. Points show only returned source coordinates. A thermal anomaly is not, by itself, a confirmed fire. No points means no geolocated records in this result page.</p>
+      <div class="wtf-wx-history-map" id="wtf-wx-history-map" aria-label="Historical evidence map controls">
+        <p class="wtf-wx-history-map-note">Geolocated records from the current archive results appear on the Canada map above. Markers retain source coordinates; a satellite thermal anomaly is not, by itself, a confirmed fire. Records without valid source coordinates are listed but are not placed on the map.</p>
+        <div class="wtf-wx-history-map-note" id="wtf-wx-history-map-status" role="status" aria-live="polite">Loading map coverage…</div>
+        <button type="button" id="wtf-wx-history-show-map" hidden>Show historical evidence on map</button>
+      </div>
     </div>
     <div class="wtf-wx-history-list" id="wtf-wx-history-list"></div>
   </div>
@@ -910,6 +916,8 @@
   var state = document.getElementById("wtf-wx-history-state");
   var list = document.getElementById("wtf-wx-history-list");
   var map = document.getElementById("wtf-wx-history-map");
+  var mapStatus = document.getElementById("wtf-wx-history-map-status");
+  var showMap = document.getElementById("wtf-wx-history-show-map");
   var more = document.getElementById("wtf-wx-history-more");
   var keys = ["eccc_cap", "cwfis_firewx_station_daily", "cwfis_hotspot_point", "nasa_firms_point"];
   var offset = 0;
@@ -941,51 +949,50 @@
     var p = row.payload || {};
     var d = p.detection || p.properties || {};
     var g = p.geometry || {};
-    var c = g.coordinates || [];
-    var lat = Number(d.latitude !== undefined ? d.latitude : (d.LATITUDE !== undefined ? d.LATITUDE : c[1]));
-    var lon = Number(d.longitude !== undefined ? d.longitude : (d.LONGITUDE !== undefined ? d.LONGITUDE : c[0]));
+    var c = g.type === "Point" && Array.isArray(g.coordinates) ? g.coordinates : [];
+    var latValue = d.latitude !== undefined ? d.latitude : (d.LATITUDE !== undefined ? d.LATITUDE : c[1]);
+    var lonValue = d.longitude !== undefined ? d.longitude : (d.LONGITUDE !== undefined ? d.LONGITUDE : c[0]);
+    if (latValue === null || latValue === undefined || String(latValue).trim() === "" ||
+        lonValue === null || lonValue === undefined || String(lonValue).trim() === "") return null;
+    var lat = Number(latValue), lon = Number(lonValue);
     return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lat, lon] : null;
   }
-  function drawMap(rows) {
-    map.replaceChildren();
-    var points = rows.map(function (r) { return {row:r, xy:coordinates(r)}; }).filter(function (p) { return p.xy; });
-    if (!points.length) {
-      map.appendChild(el("div", "wtf-wx-history-empty", "No geolocated point records in this result page."));
-      return;
-    }
-    var xs = points.map(function (p) { return p.xy[1]; }), ys = points.map(function (p) { return p.xy[0]; });
-    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
-    if (x0 === x1) { x0 -= .05; x1 += .05; } if (y0 === y1) { y0 -= .05; y1 += .05; }
-    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("viewBox", "0 0 420 180"); svg.setAttribute("role", "img");
-    svg.setAttribute("aria-label", points.length + " geolocated source records on a longitude and latitude plot; extent fits this result page");
-    var line = document.createElementNS(svg.namespaceURI, "path");
-    line.setAttribute("d", "M24 12V156H408"); line.setAttribute("fill", "none"); line.setAttribute("stroke", "#294158"); svg.appendChild(line);
-    [["LAT", 5, 16], ["LON", 390, 174]].forEach(function (label) {
-      var axis = document.createElementNS(svg.namespaceURI, "text");
-      axis.setAttribute("x", label[1]); axis.setAttribute("y", label[2]);
-      axis.setAttribute("fill", "#748194"); axis.setAttribute("font-size", "8"); axis.textContent = label[0]; svg.appendChild(axis);
-    });
-    points.forEach(function (p) {
-      var d = p.row.payload && p.row.payload.detection || {};
-      var anomaly = p.row.dataset_key.indexOf("point") >= 0 || p.row.dataset_key.indexOf("firms") >= 0;
-      var dot = document.createElementNS(svg.namespaceURI, "circle");
-      dot.setAttribute("cx", 30 + ((p.xy[1] - x0) / (x1 - x0)) * 366);
-      dot.setAttribute("cy", 150 - ((p.xy[0] - y0) / (y1 - y0)) * 126);
-      dot.setAttribute("r", "4"); dot.setAttribute("fill", anomaly ? "#fb923c" : "#38bdf8");
-      var tip = document.createElementNS(svg.namespaceURI, "title");
-      tip.textContent = recordTitle(p.row) + " · " + iso(p.row.source_observed_at) + " · " + p.xy[0] + ", " + p.xy[1];
-      dot.appendChild(tip); svg.appendChild(dot);
-    });
-    map.appendChild(svg);
-    map.appendChild(el("p", "wtf-wx-history-map-note", points.length + " records · fitted extent " + y0.toFixed(2) + "–" + y1.toFixed(2) + "° latitude, " + x0.toFixed(2) + "–" + x1.toFixed(2) + "° longitude"));
+  function mapPoints() {
+    return allRows.map(function (row, index) {
+      var xy = coordinates(row);
+      if (!xy) return null;
+      var isThermal = row.dataset_key === "cwfis_hotspot_point" || row.dataset_key === "nasa_firms_point";
+      var colour = isThermal ? "#fb923c" : row.dataset_key === "eccc_cap" ? "#fbbf24" : "#a78bfa";
+      return {
+        lat: xy[0], lon: xy[1], col: colour, r: isThermal ? 6 : 5,
+        tip: feedLabel(row) + " · " + recordTitle(row) + " · Observed: " + iso(row.source_observed_at) + " · " + xy[0] + ", " + xy[1],
+        onClick: function () {
+          var card = document.getElementById("wtf-wx-evidence-" + index);
+          if (!card) return;
+          card.scrollIntoView({behavior:"smooth", block:"center"});
+          card.focus({preventScroll:true});
+          card.classList.add("is-map-selected");
+          window.setTimeout(function () { card.classList.remove("is-map-selected"); }, 1800);
+        }
+      };
+    }).filter(Boolean);
+  }
+  window.WTFHistoricalEvidenceMapPoints = mapPoints;
+  function updateMapStatus(rows) {
+    var pointCount = rows.filter(function (row) { return coordinates(row); }).length;
+    var missing = rows.length - pointCount;
+    mapStatus.textContent = pointCount + " source-coordinate record" + (pointCount === 1 ? "" : "s") + " in the loaded results" +
+      (missing ? "; " + missing + " listed record" + (missing === 1 ? " has" : "s have") + " no valid point coordinate" : "") + ".";
+    showMap.hidden = !document.getElementById("wtf-wx-map");
   }
   function render(rows) {
     list.replaceChildren();
-    rows.forEach(function (row) {
+    rows.forEach(function (row, index) {
       var thermal = row.dataset_key.indexOf("point") >= 0 || row.dataset_key.indexOf("firms") >= 0;
       var alert = row.dataset_key === "eccc_cap";
       var card = el("article", "wtf-wx-history-item" + (thermal ? " is-thermal" : alert ? " is-alert" : ""));
+      card.id = "wtf-wx-evidence-" + index;
+      card.tabIndex = -1;
       var top = el("div", "wtf-wx-history-item-top");
       top.appendChild(el("span", "wtf-wx-history-kind", feedLabel(row)));
       top.appendChild(el("span", "", recordTitle(row))); card.appendChild(top);
@@ -1001,11 +1008,15 @@
       }
       list.appendChild(card);
     });
-    drawMap(rows);
+    updateMapStatus(rows);
+    window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
   }
   async function load(event, append) {
     if (event) event.preventDefault();
-    if (!append) { offset = 0; allRows = []; }
+    if (!append) {
+      offset = 0; allRows = [];
+      window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
+    }
     state.textContent = "Searching the captured archive…";
     var params = new URLSearchParams({limit:String(pageSize), offset:String(offset)});
     if (dataset.value && keys.indexOf(dataset.value) !== -1) params.set("dataset", dataset.value);
@@ -1026,13 +1037,20 @@
       state.textContent = allRows.length ? allRows.length + " source records shown" + (more.hidden ? "." : "; more are available.") : "No captured records match this search. This may mean the archive has no coverage for the selected feed or cutoff.";
     } catch (error) {
       list.replaceChildren(el("div", "wtf-wx-history-empty", error.message === "Failed to fetch" ? "Evidence history is unavailable right now." : "Evidence history could not be loaded: " + error.message));
-      map.replaceChildren(el("div", "wtf-wx-history-empty", "Map unavailable until evidence records load."));
+      mapStatus.textContent = "Map coverage unavailable until the evidence archive responds.";
+      window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
       more.hidden = true;
       state.textContent = "Archive query unavailable.";
     }
   }
   form.addEventListener("submit", load);
   more.addEventListener("click", function () { load(null, true); });
+  showMap.addEventListener("click", function () {
+    var layerButton = document.querySelector('.wtf-wx-layer-btn[data-layer="history"]');
+    if (layerButton) layerButton.click();
+    var mapHost = document.getElementById("wtf-wx-map");
+    if (mapHost) mapHost.scrollIntoView({behavior:"smooth", block:"center"});
+  });
   load();
 })();
 </script>
@@ -1402,6 +1420,10 @@
       tooltip: provinceTooltip, coverageNote: cityCoverage, points: cityPoints },
     { id: "aqhi", label: "Air Quality Health Index", ramp: AQHI_STOPS, metric: aqhiMetric,
       tooltip: provinceTooltip, coverageNote: aqhiCoverage, points: aqhiPoints },
+    { id: "history", label: "Historical evidence", ramp: [], noDataLabel: "No mapped source points in loaded results", metric: function () { return null; },
+      tooltip: provinceTooltip,
+      coverageNote: function () { return "Source-coordinate records in the loaded archive results. Markers are observations or alerts, not inferred perimeters; thermal anomalies are not confirmed fires. Locations outside the Canada map view are counted but not drawn."; },
+      points: function () { return window.WTFHistoricalEvidenceMapPoints ? window.WTFHistoricalEvidenceMapPoints() : []; } },
     { id: "radar", label: "Rain radar", ramp: null, metric: function () { return null; }, tooltip: provinceTooltip, coverageNote: overlayCoverage("radar"),
       overlay: { baseUrl: "/weather/overlay/radar", opacity: 0.9, refreshMs: 300000 } },
     { id: "cloud", label: "Cloud forecast", ramp: null, metric: function () { return null; }, tooltip: provinceTooltip, coverageNote: overlayCoverage("cloud"),
@@ -1417,6 +1439,9 @@
     // Radar and cloud are images, with no per-province or per-city value to rank. They must NOT fall through to the "cities" branch below, which
     // would list city temperatures under a "Rain radar" heading.
     if (OVERLAY_COPY[activeLayer]) return [];
+    // Historical records are not a comparable province-level metric. The map
+    // owns their geography; do not mislabel current city temperatures here.
+    if (activeLayer === "history") return [];
     if (activeLayer === "fire") {
       return A.prov_order.map(function (code) {
         var p = A.provinces[code];
@@ -1473,7 +1498,8 @@
     var withData = rows.filter(function (r) { return r.col; }).length;
     var L = null;
     for (var i = 0; i < WX_LAYERS.length; i++) if (WX_LAYERS[i].id === activeLayer) L = WX_LAYERS[i];
-    headEl.textContent = OVERLAY_COPY[activeLayer] ? (L ? L.label : activeLayer) + " · image layer, nothing to rank"
+    headEl.textContent = activeLayer === "history" ? "Historical evidence · source points only"
+                      : OVERLAY_COPY[activeLayer] ? (L ? L.label : activeLayer) + " · image layer, nothing to rank"
                                                    : (L ? L.label : activeLayer) + " · " + withData + " reporting";
     listEl.textContent = "";
     rows.forEach(function (r) {
@@ -1594,6 +1620,13 @@
   // selected on the wrong layer would highlight scope buttons that don't
   // match the visible choropleth.
   readHash();
+
+  // The archive panel loads independently below. Refresh when its bounded
+  // query returns, and once here in case a fast response arrived first.
+  window.addEventListener("wtf-historical-evidence-updated", function () {
+    if (wtfmap) wtfmap.refresh();
+  });
+  if (window.WTFHistoricalEvidenceMapPoints) wtfmap.refresh();
 
   function restyle() { if (wtfmap) wtfmap.refresh(); }
 

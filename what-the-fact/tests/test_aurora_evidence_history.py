@@ -3,9 +3,12 @@
 import hashlib
 import json
 import pathlib
+import shutil
+import subprocess
 from datetime import datetime, timezone
 
 from flask import Flask
+import pytest
 
 from ingest.weather.evidence import capture_source_records
 from ingest.weather.firms import parse_csv_records, run_firms_capture
@@ -199,3 +202,38 @@ def test_weather_history_ui_tracks_provenance_clocks_and_pages_results():
     assert "Load older records" in section
     assert "thermal anomaly is not, by itself, a confirmed fire" in section
     assert "textContent" in section
+
+
+def test_weather_history_maps_only_valid_source_coordinates():
+    template = (ROOT / "consumer" / "templates" / "weather.html").read_text()
+    assert 'data-layer="history"' in template
+    assert 'id: "history"' in template
+    assert "WTFHistoricalEvidenceMapPoints" in template
+    assert "coordinate plot" not in template.lower()
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not available")
+    start = template.index("  function coordinates(row) {")
+    end = template.index("\n  function mapPoints()", start)
+    coordinates_fn = template[start:end]
+    setup = """
+      %(coordinates)s
+      var feature = {payload:{geometry:{type:"Point",coordinates:[-110.2,52.8]}}};
+      var firms = {payload:{detection:{latitude:"52.9",longitude:"-110.3"}}};
+      var missing = {payload:{detection:{latitude:null,longitude:null}}};
+      var invalid = {payload:{detection:{latitude:"91",longitude:"-110"}}};
+      globalThis.__result = [coordinates(feature), coordinates(firms),
+                             coordinates(missing), coordinates(invalid)];
+    """ % {"coordinates": coordinates_fn}
+    harness = """
+      const vm = require('vm');
+      const ctx = {};
+      vm.createContext(ctx);
+      vm.runInContext(%(setup)s, ctx);
+      console.log(JSON.stringify(ctx.__result));
+    """ % {"setup": json.dumps(setup)}
+    result = subprocess.run([node, "-e", harness], capture_output=True,
+                            text=True, check=False, timeout=20)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [[52.8, -110.2], [52.9, -110.3], None, None]

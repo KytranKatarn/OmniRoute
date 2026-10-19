@@ -4099,6 +4099,18 @@ window.loadPRReviews = function(state) {
                 analyzeBtn.onclick = function(e){ e.stopPropagation(); triggerPRAnalysis(pr.pr_number, pr.repo, pr.changed_files); };
             }
 
+            // #7322: a review waiting for the single review slot stays 'pending' with a queue
+            // marker (pr_reviews.metadata.review_queue, written by services/review_slot.py).
+            // Show it as queued and block a second Analyze click; the review starts by itself.
+            var _rq = (pr.review_status === 'pending' && pr.metadata && pr.metadata.review_queue) || null;
+            if (_rq) {
+                analyzeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;border-radius:4px;cursor:not-allowed;opacity:0.85;';
+                analyzeBtn.textContent = _rq.behind_pr ? 'Queued behind #' + _rq.behind_pr : 'Queued for review slot';
+                analyzeBtn.title = 'Only one F.O.R.G.E. review runs at a time so reviews do not time out contending for one GPU slot. This one starts automatically.';
+                analyzeBtn.onclick = null;
+                analyzeBtn.disabled = true;
+            }
+
             actions.appendChild(analyzeBtn);
 
             // RETRY — the only escape from a stuck 'Reviewing…'. Analyze is disabled in

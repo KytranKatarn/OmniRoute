@@ -199,8 +199,15 @@ _TAIL_REMINDER = (
 )
 
 
-def review_pr(pr_number: int, repo: str = None, wide: bool = False) -> dict:
+def review_pr(pr_number: int, repo: str = None, wide: bool = False, wait_for_slot: bool = True) -> dict:
+    """Review one PR. Only one review runs at a time (#7322): a review takes a global slot AFTER the
+    per-PR ``owned_attempt`` lock (a duplicate of the same PR still fails fast) and BEFORE
+    ``_review_pr_owned``, so time spent queued never counts against the elapsed budget, which starts
+    inside ``_obtain_review_summary``. ``wait_for_slot=False`` (the scheduler sidecar) returns
+    ``status="queued_behind"`` immediately instead of blocking; the row stays ``pending`` and is retried.
+    """
     from services.review_attempts import owned_attempt, ReviewBusy, ReviewCancelled
+    from services.review_slot import ReviewQueued, review_slot
 
     row = get_review(pr_number, repo)
     if not row:
@@ -211,7 +218,16 @@ def review_pr(pr_number: int, repo: str = None, wide: bool = False) -> dict:
     repo = row.get("repo") or repo
     try:
         with owned_attempt(repo, pr_number, (row.get("metadata") or {}).get("head_sha")):
-            return _review_pr_owned(pr_number, repo, wide)
+            with review_slot(repo, pr_number, wait=wait_for_slot):
+                return _review_pr_owned(pr_number, repo, wide)
+    except ReviewQueued as exc:
+        return {
+            "ok": False,
+            "status": "queued_behind",
+            "behind_pr": exc.behind_pr,
+            "position": exc.position,
+            "error": str(exc),
+        }
     except ReviewBusy as exc:
         return {"ok": False, "status": "in_progress", "error": str(exc)}
     except ReviewCancelled as exc:
@@ -287,10 +303,12 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
     processed = failed = skipped = 0
 
     for review in reviews:
-        result = review_pr(review["pr_number"], review.get("repo"))
+        # wait_for_slot=False: this sidecar must never block behind another review (#7322);
+        # a queued PR stays pending and is picked up again next cycle.
+        result = review_pr(review["pr_number"], review.get("repo"), wait_for_slot=False)
         if result.get("ok"):
             processed += 1
-        elif result.get("status") == "in_progress":
+        elif result.get("status") in ("in_progress", "queued_behind"):
             skipped += 1
         else:
             failed += 1

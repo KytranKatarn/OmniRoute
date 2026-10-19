@@ -46,6 +46,61 @@ logger = logging.getLogger(__name__)
 
 RESOLVED_STALE = "resolved_stale"
 
+# File content cache with mtime-based invalidation (persists across hourly runs)
+# Format: {file_path: (content, mtime, reason)}
+_file_cache: dict[str, tuple[str | None, float | None, str]] = {}
+
+
+def _get_cached_file(file_path: str) -> tuple[str | None, str]:
+    """Read file with mtime-based cache invalidation.
+
+    Returns (content, reason) where content is None if unreadable.
+    Cache is invalidated when file mtime changes.
+    """
+    import os
+
+    global _file_cache
+
+    try:
+        from services.audit_pipeline import resolve_proposal_source
+    except Exception as exc:
+        return None, f"resolver unavailable: {exc}"
+
+    abs_path, _display, status = resolve_proposal_source(file_path)
+    if status != "ok" or not abs_path:
+        return None, status
+
+    try:
+        stat = os.stat(abs_path)
+        mtime = stat.st_mtime
+    except OSError as exc:
+        return None, f"stat failed: {exc}"
+
+    cached = _file_cache.get(abs_path)
+    if cached is not None and cached[1] == mtime:
+        return cached[0], "ok (cached)"
+
+    try:
+        with open(abs_path, "r", encoding="utf-8", errors="replace") as fh:
+            content = fh.read()
+        _file_cache[abs_path] = (content, mtime, "ok")
+        return content, "ok"
+    except OSError as exc:
+        _file_cache[abs_path] = (None, mtime, f"unreadable: {exc}")
+        return None, f"unreadable: {exc}"
+
+
+def clear_file_cache() -> int:
+    """Clear the file content cache. Returns number of entries cleared.
+
+    Should be called periodically (e.g., at start of hourly reconciler run)
+    to prevent unbounded memory growth."""
+    global _file_cache
+    count = len(_file_cache)
+    _file_cache.clear()
+    return count
+
+
 # "Line exceeds 120 characters (124)" / "line exceeds 120 chars"
 _LINE_LEN_RE = re.compile(r"line\s+exceeds\s+(\d+)\s+char", re.IGNORECASE)
 
@@ -1008,17 +1063,26 @@ def finding_fingerprint(issue_code: str, detail: str) -> str:
 def _read_proposal_file(runtime_file: str, file_path: str):
     """Source for a proposal. ``runtime_file`` is the absolute path the scanner already
     resolved, so it is tried first; ``file_path`` falls back through the pipeline's shared
-    resolver. Returns None when neither can be read — which never closes anything."""
+    resolver. Returns None when neither can be read — which never closes anything.
+    Uses mtime-based cache for runtime_file when available."""
     import os
+
+    global _file_cache
 
     if runtime_file and os.path.isfile(runtime_file):
         try:
+            stat = os.stat(runtime_file)
+            mtime = stat.st_mtime
+            cached = _file_cache.get(runtime_file)
+            if cached is not None and cached[1] == mtime:
+                return cached[0]
             with open(runtime_file, "r", encoding="utf-8", errors="replace") as fh:
-                return fh.read()
+                content = fh.read()
+            _file_cache[runtime_file] = (content, mtime, "ok")
+            return content
         except OSError:
-            pass
-    text, _reason = _read_source(file_path)
-    return text
+            pass  # fall through to _read_source
+    return _get_cached_file(file_path)[0]
 
 
 def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=("approved",), module_name=None) -> dict:
@@ -1032,6 +1096,7 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
     (metadata archived_by / archive_reason / archived_at), so provenance stays uniform with
     the #2333 unfixable-path archiver.
     """
+    clear_file_cache()  # Clear cache at start of each run to prevent unbounded growth
     stats = {
         "examined": 0,
         "stale": 0,
@@ -1174,20 +1239,8 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
 
 def _read_source(file_path: str):
     """(text, reason) — text is None when the file can't be read. Reuses the pipeline's
-    single source of truth for path resolution + #4979 path containment."""
-    try:
-        from services.audit_pipeline import resolve_proposal_source
-    except Exception as exc:  # pragma: no cover - import guard
-        return None, f"resolver unavailable: {exc}"
-
-    abs_path, _display, status = resolve_proposal_source(file_path)
-    if status != "ok" or not abs_path:
-        return None, status
-    try:
-        with open(abs_path, "r", encoding="utf-8", errors="replace") as fh:
-            return fh.read(), "ok"
-    except OSError as exc:
-        return None, f"unreadable: {exc}"
+    single source of truth for path resolution + #4979 path containment. With mtime cache."""
+    return _get_cached_file(file_path)
 
 
 def reconcile_open_issues(limit: int = 500, dry_run: bool = True) -> dict:
@@ -1196,6 +1249,7 @@ def reconcile_open_issues(limit: int = 500, dry_run: bool = True) -> dict:
     ``dry_run=True`` (the default) changes nothing and reports what WOULD be closed, so the
     job can be inspected before it is ever allowed to write.
     """
+    clear_file_cache()  # Clear cache at start of each run to prevent unbounded growth
     stats = {
         "examined": 0,
         "stale": 0,
@@ -1317,15 +1371,13 @@ def enqueue_reconciler_for_files(file_paths: list[str], dry_run: bool = False) -
     if not rows:
         return stats
 
-    cache: dict = {}
+    # Use global mtime-based cache
     to_close: list = []
 
     for row in rows:
         stats["examined"] += 1
         fp = row["file_path"]
-        if fp not in cache:
-            cache[fp] = _read_source(fp)
-        text, reason = cache[fp]
+        text, reason = _read_source(fp)
         if text is None:
             stats["unreadable"] += 1
             continue

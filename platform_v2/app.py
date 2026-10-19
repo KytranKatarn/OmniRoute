@@ -2670,14 +2670,22 @@ def _get_agent_models():
     try:
         with get_db_cursor(commit=False) as (conn, cur):
             thresholds = load_thresholds(cur)
-            # Get agent models ordered by dispatch frequency (last 7 days)
+            # Get agent models ordered by REAL usage of the model (last 7 days): runs where
+            # task_execution_log.model_used is that model. The old join counted every dispatch
+            # of the AGENTS assigned to a model, so a busy agent on a rarely used model looked
+            # popular (gemma3:12b read 10,580 runs; it actually ran 1,499). ':latest' is
+            # normalised on both sides (arctic-embed-cpu logs as 'arctic-embed-cpu').
             cur.execute(
                 """
-                SELECT a.model, COUNT(tel.id) AS dispatch_count, COUNT(DISTINCT a.id) AS agent_count
+                WITH usage AS (
+                    SELECT replace(model_used, ':latest', '') AS m, COUNT(*) AS n
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '7 days' AND model_used IS NOT NULL
+                    GROUP BY 1
+                )
+                SELECT a.model, COALESCE(MAX(u.n), 0) AS dispatch_count, COUNT(DISTINCT a.id) AS agent_count
                 FROM agents a
-                LEFT JOIN task_execution_log tel
-                    ON tel.agent_name = a.name
-                    AND tel.created_at > NOW() - INTERVAL '7 days'
+                LEFT JOIN usage u ON u.m = replace(a.model, ':latest', '')
                 WHERE a.status = 'active'
                     AND a.worker_type = 'ai'
                     AND a.model IS NOT NULL AND a.model != '' AND a.model != 'none'

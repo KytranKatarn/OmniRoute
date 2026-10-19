@@ -96,7 +96,7 @@ Fill from the DB; **never re-derive**. Same principle as `shared/city_identity.p
 | `wtf-tech` | 8104 | what-the-fact.tech | Tech-focused news variant |
 | `wtf-ingest` | internal | — | RSS fetch, clustering, scoring (2GB RAM) |
 
-All 3 on **Citadel/boston-2** (`2.25.133.122`, SSH `root@100.64.0.10`, dir `/opt/archie-products/what-the-fact/`) — DB stays the hub `wtf` database (100.64.0.4). Migrated off outpost-us per the fleet-product-migration plan; the old outpost-us stack was DR-repointed into the boston-2 fork during the 06-05 window, zombified, and REMOVED 2026-06-11 (#4032 — archive: outpost-us `/opt/archie-products/what-the-fact-RETIRED-20260611.tar.gz`, Caddy blocks excised, backup `Caddyfile.bak-4032`). Networks: `default` + `archie_net` (required for Caddy reachability).
+All 3 on **Citadel/boston-2** (`2.25.133.122`, SSH `root@100.64.0.10`, dir `/opt/archie-products/what-the-fact/`) — the DB is the Citadel `what-the-fact-wtf-postgres-1` container, NOT a hub database (corrected 2026-10-19). Migrated off outpost-us per the fleet-product-migration plan; the old outpost-us stack was DR-repointed into the boston-2 fork during the 06-05 window, zombified, and REMOVED 2026-06-11 (#4032 — archive: outpost-us `/opt/archie-products/what-the-fact-RETIRED-20260611.tar.gz`, Caddy blocks excised, backup `Caddyfile.bak-4032`). Networks: `default` + `archie_net` (required for Caddy reachability).
 
 ## Critical Path Rules
 
@@ -123,11 +123,17 @@ docker compose restart wtf-consumer
 /opt/archie-products/wtf/
 ```
 
-### WTF DB — separate database on HUB postgres
+### WTF DB — the LIVE primary is a container on CITADEL (corrected 2026-10-19)
 ```bash
-# WTF uses its own `wtf` DB on hub postgres (NOT a VPS container database):
-docker exec archie_database psql -U archie -d wtf
+# The live WTF database is the `wtf-postgres` container on Citadel (user wtfuser, db wtf),
+# all four WTF services read/write it. Connection details: what-the-fact/migrations/README.md.
+# Read-only check from the hub:
+ssh root@100.64.0.10 "docker exec -i what-the-fact-wtf-postgres-1 psql -U wtfuser -d wtf -X"
+# Wrap ad-hoc SQL in BEGIN READ ONLY; ... ROLLBACK;
 ```
+⚠️ This section used to say the WTF DB is a `wtf` database on HUB postgres. **The hub has no `wtf`
+database** (`psql -d wtf` → `database "wtf" does not exist`, 2026-10-19). Do not apply WTF migrations
+to the hub (see `database.md`).
 
 Schema tables:
 - `wtf.sources` — news outlets
@@ -237,7 +243,7 @@ All containers: `read_only: true`, `cap_drop: [ALL]`, `tmpfs: /tmp`
 ## Gotchas
 
 - `WTF_TECH_URL` is an internal URL — never expose in browser JS (KB #267314)
-- WTF DB is on HUB postgres (`wtf` database), NOT a VPS container database
+- WTF DB is the `what-the-fact-wtf-postgres-1` container ON CITADEL, not a hub database (the hub has no `wtf` DB; corrected 2026-10-19)
 - `wtf-ingest` has no exposed port — internal only, no direct API access
 - VPS path is `what-the-fact/` not `wtf/` — wrong path is empty, silently fails
 - Images from `ghcr.io/kytrankatarn/wtf-*:0.1.0` — always `--build` to pick up Dockerfile changes

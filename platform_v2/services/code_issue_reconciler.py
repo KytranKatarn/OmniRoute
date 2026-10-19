@@ -81,6 +81,300 @@ _SECURITY_EXCEPTION_HANDLING_RE = re.compile(
 )
 _SECURITY_LOGGING_RE = re.compile(r"logging.*exception|exc_info|exception.*logging", re.IGNORECASE)
 
+# Bandit rule code → checker function mapping.
+# When a finding carries an `issue_code` (e.g., "B608"), we dispatch directly
+# instead of relying on message text matching. This is more reliable and
+# enables the checker to be line-precise.
+_BANDIT_CHECKERS: dict[str, callable] = {}
+
+
+def _register_bandit_checker(rule_code: str, fn: callable) -> None:
+    """Register a checker for a bandit rule code (e.g., 'B608')."""
+    _BANDIT_CHECKERS[rule_code.upper()] = fn
+
+
+# ============================================================
+# Bandit rule → checker mappings (line-precise when line_number provided)
+# ============================================================
+
+
+def _bandit_b608_hardcoded_sql(file_text: str, line_number: int = None) -> bool | None:
+    """B608: Hardcoded SQL expressions - check for string formatting in SQL."""
+    return _check_sql_injection_at_line(file_text, line_number)
+
+
+def _bandit_b602_subprocess_shell(file_text: str, line_number: int = None) -> bool | None:
+    """B602: subprocess call with shell=True."""
+    return _check_subprocess_at_line(file_text, line_number)
+
+
+def _bandit_b108_hardcoded_password(file_text: str, line_number: int = None) -> bool | None:
+    """B108: Hardcoded password string."""
+    return _check_hardcoded_secret_at_line(file_text, line_number)
+
+
+def _bandit_b105_hardcoded_password_string(file_text: str, line_number: int = None) -> bool | None:
+    """B105: Hardcoded password string."""
+    return _check_hardcoded_secret_at_line(file_text, line_number)
+
+
+def _bandit_b104_hardcoded_binding(file_text: str, line_number: int = None) -> bool | None:
+    """B104: Hardcoded binding address."""
+    return _check_hardcoded_secret_at_line(file_text, line_number)
+
+
+def _bandit_b106_hardcoded_password_funcarg(file_text: str, line_number: int = None) -> bool | None:
+    """B106: Hardcoded password in function argument."""
+    return _check_hardcoded_secret_at_line(file_text, line_number)
+
+
+def _bandit_b107_hardcoded_password_default(file_text: str, line_number: int = None) -> bool | None:
+    """B107: Hardcoded password default value."""
+    return _check_hardcoded_secret_at_line(file_text, line_number)
+
+
+def _bandit_b322_input_validation(file_text: str, line_number: int = None) -> bool | None:
+    """B322: Input validation - generic pattern."""
+    if line_number:
+        return _check_sql_injection_at_line(file_text, line_number)
+    return None
+
+
+def _bandit_b311_random(file_text: str, line_number: int = None) -> bool | None:
+    """B311: Standard pseudo-random generators are not suitable for security/cryptographic purposes."""
+    if line_number:
+        lines = (file_text or "").splitlines()
+        if line_number < 1 or line_number > len(lines):
+            return None
+        line = lines[line_number - 1]
+        import re
+
+        if re.search(r"random\.(random|randint|choice|uniform)", line):
+            return True
+    return False
+
+
+def _bandit_b303_md5(file_text: str, line_number: int = None) -> bool | None:
+    """B303: Use of insecure hash (MD5)."""
+    if line_number:
+        lines = (file_text or "").splitlines()
+        if line_number < 1 or line_number > len(lines):
+            return None
+        line = lines[line_number - 1]
+        if re.search(r"hashlib\.md5|md5\s*\(", line):
+            return True
+    return False
+
+
+def _bandit_b304_cipher_modes(file_text: str, line_number: int = None) -> bool | None:
+    """B304: Cipher modes - ECB mode is insecure."""
+    if line_number:
+        lines = (file_text or "").splitlines()
+        if line_number < 1 or line_number > len(lines):
+            return None
+        line = lines[line_number - 1]
+        if re.search(r"\.ECB\b|MODE_ECB", line):
+            return True
+    return False
+
+
+# Register bandit checkers
+_register_bandit_checker("B608", _bandit_b608_hardcoded_sql)
+_register_bandit_checker("B602", _bandit_b602_subprocess_shell)
+_register_bandit_checker("B108", _bandit_b108_hardcoded_password)
+_register_bandit_checker("B105", _bandit_b105_hardcoded_password_string)
+_register_bandit_checker("B104", _bandit_b104_hardcoded_binding)
+_register_bandit_checker("B106", _bandit_b106_hardcoded_password_funcarg)
+_register_bandit_checker("B107", _bandit_b107_hardcoded_password_default)
+_register_bandit_checker("B322", _bandit_b322_input_validation)
+_register_bandit_checker("B311", _bandit_b311_random)
+_register_bandit_checker("B303", _bandit_b303_md5)
+_register_bandit_checker("B304", _bandit_b304_cipher_modes)
+
+# ============================================================
+# Line-precise security checkers (use line_number when available)
+# ============================================================
+
+
+def _check_sql_injection_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line has a SQL injection pattern.
+
+    Returns True (vulnerable), False (safe/parameterized), None (unverifiable).
+
+    Looks for:
+    - execute/executemany with f-string, %, + concatenation, or format()
+    - Cursor execute with string interpolation
+    """
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+
+    target_line = lines[line_number - 1].strip()
+
+    # Quick text-based check first for the exact line
+    line_lower = target_line.lower()
+    vulnerable_patterns = [
+        r'\.execute\s*\(\s*f["\']',  # f-string in execute
+        r"\.execute\s*\(\s*[^)]*%[^)]*\)",  # % formatting
+        r"\.execute\s*\(\s*[^)]*\+[^)]*\)",  # string concatenation
+        r"\.execute\s*\(\s*[^)]*\.format\s*\(",  # .format() in execute
+        r'\.executemany\s*\(\s*f["\']',  # f-string in executemany
+        r"\.executemany\s*\(\s*[^)]*%[^)]*\)",  # % in executemany
+        r"\.execute\s*\(\s*[^)]*%[^)]*\)",  # % in execute
+    ]
+    import re
+
+    for pattern in vulnerable_patterns:
+        if re.search(pattern, target_line, re.IGNORECASE):
+            return True
+
+    # Also check the AST for execute/executemany calls on this line
+    for node in ast.walk(ast.parse(file_text or "")):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in ("execute", "executemany")
+            and hasattr(node, "lineno")
+            and node.lineno == line_number
+        ):
+
+            query = node.args[0] if node.args else None
+            if query is None:
+                return None
+
+            # Check if the query is a parameterized literal
+            if isinstance(query, ast.Constant) and isinstance(query.value, str):
+                return False  # literal string is safe
+
+            # Check for f-string
+            if isinstance(query, ast.JoinedStr):
+                return True
+
+            # Check for string interpolation %
+            if isinstance(query, ast.BinOp) and isinstance(query.op, ast.Mod):
+                return True
+
+            # Check for .format()
+            if isinstance(query, ast.Call) and isinstance(query.func, ast.Attribute) and query.func.attr == "format":
+                return True
+
+            # Check for string concatenation with variables
+            if isinstance(query, ast.BinOp) and isinstance(query.op, ast.Add):
+                # Check if both sides are string constants
+                def _is_literal_string(node):
+                    if isinstance(node, ast.Constant):
+                        return isinstance(node.value, str)
+                    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+                        return _is_literal_string(node.left) and _is_literal_string(node.right)
+                    return False
+
+                if not _is_literal_string(query):
+                    return True
+
+            # If we can't prove it's safe, assume vulnerable
+            return True
+
+    return None  # No execute/executemany on this line
+
+
+def _check_hardcoded_secret_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line has a hardcoded secret pattern."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    import re
+
+    patterns = [
+        r'password\s*[=:]\s*["\'][^"\']{8,}["\']',
+        r'api[_-]?key\s*[=:]\s*["\'][^"\']{16,}["\']',
+        r'secret\s*[=:]\s*["\'][^"\']{16,}["\']',
+        r'token\s*[=:]\s*["\'][^"\']{16,}["\']',
+        r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
+    ]
+    for pattern in patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            return True
+    return False
+
+
+def _check_subprocess_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line has subprocess shell=True or unchecked return code."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    # Check for shell=True in subprocess call
+    if re.search(r"subprocess\.(run|Popen|call)\s*\([^)]*shell\s*=\s*True", line, re.IGNORECASE):
+        return True
+    # Check for run without check=True
+    if re.search(r"subprocess\.run\s*\([^)]*(?<!check\s*=\s*True)", line, re.IGNORECASE):
+        return True
+    return False
+
+
+def _check_db_cred_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line has database credential access patterns."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    patterns = [
+        r"_get_db_password\s*\(",
+        r'os\.getenv\s*\(\s*["\'].*PASSWORD["\']',
+        r'os\.getenv\s*\(\s*["\'].*DATABASE["\']',
+        r'database.*password.*["\']',
+    ]
+    for pattern in patterns:
+        if re.search(pattern, line, re.IGNORECASE):
+            return True
+    return False
+
+
+def _check_os_env_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line has os.getenv without default."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    # Check for os.getenv without default value
+    if re.search(r'os\.getenv\s*\(\s*["\'][^"\']+["\']\s*\)', line):
+        return True
+    return False
+
+
+def _check_os_fdopen_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line uses os.fdopen."""
+    lines = (file_text or "").splitlines()
+    if line_number < 1 or line_number > len(lines):
+        return None
+    line = lines[line_number - 1]
+    if re.search(r"os\.fdopen|fdopen\s*\(", line):
+        return True
+    return False
+
+
+def _check_bare_except_at_line(file_text: str, line_number: int) -> bool | None:
+    """Check if the specific line has a bare except handler."""
+    try:
+        tree = ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(ast.parse(file_text or "")):
+        if (
+            isinstance(node, ast.ExceptHandler)
+            and node.type is None
+            and hasattr(node, "lineno")
+            and node.lineno == line_number
+        ):
+            return True
+    return False
+
 
 def _parse(file_text: str):
     """AST for the source, or None when it does not parse.
@@ -257,35 +551,52 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
         # genuine fix, and must not keep a dead finding alive.
         return any(needle in line for line in findings)
 
-    # Security issue checkers (bandit-style findings)
-    # SQL injection - check for interpolated/parameterized queries
+    # Security issue checkers (bandit-style findings) — LINE PRECISE
+    # First check if we have a bandit rule code (issue_code) for direct dispatch
+    issue_code = None
+    # Try to extract bandit rule code from message (format: "B608: ..." or "[B608] ...")
+    bandit_code_match = re.match(r"^([A-Z]\d{3})[:\]\s]", msg)
+    if bandit_code_match:
+        issue_code = bandit_code_match.group(1).upper()
+        if issue_code in _BANDIT_CHECKERS:
+            # Dispatch to bandit-specific checker with line precision
+            return _BANDIT_CHECKERS[issue_code](file_text, line_number)
+
+    # SQL injection - LINE PRECISE: check the specific line for SQL injection patterns
     if _SECURITY_SQL_INJECTION_RE.search(msg):
+        if line_number:
+            return _check_sql_injection_at_line(file_text, line_number)
+        # Fallback to whole-file checker if no line number
         from services.code_health_checks import sql_finding_present
 
         return sql_finding_present(file_text)
 
-    # Hardcoded secrets / passwords / keys / IPs
+    # Hardcoded secrets / passwords / keys / IPs - LINE PRECISE
     if _SECURITY_HARDCODED_SECRET_RE.search(msg):
-        # True if the hardcoded pattern is still present in the file
+        if line_number:
+            return _check_hardcoded_secret_at_line(file_text, line_number)
+        # Fallback to whole-file checker
         tree = _parse(file_text)
         if tree is None:
             return None
-        # Look for hardcoded string literals that look like secrets
         source = file_text or ""
         patterns = [
-            r'password\s*[=:]\s*["\'][^"\']{8,}["\']',  # password = "xxx"
-            r'api[_-]?key\s*[=:]\s*["\'][^"\']{16,}["\']',  # api_key = "xxx"
-            r'secret\s*[=:]\s*["\'][^"\']{16,}["\']',  # secret = "xxx"
-            r'token\s*[=:]\s*["\'][^"\']{16,}["\']',  # token = "xxx"
-            r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",  # IP address
+            r'password\s*[=:]\s*["\'][^"\']{8,}["\']',
+            r'api[_-]?key\s*[=:]\s*["\'][^"\']{16,}["\']',
+            r'secret\s*[=:]\s*["\'][^"\']{16,}["\']',
+            r'token\s*[=:]\s*["\'][^"\']{16,}["\']',
+            r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
         ]
         for pattern in patterns:
             if re.search(pattern, source, re.IGNORECASE):
                 return True
         return False
 
-    # Subprocess security issues
+    # Subprocess security issues - LINE PRECISE
     if _SECURITY_SUBPROCESS_RE.search(msg):
+        if line_number:
+            return _check_subprocess_at_line(file_text, line_number)
+        # Fallback to whole-file checker
         tree = _parse(file_text)
         if tree is None:
             return None
@@ -303,12 +614,14 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
             for n in ast.walk(tree)
         )
 
-    # Database credential / password handling
+    # Database credential / password handling - LINE PRECISE
     if _SECURITY_DB_CRED_RE.search(msg):
+        if line_number:
+            return _check_db_cred_at_line(file_text, line_number)
+        # Fallback to whole-file checker
         tree = _parse(file_text)
         if tree is None:
             return None
-        # Look for direct credential access patterns
         source = file_text or ""
         patterns = [
             r"_get_db_password\s*\(",
@@ -326,8 +639,11 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
         # Can't reliably disprove without context; keep open
         return None
 
-    # os.getenv / environment variable issues
+    # os.getenv / environment variable issues - LINE PRECISE
     if _SECURITY_OS_ENV_RE.search(msg):
+        if line_number:
+            return _check_os_env_at_line(file_text, line_number)
+        # Fallback to whole-file checker
         tree = _parse(file_text)
         if tree is None:
             return None
@@ -340,8 +656,11 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
             for n in ast.walk(tree)
         )
 
-    # os.fdopen usage
+    # os.fdopen usage - LINE PRECISE
     if _SECURITY_OS_FDOPEN_RE.search(msg):
+        if line_number:
+            return _check_os_fdopen_at_line(file_text, line_number)
+        # Fallback to whole-file checker
         tree = _parse(file_text)
         if tree is None:
             return None
@@ -350,8 +669,11 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
             for n in ast.walk(tree)
         )
 
-    # Exception handling issues
+    # Exception handling issues - LINE PRECISE
     if _SECURITY_EXCEPTION_HANDLING_RE.search(msg):
+        if line_number:
+            return _check_bare_except_at_line(file_text, line_number)
+        # Fallback to whole-file checker
         tree = _parse(file_text)
         if tree is None:
             return None
@@ -660,3 +982,113 @@ def reconcile_open_issues(limit: int = 500, dry_run: bool = True) -> dict:
             stats["unverifiable"],
         )
     return stats
+
+
+# ============================================================
+# Event-driven reconciler trigger (for PR merge / file change)
+# ============================================================
+
+
+def enqueue_reconciler_for_files(file_paths: list[str], dry_run: bool = False) -> dict:
+    """Event-driven trigger: enqueue reconciler for specific files.
+
+    Call this after a PR merge, file write, or engine fix to immediately
+    re-validate findings in the changed files instead of waiting for the
+    hourly batch. This dramatically reduces the "stale finding" window.
+
+    Args:
+        file_paths: List of file paths (relative to repo root) to re-validate.
+        dry_run: If True, report what would be closed without writing.
+
+    Returns:
+        Stats dict with closed/still_present counts for the given files.
+    """
+    stats = {
+        "examined": 0,
+        "stale": 0,
+        "still_present": 0,
+        "unverifiable": 0,
+        "unreadable": 0,
+        "closed": 0,
+        "dry_run": dry_run,
+        "samples": [],
+    }
+
+    # Normalize file paths
+    normalized = [fp.lstrip("./") for fp in file_paths if fp]
+    if not normalized:
+        return stats
+
+    placeholders = ",".join(["%s"] * len(normalized))
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            f"""SELECT id, file_path, message, line_number
+               FROM code_issues
+               WHERE status = 'open'
+                 AND file_path IS NOT NULL
+                 AND file_path IN ({placeholders})""",
+            tuple(normalized),
+        )
+        rows = cur.fetchall()
+
+    if not rows:
+        return stats
+
+    cache: dict = {}
+    to_close: list = []
+
+    for row in rows:
+        stats["examined"] += 1
+        fp = row["file_path"]
+        if fp not in cache:
+            cache[fp] = _read_source(fp)
+        text, reason = cache[fp]
+        if text is None:
+            stats["unreadable"] += 1
+            continue
+        verdict = finding_still_reproduces(row["message"] or "", text, row.get("line_number"))
+        if verdict is None:
+            stats["unverifiable"] += 1
+        elif verdict:
+            stats["still_present"] += 1
+        else:
+            stats["stale"] += 1
+            to_close.append(row["id"])
+            if len(stats["samples"]) < 5:
+                stats["samples"].append(
+                    {"id": row["id"], "file": fp, "line": row["line_number"], "message": (row["message"] or "")[:70]}
+                )
+
+    if to_close and not dry_run:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE code_issues
+                   SET status = %s, fixed_by = 'reconciler', fixed_at = NOW()
+                   WHERE id = ANY(%s) AND status = 'open'""",
+                (RESOLVED_STALE, to_close),
+            )
+            stats["closed"] = cur.rowcount
+        logger.info(
+            "[code-issue-reconciler:event] closed %d stale finding(s) of %d examined for files: %s",
+            stats["closed"],
+            stats["examined"],
+            ", ".join(normalized),
+        )
+    else:
+        logger.info(
+            "[code-issue-reconciler:event] dry-run: %d stale / %d examined (%d still present, %d unverifiable)",
+            stats.get("stale", 0),
+            stats["examined"],
+            stats["still_present"],
+            stats["unverifiable"],
+        )
+    return stats
+
+
+def reconcile_open_issues_for_files(file_paths: list[str], dry_run: bool = True) -> dict:
+    """Convenience wrapper for manual/CLI use: run reconciler on specific files.
+
+    Unlike enqueue_reconciler_for_files, this uses the same batch logic as the
+    hourly job but restricted to the given file paths. Useful for CLI/debug.
+    """
+    return enqueue_reconciler_for_files(file_paths, dry_run=dry_run)

@@ -26,6 +26,7 @@ from .github_routes import (
     _get_github_headers,
     _check_rate_limit,
     _notify_ingestion_complete,
+    _queue_github_postprocessing,
     _reindex_repo_via_tree,
     run_reindex_background,
     MAX_FILE_SIZE,
@@ -86,6 +87,7 @@ def register_github_repo_routes(bp, admin_required):
         repo_url = data.get("repo_url", "").strip()
         paths = data.get("paths", [])
         priority = data.get("priority", "high")  # high, medium, low
+        requested_repo_type = (data.get("repo_type") or "").strip()
         req_max_files = data.get("max_files")  # per-repo cap override
         if req_max_files is not None:
             req_max_files = int(req_max_files)
@@ -123,7 +125,7 @@ def register_github_repo_routes(bp, admin_required):
                     (f"%{owner}/{repo}%",),
                 )
                 row = cur.fetchone()
-                repo_type = row["repo_type"] if row else repo.lower()
+                repo_type = requested_repo_type or (row["repo_type"] if row else repo.lower())
                 # Use request max_files > DB max_files > global default
                 effective_max = (
                     req_max_files
@@ -313,6 +315,7 @@ def register_github_repo_routes(bp, admin_required):
                         paths.append(item.get("path", ""))
 
             conn.commit()
+            postprocessing = _queue_github_postprocessing(f"{owner}/{repo}")
 
             # Telegram notification — tell Kytran what ARCHIE just learned
             try:
@@ -331,6 +334,7 @@ def register_github_repo_routes(bp, admin_required):
                     "repo": f"{owner}/{repo}",
                     "priority": priority,
                     "errors": errors if errors else None,
+                    "postprocessing": postprocessing,
                 }
             )
 
@@ -801,14 +805,16 @@ def register_github_repo_routes(bp, admin_required):
         try:
             from .memory_service import semantic_search
 
-            results = semantic_search(query, source_types=["knowledge_base"], limit=limit, min_similarity=0.5)
+            results = semantic_search(query, source_types=["github_file"], limit=limit, min_similarity=0.5)
 
-            # Filter to github files only
-            github_results = [
-                r
-                for r in results
-                if r.get("knowledge_type") == "github_file" or r.get("source_type") == "github_selective"
-            ]
+            github_results = []
+            for result in results:
+                title = result.get("title") or ""
+                repo_name, separator, repo_path = title.partition(": ")
+                result["file_path"] = f"{repo_name}/{repo_path}" if separator else title
+                result["repo_name"] = repo_name if separator else None
+                result["snippet"] = result.get("content", "")
+                github_results.append(result)
 
             return jsonify({"success": True, "results": github_results, "count": len(github_results)})
 

@@ -1880,6 +1880,12 @@ def ollama_lifecycle_telemetry():
         snap = snapshot_ollama_lifecycle()
         expired = snap.get("expired_still_loaded", [])
 
+        # #5273/#6106: persist ACTUAL residency (size_vram per model) so it can be compared with
+        # model_placement_log's decision. Never raises; warns if a sample is dropped.
+        from services.residency_sampler import record_samples
+
+        record_samples(snap)
+
         if expired:
             from db import get_db
             from psycopg2.extras import RealDictCursor

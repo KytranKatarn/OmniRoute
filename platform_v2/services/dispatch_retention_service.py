@@ -98,6 +98,11 @@ DEFAULTS = {
     # try/except — so a missing default is a KeyError that aborts retention for
     # EVERY table, not just this one. test_dispatch_retention pins the pairing.
     "model_placement_log_keep_days": 30,
+    # model_residency_samples (#5273/#6106): actual /api/ps residency, ~1.7k rows/day.
+    # 30d to match model_placement_log, since the two are joined to compare intent vs outcome.
+    # Same MANDATORY pairing as above: _TABLES + this default + _PS_KEYS, or retention aborts
+    # for every table.
+    "model_residency_samples_keep_days": 30,
     "batch_size": 5000,
 }
 
@@ -109,6 +114,7 @@ _PS_KEYS = {
     "retention:autonomy_loop_log:keep_days": "autonomy_loop_log_keep_days",
     "retention:governance_audit_log:keep_days": "governance_audit_log_keep_days",
     "retention:model_placement_log:keep_days": "model_placement_log_keep_days",
+    "retention:model_residency_samples:keep_days": "model_residency_samples_keep_days",
     "retention:batch_size": "batch_size",
 }
 
@@ -156,6 +162,11 @@ _TABLES = {
         "age_col": "created_at",
         "statuses": None,
         "keep_key": "model_placement_log_keep_days",
+    },
+    "model_residency_samples": {
+        "age_col": "sampled_at",
+        "statuses": None,
+        "keep_key": "model_residency_samples_keep_days",
     },
 }
 

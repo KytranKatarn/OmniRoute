@@ -192,11 +192,13 @@
       <p>V.E.R.I.F.Y. analyzes selected articles and extracts verifiable factual claims. Each claim can receive a verdict:</p>
       <ul>
         <li><strong>verified</strong> — the automated assessment judged the claim supported by available context; this is not independent proof</li>
+        <li><strong>mostly_true</strong> — the claim is attributed and consistent with the rest of the article; weaker than verified, and still not independent proof</li>
         <li><strong>mixed</strong> — the assessment found partial support or missing context</li>
         <li><strong>disputed</strong> — the assessment found a conflict with available context</li>
         <li><strong>unverifiable</strong> — the assessment could not verify the specific claim from its available context</li>
         <li><strong>descriptive_reporting</strong> — no specific factual assertion was identified. This is not a quality judgment.</li>
       </ul>
+      <p><strong>Two passes record claims.</strong> A quick pass with a small model extracts claims and records them as <em>unverified</em>; it does not check them. Only the deeper pass assigns the verdicts above, and only to articles selected by gate rules (for example a strong left or right result in the quick pass, long article text, or a large story cluster). Because article length counts toward selection, articles from outlets that publish only a headline or snippet qualify less often. Read “unverified” on a quick-pass claim as “not checked”, not as a finding about the claim.</p>
       <p>Automated verdicts can be wrong or out of date and should not be treated as independent proof. Follow the cited reporting and primary sources; the article page indicates which signals are available.</p>
     </div>
   </div>

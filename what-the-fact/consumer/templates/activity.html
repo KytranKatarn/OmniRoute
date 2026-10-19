@@ -122,11 +122,11 @@
   {% set rows = [
     ('F.A.C.T.', 'fact', 'Articles ingested', stats.fact_ingested, n, '+{:,} in last 24h'.format(stats.articles_24h)),
     ('B.I.A.S.', 'bias', 'Bias scored', stats.bias_scored, n, ''),
-    ('V.E.R.I.F.Y.', 'verify', 'Fact-checked', stats.fact_checked_articles, n, '⚠ Priority only ({:,} claim rows)'.format(stats.fact_checked)),
+    ('V.E.R.I.F.Y.', 'verify', 'Has fact-check rows', stats.fact_checked_articles, n, '⚠ Most are quick-pass claims, extracted not verified ({:,} claim rows)'.format(stats.fact_checked)),
     ('L.O.C.A.L.', 'local', 'Geo-mapped', stats.geo_mapped, n, '⚠ Only location-detectable'),
     ('D.R.A.F.T.', 'draft', 'Stories summarized', stats.draft_summarized, stats.ink_clustered, '(of clusters)'),
     ('I.N.K.', 'ink', 'Articles clustered', stats.ink_articles_clustered, n, '({:,} clusters · {:,} >30d outside window)'.format(stats.ink_clustered, n - stats.ink_articles_clustered)),
-    ('LLM Analyzed', 'fact', 'Full AI analysis', stats.llm_analyzed, n, '+{:,} in last hour'.format(stats.llm_analyzed_1h)),
+    ('LLM Analyzed', 'fact', 'Any AI analysis (quick or full)', stats.llm_analyzed, n, '+{:,} in last hour'.format(stats.llm_analyzed_1h)),
   ] %}
   <div class="wtf-act-agentgrid">
     {% for agent, cls, label, done, total_ref, note in rows %}

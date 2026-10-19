@@ -2791,13 +2791,23 @@ def _newsroom_agents(S):
 # The window self-heals: once a column is older than 24h, GREATEST() pins the
 # start at the 24h boundary, `partial` goes False and the caveat disappears
 # without anyone editing this.
+#
+# ⚠️ LABELS MUST SAY WHAT THE QUERY COUNTS (#7328 review, 2026-10-19). Each of these used to
+# claim more than its source table measures:
+#   F.A.C.T.    counts EVERY audit_trail row (no event_type filter) - not "verdicts".
+#   V.E.R.I.F.Y. counts claim ROWS, and ~2/3 of them are quick-pass rows (analysis_tier
+#               'quick_v1') that are 100% 'unverified' - claims extracted, NOT checked.
+#   L.O.C.A.L.  counts geo_processed_at, which is stamped on every write incl. 'unmappable'.
+#   I.N.K.      was `articles.ingested_at` (a second "articles ingested" beside F.A.C.T.),
+#               while its event-feed rows are story_clusters and /methodology says
+#               clustering is algorithmic. It now reads story_clusters, like its feed.
 _AGENT_SOURCES = (
-    ("F.A.C.T.", "audit_trail", "created_at", "verdicts recorded"),
-    ("V.E.R.I.F.Y.", "fact_checks", "checked_at", "claims checked"),
+    ("F.A.C.T.", "audit_trail", "created_at", "audit events recorded"),
+    ("V.E.R.I.F.Y.", "fact_checks", "checked_at", "claim rows recorded (quick + full)"),
     ("B.I.A.S.", "bias_scores", "computed_at", "articles scored"),
     ("D.R.A.F.T.", "summaries", "created_at", "summaries written"),
-    ("I.N.K.", "articles", "ingested_at", "articles ingested"),
-    ("L.O.C.A.L.", "articles", "geo_processed_at", "articles placed"),
+    ("I.N.K.", "story_clusters", "created_at", "clusters formed"),
+    ("L.O.C.A.L.", "articles", "geo_processed_at", "geo lookups finished (incl. unmappable)"),
 )
 
 

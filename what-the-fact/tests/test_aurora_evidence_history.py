@@ -315,6 +315,156 @@ def test_firms_missing_map_key_is_disabled_without_database_access(
     }
 
 
+def test_firms_dated_capture_preserves_day_and_redacts_key(monkeypatch):
+    class _Engine:
+        def __init__(self):
+            self.connection = _Connection()
+
+        def begin(self):
+            return _EvidenceTransaction(self.connection)
+
+    csv_body = (
+        "latitude,longitude,acq_date,acq_time,satellite,confidence,frp\n"
+        "52.8,-110.2,2026-10-17,2217,N,nominal,6.2\n"
+    )
+    requests = []
+
+    def fake_fetch(product, area, map_key, observation_date):
+        requests.append((product, area, map_key, observation_date))
+        return csv_body
+
+    monkeypatch.setattr(firms_ingest, "_fetch_product", fake_fetch)
+    engine = _Engine()
+    result = run_firms_capture(
+        engine,
+        map_key="test-secret-map-key",
+        area="-111,52,-110,53",
+        observation_date="2026-10-17",
+    )
+
+    assert result["fetched"] == 5
+    assert result["upserted"] == 1
+    assert len(requests) == 5
+    assert all(
+        request[1:] == (
+            "-111.0,52.0,-110.0,53.0",
+            "test-secret-map-key",
+            "2026-10-17",
+        )
+        for request in requests
+    )
+    run_params = engine.connection.calls[0][1]
+    assert "2026-10-17" in run_params["source_url"]
+    assert "test-secret-map-key" not in run_params["source_url"]
+    stored = json.loads(engine.connection.calls[1][1]["records"])[0]
+    assert "2026-10-17" in stored["source_url"]
+    assert "test-secret-map-key" not in stored["source_url"]
+    assert stored["source_observed_at"] == "2026-10-17 22:17:00+00:00"
+
+
+def test_firms_rejects_invalid_and_future_observation_dates(monkeypatch):
+    calls = []
+
+    def unexpected_fetch(*_args):
+        calls.append("called")
+        return ""
+
+    monkeypatch.setattr(firms_ingest, "_fetch_product", unexpected_fetch)
+    for invalid_date in ("2026-2-7", "not-a-date", "2999-01-01"):
+        with pytest.raises(ValueError, match="observation_date"):
+            run_firms_capture(
+                None,
+                dry_run=True,
+                map_key="test-key",
+                observation_date=invalid_date,
+            )
+    assert calls == []
+
+
+def test_firms_dated_request_uses_nasa_area_route(monkeypatch):
+    requested = []
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b"latitude,longitude\n"
+
+    def fake_urlopen(request, timeout):
+        requested.append((request.full_url, timeout))
+        return _Response()
+
+    monkeypatch.setattr(firms_ingest.urllib.request, "urlopen", fake_urlopen)
+    firms_ingest._fetch_product(
+        "VIIRS_NOAA20_NRT", "-111,52,-110,53", "test-key", "2026-10-17"
+    )
+    assert requested[0][0].endswith(
+        "/VIIRS_NOAA20_NRT/-111,52,-110,53/1/2026-10-17"
+    )
+    assert requested[0][1] == firms_ingest._TIMEOUT
+
+
+def test_firms_backfill_cli_defaults_to_no_database_writes(monkeypatch, capsys):
+    calls = []
+    monkeypatch.setenv("NASA_FIRMS_MAP_KEY", "test-secret-map-key")
+    monkeypatch.delenv("WTF_DATABASE_URL", raising=False)
+    monkeypatch.setattr(
+        firms_ingest,
+        "run_firms_capture",
+        lambda engine, **kwargs: calls.append((engine, kwargs))
+        or {"products": 5, "fetched": 0},
+    )
+    result = firms_ingest.main(
+        ["--date", "2026-10-17", "--area=-111,52,-110,53"]
+    )
+
+    assert result == 0
+    assert calls == [
+        (
+            None,
+            {
+                "dry_run": True,
+                "observation_date": "2026-10-17",
+                "area": "-111.0,52.0,-110.0,53.0",
+            },
+        )
+    ]
+    assert "test-secret-map-key" not in capsys.readouterr().out
+
+
+def test_firms_failed_dated_capture_records_redacted_attempt(monkeypatch):
+    class _Engine:
+        def __init__(self):
+            self.connection = _Connection()
+
+        def begin(self):
+            return _EvidenceTransaction(self.connection)
+
+    monkeypatch.setenv("NASA_FIRMS_MAP_KEY", "test-secret-map-key")
+
+    def fail_fetch(*_args):
+        raise RuntimeError("request failed")
+
+    monkeypatch.setattr(firms_ingest, "_fetch_product", fail_fetch)
+    monkeypatch.setattr(firms_ingest, "_heartbeat", lambda *_args: None)
+    engine = _Engine()
+    result = firms_ingest.run_aurora_firms_capture(
+        engine,
+        observation_date="2026-10-17",
+        area="-111,52,-110,53",
+    )
+
+    assert result == {"error": "NASA FIRMS capture failed (RuntimeError)"}
+    params = engine.connection.calls[0][1]
+    assert "2026-10-17" in params["source_url"]
+    assert "MAP_KEY_REDACTED" in params["source_url"]
+    assert "test-secret-map-key" not in params["source_url"]
+
+
 def test_evidence_cutoff_requires_timezone_and_normalizes_to_utc():
     assert _parse_evidence_timestamp("2026-10-17T16:00:00-06:00") == datetime(
         2026, 10, 17, 22, 0, tzinfo=timezone.utc

@@ -67,6 +67,22 @@ incident work must use the FIRMS archive/download workflow and preserve its
 product/version metadata separately; do not present a current API query as a
 historical backfill.
 
+For a one-off dated query, the CLI defaults to dry-run and makes no database
+writes. Run it only in a controlled ingest environment after the MAP_KEY is
+provisioned:
+
+```bash
+FIRMS_BBOX='west,south,east,north'  # validated study-area bounds
+python -m ingest.weather.firms --date 2026-10-17 --area="$FIRMS_BBOX"
+```
+
+Review the returned per-product counts before persisting. Add `--apply` only
+after confirming the database target and obtaining owner authorization; it
+writes one capture-run and its source-point records. The requested date is
+included in the redacted source URL, while the MAP_KEY is excluded from output
+and stored URLs. Product availability determines whether records are returned;
+older records should use the FIRMS archive workflow.
+
 ## Validation
 
 From `what-the-fact/`:

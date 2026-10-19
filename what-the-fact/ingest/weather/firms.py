@@ -4,12 +4,14 @@ The collector is optional until NASA_FIRMS_MAP_KEY is configured. It never
 labels a thermal anomaly as a confirmed fire and stores source rows verbatim.
 """
 
+import argparse
 import csv
 import datetime
 import io
 import json
 import logging
 import os
+import sys
 import urllib.parse
 import urllib.request
 
@@ -28,9 +30,9 @@ _PRODUCTS = (
 )
 
 
-def _area():
+def _area(value=None):
     """Return validated NASA bbox string (west,south,east,north)."""
-    raw = os.environ.get("AURORA_FIRMS_AREA", "-141,41,-52,84")
+    raw = value or os.environ.get("AURORA_FIRMS_AREA", "-141,41,-52,84")
     parts = raw.split(",")
     if len(parts) != 4:
         raise ValueError("AURORA_FIRMS_AREA must be west,south,east,north")
@@ -41,7 +43,14 @@ def _area():
     return ",".join(str(value) for value in values)
 
 
-def _fetch_product(product, area, map_key):
+def _safe_source_url(area, observation_date=None, product="<product>"):
+    date_suffix = "/%s" % observation_date if observation_date else ""
+    return "%s/[MAP_KEY_REDACTED]/%s/%s/1%s" % (
+        _API, product, area, date_suffix
+    )
+
+
+def _fetch_product(product, area, map_key, observation_date=None):
     # MAP_KEY is required in the request path; it is never returned, logged,
     # stored in source_url, or included in exception messages.
     encoded_area = urllib.parse.quote(area, safe=",")
@@ -51,6 +60,8 @@ def _fetch_product(product, area, map_key):
         product,
         encoded_area,
     )
+    if observation_date:
+        url += "/%s" % observation_date
     req = urllib.request.Request(
         url,
         headers={
@@ -123,21 +134,39 @@ def parse_csv_records(product, body):
     return records
 
 
-def run_firms_capture(engine, *, dry_run=False, map_key=None):
-    """Capture current products; missing key is an explicit disabled state."""
+def _validated_observation_date(value):
+    """Validate an optional NASA API acquisition-date query (UTC calendar day)."""
+    if value is None:
+        return None
+    try:
+        parsed = datetime.date.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        raise ValueError("observation_date must use YYYY-MM-DD") from None
+    if parsed.isoformat() != str(value):
+        raise ValueError("observation_date must use YYYY-MM-DD")
+    if parsed > datetime.datetime.now(datetime.timezone.utc).date():
+        raise ValueError("observation_date cannot be in the future")
+    return parsed.isoformat()
+
+
+def run_firms_capture(
+    engine, *, dry_run=False, map_key=None, observation_date=None, area=None
+):
+    """Capture current or explicitly dated product records without losing provenance."""
     map_key = map_key or os.environ.get("NASA_FIRMS_MAP_KEY")
     if not map_key:
         return {
             "disabled": True,
             "reason": "NASA_FIRMS_MAP_KEY is not configured",
         }
+    observation_date = _validated_observation_date(observation_date)
     started_at = datetime.datetime.now(datetime.timezone.utc)
-    area = _area()
+    area = _area(area)
     total = 0
     captures = []
     per_product = {}
     for product in _PRODUCTS:
-        body = _fetch_product(product, area, map_key)
+        body = _fetch_product(product, area, map_key, observation_date)
         records = parse_csv_records(product, body)
         per_product[product] = len(records)
         total += len(records)
@@ -149,12 +178,10 @@ def run_firms_capture(engine, *, dry_run=False, map_key=None):
     }
     if dry_run:
         return result
-    safe_url = "%s/[MAP_KEY_REDACTED]/<product>/%s/1" % (_API, area)
+    safe_url = _safe_source_url(area, observation_date)
     for record in captures:
-        record["source_url"] = "%s/[MAP_KEY_REDACTED]/%s/%s/1" % (
-            _API,
-            record["payload"]["product"],
-            area,
+        record["source_url"] = _safe_source_url(
+            area, observation_date, record["payload"]["product"]
         )
     with engine.begin() as conn:
         capture_stats = capture_source_records(
@@ -168,18 +195,26 @@ def run_firms_capture(engine, *, dry_run=False, map_key=None):
     return result
 
 
-def run_aurora_firms_capture(engine, *, dry_run=False):
+def run_aurora_firms_capture(
+    engine, *, dry_run=False, observation_date=None, area=None
+):
     """Scheduled fail-loud wrapper; skip heartbeat while source is disabled."""
     started_at = datetime.datetime.now(datetime.timezone.utc)
+    safe_url = _safe_source_url(_area(area), observation_date)
     try:
-        result = run_firms_capture(engine, dry_run=dry_run)
+        result = run_firms_capture(
+            engine,
+            dry_run=dry_run,
+            observation_date=observation_date,
+            area=area,
+        )
         if not dry_run and not result.get("disabled"):
             if result.get("error"):
                 try:
                     with engine.begin() as conn:
                         record_capture_failure(
                             conn, dataset_key="nasa_firms_point",
-                            source_url="%s/[MAP_KEY_REDACTED]/<product>/<area>/1" % _API,
+                            source_url=safe_url,
                             started_at=started_at,
                         )
                 except Exception:  # noqa: BLE001 — heartbeat still records failure
@@ -193,10 +228,65 @@ def run_aurora_firms_capture(engine, *, dry_run=False):
                 with engine.begin() as conn:
                     record_capture_failure(
                         conn, dataset_key="nasa_firms_point",
-                        source_url="%s/[MAP_KEY_REDACTED]/<product>/<area>/1" % _API,
+                        source_url=safe_url,
                         started_at=started_at,
                     )
             except Exception:  # noqa: BLE001 — heartbeat still records failure
                 logger.exception("aurora_firms failed run could not be persisted")
             _heartbeat(engine, "aurora_firms", {}, exc)
-        return {"error": str(exc)}
+        return {"error": "NASA FIRMS capture failed (%s)" % type(exc).__name__}
+
+
+def main(argv=None):
+    """Explicit dated retrieval; dry-run by default, --apply persists evidence."""
+    parser = argparse.ArgumentParser(description="Fetch dated NASA FIRMS evidence")
+    parser.add_argument("--date", required=True, help="NASA acquisition day (YYYY-MM-DD)")
+    parser.add_argument(
+        "--area", help="west,south,east,north (defaults to AURORA_FIRMS_AREA)"
+    )
+    parser.add_argument(
+        "--apply", action="store_true", help="persist records (default: dry run)"
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        requested_date = _validated_observation_date(args.date)
+        requested_area = _area(args.area)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    if not os.environ.get("NASA_FIRMS_MAP_KEY"):
+        print(json.dumps({"disabled": True, "reason": "NASA_FIRMS_MAP_KEY is not configured"}))
+        return 2
+
+    engine = None
+    if args.apply:
+        database_url = os.environ.get("WTF_DATABASE_URL")
+        if not database_url:
+            parser.error("WTF_DATABASE_URL is required with --apply")
+        engine = create_engine(database_url, pool_pre_ping=True)
+    try:
+        if args.apply:
+            result = run_aurora_firms_capture(
+                engine, observation_date=requested_date, area=requested_area
+            )
+        else:
+            result = run_firms_capture(
+                None,
+                dry_run=True,
+                observation_date=requested_date,
+                area=requested_area,
+            )
+    except Exception as exc:  # noqa: BLE001 — avoid printing URLs or source payloads
+        print(json.dumps({"error": "dated FIRMS capture failed (%s)" % type(exc).__name__}))
+        return 1
+    finally:
+        if engine is not None:
+            engine.dispose()
+
+    print(json.dumps(result, sort_keys=True))
+    return 1 if result.get("error") else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

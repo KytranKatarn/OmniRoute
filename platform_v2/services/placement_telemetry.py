@@ -32,7 +32,7 @@ rows per model. A raw count understates the impact badly.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,8 @@ REASONS = (
     "budget_fit",  # budget >= needed
     "budget_short",  # budget < needed
     "vram_unknown",  # exception path — placement was GUESSING
+    # Per-card branch (gpu_placement.plan_gpu_placement) writes "percard_<plan.reason>"
+    # (e.g. percard_fits_reserve_intact), with card_index + cards_free_gb set.
 )
 
 
@@ -58,6 +60,8 @@ def record_placement(
     resident_vram_gb: Optional[float] = None,
     node_name: Optional[str] = None,
     detail: Optional[str] = None,
+    card_index: Optional[int] = None,
+    cards_free_gb: Optional[Sequence[float]] = None,
 ) -> None:
     """Append one placement decision to ``model_placement_log``. Never raises.
 
@@ -90,8 +94,9 @@ def record_placement(
                 """
                 INSERT INTO model_placement_log
                     (model, decision, reason, budget_gb, needed_gb,
-                     resident_vram_gb, node_name, detail)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                     resident_vram_gb, node_name, detail,
+                     card_index, cards_free_gb)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     model,
@@ -102,6 +107,8 @@ def record_placement(
                     resident_vram_gb,
                     node_name,
                     detail,
+                    card_index,
+                    list(cards_free_gb) if cards_free_gb is not None else None,
                 ),
             )
     except Exception as exc:  # never break placement — but never go quiet either

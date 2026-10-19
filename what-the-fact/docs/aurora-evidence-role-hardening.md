@@ -11,6 +11,13 @@ same database connection used for its other WTF data. A migration-only revoke,
 trigger, or role grant would therefore give a false assurance while that
 runtime identity remains privileged.
 
+Read-only verification against the live Citadel PostgreSQL service on
+2026-10-19 confirmed that the checked connection was `wtfuser` and that its
+role flags include superuser, create-role, create-database, and replication
+privileges. The role inventory query found no separate `wtf*` login roles.
+Migration 106's ACL changes therefore do not constrain the live account. No
+production settings or data were changed during this verification.
+
 This is a security boundary that needs a coordinated database and runtime
 change. This repository lane does not own the production environment file,
 Docker Compose configuration, credentials, or deployment, so this document
@@ -23,14 +30,21 @@ does not claim that the production writer has been restricted.
 - A non-login `wtf_evidence_writer` role has `SELECT` and `INSERT` only, plus
   sequence usage needed by the two generated IDs. It has no ownership,
   schema-creation, role-management, or database-management rights.
-- Dedicated non-superuser login roles inherit the reader or writer grants.
-  The ingest service uses the writer login for capture-run and source-version
-  writes; the consumer uses the reader login. Other WTF database operations
-  continue to use their existing connection until a separately reviewed
-  least-privilege plan covers those tables.
-- Evidence writes use a separate connection pool/configuration so the
-  evidence writer login is actually used for these writes. Reusing the
-  existing superuser connection would defeat the boundary.
+- Dedicated non-superuser login roles inherit narrowly scoped service roles.
+  Build a table/sequence/function privilege matrix from the SQL each service
+  actually executes before assigning grants. At minimum, keep the ingest,
+  consumer, and tech services on separate credentials; consumer may need
+  narrowly scoped writes for user-facing state, while tech should be read-only
+  where its routes permit. Do not infer grants from service names alone.
+- Do not leave the current superuser `WTF_DATABASE_URL` in any long-running
+  application container. A separate evidence pool does not protect against a
+  process compromise if that same process can still read and use the
+  superuser URL. Migrations and administrative scripts must use a separate,
+  operator-controlled credential absent from runtime containers.
+- Give the evidence tables a non-login owner and grant the evidence writer
+  role only `SELECT`/`INSERT` plus the needed sequence privileges; grant the
+  evidence reader `SELECT` only. This is one part of the service-level split,
+  not a substitute for removing superuser credentials from app processes.
 - The primary database superuser remains a trusted administrator and can
   change records by definition. The control here limits application-service
   compromise; it does not claim to make evidence tamper-proof against a
@@ -39,30 +53,37 @@ does not claim that the production writer has been restricted.
 
 ## Required implementation and cutover sequence
 
-1. Confirm the exact runtime database roles and grants from the running WTF
-   PostgreSQL instance. Record role attributes, table ownership, table ACLs,
-   sequence ACLs, and which services currently use each connection. Do not
-   print connection URLs or passwords.
-2. Add a guarded, idempotent migration for the role grants and ownership
-   transfer. Rehearse it against a disposable PostgreSQL instance, including
-   negative tests proving the writer cannot update, delete, truncate, alter,
-   or drop evidence tables, while it can insert and the reader can select.
-3. Add a separately configured evidence read/write connection in the
-   application. Fail startup or collector initialization clearly if the
-   evidence writer URL is absent; never silently fall back to the privileged
-   general WTF connection.
-4. Provision unique random credentials through the host's approved secret
-   mechanism. Do not commit them, put them in migration files, or pass them as
-   command-line arguments.
-5. Back up the WTF database, apply the reviewed migration, deploy the runtime
-   connection change, and verify the actual running service's
-   `current_user`, `rolsuper`, and `has_table_privilege` results without
-   exposing credentials. Verify captures still work and forbidden writes fail
-   when attempted in a rollback-only transaction.
-6. Keep supervised data capture unchanged if any step fails. Revert the
-   application to its previous image/configuration and restore the prior role
-   grants/ownership from the reviewed down procedure. Do not drop evidence
-   tables or delete captured evidence during rollback.
+1. Inventory the actual connection identity of every live WTF service and
+   administrative job. Record role attributes, table owners, table/sequence
+   ACLs, and query-level read/write needs. Never print connection URLs or
+   passwords. The 2026-10-19 baseline is that the checked runtime connection is
+   `wtfuser`, a superuser; verify each service independently before cutover.
+2. Create a least-privilege matrix for `wtf-ingest`, `wtf-consumer`, and
+   `wtf-tech`, plus a separate migration/admin path. Test every required read,
+   insert, update, delete, sequence, and function operation in a disposable
+   copy before writing any production migration.
+3. Add an idempotent, guarded migration for non-login owners/group roles,
+   per-service grants, and evidence-table ownership. Rehearse against a
+   disposable PostgreSQL instance. Negative tests must prove runtime roles
+   cannot manage roles/databases, alter/drop evidence tables, or mutate
+   append-only evidence, while required application operations still work.
+4. Update application configuration to use distinct credentials per service
+   and an operator-only migration credential. No runtime container may retain
+   the old superuser URL as a fallback. Fail closed when a required restricted
+   URL is missing; do not silently fall back to the privileged connection.
+5. Provision unique credentials through the host's approved secret mechanism.
+   Do not commit them, place them in migration files, put them in URLs in logs,
+   or pass them as command-line arguments.
+6. Before cutover, take and verify a WTF database backup and confirm a tested
+   restore path. Apply the reviewed migration, roll out one service at a time,
+   and verify each running process's `current_user`, `rolsuper`, and
+   `has_table_privilege` results without exposing credentials. Exercise
+   required reads/writes and prove denied writes fail in rollback-only tests.
+7. Keep a separately controlled break-glass admin credential for operators.
+   If a service fails, roll that service back to its prior image and restore
+   only its previous runtime configuration under operator control. Do not put
+   the privileged credential back into a long-running app container, and do not
+   drop evidence tables or delete captured evidence as rollback.
 
 ## Validation and rollback requirements
 

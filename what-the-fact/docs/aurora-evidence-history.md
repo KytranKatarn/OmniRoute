@@ -32,6 +32,41 @@ by NRT processing or removed after six hours, so near-real-time versions must
 be retained when observed. The API's detection timestamp is acquisition time,
 not publication or agency receipt time.
 
+### FIRMS activation checklist
+
+The current collector makes one Area API request per listed product per
+scheduled run, currently five products once per hour: `VIIRS_NOAA20_NRT`,
+`VIIRS_NOAA21_NRT`, `VIIRS_SNPP_NRT`, `MODIS_NRT`, and `LANDSAT_NRT`.
+NASA's current Area API lists these source identifiers, limits the day range
+to 1–5 days per request, and requires a MAP_KEY. At five requests per hourly
+run, this is about 120 requests/day before retries; NASA currently documents a
+limit of 5,000 transactions per 10 minutes. Re-check NASA's API page before
+changing cadence or adding products.
+
+1. Request the key from NASA FIRMS using the official MAP_KEY form.
+2. Have the host operator inject it as `NASA_FIRMS_MAP_KEY` through the
+   approved secret mechanism into **wtf-ingest only**. Do not put it in a
+   repository, image, URL, command argument, terminal transcript, or consumer
+   or tech service configuration. This repository does not own that host
+   secret/configuration path.
+3. Before enabling scheduled writes, run the collector's `dry_run=True` path
+   inside a controlled ingest environment with the provisioned secret. It
+   makes requests but does not write to PostgreSQL. Confirm the result reports
+   all five products and plausible per-product counts; never print the key.
+4. After an owner-approved activation, verify the live collector's
+   `aurora_firms` heartbeat and `nasa_firms_point` capture-run row, then confirm
+   source URLs are redacted and detection rows preserve UTC acquisition time,
+   native attributes, product name, and thermal-anomaly evidence class.
+5. Keep failures visible: a configured key makes `aurora_firms` required by
+   the drift guard. A missing key intentionally leaves the optional collector
+   disabled and does not claim that no detections occurred.
+
+The scheduled Area API collector only requests the latest day. It cannot
+recover an incident from earlier dates after key provisioning. Historical
+incident work must use the FIRMS archive/download workflow and preserve its
+product/version metadata separately; do not present a current API query as a
+historical backfill.
+
 ## Validation
 
 From `what-the-fact/`:

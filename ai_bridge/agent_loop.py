@@ -4312,7 +4312,9 @@ class AgentLoop:
                         # option-omitting warm request (#5328) — unload it so the
                         # warm below fresh-loads onto the card.
                         svc = get_model_service()
-                        if svc.resident_vram_gb(model) == 0.0:
+                        # should_migrate_stranded skips CPU-by-Modelfile models (the coordinator)
+                        # and needs 2 consecutive zero-VRAM cycles before unloading (#6106).
+                        if svc.should_migrate_stranded(model):
                             logger.info(
                                 "[Agent Loop] Cluster keep-warm: %s CPU-stranded while GPU-eligible — unloading to migrate",
                                 model,

@@ -239,9 +239,12 @@ def test_keepwarm_unloads_a_cpu_stranded_gpu_eligible_model():
     if repo is None:
         pytest.skip("ai_bridge/agent_loop.py not reachable from this checkout or mount")
     src = (repo / "ai_bridge" / "agent_loop.py").read_text()
-    assert "resident_vram_gb(model) == 0.0" in src
+    # #6106: the bare `resident_vram_gb(model) == 0.0` became should_migrate_stranded(), which
+    # also skips Modelfile-CPU-pinned models and needs consecutive zero readings
+    # (see test_keepwarm_stranded_guards.py for the behaviour).
+    assert "should_migrate_stranded(model)" in src
     assert "unload_model(model)" in src
-    assert src.index("hub_gpu_placement(model)") < src.index("resident_vram_gb(model) == 0.0")
+    assert src.index("hub_gpu_placement(model)") < src.index("should_migrate_stranded(model)")
 
 
 def test_capacity_numbers_are_env_overridable(monkeypatch):

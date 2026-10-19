@@ -635,6 +635,65 @@ class ModelService:
                 return m.get("size_vram", 0) / (1024**3)
         return None
 
+    # Keep-warm stranded-migration guards (#6106). The migration unloads a live runner, so a
+    # wrong "stranded" verdict is not a no-op: it cold-loads a model that is serving traffic.
+    _MODELFILE_PIN_TTL_S = 3600
+    _STRANDED_STRIKES_NEEDED = 2
+
+    def is_cpu_pinned_by_modelfile(self, model: str) -> bool:
+        """True when *model*'s Modelfile pins ``num_gpu 0`` (CPU by design).
+
+        Such a model is ALWAYS resident with 0 VRAM, so ``resident_vram_gb == 0.0`` says
+        nothing about stranding. ``qwen25-classify`` (the coordinator model) is one: the
+        keep-warm "migrated" it 54x/24h, each time unloading a runner that was serving
+        ~850 dispatches/day and forcing a cold load (one warm took 339s).
+
+        FAILS TOWARD TRUE: if ``/api/show`` cannot be read we do not know, and the
+        destructive act (unload) is the one to withhold. Errors are not cached.
+        """
+        cache = self.__dict__.setdefault("_modelfile_pin_cache", {})
+        hit = cache.get(model)
+        if hit and (time.time() - hit[0]) < self._MODELFILE_PIN_TTL_S:
+            return hit[1]
+        try:
+            req = urllib.request.Request(
+                f"{self.ollama_host}/api/show",
+                data=json.dumps({"model": model}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                params = json.loads(resp.read()).get("parameters") or ""
+        except Exception as exc:
+            logger.warning("model_service: /api/show %s failed (%s) — treating as CPU-pinned (no unload)", model, exc)
+            return True
+        pinned = any(
+            parts[0] == "num_gpu" and parts[1] == "0"
+            for parts in (line.split() for line in params.splitlines())
+            if len(parts) >= 2
+        )
+        cache[model] = (time.time(), pinned)
+        return pinned
+
+    def should_migrate_stranded(self, model: str) -> bool:
+        """Should the keep-warm unload *model* to move it from CPU onto a GPU? (#5328/#6106)
+
+        True only for a GPU-intended model that read as resident-with-0-VRAM on
+        ``_STRANDED_STRIKES_NEEDED`` CONSECUTIVE calls (one per keep-warm cycle). A single
+        reading is not enough: the unload queues behind in-flight work, so acting on one
+        transient reading kills a runner that is serving. Any healthy reading, a non-resident
+        model, or a Modelfile CPU pin resets the count.
+        """
+        strikes = self.__dict__.setdefault("_stranded_strikes", {})
+        vram = self.resident_vram_gb(model)
+        if vram is None or vram > 0 or self.is_cpu_pinned_by_modelfile(model):
+            strikes.pop(model, None)
+            return False
+        strikes[model] = strikes.get(model, 0) + 1
+        if strikes[model] >= self._STRANDED_STRIKES_NEEDED:
+            strikes.pop(model, None)
+            return True
+        return False
+
     def is_model_loaded(self, model: str) -> bool:
         """Return True if *model* is currently loaded."""
         if not self._is_cache_fresh():

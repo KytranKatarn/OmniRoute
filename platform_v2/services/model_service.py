@@ -239,6 +239,18 @@ class ModelService:
         self._cache_time: float = 0.0
         self._active_jobs: Dict[str, List] = {}  # model → [job_id, ...]
         self._last_used: Dict[str, float] = {}  # model → timestamp
+        self._load_refused: Dict[str, float] = {}  # model → when load_model last REFUSED it (#7328)
+
+    def was_load_refused(self, model: str, within_s: float = 30.0) -> bool:
+        """True if ``load_model`` REFUSED *model* in the last *within_s* seconds (#7328).
+
+        A refusal ("too large for any card with the current residents, and the CPU cannot serve
+        it", #5623) is deterministic: retrying a few seconds later gets the same answer. A
+        transient failure (timeout, HTTP 5xx) is not, so callers that retry should skip the retry
+        ONLY when this is true. ``load_model`` itself still returns a bare bool.
+        """
+        at = self._load_refused.get(model)
+        return at is not None and (time.time() - at) <= within_s
 
     # ------------------------------------------------------------------
     # Cache helpers
@@ -888,6 +900,7 @@ class ModelService:
                         model,
                         _CPU_VIABLE_MAX_GB,
                     )
+                    self._load_refused[model] = time.time()
                     return False
 
                 # Unchanged: only the big-model tier carries the pin into the request.

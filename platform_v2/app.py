@@ -2747,8 +2747,16 @@ def _warmup_ollama_models():
     GPU vs CPU determined by checking what's already on GPU in Ollama.
     Stops when <25GB RAM free (20% host reserve of 125GB).
     Priority: infrastructure models first, then agents by dispatch frequency.
+
+    Runs ONCE per cluster start (#7328): every gunicorn worker and the scheduler import this
+    module, so a DB-backed claim (services/warmup_claim.py, fail-open) lets exactly one proceed.
     """
     import threading
+
+    from services.warmup_claim import claim_warmup
+
+    if not claim_warmup():
+        return
 
     def _do_warmup():
         import time
@@ -2837,6 +2845,12 @@ def _warmup_ollama_models():
                     placement = "GPU" if (model_name in gpu_models or f"{model_name}:latest" in gpu_models) else "auto"
                     logger.info(f"Ollama warmup: {model_name} loaded ({placement})")
                     return True
+                # A refusal ("no card fits and the CPU cannot serve it", #5623) is deterministic:
+                # retrying 2s later repeated the same refusal (15 attempts per restart for
+                # gemma3:12b). Only transient failures are worth a retry (#7328).
+                if model_svc.was_load_refused(model_name):
+                    logger.info(f"Ollama warmup: {model_name} refused (no room right now); not retrying")
+                    return False
                 logger.warning(f"Ollama warmup: {model_name} load failed, retry {attempt+1}/3")
                 time.sleep(2)
             return False

@@ -156,6 +156,51 @@
             </div>
         </div>
 
+        <!-- Platform mesh identity and historical SSH-origin evidence -->
+        <div class="sn-platform-context-grid">
+            <section class="card" aria-labelledby="sn-platform-connectivity-title">
+                <div class="card-header">
+                    <span class="card-title" id="sn-platform-connectivity-title">Platform Connectivity</span>
+                    <a class="btn btn-sm" href="https://server.kytranempowerment.com" target="_blank" rel="noopener noreferrer">
+                        Open KSO
+                    </a>
+                </div>
+                <div class="sn-platform-context-body">
+                    <div class="sn-platform-status-row">
+                        <span class="sn-svc-dot sn-svc-unknown" id="sn-platform-mesh-dot" aria-hidden="true"></span>
+                        <strong id="sn-platform-mesh-status">Checking Starbase mesh…</strong>
+                    </div>
+                    <div class="sn-platform-context-detail" id="sn-platform-mesh-detail">
+                        Uses the platform’s independent mesh reachability probe.
+                    </div>
+                    <p class="sn-platform-context-note">
+                        Security &amp; Network provides platform-wide visibility here; KSO remains the standalone host-operations and server-controls surface.
+                    </p>
+                </div>
+            </section>
+            <section class="card" aria-labelledby="sn-ssh-origin-title">
+                <div class="card-header">
+                    <span class="card-title" id="sn-ssh-origin-title">SSH Origin Observation</span>
+                    <span class="badge badge-secondary">HISTORICAL</span>
+                </div>
+                <div class="sn-platform-context-body">
+                    <div class="sn-egress-address" id="sn-egress-address">209.107.108.214</div>
+                    <div class="sn-platform-context-detail" id="sn-egress-source">
+                        Observed Starbase egress · verified October 16, 2026.
+                    </div>
+                    <p class="sn-platform-context-note" id="sn-egress-summary">
+                        Citadel recorded 1,164 accepted-key events in the reviewed window; the fingerprint correlated with Starbase mesh sessions, with no failed SSH authentications observed.
+                    </p>
+                    <p class="sn-platform-context-note" id="sn-egress-caveat">
+                        Correlated with Citadel SSH logs and the key fingerprint. Egress may change; an IP match alone does not prove identity or justify an allowlist.
+                    </p>
+                    <div class="sn-platform-context-detail">
+                        Evidence note: <code>docs/audits/2026-10-16-starbase-ssh-origin-confirmation.md</code>
+                    </div>
+                </div>
+            </section>
+        </div>
+
         <!-- Traffic Sparkline + Top Consumers -->
         <div class="sn-platform-context-grid">
             <section class="card" aria-labelledby="sn-platform-connectivity-title">

@@ -369,11 +369,13 @@ function loadNocOverview() {
 function _renderPlatformContext(connectivity, observation) {
     var statusEl = document.getElementById('sn-platform-mesh-status');
     var detailEl = document.getElementById('sn-platform-mesh-detail');
+    var dotEl = document.getElementById('sn-platform-mesh-dot');
     var status = connectivity && ['online', 'offline', 'stale'].indexOf(connectivity.status) >= 0
         ? connectivity.status : 'unknown';
     var labels = {online: 'Starbase mesh connected', offline: 'Starbase mesh disconnected',
         stale: 'Starbase mesh probe is stale', unknown: 'Starbase mesh status unavailable'};
     if (statusEl) statusEl.textContent = labels[status];
+    if (dotEl) dotEl.className = 'sn-svc-dot sn-svc-' + (status === 'online' ? 'online' : status === 'offline' ? 'offline' : 'unknown');
     if (detailEl) {
         var details = [];
         if (connectivity && connectivity.last_seen) {
@@ -390,6 +392,11 @@ function _renderPlatformContext(connectivity, observation) {
     if (addressEl) addressEl.textContent = observation ? observation.address : 'Unavailable';
     if (sourceEl) sourceEl.textContent = observation
         ? 'Observed ' + observation.observed_on + ' · ' + observation.source : 'Historical audit observation unavailable.';
+    var summaryEl = document.getElementById('sn-egress-summary');
+    var caveatEl = document.getElementById('sn-egress-caveat');
+    if (summaryEl) summaryEl.textContent = observation ? (observation.summary || '') : '';
+    if (caveatEl) caveatEl.textContent = observation
+        ? (observation.caveat || '') : 'Historical observation only; do not treat as identity proof or a permanent allowlist.';
 }
 
 function _renderNocServiceHealth(svc) {

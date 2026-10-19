@@ -1049,6 +1049,7 @@
 
 .sn-platform-context-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0 0 16px; }
 .sn-platform-context-body { padding: 12px 14px; color: var(--archie-text-primary); }
+.sn-platform-status-row { display: flex; align-items: center; gap: 10px; color: var(--archie-text-primary); }
 .sn-platform-context-detail { margin-top: 8px; color: var(--archie-text-muted); font-size: 0.78rem; overflow-wrap: anywhere; }
 .sn-platform-context-note { margin: 12px 0 0; color: var(--archie-text-muted); font-size: 0.76rem; line-height: 1.5; }
 

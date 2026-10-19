@@ -18,7 +18,11 @@ logger = logging.getLogger(__name__)
 STARBASE_SSH_ORIGIN_OBSERVATION = {
     "address": "209.107.108.214",
     "observed_on": "2026-10-16",
+    "classification": "observed_egress",
+    "summary": "Citadel recorded 1,164 accepted-key events in the reviewed window; the same "
+    "fingerprint correlated with Starbase mesh sessions, with no failed SSH authentications observed.",
     "source": "Codex SSH-origin audit (historical; not reverified by this request)",
+    "evidence_note": "docs/audits/2026-10-16-starbase-ssh-origin-confirmation.md",
     "caveat": "Egress may change. An IP match alone does not prove identity or justify an allowlist.",
 }
 

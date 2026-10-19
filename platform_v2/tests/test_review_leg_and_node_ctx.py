@@ -11,7 +11,19 @@ from services.review_leg_policy import DEFAULT_LEG_TIMEOUT, PATIENT_LEG_TIMEOUT,
 ROOT = Path(__file__).resolve().parents[1]
 ANALYZER = (ROOT / "tools/repair_bay/services/pr_diff_analyzer.py").read_text()
 DISPATCHER = (ROOT / "tools/department_hq/services/department_dispatcher.py").read_text()
-AGENT_LOOP = (ROOT.parent / "ai_bridge/agent_loop.py").read_text()
+
+
+def _agent_loop_source() -> str:
+    """agent_loop.py is next to platform_v2/ in the repo but mounted at /mnt/archie_brain/ai_bridge in the
+    platform container, where ROOT.parent is '/'. Try every layout so the test runs in both."""
+    for base in (ROOT.parent, Path("/mnt/archie_brain"), ROOT):
+        candidate = base / "ai_bridge" / "agent_loop.py"
+        if candidate.exists():
+            return candidate.read_text()
+    raise FileNotFoundError("ai_bridge/agent_loop.py not found in any known layout")
+
+
+AGENT_LOOP = _agent_loop_source()
 
 CAPS = {"num_ctx_default": {"qwen2.5:7b": 8192}}
 

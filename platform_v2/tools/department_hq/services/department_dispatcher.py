@@ -3160,6 +3160,25 @@ class DepartmentDispatcher:
             # research/code_analysis etc., which CAPABILITY_NODE_AFFINITY (#3955) routes to
             # the fleet ON PURPOSE. Callers floor this at 240 so cold-load headroom (the
             # reason 240 replaced the original 15s, KB #266396) is never reduced.
+            # #7349: a node may NARROW the budget for one capability (never widen it): see
+            # services/node_ctx.node_leg_timeout_cap. Defiant's review legs are either fast or stuck to
+            # the timeout, and the retry after a stuck first attempt succeeds in seconds, so a stuck leg
+            # should cost ~2 minutes, not the full budget. No entry on the node = unchanged.
+            try:
+                from services.node_ctx import narrowed_leg_timeout
+
+                _capped = narrowed_leg_timeout(timeout, (_nr or {}).get("extra_capabilities"), capability)
+                if _capped != timeout:
+                    logger.info(
+                        "[BridgeDispatcher] %s leg budget on %s capped %ss -> %ss (node fleet_leg_timeout)",
+                        capability,
+                        node_name,
+                        timeout,
+                        _capped,
+                    )
+                    timeout = _capped
+            except Exception:
+                logger.debug("[BridgeDispatcher] node leg timeout cap skipped", exc_info=True)
             _node_call_start = time.time()
             resp = requests.post(
                 _gen_url,

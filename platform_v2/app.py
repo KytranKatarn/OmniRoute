@@ -2749,31 +2749,44 @@ def _warmup_ollama_models():
 
         model_svc = get_model_service()
 
-        # Check what's currently on GPU AND capture all loaded models for eviction.
-        # Project #240 task #1761 — even after PR #33 fixed KEEP_ALIVE to 5m,
-        # models already loaded from before retain their previous (often infinite)
-        # keep_alive and never drain. Startup is the clean moment to force-unload,
-        # then warmup reloads fresh with the correct keep_alive.
+        # Check what's currently on GPU AND decide which loaded models to evict.
+        # Project #240 task #1761 — models loaded before a KEEP_ALIVE fix retain their old
+        # (often infinite) keep_alive and never drain, so startup force-unloads those.
+        # #7329 — it used to evict EVERYTHING, including the healthy hot 7B, which was then
+        # reloaded into whatever VRAM the others left. Only stale-keep-alive and CPU-stranded
+        # runners are evicted now (services/warmup_eviction.py); the rest stay resident.
+        from datetime import datetime, timezone
+
+        from services.warmup_eviction import plan_evictions
+
         gpu_models = set()
-        loaded_before = []
+        ps_models = []
         try:
             ps_resp = req.get(f"{ollama_host}/api/ps", timeout=10)
             if ps_resp.status_code == 200:
-                for m in ps_resp.json().get("models", []):
-                    loaded_before.append(m["name"])
+                ps_models = ps_resp.json().get("models", [])
+                for m in ps_models:
                     if m.get("size_vram", 0) > 0:
                         gpu_models.add(m["name"])
                         gpu_models.add(m["name"].replace(":latest", ""))
         except Exception:
             pass
 
-        # Force-evict stale loaded models via model_service (keep_alive=0).
-        for model_name in loaded_before:
+        to_evict, kept = plan_evictions(
+            ps_models,
+            now=datetime.now(timezone.utc),
+            is_cpu_pinned=model_svc.is_cpu_pinned_by_modelfile,
+        )
+        for model_name, why in kept:
+            logger.info(f"Ollama evict: keeping {model_name} ({why})")
+        for model_name, why in to_evict:
             if model_svc.unload_model(model_name):
-                logger.info(f"Ollama evict: unloaded stale {model_name}")
+                logger.info(f"Ollama evict: unloaded {model_name} ({why})")
+                gpu_models.discard(model_name)
+                gpu_models.discard(model_name.replace(":latest", ""))
             else:
-                logger.warning(f"Ollama evict: {model_name} failed")
-        if loaded_before:
+                logger.warning(f"Ollama evict: {model_name} failed ({why})")
+        if to_evict:
             time.sleep(3)  # let Ollama release RAM before warmup begins
 
         models_to_load = _get_agent_models()

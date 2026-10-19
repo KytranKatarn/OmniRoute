@@ -202,9 +202,15 @@ def _check_sql_injection_at_line(file_text: str, line_number: int) -> bool | Non
     Returns True (vulnerable), False (safe/parameterized), None (unverifiable).
 
     Looks for:
-    - execute/executemany with f-string, %, + concatenation, or format()
-    - Cursor execute with string interpolation
+    - execute/executemany with f-string, string concatenation, or format()
+    - Cursor execute with string interpolation (% operator on query string)
+
+    SAFE patterns (return False):
+    - Parameterized queries: cursor.execute("SELECT ... %s", params) - %s is DB-API placeholder
+    - Literal query strings with no interpolation
     """
+    import re
+
     try:
         tree = ast.parse(file_text or "")
     except (SyntaxError, ValueError):
@@ -217,17 +223,20 @@ def _check_sql_injection_at_line(file_text: str, line_number: int) -> bool | Non
     target_line = lines[line_number - 1].strip()
 
     # Quick text-based check first for the exact line
-    line_lower = target_line.lower()
+    # Skip lines that are clearly parameterized queries (DB-API %s placeholders)
+    if re.search(r'\.(execute|executemany)\s*\(\s*["\'][^"\']*%\w+[^"\']*["\']\s*,', target_line, re.IGNORECASE):
+        # Pattern: execute("... %s ...", params) - parameterized query, SAFE
+        return False
+
     vulnerable_patterns = [
         r'\.execute\s*\(\s*f["\']',  # f-string in execute
-        r"\.execute\s*\(\s*[^)]*%[^)]*\)",  # % formatting
         r"\.execute\s*\(\s*[^)]*\+[^)]*\)",  # string concatenation
         r"\.execute\s*\(\s*[^)]*\.format\s*\(",  # .format() in execute
         r'\.executemany\s*\(\s*f["\']',  # f-string in executemany
-        r"\.executemany\s*\(\s*[^)]*%[^)]*\)",  # % in executemany
-        r"\.execute\s*\(\s*[^)]*%[^)]*\)",  # % in execute
+        r"\.executemany\s*\(\s*[^)]*\+[^)]*\)",  # concatenation in executemany
+        r"\.executemany\s*\(\s*[^)]*\.format\s*\(",  # .format() in executemany
+        # % operator on query string (not DB-API placeholder) - check AST below
     ]
-    import re
 
     for pattern in vulnerable_patterns:
         if re.search(pattern, target_line, re.IGNORECASE):
@@ -247,25 +256,31 @@ def _check_sql_injection_at_line(file_text: str, line_number: int) -> bool | Non
             if query is None:
                 return None
 
-            # Check if the query is a parameterized literal
+            # Check if the query is a parameterized literal (SAFE)
             if isinstance(query, ast.Constant) and isinstance(query.value, str):
-                return False  # literal string is safe
+                # Check if the string contains only DB-API placeholders (%s, %d, etc.)
+                # and no actual string formatting
+                sql = query.value
+                # If the string has %s/%d placeholders but NO % formatting operator in the AST,
+                # it's a parameterized query (SAFE)
+                return False
 
-            # Check for f-string
+            # Check for f-string (UNSAFE - string interpolation)
             if isinstance(query, ast.JoinedStr):
                 return True
 
-            # Check for string interpolation %
+            # Check for string interpolation % (UNSAFE) - using % operator on query string
             if isinstance(query, ast.BinOp) and isinstance(query.op, ast.Mod):
+                # This is "query % params" - UNSAFE string formatting
                 return True
 
-            # Check for .format()
+            # Check for .format() (UNSAFE - string formatting)
             if isinstance(query, ast.Call) and isinstance(query.func, ast.Attribute) and query.func.attr == "format":
                 return True
 
-            # Check for string concatenation with variables
+            # Check for string concatenation with variables (UNSAFE)
             if isinstance(query, ast.BinOp) and isinstance(query.op, ast.Add):
-                # Check if both sides are string constants
+
                 def _is_literal_string(node):
                     if isinstance(node, ast.Constant):
                         return isinstance(node.value, str)

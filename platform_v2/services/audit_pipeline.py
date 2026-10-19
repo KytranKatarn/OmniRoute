@@ -588,6 +588,10 @@ def _audit_path_variants(file_path):
 # only considers codes in this family, so unrelated codes can never over-dedup.
 _LINT_FAMILY_RE = re.compile(r"^(?:PYFLAKES|F\d{3})$")
 
+# Bandit security rule codes (B608, B602, B108, etc.) — same defect reported by
+# different scanners or tiers gets same bandit rule code.
+_BANDIT_RE = re.compile(r"^B\d{3}$")
+
 
 def _has_open_audit_proposal(file_path, issue_code, detail=None):
     """Check if an open proposal already exists for this file + issue code
@@ -597,7 +601,11 @@ def _has_open_audit_proposal(file_path, issue_code, detail=None):
     each reported the same finding (11235/11259, 2026-08-27 — both reached the owner's
     Approvals tab and one burned a human approval on an already-merged fix). For
     lint-family codes, a second pass compares detector-neutral fingerprints against
-    open rows carrying a DIFFERENT code."""
+    open rows carrying a DIFFERENT code.
+
+    Bandit security codes (B608, B602, B108, etc.) are also fingerprinted — same
+    security defect reported by different scanners/tier (bandit, ruff, static) gets
+    the same bandit rule code and fingerprint, so we dedup across tiers."""
     variants = _audit_path_variants(file_path)
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
@@ -614,7 +622,12 @@ def _has_open_audit_proposal(file_path, issue_code, detail=None):
         if cur.fetchone() is not None:
             return True
 
-        if not detail or not _LINT_FAMILY_RE.match(issue_code or ""):
+        # For lint-family codes (PYFLAKES, Fxxx) and bandit codes (Bxxx),
+        # compute fingerprint and cross-check against other open proposals
+        # with DIFFERENT issue_code but same fingerprint (cross-detector dedup).
+        is_lint = _LINT_FAMILY_RE.match(issue_code or "")
+        is_bandit = _BANDIT_RE.match(issue_code or "")
+        if not detail or (not is_lint and not is_bandit):
             return False
 
         from services.code_issue_reconciler import finding_fingerprint
@@ -634,8 +647,12 @@ def _has_open_audit_proposal(file_path, issue_code, detail=None):
             (variants, issue_code),
         )
         for row in cur.fetchall():
-            if _LINT_FAMILY_RE.match(row["code"] or "") and finding_fingerprint(row["code"], row["detail"]) == mine:
-                return True
+            other_code = row["code"] or ""
+            other_detail = row["detail"] or ""
+            # Only compare fingerprints for lint-family or bandit codes
+            if _LINT_FAMILY_RE.match(other_code) or _BANDIT_RE.match(other_code):
+                if finding_fingerprint(other_code, other_detail) == mine:
+                    return True
     return False
 
 

@@ -66,3 +66,38 @@ tables as an operational shortcut.
 The hourly point history is additive and will grow over time; production owners
 should review database growth and retention requirements before enabling the
 new collectors. The initial implementation does not prune source evidence.
+
+## Archive search, CAP history, and coverage
+
+The evidence reader keeps source-time and first-retrieval filters separate. It
+uses a stable keyset cursor for subsequent pages; older offset requests remain
+bounded for compatibility. The cursor is an opaque paging boundary, not an
+authorization token. Full CAP history is loaded on demand by the exact CAP
+identifier and follows the active source-time and `available_before` filters.
+Each version remains the original immutable source row; the lifecycle is only a
+projection. A page-scoped search result is not described as the complete alert
+history until the full-history request finishes.
+
+`/api/weather/evidence/coverage` summarizes retained source dates, first and
+latest retrievals, recent run outcomes, empty successful captures, and the
+median attempt interval measured from the last 30 days of this archive's own
+capture runs. It does not state a target cadence or service-level guarantee.
+Failed attempts are stored as `status='failed'` capture-run rows without
+exception details or credential-bearing URLs. NASA FIRMS remains optional; no
+attempt history by itself does not prove whether its credential is configured.
+
+JSON and CSV exports contain only the evidence rows currently loaded in the
+browser, along with source IDs, timestamps, source URL and payload checksum.
+Exports intentionally omit `raw_payload`; they carry the active filters and a
+scope note so a partial browser result is not presented as a complete archive.
+On-demand CAP lifecycle versions preserve the archive and source-time cutoffs,
+but do not need to match the original text or bounding-box search; the manifest
+marks this distinction. The reader caps loaded records and disables larger
+client-side exports.
+
+Keyset pagination avoids discarding deep offset pages, but the current WTF
+database's query plan and table size were not available in this session. Do not
+add indexes based only on this code review. Before a schema optimization, run a
+read-only `EXPLAIN (ANALYZE, BUFFERS)` against representative archive queries on
+the verified Citadel WTF database and size the candidate indexes against the
+backup/restore budget.

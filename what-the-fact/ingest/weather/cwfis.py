@@ -36,7 +36,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
 
-from ingest.weather.evidence import capture_source_records
+from ingest.weather.evidence import (
+    capture_source_records,
+    record_capture_failure,
+)
 
 logger = logging.getLogger("wtf-ingest.aurora.cwfis")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -174,7 +177,8 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
 
     with engine.begin() as c:
         capture_source_records(c, dataset_key="cwfis_firewx_station_daily",
-                               source_url=_WFS, started_at=started_at, rows=source_rows)
+                               source_url=_WFS, started_at=started_at, rows=source_rows,
+                               status="partial" if skipped or dupes else "complete")
         c.execute(text("""
             INSERT INTO wtf.aurora_firewx_obs
                 (station_key, station_name, prov, agency, lat, lon, rep_date,
@@ -343,14 +347,32 @@ def run_hotspot_capture(engine, dry_run: bool = False) -> dict:
 
 def run_aurora_hotspot_capture(engine, dry_run: bool = False) -> dict:
     """Scheduled entry point with the standard ingest heartbeat contract."""
+    started_at = datetime.now(timezone.utc)
     try:
         result = run_hotspot_capture(engine, dry_run=dry_run)
         if not dry_run:
+            if isinstance(result, dict) and result.get("error"):
+                try:
+                    with engine.begin() as conn:
+                        record_capture_failure(
+                            conn, dataset_key="cwfis_hotspot_point", source_url=_WFS,
+                            started_at=started_at,
+                        )
+                except Exception:  # noqa: BLE001 — heartbeat still records failure
+                    logger.exception("aurora_hotspots failed run could not be persisted")
             _heartbeat(engine, "aurora_hotspots", result, None)
         return result
     except Exception as exc:  # noqa: BLE001 — record failure for drift guard
         logger.exception("aurora_hotspots capture crashed")
         if not dry_run:
+            try:
+                with engine.begin() as conn:
+                    record_capture_failure(
+                        conn, dataset_key="cwfis_hotspot_point", source_url=_WFS,
+                        started_at=started_at,
+                    )
+            except Exception:  # noqa: BLE001 — heartbeat still records failure
+                logger.exception("aurora_hotspots failed run could not be persisted")
             _heartbeat(engine, "aurora_hotspots", {}, exc)
         return {"error": str(exc)}
 
@@ -383,15 +405,34 @@ def run_aurora_cwfis(engine, dry_run: bool = False) -> dict:
     heartbeat, not take the whole ingest loop down with it."""
     out = {}
     for task, fn in (("aurora_firewx", run_firewx_sync), ("aurora_fire", run_fire_sync)):
+        started_at = datetime.now(timezone.utc)
         try:
             res = fn(engine, dry_run=dry_run)
             out[task] = res
             if not dry_run:
+                if task == "aurora_firewx" and isinstance(res, dict) and res.get("error"):
+                    try:
+                        with engine.begin() as c:
+                            record_capture_failure(
+                                c, dataset_key="cwfis_firewx_station_daily",
+                                source_url=_WFS, started_at=started_at,
+                            )
+                    except Exception:  # noqa: BLE001 — heartbeat still records failure
+                        logger.exception("aurora_firewx failed run could not be persisted")
                 _heartbeat(engine, task, res, None)
         except Exception as exc:            # noqa: BLE001 — one layer must not kill the other
             logger.exception("%s crashed", task)
             out[task] = {"error": str(exc)}
             if not dry_run:
+                if task == "aurora_firewx":
+                    try:
+                        with engine.begin() as c:
+                            record_capture_failure(
+                                c, dataset_key="cwfis_firewx_station_daily",
+                                source_url=_WFS, started_at=started_at,
+                            )
+                    except Exception:  # noqa: BLE001 — heartbeat still records failure
+                        logger.exception("aurora_firewx failed run could not be persisted")
                 _heartbeat(engine, task, {}, exc)
     return out
 

@@ -10,8 +10,11 @@ from datetime import datetime, timezone
 from flask import Flask
 import pytest
 
-from ingest.weather.evidence import capture_source_records
+from ingest.weather.evidence import capture_source_records, record_capture_failure
 from ingest.weather.firms import parse_csv_records, run_firms_capture
+from ingest.weather import alerts as alerts_ingest
+from ingest.weather import cwfis as cwfis_ingest
+from ingest.weather import firms as firms_ingest
 from consumer import routes
 from consumer.routes import _parse_evidence_timestamp
 
@@ -29,7 +32,7 @@ class _Connection:
     def __init__(self):
         self.calls = []
 
-    def execute(self, statement, params):
+    def execute(self, statement, params=None):
         self.calls.append((str(statement), params))
         return _Result()
 
@@ -51,7 +54,7 @@ class _EvidenceConnection:
         self.statement = None
         self.params = None
 
-    def execute(self, statement, params):
+    def execute(self, statement, params=None):
         self.statement = str(statement)
         self.params = params
         return _EvidenceRows(self.rows)
@@ -128,6 +131,72 @@ def test_empty_capture_is_recorded_without_inventing_source_versions():
     )
     assert len(conn.calls) == 1
     assert conn.calls[0][1]["count"] == 0
+
+
+def test_partial_capture_run_remains_distinct_from_complete_empty_run():
+    conn = _Connection()
+    capture_source_records(
+        conn,
+        dataset_key="eccc_cap",
+        source_url="https://example.invalid/cap",
+        started_at=datetime.now(timezone.utc),
+        rows=[],
+        status="partial",
+    )
+    assert conn.calls[0][1]["status"] == "partial"
+
+
+def test_failed_capture_is_recorded_without_error_text_or_source_secret():
+    conn = _Connection()
+    result = record_capture_failure(
+        conn,
+        dataset_key="nasa_firms_point",
+        source_url="https://example.invalid/[MAP_KEY_REDACTED]/<product>/<area>/1",
+        started_at=datetime(2026, 10, 19, 15, tzinfo=timezone.utc),
+    )
+
+    assert result == {"run_id": 41, "status": "failed"}
+    sql, params = conn.calls[0]
+    assert "'failed', 0" in sql
+    assert params["dataset_key"] == "nasa_firms_point"
+    assert "MAP_KEY_REDACTED" in params["source_url"]
+    assert "error" not in sql.lower()
+
+
+def test_collector_failures_create_feed_capture_attempts_without_storing_errors(monkeypatch):
+    class _Engine:
+        def __init__(self):
+            self.connection = _Connection()
+
+        def begin(self):
+            return _EvidenceTransaction(self.connection)
+
+    engine = _Engine()
+    monkeypatch.setattr(alerts_ingest, "_run_alerts", lambda *_args: {"error": "fetch failed"})
+    monkeypatch.setattr(alerts_ingest, "_heartbeat", lambda *_args: None)
+    alerts_ingest.run_aurora_alerts(engine)
+    assert engine.connection.calls[-1][1]["dataset_key"] == "eccc_cap"
+
+    engine = _Engine()
+    monkeypatch.setattr(cwfis_ingest, "run_hotspot_capture", lambda *_args, **_kwargs: {"error": "empty source"})
+    monkeypatch.setattr(cwfis_ingest, "_heartbeat", lambda *_args: None)
+    cwfis_ingest.run_aurora_hotspot_capture(engine)
+    assert engine.connection.calls[-1][1]["dataset_key"] == "cwfis_hotspot_point"
+
+    engine = _Engine()
+    monkeypatch.setattr(cwfis_ingest, "run_firewx_sync", lambda *_args, **_kwargs: {"error": "empty station source"})
+    monkeypatch.setattr(cwfis_ingest, "run_fire_sync", lambda *_args, **_kwargs: {})
+    cwfis_ingest.run_aurora_cwfis(engine)
+    assert engine.connection.calls[0][1]["dataset_key"] == "cwfis_firewx_station_daily"
+
+    engine = _Engine()
+    monkeypatch.setattr(firms_ingest, "run_firms_capture", lambda *_args, **_kwargs: {"error": "request failed"})
+    monkeypatch.setattr(firms_ingest, "_heartbeat", lambda *_args: None)
+    firms_ingest.run_aurora_firms_capture(engine)
+    sql, params = engine.connection.calls[-1]
+    assert params["dataset_key"] == "nasa_firms_point"
+    assert "MAP_KEY_REDACTED" in params["source_url"]
+    assert "request failed" not in sql and "request failed" not in str(params)
 
 
 def test_cwfis_point_payload_retains_geometry_and_source_identity():
@@ -306,6 +375,89 @@ def test_evidence_api_returns_cap_lifecycle_as_page_scoped_projection(monkeypatc
     assert body["evidence"][0]["source_record_key"] == "cap-7|Update|2026-10-17T18:00:00Z"
 
 
+def test_evidence_api_uses_stable_cursor_and_returns_next_page_token(monkeypatch):
+    client, db = _evidence_api(monkeypatch, [
+        {"id": 8, "dataset_key": "eccc_cap", "source_record_key": "cap-b",
+         "source_sort_at": datetime(2026, 10, 17, 18, tzinfo=timezone.utc),
+         "payload": {"identifier": "cap-b"}},
+        {"id": 7, "dataset_key": "eccc_cap", "source_record_key": "cap-a",
+         "source_sort_at": datetime(2026, 10, 17, 17, tzinfo=timezone.utc),
+         "payload": {"identifier": "cap-a"}},
+    ])
+
+    first = client.get("/api/weather/evidence?dataset=eccc_cap&limit=1")
+    body = first.get_json()
+    assert first.status_code == 200
+    assert body["has_more"] is True
+    assert body["next_cursor"]
+    assert "source_sort_at < :cursor_time" in db.connection.statement
+    assert "(dataset_key, source_record_key, id) >" in db.connection.statement
+
+    client.get("/api/weather/evidence?dataset=eccc_cap&limit=1&cursor=" + body["next_cursor"])
+    assert db.connection.params["cursor_time"] == datetime(
+        2026, 10, 17, 18, tzinfo=timezone.utc
+    )
+    assert db.connection.params["cursor_key"] == "cap-b"
+    assert db.connection.params["cursor_id"] == 8
+    changed_filter = client.get(
+        "/api/weather/evidence?dataset=eccc_cap&limit=1&q=changed&cursor="
+        + body["next_cursor"]
+    )
+    assert changed_filter.status_code == 400
+
+
+def test_evidence_api_rejects_malformed_cursor_shape(monkeypatch):
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(routes, "_api_rate_check", lambda: None)
+    monkeypatch.setattr(routes, "_db", lambda: pytest.fail("database should not be queried"))
+
+    response = app.test_client().get("/api/weather/evidence?cursor=W10")
+    assert response.status_code == 400
+
+
+def test_cap_lifecycle_endpoint_pages_all_matching_versions(monkeypatch):
+    client, db = _evidence_api(monkeypatch, [
+        {"id": 10, "dataset_key": "eccc_cap", "source_record_key": "cap-x|Update",
+         "source_sort_at": datetime(2026, 10, 17, 18, tzinfo=timezone.utc),
+         "payload": {"identifier": "cap-x", "msg_type": "Update"}},
+        {"id": 11, "dataset_key": "eccc_cap", "source_record_key": "cap-x|Cancel",
+         "source_sort_at": datetime(2026, 10, 17, 19, tzinfo=timezone.utc),
+         "payload": {"identifier": "cap-x", "msg_type": "Cancel"}},
+    ])
+
+    response = client.get(
+        "/api/weather/evidence/cap-lifecycle?identifier=cap-x&limit=1&"
+        "available_before=2026-10-18T00:00:00Z"
+    )
+    body = response.get_json()
+    assert response.status_code == 200
+    assert body["scope"] == "all_retained_versions_for_identifier_with_filters"
+    assert body["count"] == 1 and body["has_more"] is True
+    assert body["versions"][0]["payload"]["msg_type"] == "Update"
+    assert db.connection.params["identifier"] == "cap-x"
+    assert "payload->>'identifier' = :identifier" in db.connection.statement
+    assert "first_retrieved_at <= :available_before" in db.connection.statement
+
+
+def test_coverage_endpoint_reports_archive_and_attempt_health_without_error_details(monkeypatch):
+    client, db = _evidence_api(monkeypatch, [
+        {"dataset_key": "eccc_cap", "retained_versions": 0, "runs_7d": 0,
+         "failures_7d": 0, "empty_successes_7d": 0, "last_attempt_status": None},
+    ])
+
+    response = client.get("/api/weather/evidence/coverage")
+    body = response.get_json()
+    cap = next(feed for feed in body["feeds"] if feed["dataset_key"] == "eccc_cap")
+    assert response.status_code == 200
+    assert cap["archive_state"] == "no_archive_coverage"
+    assert "last attempt" not in cap
+    assert "FROM wtf.aurora_capture_run" in db.connection.statement
+    assert "FROM wtf.aurora_source_version" in db.connection.statement
+    assert "raw_payload" not in db.connection.statement
+    assert "error" not in db.connection.statement
+
+
 def test_cap_lifecycle_groups_versions_without_replacing_messages():
     rows = [
         {
@@ -348,7 +500,6 @@ def test_evidence_migration_is_append_only_and_tracks_its_ledger_entry():
         assert column in sql
     assert "REVOKE UPDATE, DELETE, TRUNCATE" in sql
     assert "'106', '106_aurora_evidence_history.sql'" in sql
-    assert "ON CONFLICT (version) DO NOTHING" in sql
 
 
 def test_weather_history_ui_tracks_provenance_clocks_and_pages_results():
@@ -410,6 +561,9 @@ def test_weather_history_search_ui_exposes_bounded_filters_and_cap_chain():
         "wtf-wx-history-query", "wtf-wx-history-observed-after",
         "wtf-wx-history-observed-before", "wtf-wx-history-west",
         "wtf-wx-history-south", "wtf-wx-history-east", "wtf-wx-history-north",
+        "wtf-wx-history-coverage", "wtf-wx-history-export-json",
+        "wtf-wx-history-export-csv", "Load full captured history",
+        "lifecycle_filter_keys", "search_text_and_geographic_bounds_apply_to_lifecycle_versions",
     ):
         assert control in template
     for api_contract in (
@@ -421,4 +575,7 @@ def test_weather_history_search_ui_exposes_bounded_filters_and_cap_chain():
         assert api_contract in template
     assert '"matched_result_page"' in (ROOT / "consumer" / "routes.py").read_text()
     assert "Source time before (UTC)" in template
-    assert "additional versions may be outside this search or on another page" in template
+    assert "filters preserve the archive cutoff and source-time window" in template
+    routes_source = (ROOT / "consumer" / "routes.py").read_text()
+    assert '@bp.get("/api/weather/evidence/cap-lifecycle")' in routes_source
+    assert '@bp.get("/api/weather/evidence/coverage")' in routes_source

@@ -44,6 +44,16 @@
 .wtf-wx-history-controls button { cursor:pointer; color:#93c5fd; }
 .wtf-wx-history-controls :focus-visible { outline:2px solid #60a5fa; outline-offset:2px; }
 .wtf-wx-history-state { min-height:20px; color:#8a96a5; font-size:11px; margin:8px 0; }
+.wtf-wx-history-coverage { background:#080f18; border:1px solid #142538; border-radius:4px; padding:10px; margin:12px 0 16px; }
+.wtf-wx-history-coverage-head { color:#d5deea; font:10px var(--wtf-font-mono); letter-spacing:.08em; text-transform:uppercase; }
+.wtf-wx-history-coverage-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:7px; margin-top:8px; }
+.wtf-wx-history-coverage-card { background:#050d1a; border:1px solid #142538; border-radius:4px; padding:8px; color:#9aa8b8; font:9px/1.6 var(--wtf-font-mono); }
+.wtf-wx-history-coverage-card > div { white-space:pre-wrap; }
+.wtf-wx-history-coverage-card strong { display:block; color:#bfdbfe; font-size:10px; margin-bottom:3px; }
+.wtf-wx-history-export { display:flex; gap:7px; flex-wrap:wrap; margin:8px 0; }
+.wtf-wx-history-export button,.wtf-wx-history-lifecycle { background:#0d1a29; border:1px solid #285078; border-radius:4px; color:#bfdbfe; padding:6px 9px; font:9px var(--wtf-font-mono); cursor:pointer; }
+.wtf-wx-history-export button:disabled { opacity:.45; cursor:not-allowed; }
+.wtf-wx-history-lifecycle-status { color:#8a96a5; font:9px/1.5 var(--wtf-font-mono); margin-top:5px; }
 .wtf-wx-history-grid { display:grid; grid-template-columns:minmax(220px, .8fr) minmax(0, 1.6fr); gap:12px; align-items:start; }
 .wtf-wx-history-map { background:#080f18; border:1px solid #142538; border-radius:4px; min-height:190px; padding:8px; }
 .wtf-wx-history-map-note { color:#748194; font-size:9px; line-height:1.5; margin:4px 2px 0; }
@@ -875,6 +885,11 @@
 {# Historical evidence reader: this calls the bounded, read-only provenance API.
    It makes no claim that public-source availability equals operational receipt. #}
 <section class="wtf-wx-history" id="aurora-evidence-history" aria-labelledby="wtf-wx-history-title">
+  <div class="wtf-wx-history-coverage" aria-labelledby="wtf-wx-history-coverage-title">
+    <div class="wtf-wx-history-coverage-head" id="wtf-wx-history-coverage-title">Archive coverage and collector health</div>
+    <p class="wtf-wx-history-copy">Coverage dates describe records and capture attempts retained here. They do not establish when an operational recipient received the information. Cadence is measured from this archive’s recent attempts, not presented as a service guarantee.</p>
+    <div class="wtf-wx-history-coverage-grid" id="wtf-wx-history-coverage" role="status" aria-live="polite">Loading feed coverage…</div>
+  </div>
   <div class="wtf-wx-history-head">
     <div>
       <div class="wtf-wx-eyebrow">A.U.R.O.R.A. · source archive</div>
@@ -920,6 +935,11 @@
   </div>
   <p class="wtf-wx-history-copy" id="wtf-wx-history-cutoff-help">Date/time filters use UTC; the source-time end is exclusive. Geographic bounds use west/south/east/north and search point-coordinate feeds only. Times below are shown in UTC; missing timestamps remain blank.</p>
   <div class="wtf-wx-history-state" id="wtf-wx-history-state" role="status" aria-live="polite">Loading captured source records…</div>
+  <div class="wtf-wx-history-export" aria-label="Export loaded evidence">
+    <button type="button" id="wtf-wx-history-export-json" disabled>Export loaded JSON</button>
+    <button type="button" id="wtf-wx-history-export-csv" disabled>Export loaded CSV</button>
+    <span class="wtf-wx-history-copy" id="wtf-wx-history-export-scope">Exports contain only records currently loaded below.</span>
+  </div>
   <div class="wtf-wx-history-grid">
     <div>
       <div class="wtf-wx-history-map" id="wtf-wx-history-map" aria-label="Historical evidence map controls">
@@ -953,12 +973,17 @@
   var mapStatus = document.getElementById("wtf-wx-history-map-status");
   var showMap = document.getElementById("wtf-wx-history-show-map");
   var more = document.getElementById("wtf-wx-history-more");
+  var coverage = document.getElementById("wtf-wx-history-coverage");
+  var exportJson = document.getElementById("wtf-wx-history-export-json");
+  var exportCsv = document.getElementById("wtf-wx-history-export-csv");
+  var exportScope = document.getElementById("wtf-wx-history-export-scope");
   var keys = ["eccc_cap", "cwfis_firewx_station_daily", "cwfis_hotspot_point", "nasa_firms_point"];
-  var offset = 0;
+  var nextCursor = null;
   var allRows = [];
   var capLifecycleMeta = {};
   var activeSearchParams = null;
   var pageSize = 100;
+  var maxLoaded = 5000;
   function el(tag, cls, value) {
     var node = document.createElement(tag);
     if (cls) node.className = cls;
@@ -969,6 +994,89 @@
     if (!value) return "Not recorded";
     var date = new Date(value);
     return Number.isNaN(date.getTime()) ? "Unparseable source time" : date.toISOString().replace("T", " ").replace(".000Z", " UTC");
+  }
+  function renderCoverage(feeds) {
+    coverage.replaceChildren();
+    feeds.forEach(function (feed) {
+      var card = el("div", "wtf-wx-history-coverage-card");
+      card.appendChild(el("strong", "", feed.label || feed.dataset_key));
+      var status = feed.last_attempt_status || "not recorded";
+      var attemptLabel = status === "failed" ? "Last attempt failed" :
+        status === "partial" ? "Last attempt partial" :
+        status === "complete" ? "Last attempt completed" :
+        feed.optional ? "Optional feed · no attempt recorded" : "No attempt recorded";
+      var lines = [
+        "Archive: " + (feed.archive_state === "captured" ? String(feed.retained_versions) + " retained versions" :
+          feed.archive_state === "capture_attempted_no_versions" ? "attempted; no versions retained" : "no archive coverage"),
+        "Source dates: " + iso(feed.earliest_source_time) + " → " + iso(feed.latest_source_time),
+        "First retrieved: " + iso(feed.earliest_archived_at),
+        "Latest retrieval: " + iso(feed.latest_archived_at),
+        attemptLabel + " · " + iso(feed.last_attempt_at),
+        "Time since last attempt: " + (feed.seconds_since_last_attempt === null || feed.seconds_since_last_attempt === undefined
+          ? "not recorded" : Math.round(Number(feed.seconds_since_last_attempt) / 60) + " min"),
+        "Last complete capture: " + iso(feed.last_complete_at),
+        "7-day attempts / failures / empty: " + feed.runs_7d + " / " + feed.failures_7d + " / " + feed.empty_successes_7d
+      ];
+      if (feed.median_interval_seconds !== null && feed.median_interval_seconds !== undefined) {
+        lines.push("Observed median attempt interval (30d): " +
+          Math.round(Number(feed.median_interval_seconds) / 60) + " min");
+      } else {
+        lines.push("Observed attempt interval: not enough history");
+      }
+      card.appendChild(el("div", "", lines.join("\n")));
+      coverage.appendChild(card);
+    });
+  }
+  async function loadCoverage() {
+    try {
+      var response = await fetch("/api/weather/evidence/coverage", {headers:{Accept:"application/json"}});
+      var body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Coverage unavailable");
+      renderCoverage(Array.isArray(body.feeds) ? body.feeds : []);
+    } catch (_error) {
+      coverage.textContent = "Feed coverage is unavailable. This is not evidence that a source had no activity.";
+    }
+  }
+  function download(name, content, type) {
+    var blob = new Blob([content], {type:type});
+    var url = URL.createObjectURL(blob);
+    var anchor = document.createElement("a");
+    anchor.href = url; anchor.download = name; anchor.hidden = true;
+    document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportManifest() {
+    return {
+      format_version: 1,
+      exported_at_utc: new Date().toISOString(),
+      scope: "rows loaded by the current search plus any on-demand CAP lifecycle versions loaded for those alerts; not necessarily the full archive",
+      filters: activeSearchParams ? Object.fromEntries(activeSearchParams.entries()) : {},
+      lifecycle_filter_keys: ["available_before", "observed_after", "observed_before"],
+      search_text_and_geographic_bounds_apply_to_lifecycle_versions: false,
+      row_count: allRows.length,
+      records: allRows
+    };
+  }
+  function csvCell(value) {
+    if (value === null || value === undefined) value = "";
+    if (typeof value === "object") value = JSON.stringify(value);
+    return '"' + String(value).replace(/"/g, '""') + '"';
+  }
+  function exportLoaded(format) {
+    if (!allRows.length) return;
+    var manifest = exportManifest();
+    if (format === "json") {
+      download("aurora-evidence-loaded.json", JSON.stringify(manifest, null, 2), "application/json;charset=utf-8");
+      return;
+    }
+    var fields = ["dataset_key", "source_record_key", "source_url", "payload_sha256",
+      "source_observed_at", "source_published_at", "operational_received_at",
+      "first_retrieved_at", "ingested_at", "payload"];
+    var lines = [fields.map(csvCell).join(",")];
+    manifest.records.forEach(function (row) {
+      lines.push(fields.map(function (field) { return csvCell(row[field]); }).join(","));
+    });
+    download("aurora-evidence-loaded.csv", "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
   }
   function recordTitle(row) {
     var p = row.payload || {};
@@ -1090,47 +1198,120 @@
     addSourceLink(card, row);
     list.appendChild(card);
   }
+  function appendCapVersion(card, row, index) {
+    var payload = row.payload || {};
+    var version = el("div", "wtf-wx-history-version");
+    version.id = "wtf-wx-evidence-" + index;
+    version.dataset.sortAt = row.source_published_at || row.first_retrieved_at || "";
+    version.tabIndex = -1;
+    var top = el("div", "wtf-wx-history-item-top");
+    top.appendChild(el("span", "wtf-wx-history-kind", capMessageType(row)));
+    top.appendChild(el("span", "", payload.headline || payload.event || "CAP message"));
+    version.appendChild(top);
+    var facts = [payload.event && "Event: " + payload.event,
+                 payload.severity && "Severity: " + payload.severity,
+                 payload.area_desc && "Area: " + payload.area_desc,
+                 payload.expires_utc && "Expires: " + payload.expires_utc].filter(Boolean);
+    if (facts.length) version.appendChild(el("div", "wtf-wx-history-detail", facts.join(" · ")));
+    if (payload.description) {
+      var sourceText = document.createElement("details");
+      var summary = document.createElement("summary");
+      summary.textContent = "Original alert text";
+      var description = el("p", "wtf-wx-history-detail", payload.description);
+      sourceText.appendChild(summary); sourceText.appendChild(description);
+      version.appendChild(sourceText);
+    }
+    evidenceTimes(version, row);
+    addEvidenceDetails(version, row);
+    addSourceLink(version, row);
+    if (card._lifecycleButton) card.insertBefore(version, card._lifecycleButton);
+    else card.appendChild(version);
+  }
+  function sortCapVersions(card) {
+    var versions = Array.prototype.slice.call(card.querySelectorAll(".wtf-wx-history-version"));
+    versions.sort(function (a, b) {
+      var at = a.dataset.sortAt ? new Date(a.dataset.sortAt).getTime() : Infinity;
+      var bt = b.dataset.sortAt ? new Date(b.dataset.sortAt).getTime() : Infinity;
+      return at - bt || a.id.localeCompare(b.id);
+    }).forEach(function (version) { card.insertBefore(version, card._lifecycleButton); });
+  }
+  async function loadCapLifecycle(button, card) {
+    if (button.disabled) return;
+    button.disabled = true;
+    button.textContent = "Loading retained versions…";
+    var params = new URLSearchParams({identifier:card.dataset.capIdentifier, limit:"100"});
+    var filters = activeSearchParams || new URLSearchParams();
+    ["available_before", "observed_after", "observed_before"].forEach(function (key) {
+      if (filters.has(key)) params.set(key, filters.get(key));
+    });
+    if (button.dataset.cursor) params.set("cursor", button.dataset.cursor);
+    try {
+      var response = await fetch("/api/weather/evidence/cap-lifecycle?" + params.toString(),
+        {headers:{Accept:"application/json"}});
+      var body = await response.json();
+      if (!response.ok) throw new Error(body.error || "CAP history unavailable");
+      var added = 0;
+      (body.versions || []).forEach(function (row) {
+        if (allRows.length >= maxLoaded) return;
+        var key = row.source_record_key || String(row.id);
+        if (card._seenKeys[key]) return;
+        card._seenKeys[key] = true;
+        capLifecycleMeta[key] = {identifier:body.identifier,
+          msg_type:(row.payload || {}).msg_type, scope:body.scope};
+        var index = allRows.length;
+        allRows.push(row);
+        appendCapVersion(card, row, index);
+        added += 1;
+      });
+      sortCapVersions(card);
+      button.dataset.cursor = body.next_cursor || "";
+      var stoppedAtClientCap = body.has_more && allRows.length >= maxLoaded;
+      button.hidden = !body.has_more || stoppedAtClientCap;
+      button.textContent = stoppedAtClientCap ? "Loaded record limit reached" : body.has_more ? "Load older retained versions" :
+        (added ? "All matching retained versions loaded" : "No additional retained versions");
+      button.disabled = !body.has_more || stoppedAtClientCap;
+      card._lifecycleStatus.textContent = "Loaded " + added + " additional version" + (added === 1 ? "" : "s") +
+        (stoppedAtClientCap ? "; the 5,000-record browser limit was reached." :
+          "; filters preserve the archive cutoff and source-time window.");
+      updateMapStatus(allRows);
+      exportJson.disabled = exportCsv.disabled = !allRows.length || allRows.length > maxLoaded;
+      exportScope.textContent = allRows.length > maxLoaded ? "Export is limited to 5,000 loaded records." :
+        "Exports contain only records currently loaded below.";
+      window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
+    } catch (error) {
+      button.textContent = "Retry full captured history";
+      button.disabled = false;
+      card._lifecycleStatus.textContent = error.message || "CAP history could not be loaded.";
+    }
+  }
   function appendCapLifecycle(group) {
     var card = el("article", "wtf-wx-history-item is-alert");
     var heading = el("div", "wtf-wx-history-item-top");
     heading.appendChild(el("span", "wtf-wx-history-kind", "CAP message lifecycle"));
     heading.appendChild(el("span", "", group.identifier));
     card.appendChild(heading);
+    card.dataset.capIdentifier = group.identifier;
+    card._seenKeys = Object.create(null);
+    group.rows.forEach(function (entry) {
+      card._seenKeys[entry.row.source_record_key || String(entry.row.id)] = true;
+    });
     card.appendChild(el("div", "wtf-wx-history-detail",
-      group.rows.length + " version" + (group.rows.length === 1 ? "" : "s") + " in loaded results; additional versions may be outside this search or on another page."));
+      group.rows.length + " version" + (group.rows.length === 1 ? "" : "s") + " in current results."));
     group.rows.sort(function (a, b) {
       var ap = a.row.source_published_at || (a.row.payload || {}).sent_utc;
       var bp = b.row.source_published_at || (b.row.payload || {}).sent_utc;
       var at = ap ? new Date(ap).getTime() : Infinity;
       var bt = bp ? new Date(bp).getTime() : Infinity;
       return at - bt || String(a.row.source_record_key).localeCompare(String(b.row.source_record_key));
-    }).forEach(function (entry) {
-      var row = entry.row, payload = row.payload || {};
-      var version = el("div", "wtf-wx-history-version");
-      version.id = "wtf-wx-evidence-" + entry.index;
-      version.tabIndex = -1;
-      var top = el("div", "wtf-wx-history-item-top");
-      top.appendChild(el("span", "wtf-wx-history-kind", capMessageType(row)));
-      top.appendChild(el("span", "", payload.headline || payload.event || "CAP message"));
-      version.appendChild(top);
-      var facts = [payload.event && "Event: " + payload.event,
-                   payload.severity && "Severity: " + payload.severity,
-                   payload.area_desc && "Area: " + payload.area_desc,
-                   payload.expires_utc && "Expires: " + payload.expires_utc].filter(Boolean);
-      if (facts.length) version.appendChild(el("div", "wtf-wx-history-detail", facts.join(" · ")));
-      if (payload.description) {
-        var sourceText = document.createElement("details");
-        var summary = document.createElement("summary");
-        summary.textContent = "Original alert text";
-        var description = el("p", "wtf-wx-history-detail", payload.description);
-        sourceText.appendChild(summary); sourceText.appendChild(description);
-        version.appendChild(sourceText);
-      }
-      evidenceTimes(version, row);
-      addEvidenceDetails(version, row);
-      addSourceLink(version, row);
-      card.appendChild(version);
-    });
+    }).forEach(function (entry) { appendCapVersion(card, entry.row, entry.index); });
+    var button = el("button", "wtf-wx-history-lifecycle", "Load full captured history");
+    button.type = "button";
+    var status = el("div", "wtf-wx-history-lifecycle-status", "Loads all retained versions matching the current source-time and archive cutoff filters.");
+    card._lifecycleButton = button;
+    card._lifecycleStatus = status;
+    button.addEventListener("click", function () { loadCapLifecycle(button, card); });
+    card.appendChild(button);
+    card.appendChild(status);
     list.appendChild(card);
   }
   function render(rows) {
@@ -1160,7 +1341,7 @@
   async function load(event, append) {
     if (event) event.preventDefault();
     if (!append) {
-      offset = 0; allRows = []; capLifecycleMeta = {};
+      nextCursor = null; allRows = []; capLifecycleMeta = {};
       window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
     }
     state.textContent = "Searching the captured archive…";
@@ -1168,9 +1349,9 @@
     try {
       if (append && activeSearchParams) {
         params = new URLSearchParams(activeSearchParams);
-        params.set("offset", String(offset));
+        if (nextCursor) params.set("cursor", nextCursor);
       } else {
-        params = new URLSearchParams({limit:String(pageSize), offset:"0"});
+        params = new URLSearchParams({limit:String(pageSize)});
         if (dataset.value && keys.indexOf(dataset.value) !== -1) params.set("dataset", dataset.value);
         if (query.value.trim()) params.set("q", query.value.trim());
         [[observedAfter, "observed_after"], [observedBefore, "observed_before"],
@@ -1201,25 +1382,35 @@
       });
       allRows = allRows.concat(rows);
       render(allRows);
-      more.hidden = rows.length < pageSize;
-      offset += rows.length;
+      nextCursor = body.next_cursor || null;
+      more.hidden = !body.has_more || allRows.length >= maxLoaded;
+      exportJson.disabled = exportCsv.disabled = !allRows.length || allRows.length > maxLoaded;
+      exportScope.textContent = allRows.length > maxLoaded ? "Export is limited to 5,000 loaded records." :
+        "Exports contain only records currently loaded below (" + allRows.length + ").";
       state.textContent = allRows.length ? allRows.length + " source records shown" + (more.hidden ? "." : "; more are available.") : "No captured records match this search. This may mean the archive has no coverage for the selected feed or cutoff.";
     } catch (error) {
-      list.replaceChildren(el("div", "wtf-wx-history-empty", error.message === "Failed to fetch" ? "Evidence history is unavailable right now." : "Evidence history could not be loaded: " + error.message));
-      mapStatus.textContent = "Search did not complete; the map reflects the loaded results, if any.";
+      if (!append) {
+        list.replaceChildren(el("div", "wtf-wx-history-empty", error.message === "Failed to fetch" ? "Evidence history is unavailable right now." : "Evidence history could not be loaded: " + error.message));
+        mapStatus.textContent = "Search did not complete; the map reflects the loaded results, if any.";
+      }
       window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
-      more.hidden = true;
-      state.textContent = "Archive query unavailable.";
+      if (!append) more.hidden = true;
+      state.textContent = append && allRows.length
+        ? "More archive results could not be loaded; existing results remain visible."
+        : "Archive query unavailable.";
     }
   }
   form.addEventListener("submit", load);
   more.addEventListener("click", function () { load(null, true); });
+  exportJson.addEventListener("click", function () { exportLoaded("json"); });
+  exportCsv.addEventListener("click", function () { exportLoaded("csv"); });
   showMap.addEventListener("click", function () {
     var layerButton = document.querySelector('.wtf-wx-layer-btn[data-layer="history"]');
     if (layerButton) layerButton.click();
     var mapHost = document.getElementById("wtf-wx-map");
     if (mapHost) mapHost.scrollIntoView({behavior:"smooth", block:"center"});
   });
+  loadCoverage();
   load();
 })();
 </script>

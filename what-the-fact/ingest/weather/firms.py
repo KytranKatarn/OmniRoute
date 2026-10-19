@@ -13,7 +13,7 @@ import os
 import urllib.parse
 import urllib.request
 
-from ingest.weather.evidence import capture_source_records
+from ingest.weather.evidence import capture_source_records, record_capture_failure
 from ingest.weather.cwfis import _heartbeat
 
 logger = logging.getLogger("wtf-ingest.aurora.firms")
@@ -170,13 +170,33 @@ def run_firms_capture(engine, *, dry_run=False, map_key=None):
 
 def run_aurora_firms_capture(engine, *, dry_run=False):
     """Scheduled fail-loud wrapper; skip heartbeat while source is disabled."""
+    started_at = datetime.datetime.now(datetime.timezone.utc)
     try:
         result = run_firms_capture(engine, dry_run=dry_run)
         if not dry_run and not result.get("disabled"):
+            if result.get("error"):
+                try:
+                    with engine.begin() as conn:
+                        record_capture_failure(
+                            conn, dataset_key="nasa_firms_point",
+                            source_url="%s/[MAP_KEY_REDACTED]/<product>/<area>/1" % _API,
+                            started_at=started_at,
+                        )
+                except Exception:  # noqa: BLE001 — heartbeat still records failure
+                    logger.exception("aurora_firms failed run could not be persisted")
             _heartbeat(engine, "aurora_firms", result, None)
         return result
     except Exception as exc:  # noqa: BLE001 — record configured feed failure
         logger.exception("NASA FIRMS capture failed")
         if not dry_run:
+            try:
+                with engine.begin() as conn:
+                    record_capture_failure(
+                        conn, dataset_key="nasa_firms_point",
+                        source_url="%s/[MAP_KEY_REDACTED]/<product>/<area>/1" % _API,
+                        started_at=started_at,
+                    )
+            except Exception:  # noqa: BLE001 — heartbeat still records failure
+                logger.exception("aurora_firms failed run could not be persisted")
             _heartbeat(engine, "aurora_firms", {}, exc)
         return {"error": str(exc)}

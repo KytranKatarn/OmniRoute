@@ -1,4 +1,6 @@
 import datetime
+import base64
+import hashlib
 import json
 import math
 import os
@@ -1517,6 +1519,61 @@ def _cap_lifecycle(rows):
     ]
 
 
+def _encode_evidence_cursor(row, *, scope="archive"):
+    """Encode the stable search order boundary for a bounded next-page query."""
+    value = {
+        "scope": scope,
+        "time": row["source_sort_at"].isoformat(),
+        "dataset": row["dataset_key"],
+        "key": row["source_record_key"],
+        "id": int(row["id"]),
+    }
+    return base64.urlsafe_b64encode(
+        json.dumps(value, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
+
+
+def _evidence_cursor_scope(kind, values):
+    canonical = json.dumps(values, sort_keys=True, separators=(",", ":"), default=str)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return kind + ":" + digest
+
+
+def _decode_evidence_cursor(value, allowed_datasets, *, scope="archive"):
+    if not value:
+        return None
+    if not isinstance(value, str) or len(value) > 4096:
+        return False
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")))
+        if not isinstance(decoded, dict):
+            return False
+        parsed_time = _parse_evidence_timestamp(decoded.get("time"))
+        dataset = decoded.get("dataset")
+        source_key = decoded.get("key")
+        row_id = int(decoded.get("id"))
+    except (ValueError, TypeError, KeyError, UnicodeError, AttributeError,
+            json.JSONDecodeError):
+        return False
+    if (
+        parsed_time in (None, False)
+        or decoded.get("scope") != scope
+        or dataset not in allowed_datasets
+        or not isinstance(source_key, str)
+        or not source_key
+        or len(source_key) > 1024
+        or row_id < 1
+    ):
+        return False
+    return {
+        "time": parsed_time,
+        "dataset": dataset,
+        "key": source_key,
+        "id": row_id,
+    }
+
+
 def _evidence_coordinate_text_sql():
     """Return safe text extraction expressions for supported point feeds."""
     lat_text = """CASE
@@ -1623,6 +1680,19 @@ def api_weather_evidence():
         return jsonify({
             "error": "limit must be 1-200 and offset 0-10000"
         }), 400
+    cursor_scope = _evidence_cursor_scope("archive", {
+        "dataset": dataset,
+        "available_before": available_before,
+        "observed_after": observed_after,
+        "observed_before": observed_before,
+        "search_pattern": search_pattern,
+        "bounds": parsed_bounds,
+    })
+    cursor = _decode_evidence_cursor(
+        request.args.get("cursor"), allowed_datasets, scope=cursor_scope
+    )
+    if cursor is False or (cursor and offset):
+        return jsonify({"error": "invalid archive cursor"}), 400
 
     lat_text_sql, lon_text_sql = _evidence_coordinate_text_sql()
     numeric_pattern = r"^[+-]?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$"
@@ -1641,6 +1711,8 @@ def api_weather_evidence():
                            payload_sha256, source_observed_at, source_published_at,
                            operational_received_at, first_retrieved_at, ingested_at,
                            payload,
+                           COALESCE(source_observed_at, source_published_at,
+                                    first_retrieved_at) AS source_sort_at,
                            {lat_text_sql} AS latitude_text,
                            {lon_text_sql} AS longitude_text
                     FROM wtf.aurora_source_version
@@ -1661,7 +1733,8 @@ def api_weather_evidence():
                 SELECT id, dataset_key, source_record_key, source_url,
                        payload_sha256, source_observed_at, source_published_at,
                        operational_received_at, first_retrieved_at,
-                       ingested_at, payload, source_latitude, source_longitude
+                       ingested_at, payload, source_sort_at,
+                       source_latitude, source_longitude
                 FROM evidence
                 WHERE (:dataset IS NULL OR dataset_key = :dataset)
                   AND (NOT :point_datasets_only OR dataset_key IN
@@ -1686,10 +1759,14 @@ def api_weather_evidence():
                   AND (:west IS NULL OR
                        (source_latitude BETWEEN :south AND :north
                         AND source_longitude BETWEEN :west AND :east))
-                ORDER BY COALESCE(source_observed_at, source_published_at,
-                                  first_retrieved_at) DESC,
+                  AND (:cursor_time IS NULL
+                       OR source_sort_at < :cursor_time
+                       OR (source_sort_at = :cursor_time
+                           AND (dataset_key, source_record_key, id) >
+                               (:cursor_dataset, :cursor_key, :cursor_id)))
+                ORDER BY source_sort_at DESC,
                          dataset_key, source_record_key, id
-                LIMIT :limit OFFSET :offset
+                LIMIT :fetch_limit OFFSET :offset
             """), {
                 "dataset": dataset,
                 "available_before": available_before,
@@ -1701,10 +1778,23 @@ def api_weather_evidence():
                 "south": bounds_params.get("south"),
                 "east": bounds_params.get("east"),
                 "north": bounds_params.get("north"),
-                "limit": limit,
+                "cursor_time": cursor["time"] if cursor else None,
+                "cursor_dataset": cursor["dataset"] if cursor else None,
+                "cursor_key": cursor["key"] if cursor else None,
+                "cursor_id": cursor["id"] if cursor else None,
+                "fetch_limit": limit + 1,
                 "offset": offset,
             }).mappings().all()
         evidence = [dict(row) for row in rows]
+        has_more = len(evidence) > limit
+        if has_more:
+            evidence = evidence[:limit]
+        next_cursor = (
+            _encode_evidence_cursor(evidence[-1], scope=cursor_scope)
+            if has_more else None
+        )
+        for row in evidence:
+            row.pop("source_sort_at", None)
         lifecycle = _cap_lifecycle(
             [row for row in evidence if row.get("dataset_key") == "eccc_cap"]
         )
@@ -1713,6 +1803,8 @@ def api_weather_evidence():
             "count": len(evidence),
             "limit": limit,
             "offset": offset,
+            "has_more": has_more,
+            "next_cursor": next_cursor,
             "evidence": evidence,
             "cap_lifecycle": {
                 "scope": "matched_result_page",
@@ -1722,6 +1814,209 @@ def api_weather_evidence():
     except Exception:  # noqa: BLE001 — migration may not yet be deployed
         logger.exception("A.U.R.O.R.A. evidence history query failed")
         return jsonify({"error": "evidence history is unavailable"}), 503
+
+
+@bp.get("/api/weather/evidence/cap-lifecycle")
+def api_weather_evidence_cap_lifecycle():
+    """Read a complete, paged projection of retained CAP versions by identifier."""
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
+    identifier = request.args.get("identifier", "").strip()
+    if not identifier or len(identifier) > 512:
+        return jsonify({"error": "identifier is required and must be <= 512 characters"}), 400
+
+    available_before = _parse_evidence_timestamp(request.args.get("available_before"))
+    observed_after = _parse_evidence_timestamp(request.args.get("observed_after"))
+    observed_before = _parse_evidence_timestamp(request.args.get("observed_before"))
+    if any(value is False for value in (available_before, observed_after, observed_before)):
+        return jsonify({"error": "timestamps must be ISO 8601 with a timezone"}), 400
+    if bool(observed_after) != bool(observed_before):
+        return jsonify({"error": "observed_after and observed_before are a pair"}), 400
+    if observed_after and observed_before:
+        span = (observed_before - observed_after).total_seconds()
+        if span <= 0 or span > 31 * 86400:
+            return jsonify({"error": "observation range must be positive and <= 31 days"}), 400
+
+    try:
+        limit = int(request.args.get("limit", "100"))
+    except ValueError:
+        return jsonify({"error": "limit must be an integer"}), 400
+    if not 1 <= limit <= 200:
+        return jsonify({"error": "limit must be 1-200"}), 400
+    cursor_scope = _evidence_cursor_scope("cap", {
+        "identifier": identifier,
+        "available_before": available_before,
+        "observed_after": observed_after,
+        "observed_before": observed_before,
+    })
+    cursor = _decode_evidence_cursor(
+        request.args.get("cursor"), {"eccc_cap"}, scope=cursor_scope
+    )
+    if cursor is False:
+        return jsonify({"error": "invalid CAP lifecycle cursor"}), 400
+
+    try:
+        with _db().begin() as conn:
+            rows = conn.execute(text("""
+                WITH versions AS (
+                    SELECT id, dataset_key, source_record_key, source_url,
+                           payload_sha256, source_observed_at, source_published_at,
+                           operational_received_at, first_retrieved_at, ingested_at,
+                           payload,
+                           COALESCE(source_published_at, first_retrieved_at) AS source_sort_at
+                    FROM wtf.aurora_source_version
+                    WHERE dataset_key = 'eccc_cap'
+                      AND payload->>'identifier' = :identifier
+                )
+                SELECT * FROM versions
+                WHERE (:available_before IS NULL
+                       OR first_retrieved_at <= :available_before)
+                  AND (:observed_after IS NULL
+                       OR source_observed_at >= :observed_after)
+                  AND (:observed_before IS NULL
+                       OR source_observed_at < :observed_before)
+                  AND (:cursor_time IS NULL
+                       OR source_sort_at > :cursor_time
+                       OR (source_sort_at = :cursor_time
+                           AND (source_record_key, id) > (:cursor_key, :cursor_id)))
+                ORDER BY source_sort_at, source_record_key, id
+                LIMIT :fetch_limit
+            """), {
+                "identifier": identifier,
+                "available_before": available_before,
+                "observed_after": observed_after,
+                "observed_before": observed_before,
+                "cursor_time": cursor["time"] if cursor else None,
+                "cursor_key": cursor["key"] if cursor else None,
+                "cursor_id": cursor["id"] if cursor else None,
+                "fetch_limit": limit + 1,
+            }).mappings().all()
+        versions = [dict(row) for row in rows]
+        has_more = len(versions) > limit
+        if has_more:
+            versions = versions[:limit]
+        next_cursor = (
+            _encode_evidence_cursor(versions[-1], scope=cursor_scope)
+            if has_more else None
+        )
+        for version in versions:
+            version.pop("source_sort_at", None)
+        return jsonify({
+            "identifier": identifier,
+            "scope": "all_retained_versions_for_identifier_with_filters",
+            "count": len(versions),
+            "has_more": has_more,
+            "next_cursor": next_cursor,
+            "versions": versions,
+        })
+    except Exception:  # noqa: BLE001 — migration may not yet be deployed
+        logger.exception("A.U.R.O.R.A. CAP lifecycle query failed")
+        return jsonify({"error": "CAP lifecycle history is unavailable"}), 503
+
+
+@bp.get("/api/weather/evidence/coverage")
+def api_weather_evidence_coverage():
+    """Summarize retained archive coverage and persisted collector outcomes."""
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
+    feeds = {
+        "eccc_cap": {"label": "ECCC public alerts", "optional": False},
+        "cwfis_firewx_station_daily": {
+            "label": "CWFIS fire-weather stations", "optional": False,
+        },
+        "cwfis_hotspot_point": {"label": "CWFIS thermal anomalies", "optional": False},
+        "nasa_firms_point": {"label": "NASA FIRMS thermal anomalies", "optional": True},
+    }
+    try:
+        with _db().begin() as conn:
+            rows = conn.execute(text("""
+                WITH feeds(dataset_key) AS (
+                    VALUES ('eccc_cap'), ('cwfis_firewx_station_daily'),
+                           ('cwfis_hotspot_point'), ('nasa_firms_point')
+                ), source_summary AS (
+                    SELECT dataset_key,
+                           min(source_observed_at) AS earliest_source_time,
+                           max(source_observed_at) AS latest_source_time,
+                           min(first_retrieved_at) AS earliest_archived_at,
+                           max(first_retrieved_at) AS latest_archived_at,
+                           count(*) AS retained_versions
+                    FROM wtf.aurora_source_version
+                    GROUP BY dataset_key
+                ), run_summary AS (
+                    SELECT dataset_key,
+                           count(*) AS run_count,
+                           count(*) FILTER (WHERE retrieved_at >= now() - interval '7 days') AS runs_7d,
+                           count(*) FILTER (WHERE status = 'failed'
+                               AND retrieved_at >= now() - interval '7 days') AS failures_7d,
+                           count(*) FILTER (WHERE status = 'complete' AND record_count = 0
+                               AND retrieved_at >= now() - interval '7 days') AS empty_successes_7d,
+                           max(retrieved_at) FILTER (WHERE status = 'complete') AS last_complete_at
+                    FROM wtf.aurora_capture_run
+                    GROUP BY dataset_key
+                ), latest_run AS (
+                    SELECT DISTINCT ON (dataset_key)
+                           dataset_key, status AS last_attempt_status,
+                           started_at AS last_attempt_started_at,
+                           retrieved_at AS last_attempt_at,
+                           record_count AS last_attempt_record_count,
+                           extract(epoch FROM now() - retrieved_at)::double precision
+                               AS seconds_since_last_attempt
+                    FROM wtf.aurora_capture_run
+                    ORDER BY dataset_key, retrieved_at DESC, id DESC
+                ), intervals AS (
+                    SELECT dataset_key, started_at,
+                           lag(started_at) OVER (
+                               PARTITION BY dataset_key ORDER BY started_at, id
+                           ) AS previous_started_at
+                    FROM wtf.aurora_capture_run
+                ), cadence AS (
+                    SELECT dataset_key,
+                           percentile_cont(0.5) WITHIN GROUP (
+                               ORDER BY extract(epoch FROM started_at - previous_started_at)
+                           ) FILTER (WHERE previous_started_at IS NOT NULL
+                                 AND started_at >= now() - interval '30 days'
+                                 AND previous_started_at >= now() - interval '30 days')
+                               AS median_interval_seconds
+                    FROM intervals
+                    GROUP BY dataset_key
+                )
+                SELECT f.dataset_key,
+                       s.earliest_source_time, s.latest_source_time,
+                       s.earliest_archived_at, s.latest_archived_at,
+                       COALESCE(s.retained_versions, 0) AS retained_versions,
+                       COALESCE(r.run_count, 0) AS run_count,
+                       COALESCE(r.runs_7d, 0) AS runs_7d,
+                       COALESCE(r.failures_7d, 0) AS failures_7d,
+                       COALESCE(r.empty_successes_7d, 0) AS empty_successes_7d,
+                       r.last_complete_at, l.last_attempt_status,
+                       l.last_attempt_started_at, l.last_attempt_at,
+                       l.last_attempt_record_count, l.seconds_since_last_attempt,
+                       c.median_interval_seconds
+                FROM feeds f
+                LEFT JOIN source_summary s USING (dataset_key)
+                LEFT JOIN run_summary r USING (dataset_key)
+                LEFT JOIN latest_run l USING (dataset_key)
+                LEFT JOIN cadence c USING (dataset_key)
+                ORDER BY f.dataset_key
+            """)).mappings().all()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item.update(feeds.get(item["dataset_key"], {}))
+            item["archive_state"] = (
+                "captured" if item.get("retained_versions") else
+                "capture_attempted_no_versions" if item.get("run_count") else
+                "no_archive_coverage"
+            )
+            result.append(item)
+        return jsonify({"generated_at": datetime.datetime.now(
+            datetime.timezone.utc
+        ), "feeds": result})
+    except Exception:  # noqa: BLE001 — migration may not yet be deployed
+        logger.exception("A.U.R.O.R.A. evidence coverage query failed")
+        return jsonify({"error": "evidence coverage is unavailable"}), 503
 
 
 def _city_window_for(city):

@@ -43,7 +43,10 @@ from defusedxml.common import DefusedXmlException
 
 from sqlalchemy import text
 
-from ingest.weather.evidence import capture_source_records
+from ingest.weather.evidence import (
+    capture_source_records,
+    record_capture_failure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +237,7 @@ def _run_alerts(engine, dry_run):
             source_url=_BASE,
             started_at=started_at,
             rows=capture_rows,
+            status="partial" if stats["parse_error"] else "complete",
         )
         for row in rows:
             row.pop("raw_payload", None)
@@ -283,14 +287,32 @@ def run_aurora_alerts(engine, dry_run=False):
     """Entry point. NEVER raises — returns a per-run summary dict, same
     contract as run_aurora_citypage/run_aurora_cwfis/run_aurora_aqhi."""
     task = "aurora_alerts"
+    started_at = datetime.datetime.now(datetime.timezone.utc)
     try:
         res = _run_alerts(engine, dry_run)
         if not dry_run:
+            if isinstance(res, dict) and res.get("error"):
+                try:
+                    with engine.begin() as c:
+                        record_capture_failure(
+                            c, dataset_key="eccc_cap", source_url=_BASE,
+                            started_at=started_at,
+                        )
+                except Exception:  # noqa: BLE001 — heartbeat still records failure
+                    logger.exception("alerts: failed capture run could not be persisted")
             _heartbeat(engine, task, res, None)
         return res
     except Exception as exc:  # noqa: BLE001
         logger.exception("%s crashed", task)
         if not dry_run:
+            try:
+                with engine.begin() as c:
+                    record_capture_failure(
+                        c, dataset_key="eccc_cap", source_url=_BASE,
+                        started_at=started_at,
+                    )
+            except Exception:  # noqa: BLE001 — heartbeat still records failure
+                logger.exception("alerts: failed capture run could not be persisted")
             _heartbeat(engine, task, {}, exc)
         return {"error": str(exc)}
 

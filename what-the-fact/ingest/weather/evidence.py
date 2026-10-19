@@ -7,12 +7,16 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 
 
-def capture_source_records(conn, *, dataset_key, source_url, started_at, rows):
+def capture_source_records(
+    conn, *, dataset_key, source_url, started_at, rows, status="complete"
+):
     """Persist a retrieval and immutable source versions plus run links.
 
     PostgreSQL JSON recordsets keep large point feeds to a few statements per
     run. Re-fetches link to the original immutable payload version.
     """
+    if status not in {"complete", "partial"}:
+        raise ValueError("successful capture status must be complete or partial")
     retrieved_at = datetime.now(timezone.utc)
     run_id = conn.execute(
         text("""
@@ -20,7 +24,7 @@ def capture_source_records(conn, *, dataset_key, source_url, started_at, rows):
             (dataset_key, source_url, started_at, retrieved_at,
              status, record_count)
         VALUES (:dataset_key, :source_url, :started_at, :retrieved_at,
-                'complete', :count)
+                :status, :count)
         RETURNING id
     """),
         {
@@ -28,6 +32,7 @@ def capture_source_records(conn, *, dataset_key, source_url, started_at, rows):
             "source_url": source_url,
             "started_at": started_at,
             "retrieved_at": retrieved_at,
+            "status": status,
             "count": len(rows),
         },
     ).scalar_one()
@@ -111,3 +116,27 @@ def capture_source_records(conn, *, dataset_key, source_url, started_at, rows):
         "run_id": run_id,
         "inserted_versions": max(int(insert_result.rowcount or 0), 0),
     }
+
+
+def record_capture_failure(conn, *, dataset_key, source_url, started_at):
+    """Record that a configured source was attempted but not captured.
+
+    Failure details remain in the ingestion log; this provenance table stores
+    only safe source identity and timing, never exception text or credentials.
+    """
+    retrieved_at = datetime.now(timezone.utc)
+    run_id = conn.execute(
+        text("""
+        INSERT INTO wtf.aurora_capture_run
+            (dataset_key, source_url, started_at, retrieved_at, status, record_count)
+        VALUES (:dataset_key, :source_url, :started_at, :retrieved_at, 'failed', 0)
+        RETURNING id
+    """),
+        {
+            "dataset_key": dataset_key,
+            "source_url": source_url,
+            "started_at": started_at,
+            "retrieved_at": retrieved_at,
+        },
+    ).scalar_one()
+    return {"run_id": run_id, "status": "failed"}

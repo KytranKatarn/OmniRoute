@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import os
 import re
 import threading
@@ -1474,9 +1475,72 @@ def _parse_evidence_timestamp(value):
     return parsed.astimezone(datetime.timezone.utc)
 
 
+def _cap_lifecycle(rows):
+    """Project matching immutable CAP versions into identifier-based chains."""
+    groups = {}
+    for row in rows:
+        payload = row.get("payload") or {}
+        if not isinstance(payload, dict):
+            payload = {}
+        identifier = payload.get("identifier")
+        if not identifier:
+            # A malformed/missing CAP identifier must not merge unrelated rows.
+            identifier = "unidentified:" + str(row.get("source_record_key") or row.get("id"))
+        group = groups.setdefault(str(identifier), [])
+        group.append({
+            "source_record_key": row.get("source_record_key"),
+            "msg_type": payload.get("msg_type"),
+            "sent_utc": payload.get("sent_utc") or row.get("source_published_at"),
+            "effective_utc": payload.get("effective_utc") or row.get("source_observed_at"),
+        })
+
+    def sent_key(version):
+        sent = version.get("sent_utc")
+        parsed = _parse_evidence_timestamp(sent) if isinstance(sent, str) else sent
+        if isinstance(parsed, datetime.datetime):
+            if parsed.tzinfo is None:
+                return (1, datetime.datetime.max.replace(tzinfo=datetime.timezone.utc),
+                        version.get("source_record_key") or "")
+            return (0, parsed.astimezone(datetime.timezone.utc),
+                    version.get("source_record_key") or "")
+        return (1, datetime.datetime.max.replace(tzinfo=datetime.timezone.utc),
+                version.get("source_record_key") or "")
+
+    return [
+        {
+            "identifier": identifier,
+            "version_count": len(versions),
+            "scope": "matched_result_page",
+            "versions": sorted(versions, key=sent_key),
+        }
+        for identifier, versions in groups.items()
+    ]
+
+
+def _evidence_coordinate_text_sql():
+    """Return safe text extraction expressions for supported point feeds."""
+    lat_text = """CASE
+        WHEN dataset_key = 'cwfis_hotspot_point'
+         AND payload #>> '{geometry,type}' = 'Point'
+          THEN payload #>> '{geometry,coordinates,1}'
+        WHEN dataset_key = 'nasa_firms_point'
+          THEN COALESCE(payload #>> '{detection,latitude}',
+                        payload #>> '{detection,LATITUDE}')
+        ELSE NULL END"""
+    lon_text = """CASE
+        WHEN dataset_key = 'cwfis_hotspot_point'
+         AND payload #>> '{geometry,type}' = 'Point'
+          THEN payload #>> '{geometry,coordinates,0}'
+        WHEN dataset_key = 'nasa_firms_point'
+          THEN COALESCE(payload #>> '{detection,longitude}',
+                        payload #>> '{detection,LONGITUDE}')
+        ELSE NULL END"""
+    return lat_text, lon_text
+
+
 @bp.get("/api/weather/evidence")
 def api_weather_evidence():
-    """Read-only, bounded source search with an availability cutoff."""
+    """Read-only, bounded evidence search with CAP lifecycle projection."""
     _rl = _api_rate_check()
     if _rl is not None:
         return _rl
@@ -1519,6 +1583,37 @@ def api_weather_evidence():
                 "error": "observation range must be positive and <= 31 days"
             }), 400
 
+    source_query = request.args.get("q", "").strip()
+    if len(source_query) > 120:
+        return jsonify({"error": "search text must be 120 characters or fewer"}), 400
+    # Escape LIKE metacharacters while keeping the comparison parameterized.
+    escaped_query = (source_query.replace("!", "!!").replace("%", "!%")
+                     .replace("_", "!_"))
+    search_pattern = "%" + escaped_query + "%" if source_query else None
+
+    bounds = {key: request.args.get(key) for key in ("west", "south", "east", "north")}
+    provided_bounds = [value not in (None, "") for value in bounds.values()]
+    if any(provided_bounds) and not all(provided_bounds):
+        return jsonify({"error": "west, south, east, and north bounds are required together"}), 400
+    parsed_bounds = None
+    if all(provided_bounds):
+        try:
+            parsed_bounds = {key: float(value) for key, value in bounds.items()}
+        except (TypeError, ValueError):
+            return jsonify({"error": "geographic bounds must be numbers"}), 400
+        if not all(math.isfinite(value) for value in parsed_bounds.values()):
+            return jsonify({"error": "geographic bounds must be finite numbers"}), 400
+        if not (-180 <= parsed_bounds["west"] <= 180 and
+                -180 <= parsed_bounds["east"] <= 180 and
+                -90 <= parsed_bounds["south"] <= 90 and
+                -90 <= parsed_bounds["north"] <= 90 and
+                parsed_bounds["west"] < parsed_bounds["east"] and
+                parsed_bounds["south"] < parsed_bounds["north"]):
+            return jsonify({"error": "geographic bounds are invalid or inverted"}), 400
+        point_datasets = {"cwfis_hotspot_point", "nasa_firms_point"}
+        if dataset and dataset not in point_datasets:
+            return jsonify({"error": "geographic bounds require a point-coordinate feed"}), 400
+
     try:
         limit = int(request.args.get("limit", "100"))
         offset = int(request.args.get("offset", "0"))
@@ -1529,40 +1624,100 @@ def api_weather_evidence():
             "error": "limit must be 1-200 and offset 0-10000"
         }), 400
 
+    lat_text_sql, lon_text_sql = _evidence_coordinate_text_sql()
+    numeric_pattern = r"^[+-]?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$"
+    bounds_params = parsed_bounds or {}
+    if parsed_bounds and not dataset:
+        # A geographic query across all feeds searches only the two feeds whose
+        # original payloads carry point coordinates; it does not discard
+        # non-geographic evidence from an unbounded archive search.
+        bounds_params["point_datasets_only"] = True
+
     try:
         with _db().begin() as conn:
-            rows = conn.execute(text("""
-                SELECT dataset_key, source_record_key, source_url,
+            rows = conn.execute(text(f"""
+                WITH raw_evidence AS (
+                    SELECT id, dataset_key, source_record_key, source_url,
+                           payload_sha256, source_observed_at, source_published_at,
+                           operational_received_at, first_retrieved_at, ingested_at,
+                           payload,
+                           {lat_text_sql} AS latitude_text,
+                           {lon_text_sql} AS longitude_text
+                    FROM wtf.aurora_source_version
+                ), evidence AS (
+                    SELECT raw_evidence.*,
+                           CASE WHEN latitude_text ~ '{numeric_pattern}'
+                                THEN CASE WHEN latitude_text::double precision
+                                               BETWEEN -90 AND 90
+                                          THEN latitude_text::double precision END
+                           END AS source_latitude,
+                           CASE WHEN longitude_text ~ '{numeric_pattern}'
+                                THEN CASE WHEN longitude_text::double precision
+                                               BETWEEN -180 AND 180
+                                          THEN longitude_text::double precision END
+                           END AS source_longitude
+                    FROM raw_evidence
+                )
+                SELECT id, dataset_key, source_record_key, source_url,
                        payload_sha256, source_observed_at, source_published_at,
                        operational_received_at, first_retrieved_at,
-                       ingested_at,
-                       payload
-                FROM wtf.aurora_source_version
+                       ingested_at, payload, source_latitude, source_longitude
+                FROM evidence
                 WHERE (:dataset IS NULL OR dataset_key = :dataset)
+                  AND (NOT :point_datasets_only OR dataset_key IN
+                       ('cwfis_hotspot_point', 'nasa_firms_point'))
                   AND (:available_before IS NULL
                        OR first_retrieved_at <= :available_before)
                   AND (:observed_after IS NULL
                        OR source_observed_at >= :observed_after)
                   AND (:observed_before IS NULL
                        OR source_observed_at < :observed_before)
+                  AND (:search_pattern IS NULL
+                       OR source_record_key ILIKE :search_pattern ESCAPE '!'
+                       OR COALESCE(payload->>'identifier', '') ILIKE :search_pattern ESCAPE '!'
+                       OR COALESCE(payload->>'headline', '') ILIKE :search_pattern ESCAPE '!'
+                       OR COALESCE(payload->>'event', '') ILIKE :search_pattern ESCAPE '!'
+                       OR COALESCE(payload->>'description', '') ILIKE :search_pattern ESCAPE '!'
+                       OR COALESCE(payload->>'area_desc', '') ILIKE :search_pattern ESCAPE '!'
+                       OR COALESCE(payload #>> '{{detection,id}}',
+                                   payload #>> '{{detection,ID}}',
+                                   payload #>> '{{detection,product}}', '')
+                          ILIKE :search_pattern ESCAPE '!')
+                  AND (:west IS NULL OR
+                       (source_latitude BETWEEN :south AND :north
+                        AND source_longitude BETWEEN :west AND :east))
                 ORDER BY COALESCE(source_observed_at, source_published_at,
                                   first_retrieved_at) DESC,
-                         dataset_key, source_record_key
+                         dataset_key, source_record_key, id
                 LIMIT :limit OFFSET :offset
             """), {
                 "dataset": dataset,
                 "available_before": available_before,
                 "observed_after": observed_after,
                 "observed_before": observed_before,
+                "search_pattern": search_pattern,
+                "point_datasets_only": bool(bounds_params.get("point_datasets_only")),
+                "west": bounds_params.get("west"),
+                "south": bounds_params.get("south"),
+                "east": bounds_params.get("east"),
+                "north": bounds_params.get("north"),
                 "limit": limit,
                 "offset": offset,
             }).mappings().all()
+        evidence = [dict(row) for row in rows]
+        lifecycle = _cap_lifecycle(
+            [row for row in evidence if row.get("dataset_key") == "eccc_cap"]
+        )
         return jsonify({
             "available_before": available_before,
-            "count": len(rows),
+            "count": len(evidence),
             "limit": limit,
             "offset": offset,
-            "evidence": [dict(row) for row in rows],
+            "evidence": evidence,
+            "cap_lifecycle": {
+                "scope": "matched_result_page",
+                "groups": lifecycle,
+            },
         })
     except Exception:  # noqa: BLE001 — migration may not yet be deployed
         logger.exception("A.U.R.O.R.A. evidence history query failed")

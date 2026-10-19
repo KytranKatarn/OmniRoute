@@ -34,6 +34,48 @@ class _Connection:
         return _Result()
 
 
+class _EvidenceRows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def mappings(self):
+        return self
+
+    def all(self):
+        return self.rows
+
+
+class _EvidenceConnection:
+    def __init__(self, rows):
+        self.rows = rows
+        self.statement = None
+        self.params = None
+
+    def execute(self, statement, params):
+        self.statement = str(statement)
+        self.params = params
+        return _EvidenceRows(self.rows)
+
+
+class _EvidenceTransaction:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def __enter__(self):
+        return self.connection
+
+    def __exit__(self, *_args):
+        return False
+
+
+class _EvidenceDB:
+    def __init__(self, rows):
+        self.connection = _EvidenceConnection(rows)
+
+    def begin(self):
+        return _EvidenceTransaction(self.connection)
+
+
 def test_capture_keeps_source_times_separate_from_retrieval_and_ingest():
     conn = _Connection()
     published = "2026-10-17T18:30:00Z"
@@ -171,6 +213,128 @@ def test_evidence_api_rejects_unknown_datasets_before_database_access(
     assert response.get_json()["error"] == "unsupported dataset"
 
 
+def _evidence_api(monkeypatch, rows=()):
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    db = _EvidenceDB(list(rows))
+    monkeypatch.setattr(routes, "_api_rate_check", lambda: None)
+    monkeypatch.setattr(routes, "_db", lambda: db)
+    return app.test_client(), db
+
+
+def test_evidence_api_bounds_require_a_complete_valid_point_query(monkeypatch):
+    app = Flask(__name__)
+    app.register_blueprint(routes.bp)
+    monkeypatch.setattr(routes, "_api_rate_check", lambda: None)
+    monkeypatch.setattr(routes, "_db", lambda: pytest.fail("database should not be queried"))
+
+    partial = app.test_client().get("/api/weather/evidence?west=-111&south=50")
+    inverted = app.test_client().get(
+        "/api/weather/evidence?west=-110&east=-111&south=50&north=53"
+    )
+    unsupported = app.test_client().get(
+        "/api/weather/evidence?dataset=eccc_cap&west=-111&east=-109&south=50&north=53"
+    )
+
+    assert partial.status_code == 400
+    assert inverted.status_code == 400
+    assert unsupported.status_code == 400
+
+
+def test_evidence_api_binds_search_time_and_geographic_filters(monkeypatch):
+    client, db = _evidence_api(monkeypatch)
+    response = client.get(
+        "/api/weather/evidence?dataset=nasa_firms_point&q=NOAA_20&"
+        "observed_after=2026-10-17T10:00:00-06:00&"
+        "observed_before=2026-10-18T10:00:00-06:00&"
+        "available_before=2026-10-18T16:00:00-06:00&"
+        "west=-111&south=50&east=-109&north=53&limit=20"
+    )
+
+    assert response.status_code == 200
+    assert db.connection.params["dataset"] == "nasa_firms_point"
+    assert db.connection.params["search_pattern"] == "%NOAA!_20%"
+    assert db.connection.params["west"] == -111
+    assert db.connection.params["east"] == -109
+    assert db.connection.params["point_datasets_only"] is False
+    assert db.connection.params["observed_after"] == datetime(
+        2026, 10, 17, 16, 0, tzinfo=timezone.utc
+    )
+    assert db.connection.params["available_before"] == datetime(
+        2026, 10, 18, 22, 0, tzinfo=timezone.utc
+    )
+    assert "source_latitude BETWEEN :south AND :north" in db.connection.statement
+    assert "ILIKE :search_pattern ESCAPE '!'" in db.connection.statement
+    assert "NOAA_20" not in db.connection.statement
+
+
+def test_evidence_api_bounds_unfiltered_archive_search_to_point_feeds(monkeypatch):
+    client, db = _evidence_api(monkeypatch)
+    response = client.get(
+        "/api/weather/evidence?west=-111&south=50&east=-109&north=53"
+    )
+
+    assert response.status_code == 200
+    assert db.connection.params["dataset"] is None
+    assert db.connection.params["point_datasets_only"] is True
+
+
+def test_evidence_api_returns_cap_lifecycle_as_page_scoped_projection(monkeypatch):
+    client, _db = _evidence_api(monkeypatch, [{
+        "id": 7,
+        "dataset_key": "eccc_cap",
+        "source_record_key": "cap-7|Update|2026-10-17T18:00:00Z",
+        "source_url": "https://example.invalid/cap/update",
+        "payload_sha256": "a" * 64,
+        "source_observed_at": None,
+        "source_published_at": "2026-10-17T18:00:00Z",
+        "operational_received_at": None,
+        "first_retrieved_at": "2026-10-17T18:01:00Z",
+        "ingested_at": "2026-10-17T18:01:01Z",
+        "payload": {"identifier": "cap-7", "msg_type": "Update", "sent_utc": "2026-10-17T18:00:00Z"},
+        "source_latitude": None,
+        "source_longitude": None,
+    }])
+
+    response = client.get("/api/weather/evidence?dataset=eccc_cap")
+    body = response.get_json()
+
+    assert response.status_code == 200
+    assert body["cap_lifecycle"]["scope"] == "matched_result_page"
+    assert body["cap_lifecycle"]["groups"][0]["identifier"] == "cap-7"
+    assert body["cap_lifecycle"]["groups"][0]["versions"][0]["msg_type"] == "Update"
+    assert body["evidence"][0]["source_record_key"] == "cap-7|Update|2026-10-17T18:00:00Z"
+
+
+def test_cap_lifecycle_groups_versions_without_replacing_messages():
+    rows = [
+        {
+            "id": 3, "dataset_key": "eccc_cap", "source_record_key": "cap-1|Cancel|2026-10-17T20:00:00Z",
+            "source_published_at": "2026-10-17T20:00:00Z", "source_observed_at": None,
+            "payload": {"identifier": "cap-1", "msg_type": "Cancel"},
+        },
+        {
+            "id": 2, "dataset_key": "eccc_cap", "source_record_key": "cap-1|Update|2026-10-17T18:00:00Z",
+            "source_published_at": "2026-10-17T18:00:00Z", "source_observed_at": None,
+            "payload": {"identifier": "cap-1", "msg_type": "Update"},
+        },
+        {
+            "id": 1, "dataset_key": "eccc_cap", "source_record_key": "cap-1|Alert|2026-10-17T16:00:00Z",
+            "source_published_at": "2026-10-17T16:00:00Z", "source_observed_at": None,
+            "payload": {"identifier": "cap-1", "msg_type": "Alert"},
+        },
+    ]
+
+    lifecycle = routes._cap_lifecycle(rows)
+
+    assert len(lifecycle) == 1
+    assert lifecycle[0]["identifier"] == "cap-1"
+    assert lifecycle[0]["scope"] == "matched_result_page"
+    assert [v["msg_type"] for v in lifecycle[0]["versions"]] == [
+        "Alert", "Update", "Cancel"
+    ]
+
+
 def test_evidence_migration_is_append_only_and_tracks_its_ledger_entry():
     sql = (ROOT / "migrations" / "106_aurora_evidence_history.sql").read_text()
     for column in (
@@ -237,3 +401,24 @@ def test_weather_history_maps_only_valid_source_coordinates():
                             text=True, check=False, timeout=20)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == [[52.8, -110.2], [52.9, -110.3], None, None]
+
+
+def test_weather_history_search_ui_exposes_bounded_filters_and_cap_chain():
+    template = (ROOT / "consumer" / "templates" / "weather.html").read_text()
+
+    for control in (
+        "wtf-wx-history-query", "wtf-wx-history-observed-after",
+        "wtf-wx-history-observed-before", "wtf-wx-history-west",
+        "wtf-wx-history-south", "wtf-wx-history-east", "wtf-wx-history-north",
+    ):
+        assert control in template
+    for api_contract in (
+        '[observedAfter, "observed_after"]', '[observedBefore, "observed_before"]',
+        '[cutoff, "available_before"]', 'params.set("q"',
+        'body.cap_lifecycle',
+        "CAP message lifecycle", "Original alert text",
+    ):
+        assert api_contract in template
+    assert '"matched_result_page"' in (ROOT / "consumer" / "routes.py").read_text()
+    assert "Source time before (UTC)" in template
+    assert "additional versions may be outside this search or on another page" in template

@@ -54,6 +54,11 @@
 .wtf-wx-history-item { background:#080f18; border:1px solid #142538; border-left:2px solid #38bdf8; border-radius:4px; padding:9px 11px; min-width:0; }
 .wtf-wx-history-item.is-alert { border-left-color:#fbbf24; }
 .wtf-wx-history-item.is-thermal { border-left-color:#fb923c; }
+.wtf-wx-history-version { border-top:1px solid #142538; margin-top:8px; padding-top:8px; }
+.wtf-wx-history-version:first-of-type { border-top:0; margin-top:6px; padding-top:0; }
+.wtf-wx-history-version.is-map-selected { outline:2px solid #60a5fa; outline-offset:2px; }
+.wtf-wx-history-detail { color:#8a96a5; font:9px/1.5 var(--wtf-font-mono); margin-top:5px; overflow-wrap:anywhere; }
+.wtf-wx-history-detail b { color:#5f7185; font:8px var(--wtf-font-sans); text-transform:uppercase; letter-spacing:.07em; }
 .wtf-wx-history-item-top { display:flex; justify-content:space-between; gap:10px; color:#e5e7eb; font-size:11px; }
 .wtf-wx-history-kind { color:#93c5fd; font:9px var(--wtf-font-mono); text-transform:uppercase; letter-spacing:.08em; }
 .wtf-wx-history-times { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:8px; }
@@ -886,13 +891,34 @@
           <option value="nasa_firms_point">Satellite thermal anomalies · alternate feed</option>
         </select>
       </label>
+      <label>Source text or native ID
+        <input id="wtf-wx-history-query" type="search" maxlength="120" placeholder="alert ID, station, event…">
+      </label>
+      <label>Source time from (UTC)
+        <input id="wtf-wx-history-observed-after" type="datetime-local">
+      </label>
+      <label>Source time before (UTC)
+        <input id="wtf-wx-history-observed-before" type="datetime-local">
+      </label>
       <label>Archive held by (UTC)
         <input id="wtf-wx-history-cutoff" type="datetime-local" aria-describedby="wtf-wx-history-cutoff-help">
+      </label>
+      <label>West longitude
+        <input id="wtf-wx-history-west" type="number" min="-180" max="180" step="any" placeholder="-141">
+      </label>
+      <label>South latitude
+        <input id="wtf-wx-history-south" type="number" min="-90" max="90" step="any" placeholder="42">
+      </label>
+      <label>East longitude
+        <input id="wtf-wx-history-east" type="number" min="-180" max="180" step="any" placeholder="-52">
+      </label>
+      <label>North latitude
+        <input id="wtf-wx-history-north" type="number" min="-90" max="90" step="any" placeholder="84">
       </label>
       <button type="submit">Search archive</button>
     </form>
   </div>
-  <p class="wtf-wx-history-copy" id="wtf-wx-history-cutoff-help">Optional cutoff uses UTC. Times below are shown in UTC; missing timestamps remain blank.</p>
+  <p class="wtf-wx-history-copy" id="wtf-wx-history-cutoff-help">Date/time filters use UTC; the source-time end is exclusive. Geographic bounds use west/south/east/north and search point-coordinate feeds only. Times below are shown in UTC; missing timestamps remain blank.</p>
   <div class="wtf-wx-history-state" id="wtf-wx-history-state" role="status" aria-live="polite">Loading captured source records…</div>
   <div class="wtf-wx-history-grid">
     <div>
@@ -912,16 +938,26 @@
   var form = document.getElementById("wtf-wx-history-form");
   if (!form) return;
   var dataset = document.getElementById("wtf-wx-history-dataset");
+  var query = document.getElementById("wtf-wx-history-query");
+  var observedAfter = document.getElementById("wtf-wx-history-observed-after");
+  var observedBefore = document.getElementById("wtf-wx-history-observed-before");
   var cutoff = document.getElementById("wtf-wx-history-cutoff");
+  var boundInputs = {
+    west: document.getElementById("wtf-wx-history-west"),
+    south: document.getElementById("wtf-wx-history-south"),
+    east: document.getElementById("wtf-wx-history-east"),
+    north: document.getElementById("wtf-wx-history-north")
+  };
   var state = document.getElementById("wtf-wx-history-state");
   var list = document.getElementById("wtf-wx-history-list");
-  var map = document.getElementById("wtf-wx-history-map");
   var mapStatus = document.getElementById("wtf-wx-history-map-status");
   var showMap = document.getElementById("wtf-wx-history-show-map");
   var more = document.getElementById("wtf-wx-history-more");
   var keys = ["eccc_cap", "cwfis_firewx_station_daily", "cwfis_hotspot_point", "nasa_firms_point"];
   var offset = 0;
   var allRows = [];
+  var capLifecycleMeta = {};
+  var activeSearchParams = null;
   var pageSize = 100;
   function el(tag, cls, value) {
     var node = document.createElement(tag);
@@ -944,6 +980,42 @@
     if (row.dataset_key === "cwfis_firewx_station_daily") return "Fire-weather station";
     if (row.dataset_key === "cwfis_hotspot_point" || row.dataset_key === "nasa_firms_point") return "Satellite thermal anomaly";
     return "Source record";
+  }
+  function lifecycleIdentifier(row) {
+    var p = row.payload || {};
+    return p.identifier || String(row.source_record_key || "Unidentified CAP message").split("|")[0];
+  }
+  function addTime(parent, label, value) {
+    var t = el("div", "wtf-wx-history-time");
+    t.appendChild(el("b", "", label));
+    t.appendChild(document.createTextNode(iso(value)));
+    parent.appendChild(t);
+  }
+  function evidenceDetails(row) {
+    var xy = coordinates(row);
+    var p = row.payload || {};
+    var d = p.detection || p.properties || {};
+    var values = [["Source record ID", row.source_record_key]];
+    if (xy) values.push(["Source coordinates", xy[0] + ", " + xy[1]]);
+    var confidence = d.confidence !== undefined ? d.confidence : d.CONFIDENCE;
+    if (confidence !== undefined && confidence !== null && confidence !== "") values.push(["Source confidence", confidence]);
+    var scan = d.scan !== undefined ? d.scan : d.SCAN;
+    var track = d.track !== undefined ? d.track : d.TRACK;
+    if ((scan !== undefined && scan !== null && scan !== "") ||
+        (track !== undefined && track !== null && track !== "")) {
+      var scanText = scan === undefined || scan === null || scan === "" ? "not supplied" : String(scan);
+      var trackText = track === undefined || track === null || track === "" ? "not supplied" : String(track);
+      values.push(["Source scan / track", scanText + " / " + trackText]);
+    }
+    return values;
+  }
+  function addEvidenceDetails(parent, row) {
+    evidenceDetails(row).forEach(function (pair) {
+      var line = el("div", "wtf-wx-history-detail");
+      line.appendChild(el("b", "", pair[0]));
+      line.appendChild(document.createTextNode(" " + String(pair[1])));
+      parent.appendChild(line);
+    });
   }
   function coordinates(row) {
     var p = row.payload || {};
@@ -985,28 +1057,102 @@
       (missing ? "; " + missing + " listed record" + (missing === 1 ? " has" : "s have") + " no valid point coordinate" : "") + ".";
     showMap.hidden = !document.getElementById("wtf-wx-map");
   }
+  function capMessageType(row) {
+    var meta = capLifecycleMeta[row.source_record_key] || {};
+    return meta.msg_type || (row.payload || {}).msg_type || "CAP message";
+  }
+  function evidenceTimes(parent, row) {
+    var times = el("div", "wtf-wx-history-times");
+    addTime(times, "Observed / effective", row.source_observed_at);
+    addTime(times, "Published", row.source_published_at);
+    addTime(times, "First retrieved", row.first_retrieved_at);
+    parent.appendChild(times);
+    addTime(parent, "Operational receipt", row.operational_received_at);
+  }
+  function addSourceLink(parent, row) {
+    if (typeof row.source_url === "string" && /^https:\/\//i.test(row.source_url)) {
+      var link = el("a", "wtf-wx-history-source", "Open original source ↗");
+      link.href = row.source_url; link.target = "_blank"; link.rel = "noopener noreferrer";
+      parent.appendChild(link);
+    }
+  }
+  function appendOrdinaryRecord(row, index) {
+    var thermal = row.dataset_key === "cwfis_hotspot_point" || row.dataset_key === "nasa_firms_point";
+    var card = el("article", "wtf-wx-history-item" + (thermal ? " is-thermal" : ""));
+    card.id = "wtf-wx-evidence-" + index;
+    card.tabIndex = -1;
+    var top = el("div", "wtf-wx-history-item-top");
+    top.appendChild(el("span", "wtf-wx-history-kind", feedLabel(row)));
+    top.appendChild(el("span", "", recordTitle(row)));
+    card.appendChild(top);
+    evidenceTimes(card, row);
+    addEvidenceDetails(card, row);
+    addSourceLink(card, row);
+    list.appendChild(card);
+  }
+  function appendCapLifecycle(group) {
+    var card = el("article", "wtf-wx-history-item is-alert");
+    var heading = el("div", "wtf-wx-history-item-top");
+    heading.appendChild(el("span", "wtf-wx-history-kind", "CAP message lifecycle"));
+    heading.appendChild(el("span", "", group.identifier));
+    card.appendChild(heading);
+    card.appendChild(el("div", "wtf-wx-history-detail",
+      group.rows.length + " version" + (group.rows.length === 1 ? "" : "s") + " in loaded results; additional versions may be outside this search or on another page."));
+    group.rows.sort(function (a, b) {
+      var ap = a.row.source_published_at || (a.row.payload || {}).sent_utc;
+      var bp = b.row.source_published_at || (b.row.payload || {}).sent_utc;
+      var at = ap ? new Date(ap).getTime() : Infinity;
+      var bt = bp ? new Date(bp).getTime() : Infinity;
+      return at - bt || String(a.row.source_record_key).localeCompare(String(b.row.source_record_key));
+    }).forEach(function (entry) {
+      var row = entry.row, payload = row.payload || {};
+      var version = el("div", "wtf-wx-history-version");
+      version.id = "wtf-wx-evidence-" + entry.index;
+      version.tabIndex = -1;
+      var top = el("div", "wtf-wx-history-item-top");
+      top.appendChild(el("span", "wtf-wx-history-kind", capMessageType(row)));
+      top.appendChild(el("span", "", payload.headline || payload.event || "CAP message"));
+      version.appendChild(top);
+      var facts = [payload.event && "Event: " + payload.event,
+                   payload.severity && "Severity: " + payload.severity,
+                   payload.area_desc && "Area: " + payload.area_desc,
+                   payload.expires_utc && "Expires: " + payload.expires_utc].filter(Boolean);
+      if (facts.length) version.appendChild(el("div", "wtf-wx-history-detail", facts.join(" · ")));
+      if (payload.description) {
+        var sourceText = document.createElement("details");
+        var summary = document.createElement("summary");
+        summary.textContent = "Original alert text";
+        var description = el("p", "wtf-wx-history-detail", payload.description);
+        sourceText.appendChild(summary); sourceText.appendChild(description);
+        version.appendChild(sourceText);
+      }
+      evidenceTimes(version, row);
+      addEvidenceDetails(version, row);
+      addSourceLink(version, row);
+      card.appendChild(version);
+    });
+    list.appendChild(card);
+  }
   function render(rows) {
     list.replaceChildren();
+    var entries = [], capGroups = Object.create(null);
     rows.forEach(function (row, index) {
-      var thermal = row.dataset_key.indexOf("point") >= 0 || row.dataset_key.indexOf("firms") >= 0;
-      var alert = row.dataset_key === "eccc_cap";
-      var card = el("article", "wtf-wx-history-item" + (thermal ? " is-thermal" : alert ? " is-alert" : ""));
-      card.id = "wtf-wx-evidence-" + index;
-      card.tabIndex = -1;
-      var top = el("div", "wtf-wx-history-item-top");
-      top.appendChild(el("span", "wtf-wx-history-kind", feedLabel(row)));
-      top.appendChild(el("span", "", recordTitle(row))); card.appendChild(top);
-      var times = el("div", "wtf-wx-history-times");
-      [["Observed / effective", row.source_observed_at], ["Published", row.source_published_at], ["First retrieved", row.first_retrieved_at]].forEach(function (pair) {
-        var t = el("div", "wtf-wx-history-time"); t.appendChild(el("b", "", pair[0])); t.appendChild(document.createTextNode(iso(pair[1]))); times.appendChild(t);
-      });
-      card.appendChild(times);
-      var received = el("div", "wtf-wx-history-time"); received.appendChild(el("b", "", "Operational receipt")); received.appendChild(document.createTextNode(iso(row.operational_received_at))); card.appendChild(received);
-      var url = row.source_url;
-      if (typeof url === "string" && /^https:\/\//i.test(url)) {
-        var link = el("a", "wtf-wx-history-source", "Open original source ↗"); link.href = url; link.target = "_blank"; link.rel = "noopener noreferrer"; card.appendChild(link);
+      if (row.dataset_key !== "eccc_cap") {
+        entries.push({kind:"record", row:row, index:index,
+          sortAt: row.source_observed_at || row.source_published_at || row.first_retrieved_at});
+        return;
       }
-      list.appendChild(card);
+      var identifier = lifecycleIdentifier(row);
+      var key = "cap:" + identifier;
+      if (!capGroups[key]) {
+        capGroups[key] = {kind:"cap", identifier:identifier, rows:[], sortAt:row.source_published_at || row.source_observed_at};
+        entries.push(capGroups[key]);
+      }
+      capGroups[key].rows.push({row:row, index:index});
+    });
+    entries.forEach(function (entry) {
+      if (entry.kind === "cap") appendCapLifecycle(entry);
+      else appendOrdinaryRecord(entry.row, entry.index);
     });
     updateMapStatus(rows);
     window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
@@ -1014,22 +1160,45 @@
   async function load(event, append) {
     if (event) event.preventDefault();
     if (!append) {
-      offset = 0; allRows = [];
+      offset = 0; allRows = []; capLifecycleMeta = {};
       window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
     }
     state.textContent = "Searching the captured archive…";
-    var params = new URLSearchParams({limit:String(pageSize), offset:String(offset)});
-    if (dataset.value && keys.indexOf(dataset.value) !== -1) params.set("dataset", dataset.value);
-    if (cutoff.value) {
-      var date = new Date(cutoff.value + "Z");
-      if (Number.isNaN(date.getTime())) { state.textContent = "Enter a valid UTC cutoff."; return; }
-      params.set("available_before", date.toISOString());
-    }
+    var params;
     try {
+      if (append && activeSearchParams) {
+        params = new URLSearchParams(activeSearchParams);
+        params.set("offset", String(offset));
+      } else {
+        params = new URLSearchParams({limit:String(pageSize), offset:"0"});
+        if (dataset.value && keys.indexOf(dataset.value) !== -1) params.set("dataset", dataset.value);
+        if (query.value.trim()) params.set("q", query.value.trim());
+        [[observedAfter, "observed_after"], [observedBefore, "observed_before"],
+         [cutoff, "available_before"]].forEach(function (pair) {
+          if (!pair[0].value) return;
+          var date = new Date(pair[0].value + "Z");
+          if (Number.isNaN(date.getTime())) throw new Error("Enter valid UTC dates and times.");
+          params.set(pair[1], date.toISOString());
+        });
+        Object.keys(boundInputs).forEach(function (key) {
+          if (boundInputs[key].value !== "") params.set(key, boundInputs[key].value);
+        });
+        activeSearchParams = new URLSearchParams(params);
+      }
       var response = await fetch("/api/weather/evidence?" + params.toString(), {headers:{Accept:"application/json"}});
       var body = await response.json();
       if (!response.ok) throw new Error(body.error || "Archive query failed");
       var rows = Array.isArray(body.evidence) ? body.evidence : [];
+      var capGroups = body.cap_lifecycle && Array.isArray(body.cap_lifecycle.groups)
+        ? body.cap_lifecycle.groups : [];
+      capGroups.forEach(function (group) {
+        (group.versions || []).forEach(function (version) {
+          capLifecycleMeta[version.source_record_key] = {
+            identifier: group.identifier, msg_type: version.msg_type,
+            scope: body.cap_lifecycle.scope
+          };
+        });
+      });
       allRows = allRows.concat(rows);
       render(allRows);
       more.hidden = rows.length < pageSize;
@@ -1037,7 +1206,7 @@
       state.textContent = allRows.length ? allRows.length + " source records shown" + (more.hidden ? "." : "; more are available.") : "No captured records match this search. This may mean the archive has no coverage for the selected feed or cutoff.";
     } catch (error) {
       list.replaceChildren(el("div", "wtf-wx-history-empty", error.message === "Failed to fetch" ? "Evidence history is unavailable right now." : "Evidence history could not be loaded: " + error.message));
-      mapStatus.textContent = "Map coverage unavailable until the evidence archive responds.";
+      mapStatus.textContent = "Search did not complete; the map reflects the loaded results, if any.";
       window.dispatchEvent(new Event("wtf-historical-evidence-updated"));
       more.hidden = true;
       state.textContent = "Archive query unavailable.";

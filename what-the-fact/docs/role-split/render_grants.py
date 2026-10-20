@@ -66,6 +66,12 @@ def render(manifest):
     lines = [
         "-- DRAFT. Scratch-only; not a production migration. No passwords.",
         "-- Run under psql -X -v ON_ERROR_STOP=1 in a disposable PG16 instance.",
+        "-- OWNERSHIP: the ALTER ... OWNER TO statements below are intentional. They move the database, schemas,",
+        "-- tables, views and sequences from the shared superuser (wtfuser, which owns everything today) to NOLOGIN",
+        "-- owners: wtf_owner, and wtf_evidence_owner for the three aurora_* evidence tables. A runtime role must",
+        "-- never own what it uses: an owner can ALTER/DROP/TRUNCATE and is not bound by its own grants. Owner roles",
+        "-- have no login and no runtime membership. Rehearsal only; the production transfer is a separate reviewed",
+        "-- operator migration (see rotation-checklist.md).",
         "BEGIN;",
         "DO $$ BEGIN",
         " IF current_database() <> 'wtf_role_rehearsal' THEN",
@@ -137,7 +143,7 @@ def render(manifest):
                           f" FROM pg_attribute WHERE attrelid='{table}'::regclass",
                           " AND attnum > 0 AND NOT attisdropped",
                           " LOOP IF s IS NOT NULL THEN",
-                          f" EXECUTE format('GRANT USAGE ON SEQUENCE %s TO {qr}', s);",
+                          f" EXECUTE format('GRANT USAGE ON SEQUENCE %s TO {qr}', s::regclass); -- regclass output is identifier-quoted",
                           " END IF; END LOOP; END $$;"]
     lines += [
         "-- No default runtime grants: future objects require explicit review.",

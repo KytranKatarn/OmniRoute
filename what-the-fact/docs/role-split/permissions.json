@@ -1,0 +1,2753 @@
+{
+  "status": "DRAFT_NOT_DEPLOYABLE_UNTIL_WORKLOAD_REHEARSAL",
+  "audit": "2026-10-20-wtf-role-audit.txt",
+  "server_version_num": 160015,
+  "evidence_tables": [
+    "wtf.aurora_capture_run",
+    "wtf.aurora_capture_run_record",
+    "wtf.aurora_source_version"
+  ],
+  "audited_relations": {
+    "gov_watch.contracts_signed_by_dept_year": "r",
+    "gov_watch.gic_appointments": "r",
+    "legal_watch.crtc_decisions": "r",
+    "legal_watch.ethics_rulings": "r",
+    "market_watch.boc_rate_decisions": "r",
+    "market_watch.economic_indicators": "r",
+    "market_watch.fiscal_federal_annual": "r",
+    "market_watch.fiscal_federal_quarterly": "r",
+    "market_watch.fx_rates": "r",
+    "market_watch.oda_canada_annual": "r",
+    "parliament.bills": "r",
+    "parliament.cost_projection_snapshots": "r",
+    "parliament.dept_contracts": "r",
+    "parliament.ec_contributions": "r",
+    "parliament.election_calendar": "r",
+    "parliament.election_candidates": "r",
+    "parliament.election_history": "r",
+    "parliament.elections": "r",
+    "parliament.indemnity_rates": "r",
+    "parliament.ingest_log": "r",
+    "parliament.intl_travel_events": "r",
+    "parliament.intl_travel_senators": "r",
+    "parliament.lobbyist_contacts": "r",
+    "parliament.minister_travel": "r",
+    "parliament.mp_committees": "r",
+    "parliament.mp_disclosures": "r",
+    "parliament.mp_expense_summary": "v",
+    "parliament.mp_expenses": "r",
+    "parliament.mp_expenses_annual": "r",
+    "parliament.mp_expenses_archive": "r",
+    "parliament.mp_lobbying_summary": "v",
+    "parliament.mp_movements": "r",
+    "parliament.mp_promises": "r",
+    "parliament.mp_terms": "r",
+    "parliament.mp_votes": "r",
+    "parliament.mps": "r",
+    "parliament.officers": "r",
+    "parliament.senate_caucus_summary": "v",
+    "parliament.senate_travel_checks": "r",
+    "parliament.senate_travel_trips": "r",
+    "parliament.senate_votes": "r",
+    "parliament.senator_caucus_quarters": "r",
+    "parliament.senator_committees": "r",
+    "parliament.senator_expenses": "r",
+    "parliament.senator_expenses_legacy": "r",
+    "parliament.senator_votes": "r",
+    "parliament.senators": "r",
+    "parliament.v_caucus_senate_costs_by_year": "v",
+    "parliament.v_mp_expenses_annual_by_party": "v",
+    "parliament.v_mp_expenses_archive_quarterly": "v",
+    "parliament.v_mp_expenses_by_party": "v",
+    "parliament.v_mp_party_changes": "v",
+    "parliament.v_party_mp_costs_by_year": "v",
+    "parliament.v_senate_intl_travel_by_year": "v",
+    "parliament.v_senator_caucus_changes": "v",
+    "parliament.v_senator_expenses_by_caucus": "v",
+    "public.schema_migrations": "r",
+    "public.system_config": "r",
+    "securities.issuer_contracts": "r",
+    "securities.issuers": "r",
+    "shared.adapter_registry": "r",
+    "shared.adapter_sync_state": "r",
+    "shared.chain_link_types": "r",
+    "shared.dedup_config": "r",
+    "shared.dedup_pair_decisions": "r",
+    "shared.entities": "r",
+    "shared.entity_blocks": "r",
+    "shared.entity_external_ids": "r",
+    "shared.entity_mentions": "r",
+    "shared.entity_merge_log": "r",
+    "shared.entity_relationships": "r",
+    "shared.journalist_cleanup_20261005_retyped": "r",
+    "shared.journalist_cleanup_20261005_split_entities": "r",
+    "shared.journalist_cleanup_20261005_split_mentions": "r",
+    "shared.journalist_cleanup_20261005_split_relationships": "r",
+    "shared.journalist_review_20261006_entities": "r",
+    "shared.journalist_review_20261006_mentions": "r",
+    "shared.journalist_review_20261006_relationships": "r",
+    "shared.journalist_review_20261006b_entities": "r",
+    "shared.journalist_review_20261006b_mentions": "r",
+    "shared.journalist_review_20261006b_relationships": "r",
+    "shared.merge_review_queue": "r",
+    "shared.naics_codes": "r",
+    "shared.person_retype_20261006_snapshot": "r",
+    "shared.placeholder_cleanup_20261005_entities": "r",
+    "shared.placeholder_cleanup_20261005_mentions": "r",
+    "shared.placeholder_cleanup_20261005_relationships": "r",
+    "shared.source_mention": "r",
+    "wtf.activity_snapshot": "r",
+    "wtf.api_keys": "r",
+    "wtf.article_author_tags": "r",
+    "wtf.article_mp_tags": "r",
+    "wtf.article_mp_tags_bak_066": "r",
+    "wtf.articles": "r",
+    "wtf.audit_trail": "r",
+    "wtf.aurora_alerts": "r",
+    "wtf.aurora_aqhi_obs": "r",
+    "wtf.aurora_bc_evacuations": "r",
+    "wtf.aurora_capture_run": "r",
+    "wtf.aurora_capture_run_record": "r",
+    "wtf.aurora_city_forecast": "r",
+    "wtf.aurora_city_hourly": "r",
+    "wtf.aurora_city_normals": "r",
+    "wtf.aurora_city_obs": "r",
+    "wtf.aurora_city_site": "r",
+    "wtf.aurora_city_sun": "r",
+    "wtf.aurora_city_yesterday": "r",
+    "wtf.aurora_evacuations": "r",
+    "wtf.aurora_fire_hotspot_daily": "r",
+    "wtf.aurora_fire_perimeters": "r",
+    "wtf.aurora_firewx_obs": "r",
+    "wtf.aurora_layer_status": "v",
+    "wtf.aurora_source_version": "r",
+    "wtf.beats": "r",
+    "wtf.bias_scores": "r",
+    "wtf.bias_scores_llm_snapshot": "r",
+    "wtf.bias_scores_llmv1_snapshot_20260831": "r",
+    "wtf.claim_tracker": "r",
+    "wtf.cluster_disputes": "r",
+    "wtf.cross_watch_snapshot": "r",
+    "wtf.echo_phrase_counts": "r",
+    "wtf.fact_checks": "r",
+    "wtf.fact_checks_placeholder_snapshot_20260831": "r",
+    "wtf.failed_ingest": "r",
+    "wtf.geo_reports": "r",
+    "wtf.llm_analyses": "r",
+    "wtf.newsletter_subscribers": "r",
+    "wtf.outlet_bias_history": "r",
+    "wtf.outlet_bias_scores": "r",
+    "wtf.purged_069_bias_scores": "r",
+    "wtf.purged_069_fact_checks": "r",
+    "wtf.purged_069_llm_analyses": "r",
+    "wtf.score_flags": "r",
+    "wtf.scout_body_jobs": "r",
+    "wtf.sources": "r",
+    "wtf.story_clusters": "r",
+    "wtf.summaries": "r",
+    "wtf.user_alerts": "r",
+    "wtf.user_article_views": "r"
+  },
+  "roles": {
+    "wtf_consumer": {
+      "select": [
+        "gov_watch.contracts_signed_by_dept_year",
+        "gov_watch.gic_appointments",
+        "legal_watch.crtc_decisions",
+        "legal_watch.ethics_rulings",
+        "market_watch.boc_rate_decisions",
+        "market_watch.economic_indicators",
+        "market_watch.fiscal_federal_annual",
+        "market_watch.fiscal_federal_quarterly",
+        "market_watch.fx_rates",
+        "market_watch.oda_canada_annual",
+        "parliament.bills",
+        "parliament.ec_contributions",
+        "parliament.election_calendar",
+        "parliament.election_candidates",
+        "parliament.election_history",
+        "parliament.elections",
+        "parliament.indemnity_rates",
+        "parliament.ingest_log",
+        "parliament.intl_travel_events",
+        "parliament.intl_travel_senators",
+        "parliament.lobbyist_contacts",
+        "parliament.minister_travel",
+        "parliament.mp_committees",
+        "parliament.mp_disclosures",
+        "parliament.mp_expenses",
+        "parliament.mp_promises",
+        "parliament.mp_terms",
+        "parliament.mp_votes",
+        "parliament.mps",
+        "parliament.officers",
+        "parliament.senate_travel_trips",
+        "parliament.senate_votes",
+        "parliament.senator_caucus_quarters",
+        "parliament.senator_committees",
+        "parliament.senator_expenses",
+        "parliament.senator_expenses_legacy",
+        "parliament.senator_votes",
+        "parliament.senators",
+        "parliament.v_mp_expenses_annual_by_party",
+        "parliament.v_mp_expenses_by_party",
+        "parliament.v_mp_party_changes",
+        "parliament.v_senator_expenses_by_caucus",
+        "securities.issuer_contracts",
+        "securities.issuers",
+        "shared.chain_link_types",
+        "shared.dedup_config",
+        "shared.dedup_pair_decisions",
+        "shared.entities",
+        "shared.entity_blocks",
+        "shared.entity_external_ids",
+        "shared.entity_mentions",
+        "shared.entity_merge_log",
+        "shared.entity_relationships",
+        "shared.merge_review_queue",
+        "wtf.activity_snapshot",
+        "wtf.api_keys",
+        "wtf.article_mp_tags",
+        "wtf.articles",
+        "wtf.audit_trail",
+        "wtf.aurora_alerts",
+        "wtf.aurora_aqhi_obs",
+        "wtf.aurora_bc_evacuations",
+        "wtf.aurora_capture_run",
+        "wtf.aurora_capture_run_record",
+        "wtf.aurora_city_forecast",
+        "wtf.aurora_city_hourly",
+        "wtf.aurora_city_normals",
+        "wtf.aurora_city_obs",
+        "wtf.aurora_city_site",
+        "wtf.aurora_city_sun",
+        "wtf.aurora_city_yesterday",
+        "wtf.aurora_evacuations",
+        "wtf.aurora_fire_hotspot_daily",
+        "wtf.aurora_fire_perimeters",
+        "wtf.aurora_firewx_obs",
+        "wtf.aurora_layer_status",
+        "wtf.aurora_source_version",
+        "wtf.beats",
+        "wtf.bias_scores",
+        "wtf.claim_tracker",
+        "wtf.cluster_disputes",
+        "wtf.cross_watch_snapshot",
+        "wtf.echo_phrase_counts",
+        "wtf.fact_checks",
+        "wtf.failed_ingest",
+        "wtf.llm_analyses",
+        "wtf.newsletter_subscribers",
+        "wtf.outlet_bias_scores",
+        "wtf.scout_body_jobs",
+        "wtf.sources",
+        "wtf.story_clusters",
+        "wtf.summaries",
+        "wtf.user_alerts",
+        "wtf.user_article_views"
+      ],
+      "write": {
+        "wtf.user_article_views": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.newsletter_subscribers": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.api_keys": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.claim_tracker": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.activity_snapshot": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.cross_watch_snapshot": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entities": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_mentions": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_relationships": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_external_ids": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.dedup_pair_decisions": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_merge_log": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.story_clusters": [
+          "UPDATE"
+        ],
+        "shared.merge_review_queue": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mps": [
+          "UPDATE"
+        ],
+        "parliament.senators": [
+          "UPDATE"
+        ],
+        "parliament.officers": [
+          "UPDATE"
+        ],
+        "wtf.user_alerts": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_blocks": [
+          "DELETE"
+        ]
+      },
+      "read_source_refs": {
+        "gov_watch.contracts_signed_by_dept_year": [
+          "consumer/routes.py:10789",
+          "consumer/routes.py:10816"
+        ],
+        "gov_watch.gic_appointments": [
+          "consumer/routes.py:6792",
+          "consumer/routes.py:6801",
+          "consumer/routes.py:6810",
+          "consumer/routes.py:6821"
+        ],
+        "legal_watch.crtc_decisions": [
+          "consumer/routes.py:6662",
+          "consumer/routes.py:6680",
+          "consumer/routes.py:6683"
+        ],
+        "legal_watch.ethics_rulings": [
+          "consumer/routes.py:6741"
+        ],
+        "market_watch.boc_rate_decisions": [
+          "consumer/routes.py:2426",
+          "consumer/routes.py:7327",
+          "consumer/routes.py:7339",
+          "consumer/routes.py:7349"
+        ],
+        "market_watch.economic_indicators": [
+          "consumer/routes.py:2462"
+        ],
+        "market_watch.fiscal_federal_annual": [
+          "consumer/debt_data.py:1",
+          "consumer/routes.py:10788",
+          "consumer/routes.py:10813"
+        ],
+        "market_watch.fiscal_federal_quarterly": [
+          "consumer/routes.py:10814"
+        ],
+        "market_watch.fx_rates": [
+          "consumer/routes.py:2443"
+        ],
+        "market_watch.oda_canada_annual": [
+          "consumer/routes.py:10787"
+        ],
+        "parliament.bills": [
+          "consumer/routes.py:7497",
+          "consumer/routes.py:7945"
+        ],
+        "parliament.ec_contributions": [
+          "consumer/routes.py:8050",
+          "consumer/routes.py:8077"
+        ],
+        "parliament.election_calendar": [
+          "consumer/routes.py:11020"
+        ],
+        "parliament.election_candidates": [
+          "consumer/routes.py:10936",
+          "consumer/routes.py:10966",
+          "consumer/routes.py:10975",
+          "consumer/routes.py:11034",
+          "consumer/routes.py:11051",
+          "consumer/routes.py:11127",
+          "consumer/routes.py:11210",
+          "consumer/routes.py:11218",
+          "consumer/routes.py:11240",
+          "consumer/routes.py:11241",
+          "consumer/routes.py:11249",
+          "consumer/routes.py:11271",
+          "consumer/routes.py:11530",
+          "consumer/routes.py:11532",
+          "consumer/routes.py:11539",
+          "consumer/routes.py:11641",
+          "consumer/routes.py:11646",
+          "consumer/routes.py:11663",
+          "consumer/routes.py:11668",
+          "consumer/routes.py:11669"
+        ],
+        "parliament.election_history": [
+          "consumer/routes.py:11071"
+        ],
+        "parliament.elections": [
+          "consumer/routes.py:10930",
+          "consumer/routes.py:10936",
+          "consumer/routes.py:10966",
+          "consumer/routes.py:10975",
+          "consumer/routes.py:11034",
+          "consumer/routes.py:11049",
+          "consumer/routes.py:11051",
+          "consumer/routes.py:11062",
+          "consumer/routes.py:11097",
+          "consumer/routes.py:11126",
+          "consumer/routes.py:11127",
+          "consumer/routes.py:11137",
+          "consumer/routes.py:11203",
+          "consumer/routes.py:11210",
+          "consumer/routes.py:11218",
+          "consumer/routes.py:11236",
+          "consumer/routes.py:11240",
+          "consumer/routes.py:11241",
+          "consumer/routes.py:11249",
+          "consumer/routes.py:11271",
+          "consumer/routes.py:11466",
+          "consumer/routes.py:11521",
+          "consumer/routes.py:11530",
+          "consumer/routes.py:11532",
+          "consumer/routes.py:11539",
+          "consumer/routes.py:11574",
+          "consumer/routes.py:11663",
+          "consumer/routes.py:11668",
+          "consumer/routes.py:11669"
+        ],
+        "parliament.ingest_log": [
+          "consumer/routes.py:6964"
+        ],
+        "parliament.intl_travel_events": [
+          "consumer/routes.py:7689"
+        ],
+        "parliament.intl_travel_senators": [
+          "consumer/routes.py:7689"
+        ],
+        "parliament.lobbyist_contacts": [
+          "consumer/routes.py:6950",
+          "consumer/routes.py:6953",
+          "consumer/routes.py:6973",
+          "consumer/routes.py:6983",
+          "consumer/routes.py:6993",
+          "consumer/routes.py:7005",
+          "consumer/routes.py:7020",
+          "consumer/routes.py:7033",
+          "consumer/routes.py:7046",
+          "consumer/routes.py:7998"
+        ],
+        "parliament.mp_committees": [
+          "consumer/routes.py:7989"
+        ],
+        "parliament.mp_disclosures": [
+          "consumer/routes.py:8007"
+        ],
+        "parliament.mp_expenses": [
+          "consumer/routes.py:7875"
+        ],
+        "parliament.mp_promises": [
+          "consumer/routes.py:8015"
+        ],
+        "parliament.mp_terms": [
+          "consumer/routes.py:7894"
+        ],
+        "parliament.mp_votes": [
+          "consumer/routes.py:7445",
+          "consumer/routes.py:7945",
+          "consumer/routes.py:7956"
+        ],
+        "parliament.mps": [
+          "consumer/routes.py:11282",
+          "consumer/routes.py:3914",
+          "consumer/routes.py:3920",
+          "consumer/routes.py:4639",
+          "consumer/routes.py:4642",
+          "consumer/routes.py:6741",
+          "consumer/routes.py:6983",
+          "consumer/routes.py:6993",
+          "consumer/routes.py:701",
+          "consumer/routes.py:7033",
+          "consumer/routes.py:7046",
+          "consumer/routes.py:7445",
+          "consumer/routes.py:7459",
+          "consumer/routes.py:7462",
+          "consumer/routes.py:7472",
+          "consumer/routes.py:7916",
+          "consumer/routes.py:8111",
+          "consumer/routes.py:851",
+          "consumer/routes.py:888",
+          "consumer/routes.py:9117",
+          "consumer/routes.py:9126",
+          "consumer/routes.py:926",
+          "consumer/routes.py:9835"
+        ],
+        "parliament.officers": [
+          "consumer/routes.py:6630"
+        ],
+        "parliament.senate_travel_trips": [
+          "consumer/routes.py:7676",
+          "consumer/routes.py:7682"
+        ],
+        "parliament.senate_votes": [
+          "consumer/routes.py:7497",
+          "consumer/routes.py:7779"
+        ],
+        "parliament.senator_caucus_quarters": [
+          "consumer/routes.py:7715"
+        ],
+        "parliament.senator_committees": [
+          "consumer/routes.py:7771"
+        ],
+        "parliament.senator_expenses": [
+          "consumer/routes.py:7633"
+        ],
+        "parliament.senator_expenses_legacy": [
+          "consumer/routes.py:3736",
+          "consumer/routes.py:3746",
+          "consumer/routes.py:7649"
+        ],
+        "parliament.senator_votes": [
+          "consumer/routes.py:7779"
+        ],
+        "parliament.senators": [
+          "consumer/routes.py:3736",
+          "consumer/routes.py:7479",
+          "consumer/routes.py:7760"
+        ],
+        "parliament.v_mp_expenses_annual_by_party": [
+          "consumer/routes.py:11407",
+          "consumer/routes.py:11412"
+        ],
+        "parliament.v_mp_expenses_by_party": [
+          "consumer/routes.py:11325",
+          "consumer/routes.py:11342",
+          "consumer/routes.py:11348",
+          "consumer/routes.py:7863"
+        ],
+        "parliament.v_mp_party_changes": [
+          "consumer/routes.py:11325",
+          "consumer/routes.py:11352",
+          "consumer/routes.py:11356"
+        ],
+        "parliament.v_senator_expenses_by_caucus": [
+          "consumer/routes.py:3668",
+          "consumer/routes.py:3675"
+        ],
+        "securities.issuer_contracts": [
+          "consumer/routes.py:8345",
+          "consumer/routes.py:8349",
+          "consumer/routes.py:8524"
+        ],
+        "shared.dedup_config": [
+          "ingest/entity_graph_dedup.py:404",
+          "ingest/entity_graph_dedup.py:491"
+        ],
+        "shared.dedup_pair_decisions": [
+          "ingest/entity_graph_dedup.py:406",
+          "ingest/entity_graph_dedup.py:525"
+        ],
+        "shared.entities": [
+          "consumer/entity_graph_routes.py:119",
+          "consumer/entity_graph_routes.py:166",
+          "consumer/entity_graph_routes.py:428",
+          "consumer/entity_graph_routes.py:486",
+          "ingest/entity_graph_dedup.py:106",
+          "ingest/entity_graph_dedup.py:148",
+          "ingest/entity_graph_dedup.py:150",
+          "ingest/entity_graph_dedup.py:316",
+          "ingest/entity_graph_dedup.py:374",
+          "ingest/entity_graph_dedup.py:406",
+          "ingest/entity_graph_dedup.py:460",
+          "ingest/entity_graph_dedup.py:461",
+          "ingest/entity_graph_dedup.py:475",
+          "ingest/entity_graph_dedup.py:477",
+          "ingest/entity_graph_dedup.py:497",
+          "ingest/entity_graph_dedup.py:499",
+          "ingest/entity_graph_dedup.py:509",
+          "ingest/entity_graph_dedup.py:510",
+          "ingest/entity_graph_dedup.py:560",
+          "ingest/entity_graph_dedup.py:562",
+          "ingest/entity_graph_dedup.py:568",
+          "ingest/entity_graph_dedup.py:95"
+        ],
+        "shared.entity_blocks": [
+          "ingest/entity_graph_dedup.py:179",
+          "ingest/entity_graph_dedup.py:496"
+        ],
+        "shared.entity_external_ids": [
+          "ingest/entity_graph_dedup.py:139",
+          "ingest/entity_graph_dedup.py:145"
+        ],
+        "shared.entity_mentions": [
+          "ingest/entity_graph_dedup.py:101",
+          "ingest/entity_graph_dedup.py:128",
+          "ingest/entity_graph_dedup.py:465"
+        ],
+        "shared.entity_merge_log": [
+          "ingest/entity_graph_dedup.py:205"
+        ],
+        "shared.entity_relationships": [
+          "ingest/entity_graph_dedup.py:111",
+          "ingest/entity_graph_dedup.py:379",
+          "ingest/entity_graph_dedup.py:447",
+          "ingest/entity_graph_dedup.py:450",
+          "ingest/entity_graph_dedup.py:509",
+          "ingest/entity_graph_dedup.py:510",
+          "ingest/entity_graph_dedup.py:97"
+        ],
+        "shared.merge_review_queue": [
+          "ingest/entity_graph_dedup.py:316",
+          "ingest/entity_graph_dedup.py:335",
+          "ingest/entity_graph_dedup.py:346",
+          "ingest/entity_graph_dedup.py:406",
+          "ingest/entity_graph_dedup.py:560",
+          "ingest/entity_graph_dedup.py:579"
+        ],
+        "wtf.activity_snapshot": [
+          "consumer/activity_snapshot.py:71"
+        ],
+        "wtf.api_keys": [
+          "consumer/api_keys.py:126",
+          "consumer/api_keys.py:47",
+          "consumer/api_keys.py:96"
+        ],
+        "wtf.article_mp_tags": [
+          "consumer/routes.py:3914",
+          "consumer/routes.py:4639",
+          "consumer/routes.py:701",
+          "consumer/routes.py:7445",
+          "consumer/routes.py:7963",
+          "consumer/routes.py:851",
+          "consumer/routes.py:9117",
+          "consumer/routes.py:926",
+          "consumer/routes.py:9835"
+        ],
+        "wtf.articles": [
+          "consumer/entities.py:160",
+          "consumer/entities.py:188",
+          "consumer/entities.py:271",
+          "consumer/entities.py:292",
+          "consumer/entities.py:304",
+          "consumer/entities.py:387",
+          "consumer/routes.py:10239",
+          "consumer/routes.py:10247",
+          "consumer/routes.py:10301",
+          "consumer/routes.py:10384",
+          "consumer/routes.py:10398",
+          "consumer/routes.py:10406",
+          "consumer/routes.py:10465",
+          "consumer/routes.py:10468",
+          "consumer/routes.py:10887",
+          "consumer/routes.py:1119",
+          "consumer/routes.py:1133",
+          "consumer/routes.py:1136",
+          "consumer/routes.py:2392",
+          "consumer/routes.py:2406",
+          "consumer/routes.py:2409",
+          "consumer/routes.py:2412",
+          "consumer/routes.py:2555",
+          "consumer/routes.py:2605",
+          "consumer/routes.py:2619",
+          "consumer/routes.py:2660",
+          "consumer/routes.py:2668",
+          "consumer/routes.py:2675",
+          "consumer/routes.py:2682",
+          "consumer/routes.py:2730",
+          "consumer/routes.py:2759",
+          "consumer/routes.py:2929",
+          "consumer/routes.py:3046",
+          "consumer/routes.py:3054",
+          "consumer/routes.py:3069",
+          "consumer/routes.py:3096",
+          "consumer/routes.py:3136",
+          "consumer/routes.py:3143",
+          "consumer/routes.py:3160",
+          "consumer/routes.py:3169",
+          "consumer/routes.py:3484",
+          "consumer/routes.py:364",
+          "consumer/routes.py:3914",
+          "consumer/routes.py:4096",
+          "consumer/routes.py:4123",
+          "consumer/routes.py:4142",
+          "consumer/routes.py:4209",
+          "consumer/routes.py:4381",
+          "consumer/routes.py:4536",
+          "consumer/routes.py:4617",
+          "consumer/routes.py:4713",
+          "consumer/routes.py:483",
+          "consumer/routes.py:4990",
+          "consumer/routes.py:511",
+          "consumer/routes.py:5130",
+          "consumer/routes.py:5181",
+          "consumer/routes.py:5230",
+          "consumer/routes.py:5255",
+          "consumer/routes.py:5262",
+          "consumer/routes.py:5274",
+          "consumer/routes.py:5288",
+          "consumer/routes.py:5300",
+          "consumer/routes.py:5383",
+          "consumer/routes.py:5673",
+          "consumer/routes.py:5692",
+          "consumer/routes.py:5755",
+          "consumer/routes.py:5888",
+          "consumer/routes.py:6111",
+          "consumer/routes.py:6159",
+          "consumer/routes.py:6181",
+          "consumer/routes.py:6204",
+          "consumer/routes.py:6396",
+          "consumer/routes.py:6431",
+          "consumer/routes.py:6479",
+          "consumer/routes.py:6580",
+          "consumer/routes.py:671",
+          "consumer/routes.py:6889",
+          "consumer/routes.py:738",
+          "consumer/routes.py:753",
+          "consumer/routes.py:769",
+          "consumer/routes.py:779",
+          "consumer/routes.py:789",
+          "consumer/routes.py:7963",
+          "consumer/routes.py:804",
+          "consumer/routes.py:8164",
+          "consumer/routes.py:823",
+          "consumer/routes.py:8236",
+          "consumer/routes.py:8242",
+          "consumer/routes.py:8250",
+          "consumer/routes.py:8268",
+          "consumer/routes.py:8316",
+          "consumer/routes.py:8370",
+          "consumer/routes.py:851",
+          "consumer/routes.py:8623",
+          "consumer/routes.py:8703",
+          "consumer/routes.py:8764",
+          "consumer/routes.py:8805",
+          "consumer/routes.py:908",
+          "consumer/routes.py:9117",
+          "consumer/routes.py:9205",
+          "consumer/routes.py:9212",
+          "consumer/routes.py:9258",
+          "consumer/routes.py:9281",
+          "consumer/routes.py:9310",
+          "consumer/routes.py:9355",
+          "consumer/routes.py:9371",
+          "consumer/routes.py:9513",
+          "consumer/routes.py:9605",
+          "consumer/routes.py:9652",
+          "consumer/routes.py:9939"
+        ],
+        "wtf.audit_trail": [
+          "consumer/routes.py:2660",
+          "consumer/routes.py:2682",
+          "consumer/routes.py:2929",
+          "consumer/routes.py:3131",
+          "consumer/routes.py:3484"
+        ],
+        "wtf.aurora_alerts": [
+          "consumer/routes.py:1267",
+          "consumer/routes.py:1287",
+          "consumer/routes.py:3863"
+        ],
+        "wtf.aurora_aqhi_obs": [
+          "consumer/routes.py:1252"
+        ],
+        "wtf.aurora_bc_evacuations": [
+          "consumer/routes.py:1318",
+          "consumer/routes.py:3878"
+        ],
+        "wtf.aurora_capture_run": [
+          "consumer/routes.py:1934"
+        ],
+        "wtf.aurora_city_forecast": [
+          "consumer/routes.py:1001",
+          "consumer/routes.py:1232",
+          "consumer/routes.py:1417",
+          "consumer/routes.py:2138",
+          "consumer/routes.py:2172",
+          "consumer/routes.py:3821"
+        ],
+        "wtf.aurora_city_hourly": [
+          "consumer/routes.py:2029"
+        ],
+        "wtf.aurora_city_normals": [
+          "consumer/routes.py:2042"
+        ],
+        "wtf.aurora_city_obs": [
+          "consumer/routes.py:1001",
+          "consumer/routes.py:1213",
+          "consumer/routes.py:1401",
+          "consumer/routes.py:2138",
+          "consumer/routes.py:2172",
+          "consumer/routes.py:3805"
+        ],
+        "wtf.aurora_city_site": [
+          "consumer/aurora_tz.py:45",
+          "consumer/routes.py:1001",
+          "consumer/routes.py:1213",
+          "consumer/routes.py:1401",
+          "consumer/routes.py:2172",
+          "consumer/routes.py:3805"
+        ],
+        "wtf.aurora_city_sun": [
+          "consumer/routes.py:2035"
+        ],
+        "wtf.aurora_city_yesterday": [
+          "consumer/routes.py:2038"
+        ],
+        "wtf.aurora_evacuations": [
+          "consumer/routes.py:1303",
+          "consumer/routes.py:3874"
+        ],
+        "wtf.aurora_fire_hotspot_daily": [
+          "consumer/routes.py:1164",
+          "consumer/routes.py:3831"
+        ],
+        "wtf.aurora_fire_perimeters": [
+          "consumer/routes.py:1171"
+        ],
+        "wtf.aurora_firewx_obs": [
+          "consumer/routes.py:1175",
+          "consumer/routes.py:1187",
+          "consumer/routes.py:1197",
+          "consumer/routes.py:1208",
+          "consumer/routes.py:3847"
+        ],
+        "wtf.aurora_layer_status": [
+          "consumer/routes.py:1155",
+          "consumer/routes.py:1427"
+        ],
+        "wtf.aurora_source_version": [
+          "consumer/routes.py:1708",
+          "consumer/routes.py:1717",
+          "consumer/routes.py:1861",
+          "consumer/routes.py:1934"
+        ],
+        "wtf.bias_scores": [
+          "consumer/routes.py:10239",
+          "consumer/routes.py:10247",
+          "consumer/routes.py:10384",
+          "consumer/routes.py:10398",
+          "consumer/routes.py:10468",
+          "consumer/routes.py:1119",
+          "consumer/routes.py:2392",
+          "consumer/routes.py:2605",
+          "consumer/routes.py:2668",
+          "consumer/routes.py:2730",
+          "consumer/routes.py:2929",
+          "consumer/routes.py:3136",
+          "consumer/routes.py:3484",
+          "consumer/routes.py:3914",
+          "consumer/routes.py:4096",
+          "consumer/routes.py:4123",
+          "consumer/routes.py:4142",
+          "consumer/routes.py:4209",
+          "consumer/routes.py:4381",
+          "consumer/routes.py:4536",
+          "consumer/routes.py:483",
+          "consumer/routes.py:4979",
+          "consumer/routes.py:4990",
+          "consumer/routes.py:5255",
+          "consumer/routes.py:5262",
+          "consumer/routes.py:5692",
+          "consumer/routes.py:5755",
+          "consumer/routes.py:5888",
+          "consumer/routes.py:6111",
+          "consumer/routes.py:6159",
+          "consumer/routes.py:6204",
+          "consumer/routes.py:6396",
+          "consumer/routes.py:6479",
+          "consumer/routes.py:6526",
+          "consumer/routes.py:6580",
+          "consumer/routes.py:738",
+          "consumer/routes.py:753",
+          "consumer/routes.py:769",
+          "consumer/routes.py:779",
+          "consumer/routes.py:789",
+          "consumer/routes.py:7963",
+          "consumer/routes.py:804",
+          "consumer/routes.py:823",
+          "consumer/routes.py:851",
+          "consumer/routes.py:8623",
+          "consumer/routes.py:9117",
+          "consumer/routes.py:9205",
+          "consumer/routes.py:9212",
+          "consumer/routes.py:9513",
+          "consumer/routes.py:9652"
+        ],
+        "wtf.claim_tracker": [
+          "consumer/claim_admin_routes.py:218",
+          "consumer/claim_admin_routes.py:49",
+          "consumer/routes.py:4639",
+          "consumer/routes.py:4842",
+          "consumer/routes.py:4877",
+          "consumer/routes.py:4915"
+        ],
+        "wtf.cluster_disputes": [
+          "consumer/routes.py:5692",
+          "consumer/routes.py:9576",
+          "consumer/routes.py:9605"
+        ],
+        "wtf.cross_watch_snapshot": [
+          "consumer/cross_watch_snapshot.py:55"
+        ],
+        "wtf.echo_phrase_counts": [
+          "consumer/echo_data.py:50",
+          "consumer/echo_data.py:68",
+          "consumer/echo_data.py:97"
+        ],
+        "wtf.fact_checks": [
+          "consumer/routes.py:10247",
+          "consumer/routes.py:10384",
+          "consumer/routes.py:10406",
+          "consumer/routes.py:1088",
+          "consumer/routes.py:2675",
+          "consumer/routes.py:2730",
+          "consumer/routes.py:2759",
+          "consumer/routes.py:2929",
+          "consumer/routes.py:3143",
+          "consumer/routes.py:3484",
+          "consumer/routes.py:4209",
+          "consumer/routes.py:4316",
+          "consumer/routes.py:5130",
+          "consumer/routes.py:5274",
+          "consumer/routes.py:6111",
+          "consumer/routes.py:6159",
+          "consumer/routes.py:6204",
+          "consumer/routes.py:6396",
+          "consumer/routes.py:851",
+          "consumer/routes.py:9117"
+        ],
+        "wtf.failed_ingest": [
+          "consumer/routes.py:2929"
+        ],
+        "wtf.llm_analyses": [
+          "consumer/routes.py:3069",
+          "consumer/routes.py:3096"
+        ],
+        "wtf.outlet_bias_scores": [
+          "consumer/routes.py:10301",
+          "consumer/routes.py:4209",
+          "consumer/routes.py:5181",
+          "consumer/routes.py:5230",
+          "consumer/routes.py:5318",
+          "consumer/routes.py:5334",
+          "consumer/routes.py:6690",
+          "consumer/routes.py:7376",
+          "consumer/routes.py:908",
+          "consumer/routes.py:9355",
+          "consumer/routes.py:9371"
+        ],
+        "wtf.scout_body_jobs": [
+          "consumer/routes.py:2929"
+        ],
+        "wtf.sources": [
+          "consumer/entities.py:188",
+          "consumer/entities.py:292",
+          "consumer/routes.py:10072",
+          "consumer/routes.py:10239",
+          "consumer/routes.py:10247",
+          "consumer/routes.py:10301",
+          "consumer/routes.py:10384",
+          "consumer/routes.py:10887",
+          "consumer/routes.py:1119",
+          "consumer/routes.py:2392",
+          "consumer/routes.py:2605",
+          "consumer/routes.py:2660",
+          "consumer/routes.py:2668",
+          "consumer/routes.py:2675",
+          "consumer/routes.py:2682",
+          "consumer/routes.py:3054",
+          "consumer/routes.py:3081",
+          "consumer/routes.py:3169",
+          "consumer/routes.py:364",
+          "consumer/routes.py:3914",
+          "consumer/routes.py:4142",
+          "consumer/routes.py:4209",
+          "consumer/routes.py:4381",
+          "consumer/routes.py:4617",
+          "consumer/routes.py:483",
+          "consumer/routes.py:4990",
+          "consumer/routes.py:5181",
+          "consumer/routes.py:5230",
+          "consumer/routes.py:5318",
+          "consumer/routes.py:5383",
+          "consumer/routes.py:5673",
+          "consumer/routes.py:6111",
+          "consumer/routes.py:6159",
+          "consumer/routes.py:6181",
+          "consumer/routes.py:6204",
+          "consumer/routes.py:6396",
+          "consumer/routes.py:6431",
+          "consumer/routes.py:6580",
+          "consumer/routes.py:6638",
+          "consumer/routes.py:6690",
+          "consumer/routes.py:6750",
+          "consumer/routes.py:6805",
+          "consumer/routes.py:6889",
+          "consumer/routes.py:7354",
+          "consumer/routes.py:7376",
+          "consumer/routes.py:738",
+          "consumer/routes.py:7414",
+          "consumer/routes.py:7429",
+          "consumer/routes.py:753",
+          "consumer/routes.py:769",
+          "consumer/routes.py:779",
+          "consumer/routes.py:7824",
+          "consumer/routes.py:789",
+          "consumer/routes.py:7963",
+          "consumer/routes.py:804",
+          "consumer/routes.py:8149",
+          "consumer/routes.py:8164",
+          "consumer/routes.py:8227",
+          "consumer/routes.py:823",
+          "consumer/routes.py:8242",
+          "consumer/routes.py:8250",
+          "consumer/routes.py:8298",
+          "consumer/routes.py:8316",
+          "consumer/routes.py:8480",
+          "consumer/routes.py:851",
+          "consumer/routes.py:8523",
+          "consumer/routes.py:8623",
+          "consumer/routes.py:8656",
+          "consumer/routes.py:8665",
+          "consumer/routes.py:8740",
+          "consumer/routes.py:908",
+          "consumer/routes.py:9117",
+          "consumer/routes.py:9178",
+          "consumer/routes.py:9212",
+          "consumer/routes.py:9513",
+          "consumer/routes.py:9652",
+          "consumer/routes.py:9939"
+        ],
+        "wtf.story_clusters": [
+          "consumer/routes.py:10373",
+          "consumer/routes.py:10486",
+          "consumer/routes.py:1119",
+          "consumer/routes.py:2392",
+          "consumer/routes.py:2605",
+          "consumer/routes.py:2690",
+          "consumer/routes.py:2697",
+          "consumer/routes.py:2929",
+          "consumer/routes.py:3054",
+          "consumer/routes.py:3155",
+          "consumer/routes.py:3484",
+          "consumer/routes.py:3914",
+          "consumer/routes.py:4405",
+          "consumer/routes.py:483",
+          "consumer/routes.py:5288",
+          "consumer/routes.py:5373",
+          "consumer/routes.py:5692",
+          "consumer/routes.py:6111",
+          "consumer/routes.py:6204",
+          "consumer/routes.py:6385",
+          "consumer/routes.py:6573",
+          "consumer/routes.py:676",
+          "consumer/routes.py:851",
+          "consumer/routes.py:8805",
+          "consumer/routes.py:9117",
+          "consumer/routes.py:9258",
+          "consumer/routes.py:9281",
+          "consumer/routes.py:9310",
+          "consumer/routes.py:9513",
+          "consumer/routes.py:9576",
+          "consumer/routes.py:9605"
+        ],
+        "wtf.summaries": [
+          "consumer/routes.py:2690",
+          "consumer/routes.py:2929",
+          "consumer/routes.py:3150",
+          "consumer/routes.py:3484",
+          "consumer/routes.py:6418",
+          "consumer/routes.py:8805",
+          "consumer/routes.py:9310"
+        ],
+        "wtf.user_alerts": [
+          "consumer/routes.py:10065",
+          "consumer/routes.py:10120"
+        ],
+        "wtf.user_article_views": [
+          "consumer/routes.py:4979",
+          "consumer/routes.py:4990",
+          "consumer/routes.py:6526"
+        ],
+        "parliament.indemnity_rates": [
+          "consumer/cost_routes.py"
+        ],
+        "shared.chain_link_types": [
+          "consumer/chain_routes.py"
+        ],
+        "wtf.beats": [
+          "consumer/beats.py:44"
+        ],
+        "parliament.minister_travel": [
+          "consumer/cost_routes.py"
+        ]
+      },
+      "write_source_refs": {
+        "wtf.user_article_views": [
+          "consumer/routes.py:4352"
+        ],
+        "wtf.newsletter_subscribers": [
+          "consumer/routes.py:10009",
+          "consumer/routes.py:10029"
+        ],
+        "wtf.api_keys": [
+          "consumer/api_keys.py:108",
+          "consumer/api_keys.py:154",
+          "consumer/api_keys.py:72"
+        ],
+        "wtf.claim_tracker": [
+          "consumer/claim_admin_routes.py:154",
+          "consumer/claim_admin_routes.py:186",
+          "consumer/claim_admin_routes.py:98"
+        ],
+        "wtf.activity_snapshot": [
+          "consumer/activity_snapshot.py:125"
+        ],
+        "wtf.cross_watch_snapshot": [
+          "consumer/cross_watch_snapshot.py:95"
+        ],
+        "shared.entities": [
+          "consumer/entity_graph_routes.py:82",
+          "ingest/entity_graph_dedup.py:160",
+          "ingest/entity_graph_dedup.py:167",
+          "ingest/entity_graph_dedup.py:180",
+          "ingest/entity_graph_dedup.py:222",
+          "ingest/entity_graph_dedup.py:235"
+        ],
+        "shared.entity_mentions": [
+          "consumer/entity_graph_routes.py:170",
+          "ingest/entity_graph_dedup.py:128",
+          "ingest/entity_graph_dedup.py:135",
+          "ingest/entity_graph_dedup.py:276",
+          "ingest/entity_graph_dedup.py:282",
+          "ingest/entity_graph_dedup.py:465",
+          "ingest/entity_graph_dedup.py:477"
+        ],
+        "shared.entity_relationships": [
+          "consumer/entity_graph_routes.py:180",
+          "ingest/entity_graph_dedup.py:111",
+          "ingest/entity_graph_dedup.py:122",
+          "ingest/entity_graph_dedup.py:124",
+          "ingest/entity_graph_dedup.py:251",
+          "ingest/entity_graph_dedup.py:262",
+          "ingest/entity_graph_dedup.py:447",
+          "ingest/entity_graph_dedup.py:460"
+        ],
+        "shared.entity_external_ids": [
+          "consumer/entity_graph_routes.py:196",
+          "ingest/entity_graph_dedup.py:139",
+          "ingest/entity_graph_dedup.py:145"
+        ],
+        "shared.dedup_pair_decisions": [
+          "ingest/entity_graph_dedup.py:188",
+          "ingest/entity_graph_dedup.py:297",
+          "ingest/entity_graph_dedup.py:362"
+        ],
+        "shared.entity_merge_log": [
+          "ingest/entity_graph_dedup.py:182",
+          "ingest/entity_graph_dedup.py:294"
+        ],
+        "wtf.story_clusters": [
+          "consumer/routes.py:5435"
+        ],
+        "shared.merge_review_queue": [
+          "ingest/entity_graph_dedup.py:355",
+          "ingest/entity_graph_dedup.py:368",
+          "ingest/entity_graph_dedup.py:383",
+          "ingest/entity_graph_dedup.py:424",
+          "ingest/entity_graph_dedup.py:540",
+          "ingest/entity_graph_dedup.py:560",
+          "ingest/entity_graph_dedup.py:562"
+        ],
+        "parliament.mps": [
+          "ingest/entity_graph_dedup.py:_ENTITY_REF_TABLES; _merge; revert"
+        ],
+        "parliament.senators": [
+          "ingest/entity_graph_dedup.py:_ENTITY_REF_TABLES; _merge; revert"
+        ],
+        "parliament.officers": [
+          "ingest/entity_graph_dedup.py:_ENTITY_REF_TABLES; _merge; revert"
+        ],
+        "wtf.user_alerts": [
+          "consumer/routes.py:10098",
+          "consumer/routes.py:10120"
+        ],
+        "shared.entity_blocks": [
+          "ingest/entity_graph_dedup.py:179",
+          "ingest/entity_graph_dedup.py:496",
+          "ingest/entity_graph_dedup.py:497"
+        ]
+      },
+      "extra_schema_usage": [
+        "public"
+      ]
+    },
+    "wtf_tech": {
+      "select": [
+        "wtf.articles",
+        "wtf.audit_trail",
+        "wtf.bias_scores",
+        "wtf.fact_checks",
+        "wtf.outlet_bias_history",
+        "wtf.outlet_bias_scores",
+        "wtf.score_flags",
+        "wtf.sources",
+        "wtf.story_clusters",
+        "wtf.summaries"
+      ],
+      "write": {
+        "wtf.bias_scores": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.fact_checks": [
+          "DELETE",
+          "INSERT"
+        ],
+        "wtf.articles": [
+          "UPDATE"
+        ],
+        "wtf.score_flags": [
+          "INSERT"
+        ]
+      },
+      "read_source_refs": {
+        "wtf.articles": [
+          "tech/api.py:104",
+          "tech/api.py:161",
+          "tech/api.py:306",
+          "tech/api.py:406",
+          "tech/api.py:55",
+          "tech/api.py:83",
+          "tech/routes.py:101",
+          "tech/routes.py:213",
+          "tech/routes.py:228",
+          "tech/routes.py:235",
+          "tech/routes.py:299",
+          "tech/routes.py:308",
+          "tech/routes.py:318",
+          "tech/routes.py:328",
+          "tech/routes.py:373",
+          "tech/routes.py:409",
+          "tech/routes.py:53",
+          "tech/routes.py:760",
+          "tech/routes.py:783",
+          "tech/routes.py:82"
+        ],
+        "wtf.audit_trail": [
+          "tech/api.py:107",
+          "tech/routes.py:135",
+          "tech/routes.py:318",
+          "tech/routes.py:328"
+        ],
+        "wtf.bias_scores": [
+          "tech/api.py:161",
+          "tech/api.py:306",
+          "tech/api.py:55",
+          "tech/api.py:83",
+          "tech/routes.py:101",
+          "tech/routes.py:213",
+          "tech/routes.py:235",
+          "tech/routes.py:299",
+          "tech/routes.py:373",
+          "tech/routes.py:409"
+        ],
+        "wtf.fact_checks": [
+          "tech/api.py:409",
+          "tech/routes.py:122",
+          "tech/routes.py:308",
+          "tech/routes.py:651"
+        ],
+        "wtf.outlet_bias_history": [
+          "tech/api.py:380"
+        ],
+        "wtf.outlet_bias_scores": [
+          "tech/api.py:214"
+        ],
+        "wtf.sources": [
+          "tech/api.py:161",
+          "tech/api.py:214",
+          "tech/api.py:306",
+          "tech/api.py:374",
+          "tech/api.py:55",
+          "tech/api.py:83",
+          "tech/routes.py:101",
+          "tech/routes.py:213",
+          "tech/routes.py:299",
+          "tech/routes.py:308",
+          "tech/routes.py:318",
+          "tech/routes.py:328",
+          "tech/routes.py:373",
+          "tech/routes.py:409",
+          "tech/routes.py:53",
+          "tech/routes.py:783",
+          "tech/routes.py:82"
+        ],
+        "wtf.story_clusters": [
+          "tech/api.py:123",
+          "tech/api.py:150",
+          "tech/api.py:258",
+          "tech/api.py:306",
+          "tech/routes.py:131",
+          "tech/routes.py:338",
+          "tech/routes.py:347"
+        ],
+        "wtf.summaries": [
+          "tech/api.py:123",
+          "tech/api.py:150",
+          "tech/api.py:258",
+          "tech/routes.py:338"
+        ]
+      },
+      "write_source_refs": {
+        "wtf.bias_scores": [
+          "tech/routes.py:615",
+          "tech/routes.py:630"
+        ],
+        "wtf.fact_checks": [
+          "tech/routes.py:651",
+          "tech/routes.py:662",
+          "tech/routes.py:674"
+        ],
+        "wtf.articles": [
+          "tech/routes.py:699"
+        ],
+        "wtf.score_flags": [
+          "tech/routes.py:977"
+        ]
+      }
+    },
+    "wtf_ingest": {
+      "select": [
+        "gov_watch.gic_appointments",
+        "market_watch.boc_rate_decisions",
+        "market_watch.economic_indicators",
+        "market_watch.fiscal_federal_annual",
+        "market_watch.fiscal_federal_quarterly",
+        "market_watch.fx_rates",
+        "market_watch.oda_canada_annual",
+        "parliament.bills",
+        "parliament.cost_projection_snapshots",
+        "parliament.dept_contracts",
+        "parliament.ec_contributions",
+        "parliament.election_calendar",
+        "parliament.election_candidates",
+        "parliament.election_history",
+        "parliament.elections",
+        "parliament.indemnity_rates",
+        "parliament.ingest_log",
+        "parliament.intl_travel_events",
+        "parliament.intl_travel_senators",
+        "parliament.lobbyist_contacts",
+        "parliament.minister_travel",
+        "parliament.mp_committees",
+        "parliament.mp_disclosures",
+        "parliament.mp_expenses",
+        "parliament.mp_expenses_annual",
+        "parliament.mp_expenses_archive",
+        "parliament.mp_movements",
+        "parliament.mp_promises",
+        "parliament.mp_terms",
+        "parliament.mp_votes",
+        "parliament.mps",
+        "parliament.officers",
+        "parliament.senate_travel_checks",
+        "parliament.senate_travel_trips",
+        "parliament.senate_votes",
+        "parliament.senator_caucus_quarters",
+        "parliament.senator_committees",
+        "parliament.senator_expenses",
+        "parliament.senator_expenses_legacy",
+        "parliament.senator_votes",
+        "parliament.senators",
+        "public.system_config",
+        "securities.issuer_contracts",
+        "securities.issuers",
+        "shared.chain_link_types",
+        "shared.dedup_config",
+        "shared.dedup_pair_decisions",
+        "shared.entities",
+        "shared.entity_blocks",
+        "shared.entity_external_ids",
+        "shared.entity_mentions",
+        "shared.entity_merge_log",
+        "shared.entity_relationships",
+        "shared.merge_review_queue",
+        "wtf.activity_snapshot",
+        "wtf.article_author_tags",
+        "wtf.article_mp_tags",
+        "wtf.articles",
+        "wtf.audit_trail",
+        "wtf.aurora_alerts",
+        "wtf.aurora_aqhi_obs",
+        "wtf.aurora_bc_evacuations",
+        "wtf.aurora_capture_run",
+        "wtf.aurora_capture_run_record",
+        "wtf.aurora_city_forecast",
+        "wtf.aurora_city_hourly",
+        "wtf.aurora_city_normals",
+        "wtf.aurora_city_obs",
+        "wtf.aurora_city_site",
+        "wtf.aurora_city_sun",
+        "wtf.aurora_city_yesterday",
+        "wtf.aurora_evacuations",
+        "wtf.aurora_fire_hotspot_daily",
+        "wtf.aurora_fire_perimeters",
+        "wtf.aurora_firewx_obs",
+        "wtf.aurora_layer_status",
+        "wtf.aurora_source_version",
+        "wtf.bias_scores",
+        "wtf.cluster_disputes",
+        "wtf.cross_watch_snapshot",
+        "wtf.echo_phrase_counts",
+        "wtf.fact_checks",
+        "wtf.failed_ingest",
+        "wtf.geo_reports",
+        "wtf.llm_analyses",
+        "wtf.newsletter_subscribers",
+        "wtf.outlet_bias_history",
+        "wtf.outlet_bias_scores",
+        "wtf.scout_body_jobs",
+        "wtf.sources",
+        "wtf.story_clusters",
+        "wtf.summaries",
+        "wtf.user_alerts"
+      ],
+      "write": {
+        "wtf.articles": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.bias_scores": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.fact_checks": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.sources": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.story_clusters": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.summaries": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.outlet_bias_scores": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.llm_analyses": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.cluster_disputes": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.scout_body_jobs": [
+          "INSERT"
+        ],
+        "wtf.aurora_alerts": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_aqhi_obs": [
+          "INSERT"
+        ],
+        "wtf.aurora_bc_evacuations": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_city_forecast": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_city_hourly": [
+          "DELETE",
+          "INSERT"
+        ],
+        "wtf.aurora_city_normals": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_city_obs": [
+          "INSERT"
+        ],
+        "wtf.aurora_city_sun": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_city_yesterday": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_evacuations": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_fire_hotspot_daily": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_fire_perimeters": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_firewx_obs": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.echo_phrase_counts": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.bills": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.cost_projection_snapshots": [
+          "INSERT"
+        ],
+        "parliament.dept_contracts": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.elections": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.election_candidates": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.election_history": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.intl_travel_events": [
+          "DELETE",
+          "INSERT"
+        ],
+        "parliament.intl_travel_senators": [
+          "INSERT"
+        ],
+        "parliament.lobbyist_contacts": [
+          "DELETE",
+          "INSERT"
+        ],
+        "parliament.minister_travel": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_committees": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_disclosures": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_expenses": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_expenses_annual": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_expenses_archive": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_movements": [
+          "INSERT"
+        ],
+        "parliament.mp_promises": [
+          "INSERT"
+        ],
+        "parliament.mp_terms": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mp_votes": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.mps": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senate_travel_checks": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senate_travel_trips": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senate_votes": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senator_caucus_quarters": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senator_committees": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senator_expenses": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senator_expenses_legacy": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senator_votes": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.senators": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entities": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_mentions": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_external_ids": [
+          "DELETE",
+          "UPDATE"
+        ],
+        "shared.entity_relationships": [
+          "DELETE",
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.dedup_pair_decisions": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_blocks": [
+          "DELETE",
+          "INSERT"
+        ],
+        "shared.merge_review_queue": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "securities.issuers": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "securities.issuer_contracts": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "gov_watch.gic_appointments": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "market_watch.boc_rate_decisions": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "market_watch.economic_indicators": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "market_watch.fiscal_federal_annual": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "market_watch.fiscal_federal_quarterly": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "market_watch.fx_rates": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "market_watch.oda_canada_annual": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.audit_trail": [
+          "INSERT"
+        ],
+        "wtf.failed_ingest": [
+          "INSERT"
+        ],
+        "wtf.outlet_bias_history": [
+          "INSERT"
+        ],
+        "wtf.geo_reports": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.article_mp_tags": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.article_author_tags": [
+          "INSERT"
+        ],
+        "parliament.ingest_log": [
+          "INSERT"
+        ],
+        "parliament.ec_contributions": [
+          "DELETE",
+          "INSERT"
+        ],
+        "shared.entity_merge_log": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.aurora_city_site": [
+          "UPDATE"
+        ],
+        "wtf.newsletter_subscribers": [
+          "UPDATE"
+        ],
+        "wtf.user_alerts": [
+          "UPDATE"
+        ],
+        "parliament.election_calendar": [
+          "UPDATE"
+        ],
+        "parliament.officers": [
+          "UPDATE"
+        ],
+        "shared.chain_link_types": [
+          "UPDATE"
+        ],
+        "wtf.aurora_capture_run": [
+          "INSERT"
+        ],
+        "wtf.aurora_capture_run_record": [
+          "INSERT"
+        ],
+        "wtf.aurora_source_version": [
+          "INSERT"
+        ],
+        "wtf.activity_snapshot": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "wtf.cross_watch_snapshot": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "public.system_config": [
+          "INSERT",
+          "UPDATE"
+        ]
+      },
+      "read_source_refs": {
+        "gov_watch.gic_appointments": [
+          "ingest/shared/entity_graph.py:397"
+        ],
+        "parliament.bills": [
+          "ingest/entity_graph_parliament_reconcile.py:109",
+          "ingest/entity_graph_parliament_reconcile.py:150",
+          "ingest/entity_graph_parliament_reconcile.py:154",
+          "ingest/entity_graph_parliament_reconcile.py:166",
+          "ingest/entity_graph_parliament_reconcile.py:183",
+          "ingest/entity_graph_parliament_reconcile.py:187",
+          "ingest/parliament/openparl.py:333",
+          "ingest/parliament/openparl.py:337"
+        ],
+        "parliament.cost_projection_snapshots": [
+          "ingest/parliament/cost.py:926"
+        ],
+        "parliament.dept_contracts": [
+          "ingest/parliament/cost.py:508",
+          "ingest/parliament/cost.py:519"
+        ],
+        "parliament.ec_contributions": [
+          "ingest/entity_graph_ec_donations_reconcile.py:106",
+          "ingest/entity_graph_ec_donations_reconcile.py:108",
+          "ingest/entity_graph_ec_donations_reconcile.py:121",
+          "ingest/entity_graph_ec_donations_reconcile.py:124",
+          "ingest/entity_graph_ec_donations_reconcile.py:180",
+          "ingest/entity_graph_ec_donations_reconcile.py:188",
+          "ingest/entity_graph_ec_donations_reconcile.py:206",
+          "ingest/entity_graph_ec_donations_reconcile.py:224",
+          "ingest/entity_graph_ec_donations_reconcile.py:76",
+          "ingest/entity_graph_ec_donations_reconcile.py:79"
+        ],
+        "parliament.election_calendar": [
+          "ingest/elections/calendar.py:54",
+          "ingest/parliament/drift_guard.py:302"
+        ],
+        "parliament.election_candidates": [
+          "ingest/elections/results.py:126"
+        ],
+        "parliament.election_history": [
+          "ingest/elections/calendar.py:57"
+        ],
+        "parliament.elections": [
+          "ingest/elections/calendar.py:59"
+        ],
+        "parliament.indemnity_rates": [
+          "ingest/parliament/cost.py:1",
+          "ingest/parliament/cost.py:252"
+        ],
+        "parliament.ingest_log": [
+          "ingest/parliament/cost.py:1203",
+          "ingest/parliament/drift_guard.py:252",
+          "ingest/parliament/drift_guard.py:350",
+          "ingest/shared/entity_push_receipts.py:31"
+        ],
+        "parliament.intl_travel_events": [
+          "ingest/parliament/intl_travel.py:304",
+          "ingest/parliament/intl_travel.py:328"
+        ],
+        "parliament.lobbyist_contacts": [
+          "ingest/parliament/lobbying.py:223"
+        ],
+        "parliament.minister_travel": [
+          "ingest/parliament/cost.py:1087",
+          "ingest/parliament/cost.py:1104",
+          "ingest/parliament/cost.py:1184",
+          "ingest/parliament/cost.py:210",
+          "ingest/parliament/cost.py:226",
+          "ingest/parliament/cost.py:592",
+          "ingest/parliament/cost.py:604",
+          "ingest/parliament/cost.py:775"
+        ],
+        "parliament.mp_expenses": [
+          "ingest/parliament/cost.py:1",
+          "ingest/parliament/cost.py:1145",
+          "ingest/parliament/cost.py:203",
+          "ingest/parliament/cost.py:354",
+          "ingest/parliament/cost.py:57",
+          "ingest/parliament/cost.py:728",
+          "ingest/parliament/cost.py:743",
+          "ingest/parliament/cost.py:785"
+        ],
+        "parliament.mp_expenses_annual": [
+          "ingest/parliament/mp_expenses_annual.py:180",
+          "ingest/parliament/mp_expenses_historic.py:244"
+        ],
+        "parliament.mp_expenses_archive": [
+          "ingest/parliament/mp_expenses_archive.py:210"
+        ],
+        "parliament.mp_terms": [
+          "ingest/parliament/mp_expenses.py:178",
+          "ingest/parliament/mp_expenses.py:180",
+          "ingest/parliament/mp_expenses_archive.py:158",
+          "ingest/parliament/mp_expenses_archive.py:160"
+        ],
+        "parliament.mp_votes": [
+          "ingest/entity_graph_parliament_reconcile.py:1",
+          "ingest/entity_graph_parliament_reconcile.py:48",
+          "ingest/entity_graph_parliament_reconcile.py:61"
+        ],
+        "parliament.mps": [
+          "ingest/entity_graph_ec_donations_reconcile.py:106",
+          "ingest/entity_graph_ec_donations_reconcile.py:108",
+          "ingest/entity_graph_ec_donations_reconcile.py:121",
+          "ingest/entity_graph_ec_donations_reconcile.py:124",
+          "ingest/entity_graph_ec_donations_reconcile.py:128",
+          "ingest/entity_graph_ec_donations_reconcile.py:180",
+          "ingest/entity_graph_ec_donations_reconcile.py:188",
+          "ingest/entity_graph_ec_donations_reconcile.py:206",
+          "ingest/entity_graph_ec_donations_reconcile.py:224",
+          "ingest/entity_graph_ec_donations_reconcile.py:236",
+          "ingest/entity_graph_parliament_reconcile.py:1",
+          "ingest/entity_graph_parliament_reconcile.py:48",
+          "ingest/entity_graph_parliament_reconcile.py:61",
+          "ingest/entity_graph_wtf_reconcile.py:1",
+          "ingest/entity_graph_wtf_reconcile.py:40",
+          "ingest/entity_graph_wtf_reconcile.py:99",
+          "ingest/parliament/cabinet.py:123",
+          "ingest/parliament/committees.py:100",
+          "ingest/parliament/cost.py:1013",
+          "ingest/parliament/cost.py:1145",
+          "ingest/parliament/cost.py:354",
+          "ingest/parliament/cost.py:566",
+          "ingest/parliament/cost.py:743",
+          "ingest/parliament/ethics_disclosures.py:103",
+          "ingest/parliament/mp_expenses.py:113",
+          "ingest/parliament/mp_expenses_historical.py:53",
+          "ingest/parliament/mp_terms.py:158",
+          "ingest/parliament/openparl.py:135",
+          "ingest/parliament/openparl.py:345",
+          "ingest/parliament/openparl.py:460",
+          "ingest/shared/entity_graph.py:281",
+          "ingest/shared/entity_mentions_sync.py:161",
+          "ingest/shared/entity_mentions_sync.py:234",
+          "ingest/shared/entity_mentions_sync.py:256"
+        ],
+        "parliament.officers": [
+          "ingest/shared/entity_graph.py:322"
+        ],
+        "parliament.senate_travel_trips": [
+          "ingest/parliament/intl_travel.py:292",
+          "ingest/parliament/senate_travel.py:190",
+          "ingest/parliament/senate_travel.py:227"
+        ],
+        "parliament.senator_expenses": [
+          "ingest/parliament/cost.py:1167",
+          "ingest/parliament/cost.py:206",
+          "ingest/parliament/cost.py:406",
+          "ingest/parliament/cost.py:759"
+        ],
+        "parliament.senators": [
+          "ingest/parliament/cost.py:1021",
+          "ingest/parliament/cost.py:1167",
+          "ingest/parliament/cost.py:659",
+          "ingest/parliament/senate_legacy.py:281",
+          "ingest/parliament/senate_votes.py:55",
+          "ingest/parliament/senator_expenses.py:154",
+          "ingest/parliament/senators.py:471",
+          "ingest/parliament/senators.py:548",
+          "ingest/parliament/senators.py:725",
+          "ingest/shared/entity_graph.py:239"
+        ],
+        "securities.issuers": [
+          "ingest/entity_graph_securities_reconcile.py:60",
+          "ingest/entity_graph_securities_reconcile.py:73"
+        ],
+        "shared.dedup_config": [
+          "ingest/entity_graph_dedup.py:404",
+          "ingest/entity_graph_dedup.py:491",
+          "ingest/entity_graph_ec_donations_reconcile.py:71"
+        ],
+        "shared.dedup_pair_decisions": [
+          "ingest/entity_graph_dedup.py:406",
+          "ingest/entity_graph_dedup.py:525"
+        ],
+        "shared.entities": [
+          "ingest/entity_graph_dedup.py:106",
+          "ingest/entity_graph_dedup.py:148",
+          "ingest/entity_graph_dedup.py:150",
+          "ingest/entity_graph_dedup.py:316",
+          "ingest/entity_graph_dedup.py:374",
+          "ingest/entity_graph_dedup.py:406",
+          "ingest/entity_graph_dedup.py:460",
+          "ingest/entity_graph_dedup.py:461",
+          "ingest/entity_graph_dedup.py:475",
+          "ingest/entity_graph_dedup.py:477",
+          "ingest/entity_graph_dedup.py:497",
+          "ingest/entity_graph_dedup.py:499",
+          "ingest/entity_graph_dedup.py:509",
+          "ingest/entity_graph_dedup.py:510",
+          "ingest/entity_graph_dedup.py:560",
+          "ingest/entity_graph_dedup.py:562",
+          "ingest/entity_graph_dedup.py:568",
+          "ingest/entity_graph_dedup.py:95",
+          "ingest/entity_graph_ec_donations_reconcile.py:106",
+          "ingest/entity_graph_ec_donations_reconcile.py:108",
+          "ingest/entity_graph_ec_donations_reconcile.py:148",
+          "ingest/entity_graph_ec_donations_reconcile.py:150",
+          "ingest/entity_graph_ec_donations_reconcile.py:160",
+          "ingest/entity_graph_ec_donations_reconcile.py:164",
+          "ingest/entity_graph_ec_donations_reconcile.py:180",
+          "ingest/entity_graph_ec_donations_reconcile.py:188",
+          "ingest/entity_graph_ec_donations_reconcile.py:206",
+          "ingest/entity_graph_ec_donations_reconcile.py:236",
+          "ingest/entity_graph_parliament_reconcile.py:166",
+          "ingest/entity_graph_parliament_reconcile.py:174",
+          "ingest/entity_graph_parliament_reconcile.py:187",
+          "ingest/entity_graph_parliament_reconcile.py:48",
+          "ingest/entity_graph_parliament_reconcile.py:61",
+          "ingest/entity_graph_securities_reconcile.py:60",
+          "ingest/entity_graph_securities_reconcile.py:63",
+          "ingest/entity_graph_securities_reconcile.py:99",
+          "ingest/entity_graph_wtf_reconcile.py:1",
+          "ingest/entity_graph_wtf_reconcile.py:40",
+          "ingest/entity_graph_wtf_reconcile.py:99",
+          "ingest/shared/entity_graph.py:117",
+          "ingest/shared/entity_graph.py:124",
+          "ingest/shared/entity_mentions_sync.py:156",
+          "ingest/shared/entity_mentions_sync.py:89",
+          "shared/author_resolver.py:87",
+          "shared/author_resolver.py:95"
+        ],
+        "shared.entity_blocks": [
+          "ingest/entity_graph_dedup.py:179",
+          "ingest/entity_graph_dedup.py:496"
+        ],
+        "shared.entity_external_ids": [
+          "ingest/entity_graph_dedup.py:139",
+          "ingest/entity_graph_dedup.py:145"
+        ],
+        "shared.entity_mentions": [
+          "ingest/entity_graph_dedup.py:101",
+          "ingest/entity_graph_dedup.py:128",
+          "ingest/entity_graph_dedup.py:465"
+        ],
+        "shared.entity_merge_log": [
+          "ingest/entity_graph_dedup.py:205"
+        ],
+        "shared.entity_relationships": [
+          "ingest/entity_graph_dedup.py:111",
+          "ingest/entity_graph_dedup.py:379",
+          "ingest/entity_graph_dedup.py:447",
+          "ingest/entity_graph_dedup.py:450",
+          "ingest/entity_graph_dedup.py:509",
+          "ingest/entity_graph_dedup.py:510",
+          "ingest/entity_graph_dedup.py:97",
+          "ingest/entity_graph_securities_reconcile.py:60",
+          "ingest/entity_graph_securities_reconcile.py:63"
+        ],
+        "shared.merge_review_queue": [
+          "ingest/entity_graph_dedup.py:316",
+          "ingest/entity_graph_dedup.py:335",
+          "ingest/entity_graph_dedup.py:346",
+          "ingest/entity_graph_dedup.py:406",
+          "ingest/entity_graph_dedup.py:560",
+          "ingest/entity_graph_dedup.py:579"
+        ],
+        "wtf.article_mp_tags": [
+          "ingest/entity_graph_wtf_reconcile.py:1",
+          "ingest/entity_graph_wtf_reconcile.py:40",
+          "ingest/entity_graph_wtf_reconcile.py:99",
+          "ingest/parliament/promise_tracker.py:61",
+          "ingest/shared/entity_mentions_sync.py:234",
+          "ingest/shared/entity_mentions_sync.py:256"
+        ],
+        "wtf.articles": [
+          "ingest/alerts_digest_worker.py:57",
+          "ingest/backfill_bias_v2.py:27",
+          "ingest/backfill_partner_relevance.py:44",
+          "ingest/beat_backlog_worker.py:63",
+          "ingest/bias_v2_backlog_worker.py:41",
+          "ingest/cluster_backlog_worker.py:35",
+          "ingest/cluster_metrics.py:138",
+          "ingest/dispute_backlog_worker.py:82",
+          "ingest/echo/phrase_counts.py:50",
+          "ingest/echo/phrase_counts.py:52",
+          "ingest/entity_graph_wtf_reconcile.py:1",
+          "ingest/entity_graph_wtf_reconcile.py:40",
+          "ingest/entity_graph_wtf_reconcile.py:99",
+          "ingest/factcheck_backlog_worker.py:50",
+          "ingest/factcheck_partner_worker.py:190",
+          "ingest/geo_backlog_worker.py:43",
+          "ingest/llm_analysis_backlog_worker.py:73",
+          "ingest/orchestrator.py:56",
+          "ingest/outlet_bias.py:36",
+          "ingest/parliament/openparl.py:462",
+          "ingest/parliament/promise_tracker.py:61",
+          "ingest/persist.py:137",
+          "ingest/persist.py:216",
+          "ingest/run.py:181",
+          "ingest/run.py:221",
+          "ingest/run.py:332",
+          "ingest/scout_body_backlog_worker.py:142",
+          "ingest/summarize.py:70",
+          "ingest/tier2_precompute_worker.py:70",
+          "ingest/tier2_upgrade.py:58",
+          "ingest/weekly_digest_worker.py:47",
+          "ingest/weekly_digest_worker.py:61",
+          "ingest/weekly_digest_worker.py:70"
+        ],
+        "wtf.aurora_capture_run_record": [
+          "ingest/weather/evidence.py:97"
+        ],
+        "wtf.aurora_city_hourly": [
+          "ingest/weather/citypage.py:294"
+        ],
+        "wtf.aurora_city_site": [
+          "ingest/weather/citypage.py:139"
+        ],
+        "wtf.aurora_source_version": [
+          "ingest/weather/evidence.py:97"
+        ],
+        "wtf.bias_scores": [
+          "ingest/alerts_digest_worker.py:57",
+          "ingest/backfill_bias_v2.py:27",
+          "ingest/bias_v2_backlog_worker.py:41",
+          "ingest/cluster_metrics.py:138",
+          "ingest/dispute_backlog_worker.py:82",
+          "ingest/orchestrator.py:56",
+          "ingest/outlet_bias.py:36",
+          "ingest/weekly_digest_worker.py:61",
+          "ingest/weekly_digest_worker.py:70"
+        ],
+        "wtf.cluster_disputes": [
+          "ingest/dispute_backlog_worker.py:55"
+        ],
+        "wtf.echo_phrase_counts": [
+          "ingest/echo/phrase_counts.py:80"
+        ],
+        "wtf.fact_checks": [
+          "ingest/backfill_partner_relevance.py:44",
+          "ingest/backfill_partner_relevance.py:82",
+          "ingest/cluster_metrics.py:138",
+          "ingest/factcheck_backlog_worker.py:50",
+          "ingest/factcheck_partner_worker.py:190",
+          "ingest/llm_analysis_backlog_worker.py:253",
+          "ingest/tier2_upgrade.py:167",
+          "ingest/weekly_digest_worker.py:47"
+        ],
+        "wtf.llm_analyses": [
+          "ingest/llm_analysis_backlog_worker.py:73"
+        ],
+        "wtf.newsletter_subscribers": [
+          "ingest/newsletter_kbs_sync.py:36",
+          "ingest/weekly_digest_worker.py:104"
+        ],
+        "wtf.outlet_bias_scores": [
+          "ingest/weekly_digest_worker.py:82"
+        ],
+        "wtf.scout_body_jobs": [
+          "ingest/scout_body_backlog_worker.py:142"
+        ],
+        "wtf.sources": [
+          "ingest/alerts_digest_worker.py:57",
+          "ingest/beat_backlog_worker.py:63",
+          "ingest/cluster_metrics.py:126",
+          "ingest/dispute_backlog_worker.py:82",
+          "ingest/entity_graph_wtf_reconcile.py:1",
+          "ingest/entity_graph_wtf_reconcile.py:40",
+          "ingest/entity_graph_wtf_reconcile.py:67",
+          "ingest/entity_graph_wtf_reconcile.py:99",
+          "ingest/factcheck_backlog_worker.py:50",
+          "ingest/geo_backlog_worker.py:43",
+          "ingest/llm_analysis_backlog_worker.py:73",
+          "ingest/run.py:120",
+          "ingest/run.py:167",
+          "ingest/run.py:181",
+          "ingest/run.py:221",
+          "ingest/run.py:332",
+          "ingest/scout_body_backlog_worker.py:142",
+          "ingest/tier2_upgrade.py:58",
+          "ingest/weekly_digest_worker.py:70",
+          "ingest/weekly_digest_worker.py:82"
+        ],
+        "wtf.story_clusters": [
+          "ingest/cluster.py:47",
+          "ingest/dispute_backlog_worker.py:55",
+          "ingest/factcheck_backlog_worker.py:50",
+          "ingest/llm_analysis_backlog_worker.py:73",
+          "ingest/tier2_precompute_worker.py:70"
+        ],
+        "wtf.user_alerts": [
+          "ingest/alerts_digest_worker.py:40",
+          "ingest/weekly_digest_worker.py:104"
+        ]
+      },
+      "write_source_refs": {
+        "wtf.articles": [
+          "ingest/beat_backlog_worker.py:84",
+          "ingest/bias_v2_backlog_worker.py:120",
+          "ingest/cluster.py:78",
+          "ingest/cluster.py:99",
+          "ingest/cluster_backlog_worker.py:53",
+          "ingest/factcheck_backlog_worker.py:81",
+          "ingest/geo_backlog_worker.py:77",
+          "ingest/llm_analysis_backlog_worker.py:134",
+          "ingest/llm_analysis_backlog_worker.py:95",
+          "ingest/persist.py:137",
+          "ingest/persist.py:351",
+          "ingest/persist.py:378",
+          "ingest/run.py:277",
+          "ingest/run.py:293",
+          "ingest/scout_body_backlog_worker.py:239",
+          "ingest/tier2_upgrade.py:198",
+          "ingest/tier_router.py:131"
+        ],
+        "wtf.bias_scores": [
+          "ingest/backfill_bias_v2.py:47",
+          "ingest/llm_analysis_backlog_worker.py:183",
+          "ingest/llm_analysis_backlog_worker.py:203",
+          "ingest/persist.py:240",
+          "ingest/run.py:235",
+          "ingest/tier2_upgrade.py:136"
+        ],
+        "wtf.fact_checks": [
+          "ingest/backfill_partner_relevance.py:82",
+          "ingest/factcheck.py:74",
+          "ingest/factcheck_backlog_worker.py:146",
+          "ingest/factcheck_partner_worker.py:209",
+          "ingest/factcheck_partner_worker.py:223",
+          "ingest/llm_analysis_backlog_worker.py:253",
+          "ingest/llm_analysis_backlog_worker.py:268",
+          "ingest/llm_analysis_backlog_worker.py:294",
+          "ingest/run.py:252",
+          "ingest/tier2_upgrade.py:167",
+          "ingest/tier2_upgrade.py:174"
+        ],
+        "wtf.sources": [
+          "ingest/run.py:109"
+        ],
+        "wtf.story_clusters": [
+          "ingest/cluster.py:68",
+          "ingest/cluster.py:89",
+          "ingest/cluster_metrics.py:255"
+        ],
+        "wtf.summaries": [
+          "ingest/summarize.py:91"
+        ],
+        "wtf.outlet_bias_scores": [
+          "ingest/outlet_bias.py:85"
+        ],
+        "wtf.llm_analyses": [
+          "ingest/llm_analysis_backlog_worker.py:124"
+        ],
+        "wtf.cluster_disputes": [
+          "ingest/dispute_backlog_worker.py:156"
+        ],
+        "wtf.scout_body_jobs": [
+          "ingest/scout_body_backlog_worker.py:249",
+          "ingest/scout_body_backlog_worker.py:267"
+        ],
+        "wtf.aurora_alerts": [
+          "ingest/weather/alerts.py:245"
+        ],
+        "wtf.aurora_aqhi_obs": [
+          "ingest/weather/aqhi.py:151"
+        ],
+        "wtf.aurora_bc_evacuations": [
+          "ingest/weather/evacuations.py:328"
+        ],
+        "wtf.aurora_city_forecast": [
+          "ingest/weather/citypage.py:281",
+          "ingest/weather/citypage.py:322"
+        ],
+        "wtf.aurora_city_hourly": [
+          "ingest/weather/citypage.py:227",
+          "ingest/weather/citypage.py:294"
+        ],
+        "wtf.aurora_city_normals": [
+          "ingest/weather/citypage.py:239"
+        ],
+        "wtf.aurora_city_obs": [
+          "ingest/weather/citypage.py:315"
+        ],
+        "wtf.aurora_city_sun": [
+          "ingest/weather/citypage.py:267"
+        ],
+        "wtf.aurora_city_yesterday": [
+          "ingest/weather/citypage.py:252"
+        ],
+        "wtf.aurora_evacuations": [
+          "ingest/weather/evacuations.py:246"
+        ],
+        "wtf.aurora_fire_hotspot_daily": [
+          "ingest/weather/cwfis.py:283"
+        ],
+        "wtf.aurora_fire_perimeters": [
+          "ingest/weather/cwfis.py:292"
+        ],
+        "wtf.aurora_firewx_obs": [
+          "ingest/weather/cwfis.py:200"
+        ],
+        "wtf.echo_phrase_counts": [
+          "ingest/echo/phrase_counts.py:138"
+        ],
+        "parliament.bills": [
+          "ingest/parliament/openparl.py:291"
+        ],
+        "parliament.cost_projection_snapshots": [
+          "ingest/parliament/cost.py:954"
+        ],
+        "parliament.dept_contracts": [
+          "ingest/parliament/dept_contracts.py:72"
+        ],
+        "parliament.elections": [
+          "ingest/elections/results.py:102"
+        ],
+        "parliament.election_candidates": [
+          "ingest/elections/results.py:126",
+          "ingest/elections/results.py:130"
+        ],
+        "parliament.election_history": [
+          "ingest/elections/wiki_history.py:132"
+        ],
+        "parliament.intl_travel_events": [
+          "ingest/parliament/intl_travel.py:304",
+          "ingest/parliament/intl_travel.py:306"
+        ],
+        "parliament.intl_travel_senators": [
+          "ingest/parliament/intl_travel.py:318"
+        ],
+        "parliament.lobbyist_contacts": [
+          "ingest/parliament/lobbying.py:223",
+          "ingest/parliament/lobbying.py:225"
+        ],
+        "parliament.minister_travel": [
+          "ingest/parliament/minister_travel.py:202"
+        ],
+        "parliament.mp_committees": [
+          "ingest/parliament/committees.py:147",
+          "ingest/parliament/committees.py:163"
+        ],
+        "parliament.mp_disclosures": [
+          "ingest/parliament/ethics_disclosures.py:189"
+        ],
+        "parliament.mp_expenses": [
+          "ingest/parliament/mp_expenses.py:323",
+          "ingest/parliament/mp_expenses_historical.py:112"
+        ],
+        "parliament.mp_expenses_annual": [
+          "ingest/parliament/mp_expenses_annual.py:201",
+          "ingest/parliament/mp_expenses_historic.py:257"
+        ],
+        "parliament.mp_expenses_archive": [
+          "ingest/parliament/mp_expenses_archive.py:245"
+        ],
+        "parliament.mp_movements": [
+          "ingest/parliament/openparl.py:105",
+          "ingest/parliament/senators.py:454"
+        ],
+        "parliament.mp_promises": [
+          "ingest/parliament/promise_tracker.py:84"
+        ],
+        "parliament.mp_terms": [
+          "ingest/parliament/mp_terms.py:142",
+          "ingest/parliament/mp_terms.py:204"
+        ],
+        "parliament.mp_votes": [
+          "ingest/parliament/openparl.py:363"
+        ],
+        "parliament.mps": [
+          "ingest/entity_graph_dedup.py:_ENTITY_REF_TABLES; _merge; revert"
+        ],
+        "parliament.senate_travel_checks": [
+          "ingest/parliament/senate_travel.py:206"
+        ],
+        "parliament.senate_travel_trips": [
+          "ingest/parliament/senate_travel.py:190",
+          "ingest/parliament/senate_travel.py:194",
+          "ingest/parliament/senate_travel.py:233"
+        ],
+        "parliament.senate_votes": [
+          "ingest/parliament/senate_votes.py:155"
+        ],
+        "parliament.senator_caucus_quarters": [
+          "ingest/parliament/senator_expenses.py:279"
+        ],
+        "parliament.senator_committees": [
+          "ingest/parliament/senators.py:571"
+        ],
+        "parliament.senator_expenses": [
+          "ingest/parliament/senator_expenses.py:420"
+        ],
+        "parliament.senator_expenses_legacy": [
+          "ingest/parliament/senate_legacy.py:317"
+        ],
+        "parliament.senator_votes": [
+          "ingest/parliament/senate_votes.py:205"
+        ],
+        "parliament.senators": [
+          "ingest/entity_graph_dedup.py:_ENTITY_REF_TABLES; _merge; revert"
+        ],
+        "shared.entities": [
+          "ingest/entity_graph_dedup.py:160",
+          "ingest/entity_graph_dedup.py:167",
+          "ingest/entity_graph_dedup.py:180",
+          "ingest/entity_graph_dedup.py:222",
+          "ingest/entity_graph_dedup.py:235",
+          "ingest/entity_graph_ec_donations_reconcile.py:139",
+          "ingest/entity_graph_ec_donations_reconcile.py:148",
+          "ingest/entity_graph_parliament_reconcile.py:150",
+          "ingest/entity_graph_securities_reconcile.py:87",
+          "ingest/shared/entity_graph.py:158",
+          "ingest/shared/entity_graph.py:203",
+          "ingest/shared/entity_mentions_sync.py:125",
+          "ingest/shared/entity_mentions_sync.py:99",
+          "shared/author_resolver.py:132",
+          "shared/author_resolver.py:142"
+        ],
+        "shared.entity_mentions": [
+          "ingest/entity_graph_dedup.py:128",
+          "ingest/entity_graph_dedup.py:135",
+          "ingest/entity_graph_dedup.py:276",
+          "ingest/entity_graph_dedup.py:282",
+          "ingest/entity_graph_dedup.py:465",
+          "ingest/entity_graph_dedup.py:477",
+          "ingest/shared/entity_mentions_sync.py:234",
+          "shared/author_resolver.py:160"
+        ],
+        "shared.entity_external_ids": [
+          "ingest/entity_graph_dedup.py:139",
+          "ingest/entity_graph_dedup.py:145"
+        ],
+        "shared.entity_relationships": [
+          "ingest/entity_graph_dedup.py:111",
+          "ingest/entity_graph_dedup.py:122",
+          "ingest/entity_graph_dedup.py:124",
+          "ingest/entity_graph_dedup.py:251",
+          "ingest/entity_graph_dedup.py:262",
+          "ingest/entity_graph_dedup.py:447",
+          "ingest/entity_graph_dedup.py:460",
+          "ingest/entity_graph_ec_donations_reconcile.py:160",
+          "ingest/entity_graph_ec_donations_reconcile.py:180",
+          "ingest/entity_graph_ec_donations_reconcile.py:206",
+          "ingest/entity_graph_parliament_reconcile.py:166",
+          "ingest/entity_graph_parliament_reconcile.py:48",
+          "ingest/entity_graph_securities_reconcile.py:99",
+          "ingest/entity_graph_wtf_reconcile.py:40",
+          "ingest/shared/entity_graph.py:454",
+          "ingest/shared/entity_mentions_sync.py:180"
+        ],
+        "shared.dedup_pair_decisions": [
+          "ingest/entity_graph_dedup.py:188",
+          "ingest/entity_graph_dedup.py:297",
+          "ingest/entity_graph_dedup.py:362"
+        ],
+        "shared.entity_blocks": [
+          "ingest/entity_graph_dedup.py:179",
+          "ingest/entity_graph_dedup.py:496",
+          "ingest/entity_graph_dedup.py:497"
+        ],
+        "shared.merge_review_queue": [
+          "ingest/entity_graph_dedup.py:355",
+          "ingest/entity_graph_dedup.py:368",
+          "ingest/entity_graph_dedup.py:383",
+          "ingest/entity_graph_dedup.py:424",
+          "ingest/entity_graph_dedup.py:540",
+          "ingest/entity_graph_dedup.py:560",
+          "ingest/entity_graph_dedup.py:562"
+        ],
+        "securities.issuers": [
+          "ingest/securities_issuer_ingest.py:119"
+        ],
+        "securities.issuer_contracts": [
+          "ingest/securities_issuer_contracts.py:72"
+        ],
+        "gov_watch.gic_appointments": [
+          "ingest/gov/gic_appointments.py:177"
+        ],
+        "market_watch.boc_rate_decisions": [
+          "ingest/market/boc_rates.py:119"
+        ],
+        "market_watch.economic_indicators": [
+          "ingest/market/statcan_indicators.py:192"
+        ],
+        "market_watch.fiscal_federal_annual": [
+          "ingest/market/fiscal_federal.py:266"
+        ],
+        "market_watch.fiscal_federal_quarterly": [
+          "ingest/market/fiscal_federal.py:298"
+        ],
+        "market_watch.fx_rates": [
+          "ingest/market/fx_rates.py:88"
+        ],
+        "market_watch.oda_canada_annual": [
+          "ingest/market/oda_canada.py:111"
+        ],
+        "wtf.audit_trail": [
+          "ingest/bias_v2_backlog_worker.py:143",
+          "ingest/persist.py:260"
+        ],
+        "wtf.failed_ingest": [
+          "ingest/persist.py:390"
+        ],
+        "wtf.outlet_bias_history": [
+          "ingest/outlet_bias.py:76"
+        ],
+        "wtf.geo_reports": [
+          "ingest/run.py:360"
+        ],
+        "wtf.article_mp_tags": [
+          "ingest/parliament/openparl.py:489"
+        ],
+        "wtf.article_author_tags": [
+          "shared/author_resolver.py:168"
+        ],
+        "parliament.ingest_log": [
+          "ingest/echo/phrase_counts.py:104",
+          "ingest/echo/phrase_counts.py:97",
+          "ingest/elections/results.py:161",
+          "ingest/elections/results.py:167",
+          "ingest/gov/gic_appointments.py:212",
+          "ingest/gov/gic_appointments.py:221",
+          "ingest/market/boc_rates.py:145",
+          "ingest/market/boc_rates.py:151",
+          "ingest/market/fiscal_federal.py:319",
+          "ingest/market/fiscal_federal.py:324",
+          "ingest/market/fx_rates.py:110",
+          "ingest/market/fx_rates.py:116",
+          "ingest/market/oda_canada.py:126",
+          "ingest/market/oda_canada.py:129",
+          "ingest/market/statcan_indicators.py:218",
+          "ingest/market/statcan_indicators.py:224",
+          "ingest/parliament/cost.py:975",
+          "ingest/parliament/cost.py:978",
+          "ingest/parliament/dept_contracts.py:110",
+          "ingest/parliament/dept_contracts.py:123",
+          "ingest/parliament/drift_guard.py:376",
+          "ingest/parliament/drift_guard.py:382",
+          "ingest/parliament/elections_canada.py:285",
+          "ingest/parliament/elections_canada.py:296",
+          "ingest/parliament/intl_travel.py:430",
+          "ingest/parliament/intl_travel.py:433",
+          "ingest/parliament/lobbying.py:252",
+          "ingest/parliament/lobbying.py:261",
+          "ingest/parliament/minister_travel.py:241",
+          "ingest/parliament/mp_expenses.py:369",
+          "ingest/parliament/mp_expenses_archive.py:270",
+          "ingest/parliament/mp_terms.py:215",
+          "ingest/parliament/openparl.py:545",
+          "ingest/parliament/openparl.py:549",
+          "ingest/parliament/openparl.py:569",
+          "ingest/parliament/openparl.py:579",
+          "ingest/parliament/senate_travel.py:308",
+          "ingest/parliament/senate_travel.py:311",
+          "ingest/parliament/senate_votes.py:239",
+          "ingest/parliament/senate_votes.py:248",
+          "ingest/parliament/senator_expenses.py:324",
+          "ingest/parliament/senator_expenses.py:330",
+          "ingest/parliament/senators.py:756",
+          "ingest/parliament/senators.py:766",
+          "ingest/run.py:447",
+          "ingest/run.py:456",
+          "ingest/run.py:469",
+          "ingest/run.py:478",
+          "ingest/securities_issuer_contracts.py:113",
+          "ingest/securities_issuer_contracts.py:126",
+          "ingest/shared/entity_push_receipts.py:31",
+          "ingest/weather/alerts.py:274",
+          "ingest/weather/alerts.py:280",
+          "ingest/weather/aqhi.py:173",
+          "ingest/weather/aqhi.py:179",
+          "ingest/weather/citypage.py:345",
+          "ingest/weather/citypage.py:352",
+          "ingest/weather/cwfis.py:407",
+          "ingest/weather/cwfis.py:415",
+          "ingest/weather/evacuations.py:360",
+          "ingest/weather/evacuations.py:367",
+          "ingest/weekly_digest_worker.py:243",
+          "ingest/weekly_digest_worker.py:251"
+        ],
+        "parliament.ec_contributions": [
+          "ingest/parliament/elections_canada.py:sync_contributions (atomic DELETE/INSERT refresh)"
+        ],
+        "shared.entity_merge_log": [
+          "ingest/entity_graph_dedup.py:182",
+          "ingest/entity_graph_dedup.py:294"
+        ],
+        "wtf.aurora_city_site": [
+          "ingest/weather/citypage.py:302"
+        ],
+        "wtf.newsletter_subscribers": [
+          "ingest/newsletter_kbs_sync.py:64"
+        ],
+        "wtf.user_alerts": [
+          "ingest/alerts_digest_worker.py:142"
+        ],
+        "parliament.election_calendar": [
+          "ingest/elections/calendar.py:68"
+        ],
+        "parliament.officers": [
+          "ingest/entity_graph_dedup.py:_ENTITY_REF_TABLES; _merge; revert"
+        ],
+        "shared.chain_link_types": [
+          "ingest/entity_graph_parliament_reconcile.py:198",
+          "ingest/entity_graph_securities_reconcile.py:117"
+        ],
+        "wtf.aurora_capture_run": [
+          "ingest/weather/evidence.py:129",
+          "ingest/weather/evidence.py:22"
+        ],
+        "wtf.aurora_capture_run_record": [
+          "ingest/weather/evidence.py:97"
+        ],
+        "wtf.aurora_source_version": [
+          "ingest/weather/evidence.py:78"
+        ],
+        "wtf.activity_snapshot": [
+          "consumer/activity_snapshot.py:125"
+        ],
+        "wtf.cross_watch_snapshot": [
+          "consumer/cross_watch_snapshot.py:95"
+        ],
+        "public.system_config": [
+          "ingest/weekly_digest_worker.py:123,140"
+        ]
+      },
+      "extra_schema_usage": [
+        "public"
+      ]
+    },
+    "wtf_ingest_api": {
+      "select": [
+        "parliament.ingest_log",
+        "shared.entities",
+        "shared.entity_external_ids",
+        "shared.entity_mentions",
+        "shared.entity_relationships"
+      ],
+      "write": {
+        "shared.entities": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_mentions": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_relationships": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "shared.entity_external_ids": [
+          "INSERT",
+          "UPDATE"
+        ],
+        "parliament.ingest_log": [
+          "INSERT"
+        ]
+      },
+      "read_source_refs": {
+        "shared.entities": [
+          "consumer/entity_graph_routes.py:119",
+          "consumer/entity_graph_routes.py:166",
+          "consumer/entity_graph_routes.py:428",
+          "consumer/entity_graph_routes.py:486"
+        ],
+        "parliament.ingest_log": [
+          "ingest/shared/entity_push_receipts.py:35"
+        ]
+      },
+      "write_source_refs": {
+        "shared.entities": [
+          "consumer/entity_graph_routes.py:82"
+        ],
+        "shared.entity_mentions": [
+          "consumer/entity_graph_routes.py:170"
+        ],
+        "shared.entity_relationships": [
+          "consumer/entity_graph_routes.py:180"
+        ],
+        "shared.entity_external_ids": [
+          "consumer/entity_graph_routes.py:196"
+        ],
+        "parliament.ingest_log": [
+          "ingest/shared/entity_push_receipts.py:31"
+        ]
+      }
+    }
+  },
+  "blocked_workloads": [
+    "dynamic SQL and imported helper dependencies: confirm with workload tests",
+    "existing PUBLIC or column grants, nondefault schema settings and custom function EXECUTE dependencies require separate review",
+    "rehearse migration 107 twice before restricted grants; do not apply production yet",
+    "exercise atomic EC DELETE/INSERT against PostgreSQL at representative scale and concurrent readers",
+    "operator must switch ingest-api command to consumer.app:create_ingest_app() after reviewed release"
+  ],
+  "notes": [
+    "consumer dedup dynamic UPDATE targets verified: parliament.mps, parliament.senators, parliament.officers",
+    "aurora_layer_status is a read dependency; no runtime write grant is justified by current source",
+    "public schema USAGE needed for unaccent/pg_trgm helpers; review function ACLs in schema dump",
+    "SELECT dependency discovery is source-based candidate data; route and scheduler workload tests remain mandatory"
+  ],
+  "audited_sequences": [
+    "gov_watch.gic_appointments_id_seq",
+    "legal_watch.crtc_decisions_id_seq",
+    "legal_watch.ethics_rulings_id_seq",
+    "market_watch.boc_rate_decisions_id_seq",
+    "market_watch.economic_indicators_id_seq",
+    "market_watch.fx_rates_id_seq",
+    "parliament.bills_id_seq",
+    "parliament.ec_contributions_id_seq",
+    "parliament.election_candidates_id_seq",
+    "parliament.election_history_id_seq",
+    "parliament.elections_id_seq",
+    "parliament.ingest_log_id_seq",
+    "parliament.intl_travel_events_id_seq",
+    "parliament.intl_travel_senators_id_seq",
+    "parliament.lobbyist_contacts_id_seq",
+    "parliament.minister_travel_id_seq",
+    "parliament.mp_committees_id_seq",
+    "parliament.mp_disclosures_id_seq",
+    "parliament.mp_expenses_annual_id_seq",
+    "parliament.mp_expenses_archive_id_seq",
+    "parliament.mp_expenses_id_seq",
+    "parliament.mp_movements_id_seq",
+    "parliament.mp_promises_id_seq",
+    "parliament.mp_terms_id_seq",
+    "parliament.mp_votes_id_seq",
+    "parliament.mps_id_seq",
+    "parliament.officers_id_seq",
+    "parliament.senate_travel_trips_id_seq",
+    "parliament.senate_votes_id_seq",
+    "parliament.senator_caucus_quarters_id_seq",
+    "parliament.senator_committees_id_seq",
+    "parliament.senator_expenses_id_seq",
+    "parliament.senator_expenses_legacy_id_seq",
+    "parliament.senator_votes_id_seq",
+    "parliament.senators_id_seq",
+    "shared.adapter_sync_state_id_seq",
+    "shared.dedup_pair_decisions_id_seq",
+    "shared.entities_id_seq",
+    "shared.entity_blocks_id_seq",
+    "shared.entity_external_ids_id_seq",
+    "shared.entity_mentions_id_seq",
+    "shared.entity_merge_log_id_seq",
+    "shared.entity_relationships_id_seq",
+    "shared.merge_review_queue_id_seq",
+    "shared.source_mention_id_seq",
+    "wtf.api_keys_id_seq",
+    "wtf.article_author_tags_id_seq",
+    "wtf.article_mp_tags_id_seq",
+    "wtf.articles_id_seq",
+    "wtf.audit_trail_id_seq",
+    "wtf.aurora_alerts_id_seq",
+    "wtf.aurora_aqhi_obs_id_seq",
+    "wtf.aurora_bc_evacuations_id_seq",
+    "wtf.aurora_capture_run_id_seq",
+    "wtf.aurora_city_forecast_id_seq",
+    "wtf.aurora_city_hourly_id_seq",
+    "wtf.aurora_city_obs_id_seq",
+    "wtf.aurora_city_site_id_seq",
+    "wtf.aurora_evacuations_id_seq",
+    "wtf.aurora_fire_hotspot_daily_id_seq",
+    "wtf.aurora_fire_perimeters_id_seq",
+    "wtf.aurora_firewx_obs_id_seq",
+    "wtf.aurora_source_version_id_seq",
+    "wtf.bias_scores_id_seq",
+    "wtf.claim_tracker_id_seq",
+    "wtf.cluster_disputes_id_seq",
+    "wtf.fact_checks_id_seq",
+    "wtf.failed_ingest_id_seq",
+    "wtf.geo_reports_id_seq",
+    "wtf.llm_analyses_id_seq",
+    "wtf.newsletter_subscribers_id_seq",
+    "wtf.outlet_bias_history_id_seq",
+    "wtf.outlet_bias_scores_id_seq",
+    "wtf.score_flags_id_seq",
+    "wtf.scout_body_jobs_id_seq",
+    "wtf.sources_id_seq",
+    "wtf.story_clusters_id_seq",
+    "wtf.summaries_id_seq",
+    "wtf.user_alerts_id_seq"
+  ]
+}

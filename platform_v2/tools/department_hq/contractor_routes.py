@@ -11,7 +11,7 @@ ENDPOINTS:
   /api/contractors/providers/<p>/models/<m>/toggle PUT — Toggle model routing
   /api/contractors/definitions            GET  — List contractor definitions
   /api/contractors/definitions            POST — Create/update contractor definition
-  /api/contractors/omniroute-quota        GET  — Latest OmniRoute throttle snapshot per provider
+  /api/contractors/omniroute-quota        GET  — Latest DS9 throttle snapshot per provider
 """
 
 import json
@@ -414,7 +414,7 @@ def register_contractor_routes(bp, admin_required):
     @bp.route("/api/contractors/omniroute-quota", methods=["GET"])
     @login_required
     def get_omniroute_quota():
-        """DS9 Phase 2 — latest OmniRoute quota snapshot per upstream provider.
+        """DS9 Phase 2 — latest DS9 quota snapshot per upstream provider.
 
         Mirrors the get_external_providers() shape: one entry per provider with
         its throttle rate, status band, and last-scan time. The Contractors
@@ -440,7 +440,7 @@ def register_contractor_routes(bp, admin_required):
                 }
             return jsonify({"success": True, "providers": by_key})
         except Exception as e:
-            logger.error("Error reading OmniRoute quota status: %s", e)
+            logger.error("Error reading DS9 quota status: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/contractors/definitions", methods=["GET"])

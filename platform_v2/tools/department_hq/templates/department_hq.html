@@ -34,7 +34,7 @@
     ("scout", "S.C.O.U.T.", "radar"),
     ("autonomy", "Autonomy", "cpu"),
     ("fleet", "A.R.M.A.D.A.", "rocket"),
-    ("contractors", "Contractors", "hard-hat"),
+    ("contractors", "Deep Space 9 (DS9)", "hard-hat"),
     ("coms", "COMs", "message-circle"),
     ("online-presence", "Online Presence", "globe"),
     ("alerts", "V.I.G.I.L.", "shield-check"),
@@ -801,7 +801,7 @@
           <span style="margin-left:12px;font-size:0.7rem;">
             <span style="color:#10b981;">&bull;</span> Hub
             <span style="color:#a3e635;margin-left:8px;">&bull;</span> nodes
-            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> Contractors
+            <span style="color:#f59e0b;margin-left:8px;">&bull;</span> DS9
           </span>
           <span class="dhq-title-action" style="display:flex;gap:4px;align-items:center;">
             <button onclick="openRepairNodeModal()" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);color:#ef4444;padding:3px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;font-family:'IBM Plex Mono',monospace;">⚙ REPAIR NODE</button>
@@ -810,7 +810,7 @@
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;font-size:0.75rem;">
           <span id="fleetStatNodes" style="color:var(--dhq-text-dim);">-- nodes</span>
-          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- contractors</span>
+          <span id="fleetStatProviders" style="color:var(--dhq-text-dim);">-- DS9 providers</span>
         </div>
         <!-- Index first, 3 columns, full width; map below. Layout + sizing live in
              department-hq.css (.fleet-map-frame / .fleet-sonar / #fleetNodeIndex) —
@@ -975,13 +975,13 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- CONTRACTORS TAB — External AI Providers                       -->
+    <!-- DEEP SPACE 9 (DS9) TAB — External AI Providers (OmniRoute gateway) -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
     <div class="dhq-panel" id="panel-contractors">
       <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
         <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
         <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">CONTRACTORS</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PROVIDERS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">DEEP SPACE 9 (DS9)</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PROVIDERS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
           <div style="flex:1 !important;padding:16px !important;">
       <!-- #4659 — Cloud AI master toggle (Sovereign OFF / Ask-first ON) -->
       <div id="cloudMasterToggle" style="margin-bottom:16px;"></div>
@@ -989,7 +989,7 @@
       <!-- DS9 Phase 2 — OmniRoute free-tier quota (per-upstream throttle). Card is
            painted by loadOmnirouteQuota(); empty/failed card reads "no data yet",
            never affects the providers grid below it. -->
-      <div id="omnirouteQuotaCard" style="margin:0 0 16px 0;"></div>
+      <div id="ds9QuotaCard" style="margin:0 0 16px 0;"></div>
       <div id="contractors-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
       <div id="contractorProvidersContent"></div>
       <div id="contractorDefinitionsContent"></div>

@@ -4515,7 +4515,7 @@ function _dhqSourceLabel(source) {
         // #6763 — codex/opencode/host-CLI token spend, mirrored out of OmniRoute's
         // own call log. Attributed to the GATEWAY, not a lane: one shared API key
         // means the gateway cannot say which interface called.
-        'omniroute_gateway': 'OmniRoute \u00b7 gateway'
+        'omniroute_gateway': 'DS9 \u00b7 gateway'
     };
     return MAP[s.toLowerCase()] || s || '—';
 }
@@ -7666,18 +7666,18 @@ async function loadContractors() {
 // snapshot (observes only). The card is deliberately self-contained: a failed or
 // empty read lands on "no data yet" and never disturbs the providers grid.
 async function loadOmnirouteQuota() {
-    var el = document.getElementById('omnirouteQuotaCard');
-    if (el) el.innerHTML = '<span class="briefing-muted">OmniRoute quota: loading…</span>';
+    var el = document.getElementById('ds9QuotaCard');
+    if (el) el.innerHTML = '<span class="briefing-muted">DS9 quota: loading…</span>';
     try {
         var resp = await fetch('/tools/department-hq/api/contractors/omniroute-quota');
         var res = await resp.json();
         if (!res || !res.success) {
-            if (el) el.innerHTML = '<span class="briefing-muted">OmniRoute quota: unavailable</span>';
+            if (el) el.innerHTML = '<span class="briefing-muted">DS9 quota: unavailable</span>';
             return;
         }
         var providers = Object.keys(res.providers || {});
         if (providers.length === 0) {
-            if (el) el.innerHTML = '<span class="briefing-muted">OmniRoute quota: no calls in window yet</span>';
+            if (el) el.innerHTML = '<span class="briefing-muted">DS9 quota: no calls in window yet</span>';
             return;
         }
         var order = { exhausted: 0, degraded: 1, ok: 2, unknown: 3 };
@@ -7708,7 +7708,7 @@ async function loadOmnirouteQuota() {
             '</div>';
     } catch (e) {
         console.error('loadOmnirouteQuota error:', e);
-        if (el) el.innerHTML = '<span class="briefing-muted">OmniRoute quota: unavailable</span>';
+        if (el) el.innerHTML = '<span class="briefing-muted">DS9 quota: unavailable</span>';
     }
 }
 

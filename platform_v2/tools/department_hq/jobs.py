@@ -1247,7 +1247,7 @@ def omniroute_gateway_health_job():
     try:
         from services.telegram_service import send_system
 
-        send_system(f"OmniRoute gateway: {condition}", detail)
+        send_system(f"DS9 gateway: {condition}", detail)
     except Exception as e:
         logger.warning("omniroute_gateway_health alert failed: %s", e)
 
@@ -2256,7 +2256,7 @@ def _register_own_jobs(scheduler, flask_app):
         with_ctx(omniroute_telemetry_collect),
         trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
         id="omniroute_telemetry",
-        name="Agent Loop: OmniRoute Token Telemetry",
+        name="Agent Loop: DS9 Token Telemetry",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
@@ -2270,7 +2270,7 @@ def _register_own_jobs(scheduler, flask_app):
         with_ctx(omniroute_gateway_health_job),
         trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
         id="omniroute_gateway_health",
-        name="Agent Loop: OmniRoute Gateway Health",
+        name="Agent Loop: DS9 Gateway Health",
         replace_existing=True,
         max_instances=1,
         coalesce=True,
@@ -2285,7 +2285,7 @@ def _register_own_jobs(scheduler, flask_app):
         with_ctx(omniroute_quota_scan_job),
         trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
         id="omniroute_quota_scan",
-        name="Agent Loop: OmniRoute Quota Scan",
+        name="Agent Loop: DS9 Quota Scan",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

@@ -95,6 +95,15 @@ def render(manifest):
             f" IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member=(SELECT oid FROM pg_roles WHERE rolname='{name}'))",
             " THEN RAISE EXCEPTION 'unexpected role membership'; END IF; END $$;",
         ]
+    # Owners must be unreachable from every login, including memberships created
+    # before this package. Runtime roles may already have LOGIN after rehearsal.
+    for name in ["wtf_owner", "wtf_evidence_owner"]:
+        lines += [
+            f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{name}' AND rolcanlogin)",
+            " THEN RAISE EXCEPTION 'owner role must be NOLOGIN'; END IF;",
+            f" IF EXISTS (SELECT 1 FROM pg_auth_members WHERE roleid=(SELECT oid FROM pg_roles WHERE rolname='{name}'))",
+            " THEN RAISE EXCEPTION 'owner role has unexpected members'; END IF; END $$;",
+        ]
     # Schema/database ownership cannot remain reachable from runtime identities.
     lines += ["ALTER DATABASE wtf_role_rehearsal OWNER TO wtf_owner;",
               "REVOKE ALL ON DATABASE wtf_role_rehearsal FROM PUBLIC;"]

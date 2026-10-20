@@ -48,6 +48,19 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate(bad)
 
+    def test_existing_owners_cannot_login_or_have_members(self):
+        sql = render(self.manifest)
+        for owner in ("wtf_owner", "wtf_evidence_owner"):
+            self.assertIn(f"rolname='{owner}' AND rolcanlogin", sql)
+            self.assertIn(f"WHERE roleid=(SELECT oid FROM pg_roles WHERE rolname='{owner}')", sql)
+        self.assertIn("owner role must be NOLOGIN", sql)
+        self.assertIn("owner role has unexpected members", sql)
+
+    def test_verifier_checks_column_only_acl_leaks(self):
+        sql = verification_sql(self.manifest, "wtf_consumer")
+        self.assertIn("has_column_privilege(current_user", sql)
+        self.assertIn("unexpected column UPDATE: wtf.aurora_source_version", sql)
+
     def test_actual_login_and_negative_control_present(self):
         sql = verification_sql(self.manifest, "wtf_consumer")
         self.assertIn("session_user <> 'wtf_consumer'", sql)

@@ -66,6 +66,31 @@ def main():
             psql("BEGIN;\n" + bootstrap_sql + "\nCOMMIT;")
         psql(grant_sql)
         psql(grant_sql)  # Idempotence on the same schema, not a fresh fixture.
+        # Existing owner identities must fail closed; never silently revoke an
+        # unknown operator's access. Each failed grant transaction is rolled back.
+        for owner in ("wtf_owner", "wtf_evidence_owner"):
+            psql(f'ALTER ROLE "{owner}" LOGIN;')
+            bad = psql(grant_sql, check=False)
+            if bad.returncode == 0 or "owner role must be NOLOGIN" not in bad.stderr:
+                raise RuntimeError("LOGIN owner negative control was not rejected")
+            psql(f'ALTER ROLE "{owner}" NOLOGIN;')
+            psql('CREATE ROLE unexpected_owner_member NOLOGIN;')
+            psql(f'GRANT "{owner}" TO unexpected_owner_member;')
+            bad = psql(grant_sql, check=False)
+            if bad.returncode == 0 or "owner role has unexpected members" not in bad.stderr:
+                raise RuntimeError("owner membership negative control was not rejected")
+            psql(f'REVOKE "{owner}" FROM unexpected_owner_member; DROP ROLE unexpected_owner_member;')
+            psql(grant_sql)
+        # PostgreSQL table revokes also revoke matching column ACLs. Prove that
+        # behavior for both direct and PUBLIC grants instead of adding a redundant reset.
+        # Choose a real column, so this check does not depend on schema naming.
+        column = command(["docker", "exec", name, "psql", "-X", "-qAt", "-U", "postgres", "-d", "wtf_role_rehearsal", "-c", "SELECT attname FROM pg_attribute WHERE attrelid='wtf.aurora_source_version'::regclass AND attnum>0 AND NOT attisdropped ORDER BY attnum LIMIT 1;"]).stdout.strip()
+        if not column or not column.replace('_', '').isalnum():
+            raise RuntimeError("no safe evidence column for ACL control")
+        column_grant = f'GRANT UPDATE ("{column}") ON wtf.aurora_source_version TO wtf_consumer, PUBLIC;'
+        psql(column_grant)
+        psql(grant_sql)
+
         snapshot_sql = "\n".join(
             f"SELECT count(*)::text || ':' || coalesce(md5(string_agg(row_to_json(t)::text, '' ORDER BY row_to_json(t)::text)), '') FROM {table} t;"
             for table in manifest["evidence_tables"]
@@ -81,6 +106,12 @@ def main():
         if bad.returncode == 0 or "unexpected UPDATE: wtf.aurora_source_version" not in bad.stderr:
             raise RuntimeError("negative control did not detect the intentional grant")
         psql("REVOKE UPDATE ON wtf.aurora_source_version FROM wtf_consumer;")
+        psql(verification_sql(manifest, "wtf_consumer"), "wtf_consumer")
+        psql(column_grant)
+        bad = psql(verification_sql(manifest, "wtf_consumer"), "wtf_consumer", check=False)
+        if bad.returncode == 0 or "unexpected column UPDATE: wtf.aurora_source_version" not in bad.stderr:
+            raise RuntimeError("column grant negative control was not detected")
+        psql(grant_sql)
         psql(verification_sql(manifest, "wtf_consumer"), "wtf_consumer")
         if psql(snapshot_sql).stdout != before:
             raise RuntimeError("evidence counts or checksums changed")

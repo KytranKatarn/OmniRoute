@@ -31,6 +31,12 @@ def verification_sql(manifest, name):
             want = "true" if privilege in expected else "false"
             lines += [f" IF has_table_privilege(current_user, {oid}, '{privilege}') IS DISTINCT FROM {want}",
                       f" THEN RAISE EXCEPTION 'unexpected {privilege}: {table}'; END IF;"]
+        # Table ACL checks alone cannot detect a later column-only grant.
+        for privilege in ["SELECT", "INSERT", "UPDATE", "REFERENCES"]:
+            want = "true" if privilege in expected else "false"
+            lines += [f" IF EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid={oid} AND a.attnum>0 AND NOT a.attisdropped",
+                      f" AND has_column_privilege(current_user, a.attrelid, a.attnum, '{privilege}') IS DISTINCT FROM {want})",
+                      f" THEN RAISE EXCEPTION 'unexpected column {privilege}: {table}'; END IF;"]
         owner = "wtf_evidence_owner" if table in manifest["evidence_tables"] else "wtf_owner"
         lines += [f" IF (SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid={oid}) <> '{owner}'",
                   f" THEN RAISE EXCEPTION 'wrong owner: {table}'; END IF;"]

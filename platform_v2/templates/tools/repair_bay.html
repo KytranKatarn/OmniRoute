@@ -4456,28 +4456,16 @@ function showPRDetail(pr) {
         // capped window and drop the same files). If anything still falls out, the gate
         // re-flags it honestly — a re-review can never read as a clean approval of a
         // diff the model did not actually see.
-        // Shared by BOTH action rows below. They used to be read off `codexBtn`, which is
-// declared inside the coverage branch only: on any cleanly reviewed PR that branch
-// does not run, so `codexBtn` hoists as undefined and `codexBtn.style` threw,
-// blanking the whole right-hand detail pane. Declared here instead.
-var CODEX_BTN_CSS = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
-var CODEX_BTN_TITLE = 'Queue a CODEX (CLI) review of this PR. Runs on the host, not in the dispatcher: minutes of work, and the result appears as a PR comment.';
+        // Shared by BOTH action rows below (declared outside the coverage branch, which does not
+// run on a cleanly reviewed PR). CODEX and the reviewer choice live inside the re-review dialog now.
+var RE_REVIEW_TITLE = 'Choose how to re-review this PR: reviewer (F.O.R.G.E., P.R.O.B.E. or CODEX) and full-diff or configured scope. Nothing runs until you confirm in the dialog.';
 var covActions = document.createElement('div');
         covActions.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
         var reBtn = document.createElement('button');
         reBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.45);color:#fbbf24;border-radius:4px;cursor:pointer;';
         reBtn.textContent = 're-review — full diff';
-        reBtn.title = 'Re-run the review with the whole diff shown to the full-window reviewer. Slower, but it reads the files above.';
-        var reSel = _prReviewerSelect();
-        reSel.setAttribute('data-pr-reviewer', '1');
+        reBtn.title = RE_REVIEW_TITLE;
         reBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, covActions); };
-        var codexBtn = document.createElement('button');
-        codexBtn.style.cssText = CODEX_BTN_CSS;
-        codexBtn.textContent = 'CODEX review';
-        codexBtn.title = CODEX_BTN_TITLE;
-        codexBtn.onclick = function(){ queueCodexReview(pr.pr_number, pr.repo, false); };
-        covActions.appendChild(codexBtn);
-        covActions.appendChild(reSel);
         covActions.appendChild(reBtn);
         if (pr.diff_url) {
             var fullDiff = document.createElement('a');
@@ -4498,18 +4486,18 @@ var covActions = document.createElement('div');
         var generalReBtn = document.createElement('button');
         generalReBtn.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.4);color:#67e8f9;border-radius:4px;cursor:pointer;';
         generalReBtn.textContent = 're-review — full diff';
-        generalReBtn.title = 'Run a fresh full-diff review of this PR head.';
-        var genSel = _prReviewerSelect();
-        genSel.setAttribute('data-pr-reviewer', '1');
+        generalReBtn.title = RE_REVIEW_TITLE;
         generalReBtn.onclick = function(){ triggerPRReReview(pr.pr_number, pr.repo, reviewActions); };
-        var codexBtn2 = document.createElement('button');
-        codexBtn2.style.cssText = CODEX_BTN_CSS;
-        codexBtn2.textContent = 'CODEX review';
-        codexBtn2.title = CODEX_BTN_TITLE;
-        codexBtn2.onclick = function(){ queueCodexReview(pr.pr_number, pr.repo, false); };
-        reviewActions.appendChild(codexBtn2);
-        reviewActions.appendChild(genSel);
         reviewActions.appendChild(generalReBtn);
+        if (pr.diff_url) {
+            var fullDiff2 = document.createElement('a');
+            fullDiff2.href = pr.diff_url;
+            fullDiff2.target = '_blank';
+            fullDiff2.style.cssText = 'font-size:0.65rem;padding:3px 10px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.35);color:#94a3b8;border-radius:4px;text-decoration:none;';
+            fullDiff2.textContent = 'Read full diff ↗';
+            fullDiff2.title = 'Open the raw full diff on GitHub';
+            reviewActions.appendChild(fullDiff2);
+        }
         wrap.appendChild(reviewActions);
     }
 
@@ -4704,26 +4692,6 @@ function _prScopeBody(extra) {
   // gate. Keep the two in step when a reviewer is added.
   var PR_REVIEWERS = ['F.O.R.G.E.', 'P.R.O.B.E.'];
 
-  function _prReviewerSelect() {
-      var sel = document.createElement('select');
-      sel.style.cssText = 'font-size:0.65rem;padding:3px 6px;background:rgba(15,23,42,0.9);'
-          + 'border:1px solid rgba(148,163,184,0.4);color:#cbd5e1;border-radius:4px;';
-      sel.title = 'Which agent reviews this PR. Codex (CLI) is not listed: it has no skills '
-          + 'and has never been dispatched, so it cannot yet be routed a review.';
-      PR_REVIEWERS.forEach(function(name) {
-          var opt = document.createElement('option');
-          opt.value = name;
-          opt.textContent = name;
-          sel.appendChild(opt);
-      });
-      // Set the select's own value rather than only option.selected. A browser does
-      // propagate selected -> select.value, but relying on that makes the default
-      // invisible to anything reading .value directly, and "" would silently fall
-      // through to server default routing instead of the reviewer shown on screen.
-      sel.value = PR_REVIEWERS[0];
-      return sel;
-  }
-
   // The reviewer the operator picked, for THIS row. Stored on the row wrapper so the
   // value cannot leak between PRs — the same reason the server override is thread-local.
   // ── CODEX review ────────────────────────────────────────────────────────────
@@ -4847,6 +4815,7 @@ function triggerPRAnalysis(prNumber, repo, changedFiles, scopeEl) {
         changedFiles: changedFiles,
         reviewer: _prSelectedReviewer(scopeEl),
         scope: _prScopeBody({}),
+        onCodex: function(n, r) { queueCodexReview(n, r, false); },
         apiBase: API,
         onAccepted: function() { window.loadPRReviews(_prStateFilter); }
     });

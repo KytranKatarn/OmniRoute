@@ -94,10 +94,12 @@
                 ['full', 'Full diff — recommended'], ['scoped', 'Configured scope — may omit files']
             ]);
             var reviewer = select('rb-pr-analysis-reviewer', [
-                ['F.O.R.G.E.', 'F.O.R.G.E. — merge review'], ['P.R.O.B.E.', 'P.R.O.B.E. — advisory QA']
+                ['F.O.R.G.E.', 'F.O.R.G.E. — merge review'], ['P.R.O.B.E.', 'P.R.O.B.E. — advisory QA'],
+                ['CODEX', 'CODEX — CLI whole-diff review (queued on the host)']
             ]);
             if (options.reviewer === 'P.R.O.B.E.') reviewer.value = options.reviewer;
-            body.appendChild(field('Analysis type', mode));
+            var modeField = field('Analysis type', mode);
+            body.appendChild(modeField);
             body.appendChild(field('Reviewer', reviewer));
             var reviewerNote = node('p', 'rb-pr-analysis-note');
             body.appendChild(reviewerNote);
@@ -169,11 +171,24 @@
             }
 
             function update() {
-                scope.hidden = mode.value !== 'scoped';
+                var codex = reviewer.value === 'CODEX';
+                // CODEX is a host CLI job, not a dispatcher review: it always reads the whole diff,
+                // so analysis type and scope do not apply and do not need the scope limits loaded.
+                modeField.hidden = codex;
+                scope.hidden = codex || mode.value !== 'scoped';
                 scope.disabled = scope.hidden || posting || !!accepted;
-                reviewerNote.textContent = reviewer.value === 'P.R.O.B.E.'
-                    ? 'Advisory QA opinion only; this does not satisfy the F.O.R.G.E. merge-review gate.'
-                    : 'F.O.R.G.E. owns the merge-review verdict; a request is not an approval.';
+                submit.textContent = posting ? 'Submitting…' : accepted ? 'Request accepted'
+                    : (codex ? 'Queue CODEX review' : 'Run analysis');
+                reviewerNote.textContent = codex
+                    ? 'Runs as a CLI job on the host (not through the dispatcher): minutes of work. The result appears as a PR comment and this panel does not live-update.'
+                    : reviewer.value === 'P.R.O.B.E.'
+                        ? 'Advisory QA opinion only; this does not satisfy the F.O.R.G.E. merge-review gate.'
+                        : 'F.O.R.G.E. owns the merge-review verdict; a request is not an approval.';
+                if (codex) {
+                    summary.textContent = 'CODEX reads the whole diff. Opening or cancelling this dialog queues nothing.';
+                    submit.disabled = posting || !!accepted || typeof options.onCodex !== 'function';
+                    return;
+                }
                 if (!defaults) return;
                 var limit = mode.value === 'full' ? ceiling : Number(maxFiles.value);
                 summary.textContent = mode.value === 'full'
@@ -196,6 +211,13 @@
             overlay.addEventListener('click', function (event) { if (event.target === overlay) close(); });
             form.addEventListener('submit', function (event) {
                 event.preventDefault();
+                if (reviewer.value === 'CODEX') {
+                    if (submit.disabled || posting || typeof options.onCodex !== 'function') return;
+                    // Reuse the proven queue path (it reports only what the server answered).
+                    close();
+                    options.onCodex(number, options.repo || null);
+                    return;
+                }
                 if (submit.disabled || posting || !defaults) return;
                 var request = {
                     repo: options.repo || null,

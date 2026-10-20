@@ -51,8 +51,18 @@ global.document = {
 
 const PR_REVIEWERS = ['F.O.R.G.E.','P.R.O.B.E.'];
 let sel = null;
-const code = grab('_prReviewerSelect') + '\n' + grab('_prSelectedReviewer');
+const code = grab('_prSelectedReviewer');
 eval(code);
+
+// The per-row reviewer dropdown was REMOVED from the detail pane (the reviewer is chosen in the
+// re-review dialog now). `_prSelectedReviewer` still tolerates a row-level select, so exercise that
+// fallback with a local stand-in rather than the deleted production builder.
+function _prReviewerSelect() {
+  const s = mkEl('select');
+  PR_REVIEWERS.forEach(n => { const o = mkEl('option'); o.value = n; o.textContent = n; s.appendChild(o); });
+  s.value = PR_REVIEWERS[0];
+  return s;
+}
 
 const fails = [];
 function check(n, got, want){ const ok = got===want; console.log(`  ${ok?'ok  ':'FAIL'} ${n}: got=${JSON.stringify(got)} want=${JSON.stringify(want)}`); if(!ok) fails.push(n); }
@@ -60,7 +70,6 @@ function check(n, got, want){ const ok = got===want; console.log(`  ${ok?'ok  ':
 sel = _prReviewerSelect();
 check('selector has both reviewers', sel.children.map(o=>o.value).join(','), 'F.O.R.G.E.,P.R.O.B.E.');
 check('default value set on select', sel.value, 'F.O.R.G.E.');
-check('no CODEX option', sel.children.some(o=>o.value.indexOf('CODEX')>=0), false);
 
 const row = mkEl('div'); sel.setAttribute('data-pr-reviewer','1'); row.appendChild(sel);
 check('reads selected reviewer', _prSelectedReviewer(row), 'F.O.R.G.E.');
@@ -222,17 +231,13 @@ check('CodeRabbit pane does not report a fetch failure as "no review"',
 // read hoisted constants instead. These guard the coupling from coming back.
 const detail = tplHtml.slice(tplHtml.indexOf('function showPRDetail('),
                              tplHtml.indexOf('function showPRDetail(') + 20000);
-check('detail pane does not read codexBtn from the other branch',
-  /codexBtn2\.style\.cssText = codexBtn\.style\.cssText/.test(detail), false);
-check('detail pane does not read codexBtn.title cross-branch',
-  /codexBtn2\.title = codexBtn\.title/.test(detail), false);
-check('CODEX button css is hoisted above both branches',
-  /var CODEX_BTN_CSS =/.test(detail), true);
-check('CODEX button title is hoisted above both branches',
-  /var CODEX_BTN_TITLE =/.test(detail), true);
-check('both CODEX buttons use the hoisted constants',
-  (detail.match(/CODEX_BTN_CSS;/g) || []).length >= 2
-  && (detail.match(/CODEX_BTN_TITLE;/g) || []).length >= 2, true);
+check('detail pane does not read a button from the other branch',
+  /codexBtn/.test(detail), false);
+// The same trap applies to the shared re-review title: it must be declared ABOVE both branches
+// (the coverage branch does not run on a cleanly reviewed PR) and used by both buttons.
+check('shared re-review title is hoisted above both branches', /var RE_REVIEW_TITLE =/.test(detail), true);
+check('both re-review buttons use the hoisted title',
+  (detail.match(/\.title = RE_REVIEW_TITLE;/g) || []).length, 2);
 
 // A silently LIMIT-capped list is indistinguishable from data loss. The server now
 // returns total/truncated and the pane must SAY the cap rather than implying the list
@@ -264,6 +269,28 @@ check('reviewer note explains QA cannot gate',
 check('_prSelectedReviewer prefers the tab-level control',
   /document\.getElementById\('prReviewerPick'\)/.test(tplHtml), true);
 check('P.R.O.B.E. badge rendered on the row', /P\.R\.O\.B\.E\. /.test(tplHtml), true);
+
+// ── detail-pane actions: ONLY "re-review" and "Read full diff" ─────────────────────────────
+// CODEX and the reviewer choice moved INTO the re-review dialog (owner request 2026-10-20).
+// A standalone CODEX button and a per-row reviewer dropdown beside them was four controls for one job.
+const dialogSrc = fs.readFileSync(
+  path.join(__dirname, '..', '..', 'static', 'js', 'repair-bay-pr-analysis.js'), 'utf8');
+check('no standalone CODEX review button in the pane', /textContent = 'CODEX review'/.test(tplHtml), false);
+check('no per-row reviewer dropdown in the pane',
+  /_prReviewerSelect\(/.test(tplHtml) || /setAttribute\('data-pr-reviewer'/.test(tplHtml), false);
+check('both action rows keep the re-review button',
+  (tplHtml.match(/textContent = 're-review — full diff'/g) || []).length, 2);
+check('both action rows offer Read full diff',
+  (tplHtml.match(/textContent = 'Read full diff ↗'/g) || []).length, 2);
+check('the dialog lists CODEX as a reviewer', /\['CODEX', 'CODEX/.test(dialogSrc), true);
+check('the dialog still lists F.O.R.G.E. and P.R.O.B.E.',
+  /\['F\.O\.R\.G\.E\.', /.test(dialogSrc) && /\['P\.R\.O\.B\.E\.', /.test(dialogSrc), true);
+check('the dialog routes CODEX through the page callback (no second implementation)',
+  /options\.onCodex\(number/.test(dialogSrc), true);
+check('the page wires onCodex to queueCodexReview',
+  /onCodex: function\(n, r\) \{ queueCodexReview\(n, r, false\); \}/.test(tplHtml), true);
+check('CODEX in the dialog never posts to the analyze endpoint',
+  dialogSrc.indexOf("reviewer.value === 'CODEX'") < dialogSrc.indexOf("fetch(base + '/forge/pr-reviews/' + number + '/analyze'"), true);
 
 check('pane labels the verdict advisory',
   /model says APPROVE \(advisory\)/.test(src), true);

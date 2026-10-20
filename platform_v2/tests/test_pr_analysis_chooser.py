@@ -48,7 +48,7 @@ def fixture_html():
         <button id="rereview" onclick="triggerPRReReview(3912,'KytranKatarn/archie-platform',null)">Re-review</button>
         <input id="forgeReviewPrNum" value="3912"><span id="forgeReviewStatus"></span>
         <button id="manual" onclick="triggerForgeReview()">Analyze entered PR</button>
-        <script>var API='/tools/repair-bay/api';var _prStateFilter='open';window.refreshes=0;window.loadPRReviews=function(){{window.refreshes++;}};</script>
+        <script>var API='/tools/repair-bay/api';var _prStateFilter='open';window.refreshes=0;window.loadPRReviews=function(){{window.refreshes++;}};window.codexCalls=[];window.queueCodexReview=function(n,r,d){{window.codexCalls.push([n,r,d]);}};</script>
         <script>{js}</script><script>{functions}</script></body></html>"""
 
 
@@ -281,3 +281,32 @@ def test_template_loads_component_and_no_entrypoint_posts_directly():
         ("function triggerPRReReview(", "function prFileUrl("),
     ]:
         assert "fetch(" not in function_source(start, end)
+
+
+def test_codex_is_a_reviewer_choice_and_hides_the_analysis_fields(ui):
+    """CODEX moved INTO the dialog (it used to be a separate button): it always reads the whole diff,
+    so analysis type and scope do not apply while it is selected."""
+    page, state = ui
+    open_dialog(page)
+    options = page.locator("#rb-pr-analysis-reviewer option").all_text_contents()
+    assert [o.split(" ")[0] for o in options] == ["F.O.R.G.E.", "P.R.O.B.E.", "CODEX"]
+    page.locator("#rb-pr-analysis-reviewer").select_option("CODEX")
+    playwright.expect(page.locator("#rb-pr-analysis-mode")).to_be_hidden()
+    playwright.expect(page.locator("fieldset.rb-pr-analysis-scope")).to_be_hidden()
+    playwright.expect(page.get_by_role("button", name="Queue CODEX review", exact=True)).to_be_enabled()
+    playwright.expect(page.get_by_role("dialog")).to_contain_text("CLI job on the host")
+    page.locator("#rb-pr-analysis-reviewer").select_option("F.O.R.G.E.")
+    playwright.expect(page.locator("#rb-pr-analysis-mode")).to_be_visible()
+    playwright.expect(page.get_by_role("button", name="Run analysis", exact=True)).to_be_enabled()
+    assert state["posts"] == []
+
+
+def test_codex_submit_uses_the_page_queue_and_never_posts_an_analysis(ui):
+    page, state = ui
+    open_dialog(page, "#rereview")
+    page.locator("#rb-pr-analysis-reviewer").select_option("CODEX")
+    page.get_by_role("button", name="Queue CODEX review", exact=True).evaluate("b => { b.click(); b.click(); }")
+    playwright.expect(page.get_by_role("dialog")).to_have_count(0)
+    assert page.evaluate("window.codexCalls") == [[3912, "KytranKatarn/archie-platform", False]]
+    assert state["posts"] == []
+    assert page.evaluate("window.refreshes") == 0

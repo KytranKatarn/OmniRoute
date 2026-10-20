@@ -85,7 +85,23 @@ OMNIROUTE_DB = os.getenv("OMNIROUTE_DB_PATH", "/omniroute-data/storage.sqlite")
 
 WATERMARK_KEY = "omniroute:telemetry:watermark"  # "<iso timestamp>|<call_logs.id>"
 MAX_BATCH = 500  # bounds one pass; the next cycle continues from the watermark
-PROVIDER = "omniroute"
+PROVIDER = "omniroute"  # default; overridden per-row by _provider_for() below
+
+
+def _provider_for(upstream: str | None) -> str:
+    """Map OmniRoute's upstream provider to our contractor_providers key.
+
+    OmniRoute fronts multiple upstreams (opencode.ai, opencode zen, auto, felo-web).
+    Big-Pickle and other opencode zen models arrive with upstream 'opencode' or
+    'opencode-zen' — those must be attributed to 'opencode_zen', not 'omniroute',
+    so the Consciousness token economy and DHQ contractors tab show correct
+    per-provider spend.
+    """
+    up = (upstream or "").lower()
+    if up in ("opencode", "opencode-zen"):
+        return "opencode_zen"
+    return "omniroute"
+
 
 # Serialises concurrent collectors. The watermark is READ and WRITTEN in ONE
 # transaction under this lock, so two runs cannot both read the same mark and import
@@ -219,7 +235,7 @@ def _import_rows(cur, rows, cols) -> tuple[int, int, int]:
             (
                 "OmniRoute",
                 r["model"] or "unknown",
-                PROVIDER,
+                _provider_for(r.get("provider")),
                 t_in,
                 t_out,
                 t_in + t_out,

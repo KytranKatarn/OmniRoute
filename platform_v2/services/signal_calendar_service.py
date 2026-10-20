@@ -396,51 +396,26 @@ def _terry_profile_established() -> bool:
 
 
 def _wtf_recent_headlines(limit: int = 6) -> str:
-    """Live grounding for the What The Fact group: recent REAL headlines + outlet
-    from the separate ``wtf`` database (same hub postgres). Gives the model
-    factual material so it writes about actual coverage instead of inventing
-    stories/quotes — a fact-checking brand must never fabricate. Fail-open:
-    returns '' on any error (the caller then falls back to theme-only grounding).
-    Connection mirrors tools/wtf_hub/routes.py (wtfuser / WTF_DB_PASSWORD)."""
-    import os as _os
+    """Live grounding for the What The Fact group: recent REAL headlines + outlet, read from the PUBLIC WTF API
+    (services/wtf_remote.py). Gives the model factual material so it writes about actual coverage instead of
+    inventing stories/quotes — a fact-checking brand must never fabricate. Fail-open: returns '' on any error
+    (the caller then falls back to theme-only grounding).
 
+    This used to read the hub `wtf` database, which was RETIRED on 2026-10-02 (#3591); the fail-open then returned ''
+    on EVERY call for 18 days, so posts were silently generated WITHOUT grounding (#7372). The public API needs no
+    credential and cannot reach anything but published articles."""
     try:
-        import psycopg2
-        import psycopg2.extras
+        from services import wtf_remote
 
-        conn = psycopg2.connect(
-            host=_os.getenv("WTF_DB_HOST", "archie_database"),
-            port=int(_os.getenv("WTF_DB_PORT", "5432")),
-            dbname="wtf",
-            user=_os.getenv("WTF_DB_USER", "wtfuser"),
-            password=_os.getenv("WTF_DB_PASSWORD", ""),
-            options="-c search_path=wtf",
-            connect_timeout=5,
-        )
-        try:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(
-                    """SELECT a.title, s.name AS outlet
-                         FROM wtf.articles a
-                         JOIN wtf.sources s ON s.id = a.source_id
-                        WHERE a.published_at > NOW() - INTERVAL '2 days'
-                          AND a.title IS NOT NULL
-                        ORDER BY a.published_at DESC
-                        LIMIT %s""",
-                    (max(1, int(limit)),),
-                )
-                rows = cur.fetchall()
-        finally:
-            conn.close()
+        rows = wtf_remote.latest_headlines(limit=max(1, int(limit)), days=2)
     except Exception as exc:  # noqa: BLE001 — fail-open grounding, never block generation
-        logger.debug("[signal-calendar] wtf headline grounding unavailable: %s", exc)
+        logger.warning(
+            "[signal-calendar] wtf headline grounding unavailable (%s): posts fall back to theme-only",
+            type(exc).__name__,
+        )
         return ""
 
-    items = [
-        f'- "{(r["title"] or "").strip()}" ({(r.get("outlet") or "outlet").strip()})'
-        for r in rows
-        if (r.get("title") or "").strip()
-    ]
+    items = [f'- "{title.strip()}" ({(outlet or "outlet").strip()})' for title, outlet in rows if (title or "").strip()]
     if not items:
         return ""
     return (

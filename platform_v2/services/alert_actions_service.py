@@ -121,70 +121,29 @@ def alert_details(alert_key: str) -> str:
 
 
 def _wtf_ingest_details() -> str:
-    """WTF ingest freshness diagnostic — queries the hub `wtf` DB directly (separate
-    database from the platform `archie` DB). Read-only; never raises. (#4890)"""
+    """WTF ingest diagnostic from the PUBLIC API (no DB credential). Read-only; never raises. (#4890, #7372)
+
+    The hub `wtf` database was retired on 2026-10-02, so this can no longer report minutes-since-newest-ingest or the
+    settled-cohort classifier coverage; both need a read-only Citadel role. It says so instead of failing."""
     try:
-        import os
+        from services import wtf_remote
 
-        import psycopg2
-
-        from database import _get_db_password
-
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "192.168.1.200"),
-            port=int(os.getenv("DB_PORT", "5432")),
-            dbname="wtf",
-            user=os.getenv("DB_USER", "archie"),
-            password=_get_db_password(),  # DB_PASSWORD is a Docker secret, not an env var
-            connect_timeout=8,
-        )
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ingested_at))) / 60.0,
-                           COUNT(*) FILTER (WHERE ingested_at > NOW() - INTERVAL '1 hour'),
-                           COUNT(*) FILTER (WHERE ingested_at > NOW() - INTERVAL '24 hours')
-                      FROM wtf.articles
-                    """
-                )
-                gap, h1, h24 = cur.fetchone()
-                # Pipeline coverage on the SETTLED cohort (24-48h old — workers had a
-                # full day). beat IS NOT NULL = processed ('none' = legit no-match);
-                # geo counts mapped vs explicitly 'unmappable'. (#4897)
-                cur.execute(
-                    """
-                    SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE beat IS NOT NULL)
-                                 / GREATEST(COUNT(*), 1), 1),
-                           ROUND(100.0 * COUNT(*) FILTER (WHERE province_code IS NOT NULL
-                                                             OR country_code IS NOT NULL)
-                                 / GREATEST(COUNT(*), 1), 1),
-                           ROUND(100.0 * COUNT(*) FILTER (WHERE geo_scope = 'unmappable')
-                                 / GREATEST(COUNT(*), 1), 1)
-                      FROM wtf.articles
-                     WHERE ingested_at BETWEEN NOW() - INTERVAL '48 hours'
-                                           AND NOW() - INTERVAL '24 hours'
-                    """
-                )
-                beat_cov, geo_mapped, geo_unmappable = cur.fetchone()
-        finally:
-            conn.close()
         lines = ["📊 *WTF ingest freshness*", ""]
-        lines.append(f"Newest article: {gap:.0f} min ago" if gap is not None else "No articles found")
-        lines.append(f"Ingested — last 1h: {h1} · last 24h: {h24}")
-        lines.append(
-            f"Settled cohort (24-48h): beat processed {beat_cov}% · "
-            f"geo mapped {geo_mapped}% (+{geo_unmappable}% unmappable)"
-        )
-        if gap is not None and gap > 90:
-            lines += [
-                "",
-                "⚠️ Ingest looks STALLED. Check `wtf-ingest` on boston-2 " "(`docker logs what-the-fact-wtf-ingest-1`).",
-            ]
+        lines.append(f"Published articles: {wtf_remote.article_count():,}")
+        heads = wtf_remote.latest_headlines(limit=3, days=1)
+        if heads:
+            lines.append("Latest headlines: " + " · ".join(f"{t[:60]} ({o})" for t, o in heads))
+        lines += [
+            "",
+            "ℹ️ Coarse view only: the watchdog alerts after 4h with no change in the article count. Real ingest gaps "
+            "of up to ~3.4h occur (task #7374). Minutes-since-ingest and beat/geo coverage need a read-only Citadel "
+            "DB role (the hub wtf DB was retired 2026-10-02).",
+            "Check `wtf-ingest` on Citadel: `docker logs what-the-fact-wtf-ingest-1`.",
+        ]
         return "\n".join(lines)
     except Exception as exc:
-        logger.debug("alert_actions._wtf_ingest_details failed: %s", exc)
-        return "⚠️ WTF ingest detail unavailable (logged)."
+        logger.debug("alert_actions._wtf_ingest_details failed: %s", type(exc).__name__)
+        return "⚠️ WTF ingest detail unavailable (public API unreachable; logged)."
 
 
 def _disk_details() -> str:

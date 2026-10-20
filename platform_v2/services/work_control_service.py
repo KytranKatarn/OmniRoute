@@ -41,6 +41,15 @@ BACKLOGS = {
         "backend": "platform_settings",
         "default": False,
     },
+    # #7372 — the hub-side WTF backlog copies (7 jobs + 2 orchestration injectors). The hub `wtf` DB was retired
+    # 2026-10-02; Citadel's wtf-ingest runs the real backlog (it is NOT represented in this registry — tracked as a
+    # follow-up). Ships OFF and every reader uses is_enabled(default=False): the two MUST agree or the tab lies.
+    "wtf_hub_backlog": {
+        "module": "What The Fact",
+        "drains": "RETIRED hub copy of the WTF bias/geo/fact-check backlog (Citadel runs it); needs WTF_HUB_DATABASE_URL",
+        "backend": "platform_settings",
+        "default": False,
+    },
     "consciousness_analysis": {"module": "Consciousness", "drains": "knowledge_base unanalyzed", "backend": "loop"},
     "consciousness_embedding": {"module": "Consciousness", "drains": "knowledge_base unembedded", "backend": "loop"},
     "consciousness_translate": {"module": "Consciousness", "drains": "untranslated keys", "backend": "loop"},

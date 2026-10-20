@@ -42,6 +42,8 @@ from . import wtf_hub_bp
 
 logger = logging.getLogger(__name__)
 
+from services.wtf_remote import WtfDbNotConfigured  # noqa: E402  (hub wtf DB retired; see services/wtf_remote.py)
+
 _HUB_TOKEN = os.getenv("WTF_HUB_TOKEN", "")
 if not _HUB_TOKEN:
     logger.warning("[WTFHub] WTF_HUB_TOKEN not set — endpoint is unauthenticated (dev mode only)")
@@ -705,14 +707,11 @@ def cross_watch_search():
 
     # ── WTF articles (separate wtf DB) ────────────────────────────────────────
     try:
-        wtf_conn = psycopg2.connect(
-            host="archie_database",
-            port=5432,
-            dbname="wtf",
-            user="wtfuser",
-            password=os.getenv("WTF_DB_PASSWORD", ""),
-            options="-c search_path=wtf",
-        )
+        # The hub `wtf` DB was retired 2026-10-02 (#3591); a text search needs SQL, so it needs a configured read-only
+        # Citadel URL (WTF_HUB_DATABASE_URL). Without one this section is skipped quietly instead of failing every call.
+        from services import wtf_remote
+
+        wtf_conn = wtf_remote.connect()
         try:
             with wtf_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
@@ -749,8 +748,10 @@ def cross_watch_search():
                     )
         finally:
             wtf_conn.close()
+    except WtfDbNotConfigured:
+        logger.debug("[CrossWatch] wtf article search skipped: no WTF_HUB_DATABASE_URL (hub wtf DB retired 2026-10-02)")
     except Exception as exc:
-        logger.warning("[CrossWatch] wtf query failed: %s", exc)
+        logger.warning("[CrossWatch] wtf query failed: %s", type(exc).__name__)
 
     results.sort(key=lambda r: r.get("date") or "", reverse=True)
 

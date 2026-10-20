@@ -4563,6 +4563,24 @@ def _register_own_jobs(scheduler, flask_app):
     # Already-flagged tier2_pending rows always qualify.
     _WTF_BACKLOG_MIN_BODY_CHARS = int(_os_wtf.getenv("WTF_BACKLOG_MIN_BODY_CHARS", "3000"))
 
+    # The hub `wtf` database was RETIRED on 2026-10-02 (PR #3591): Citadel's wtf-ingest runs every WTF backlog
+    # producer (LLM, bias v2, geo, factcheck, dispute, beat, scout-body, tier-2). These seven hub copies dialed the
+    # dead DB, swallowed the error and returned normally, so governance recorded ~334 false "success" runs a day and
+    # the A.R.M.A.D.A. scheduler list showed them as healthy (task #7372). Not registering them stops both.
+    # Enable only if a WTF_HUB_DATABASE_URL (read-only, Citadel over the mesh) exists: platform_settings wtf_hub_backlog:enabled.
+    def _add_wtf_hub_job(*args, **kwargs):
+        from services import wtf_remote
+
+        if not wtf_remote.hub_backlog_enabled():
+            logger.info(
+                "[DeptHQ] %s not registered: the WTF backlog runs on Citadel (hub wtf DB retired 2026-10-02, #7372); "
+                "enable with platform_settings %s",
+                kwargs.get("id"),
+                wtf_remote.FLAG_HUB_BACKLOG,
+            )
+            return None
+        return scheduler.add_job(*args, **kwargs)
+
     # Context manager: connects to the wtf database (separate from archie DB).
     # wtf tables live in the wtf schema of archie_database container, dbname=wtf.
     from contextlib import contextmanager as _cm
@@ -4833,7 +4851,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFLLMJob] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_llm_analysis),
         trigger=CronTrigger(minute="0,30", timezone="America/Toronto"),
         id="wtf_llm_analysis",
@@ -5004,7 +5022,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFGeoJob] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_geo),
         trigger=CronTrigger(minute="5,35", timezone="America/Toronto"),
         id="wtf_geo",
@@ -5197,7 +5215,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFFactcheckJob] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_factcheck),
         trigger=CronTrigger(minute="10,40", timezone="America/Toronto"),
         id="wtf_factcheck",
@@ -5434,7 +5452,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFFactcheckBacklog] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_factcheck_backlog),
         trigger=CronTrigger(minute="20,50", timezone="America/Toronto"),
         id="wtf_factcheck_backlog",
@@ -5659,7 +5677,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFBiasBacklog] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_bias_backlog),
         trigger=CronTrigger(minute="15,45", timezone="America/Toronto"),
         id="wtf_bias_backlog",
@@ -5854,7 +5872,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFGeoBacklog] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_geo_backlog),
         trigger=CronTrigger(minute="25,55", timezone="America/Toronto"),
         id="wtf_geo_backlog",
@@ -6342,7 +6360,7 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as _tel:
             logger.debug("[WTFScoutJob] task_execution_log write failed: %s", _tel)
 
-    scheduler.add_job(
+    _add_wtf_hub_job(
         with_ctx(_run_wtf_scout),
         trigger=CronTrigger(minute="15,45", timezone="America/Toronto"),
         id="wtf_scout",
@@ -6418,7 +6436,11 @@ def _register_own_jobs(scheduler, flask_app):
             # not dispatch_pending_queue, so the orchestration score would always see
             # depth=0 for geo_extraction. Inject the real backlog count so L.O.C.A.L.
             # overflow activates correctly when there is a large pending queue.
+            from services import wtf_remote as _wr
+
             try:
+                if not _wr.hub_backlog_enabled():
+                    raise _wr.HubBacklogDisabled()  # Citadel owns the WTF backlog; nothing to inject (#7372)
                 import os as _os
                 import psycopg2
                 import psycopg2.extras
@@ -6445,12 +6467,16 @@ def _register_own_jobs(scheduler, flask_app):
                 if _wtf_geo_row and _wtf_geo_row["cnt"]:
                     queue_depths["geo_extraction"] = queue_depths.get("geo_extraction", 0) + int(_wtf_geo_row["cnt"])
                     queue_depths["geo_quick"] = queue_depths.get("geo_quick", 0) + int(_wtf_geo_row["cnt"])
+            except _wr.HubBacklogDisabled:
+                pass
             except Exception as _wtf_geo_exc:
                 logger.warning("[orchestration] geo backlog inject failed: %s", _wtf_geo_exc)
 
             # Synthetic bias backlog — same pattern as geo: WTF articles without
             # a bias_score row live in the wtf DB, invisible to dispatch_pending_queue.
             try:
+                if not _wr.hub_backlog_enabled():
+                    raise _wr.HubBacklogDisabled()  # same as geo above (#7372)
                 import os as _os2
                 import psycopg2 as _psycopg2_b
                 import psycopg2.extras as _extras_b
@@ -6481,6 +6507,8 @@ def _register_own_jobs(scheduler, flask_app):
                 if _wtf_bias_row and _wtf_bias_row["cnt"]:
                     queue_depths["bias_analysis"] = queue_depths.get("bias_analysis", 0) + int(_wtf_bias_row["cnt"])
                     queue_depths["bias_quick"] = queue_depths.get("bias_quick", 0) + int(_wtf_bias_row["cnt"])
+            except _wr.HubBacklogDisabled:
+                pass
             except Exception as _wtf_bias_exc:
                 logger.warning("[orchestration] bias backlog inject failed: %s", _wtf_bias_exc)
 

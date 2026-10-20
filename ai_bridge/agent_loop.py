@@ -11676,85 +11676,46 @@ class AgentLoop:
             except Exception as _te:
                 logger.warning(f"watchdog tier-health check failed: {_te}")
 
-            # WTF ingest-freshness — the wtf-ingest worker runs on boston-2 but writes to
-            # the hub `wtf` DB; a silent crash (e.g. a bad row) freezes the front page with
-            # NO self-report (it happened 2026-07-14). Check externally: alert if no new
-            # article in >90 min. Sends its own interactive alert directly. (#4890)
+            # WTF ingest-freshness (#4890) — the wtf-ingest worker runs on Citadel and a silent crash freezes the front
+            # page with NO self-report (it happened 2026-07-14). This check used to query the hub `wtf` DB, which was
+            # RETIRED on 2026-10-02 (#3591): it logged "check failed" every tick for 18 days and never alerted (#7372).
+            # It now watches the PUBLIC article count (services/wtf_remote.py) and alerts only after 4h without a change:
+            # published_at is unreliable (#7373) and real ingest gaps reach 202 min (#7374), so this is a COARSE net.
+            # The classifier-coverage check needs SQL and stays off until a read-only Citadel role exists. If even the
+            # public API cannot be read it says so ONCE A DAY ("blind") instead of warning silently every tick.
             try:
-                import psycopg2 as _pg
+                from services import wtf_remote
 
-                from database import _get_db_password
-
-                _wc = _pg.connect(
-                    host=os.getenv("DB_HOST", "192.168.1.200"),
-                    port=int(os.getenv("DB_PORT", "5432")),
-                    dbname="wtf",
-                    user=os.getenv("DB_USER", "archie"),
-                    password=_get_db_password(),  # DB_PASSWORD is a Docker secret, not an env var
-                    connect_timeout=8,
-                )
-                try:
-                    with _wc.cursor() as _wcur:
-                        _wcur.execute("SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ingested_at))) / 60.0 FROM wtf.articles")
-                        _wrow = _wcur.fetchone()
-                        # Coverage check on the SETTLED cohort (24-48h old — workers had a
-                        # full day to process it). beat IS NOT NULL = processed ('none' is
-                        # the legit no-match sentinel). Guards against the classifier
-                        # silently under-sweeping again (#4897 — coverage sat at 8-27%
-                        # for weeks with zero alerts).
-                        _wcur.execute(
-                            "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE beat IS NOT NULL) "
-                            "/ GREATEST(COUNT(*), 1), 1) "
-                            "FROM wtf.articles "
-                            "WHERE ingested_at BETWEEN NOW() - INTERVAL '48 hours' "
-                            "AND NOW() - INTERVAL '24 hours'"
-                        )
-                        _crow = _wcur.fetchone()
-                    _wtf_gap = _wrow[0] if _wrow else None
-                    _beat_cov = float(_crow[0]) if _crow and _crow[0] is not None else None
-                finally:
-                    _wc.close()
-                if (
-                    _wtf_gap is not None
-                    and _wtf_gap > 90
-                    and now - self._watchdog_last_alert.get("wtf_ingest_stale", 0) > dedup_s
-                ):
-                    self._watchdog_last_alert["wtf_ingest_stale"] = now
+                if not hasattr(self, "_wtf_watchdog_state"):
+                    self._wtf_watchdog_state = wtf_remote.WatchdogState()
+                _step = wtf_remote.watchdog_step(self._wtf_watchdog_state, now)
+                if _step["alert"] == "stale":
                     from services.alert_actions_service import send_alert
 
                     send_alert(
                         alert_key="wtf_ingest_stale",
                         title="⚠️ WTF ingest stalled",
                         message=(
-                            f"what-the-fact.com: newest article is {_wtf_gap:.0f} min old "
-                            f"(threshold 90m). The front page may be frozen — check the "
-                            f"wtf-ingest worker on boston-2."
+                            f"what-the-fact.com: the published article count has not changed for "
+                            f"{_step['minutes_unchanged']:.0f} min (threshold {wtf_remote.STALE_AFTER_MIN:.0f}m). "
+                            f"The front page may be frozen — check the wtf-ingest worker on Citadel (boston-2)."
                         ),
                         actions=["details", "snooze"],
                     )
-                # Floor 30% catches total-breakage while the historical backlog drains
-                # post-#2272; raise to ~70% once the settled cohort stabilises high.
-                if (
-                    _beat_cov is not None
-                    and _beat_cov < 30.0
-                    and now - self._watchdog_last_alert.get("wtf_beat_coverage", 0) > dedup_s
-                ):
-                    self._watchdog_last_alert["wtf_beat_coverage"] = now
+                elif _step["alert"] == "blind":
                     from services.alert_actions_service import send_alert
 
                     send_alert(
-                        alert_key="wtf_beat_coverage",
-                        title="⚠️ WTF beat coverage low",
+                        alert_key="wtf_watchdog_blind",
+                        title="⚠️ WTF freshness watchdog is BLIND",
                         message=(
-                            f"what-the-fact.com: only {_beat_cov:.0f}% of the settled "
-                            f"(24-48h) article cohort has been beat-classified "
-                            f"(floor 30%). The category tabs are starving — check the "
-                            f"beat_backlog_worker on boston-2."
+                            f"Cannot read the public what-the-fact.com API ({_step['error']}), so ingest freshness is "
+                            f"UNMONITORED. Either the site is down or the hub cannot reach it. Repeats once a day."
                         ),
                         actions=["details", "snooze"],
                     )
             except Exception as _we:
-                logger.warning(f"watchdog wtf-ingest freshness check failed: {_we}")
+                logger.warning(f"watchdog wtf-ingest freshness check failed: {type(_we).__name__}")
 
             for category, msg in triggered:
                 try:

@@ -8,10 +8,10 @@ After import, two SQL views provide riding-level and party-level summaries
 that are used on the MP profile pages and the party transparency page.
 
 Design:
-- TRUNCATE + re-import on each sync (file updated quarterly, full refresh
-  is correct — no dedup key exists across all row types in the EC format)
+- Atomic DELETE + re-import on each sync (no stable dedup key exists in the
+  source). Readers keep the previous committed snapshot until refresh succeeds.
 - Stream CSV row by row to avoid memory spike (10M rows, 201MB uncompressed)
-- Batch commits every 10,000 rows for throughput + rollback safety
+- Stream batches of 10,000 rows in one transaction; failed/empty refreshes roll back
 - Zip cached for 30 days at WTF_EC_CACHE_PATH (default /tmp/ec_contributions.zip)
 
 Env:
@@ -158,7 +158,7 @@ def _parse_date(s: str, today: Optional[date] = None) -> Optional[str]:
     # held 0025-04-07, 0201-02-16 and 551 future rows up to 2923-12-28,
     # measured 2026-08-18). Guard impossible values the way gov-watch's
     # date_guard does: store NULL instead of garbage — the weekly
-    # TRUNCATE+reimport then self-heals the whole table. Bounds are loose
+    # full refresh then self-heals the whole table. Bounds are loose
     # on purpose: 1990 predates EC's electronic era; +31d (see _MAX_FUTURE_DAYS) allows
     # for skew without admitting year-2923 artifacts.
     if not _EC_DATE_RE.match(s) or s < "1990-01-01" \
@@ -183,81 +183,93 @@ def sync_contributions(engine) -> dict:
     """Download, stream, and bulk-import EC contributions into parliament.ec_contributions.
 
     Uses psycopg2 execute_values for ~50x faster bulk inserts vs parameterized SQL.
-    Always does a full TRUNCATE + re-import. Runs ~5-10 min for 4M rows.
+    Uses one DELETE/INSERT transaction without sequence ownership or TRUNCATE.
+    A failed or empty import preserves the last committed dataset. Sequence
+    values may advance on rollback. Rehearse WAL/storage cost before cutover.
     """
     import psycopg2.extras
 
     _download_zip()
 
-    zf = zipfile.ZipFile(_CACHE_PATH)
-    member = _find_csv_member(zf)
-    if member is None:
-        raise IOError("ec_contributions: no CSV member in the zip (members=%s)" % zf.namelist()[:5])
-    inserted = 0
-    skipped = 0
-    batch = []
+    with zipfile.ZipFile(_CACHE_PATH) as zf:
+        member = _find_csv_member(zf)
+        if member is None:
+            raise IOError("ec_contributions: no CSV member in the zip (members=%s)" % zf.namelist()[:5])
+        inserted = 0
+        skipped = 0
+        batch = []
 
-    raw_conn = engine.raw_connection()
-    try:
-        # TRUNCATE before import — always full refresh
-        cur = raw_conn.cursor()
-        cur.execute("TRUNCATE parliament.ec_contributions RESTART IDENTITY")
-        raw_conn.commit()
-        logger.info("ec_contributions: truncated, streaming CSV...")
+        raw_conn = engine.raw_connection()
+        try:
+            if getattr(raw_conn, "autocommit", False):
+                raise RuntimeError("ec_contributions: transactional connection required")
+            cur = raw_conn.cursor()
+            # Serialize cooperating refresh jobs without blocking a web thread.
+            # The lock is released on COMMIT/ROLLBACK, including process failure.
+            cur.execute("SELECT pg_try_advisory_xact_lock(1976543821, 1)")
+            if not cur.fetchone()[0]:
+                raise RuntimeError("ec_contributions: another refresh is in progress")
+            _DATE_REJECTS["n"] = 0
+            cur.execute("DELETE FROM parliament.ec_contributions")
+            logger.info("ec_contributions: streaming replacement in one transaction...")
 
-        with zf.open(member) as raw:
-            text_file = io.TextIOWrapper(raw, encoding="utf-8-sig")
-            reader = csv.reader(text_file)
-            next(reader)  # skip header
+            with zf.open(member) as raw:
+                text_file = io.TextIOWrapper(raw, encoding="utf-8-sig")
+                reader = csv.reader(text_file)
+                next(reader)  # skip header
 
-            for row in reader:
-                if len(row) < 25:
-                    skipped += 1
-                    continue
+                for row in reader:
+                    if len(row) < 25:
+                        skipped += 1
+                        continue
 
-                # Filter by year
-                date_str = row[9].strip()
-                year_str = date_str[:4] if date_str else ""
-                if not year_str.isdigit() or int(year_str) < _MIN_YEAR:
-                    skipped += 1
-                    continue
+                    # Filter by year
+                    date_str = row[9].strip()
+                    year_str = date_str[:4] if date_str else ""
+                    if not year_str.isdigit() or int(year_str) < _MIN_YEAR:
+                        skipped += 1
+                        continue
 
-                entity = row[0].strip().lstrip("﻿")
-                batch.append((
-                    entity,
-                    (row[2] or "")[:500],
-                    (row[6] or "")[:200],
-                    (row[7] or "")[:200],
-                    (row[8] or "")[:200],
-                    _parse_date(row[9]),
-                    (row[10] or "")[:100],
-                    (row[14] or "")[:100],
-                    (row[15] or "")[:500],
-                    (row[19] or "")[:200],
-                    (row[20] or "")[:2] or None,
-                    (row[21] or "")[:10],
-                    _parse_date(row[22]),
-                    _parse_amount(row[23]),
-                    _parse_amount(row[24]),
-                ))
+                    entity = row[0].strip().lstrip("﻿")
+                    batch.append((
+                        entity,
+                        (row[2] or "")[:500],
+                        (row[6] or "")[:200],
+                        (row[7] or "")[:200],
+                        (row[8] or "")[:200],
+                        _parse_date(row[9]),
+                        (row[10] or "")[:100],
+                        (row[14] or "")[:100],
+                        (row[15] or "")[:500],
+                        (row[19] or "")[:200],
+                        (row[20] or "")[:2] or None,
+                        (row[21] or "")[:10],
+                        _parse_date(row[22]),
+                        _parse_amount(row[23]),
+                        _parse_amount(row[24]),
+                    ))
 
-                if len(batch) >= _BATCH_SIZE:
+                    if len(batch) >= _BATCH_SIZE:
+                        psycopg2.extras.execute_values(cur, _INSERT_SQL, batch,
+                                                       page_size=_BATCH_SIZE)
+                        inserted += len(batch)
+                        batch = []
+                        if inserted % 500_000 == 0:
+                            logger.info("ec_contributions: %d rows inserted...", inserted)
+
+                if batch:
                     psycopg2.extras.execute_values(cur, _INSERT_SQL, batch,
-                                                   page_size=_BATCH_SIZE)
-                    raw_conn.commit()
+                                                   page_size=len(batch))
                     inserted += len(batch)
-                    batch = []
-                    if inserted % 500_000 == 0:
-                        logger.info("ec_contributions: %d rows inserted...", inserted)
 
-            if batch:
-                psycopg2.extras.execute_values(cur, _INSERT_SQL, batch,
-                                               page_size=len(batch))
-                raw_conn.commit()
-                inserted += len(batch)
-
-    finally:
-        raw_conn.close()
+            if inserted == 0:
+                raise ValueError("ec_contributions: empty refresh refused")
+            raw_conn.commit()
+        except BaseException:
+            raw_conn.rollback()
+            raise
+        finally:
+            raw_conn.close()
 
     rejected_dates = _DATE_REJECTS["n"]
     _DATE_REJECTS["n"] = 0

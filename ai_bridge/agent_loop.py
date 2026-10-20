@@ -3994,6 +3994,19 @@ class AgentLoop:
         except Exception:
             pass  # fall back to qwen2.5:7b
 
+        # #7352: num_gpu=0 below is a DIFFERENT Ollama runner, so for a model the placement-aware
+        # cluster keep-warm already owns (qwen2.5:7b, mistral:7b) this job REPLACES its GPU runner with a
+        # CPU one every 30 min (the 7B was on CPU ~8 of every 30 min). Leave those to the cluster job.
+        from services.keepwarm_policy import cockpit_cpu_pin_allowed
+
+        if not cockpit_cpu_pin_allowed(model):
+            logger.info(
+                "[Agent Loop] Cockpit model keep-warm: %s is kept warm by the placement-aware cluster "
+                "keep-warm — not CPU-pinning it (#7352)",
+                model,
+            )
+            return
+
         try:
             import requests as req
 

@@ -19,7 +19,7 @@ audited = set(manifest["audited_relations"])
 schemas = {t.split(".")[0] for t in audited}
 SERVICES = {
     # code each service actually runs: its own package PLUS the ingest/ helpers it imports
-    "wtf_consumer": ["consumer", "ingest/tier2_upgrade.py", "ingest/entity_graph_dedup.py",
+    "wtf_consumer": ["consumer", "ingest/entity_graph_dedup.py",
                      "ingest/parliament/cost.py"],
     "wtf_tech": ["tech"],
     # entity_graph.py is imported only for normalize_name/name_to_slug/is_placeholder_name (pure functions)

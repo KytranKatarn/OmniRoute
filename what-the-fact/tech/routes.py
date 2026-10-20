@@ -752,12 +752,14 @@ def _analyze_bg(article_id: int, title: str, body: str, schema: str,
 
 @bp.get("/api/v1/articles/<int:article_id>/analyze/status")
 def analyze_status(article_id: int):
-    """Poll endpoint — returns done=true once ai_analyzed is set."""
+    """A quick-tier result is not a completed Deep Dive."""
     from flask import jsonify
     S = _schema()
     with _db().connect() as c:
         done = c.execute(
-            text(f"SELECT ai_analyzed FROM {S}.articles WHERE id = :id"),
+            text(f"""SELECT ai_analyzed AND (LOWER(analysis_tier) LIKE '%full%'
+                       OR LOWER(analysis_tier) LIKE '%deep%')
+                       FROM {S}.articles WHERE id = :id"""),
             {"id": article_id},
         ).scalar()
     return jsonify({"ok": True, "done": bool(done)})

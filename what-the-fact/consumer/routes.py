@@ -8,6 +8,7 @@ import re
 import threading
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 
 from flask import (
@@ -3956,7 +3957,13 @@ def _proxy_tech(path: str, method: str = "GET", body: bytes = None, timeout: int
     req.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return Response(resp.read(), content_type="application/json")
+            return Response(resp.read(), status=resp.status, content_type="application/json")
+    except urllib.error.HTTPError as exc:
+        headers = {}
+        if exc.headers.get("Retry-After"):
+            headers["Retry-After"] = exc.headers["Retry-After"]
+        return Response(exc.read(), status=exc.code, headers=headers,
+                        content_type="application/json")
     except Exception as exc:
         return Response(json.dumps({"error": str(exc)}), status=502, content_type="application/json")
 
@@ -10126,48 +10133,17 @@ def alerts_delete(alert_id: int):
 
 @bp.post("/api/upgrade-tier2/<int:article_id>")
 def upgrade_tier2(article_id: int):
-    """Phase D (#2943): force a Tier-2 upgrade on a Tier-1-only article.
+    """Subscriber-gated alias for the asynchronous tech analysis path.
 
-    Subscriber-gated. Dispatches 'deep_analysis' via hub WTF Hub. On success,
-    upgrades wtf.bias_scores + wtf.fact_checks rows and stamps analysis_tier =
-    'quick_v1+full' on wtf.articles. Returns the new analysis sections.
-
-    Synchronous: hub call can take up to 90s for cold qwen2.5:7b. Client UI
-    already shows "this may take up to 90 seconds" wait state.
+    Returns queued/done rather than holding a consumer worker for inference.
+    Poll /api/proxy/articles/<id>/analyze/status for completion. Editorial
+    persistence belongs to tech; the consumer login remains read-only there.
     """
     from flask import jsonify
 
-    from ingest import tier2_upgrade
-
     if not is_subscriber():
         return jsonify({"ok": False, "error": "subscriber_required"}), 402
-
-    # ONE implementation, shared with tier2_precompute_worker. This used to carry
-    # its own ~90 lines of dispatch + persist; a second copy in the worker is how
-    # queued_dispatch_text ended up with two divergent versions.
-    res = tier2_upgrade.upgrade_article(_db(), _schema(), article_id)
-    status = res.get("status")
-
-    if status == "upgraded":
-        return jsonify({
-            "ok": True,
-            "analysis_tier": "quick_v1+full",
-            "bias_summary": res.get("bias_summary") or {},
-            "claims_count": res.get("claims", 0),
-            "agent": res.get("agent") or "",
-        })
-    if status == "already":
-        return jsonify({"ok": True, "result": "already_upgraded"})
-    if status == "not_found":
-        return jsonify({"ok": False, "error": "not_found"}), 404
-    if status == "rate_limited":
-        return jsonify({"ok": False, "error": "hub_rate_limited",
-                        "retry_after": res.get("retry_after")}), 429
-    if status == "timeout":
-        return jsonify({"ok": False, "error": "hub_timeout"}), 504
-    if res.get("error") == "hub_not_configured":
-        return jsonify({"ok": False, "error": "hub_not_configured"}), 503
-    return jsonify({"ok": False, "error": res.get("error") or "dispatch_failed"}), 502
+    return proxy_article_analyze(article_id)
 
 
 # ---------------------------------------------------------------------------

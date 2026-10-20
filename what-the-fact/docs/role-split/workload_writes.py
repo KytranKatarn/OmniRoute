@@ -136,25 +136,8 @@ def main():
               r.status_code == 200 and merged == "merged" and scalar("select count(*) from shared.entity_merge_log") >= 1,
               f"{r.status_code} {r.get_data(as_text=True)[:200]}")
 
-        # tier2 upgrade persistence from the consumer (route -> ingest.tier2_upgrade.persist_upgrade)
-        import sqlalchemy as sa
-        from ingest import tier2_upgrade
-        eng = sa.create_engine(url(port, "wtf_consumer"))
-        payload = {"agent": "V.E.R.I.F.Y.", "result": {"bias_summary": {"band": "center", "score": 0.0, "rationale": "r"},
-                                                       "key_claims": [{"text": "c", "verdict": "verified", "reasoning": "r"}]}}
-        try:
-            with eng.begin() as conn:
-                tier2_upgrade.persist_upgrade(conn, "wtf", 1001, payload)
-            ok = True
-        except Exception as exc:  # noqa: BLE001
-            ok = False
-            print(f"   (tier2 persist raised {type(exc).__name__})")
-        check("consumer: /api/upgrade-tier2 persistence (tier2_upgrade.persist_upgrade) as wtf_consumer", ok,
-              "OPEN DESIGN DECISION: consumer has no write grants on bias_scores/fact_checks/articles; "
-              "do NOT widen the public-facing role — move upgrade to tech or the precompute worker" if not ok else "")
-        eng.dispose()
-
         # ============ tech ============
+        from consumer import routes as cr
         app = fresh_app("tech.app", port, "wtf_tech")
         t = app.test_client()
         r = t.post("/api/v1/flag", json={"article_id": 1001, "flag_type": "bias_wrong", "reason": "x"})
@@ -169,6 +152,53 @@ def main():
               "_persist_on_demand logs and continues on failure")
         check("tech: deep dive replaces fact_checks", scalar("select count(*) from wtf.fact_checks where article_id=1001 and analysis_tier='on_demand'") == 1)
         check("tech: deep dive marks the article analysed", scalar("select ai_analyzed from wtf.articles where id=1001") is True)
+        # Exercise the actual consumer route and proxy against restricted tech.
+        # Only transport + external inference are replaced; SQL uses each login.
+        from unittest.mock import patch
+        import io
+        import urllib.error
+        import urllib.request
+        from urllib.parse import urlparse
+
+        cur.execute("update wtf.articles set ai_analyzed=true, analysis_tier='quick_v1' where id=1001")
+        check("tech: quick result is not completed Deep Dive",
+              t.get("/api/v1/articles/1001/analyze/status").json["done"] is False)
+
+        def forward(req, timeout):
+            path = urlparse(req.full_url).path
+            reply = t.open(path, method=req.method)
+            if reply.status_code >= 400:
+                raise urllib.error.HTTPError(req.full_url, reply.status_code, "tech", reply.headers,
+                                             io.BytesIO(reply.data))
+            class Reply:
+                status = reply.status_code
+                def __enter__(self): return self
+                def __exit__(self, *args): pass
+                def read(self): return reply.data
+            return Reply()
+
+        class InlineThread:
+            def __init__(self, target, **kwargs): self.target = target
+            def start(self): self.target()
+
+        def analysis(article_id, title, body, schema, *args, **kwargs):
+            tr._persist_on_demand(article_id, results_, schema)
+
+        results_["factcheck"]["claims"][0]["text"] = "upgrade route claim"
+        os.environ["WTF_HUB_URL"] = "http://scratch.invalid"
+        os.environ["WTF_HUB_TOKEN"] = "scratch-token"
+        with patch("urllib.request.urlopen", forward), patch("threading.Thread", InlineThread), \
+             patch.object(tr, "_analyze_bg", analysis), patch.object(cr, "_api_rate_check", return_value=None):
+            reply = c.post("/api/upgrade-tier2/1001")
+        check("consumer: upgrade queues tech analysis through real proxy",
+              reply.status_code == 200 and reply.json.get("queued") is True, str(reply.json))
+        check("tech: proxy-triggered analysis persisted a new claim",
+              scalar("select count(*) from wtf.fact_checks where article_id=1001 and claim='upgrade route claim'") == 1)
+        check("tech: upgraded article completes polling",
+              t.get("/api/v1/articles/1001/analyze/status").json["done"] is True)
+        check("consumer: upgrade has no editorial write grants",
+              not scalar("select has_table_privilege('wtf_consumer','wtf.articles','UPDATE')")
+              and not scalar("select has_table_privilege('wtf_consumer','wtf.fact_checks','INSERT')"))
         lv = scalar("select latest_verdict from wtf.articles where id=1001")
         check("tech: trigger sync_article_latest_verdict set articles.latest_verdict as the restricted login",
               lv == "verified", f"latest_verdict={lv}")

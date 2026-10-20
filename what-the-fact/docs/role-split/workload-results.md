@@ -23,6 +23,26 @@ See [workload-test-plan.md](workload-test-plan.md) for the matrix these results 
 
 Real code, real `wtf_consumer` / `wtf_tech` logins, every effect verified by an operator read: newsletter subscribe/unsubscribe, alert create/delete, article-view logging, admin claim create/update, dedup `distinct` and a real `same` merge (consumer); score flag, Deep Dive persistence (`bias_scores`, `fact_checks`, `articles`) and the `sync_article_latest_verdict` trigger (tech) all PASS.
 
-**OPEN (blocks cutover, needs an owner decision):** the consumer's `/api/upgrade-tier2` calls `ingest.tier2_upgrade.persist_upgrade`, which UPDATEs `bias_scores`, DELETE/INSERTs `fact_checks` and UPDATEs `articles`. `wtf_consumer` has none of those write grants and must not get them (public-facing role). Move the upgrade to the tech service or the tier-2 precompute worker. The harness case stays FAILING until this is resolved.
+**Resolved in the tier-2 boundary change (Codex, 2026-10-20):** the legacy
+`POST /api/upgrade-tier2/<id>` keeps its subscriber gate and delegates to the
+existing rate-limited consumer proxy and bounded asynchronous tech analysis.
+It returns the existing tech `queued` / `done` response, replacing its former
+synchronous `bias_summary` / `claims_count` response. Callers poll
+`GET /api/proxy/articles/<id>/analyze/status` and then reload the article.
+No in-repository browser caller uses the legacy URL; the current UI already uses
+this asynchronous proxy contract. External legacy clients must adopt polling.
+The poll now requires a completed full/deep tier as well as `ai_analyzed`, so a
+quick-tier result cannot falsely report completion. Proxy errors retain tech's
+HTTP status and `Retry-After` header.
+
+The updated write harness passes **19/19** against a disposable PostgreSQL 16
+copy with synthetic rows and restricted service logins. It sends the real legacy
+consumer route through the real proxy to the tech route, verifies a new claim
+and completed article independently, and checks consumer editorial grants remain
+absent. Transport uses Flask's test client; background scheduling runs inline and
+external inference supplies synthetic results. This verifies persistence and
+routing, not live inference, process concurrency or production deployment.
+The 27 focused offline tests cover the gate, rate limit, proxy errors and existing
+concurrency guard. Production role/credential cutover remains separate.
 
 `static_table_scan.py` now also checks WRITE rights against the helper modules each service imports, and found two further read gaps the crawl could not see because the helpers are fail-soft: `parliament.dept_contracts`, `parliament.cost_projection_snapshots` (now granted to the consumer).

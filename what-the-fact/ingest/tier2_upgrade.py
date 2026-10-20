@@ -1,4 +1,4 @@
-"""Tier-2 (Deep Dive) upgrade — ONE implementation, two callers.
+"""Tier-2 (Deep Dive) upgrade for the ingest precompute worker.
 
 WHY THIS MODULE EXISTS
 `POST /api/upgrade-tier2/<id>` ran the full analysis SYNCHRONOUSLY when a
@@ -9,11 +9,10 @@ waiting for the first paying reader to open it. That is both a poor paid
 experience and the exact worker-saturation shape that served 502s for 30 minutes
 on 2026-08-30 (KB #299315).
 
-The fix is to PRE-COMPUTE the upgrade off the request path
-(`tier2_precompute_worker`). But the route must keep working for anything not yet
-pre-computed, so both need the same persist logic — and a second copy of it is
-how `queued_dispatch_text` ended up with two divergent implementations. One
-function, two callers.
+The precompute worker owns this upgrade path. The legacy consumer route now
+proxies the asynchronous tech analysis endpoint so its restricted login never
+persists editorial analysis. Keep this implementation for ingest precomputation;
+do not import it back into the public consumer service.
 
 ⚠️ `tier2_pending` WAS A QUEUE NOTHING DRAINED. It is written by
 factcheck_backlog_worker, llm_analysis_backlog_worker and tier_router (which sets

@@ -100,3 +100,33 @@ def parse_llm_bias(bias) -> Optional[dict]:
         "confidence": confidence,
         "trigger_phrases": triggers,
     }
+
+
+def coerce_score(raw) -> Optional[float]:
+    """Public wrapper: a model score as a float in [-1, 1], or None when ABSENT (0.0 stays 0.0)."""
+    return _score_or_none(raw)
+
+
+def coerce_band(raw_band, score=None) -> Optional[str]:
+    """A band that is SAFE to write to wtf.bias_scores.band, or None to leave that column alone.
+
+    The column is varchar(16) with CHECK band IN (VALID_BANDS). A tier-2 writer that passed the model's
+    string straight through failed ~1,040 times a day on Citadel ('far-right', 'center-left-leaning', ...),
+    and because the UPDATE shares a transaction with the fact_checks rewrite, a bad band also lost the claims
+    and left the article tier2_pending forever (6,853 never completed).
+
+    Same rule as parse_llm_bias: a band WITHOUT a real score is not a measurement (that is how 3,629 articles
+    came to be labelled 'right' with score 0.0), so no score -> None -> the heuristic row is left alone.
+      1. a recognised band (case / separator / 'centre' spelling tolerated) is kept;
+      2. an unrecognised or over-long band is DERIVED from the score with the platform's own thresholds
+         (ingest/bias.py:_band_for), so the row stays internally consistent.
+    """
+    value = _score_or_none(score)
+    if value is None:
+        return None
+    text_band = str(raw_band or "").strip().lower().replace("_", "-").replace(" ", "-").replace("centre", "center")
+    if text_band in VALID_BANDS:
+        return text_band
+    from .bias import _band_for  # local: keeps this module import-light
+
+    return _band_for(value)

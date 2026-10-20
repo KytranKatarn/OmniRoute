@@ -38,8 +38,10 @@ log = logging.getLogger(__name__)
 # Verdict vocabulary lives in verdicts.py — ONE definition (#6242). This file
 # carried its own copy; FOUR copies existed and ingest/run.py had NONE.
 try:
+    from ingest.bias_parse import coerce_band, coerce_score
     from ingest.verdicts import canonical_claim
 except ImportError:  # pragma: no cover
+    from bias_parse import coerce_band, coerce_score
     from verdicts import canonical_claim
 
 
@@ -153,8 +155,10 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
         {
             "id": article_id,
             "agent_name": payload.get("agent") or None,
-            "band": bias.get("band"),
-            "score": bias.get("score"),
+            # The model's strings are UNTRUSTED: band is varchar(16) + CHECK, score is numeric. Passing them
+            # through raw failed ~1,040 times/day and rolled back the whole upgrade (fact_checks included).
+            "band": coerce_band(bias.get("band"), bias.get("score")),
+            "score": coerce_score(bias.get("score")),
             "rationale": bias.get("rationale"),
             "trig": _json.dumps(bias.get("trigger_phrases") or []),
             "conf": bias.get("confidence"),

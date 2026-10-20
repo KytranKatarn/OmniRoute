@@ -71,19 +71,6 @@ def _upsert(engine, rows: list[dict]) -> int:
     """Upsert rows into market_watch.fx_rates. Returns upserted count."""
     inserted = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS market_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS market_watch.fx_rates (
-                id         SERIAL PRIMARY KEY,
-                rate_date  DATE UNIQUE NOT NULL,
-                usd_cad    DECIMAL(8,4) NOT NULL,
-                scraped_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """))
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_fx_rates_date "
-            "ON market_watch.fx_rates(rate_date DESC)"
-        ))
         for row in rows:
             result = conn.execute(text("""
                 INSERT INTO market_watch.fx_rates (rate_date, usd_cad)

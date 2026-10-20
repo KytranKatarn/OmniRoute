@@ -6,11 +6,10 @@ import os
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from .routes import bp
-from .auth import auth_bp
-
-
 def create_app():
+    from .routes import bp
+    from .auth import auth_bp
+
     app = Flask(__name__, template_folder="templates", static_folder="static")
     # Trust X-Forwarded-Proto and X-Forwarded-Host from Caddy so that
     # request.url_root is https:// not http:// behind the reverse proxy.
@@ -98,6 +97,33 @@ def create_app():
         from, so the fleet drift monitor can compare it against the repo head. Public."""
         return {
             "product": "wtf_consumer",
+            "git_sha": os.environ.get("WTF_GIT_SHA", "unknown"),
+            "build_time": os.environ.get("WTF_BUILD_TIME", "unknown"),
+        }
+
+    return app
+
+
+def create_ingest_app():
+    """Dedicated graph-ingest service; no public, admin or billing routes.
+
+    Operator cutover: use consumer.app:create_ingest_app() for ingest-api only.
+    Existing entity routes retain their INTERNAL_API_KEY authentication.
+    """
+    app = Flask(__name__, static_folder=None)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    from .entity_graph_routes import entity_graph_bp
+
+    app.register_blueprint(entity_graph_bp)
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok", "scope": "process"}
+
+    @app.get("/version")
+    def version():
+        return {
+            "product": "wtf_ingest_api",
             "git_sha": os.environ.get("WTF_GIT_SHA", "unknown"),
             "build_time": os.environ.get("WTF_BUILD_TIME", "unknown"),
         }

@@ -170,24 +170,6 @@ def _upsert(engine, rows: list[dict]) -> int:
     rows the driver reports as touched (insert or update)."""
     inserted = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS market_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS market_watch.economic_indicators (
-                id            SERIAL PRIMARY KEY,
-                indicator_key TEXT NOT NULL,
-                ref_date      DATE NOT NULL,
-                value         DECIMAL(14,4) NOT NULL,
-                vector_id     INTEGER NOT NULL,
-                table_id      TEXT NOT NULL,
-                release_time  TIMESTAMPTZ,
-                scraped_at    TIMESTAMPTZ DEFAULT NOW(),
-                UNIQUE (indicator_key, ref_date)
-            )
-        """))
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_economic_indicators_key_date "
-            "ON market_watch.economic_indicators(indicator_key, ref_date DESC)"
-        ))
         for row in rows:
             result = conn.execute(text("""
                 INSERT INTO market_watch.economic_indicators

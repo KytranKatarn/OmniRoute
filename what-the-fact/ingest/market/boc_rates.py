@@ -100,21 +100,6 @@ def _upsert(engine, rows: list[dict]) -> int:
     """Upsert rows into market_watch.boc_rate_decisions. Returns inserted count."""
     inserted = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS market_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS market_watch.boc_rate_decisions (
-                id              SERIAL PRIMARY KEY,
-                decision_date   DATE UNIQUE NOT NULL,
-                rate_pct        DECIMAL(5,3) NOT NULL,
-                change_bps      INTEGER,
-                press_release_url TEXT,
-                scraped_at      TIMESTAMP DEFAULT NOW()
-            )
-        """))
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_boc_rate_date "
-            "ON market_watch.boc_rate_decisions(decision_date DESC)"
-        ))
         for row in rows:
             result = conn.execute(text("""
                 INSERT INTO market_watch.boc_rate_decisions

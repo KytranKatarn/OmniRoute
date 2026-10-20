@@ -248,20 +248,6 @@ def build_gdp_rows(payload: list[dict]) -> tuple[list[dict], list[str]]:
 def _upsert(engine, rows: list[dict]) -> int:
     n = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS market_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS market_watch.fiscal_federal_annual (
-                ref_year       INTEGER NOT NULL,
-                item_key       TEXT NOT NULL,
-                value_millions NUMERIC(16,1) NOT NULL,
-                vector_id      BIGINT NOT NULL,
-                source_table   TEXT NOT NULL,
-                derived        BOOLEAN NOT NULL DEFAULT FALSE,
-                release_time   TIMESTAMPTZ,
-                fetched_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-                PRIMARY KEY (ref_year, item_key)
-            )
-        """))
         for r in rows:
             n += conn.execute(text("""
                 INSERT INTO market_watch.fiscal_federal_annual
@@ -281,19 +267,6 @@ def _upsert(engine, rows: list[dict]) -> int:
 def _upsert_quarterly(engine, rows: list[dict]) -> int:
     n = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS market_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS market_watch.fiscal_federal_quarterly (
-                ref_quarter    DATE NOT NULL,
-                item_key       TEXT NOT NULL,
-                value_millions NUMERIC(16,1) NOT NULL,
-                vector_id      BIGINT NOT NULL,
-                source_table   TEXT NOT NULL,
-                release_time   TIMESTAMPTZ,
-                fetched_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-                PRIMARY KEY (ref_quarter, item_key)
-            )
-        """))
         for r in rows:
             n += conn.execute(text("""
                 INSERT INTO market_watch.fiscal_federal_quarterly

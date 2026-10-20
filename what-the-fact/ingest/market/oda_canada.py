@@ -95,18 +95,6 @@ def build_rows(csv_text: str) -> tuple[list[dict], list[str]]:
 def _upsert(engine, rows: list[dict]) -> int:
     n = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS market_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS market_watch.oda_canada_annual (
-                ref_year   INTEGER NOT NULL,
-                item_key   TEXT NOT NULL,
-                value      NUMERIC(14,3) NOT NULL,
-                unit       TEXT NOT NULL,
-                source     TEXT NOT NULL,
-                fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                PRIMARY KEY (ref_year, item_key)
-            )
-        """))
         for r in rows:
             n += conn.execute(text("""
                 INSERT INTO market_watch.oda_canada_annual (ref_year, item_key, value, unit, source)

@@ -10,8 +10,8 @@ the gov-procurement overlap is the binding constraint, not raw issuer count). Pa
 the rendered HTML tables with regex (no bs4 dependency). Can be widened to the full ~3,500
 TSX directory later by adding sources.
 
-Writes `securities.issuers` in the hub `wtf` DB (same DB as the shared graph + parliament +
-ec_contributions, so the Phase-1 reconcile is direct/set-based — no mesh hop). UPSERT only
+Writes `securities.issuers` in the dedicated Citadel WTF database alongside
+the shared graph and parliament data. UPSERT only
 (a thin/failed fetch never clobbers the existing directory).
 
 Env:  WTF_DATABASE_URL
@@ -34,17 +34,6 @@ _WIKI = "https://en.wikipedia.org/w/api.php"
 _SOURCES = [("S&P/TSX 60", "TSX60"), ("S&P/TSX Composite Index", "TSX_COMPOSITE")]
 _UA = {"User-Agent": "kytran-entity-graph/1.0 (Shared Entity Graph; research)"}
 
-_SCHEMA_SQL = """
-CREATE SCHEMA IF NOT EXISTS securities;
-CREATE TABLE IF NOT EXISTS securities.issuers (
-    ticker            text PRIMARY KEY,
-    name              text NOT NULL,
-    exchange          text NOT NULL DEFAULT 'TSX',
-    index_membership  text,
-    source            text NOT NULL DEFAULT 'wikipedia',
-    fetched_at        timestamptz NOT NULL DEFAULT now()
-);
-"""
 
 
 def _engine():
@@ -115,7 +104,6 @@ def run(dry_run=False):
         return totals
     eng = _engine()
     with eng.begin() as conn:
-        conn.execute(text(_SCHEMA_SQL))
         totals["upserted"] = conn.execute(text("""
             INSERT INTO securities.issuers (ticker, name, exchange, index_membership, source, fetched_at)
             VALUES (:ticker, :name, 'TSX', :idx, 'wikipedia', now())

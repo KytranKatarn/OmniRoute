@@ -143,36 +143,21 @@ def ingest(from_date: str = None, max_pages: int = 100):
         r["appointee_name"] = _extract_name(r["precis"]) if r["precis"] else None
         r["organization"] = _extract_org(r["subject"])
 
-    # Upsert to DB
-    from sqlalchemy import create_engine, text
+    # Schema is provisioned by operator migration 107, never by the runtime.
+    from sqlalchemy import create_engine
     engine = create_engine(DB_URL)
+    inserted = _upsert(engine, rows)
+
+    print(f"  Upserted {inserted} rows")
+    print("Done.")
+    return {"fetched": len(rows), "upserted": inserted}
+
+
+def _upsert(engine, rows):
+    """Persist prepared appointments using only runtime DML permissions."""
+    from sqlalchemy import text
     inserted = 0
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS gov_watch"))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS gov_watch.gic_appointments (
-                id              SERIAL PRIMARY KEY,
-                pc_number       TEXT UNIQUE NOT NULL,
-                oic_date        DATE NOT NULL,
-                department      TEXT,
-                subject         TEXT NOT NULL,
-                precis          TEXT,
-                oic_url         TEXT,
-                appointee_name  TEXT,
-                organization    TEXT,
-                action_type     TEXT NOT NULL DEFAULT 'appointment',
-                scraped_at      TIMESTAMP DEFAULT NOW()
-            )
-        """))
-        conn.execute(text(
-            "CREATE INDEX IF NOT EXISTS idx_gic_date ON gov_watch.gic_appointments(oic_date DESC)"
-        ))
-        # A fresh CREATE TABLE above already has the column; this covers the
-        # already-deployed table migration 081 targets (idempotent either way).
-        conn.execute(text(
-            "ALTER TABLE gov_watch.gic_appointments "
-            "ADD COLUMN IF NOT EXISTS action_type TEXT NOT NULL DEFAULT 'appointment'"
-        ))
         for row in rows:
             conn.execute(text("""
                 INSERT INTO gov_watch.gic_appointments
@@ -189,9 +174,7 @@ def ingest(from_date: str = None, max_pages: int = 100):
             """), row)
             inserted += 1
 
-    print(f"  Upserted {inserted} rows")
-    print("Done.")
-    return {"fetched": len(rows), "upserted": inserted}
+    return inserted
 
 
 def run_gic_sync_hub(from_date: str = None, max_pages: int = 100) -> dict:

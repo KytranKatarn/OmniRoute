@@ -109,3 +109,8 @@ def test_methodology_says_quick_pass_claims_are_not_checked():
     block = METHOD.split("FACT-CHECK METHODOLOGY", 1)[1]
     assert "Two passes record claims" in block
     assert "not checked" in block
+
+
+def test_methodology_states_the_symmetric_lean_rule():
+    """#7340: the gate escalates left- AND right-lean outlets; the page must say so while the flag is on."""
+    assert "either end of the lean scale (left or right)" in METHOD

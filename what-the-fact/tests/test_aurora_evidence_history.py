@@ -768,7 +768,8 @@ def test_weather_history_search_ui_exposes_bounded_filters_and_cap_chain():
         "wtf-wx-history-observed-before", "wtf-wx-history-west",
         "wtf-wx-history-south", "wtf-wx-history-east", "wtf-wx-history-north",
         "wtf-wx-history-coverage", "wtf-wx-history-export-json",
-        "wtf-wx-history-export-csv", "Load full captured history",
+        "wtf-wx-history-export-csv", "wtf-wx-history-copy-link",
+        "wtf-wx-history-link-status", "Load full captured history",
         "lifecycle_filter_keys", "search_text_and_geographic_bounds_apply_to_lifecycle_versions",
     ):
         assert control in template
@@ -782,6 +783,10 @@ def test_weather_history_search_ui_exposes_bounded_filters_and_cap_chain():
     assert '"matched_result_page"' in (ROOT / "consumer" / "routes.py").read_text()
     assert "Source time before (UTC)" in template
     assert "filters preserve the archive cutoff and source-time window" in template
+    assert 'url.searchParams.set("evidence_" + key' in template
+    assert 'saved.get("evidence_" + key)' in template
+    assert "reruns these filters against the current archive" in template
+    assert "export JSON to preserve a record snapshot" in template
     routes_source = (ROOT / "consumer" / "routes.py").read_text()
     assert '@bp.get("/api/weather/evidence/cap-lifecycle")' in routes_source
     assert '@bp.get("/api/weather/evidence/coverage")' in routes_source

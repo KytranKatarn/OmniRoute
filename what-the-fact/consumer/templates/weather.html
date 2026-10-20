@@ -938,7 +938,9 @@
   <div class="wtf-wx-history-export" aria-label="Export loaded evidence">
     <button type="button" id="wtf-wx-history-export-json" disabled>Export loaded JSON</button>
     <button type="button" id="wtf-wx-history-export-csv" disabled>Export loaded CSV</button>
+    <button type="button" id="wtf-wx-history-copy-link">Copy search link</button>
     <span class="wtf-wx-history-copy" id="wtf-wx-history-export-scope">Exports contain only records currently loaded below.</span>
+    <span class="wtf-wx-history-copy" id="wtf-wx-history-link-status" role="status" aria-live="polite">A search link reruns these filters against the current archive; export JSON to preserve a record snapshot.</span>
   </div>
   <div class="wtf-wx-history-grid">
     <div>
@@ -977,7 +979,11 @@
   var exportJson = document.getElementById("wtf-wx-history-export-json");
   var exportCsv = document.getElementById("wtf-wx-history-export-csv");
   var exportScope = document.getElementById("wtf-wx-history-export-scope");
+  var copyLink = document.getElementById("wtf-wx-history-copy-link");
+  var linkStatus = document.getElementById("wtf-wx-history-link-status");
   var keys = ["eccc_cap", "cwfis_firewx_station_daily", "cwfis_hotspot_point", "nasa_firms_point"];
+  var filterKeys = ["dataset", "q", "observed_after", "observed_before", "available_before",
+    "west", "south", "east", "north"];
   var nextCursor = null;
   var allRows = [];
   var capLifecycleMeta = {};
@@ -1077,6 +1083,35 @@
       lines.push(fields.map(function (field) { return csvCell(row[field]); }).join(","));
     });
     download("aurora-evidence-loaded.csv", "\ufeff" + lines.join("\r\n"), "text/csv;charset=utf-8");
+  }
+  function syncSearchUrl(params) {
+    var url = new URL(window.location.href);
+    filterKeys.forEach(function (key) { url.searchParams.delete("evidence_" + key); });
+    filterKeys.forEach(function (key) {
+      if (params.has(key)) url.searchParams.set("evidence_" + key, params.get(key));
+    });
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    return url.toString();
+  }
+  function restoreSearchFromUrl() {
+    var saved = new URLSearchParams(window.location.search);
+    filterKeys.forEach(function (key) {
+      var value = saved.get("evidence_" + key);
+      if (value === null) return;
+      if (key === "dataset" && keys.indexOf(value) !== -1) dataset.value = value;
+      else if (key === "q") query.value = value.slice(0, 120);
+      else if (key === "observed_after" || key === "observed_before" || key === "available_before") {
+        var date = new Date(value);
+        if (!Number.isNaN(date.getTime())) {
+          var input = key === "observed_after" ? observedAfter :
+            key === "observed_before" ? observedBefore : cutoff;
+          input.value = date.toISOString().slice(0, 16);
+        }
+      } else if (Object.prototype.hasOwnProperty.call(boundInputs, key) &&
+          /^-?\d+(?:\.\d+)?$/.test(value)) {
+        boundInputs[key].value = value;
+      }
+    });
   }
   function recordTitle(row) {
     var p = row.payload || {};
@@ -1365,6 +1400,7 @@
           if (boundInputs[key].value !== "") params.set(key, boundInputs[key].value);
         });
         activeSearchParams = new URLSearchParams(params);
+        syncSearchUrl(activeSearchParams);
       }
       var response = await fetch("/api/weather/evidence?" + params.toString(), {headers:{Accept:"application/json"}});
       var body = await response.json();
@@ -1404,6 +1440,16 @@
   more.addEventListener("click", function () { load(null, true); });
   exportJson.addEventListener("click", function () { exportLoaded("json"); });
   exportCsv.addEventListener("click", function () { exportLoaded("csv"); });
+  copyLink.addEventListener("click", async function () {
+    if (!activeSearchParams) return;
+    var link = syncSearchUrl(activeSearchParams);
+    try {
+      await navigator.clipboard.writeText(link);
+      linkStatus.textContent = "Search link copied. It reruns the filters against the archive as it exists when opened.";
+    } catch (_error) {
+      linkStatus.textContent = "Could not copy automatically. Copy this page address to share the current search.";
+    }
+  });
   showMap.addEventListener("click", function () {
     var layerButton = document.querySelector('.wtf-wx-layer-btn[data-layer="history"]');
     if (layerButton) layerButton.click();
@@ -1411,6 +1457,7 @@
     if (mapHost) mapHost.scrollIntoView({behavior:"smooth", block:"center"});
   });
   loadCoverage();
+  restoreSearchFromUrl();
   load();
 })();
 </script>

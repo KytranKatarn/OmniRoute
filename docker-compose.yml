@@ -292,7 +292,7 @@ services:
       # :ro is load-bearing — this is a third-party container's live database and we
       # are a reader of it, never a writer. The collector additionally opens it with
       # immutable=1 so it cannot touch the -wal/-shm sidecars.
-      - omniroute_data:/omniroute-data:ro
+      - /home/kytran/.omniroute:/omniroute-data:ro
     ports:
       - "3000:3000"
     networks:
@@ -501,7 +501,7 @@ services:
       # omniroute_telemetry JOB runs HERE, and a volume that exists on the platform
       # but not the scheduler is a documented way to silently degrade scheduled work
       # (KB #263303 — a missing mount once dropped Code Health by 35% with no error).
-      - omniroute_data:/omniroute-data:ro
+      - /home/kytran/.omniroute:/omniroute-data:ro
     networks:
       - archie_internal
       - network_tools_ext
@@ -890,99 +890,6 @@ services:
       - TZ=America/Toronto
     networks:
       - archie_internal
-  # OmniRoute — self-hosted OpenAI-compatible AI gateway (#6653, master-command Phase 3).
-  # A CONTRACTOR provider for the Agent Academy A/B comparison lane and the ask-first
-  # cloud CODING lane. Deliberately NOT a roster dispatch path: escalation_mode stays
-  # local_only, so nothing auto-escalates here — every call is an explicit selection.
-  # The platform reaches it as http://omniroute:20128 on archie_internal. Pinned
-  # release — 554 open issues on a 7-month-old repo means never :latest (which follows
-  # the newest published SemVer, not git main).
-  # Secrets (JWT/API-key/storage encryption/initial password) come from ROOT .env.
-  # OMNIROUTE_MEMORY_MB: this deployment uses /v1/chat/completions only (short prompts),
-  # not the /v1/responses coding-agent surface that needs 8-12 GB heap — 2 GB suffices.
-  omniroute:
-    image: diegosouzapw/omniroute:3.8.50
-    container_name: omniroute
-    ports:
-      # Bound to the LAN interface specifically (not 0.0.0.0) — the dashboard gates behind
-      # its own login (requireLogin=true, password set, verified live 2026-09-19), but an
-      # automated security review flagged binding all-interfaces as unnecessarily broad, so
-      # this scopes to the one interface the owner actually reaches (same host+port already
-      # used for archie_platform's own dashboard traffic).
-      # Widened from 127.0.0.1-only (2026-09-19, owner request — the loopback-only bind made
-      # the dashboard reachable only via SSH tunnel, which wasn't workable day-to-day).
-      # Host codex CLI keeps using this same published port (was already its reason for
-      # existing); the internal lanes are unaffected either way — they use Docker DNS
-      # (omniroute:20128). See the read_only note below for why this does not reopen the
-      # next 16.3.1 CVE — that reasoning was already independent of network exposure
-      # (wrong platform + 404 endpoints), not contingent on the loopback-only bind.
-      - "192.168.1.200:20128:20128"
-    restart: unless-stopped
-    stop_grace_period: 40s
-    mem_limit: 4g
-    cpus: 2.0
-    # #6664 hardening. Compliance baseline (compliance-standards.md) is read_only on every
-    # container; this one is also the gateway that will hold PAID upstream keys once Phase 3b
-    # lands, and it ships a CRITICAL-rated `next` 16.3.1 (16.0.0-16.3.2, fixed in 16.3.5) for
-    # which NO fixed upstream release exists — 3.8.50 IS latest; `main`/`next` are dev branches.
-    # The RCE is not reachable here (Linux, so the windows-server path is N/A; /_next/image and
-    # /_next/static both 404 on this non-`-web` variant) but read_only bounds the blast radius
-    # if a future image variant does serve it.
-    #
-    # ⚠️ CORRECTED 2026-09-14: this reasoning used to include "the port is unpublished" as one
-    # of the grounds. It is now published on LOOPBACK ONLY (127.0.0.1:20128, see ports: below)
-    # so the HOST codex CLI can reach the gateway — the lanes use Docker DNS (omniroute:20128)
-    # and were never affected. The two PRIMARY grounds above (wrong platform, endpoints 404)
-    # are untouched and still carry the argument; loopback publishing is the same exposure the
-    # MCP gateway already accepts at 127.0.0.1:17800. It is NOT network-reachable.
-    #
-    # The alternative was pinning a 172.x bridge IP in the host config, which ai-bridge.md
-    # documents as a trap: ComfyUI's pinned .11 was actually .21 after a recreate, because
-    # bridge IPs are reassigned per-recreate. A loopback publish is stable; an IP is not.
-    #
-    # ⚠️ The task's premise was STALE and applying read_only on it would have broken the
-    # gateway: it recorded `docker diff omniroute` = ZERO lines at boot on 2026-09-09. Measured
-    # 2026-09-12 it is 421 lines. The container genuinely writes OUTSIDE its named volume, so
-    # each path below is required, not decorative:
-    #   /app/.build/next/cache  Next fetch-cache + image cache (the ONLY written part of
-    #                           /app/.build — the other 1.2 GB there is baked image content,
-    #                           so tmpfs the cache subdir, never /app/.build itself)
-    #   /home/node/.npm         npm _cacache, 64 MB and 410 of the 421 diff lines
-    #   /tmp                    scratch
-    # Everything durable still lives in the omniroute_data volume at /app/data (storage.sqlite,
-    # server.env, logs, db_backups) and is unaffected by read_only.
-    read_only: true
-    tmpfs:
-      - /tmp:size=128m
-      - /home/node/.npm:size=256m
-      - /app/.build/next/cache:size=512m
-    volumes:
-      - omniroute_data:/app/data
-    environment:
-      - TZ=America/Toronto
-      - NODE_ENV=production
-      - PORT=20128
-      - OMNIROUTE_SERVER_HOST=0.0.0.0
-      - REQUIRE_API_KEY=true
-      - AUTH_COOKIE_SECURE=false
-      - BASE_URL=http://omniroute:20128
-      - OMNIROUTE_MEMORY_MB=2048
-      - INPUT_SANITIZER_ENABLED=true
-      - INPUT_SANITIZER_MODE=warn
-      - PROXY_FAIL_OPEN=false
-      - JWT_SECRET=${OMNIROUTE_JWT_SECRET}
-      - API_KEY_SECRET=${OMNIROUTE_API_KEY_SECRET}
-      - STORAGE_ENCRYPTION_KEY=${OMNIROUTE_STORAGE_ENCRYPTION_KEY}
-      - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD}
-    networks:
-      - archie_internal
-      # The sandboxed opencode coder lane lives on its OWN network and cannot resolve
-      # service names on archie_internal. Rather than attach the LANE to the core network
-      # (which would also give it the database and platform) or publish 20128 on the host
-      # (which is half of why the critical `next` CVE is unreachable — #6664), the GATEWAY
-      # joins the lane's network. Narrowest grant that works: opencode resolves omniroute,
-      # and still gets ENOTFOUND for archie_platform and archie_database — verified.
-      - opencode_terminal_net
 
   # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
       # ...and the codex lane, for the same reason (#6653 follow-on 2026-09-13).
@@ -1525,7 +1432,7 @@ services:
       # and it is never written into the config file. opencode stores the same credential
       # INLINE in opencode.json; this is the better half of that pair, not a copy of it.
       OMNIROUTE_API_KEY: ${OMNIROUTE_API_KEY:-}
-      OMNIROUTE_BASE_URL: ${OMNIROUTE_BASE_URL:-http://omniroute:20128/v1}
+      OMNIROUTE_BASE_URL: ${OMNIROUTE_BASE_URL:-http://host.docker.internal:20129/v1}
       OMNIROUTE_MODEL: ${OMNIROUTE_MODEL:-auto/coding:free}
     secrets:
       - codex_kb_bearer
@@ -1615,9 +1522,6 @@ volumes:
   opencode_terminal_work:
     driver: local
     name: archie_opencode_terminal_work
-  omniroute_data:
-    driver: local
-    name: archie_omniroute_data
   whisper_models:
     driver: local
     name: archie_whisper_models

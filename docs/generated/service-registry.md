@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-10-06 20:28:50 EDT · **Provenance measured**: 2026-10-06 03:40:07 EDT
+**Collected**: 2026-10-20 08:06:39 EDT · **Provenance measured**: 2026-10-20 03:40:08 EDT
 
-53/54 hub containers running · 9 image-baked products · 0 absent.
+51/54 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -22,12 +22,12 @@
 | `civic_watch` | ⚪ fail_open | `unknown` | `0b185eb3b` | http://100.64.0.10:8099/version |
 | `gov_watch` | ⚪ fail_open | `unknown` | `7188c02ee` | http://100.64.0.10:8102/version |
 | `kbs` | 🔴 DRIFT | `0dfb59789` | `7f17b4b97` | http://192.168.1.200:8091/version |
-| `kso` | ✅ in_sync | `e163d2f46` | `e163d2f46` | http://192.168.1.200:8085/version |
+| `kso` | ✅ in_sync | `9df5b8dcf` | `9df5b8dcf` | http://192.168.1.200:8085/version |
 | `legal_watch` | ⚪ fail_open | `unknown` | `4c85b6d15` | http://100.64.0.10:8100/version |
 | `market_watch` | ⚪ fail_open | `unknown` | `7b5116ee3` | http://100.64.0.10:8101/version |
 | `media_hub` | ⚪ fail_open | `unknown` | `9a2c0163d` | http://192.168.1.200:8105/version |
-| `wtf_consumer` | ✅ in_sync | `f8994eb6a` | `f8994eb6a` | http://100.64.0.10:8103/version |
-| `wtf_tech` | ✅ in_sync | `f8994eb6a` | `f8994eb6a` | http://100.64.0.10:8104/version |
+| `wtf_consumer` | ✅ in_sync | `1b99b0e4b` | `1b99b0e4b` | http://100.64.0.10:8103/version |
+| `wtf_tech` | 🔴 DRIFT | `8cb3414bf` | `1b99b0e4b` | http://100.64.0.10:8104/version |
 
 ## Hub containers
 
@@ -53,12 +53,12 @@
 | `archie_staging_db` | running | archie_brain | 5433->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_tailscale` | running | archie_brain | — | `tailscale/tailscale:v1.80.3` |
 | `archie_whisper` | running | archie_brain | — | `archie_brain-archie_whisper:latest` |
-| `omniroute` | running | archie_brain | 20128->20128/tcp | `diegosouzapw/omniroute:3.8.50` |
+| `omniroute` ⚠ | exited | archie_brain | — | `diegosouzapw/omniroute:3.8.50` |
 | `security_nikto` | running | archie_brain | — | `secfigo/nikto:latest` |
 | `security_nmap` | running | archie_brain | — | `instrumentisto/nmap:7.94` |
 | `security_nuclei` | running | archie_brain | — | `projectdiscovery/nuclei:latest` |
 | `security_testssl` | running | archie_brain | — | `drwetter/testssl.sh:3.2` |
-| `security_zap` | running | archie_brain | — | `ghcr.io/zaproxy/zaproxy:stable` |
+| `security_zap` ⚠ | exited | archie_brain | — | `ghcr.io/zaproxy/zaproxy:stable` |
 | `kbs_app` | running | kytran-business-suite | 8091->8090/tcp | `kytran-business-suite-kytran-business-suite:` |
 | `kbs_postgres` | running | kytran-business-suite | — | `postgres:16-alpine` |
 | `kbs_redis` | running | kytran-business-suite | — | `redis:7-alpine` |

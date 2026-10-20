@@ -1,11 +1,11 @@
-"""Unit tests for cloud/contractor per-agent attribution (C.R.E.E.D.
+"""Unit tests for cloud/engineer per-agent attribution (C.R.E.E.D.
 accounting-integrity Fix #3).
 
-Bug: when the DHQ dispatcher escalates to a cloud/contractor provider because
+Bug: when the DHQ dispatcher escalates to a cloud/engineer provider because
 NO single internal agent could be matched (department capacity exhausted —
 see ``dispatch()``'s "not agent and department_exhausted" branch), the
 resulting ``task_execution_log`` row was logged with ``agent_id=None`` and a
-synthetic ``agent_name`` (``"CONTRACTOR→x"`` / ``"CLOUD→x"``). Tokens were
+synthetic ``agent_name`` (``"ENGINEER→x"`` / ``"CLOUD→x"``). Tokens were
 still counted globally, but no real agent's per-agent K.I.N./budget view
 (``services.agent_load_service.get_agent_load``, which JOINs
 ``task_execution_log`` on ``agent_id``) ever saw that cloud spend.
@@ -143,7 +143,7 @@ class TestDispatchResultEscalatingFields:
         result = DispatchResult(
             success=True,
             response="ok",
-            agent_name="CONTRACTOR→OpenAI",
+            agent_name="ENGINEER→OpenAI",
             agent_id=None,
             metadata={"is_cloud": True},
             escalating_agent_id=42,
@@ -155,7 +155,7 @@ class TestDispatchResultEscalatingFields:
         # OTHER consumer of result.agent_id (welfare, memory, perf metrics)
         # behaves exactly as it did before this fix.
         assert result.agent_id is None
-        assert result.agent_name == "CONTRACTOR→OpenAI"
+        assert result.agent_name == "ENGINEER→OpenAI"
 
 
 # ---------------------------------------------------------------------------
@@ -169,36 +169,36 @@ class TestDispatchResultEscalatingFields:
 def _compute_log_attribution(result: DispatchResult) -> tuple:
     """Same logic as _log_execution's log_agent_id/log_agent_name derivation."""
     meta = result.metadata or {}
-    is_contractor = meta.get("is_cloud", False)
+    is_engineer = meta.get("is_cloud", False)
     log_agent_id = result.agent_id
     log_agent_name = result.agent_name
-    if is_contractor and getattr(result, "escalating_agent_id", None):
+    if is_engineer and getattr(result, "escalating_agent_id", None):
         log_agent_id = result.escalating_agent_id
         esc_name = result.escalating_agent_name or "?"
         log_agent_name = f"{esc_name} →{result.agent_name}" if result.agent_name else esc_name
-    worker_type = "contract" if is_contractor else "internal"
+    worker_type = "contract" if is_engineer else "internal"
     return log_agent_id, log_agent_name, worker_type
 
 
 class TestLogExecutionAttribution:
     def test_orphaned_cloud_dispatch_attributes_to_the_director_and_stays_contract(self):
-        """The bug, reproduced and fixed: a contractor escalation with no
+        """The bug, reproduced and fixed: a engineer escalation with no
         internal agent selected (agent_id=None, synthetic agent_name) now logs
         the department director's real agent_id — while worker_type stays
         'contract' so carbon-accounting's exclusion is unaffected."""
         result = DispatchResult(
             success=True,
             response="ok",
-            agent_name="CONTRACTOR→OpenAI",
+            agent_name="ENGINEER→OpenAI",
             agent_id=None,
-            metadata={"is_cloud": True, "escalation": "contractor_capability"},
+            metadata={"is_cloud": True, "escalation": "engineer_capability"},
             escalating_agent_id=42,
             escalating_agent_name="F.O.R.G.E.",
         )
         log_agent_id, log_agent_name, worker_type = _compute_log_attribution(result)
 
         assert log_agent_id == 42, "cloud spend must be attributed to a real agent, not NULL"
-        assert log_agent_name == "F.O.R.G.E. →CONTRACTOR→OpenAI"
+        assert log_agent_name == "F.O.R.G.E. →ENGINEER→OpenAI"
         assert worker_type == "contract", "must stay 'contract' so carbon-accounting keeps excluding it"
 
     def test_no_director_available_falls_back_to_the_old_shape(self):

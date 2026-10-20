@@ -466,7 +466,7 @@ def register_fleet_routes(bp, auth_decorator):
                 actor = getattr(current_user, "username", None)
             cur.execute(
                 """
-                INSERT INTO contractor_switch_audit
+                INSERT INTO engineer_switch_audit
                     (provider_key, switch_name, from_value, to_value, actor)
                 VALUES (%s, %s, %s, %s, %s)
                 """,
@@ -474,7 +474,7 @@ def register_fleet_routes(bp, auth_decorator):
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "contractor switch audit: write failed for %s/%s (%s: %s) — " "the switch itself still moved",
+                "engineer switch audit: write failed for %s/%s (%s: %s) — " "the switch itself still moved",
                 provider_key,
                 switch_name,
                 exc.__class__.__name__,
@@ -486,25 +486,25 @@ def register_fleet_routes(bp, auth_decorator):
     def api_toggle_provider(provider_key):
         """Toggle a provider active/inactive — and keep the legacy key table in step.
 
-        `contractor_providers.is_active` is the authority the tab now renders. But
+        `engineer_providers.is_active` is the authority the tab now renders. But
         `external_providers._get_api_key` still gates key material on
         `external_api_keys.is_active = TRUE`, so flipping only the authority column would
         leave a trap: re-enable a provider whose legacy row says inactive and the selector
         happily picks it, then finds no key to call it with. That is a silent failure at the
-        worst moment — the moment an operator deliberately switched a contractor back on.
+        worst moment — the moment an operator deliberately switched a engineer back on.
 
         So both are written, in the same transaction, from the same computed value. A
         provider with no legacy row simply has nothing to update, which is the normal case
         for anything registered after the DS9 migration.
 
         (The older POST /api/external-providers/<provider>/toggle still flips only the legacy
-        column. Nothing in the Contractors tab calls it; it should be deprecated rather than
+        column. Nothing in the Engineers tab calls it; it should be deprecated rather than
         left as a second way to desync the pair.)
         """
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
-                    "SELECT is_active FROM contractor_providers WHERE provider_key = %s",
+                    "SELECT is_active FROM engineer_providers WHERE provider_key = %s",
                     (provider_key,),
                 )
                 before = cur.fetchone()
@@ -513,7 +513,7 @@ def register_fleet_routes(bp, auth_decorator):
 
                 cur.execute(
                     """
-                    UPDATE contractor_providers
+                    UPDATE engineer_providers
                     SET is_active = NOT is_active
                     WHERE provider_key = %s
                     RETURNING is_active
@@ -552,7 +552,7 @@ def register_fleet_routes(bp, auth_decorator):
     @bp.route("/api/providers/<provider_key>/probe", methods=["POST"])
     @auth_decorator
     def api_probe_provider_now(provider_key):
-        """Probe one contractor immediately, ignoring the backoff window.
+        """Probe one engineer immediately, ignoring the backoff window.
 
         Backoff exists so the scheduler stops re-probing failures that re-probing cannot fix.
         But a `no_key` provider cannot become healthy on a timer — only a person can fix it,
@@ -578,7 +578,7 @@ def register_fleet_routes(bp, auth_decorator):
                     """
                     SELECT provider_key, base_url, default_model,
                            auth_env_var, is_cloud_proxy, capabilities
-                      FROM contractor_providers
+                      FROM engineer_providers
                      WHERE provider_key = %s
                     """,
                     (provider_key,),
@@ -593,7 +593,7 @@ def register_fleet_routes(bp, auth_decorator):
         # this file has no reason to load, and a broken health service must not stop the
         # provider listing from rendering.
         try:
-            from services.contractor_health_service import scan
+            from services.engineer_health_service import scan
         except Exception as e:
             return jsonify({"error": f"health service unavailable: {e}"}), 503
 
@@ -627,7 +627,7 @@ def register_fleet_routes(bp, auth_decorator):
     def api_provider_switch_history(provider_key):
         """Recent operator switch changes for one provider, newest first.
 
-        Read side of `contractor_switch_audit`. Written without this, the table would be a log
+        Read side of `engineer_switch_audit`. Written without this, the table would be a log
         nobody can open — and the question it exists to answer ("who turned routing on for this
         paid provider, and when") is only useful if the answer is reachable from the tab.
 
@@ -645,7 +645,7 @@ def register_fleet_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT switch_name, from_value, to_value, actor, created_at
-                      FROM contractor_switch_audit
+                      FROM engineer_switch_audit
                      WHERE provider_key = %s
                      ORDER BY created_at DESC, id DESC
                      LIMIT %s
@@ -671,7 +671,7 @@ def register_fleet_routes(bp, auth_decorator):
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "contractor switch history: read failed for %s (%s: %s)",
+                "engineer switch history: read failed for %s (%s: %s)",
                 provider_key,
                 exc.__class__.__name__,
                 exc,
@@ -709,7 +709,7 @@ def register_fleet_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT provider_class, dispatchable
-                      FROM contractor_providers
+                      FROM engineer_providers
                      WHERE provider_key = %s
                     """,
                     (provider_key,),
@@ -737,7 +737,7 @@ def register_fleet_routes(bp, auth_decorator):
 
                 cur.execute(
                     """
-                    UPDATE contractor_providers
+                    UPDATE engineer_providers
                        SET dispatchable = %s, updated_at = NOW()
                      WHERE provider_key = %s
                      RETURNING dispatchable
@@ -753,10 +753,10 @@ def register_fleet_routes(bp, auth_decorator):
                     updated["dispatchable"],
                 )
 
-            # NOTE: this deliberately writes NO row to contractor_health.
+            # NOTE: this deliberately writes NO row to engineer_health.
             #
             # It did once, as probe_kind='health', status='ok'. That was wrong twice over:
-            # contractor_health is a history of PROBE OBSERVATIONS, and an operator flipping a
+            # engineer_health is a history of PROBE OBSERVATIONS, and an operator flipping a
             # routing switch is not one. So flipping the switch on a provider whose last real
             # probe was `unreachable` replaced that finding with 'ok' — the tab showed a green
             # badge and the ranking counted a healthy provider that had never answered. The
@@ -1650,7 +1650,7 @@ def register_fleet_routes(bp, auth_decorator):
     @login_required
     def fleet_get_external_providers():
         """List external AI providers with 24h stats, model breakdowns, and tier positions.
-        All provider metadata now comes from the contractor_providers table (dynamic)."""
+        All provider metadata now comes from the engineer_providers table (dynamic)."""
         # Latest probe per provider (DS9 PR 3).
         #
         # Hoisted ABOVE the main query and wrapped in its own try, deliberately. It was
@@ -1670,7 +1670,7 @@ def register_fleet_routes(bp, auth_decorator):
                     """
                     SELECT DISTINCT ON (provider_key)
                            provider_key, status, observed_model, created_at
-                      FROM contractor_health
+                      FROM engineer_health
                      ORDER BY provider_key, created_at DESC
                     """
                 )
@@ -1687,7 +1687,7 @@ def register_fleet_routes(bp, auth_decorator):
                     """
                     SELECT DISTINCT ON (provider_key)
                            provider_key, latency_ms
-                      FROM contractor_health
+                      FROM engineer_health
                      WHERE latency_ms IS NOT NULL
                        AND probe_kind IN ('latency', 'full')
                        AND latency_ms <= %s
@@ -1708,18 +1708,18 @@ def register_fleet_routes(bp, auth_decorator):
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
-                # 1. Fetch all contractor_providers (single source of truth)
+                # 1. Fetch all engineer_providers (single source of truth)
                 cur.execute(
                     """
                     SELECT provider_key, display_name, base_url, default_model,
                            auth_method, auth_env_var, is_cloud_proxy, tier_position,
                            models, rate_limits, is_active, dispatchable, provider_class
-                    FROM contractor_providers
+                    FROM engineer_providers
                     ORDER BY tier_position
                 """
                 )
                 cp_rows = cur.fetchall()
-                contractor_providers = {row["provider_key"]: dict(row) for row in cp_rows}
+                engineer_providers = {row["provider_key"]: dict(row) for row in cp_rows}
 
                 # 2. Fetch DB-managed API keys from external_api_keys
                 cur.execute(
@@ -1829,9 +1829,9 @@ def register_fleet_routes(bp, auth_decorator):
                 # 6. Ollama cloud API key check
                 ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
 
-                # 7. Build unified response — iterate all contractor_providers
+                # 7. Build unified response — iterate all engineer_providers
                 result = []
-                for provider_key, cp in contractor_providers.items():
+                for provider_key, cp in engineer_providers.items():
                     db_row = db_keys.get(provider_key)
                     models_def = cp.get("models") or []
                     if isinstance(models_def, str):
@@ -1850,11 +1850,11 @@ def register_fleet_routes(bp, auth_decorator):
                         auth_method = "OLLAMA_API_KEY env var"
                         source = "cloud_config"
                     else:
-                        # contractor_providers.is_active is the ONLY authority here.
+                        # engineer_providers.is_active is the ONLY authority here.
                         #
                         # This used to read external_api_keys.is_active whenever a legacy row
                         # existed, which made the tab contradict itself: the Disable button
-                        # writes contractor_providers (POST /api/providers/<key>/toggle), so
+                        # writes engineer_providers (POST /api/providers/<key>/toggle), so
                         # clicking it flipped one table while the badge kept rendering the
                         # other. Measured on the live roster — 4 of the 8 providers with a
                         # legacy key row disagreed with themselves, and cerebras showed
@@ -1862,7 +1862,7 @@ def register_fleet_routes(bp, auth_decorator):
                         #
                         # external_api_keys is pre-DS9 state and is still consulted for the
                         # things only it knows: the budget, the account tier and the key hint.
-                        # It is no longer consulted for whether the contractor is configured.
+                        # It is no longer consulted for whether the engineer is configured.
                         is_active = bool(cp.get("is_active", False))
                         auth_method = (cp.get("auth_method") or "api_key").replace("_", " ").title()
                         source = "db"
@@ -1992,16 +1992,16 @@ def register_fleet_routes(bp, auth_decorator):
     @login_required
     @require_permission(Permission.ADMIN_ACCESS)
     def fleet_upsert_external_provider():
-        """Add or update an external AI provider API key. Validates against contractor_providers table."""
+        """Add or update an external AI provider API key. Validates against engineer_providers table."""
         data = request.get_json() or {}
         provider = data.get("provider", "").strip().lower()
         api_key = data.get("api_key", "").strip()
 
         try:
             with get_db_cursor() as (conn, cur):
-                # Validate provider exists in contractor_providers
+                # Validate provider exists in engineer_providers
                 cur.execute(
-                    "SELECT provider_key, is_cloud_proxy FROM contractor_providers WHERE provider_key = %s",
+                    "SELECT provider_key, is_cloud_proxy FROM engineer_providers WHERE provider_key = %s",
                     (provider,),
                 )
                 cp_row = cur.fetchone()
@@ -2010,7 +2010,7 @@ def register_fleet_routes(bp, auth_decorator):
                         jsonify(
                             {
                                 "success": False,
-                                "error": f"Unknown provider: {provider}. Add it to Contractor Providers first.",
+                                "error": f"Unknown provider: {provider}. Add it to Engineer Providers first.",
                             }
                         ),
                         400,
@@ -2122,13 +2122,13 @@ def register_fleet_routes(bp, auth_decorator):
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ======================================================================
-    # CONTRACTOR PROVIDER DEFINITIONS API (dynamic provider management)
+    # ENGINEER PROVIDER DEFINITIONS API (dynamic provider management)
     # ======================================================================
 
-    @bp.route("/api/contractor-providers", methods=["GET"])
+    @bp.route("/api/engineer-providers", methods=["GET"])
     @login_required
-    def fleet_list_contractor_providers():
-        """List all contractor provider definitions (for UI dropdowns and admin)."""
+    def fleet_list_engineer_providers():
+        """List all engineer provider definitions (for UI dropdowns and admin)."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute(
@@ -2136,7 +2136,7 @@ def register_fleet_routes(bp, auth_decorator):
                     SELECT id, provider_key, display_name, base_url, default_model,
                            auth_method, auth_env_var, is_cloud_proxy, tier_position,
                            models, rate_limits, is_active, created_at, updated_at
-                    FROM contractor_providers
+                    FROM engineer_providers
                     ORDER BY tier_position
                 """
                 )
@@ -2151,11 +2151,11 @@ def register_fleet_routes(bp, auth_decorator):
         except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    @bp.route("/api/contractor-providers", methods=["POST"])
+    @bp.route("/api/engineer-providers", methods=["POST"])
     @login_required
     @require_permission(Permission.ADMIN_ACCESS)
-    def fleet_upsert_contractor_provider():
-        """Create or update a contractor provider definition."""
+    def fleet_upsert_engineer_provider():
+        """Create or update a engineer provider definition."""
         data = request.get_json() or {}
         provider_key = data.get("provider_key", "").strip().lower()
         if not provider_key:
@@ -2179,7 +2179,7 @@ def register_fleet_routes(bp, auth_decorator):
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
-                    INSERT INTO contractor_providers
+                    INSERT INTO engineer_providers
                         (provider_key, display_name, base_url, default_model, auth_method,
                          auth_env_var, is_cloud_proxy, tier_position, models, rate_limits, is_active)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)

@@ -89,12 +89,12 @@ PROVIDER = "omniroute"  # default; overridden per-row by _provider_for() below
 
 
 def _provider_for(upstream: str | None) -> str:
-    """Map OmniRoute's upstream provider to our contractor_providers key.
+    """Map OmniRoute's upstream provider to our engineer_providers key.
 
     OmniRoute fronts multiple upstreams (opencode.ai, opencode zen, auto, felo-web).
     Big-Pickle and other opencode zen models arrive with upstream 'opencode' or
     'opencode-zen' — those must be attributed to 'opencode_zen', not 'omniroute',
-    so the Consciousness token economy and DHQ contractors tab show correct
+    so the Consciousness token economy and DHQ engineers tab show correct
     per-provider spend.
     """
     up = (upstream or "").lower()

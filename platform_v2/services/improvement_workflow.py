@@ -27,7 +27,7 @@ class ImprovementWorkflow:
     Features:
     - Retrieves relevant knowledge when creating proposals
     - Enriches proposals with curated docs and code snippets
-    - Provides context to contractors/agents
+    - Provides context to engineers/agents
     - Tracks execution and learns from failures
     """
 
@@ -547,7 +547,7 @@ class ImprovementWorkflow:
         """
         Get full knowledge context for a proposal.
 
-        Useful for contractors/agents who need all relevant information.
+        Useful for engineers/agents who need all relevant information.
 
         Args:
             proposal_id: Proposal ID

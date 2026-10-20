@@ -258,7 +258,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     # Backlog pool — auto-scales: any agent with the <cap>_backlog skill on any node
     # joins automatically via DHQ dispatcher scoring. No job changes needed to add capacity.
     # bias_backlog/geo_backlog were MISSING here (#4275) → resolve_department defaulted
-    # them to Engineering & Technology → the Codex contractor (model codex-cli) got picked
+    # them to Engineering & Technology → the Codex engineer (model codex-cli) got picked
     # for bias work and 404'd. Mirror fact_check_backlog so they route to the News & Media pool.
     "fact_check_backlog": "News & Media",
     "bias_backlog": "News & Media",
@@ -661,18 +661,18 @@ class DepartmentCoordinator:
         if shift not in ("active", "winding_down"):
             return (0.0, f"{agent_name} shift_state={shift}")
 
-        # Contractor exclusion (#4275). A worker_type='contractor' (e.g. Codex,
+        # Engineer exclusion (#4275). A worker_type='contractor' (e.g. Codex,
         # model='codex-cli') is an EXTERNAL CLI agent that only runs via its dedicated
         # deferred path (codex_task → host poller), never Ollama/DHQ dispatch — it has no
         # cluster-loadable model. Hard-block it from skill-based selection unless the
-        # capability IS one of its contractor skills, so an unmapped / Engineering-defaulted
+        # capability IS one of its engineer skills, so an unmapped / Engineering-defaulted
         # capability (e.g. bias_backlog) can never fall to it and then 404 on the cluster.
         if (
             agent_info.get("worker_type") == "contractor"
             and capability
             and capability not in (agent_info.get("skills") or {})
         ):
-            return (0.0, f"{agent_name} is a contractor without the '{capability}' skill — not cluster-dispatchable")
+            return (0.0, f"{agent_name} is an engineer without the '{capability}' skill — not cluster-dispatchable")
 
         self._refresh_caches()
         welfare = self._welfare_cache.get(agent_id, {})
@@ -1328,7 +1328,7 @@ class DepartmentCoordinator:
                     with self._lock:
                         if info["id"] in self._reserved_agents:
                             continue
-                    # Prefer a budgeted AI/contractor holder over a legacy INTERNAL
+                    # Prefer a budgeted AI/engineer holder over a legacy INTERNAL
                     # persona (same rule as select_agent): keep the first qualifying
                     # internal as a fallback, but return a non-internal holder if one
                     # exists so cross-dept inference stays visible to the accounting.

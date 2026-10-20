@@ -1057,9 +1057,9 @@ body.light-mode .bridge-ops-status-value {
 }
 
 /* --- Contractor Badge (cloud provider indicator) --- */
-.iso-contractor-badge {
+.iso-engineer-badge {
     background: rgba(0,0,0,0.85);
-    border: 1px solid var(--contractor-color, #9333EA);
+    border: 1px solid var(--engineer-color, #9333EA);
     border-radius: 8px;
     padding: 3px 8px;
     font-size: 0.5rem;
@@ -1071,49 +1071,49 @@ body.light-mode .bridge-ops-status-value {
     justify-content: center;
     gap: 5px;
     z-index: 20;
-    box-shadow: 0 0 12px rgba(var(--contractor-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--contractor-rgb, 147,51,234), 0.1);
-    animation: contractor-pulse 2s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(var(--engineer-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--engineer-rgb, 147,51,234), 0.1);
+    animation: engineer-pulse 2s ease-in-out infinite;
     cursor: default;
     margin-top: 2px;
 }
-.iso-contractor-badge .contractor-dot {
+.iso-engineer-badge .engineer-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--contractor-color, #9333EA);
+    background: var(--engineer-color, #9333EA);
     flex-shrink: 0;
     animation: cross-dot-pulse 1.5s ease-in-out infinite;
 }
-.iso-contractor-badge .contractor-icon {
+.iso-engineer-badge .engineer-icon {
     font-size: 0.6rem;
 }
-.iso-contractor-badge .contractor-name {
-    color: var(--contractor-color, #9333EA);
+.iso-engineer-badge .engineer-name {
+    color: var(--engineer-color, #9333EA);
     text-transform: uppercase;
     font-weight: 700;
     font-size: 0.55rem;
 }
-.iso-contractor-badge .contractor-model {
+.iso-engineer-badge .engineer-model {
     color: rgba(255,255,255,0.45);
     font-size: 0.4rem;
 }
-@keyframes contractor-pulse {
-    0%, 100% { box-shadow: 0 0 12px rgba(var(--contractor-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--contractor-rgb, 147,51,234), 0.1); }
-    50% { box-shadow: 0 0 20px rgba(var(--contractor-rgb, 147,51,234), 0.7), inset 0 0 10px rgba(var(--contractor-rgb, 147,51,234), 0.2); }
+@keyframes engineer-pulse {
+    0%, 100% { box-shadow: 0 0 12px rgba(var(--engineer-rgb, 147,51,234), 0.4), inset 0 0 6px rgba(var(--engineer-rgb, 147,51,234), 0.1); }
+    50% { box-shadow: 0 0 20px rgba(var(--engineer-rgb, 147,51,234), 0.7), inset 0 0 10px rgba(var(--engineer-rgb, 147,51,234), 0.2); }
 }
 /* T3182: Fold5 unfolded (~882px) — collapse badge to icon+dot only */
 @media (max-width: 900px) {
-    .iso-contractor-badge {
+    .iso-engineer-badge {
         padding: 2px 5px;
         gap: 3px;
     }
-    .iso-contractor-badge .contractor-name,
-    .iso-contractor-badge .contractor-model {
+    .iso-engineer-badge .engineer-name,
+    .iso-engineer-badge .engineer-model {
         display: none;
     }
 }
 @media (max-width: 500px) {
-    .iso-contractor-badge { display: none; }
+    .iso-engineer-badge { display: none; }
     .bridge-cross-station-line { display: none; }
 }
 
@@ -3637,7 +3637,7 @@ body.light-mode .bridge-zone-unstaffed {
    CONTRACTOR FIRMS (External Providers)
    ============================================================================ */
 
-.contractor-firm {
+.engineer-firm {
     border: 1px solid rgba(168, 85, 247, 0.2);
     border-left: 3px solid rgba(168, 85, 247, 0.4);
     border-radius: 2px 12px 12px 2px;
@@ -3646,7 +3646,7 @@ body.light-mode .bridge-zone-unstaffed {
     transition: border-color 0.3s ease;
     position: relative;
 }
-.contractor-firm::before {
+.engineer-firm::before {
     content: '';
     position: absolute;
     top: 0; left: 0;
@@ -3657,10 +3657,10 @@ body.light-mode .bridge-zone-unstaffed {
         rgba(168,85,247,0.6) 100%);
     pointer-events: none; z-index: 1;
 }
-.contractor-firm:hover {
+.engineer-firm:hover {
     border-color: rgba(168, 85, 247, 0.4);
 }
-.contractor-firm-header {
+.engineer-firm-header {
     display: flex;
     align-items: center;
     /* Wrap rather than clip. Below ~800px the badges, the two switches and the icon buttons no
@@ -3675,20 +3675,20 @@ body.light-mode .bridge-zone-unstaffed {
     transition: background 0.2s ease;
     user-select: none;
 }
-.contractor-firm-header:hover {
+.engineer-firm-header:hover {
     background: rgba(168, 85, 247, 0.08);
 }
-.contractor-firm-header .chevron-icon {
+.engineer-firm-header .chevron-icon {
     width: 14px;
     height: 14px;
     color: var(--archie-text-muted);
     transition: transform 0.2s ease;
     flex-shrink: 0;
 }
-.contractor-firm.expanded .contractor-firm-header .chevron-icon {
+.engineer-firm.expanded .engineer-firm-header .chevron-icon {
     transform: rotate(90deg);
 }
-.contractor-firm-name {
+.engineer-firm-name {
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--archie-text-primary);
@@ -3704,7 +3704,7 @@ body.light-mode .bridge-zone-unstaffed {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.contractor-tier-badge {
+.engineer-tier-badge {
     font-size: 0.55rem;
     font-weight: 700;
     padding: 1px 6px;
@@ -3714,7 +3714,7 @@ body.light-mode .bridge-zone-unstaffed {
     background: rgba(168, 85, 247, 0.12);
     color: #a855f7;
 }
-.contractor-status-badge {
+.engineer-status-badge {
     font-size: 0.55rem;
     font-weight: 700;
     padding: 1px 6px;
@@ -3722,15 +3722,15 @@ body.light-mode .bridge-zone-unstaffed {
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.contractor-status-badge.active {
+.engineer-status-badge.active {
     background: rgba(16, 185, 129, 0.15);
     color: #10B981;
 }
-.contractor-status-badge.inactive {
+.engineer-status-badge.inactive {
     background: rgba(255, 68, 68, 0.15);
     color: #FF4444;
 }
-.contractor-status-badge.over-budget {
+.engineer-status-badge.over-budget {
     background: rgba(255, 170, 0, 0.15);
     color: #ffaa00;
 }
@@ -3750,13 +3750,13 @@ body.light-mode .bridge-zone-unstaffed {
 }
 .budget-fill.over { background: #FF4444; }
 .budget-fill.warning { background: #ffaa00; }
-.contractor-firm-actions {
+.engineer-firm-actions {
     display: flex;
     gap: 4px;
     margin-left: auto;
     flex-shrink: 0;
 }
-.contractor-firm-actions button {
+.engineer-firm-actions button {
     font-size: 0.6rem;
     padding: 2px 8px;
     border-radius: 4px;
@@ -3765,24 +3765,24 @@ body.light-mode .bridge-zone-unstaffed {
     background: transparent;
     transition: all 0.2s ease;
 }
-.contractor-btn-edit {
+.engineer-btn-edit {
     color: #a855f7;
     border-color: rgba(168, 85, 247, 0.3) !important;
 }
-.contractor-btn-edit:hover {
+.engineer-btn-edit:hover {
     background: rgba(168, 85, 247, 0.1) !important;
 }
 /* Switch-history control and its inline panel. Muted amber rather than the purple of
    Edit: this is a read-only log, and an operator should not expect it to change anything. */
-.contractor-btn-history {
+.engineer-btn-history {
     color: #fbbf24;
     border-color: rgba(251, 191, 36, 0.3) !important;
     padding: 2px 5px !important;
 }
-.contractor-btn-history:hover {
+.engineer-btn-history:hover {
     background: rgba(251, 191, 36, 0.12) !important;
 }
-.contractor-history-panel {
+.engineer-history-panel {
     margin-top: 6px;
     padding: 6px 8px;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -3791,7 +3791,7 @@ body.light-mode .bridge-zone-unstaffed {
     max-height: 210px;
     overflow-y: auto;
 }
-.contractor-history-row {
+.engineer-history-row {
     display: flex;
     align-items: baseline;
     gap: 8px;
@@ -3799,14 +3799,14 @@ body.light-mode .bridge-zone-unstaffed {
     padding: 2px 0;
     flex-wrap: wrap;
 }
-.contractor-history-switch {
+.engineer-history-switch {
     min-width: 62px;
     color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
-.contractor-history-arrow { flex: 1; min-width: 150px; }
-.contractor-history-meta {
+.engineer-history-arrow { flex: 1; min-width: 150px; }
+.engineer-history-meta {
     color: rgba(255, 255, 255, 0.4);
     min-width: 128px;
     text-align: right;
@@ -3814,19 +3814,19 @@ body.light-mode .bridge-zone-unstaffed {
 /* Probe-now. Neutral cyan so it reads as an ACTION on the badge beside it, not as a switch.
    Deliberately not green: green means "routing is on" everywhere else on this row, and this
    button has nothing to do with routing. */
-.contractor-btn-probe {
+.engineer-btn-probe {
     color: var(--archie-cyan, #22d3ee);
     border-color: rgba(34, 211, 238, 0.3) !important;
     padding: 2px 5px !important;
 }
-.contractor-btn-probe:hover {
+.engineer-btn-probe:hover {
     background: rgba(34, 211, 238, 0.12) !important;
 }
-.contractor-btn-probe:disabled {
+.engineer-btn-probe:disabled {
     opacity: 0.5;
     cursor: wait;
 }
-.contractor-btn-toggle {
+.engineer-btn-toggle {
     color: var(--archie-text-muted);
     border-color: rgba(255,255,255,0.1) !important;
 }
@@ -3837,57 +3837,57 @@ body.light-mode .bridge-zone-unstaffed {
    Contractors tabs read identically.
    Green = the switch is ON. Grey = OFF. The routing switch is the one that can cost money,
    so it gets the stronger treatment: a filled background, not just a coloured border. */
-.contractor-routing-toggle.on,
-.contractor-active-toggle.on {
+.engineer-routing-toggle.on,
+.engineer-active-toggle.on {
     color: #10b981;
     border-color: #10b981 !important;
 }
-.contractor-routing-toggle.on {
+.engineer-routing-toggle.on {
     background: rgba(16, 185, 129, 0.2) !important;
     font-weight: bold;
 }
-.contractor-routing-toggle.off,
-.contractor-active-toggle.off {
+.engineer-routing-toggle.off,
+.engineer-active-toggle.off {
     color: #6b7280;
     border-color: #6b7280 !important;
 }
 /* Belt and braces for anyone who cannot rely on hue: the ON state is also bold. */
-.contractor-routing-toggle.on,
-.contractor-active-toggle.on {
+.engineer-routing-toggle.on,
+.engineer-active-toggle.on {
     font-weight: bold;
 }
-body.light-mode .contractor-routing-toggle.on,
-[data-theme="light"] .contractor-routing-toggle.on {
+body.light-mode .engineer-routing-toggle.on,
+[data-theme="light"] .engineer-routing-toggle.on {
     color: #047857;
     border-color: #047857 !important;
     background: rgba(16, 185, 129, 0.28) !important;
 }
-body.light-mode .contractor-routing-toggle.off,
-[data-theme="light"] .contractor-routing-toggle.off {
+body.light-mode .engineer-routing-toggle.off,
+[data-theme="light"] .engineer-routing-toggle.off {
     color: #6b7280;
     border-color: #9ca3af !important;
 }
-.contractor-btn-toggle:hover {
+.engineer-btn-toggle:hover {
     background: rgba(255,255,255,0.05) !important;
 }
-.contractor-firm-body {
+.engineer-firm-body {
     display: none;
     padding: 8px 12px 12px;
     border-top: 1px solid rgba(168, 85, 247, 0.1);
 }
-.contractor-firm.expanded .contractor-firm-body {
+.engineer-firm.expanded .engineer-firm-body {
     display: block;
 }
-.contractor-header-summary {
+.engineer-header-summary {
     font-size: 0.55rem; color: rgba(255,255,255,0.4); white-space: nowrap;
 }
-.contractor-firm.expanded .contractor-header-summary { display: none; }
-.contractor-models-grid {
+.engineer-firm.expanded .engineer-header-summary { display: none; }
+.engineer-models-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 0.75rem;
 }
-.contractor-model-card {
+.engineer-model-card {
     background: var(--archie-bg-tertiary);
     border-radius: 8px;
     border-left: 3px solid #a855f7;
@@ -3897,33 +3897,33 @@ body.light-mode .contractor-routing-toggle.off,
     gap: 0.4rem;
     transition: opacity 0.3s ease, border-color 0.3s ease;
 }
-.contractor-model-card.disabled {
+.engineer-model-card.disabled {
     opacity: 0.5;
 }
-.contractor-model-name {
+.engineer-model-name {
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--archie-text-primary);
 }
-.contractor-model-meta {
+.engineer-model-meta {
     font-size: 0.65rem;
     color: var(--archie-text-muted);
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
-.contractor-model-card .model-stats {
+.engineer-model-card .model-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 4px 12px;
     font-size: 0.6rem;
     color: var(--archie-text-muted);
 }
-.contractor-model-card .model-stats .stat-val {
+.engineer-model-card .model-stats .stat-val {
     font-weight: 600;
     color: var(--archie-text-secondary);
 }
-.contractor-creed-badge {
+.engineer-creed-badge {
     display: inline-flex;
     align-items: center;
     gap: 3px;
@@ -3935,7 +3935,7 @@ body.light-mode .contractor-routing-toggle.off,
     border-radius: 8px;
     align-self: flex-start;
 }
-.contractor-model-toggle {
+.engineer-model-toggle {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -3943,7 +3943,7 @@ body.light-mode .contractor-routing-toggle.off,
     font-size: 0.6rem;
     color: var(--archie-text-muted);
 }
-.contractor-model-toggle input[type="checkbox"] {
+.engineer-model-toggle input[type="checkbox"] {
     accent-color: #a855f7;
 }
 
@@ -6011,37 +6011,37 @@ body.light-mode .crew-subtab.active,
 }
 
 /* Contractor Firms — light mode */
-body.light-mode .contractor-firm,
-[data-theme="light"] .contractor-firm {
+body.light-mode .engineer-firm,
+[data-theme="light"] .engineer-firm {
     border-color: rgba(168, 85, 247, 0.15);
 }
-body.light-mode .contractor-firm-header,
-[data-theme="light"] .contractor-firm-header {
+body.light-mode .engineer-firm-header,
+[data-theme="light"] .engineer-firm-header {
     background: rgba(168, 85, 247, 0.03);
 }
-body.light-mode .contractor-firm-header:hover,
-[data-theme="light"] .contractor-firm-header:hover {
+body.light-mode .engineer-firm-header:hover,
+[data-theme="light"] .engineer-firm-header:hover {
     background: rgba(168, 85, 247, 0.06);
 }
-body.light-mode .contractor-model-card,
-[data-theme="light"] .contractor-model-card {
+body.light-mode .engineer-model-card,
+[data-theme="light"] .engineer-model-card {
     background: rgba(255, 255, 255, 0.9);
     border-left-color: #9333ea;
 }
-body.light-mode .contractor-model-card:hover,
-[data-theme="light"] .contractor-model-card:hover {
+body.light-mode .engineer-model-card:hover,
+[data-theme="light"] .engineer-model-card:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
-body.light-mode .contractor-model-card .model-stats,
-[data-theme="light"] .contractor-model-card .model-stats {
+body.light-mode .engineer-model-card .model-stats,
+[data-theme="light"] .engineer-model-card .model-stats {
     color: #888;
 }
-body.light-mode .contractor-model-card .model-stats .stat-val,
-[data-theme="light"] .contractor-model-card .model-stats .stat-val {
+body.light-mode .engineer-model-card .model-stats .stat-val,
+[data-theme="light"] .engineer-model-card .model-stats .stat-val {
     color: #333;
 }
-body.light-mode .contractor-firm-body,
-[data-theme="light"] .contractor-firm-body {
+body.light-mode .engineer-firm-body,
+[data-theme="light"] .engineer-firm-body {
     border-top-color: rgba(168, 85, 247, 0.08);
 }
 body.light-mode .bm-shell,
@@ -6057,8 +6057,8 @@ body.light-mode .bm-body textarea,
     background: rgba(0, 0, 0, 0.06) !important;
     color: #fff !important;
 }
-body.light-mode .contractor-btn-toggle,
-[data-theme="light"] .contractor-btn-toggle {
+body.light-mode .engineer-btn-toggle,
+[data-theme="light"] .engineer-btn-toggle {
     color: #666;
     border-color: rgba(0, 0, 0, 0.1) !important;
 }
@@ -6224,10 +6224,10 @@ body.light-mode .station-coverage-code,
     .crew-manifest-grid {
         grid-template-columns: 1fr;
     }
-    .contractor-models-grid {
+    .engineer-models-grid {
         grid-template-columns: 1fr;
     }
-    .contractor-firm-header {
+    .engineer-firm-header {
         flex-wrap: wrap;
         gap: 6px;
     }
@@ -6867,8 +6867,8 @@ body.light-mode .crew-manifest-section {
     border-color: rgba(139, 92, 246, 0.15);
     border-left-color: rgba(139, 92, 246, 0.25);
 }
-[data-theme="light"] .contractor-firm,
-body.light-mode .contractor-firm {
+[data-theme="light"] .engineer-firm,
+body.light-mode .engineer-firm {
     border-left-color: rgba(168, 85, 247, 0.25) !important;
 }
 [data-theme="light"] .node-card,

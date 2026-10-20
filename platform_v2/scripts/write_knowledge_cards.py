@@ -90,7 +90,7 @@ def embed(text: str):
 
 CARDS = [
     {
-        "title": "OmniRoute gateway — addressing, dynamic aliases, and why five contractor rows fail differently",
+        "title": "OmniRoute gateway — addressing, dynamic aliases, and why five engineer rows fail differently",
         "card_type": "reference",
         "summary": (
             "OmniRoute is an OpenAI-compatible gateway. Reached at http://omniroute:20128/v1 from "
@@ -107,7 +107,7 @@ CARDS = [
             "  which is wrong in BOTH contexts: 127.0.0.1 inside the container is the container.\n\n"
             "THE GATEWAY IS UP\n"
             "  GET /v1/models -> HTTP 200, 540 models (verified 2026-10-06).\n\n"
-            "WHY THE FIVE OMNIROUTE CONTRACTOR ROWS ALL FAIL, AND DIFFERENTLY\n"
+            "WHY THE FIVE OMNIROUTE ENGINEER ROWS ALL FAIL, AND DIFFERENTLY\n"
             "  omniroute_coding        auto/coding      -> 402 requires an opencode API key\n"
             "  omniroute_coding_free   auto/coding:free -> 402 requires an opencode API key\n"
             "  omniroute_best_free     auto/best-free   -> 400 Model is unavailable\n"
@@ -125,10 +125,10 @@ CARDS = [
             "  classify_provider_class() deliberately CANNOT return `paid`. Its docstring records\n"
             '  that it used to end in `return "paid" if is_cloud_proxy else "free_tier"`, which\n'
             "  asserted cost from a flag describing how a provider is REACHED, stamping free_tier\n"
-            "  on 13 of 18 unmeasured contractors. A probe sees a 402; it cannot prove the price.\n"
+            "  on 13 of 18 unmeasured engineers. A probe sees a 402; it cannot prove the price.\n"
             "  Use a migration to assign `paid`, guarded on the previous value."
         ),
-        "topics": ["omniroute", "ds9", "contractor", "gateway", "routing", "cost-class", "paid"],
+        "topics": ["omniroute", "ds9", "engineer", "gateway", "routing", "cost-class", "paid"],
         "technologies": ["ollama", "openai-compatible-api", "postgresql"],
         "difficulty": "intermediate",
         "confidence": 0.95,
@@ -136,10 +136,10 @@ CARDS = [
         "source_ref": "docs/superpowers/specs/2026-10-06-ds9-criterion-4-rename-scope.md",
     },
     {
-        "title": "DS9 contractor health — the three probe cadences, the backoff policy, and absent-vs-zero",
+        "title": "DS9 engineer health — the three probe cadences, the backoff policy, and absent-vs-zero",
         "card_type": "concept",
         "summary": (
-            "Contractor health uses three deliberately distinct probe cadences, and a status-based "
+            "Engineer health uses three deliberately distinct probe cadences, and a status-based "
             "backoff that exists mostly to be polite rather than to save money. The governing rule "
             "throughout is absent-vs-zero: a value that was not measured must never render as a "
             "measured value, in the badge, the response payload, or a row's timestamp."
@@ -155,7 +155,7 @@ CARDS = [
             "  In `full` the ORDER IS THE DESIGN. The completion decides the verdict; the model\n"
             "  list only annotates. All five OmniRoute rows return 200 on /v1/models while three\n"
             "  403 or 502 a completion — a `full` that trusted enumeration would rank the dead\n"
-            "  rows first. Enumeration NEVER writes to contractor_providers: drift is reported,\n"
+            "  rows first. Enumeration NEVER writes to engineer_providers: drift is reported,\n"
             "  not applied, because a probe rewriting the model list changes what dispatch routes to.\n\n"
             "THE BACKOFF POLICY (not about money — a 1-token probe costs a fraction of a cent)\n"
             "  ok, unreachable             -> every cycle\n"
@@ -180,15 +180,15 @@ CARDS = [
             "  dispatchable = ROUTE HERE (may send traffic and spend)\n"
             "  Media cloud generation ignored `dispatchable` entirely until #3675: the Media\n"
             "  Studio path checked the master toggle, the capability allowlist and the weekly\n"
-            "  budget, then walked past the per-provider switch. A provider with NO contractor row\n"
+            "  budget, then walked past the per-provider switch. A provider with NO engineer row\n"
             "  is deliberately not gated (local_tts is local and free)."
         ),
-        "topics": ["ds9", "contractor", "health", "probe", "cadence", "backoff", "dispatchable"],
+        "topics": ["ds9", "engineer", "health", "probe", "cadence", "backoff", "dispatchable"],
         "technologies": ["postgresql", "flask", "psycopg2"],
         "difficulty": "advanced",
         "confidence": 0.95,
         "source_type": "platform_docs",
-        "source_ref": "platform_v2/services/contractor_health_service.py",
+        "source_ref": "platform_v2/services/engineer_health_service.py",
     },
     {
         "title": "Migration hazard — the node image replays all 413 migrations on every boot",

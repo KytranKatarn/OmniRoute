@@ -55,7 +55,7 @@ def _flatten_blockers(value):
 def _dispatch_lifetime_totals():
     """Cumulative dispatches / tokens / energy / CO2 across ALL of
     task_execution_log. CO2 uses the shared C.R.E.E.D. estimator fragment
-    (cloud/contractor rows excluded). Cached 10 min."""
+    (cloud/engineer rows excluded). Cached 10 min."""
     import time
 
     now = time.time()

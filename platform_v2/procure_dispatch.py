@@ -147,7 +147,7 @@ def dispatch_procure():
         )
 
     # DispatchResult fields: agent_name, agent_id, model_used, department.
-    # Cost lives under metadata for contractor/cloud calls; local Ollama is
+    # Cost lives under metadata for engineer/cloud calls; local Ollama is
     # free (0.0).
     #
     # Two hub-wide display bugs in DispatchResult we work around here:

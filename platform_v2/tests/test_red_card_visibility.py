@@ -7,7 +7,7 @@ days with nothing in the Approvals tab (2026-08-28):
    pipeline stamps no scan_tier, so its reds could never be (re-)carded.
 2. `_check_existing_approval` used the coarse per-action_type dedup for
    `improvement_approve_red` — one card at a time, each expiring in 24h.
-   FOURTH instance of the trap (contractor_dispatch, linkedin_post #3944,
+   FOURTH instance of the trap (engineer_dispatch, linkedin_post #3944,
    pr_merge #5829, deploy_approve).
 3. `reconcile_open_proposals` defaulted to approved-only, so a stale
    `ready_for_review` twin kept a live deploy_approve card that could only

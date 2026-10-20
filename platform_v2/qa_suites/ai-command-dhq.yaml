@@ -56,10 +56,10 @@ tests:
     expect:
       status: [200, 302]
 
-  - name: "dhq-contractors"
+  - name: "dhq-engineers"
     type: api
     method: GET
-    path: /tools/department-hq/api/contractors/providers
+    path: /tools/department-hq/api/engineers/providers
     expect:
       status: [200, 302]
 

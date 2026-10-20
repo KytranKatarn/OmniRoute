@@ -1,4 +1,4 @@
-"""Contractors tab: class badges, measured health, and the second routing switch (DS9 PR 4).
+"""Engineers tab: class badges, measured health, and the second routing switch (DS9 PR 4).
 
 PR 1 added the columns, PR 3 measured them. Neither was visible: the tab rendered `tier_position`
 — a hand-typed integer — and an Active/Inactive badge that cannot express "configured but idle".
@@ -32,7 +32,7 @@ sys.path.insert(0, "/app")
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 JS_PATH = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "static" / "js" / "department-hq.js"
 ROUTES_PATH = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "fleet_provider_routes.py"
-SVC_PATH = REPO_ROOT / "platform_v2" / "services" / "contractor_health_service.py"
+SVC_PATH = REPO_ROOT / "platform_v2" / "services" / "engineer_health_service.py"
 CSS_PATH = REPO_ROOT / "platform_v2" / "static" / "css" / "fleet.css"
 JOBS_PATH = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "jobs.py"
 
@@ -205,8 +205,8 @@ class TestUnknownIsNotZero(unittest.TestCase):
             raise unittest.SkipTest("department-hq.js not reachable from this layout")
 
     def test_unmeasured_health_renders_unknown_not_a_latency(self):
-        body = re.search(r"function contractorHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S)
-        self.assertIsNotNone(body, "contractorHealthBadge must exist")
+        body = re.search(r"function engineerHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S)
+        self.assertIsNotNone(body, "engineerHealthBadge must exist")
         src = body.group(1)
         self.assertIn("UNKNOWN", src, "an unprobed provider must read UNKNOWN")
         # The null check must come BEFORE the latency is read, or it renders "UNKNOWN · 0ms".
@@ -217,7 +217,7 @@ class TestUnknownIsNotZero(unittest.TestCase):
         )
 
     def test_unmeasured_health_carries_an_explicit_reason(self):
-        body = re.search(r"function contractorHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
+        body = re.search(r"function engineerHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
         self.assertIn(
             "Unknown is not the same as fast",
             body,
@@ -225,7 +225,7 @@ class TestUnknownIsNotZero(unittest.TestCase):
         )
 
     def test_latency_suffix_is_omitted_entirely_when_absent(self):
-        body = re.search(r"function contractorHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
+        body = re.search(r"function engineerHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
         self.assertRegex(
             body,
             r"var suffix = \(ms !== null && ms !== undefined\) \?",
@@ -233,7 +233,7 @@ class TestUnknownIsNotZero(unittest.TestCase):
         )
 
     def test_unclassified_provider_reads_unmeasured_not_a_guessed_class(self):
-        body = re.search(r"function contractorClassBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
+        body = re.search(r"function engineerClassBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
         self.assertIn("UNMEASURED", body)
         self.assertIn(
             "if (!meta)",
@@ -247,7 +247,7 @@ class TestUnknownIsNotZero(unittest.TestCase):
         Defaulting to free_tier puts unknown providers in the auto-eligible bucket; the whole
         point of PR 1's NULL is that unmeasured stays unmeasured.
         """
-        body = re.search(r"function contractorClassBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
+        body = re.search(r"function engineerClassBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S).group(1)
         self.assertNotIn(
             "provider_class ||",
             body,
@@ -297,7 +297,7 @@ class TestTwoSwitches(unittest.TestCase):
 class TestOperatorSwitchAudit(unittest.TestCase):
     """An operator decision is not a probe observation, and must be recorded as one.
 
-    #3653 removed a fabricated `contractor_health` write (probe_kind='health', status='ok')
+    #3653 removed a fabricated `engineer_health` write (probe_kind='health', status='ok')
     that the routing toggle used to "record" its decision — it made a broken provider look
     healthy to the badge and the ranking. That left the decision itself unrecorded. This is the
     honest home it needed: a separate table, written by the toggle, readable from the tab.
@@ -310,12 +310,12 @@ class TestOperatorSwitchAudit(unittest.TestCase):
             raise unittest.SkipTest("fleet_provider_routes.py not reachable from this layout")
 
     def test_the_migration_exists_and_separates_decisions_from_observations(self):
-        sql = _migration("488_contractor_switch_audit.sql")
+        sql = _migration("488_engineer_switch_audit.sql")
         if not sql:
             self.skipTest("migration 488 not reachable from this layout")
-        self.assertIn("CREATE TABLE IF NOT EXISTS contractor_switch_audit", sql)
+        self.assertIn("CREATE TABLE IF NOT EXISTS engineer_switch_audit", sql)
         self.assertIn("switch_name", sql)
-        # a closed vocabulary, for the same reason contractor_health constrains its own:
+        # a closed vocabulary, for the same reason engineer_health constrains its own:
         # an unconstrained column eventually carries a typo and becomes a third thing
         self.assertRegex(sql, r"CHECK\s*\(switch_name IN \('is_active', 'dispatchable'\)\)")
         self.assertIn("actor", sql)
@@ -337,7 +337,7 @@ class TestOperatorSwitchAudit(unittest.TestCase):
         self.assertIn('row["dispatchable"]', block.group(0), "the pre-toggle value is required")
         self.assertIn('updated["dispatchable"]', block.group(0), "and the post-toggle value")
 
-    def test_it_still_never_writes_to_contractor_health(self):
+    def test_it_still_never_writes_to_engineer_health(self):
         """The fix from #3653 must not creep back while the audit table is added."""
         self.assertNotIn(
             "record_observation",
@@ -483,9 +483,9 @@ class TestRouteContract(unittest.TestCase):
         )
 
     def test_toggle_does_not_forge_a_health_observation(self):
-        """The toggle must not write to contractor_health at all.
+        """The toggle must not write to engineer_health at all.
 
-        It did once: probe_kind='health', status='ok'. contractor_health is a history of PROBE
+        It did once: probe_kind='health', status='ok'. engineer_health is a history of PROBE
         OBSERVATIONS, so flipping the routing switch on a provider whose last real probe was
         `unreachable` overwrote that finding with 'ok' — a green badge and a ranking point for
         a provider that had never answered. The schema agrees it cannot be faked: probe_kind is
@@ -532,10 +532,10 @@ class TestNoSilentRegressions(unittest.TestCase):
             raise unittest.SkipTest("department-hq.js not reachable from this layout")
 
     def test_is_active_never_reads_the_legacy_key_table(self):
-        """contractor_providers.is_active is the only authority for "configured".
+        """engineer_providers.is_active is the only authority for "configured".
 
         This is the bug that made the tab argue with itself. The Disable button POSTs to
-        /api/providers/<key>/toggle, which writes `contractor_providers.is_active`. The badge
+        /api/providers/<key>/toggle, which writes `engineer_providers.is_active`. The badge
         used to render `external_api_keys.is_active` whenever a pre-DS9 key row existed — so
         clicking Disable flipped one table while the badge kept showing the other, and the
         button appeared broken. Measured live: 4 of the 8 providers with a legacy key row
@@ -543,7 +543,7 @@ class TestNoSilentRegressions(unittest.TestCase):
         active.
 
         external_api_keys is still read for what only it knows — budget, account tier, key
-        hint. It must not decide whether the contractor is configured.
+        hint. It must not decide whether the engineer is configured.
         """
         # Asserted as a bare absence, not as a pattern on the assignment. A pattern like
         # `is_active = db_row[...]` misses `is_active = bool(db_row[...]) if db_row else
@@ -557,7 +557,7 @@ class TestNoSilentRegressions(unittest.TestCase):
         self.assertRegex(
             self.src,
             r"is_active = bool\(cp\.get\(.is_active., False\)\)",
-            "is_active must be read from contractor_providers for the non-cloud branch",
+            "is_active must be read from engineer_providers for the non-cloud branch",
         )
 
     def test_the_toggle_syncs_the_legacy_key_table(self):
@@ -567,7 +567,7 @@ class TestNoSilentRegressions(unittest.TestCase):
         `external_api_keys.is_active = TRUE`. If the toggle only wrote the authority column,
         re-enabling a provider whose legacy row said inactive would let the selector pick it
         and then find no key to call it with — a silent failure at exactly the moment an
-        operator deliberately switched a contractor back on. 6 providers were in that state
+        operator deliberately switched a engineer back on. 6 providers were in that state
         on the live roster.
         """
         block = re.search(
@@ -601,9 +601,9 @@ class TestNoSilentRegressions(unittest.TestCase):
         .fleet-prov-toggle.active already uses in fleet.css, and is mirrored to assistive
         tech via aria-pressed.
         """
-        self.assertIn("contractor-routing-toggle ", self.js)
-        self.assertIn("contractor-active-toggle ", self.js)
-        for sw in ("contractor-routing-toggle", "contractor-active-toggle"):
+        self.assertIn("engineer-routing-toggle ", self.js)
+        self.assertIn("engineer-active-toggle ", self.js)
+        for sw in ("engineer-routing-toggle", "engineer-active-toggle"):
             self.assertRegex(
                 self.js,
                 sw + r"\s*'\s*\+\s*\([A-Za-z_]\w*\s*\?\s*'on'\s*:\s*'off'\)",
@@ -627,13 +627,13 @@ class TestNoSilentRegressions(unittest.TestCase):
         # base fill deleted — verified by mutation.
         self.assertRegex(
             css,
-            r"(?m)^\.contractor-routing-toggle\.on\s*\{[^}]*background:",
+            r"(?m)^\.engineer-routing-toggle\.on\s*\{[^}]*background:",
             "ROUTING ON needs a filled background in the base rule, not only a coloured "
             "border — it is the switch that spends money and must read as live at a glance",
         )
-        self.assertIn(".contractor-routing-toggle.off", css)
-        self.assertIn(".contractor-active-toggle.on", css)
-        self.assertIn(".contractor-active-toggle.off", css)
+        self.assertIn(".engineer-routing-toggle.off", css)
+        self.assertIn(".engineer-active-toggle.on", css)
+        self.assertIn(".engineer-active-toggle.off", css)
 
     def test_the_existing_active_toggle_is_untouched(self):
         """It writes is_active. If that were rewritten to dispatchable the two would merge."""
@@ -651,7 +651,7 @@ class TestNoSilentRegressions(unittest.TestCase):
 
         That body is attacker-influenced text rendered into a title attribute.
         """
-        m = re.search(r"function contractorHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S)
+        m = re.search(r"function engineerHealthBadge\(p\)\s*\{(.*?)\n\}", self.js, re.S)
         src = m.group(1)
         self.assertIn("escapeHtml(title)", src, "the health tooltip must be escaped")
         self.assertIn(
@@ -663,20 +663,20 @@ class TestNoSilentRegressions(unittest.TestCase):
     def test_the_probe_still_cannot_write_is_active_or_dispatchable(self):
         """The probe OBSERVES. If it could toggle, one timeout could take the fleet offline."""
         svc_paths = [
-            REPO_ROOT / "platform_v2" / "services" / "contractor_health_service.py",
-            pathlib.Path("/app/services/contractor_health_service.py"),
+            REPO_ROOT / "platform_v2" / "services" / "engineer_health_service.py",
+            pathlib.Path("/app/services/engineer_health_service.py"),
         ]
         for p in svc_paths:
             if p.exists():
                 body = p.read_text(encoding="utf-8")
                 self.assertNotIn(
-                    "UPDATE contractor_providers",
+                    "UPDATE engineer_providers",
                     body,
-                    "the probe must never write to contractor_providers",
+                    "the probe must never write to engineer_providers",
                 )
                 break
         else:
-            self.skipTest("contractor_health_service.py not reachable from this layout")
+            self.skipTest("engineer_health_service.py not reachable from this layout")
 
 
 if __name__ == "__main__":
@@ -686,7 +686,7 @@ if __name__ == "__main__":
 class TestSwitchHistoryUI(unittest.TestCase):
     """The switch audit trail, finally visible.
 
-    #3659 made both switches write `contractor_switch_audit`. #3662 made it readable. Nothing
+    #3659 made both switches write `engineer_switch_audit`. #3662 made it readable. Nothing
     rendered it, so "who turned routing on for this paid provider, and when" was answerable only
     by curling an endpoint an operator has to know exists.
     """
@@ -810,7 +810,7 @@ class TestSwitchHistoryUI(unittest.TestCase):
         """
         # The button is built by ONE `html += '<button ...'` statement that spans several lines, so
         # take that whole statement (marker to its closing </button>), not a single line.
-        i = self.src.index('<button class="contractor-btn-history"')
+        i = self.src.index('<button class="engineer-btn-history"')
         statement = self.src[i : self.src.index("</button>", i)]
         self.assertIn("onclick=", statement)
         self.assertIn("event.stopPropagation()", statement)
@@ -819,9 +819,9 @@ class TestSwitchHistoryUI(unittest.TestCase):
         """It lives with Edit, because opening a log is an action. #3669 puts a refresh button
         beside the health badge; this is deliberately not there — two adjacent icon buttons with
         different meanings is its own ambiguity."""
-        i = self.src.index("contractor-firm-actions")
+        i = self.src.index("engineer-firm-actions")
         block = self.src[i : i + 700]
-        self.assertIn("contractor-btn-history", block)
+        self.assertIn("engineer-btn-history", block)
 
     def test_clicking_twice_closes_the_panel(self):
         block = self._js_block("async function toggleSwitchHistory", "// The second switch.")
@@ -844,7 +844,7 @@ class TestSwitchHistoryUI(unittest.TestCase):
 
     def test_the_css_does_not_reuse_the_purple_of_edit(self):
         css = _css()
-        i = css.index(".contractor-btn-history {")
+        i = css.index(".engineer-btn-history {")
         block = css[i : css.index("}", i)]
         self.assertNotIn("#a855f7", block)
 
@@ -861,7 +861,7 @@ class TestProbeNowControl(unittest.TestCase):
     def setUp(self):
         self.src = _read(JS_PATH, "tools/department_hq/static/js/department-hq.js")
         self.routes = _read(ROUTES_PATH, "tools/department_hq/fleet_provider_routes.py")
-        self.svc = _read(SVC_PATH, "services/contractor_health_service.py")
+        self.svc = _read(SVC_PATH, "services/engineer_health_service.py")
 
     def _route_body(self) -> str:
         """The probe route's source, from `def` to the next route decorator.
@@ -935,13 +935,13 @@ class TestProbeNowControl(unittest.TestCase):
 
     def test_the_button_sits_beside_the_reading_it_refreshes(self):
         """Not buried in the action group: the reason to press it is the stale badge."""
-        i = self.src.index("contractorHealthBadge(p);")
+        i = self.src.index("engineerHealthBadge(p);")
         after = self.src[i : i + 700]
-        self.assertIn("contractor-btn-probe", after)
+        self.assertIn("engineer-btn-probe", after)
 
     def test_the_button_stops_the_row_from_opening_the_edit_modal(self):
         """Every other control in this row calls event.stopPropagation() for exactly this."""
-        i = self.src.index("contractor-btn-probe")
+        i = self.src.index("engineer-btn-probe")
         self.assertIn("event.stopPropagation()", self.src[i - 200 : i + 400])
 
     def test_the_button_shows_progress_and_always_re_enables(self):
@@ -962,7 +962,7 @@ class TestProbeNowControl(unittest.TestCase):
     def test_the_css_does_not_reuse_green(self):
         """Green means "routing on" everywhere else in this row. This button is not routing."""
         css = _read(CSS_PATH, "static/css/fleet.css")
-        i = css.index(".contractor-btn-probe {")
+        i = css.index(".engineer-btn-probe {")
         block = css[i : css.index("}", i)]
         self.assertNotIn("#10b981", block)
         self.assertNotIn("#22c55e", block)
@@ -971,7 +971,7 @@ class TestProbeNowControl(unittest.TestCase):
 class TestNarrowWidthActionsRemainReachable(unittest.TestCase):
     """The action buttons were being clipped off the right edge of narrow rows.
 
-    `.contractor-firm` is `overflow: hidden` and `.contractor-firm-actions` is
+    `.engineer-firm` is `overflow: hidden` and `.engineer-firm-actions` is
     `flex-shrink: 0`, so when a header row ran out of room the actions overflowed the card and
     were silently truncated — no scrollbar, no ellipsis, just a missing button.
 
@@ -1000,11 +1000,11 @@ class TestNarrowWidthActionsRemainReachable(unittest.TestCase):
         `flex: 1` on the name could NOT absorb the overflow — the widest fixed items overflowed
         instead, and the card hid them.
         """
-        block = self._block(".contractor-firm-name {")
+        block = self._block(".engineer-firm-name {")
         self.assertIn("min-width: 0", block)
 
     def test_an_over_long_name_truncates_rather_than_overflowing(self):
-        block = self._block(".contractor-firm-name {")
+        block = self._block(".engineer-firm-name {")
         self.assertIn("text-overflow: ellipsis", block)
         self.assertIn("white-space: nowrap", block)
         self.assertIn("overflow: hidden", block)
@@ -1013,15 +1013,15 @@ class TestNarrowWidthActionsRemainReachable(unittest.TestCase):
         """Below ~800px the badges, two switches and icon buttons cannot share the line. Wrapping
         drops them to a second line where they are reachable; truncating them into a clipped
         sliver is what made them unclickable."""
-        self.assertIn("flex-wrap: wrap", self._block(".contractor-firm-header {"))
+        self.assertIn("flex-wrap: wrap", self._block(".engineer-firm-header {"))
 
     def test_the_actions_still_do_not_shrink_when_there_is_room(self):
         """The fix must not have broken the wide-viewport layout: at 1280px the measurement is
         identical before and after (-13px), so wrapping never engages unnecessarily."""
-        self.assertIn("flex-shrink: 0", self._block(".contractor-firm-actions {"))
+        self.assertIn("flex-shrink: 0", self._block(".engineer-firm-actions {"))
 
     def test_the_card_still_clips(self):
         """Deliberately unchanged. The card's overflow rule is what made the bug INVISIBLE rather
         than obvious; if someone 'fixes' the symptom by removing it, the buttons would spill over
         neighbouring cards instead. The fix belongs at the flex level."""
-        self.assertIn("overflow: hidden", self._block(".contractor-firm {"))
+        self.assertIn("overflow: hidden", self._block(".engineer-firm {"))

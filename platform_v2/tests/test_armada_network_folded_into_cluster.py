@@ -6,12 +6,12 @@ CLUSTER sub-tab, then delete NETWORK. Two things made that more than a cut-paste
 1. CLUSTER already had its OWN map — "FLEET WORLD MAP" (#clusterGeoMap, #3230),
    the same nodes as plain coloured dots. Keeping both would have put two Leaflet
    instances on one tab painting one /api/fleet-map response. The circular map is
-   a strict superset (node logos, live online/offline styling, contractor
+   a strict superset (node logos, live online/offline styling, engineer
    favicons), so it replaced the dot map rather than joining it.
 
-2. FLEET USAGE (30 DAYS) is CONTRACTOR spend, not node state, and its
-   loadFleetUsage() painter ALSO fills #fleetBudgetTableBody on the Contractors
-   tab. Moving the panel to Contractors keeps one function feeding two panels
+2. FLEET USAGE (30 DAYS) is ENGINEER spend, not node state, and its
+   loadFleetUsage() painter ALSO fills #fleetBudgetTableBody on the Engineers
+   tab. Moving the panel to Engineers keeps one function feeding two panels
    that can never disagree; deleting the function would have silently emptied
    the budget table.
 
@@ -98,7 +98,7 @@ class TestClusterInheritedTheMapAndButtons:
     def _cluster(self) -> str:
         tpl = _src(TPL)
         start = tpl.index('id="armadaSection-cluster"')
-        end = tpl.index('id="panel-contractors"')
+        end = tpl.index('id="panel-engineers"')
         return tpl[start:end]
 
     def test_node_buttons_live_on_cluster_now(self):
@@ -131,18 +131,18 @@ class TestClusterInheritedTheMapAndButtons:
         )
 
 
-class TestFleetUsageMovedToContractors:
-    def test_the_panel_is_on_the_contractors_tab(self):
+class TestFleetUsageMovedToEngineers:
+    def test_the_panel_is_on_the_engineers_tab(self):
         tpl = _src(TPL)
         usage = tpl.index('id="fleetUsageCalls"')
-        contractors = tpl.index('id="panel-contractors"')
-        assert usage > contractors, "FLEET USAGE must sit inside panel-contractors"
+        engineers = tpl.index('id="panel-engineers"')
+        assert usage > engineers, "FLEET USAGE must sit inside panel-engineers"
 
     def test_it_is_not_left_behind_on_cluster(self):
         tpl = _src(TPL)
         cluster = tpl.index('id="armadaSection-cluster"')
-        contractors = tpl.index('id="panel-contractors"')
-        assert not (cluster < tpl.index('id="fleetUsageCalls"') < contractors)
+        engineers = tpl.index('id="panel-engineers"')
+        assert not (cluster < tpl.index('id="fleetUsageCalls"') < engineers)
 
     def test_its_painter_survives_because_it_also_fills_the_budget_table(self):
         """⚠️ loadFleetUsage() sets the three usage figures AND populates
@@ -155,7 +155,7 @@ class TestFleetUsageMovedToContractors:
         assert "loadFleetUsage()" in js, "the function has no callers left"
 
     def test_the_hidden_providers_grid_container_survived(self):
-        """The provider CARDS moved to Contractors long ago; the container did
+        """The provider CARDS moved to Engineers long ago; the container did
         not. loadCloudProviders()/loadProviderManagement() still write into it."""
         assert 'id="fleetProvidersGrid"' in _src(TPL)
 
@@ -325,7 +325,7 @@ class TestRetiredNodesNeverReachTheMap:
 class TestTheProviderCountDescribesTheMap:
     """The panel read "26 providers active" beside SIX pins. Both numbers were
     honest about different populations: 26 is the count of active rows in
-    contractor_providers (the same list the Contractors tab shows), while a pin
+    engineer_providers (the same list the Engineers tab shows), while a pin
     needs a lat/lon, which comes from the hardcoded PROVIDER_LOCATIONS dict.
 
     Twenty missed. Three of those were pure KEY mismatches — the coordinates
@@ -375,8 +375,8 @@ class TestTheProviderCountDescribesTheMap:
 
 
 class TestHostedIsItsOwnSection:
-    """Owner request: a HOSTED section between NODES and CONTRACTORS, because a
-    provider we run in Docker is not a contractor.
+    """Owner request: a HOSTED section between NODES and ENGINEERS, because a
+    provider we run in Docker is not a engineer.
 
     The split is DERIVED from base_url, never a name list — the four live cases
     are all distinguishable (measured 2026-09-11):
@@ -455,18 +455,18 @@ class TestHostedIsItsOwnSection:
         assert '"self_hosted": is_self_hosted_url(' in src
         assert '"local_compute": key in LOCAL_COMPUTE_PROVIDERS' in src
 
-    def test_the_index_renders_hosted_between_nodes_and_contractors(self):
+    def test_the_index_renders_hosted_between_nodes_and_engineers(self):
         js = _src(JS)
         i = js.index("function renderFleetIndex")
         # search forward from the function start — no fixed window. A window is a
         # magic number that silently turns "out of order" into "not found": the
-        # first cut used 6000 and the contractor section begins at offset 5999.
+        # first cut used 6000 and the engineer section begins at offset 5999.
         order = [
             js.index(tok, i)
-            for tok in ("'STARBASE'", "'NODES'", "'MESH'", "fleetHostedSection", "fleetContractorSection")
+            for tok in ("'STARBASE'", "'NODES'", "'MESH'", "fleetHostedSection", "fleetEngineerSection")
         ]
         assert order == sorted(order), (
-            "index sections are out of order; expected " "STARBASE -> NODES -> MESH -> HOSTED -> CONTRACTORS"
+            "index sections are out of order; expected " "STARBASE -> NODES -> MESH -> HOSTED -> ENGINEERS"
         )
 
     def test_each_hosted_row_says_which_kind_it_is(self):
@@ -484,10 +484,10 @@ class TestHostedIsItsOwnSection:
         blk = js[max(0, i - 500) : i + 120]
         assert "!p.self_hosted" in blk, "self-hosted providers are being pinned again"
 
-    def test_contractors_exclude_the_hosted_ones(self):
+    def test_engineers_exclude_the_hosted_ones(self):
         js = _src(JS)
-        i = js.index("var contractors = ")
-        assert "!p.self_hosted" in js[i : i + 160], "hosted rows double-counted as contractors"
+        i = js.index("var engineers = ")
+        assert "!p.self_hosted" in js[i : i + 160], "hosted rows double-counted as engineers"
 
     def test_the_stat_reports_both_populations(self):
         js = _src(JS)

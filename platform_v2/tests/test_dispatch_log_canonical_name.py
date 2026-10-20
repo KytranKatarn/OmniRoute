@@ -59,12 +59,12 @@ def test_warmup_and_other_unattributed_markers_are_never_rewritten(resolve):
     of which MODEL was warmed. Inventing an owner here would corrupt the very
     accounting this fix exists to protect."""
     assert resolve(None, "warmup:qwen2.5:7b") == "warmup:qwen2.5:7b"
-    assert resolve(None, "CONTRACTOR→claude") == "CONTRACTOR→claude"
+    assert resolve(None, "ENGINEER→claude") == "ENGINEER→claude"
     assert resolve(0, "CLOUD→gpt") == "CLOUD→gpt"
 
 
 def test_a_composed_escalation_label_is_left_intact(resolve):
-    """'<director> →<contractor>' is deliberately synthetic (C.R.E.E.D. accounting
+    """'<director> →<engineer>' is deliberately synthetic (C.R.E.E.D. accounting
     Fix #3) — it is not an agent name and must survive verbatim."""
     assert resolve(2, "A.R.C.H.I.E. →CLOUD:gpt-4") == "A.R.C.H.I.E. →CLOUD:gpt-4"
 

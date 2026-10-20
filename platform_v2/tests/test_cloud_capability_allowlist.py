@@ -1,9 +1,9 @@
 """Cloud is for development and repairs — never for company data (#6653).
 
-THE OWNER RULE (2026-09-09): coding and design work may use cloud contractors;
+THE OWNER RULE (2026-09-09): coding and design work may use cloud engineers;
 Watch-product / civic / gov / legal content may not, ever.
 
-THE PROBLEM THAT MADE THIS NECESSARY: the DHQ Contractors "Cloud AI" toggle
+THE PROBLEM THAT MADE THIS NECESSARY: the DHQ Engineers "Cloud AI" toggle
 writes ONE global value — `platform_settings.escalation_mode`, local_only <->
 ask_first. It has no per-capability dimension, so flipping it ON opens cloud for
 EVERYTHING. Measured 30-day volume sitting behind that button:
@@ -198,7 +198,7 @@ def test_every_cloud_budget_gate_is_paired_with_an_allowlist_gate():
     )
 
 
-def test_media_studio_contractor_path_is_sovereignty_gated():
+def test_media_studio_engineer_path_is_sovereignty_gated():
     """Choke point 4 (#6657/#6653): the Media Studio cloud IMAGE path reaches
     external_providers.generate_media OUTSIDE the three dispatcher choke points.
     It was ungated. This pins the gate to the same file as the escape: every
@@ -210,7 +210,7 @@ def test_media_studio_contractor_path_is_sovereignty_gated():
     src = (
         pathlib.Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "services" / "generation_service.py"
     ).read_text(encoding="utf-8")
-    assert "generate_media(" in src, "the contractor cloud call moved — re-point this test"
+    assert "generate_media(" in src, "the engineer cloud call moved — re-point this test"
     # the three sovereignty checks must all be present in the file that egresses
     assert "_cloud_capability_allowed(" in src, "Media Studio cloud path lost its allowlist gate"
     assert "_cloud_budget_ok(" in src, "Media Studio cloud path lost its budget gate"

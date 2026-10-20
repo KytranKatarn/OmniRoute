@@ -137,7 +137,7 @@ function switchTab(tab) {
         'social':       loadSocialFeed,
         'dispatch':     loadDispatch,
         'fleet':        loadFleet,
-        'contractors':  loadContractors,
+        'engineers':  loadEngineers,
         'autonomy':     loadAutonomy,
         'alerts':       function() {
             var ah = document.getElementById('alerts-history-section');
@@ -6407,7 +6407,7 @@ var fleetFpsRafId = null;
 /* Cluster World Map (#3230) — REMOVED 2026-09-11. Its #clusterGeoMap
    container is gone: the richer circular fleet map (initFleetMap) took its
    place in the CLUSTER tab and draws the same /api/fleet-map response with
-   node logos, live online/offline styling and the contractor favicons. */
+   node logos, live online/offline styling and the engineer favicons. */
 
 function _initFleetFpsOverlay() {
     var mapEl = document.getElementById('fleetMap');
@@ -6712,22 +6712,22 @@ function renderFleetIndex(data) {
         panel.appendChild(hostedSection);
     }
 
-    // CONTRACTORS section — EXTERNAL providers only; the hosted ones above are
-    // not contractors and counting them here double-counted the fleet.
-    var contractors = (data.providers || []).filter(function(p) { return !p.self_hosted && p.lat && p.lon; });
-    if (contractors.length) {
-        var contractorSection = document.createElement('div');
-        contractorSection.id = 'fleetContractorSection';
+    // ENGINEERS section — EXTERNAL providers only; the hosted ones above are
+    // not engineers and counting them here double-counted the fleet.
+    var engineers = (data.providers || []).filter(function(p) { return !p.self_hosted && p.lat && p.lon; });
+    if (engineers.length) {
+        var engineerSection = document.createElement('div');
+        engineerSection.id = 'fleetEngineerSection';
         var chdr = document.createElement('div');
         chdr.className = 'fleet-index-head';
         chdr.style.cssText = 'font-family:\'IBM Plex Mono\',monospace;font-size:0.6rem;letter-spacing:2px;color:rgba(249,115,22,0.5);margin-top:10px;margin-bottom:4px;';
         chdr.textContent = 'CONTRACTORS';
-        contractorSection.appendChild(chdr);
-        contractors.forEach(function(p, i) {
+        engineerSection.appendChild(chdr);
+        engineers.forEach(function(p, i) {
             var label = (p.provider_key || 'Unknown').toUpperCase();
-            contractorSection.appendChild(buildIndexItem(i + 1, label, p.lat, p.lon, p.is_active, '#f97316'));
+            engineerSection.appendChild(buildIndexItem(i + 1, label, p.lat, p.lon, p.is_active, '#f97316'));
         });
-        panel.appendChild(contractorSection);
+        panel.appendChild(engineerSection);
     }
 }
 
@@ -6894,14 +6894,14 @@ function updateFleetStats(data) {
     if (nodeEl) nodeEl.textContent = nodeCount + ' node' + (nodeCount !== 1 ? 's' : '') + ' online';
     if (provEl) {
         var label = (mappable === provCount)
-            ? provCount + ' contractor' + (provCount !== 1 ? 's' : '') + ' active'
-            : mappable + ' of ' + provCount + ' contractors mapped';
+            ? provCount + ' DS9 provider' + (provCount !== 1 ? 's' : '') + ' active'
+            : mappable + ' of ' + provCount + ' DS9 providers mapped';
         if (hostedCount) label += ' · ' + hostedCount + ' hosted';
         provEl.textContent = label;
-        provEl.title = provCount + ' external contractors (the same contractor_providers '
-            + 'list the Contractors tab shows), ' + (provCount - mappable) + ' with no '
+        provEl.title = provCount + ' external DS9 providers (the same engineer_providers '
+            + 'list the DS9 tab shows), ' + (provCount - mappable) + ' with no '
             + 'location on file; plus ' + hostedCount + ' hosted on our own '
-            + 'infrastructure, listed above the contractors and not pinned because they '
+            + 'infrastructure, listed above the DS9 providers and not pinned because they '
             + 'sit at the hub.';
     }
 }
@@ -7628,7 +7628,7 @@ function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); 
 // CONTRACTORS (External Providers) — Crew Sub-Tab
 // ============================================================================
 
-async function loadContractors() {
+async function loadEngineers() {
     try {
         var [provResp, modeResp, escResp] = await Promise.all([
             fetch('/tools/department-hq/api/external-providers'),
@@ -7649,16 +7649,16 @@ async function loadContractors() {
             if (escData.success) escalationMode = escData.escalation_mode || 'local_only';
         }
         renderCloudMasterToggle(escalationMode);
-        renderContractors(data.providers || [], routingMode, {
+        renderEngineers(data.providers || [], routingMode, {
             creed_total_24h: data.creed_total_24h || 0,
             creed_blocked_24h: data.creed_blocked_24h || 0
         });
         loadFleetUsage();
         loadOmnirouteQuota();
     } catch (e) {
-        console.error('loadContractors error:', e);
-        var grid = document.getElementById('contractors-grid');
-        if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load contractors</span>';
+        console.error('loadEngineers error:', e);
+        var grid = document.getElementById('engineers-grid');
+        if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load DS9 providers</span>';
     }
 }
 
@@ -7669,7 +7669,7 @@ async function loadOmnirouteQuota() {
     var el = document.getElementById('ds9QuotaCard');
     if (el) el.innerHTML = '<span class="briefing-muted">DS9 quota: loading…</span>';
     try {
-        var resp = await fetch('/tools/department-hq/api/contractors/omniroute-quota');
+        var resp = await fetch('/tools/department-hq/api/engineers/omniroute-quota');
         var res = await resp.json();
         if (!res || !res.success) {
             if (el) el.innerHTML = '<span class="briefing-muted">DS9 quota: unavailable</span>';
@@ -7791,20 +7791,20 @@ var CONTRACTOR_HEALTH_META = {
     error:        { label: 'ERROR',      color: '#f87171' }
 };
 
-function contractorClassBadge(p) {
+function engineerClassBadge(p) {
     var meta = CONTRACTOR_CLASS_META[p.provider_class];
     if (!meta) {
-        return '<span class="contractor-meta-badge" style="border-color:rgba(148,163,184,0.45);color:#94a3b8"'
+        return '<span class="engineer-meta-badge" style="border-color:rgba(148,163,184,0.45);color:#94a3b8"'
             + ' title="Not yet classified — the health probe has not measured this provider yet.">UNMEASURED</span>';
     }
-    return '<span class="contractor-meta-badge" style="border-color:' + meta.color + '55;color:' + meta.color + '"'
+    return '<span class="engineer-meta-badge" style="border-color:' + meta.color + '55;color:' + meta.color + '"'
         + ' title="' + escapeHtml(meta.title) + '">' + meta.label + '</span>';
 }
 
-function contractorHealthBadge(p) {
+function engineerHealthBadge(p) {
     var st = p.health_status;
     if (st === null || st === undefined) {
-        return '<span class="contractor-meta-badge" style="border-color:rgba(148,163,184,0.35);color:#64748b"'
+        return '<span class="engineer-meta-badge" style="border-color:rgba(148,163,184,0.35);color:#64748b"'
             + ' title="Never probed. Unknown is not the same as fast.">UNKNOWN</span>';
     }
     var meta = CONTRACTOR_HEALTH_META[st];
@@ -7813,7 +7813,7 @@ function contractorHealthBadge(p) {
     var suffix = (ms !== null && ms !== undefined) ? ' · ' + ms + 'ms' : '';
     var title = meta.title || ('Last probe: ' + st);
     if (p.health_observed_model) title += ' · served ' + p.health_observed_model;
-    return '<span class="contractor-meta-badge" style="border-color:' + meta.color + '55;color:' + meta.color + '"'
+    return '<span class="engineer-meta-badge" style="border-color:' + meta.color + '55;color:' + meta.color + '"'
         + ' title="' + escapeHtml(title) + '">' + meta.label + suffix + '</span>';
 }
 
@@ -7833,14 +7833,14 @@ function switchHistoryRow(ev) {
     // Colour the DESTINATION, not the row. A switch turning ON on a paid provider is the event
     // an operator is hunting for; making both states neutral would bury it.
     var col = toOn ? '#22c55e' : '#94a3b8';
-    return '<div class="contractor-history-row">'
-        + '<span class="contractor-history-switch">' + escapeHtml(meta.label) + '</span>'
-        + '<span class="contractor-history-arrow">'
+    return '<div class="engineer-history-row">'
+        + '<span class="engineer-history-switch">' + escapeHtml(meta.label) + '</span>'
+        + '<span class="engineer-history-arrow">'
         + '<span style="color:var(--archie-text-muted)">' + escapeHtml(fromLabel) + '</span>'
         + ' &rarr; '
         + '<span style="color:' + col + ';font-weight:600">' + escapeHtml(toLabel) + '</span>'
         + '</span>'
-        + '<span class="contractor-history-meta">'
+        + '<span class="engineer-history-meta">'
         + escapeHtml(ev.actor || 'unknown') + ' &middot; ' + escapeHtml(fmtTime(ev.at))
         + '</span>'
         + '</div>';
@@ -7854,10 +7854,10 @@ async function toggleSwitchHistory(key, btn) {
     }
     panel = document.createElement('div');
     panel.id = 'history-' + key;
-    panel.className = 'contractor-history-panel';
-    panel.innerHTML = '<div class="contractor-history-row" style="color:var(--archie-text-muted)">'
+    panel.className = 'engineer-history-panel';
+    panel.innerHTML = '<div class="engineer-history-row" style="color:var(--archie-text-muted)">'
         + 'Loading switch history&hellip;</div>';
-    var card = btn.closest('.contractor-firm') || btn.parentElement;
+    var card = btn.closest('.engineer-firm') || btn.parentElement;
     card.appendChild(panel);
     try {
         var res = await fetch('/tools/department-hq/api/providers/' + encodeURIComponent(key) + '/switch-history', {
@@ -7865,7 +7865,7 @@ async function toggleSwitchHistory(key, btn) {
         });
         var data = await res.json();
         if (!res.ok || data.success === false) {
-            panel.innerHTML = '<div class="contractor-history-row" style="color:#f87171">'
+            panel.innerHTML = '<div class="engineer-history-row" style="color:#f87171">'
                 + 'Could not load switch history: ' + escapeHtml(data.error || ('HTTP ' + res.status))
                 + '</div>';
             return;
@@ -7873,20 +7873,20 @@ async function toggleSwitchHistory(key, btn) {
         // A degraded read returns an empty list on purpose, so "could not read" and "never
         // switched" must not render identically. The first is a lie an operator would act on.
         if (data.degraded) {
-            panel.innerHTML = '<div class="contractor-history-row" style="color:#fbbf24">'
+            panel.innerHTML = '<div class="engineer-history-row" style="color:#fbbf24">'
                 + 'Switch history is temporarily unavailable &mdash; that is NOT the same as '
                 + '&#8220;no changes recorded&#8221;.</div>';
             return;
         }
         var events = data.events || [];
         if (!events.length) {
-            panel.innerHTML = '<div class="contractor-history-row" style="color:var(--archie-text-muted)">'
+            panel.innerHTML = '<div class="engineer-history-row" style="color:var(--archie-text-muted)">'
                 + 'No switch changes recorded yet.</div>';
             return;
         }
         panel.innerHTML = events.map(switchHistoryRow).join('');
     } catch (e) {
-        panel.innerHTML = '<div class="contractor-history-row" style="color:#f87171">'
+        panel.innerHTML = '<div class="engineer-history-row" style="color:#f87171">'
             + 'Could not load switch history.</div>';
     }
 }
@@ -7913,11 +7913,11 @@ async function probeProviderNow(key, btn) {
             var st = (data.result && data.result.status) || 'unknown';
             showToast(key + ': ' + st, st === 'ok' ? 'success' : 'warning');
         }
-        loadContractors();
+        loadEngineers();
     } catch (e) {
         showToast('Probe request failed: ' + key, 'error');
     } finally {
-        // loadContractors() re-renders the row, so this button is usually already gone. Restore
+        // loadEngineers() re-renders the row, so this button is usually already gone. Restore
         // anyway for the failure path where the re-render may not have happened.
         if (btn && document.body.contains(btn)) {
             btn.disabled = false;
@@ -7940,20 +7940,20 @@ async function toggleDispatchable(key) {
         if (!res.ok || data.success === false) {
             showToast(data.error || 'Could not change routing switch', 'error');
         }
-        loadContractors();
+        loadEngineers();
     } catch (e) {
         console.error('Toggle dispatchable failed:', e);
     }
 }
 
-function renderContractors(providers, routingMode, creedData) {
+function renderEngineers(providers, routingMode, creedData) {
     routingMode = routingMode || 'full';
     creedData = creedData || { creed_total_24h: 0, creed_blocked_24h: 0 };
     var creedBlocked = creedData.creed_blocked_24h || 0;
     // Dynamic cloud provider check — use is_cloud_proxy from API data
     var cloudProviders = providers.filter(function(p) { return p.is_cloud_proxy; }).map(function(p) { return p.provider; });
-    var grid = document.getElementById('contractors-grid');
-    var summaryEl = document.getElementById('contractors-summary');
+    var grid = document.getElementById('engineers-grid');
+    var summaryEl = document.getElementById('engineers-summary');
     if (!grid) return;
 
     // Compute summary — use actual API field names
@@ -8014,35 +8014,35 @@ function renderContractors(providers, routingMode, creedData) {
         var wPct = pWklyLim > 0 ? Math.min(100, Math.round(pWkly / pWklyLim * 100)) + '%' : '\u221e';
         var headerSummary = (pSess > 0 || pWkly > 0 || pSessLim > 0 || pWklyLim > 0) ? 's=' + sPct + ' / w=' + wPct : '';
 
-        html += '<div class="contractor-firm"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
-        html += '<div class="contractor-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
+        html += '<div class="engineer-firm"' + (blockedStyle ? ' style="' + blockedStyle + '"' : '') + '>';
+        html += '<div class="engineer-firm-header" onclick="this.parentElement.classList.toggle(\'expanded\')">';
         html += '<i data-lucide="chevron-right" class="chevron-icon"></i>';
-        html += '<span class="contractor-firm-name">' + providerName + '</span>';
-        if (headerSummary) html += '<span class="contractor-header-summary">' + headerSummary + '</span>';
-        html += '<span class="contractor-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
+        html += '<span class="engineer-firm-name">' + providerName + '</span>';
+        if (headerSummary) html += '<span class="engineer-header-summary">' + headerSummary + '</span>';
+        html += '<span class="engineer-tier-badge">Tier ' + escapeHtml(String(tierPos)) + '</span>';
         html += '<span style="font-size:0.6rem;padding:1px 6px;border-radius:3px;border:1px solid ' + tierColor + ';color:' + tierColor + ';text-transform:uppercase;letter-spacing:0.5px;">' + escapeHtml(tierLabel) + '</span>';
-        html += '<span class="contractor-status-badge ' + statusClass + '">' + statusText + '</span>';
+        html += '<span class="engineer-status-badge ' + statusClass + '">' + statusText + '</span>';
         // DS9 PR 4 — what the probe measured, and what kind of provider this is.
-        html += contractorHealthBadge(p);
+        html += engineerHealthBadge(p);
         // The escape hatch from the backoff window. A `no_key` provider cannot become healthy
         // on a timer — only a person can fix it, by pasting a key. Without this button the
         // 120-minute window is the operator's only refresh, so fixing the config and reloading
         // shows the OLD `no_key` and reads as "the fix didn't work".
         // Key via data attribute (not spliced into the onclick JS); `providerKey`, NOT p.provider_key.
-        html += '<button class="contractor-btn-probe" title="Probe now (ignore the backoff window)"'
+        html += '<button class="engineer-btn-probe" title="Probe now (ignore the backoff window)"'
             + ' data-provider-key="' + providerKey + '"'
             + ' onclick="event.stopPropagation();probeProviderNow(this.dataset.providerKey, this)">'
             + '<i data-lucide="refresh-cw" style="width:12px;height:12px"></i></button>';
-        html += contractorClassBadge(p);
+        html += engineerClassBadge(p);
         html += '<div class="budget-bar"><div class="budget-fill ' + budgetFillClass + '" style="width:' + budgetPct.toFixed(0) + '%"></div></div>';
-        html += '<div class="contractor-firm-actions">';
+        html += '<div class="engineer-firm-actions">';
         // Switch audit trail. Written by both switches since #3659 and readable since
         // #3662, but nothing displayed it — so "who turned routing on for this paid provider,
         // and when" was answerable only with curl.
-        html += '<button class="contractor-btn-history" title="Switch history"'
+        html += '<button class="engineer-btn-history" title="Switch history"'
             + ' onclick="event.stopPropagation();toggleSwitchHistory(\'' + escapeHtml(providerKey) + '\', this)">'
             + '<i data-lucide="history" style="width:13px;height:13px"></i></button>';
-        html += '<button class="contractor-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
+        html += '<button class="engineer-btn-edit" onclick="event.stopPropagation();editProvider(\'' + providerKey + '\')">Edit</button>';
         var _disp = p.dispatchable === true;
         // DS9 PR 4 — the second switch. `is_active` says CONFIGURED; this says
         // "route here". A provider can hold a key and pass its probe while still
@@ -8055,15 +8055,15 @@ function renderContractors(providers, routingMode, creedData) {
         // `.on` / `.off` follow the convention already in fleet.css (.fleet-prov-toggle.active
         // is green, :not(.active) is grey) so the Fleet and Contractors tabs look identical.
         // aria-pressed carries the same state to a screen reader.
-        html += '<button class="contractor-btn-toggle contractor-routing-toggle ' + (_disp ? 'on' : 'off')
+        html += '<button class="engineer-btn-toggle engineer-routing-toggle ' + (_disp ? 'on' : 'off')
             + '" aria-pressed="' + _disp + '" title="'
             + (_disp ? 'Routing is ON — the dispatcher may send work here.'
                      : 'Routing is OFF — configured, but nothing is dispatched here.')
             + '" onclick="event.stopPropagation();toggleDispatchable(\'' + providerKey + '\')">'
             + (_disp ? 'ROUTING ON' : 'ROUTING OFF') + '</button>';
-        html += '<button class="contractor-btn-toggle contractor-active-toggle ' + (isEnabled ? 'on' : 'off')
+        html += '<button class="engineer-btn-toggle engineer-active-toggle ' + (isEnabled ? 'on' : 'off')
             + '" aria-pressed="' + isEnabled + '" title="'
-            + (isEnabled ? 'Configured — this contractor is set up. Click to disable it.'
+            + (isEnabled ? 'Configured — this engineer is set up. Click to disable it.'
                          : 'Not configured — clicks enable it.')
             + '" onclick="event.stopPropagation();toggleProvider(\'' + providerKey + '\')">'
             + (isEnabled ? 'Disable' : 'Enable') + '</button>';
@@ -8071,7 +8071,7 @@ function renderContractors(providers, routingMode, creedData) {
         html += '</div>'; // header
 
         // Models body
-        html += '<div class="contractor-firm-body">';
+        html += '<div class="engineer-firm-body">';
         // Auth & budget info row
         var authMethod = escapeHtml(p.auth_method || 'API key');
         var keyHint = p.key_hint ? escapeHtml(p.key_hint) : 'Not set';
@@ -8085,14 +8085,14 @@ function renderContractors(providers, routingMode, creedData) {
         if (models.length === 0) {
             html += '<span class="briefing-muted" style="font-size:0.7rem;">No models registered for this provider</span>';
         } else {
-            html += '<div class="contractor-models-grid">';
+            html += '<div class="engineer-models-grid">';
             models.forEach(function(m) {
                 var modelEnabled = m.enabled !== false;
-                html += '<div class="contractor-model-card' + (modelEnabled ? '' : ' disabled') + '">';
+                html += '<div class="engineer-model-card' + (modelEnabled ? '' : ' disabled') + '">';
                 var mStats = m.stats_24h || {};
                 var mTierPos = m.tier_position != null ? m.tier_position : tierPos;
-                html += '<div class="contractor-model-name">' + escapeHtml(m.name || m.model_name || '') + '</div>';
-                html += '<div class="contractor-model-meta">';
+                html += '<div class="engineer-model-name">' + escapeHtml(m.name || m.model_name || '') + '</div>';
+                html += '<div class="engineer-model-meta">';
                 html += '<span>Contract Worker \u00b7 Tier ' + escapeHtml(String(mTierPos)) + '</span>';
                 html += '</div>';
                 var mAlltime = m.stats_alltime || null;
@@ -8156,11 +8156,11 @@ function renderContractors(providers, routingMode, creedData) {
                 }
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
                 if (creedBlocked > 0) {
-                    html += '<span class="contractor-creed-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> C.R.E.E.D.: ' + escapeHtml(String(creedBlocked)) + ' blocked</span>';
+                    html += '<span class="engineer-creed-badge" style="color:#ffaa00;border-color:#ffaa00;"><i data-lucide="shield-alert" style="width:10px;height:10px;"></i> C.R.E.E.D.: ' + escapeHtml(String(creedBlocked)) + ' blocked</span>';
                 } else {
-                    html += '<span class="contractor-creed-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> C.R.E.E.D. Compliant</span>';
+                    html += '<span class="engineer-creed-badge"><i data-lucide="shield-check" style="width:10px;height:10px;"></i> C.R.E.E.D. Compliant</span>';
                 }
-                html += '<label class="contractor-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleContractorModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
+                html += '<label class="engineer-model-toggle"><input type="checkbox" ' + (modelEnabled ? 'checked' : '') + ' onchange="toggleEngineerModel(\'' + providerKey + '\',\'' + escapeHtml(m.name || m.model_name || '') + '\',this.checked)"> Enabled</label>';
                 html += '</div>';
                 html += '</div>'; // model card
             });
@@ -8187,14 +8187,14 @@ function toggleProvider(provider) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         showToast(data.message || 'Provider toggled', 'success');
-        loadContractors();
+        loadEngineers();
     })
     .catch(function(e) {
         showToast('Failed to toggle provider', 'error');
     });
 }
 
-function toggleContractorModel(provider, model, enabled) {
+function toggleEngineerModel(provider, model, enabled) {
     fetch('/tools/department-hq/api/external-providers/' + encodeURIComponent(provider) + '/models/' + encodeURIComponent(model) + '/toggle', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -8203,7 +8203,7 @@ function toggleContractorModel(provider, model, enabled) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         showToast(data.message || 'Model toggled', 'success');
-        loadContractors();
+        loadEngineers();
     })
     .catch(function(e) {
         showToast('Failed to toggle model', 'error');
@@ -8215,19 +8215,19 @@ function openAddProviderModal(editProviderName) {
     var existing = document.querySelector('.bm-overlay.bm-provider-modal');
     if (existing) existing.remove();
 
-    // Fetch both contractor-providers definitions AND current key data in parallel
+    // Fetch both engineer-providers definitions AND current key data in parallel
     Promise.all([
-        fetch('/tools/department-hq/api/contractor-providers').then(function(r) { return r.json(); }),
+        fetch('/tools/department-hq/api/engineer-providers').then(function(r) { return r.json(); }),
         fetch('/tools/department-hq/api/external-providers').then(function(r) { return r.json(); })
     ]).then(function(results) {
         var cpData = results[0];
         var epData = results[1];
-        var contractorProviders = cpData.providers || [];
+        var engineerProviders = cpData.providers || [];
         var configuredProviders = epData.providers || [];
         var current = editProviderName ? configuredProviders.find(function(p) { return p.provider === editProviderName; }) : null;
 
-        // Build provider options dynamically from contractor_providers table
-        var providerOptions = contractorProviders.map(function(cp) {
+        // Build provider options dynamically from engineer_providers table
+        var providerOptions = engineerProviders.map(function(cp) {
             return { value: cp.provider_key, label: cp.display_name, is_cloud_proxy: cp.is_cloud_proxy };
         });
 
@@ -8443,7 +8443,7 @@ function saveProvider() {
         showToast(data.message || 'Provider saved', 'success');
         var overlay = document.querySelector('.bm-overlay.bm-provider-modal');
         if (overlay) overlay.remove();
-        loadContractors();
+        loadEngineers();
     })
     .catch(function(e) {
         showToast('Failed to save provider', 'error');
@@ -8487,7 +8487,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'dispatch': 'dispatch', 'roster': 'roster',
                 'autonomy': 'autonomy', 'coms': 'coms',
                 'approvals': 'approvals', 'scout': 'scout',
-                'contractors': 'contractors', 'alerts': 'alerts',
+                'engineers': 'engineers', 'alerts': 'alerts',
             };
             var _hash = (window.location.hash || '').substring(1);
             var _hashTab = _hashTabMap[_hash];

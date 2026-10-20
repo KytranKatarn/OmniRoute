@@ -263,7 +263,7 @@ def _generate_cloud(prompt, params):
     Try each configured cloud video provider in priority order.
     Falls back to local ComfyUI if none are configured.
 
-    All usage is logged to cloud_model_usage for contractor tracking.
+    All usage is logged to cloud_model_usage for engineer tracking.
 
     Returns dict with keys: success, path, provider, cost (on success)
     or error (on failure).
@@ -282,7 +282,7 @@ def _generate_cloud(prompt, params):
         try:
             result = _try_provider(provider, prompt, params)
             if result.get("success"):
-                # Log to cloud_model_usage (same table as LLM contractors)
+                # Log to cloud_model_usage (same table as LLM engineers)
                 _log_cloud_usage(
                     provider=provider_name,
                     model=result.get("model", "video-gen"),
@@ -383,7 +383,7 @@ def _download_video(provider, url):
 
 
 def _log_cloud_usage(provider, model, cost):
-    """Log video generation to cloud_model_usage table (same as LLM contractors)."""
+    """Log video generation to cloud_model_usage table (same as LLM engineers)."""
     try:
         from database import get_db_cursor
 

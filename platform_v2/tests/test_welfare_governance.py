@@ -225,7 +225,7 @@ def test_service_runs_pure_scorer_and_emits_creed_events():
     assert "agent_welfare_scores" in src, "must persist the score snapshot"
     assert "governance_limits(" in src, "must score against the budget (1.0) token line"
     assert "INTERVAL '24 hours'" in src, "token window must be 24h rolling (match K.I.N. tab)"
-    assert "'ai', 'contractor'" in src, "welfare scope must include contractors (Codex)"
+    assert "'ai', 'contractor'" in src, "welfare scope must include engineers (Codex)"
 
 
 def test_welfare_emit_module_emits_welfare_category_not_accountability():

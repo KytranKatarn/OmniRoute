@@ -1,14 +1,14 @@
-"""Contractor health probing (DS9 PR 3) — measure what each contractor actually does.
+"""Engineer health probing (DS9 PR 3) — measure what each engineer actually does.
 
 This OBSERVES. It never dispatches, never reorders routing, and never mutates
-`is_active` or `dispatchable`. It writes one `contractor_health` row per probe; ranking
+`is_active` or `dispatchable`. It writes one `engineer_health` row per probe; ranking
 reads the history afterwards. That separation is deliberate: a probe that could disable a
 provider would be able to take the fleet offline by misreading one timeout.
 
 Why this exists
 ---------------
-`contractor_providers.tier_position` is a hand-typed integer — a wish about preference that
-never changes when reality differs. Nothing recorded whether a contractor could serve at
+`engineer_providers.tier_position` is a hand-typed integer — a wish about preference that
+never changes when reality differs. Nothing recorded whether a engineer could serve at
 all, how fast it answered, or which model it *actually* returned. The concrete cost was
 already paid: `pollinations` sat in the table looking like a text provider when its
 `/v1/chat/completions` is refused as an image-generation model, and OmniRoute's two ids
@@ -84,7 +84,7 @@ LATENCY_CEILING_MS = 60_000
 #:      slow down. Continuing to probe every 15 minutes after a 429 is how a free tier gets
 #:      withdrawn — the DS9 spec says so explicitly. Backing off a rate-limited provider is not
 #:      thrift, it is obeying the response.
-#:   2. Signal. 15 of 30 contractors are `no_key` or `auth_error` — CONFIGURATION problems. No
+#:   2. Signal. 15 of 30 engineers are `no_key` or `auth_error` — CONFIGURATION problems. No
 #:      quantity of re-probing installs a credential or fixes a rejected one, so those probes
 #:      cannot change the answer. They run 1,440 times a day and inform nobody.
 #:
@@ -99,10 +99,10 @@ PROBE_BACKOFF_MINUTES = {
     "unreachable": 0,
     "error": 60,
     "rate_limited": 60,
-    # 2h, not 6h. There is no manual "probe now" endpoint on the Contractors tab, so this window
+    # 2h, not 6h. There is no manual "probe now" endpoint on the Engineers tab, so this window
     # IS the operator's refresh. An hour for someone who just pasted a working key is defensible;
     # six hours means they fix the config, reload the page, see `no_key`, and conclude the fix
-    # failed. The difference is ~300 probes/day against contractors that cannot succeed either
+    # failed. The difference is ~300 probes/day against engineers that cannot succeed either
     # way — not worth a support question.
     "auth_error": 120,
     "no_key": 120,
@@ -127,7 +127,7 @@ def due_for_probe(latest, now=None):
     `latest` is the provider's most recent observation, or None if it has never been probed.
 
     A skip writes NO row. That is deliberate: the observation's own `created_at` is what the
-    Contractors tab renders as "last checked", so a skipped provider shows an OLD timestamp
+    Engineers tab renders as "last checked", so a skipped provider shows an OLD timestamp
     rather than a fresh-looking stale reading. Backdating a row to look current would be exactly
     the absent-vs-zero mistake this service exists to avoid.
     """
@@ -153,7 +153,7 @@ def due_for_probe(latest, now=None):
 
 
 #: Ollama Cloud's NATIVE generate endpoint. Not an OpenAI-compatible /chat/completions — the
-#: two cloud-proxy contractors carry the sentinel base_url "ollama_cloud_proxy" precisely
+#: two cloud-proxy engineers carry the sentinel base_url "ollama_cloud_proxy" precisely
 #: because they are reached through here instead of their own HTTP endpoint.
 OLLAMA_CLOUD_GENERATE_URL = "https://ollama.com/api/generate"
 
@@ -177,7 +177,7 @@ MAX_REPORTED_MODELS = 12
 def _redact(text: str, secret: Optional[str]) -> str:
     """Blank out the credential if the upstream echoed it back into an error body.
 
-    Error bodies get stored in `contractor_health.detail` and rendered into the Contractors
+    Error bodies get stored in `engineer_health.detail` and rendered into the Engineers
     tab's tooltip. An upstream that reflects the Authorization header — some gateways do,
     and a malformed-token error frequently quotes it — would otherwise persist a live key
     into a history table and then into the DOM.
@@ -266,7 +266,7 @@ def classify_provider_class(
     A failure is never evidence of cost. This function used to end in `return "free_tier"`,
     which filed a provider returning 401/403/500/timeout under the bucket that IS
     auto-eligible. Against the real roster that stamped `free_tier` on 13 of the 18
-    unmeasured contractors, converting "we could not measure this" into "safe to dispatch".
+    unmeasured engineers, converting "we could not measure this" into "safe to dispatch".
     """
     if status == "unsupported":
         return "image_only"
@@ -285,7 +285,7 @@ def declared_free_allowance(rate_limits: Any) -> Optional[int]:
     """The provider's own declared free weekly allowance, if it has one.
 
     Read from config rather than inferred, because this is a statement of intent by whoever
-    configured the contractor — not something a probe can discover. Returns None when
+    configured the engineer — not something a probe can discover. Returns None when
     nothing is declared, which the classifier treats as "cost unknown".
 
     Tolerant of the three shapes this arrives in: a dict, a JSON string (the column is
@@ -326,7 +326,7 @@ def record_observation(
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
                 """
-                INSERT INTO contractor_health
+                INSERT INTO engineer_health
                     (provider_key, probe_kind, status, latency_ms, observed_model, detail)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
@@ -334,7 +334,7 @@ def record_observation(
             )
     except Exception as exc:  # noqa: BLE001 - bookkeeping must not break the scan
         logger.warning(
-            "contractor_health: could not record %s/%s (%s: %s)",
+            "engineer_health: could not record %s/%s (%s: %s)",
             provider_key,
             probe_kind,
             exc.__class__.__name__,
@@ -353,7 +353,7 @@ def latest_observation(provider_key: str, probe_kind: Optional[str] = None) -> O
                     """
                     SELECT provider_key, probe_kind, status, latency_ms,
                            observed_model, detail, created_at
-                      FROM contractor_health
+                      FROM engineer_health
                      WHERE provider_key = %s AND probe_kind = %s
                      ORDER BY created_at DESC
                      LIMIT 1
@@ -365,7 +365,7 @@ def latest_observation(provider_key: str, probe_kind: Optional[str] = None) -> O
                     """
                     SELECT provider_key, probe_kind, status, latency_ms,
                            observed_model, detail, created_at
-                      FROM contractor_health
+                      FROM engineer_health
                      WHERE provider_key = %s
                      ORDER BY created_at DESC
                      LIMIT 1
@@ -376,7 +376,7 @@ def latest_observation(provider_key: str, probe_kind: Optional[str] = None) -> O
         return dict(row) if row else None
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "contractor_health: read failed for %s (%s: %s)",
+            "engineer_health: read failed for %s (%s: %s)",
             provider_key,
             exc.__class__.__name__,
             exc,
@@ -385,7 +385,7 @@ def latest_observation(provider_key: str, probe_kind: Optional[str] = None) -> O
 
 
 def rank_providers() -> list[dict[str, Any]]:
-    """Order contractors by OBSERVED health then latency, replacing tier_position.
+    """Order engineers by OBSERVED health then latency, replacing tier_position.
 
     Ranked by what happened, not by what was typed:
 
@@ -397,7 +397,7 @@ def rank_providers() -> list[dict[str, Any]]:
     never given an invented latency, because a NULL is an honest "not sampled" and a made-up
     number would quietly become the ranking.
 
-    Requires PR 1 (`contractor_providers.provider_class`, #3640). That column is part of
+    Requires PR 1 (`engineer_providers.provider_class`, #3640). That column is part of
     what this ranking is FOR — ordering by class is how an image-only provider stops being
     offered as a text one — so rather than degrade to a NULL class when the column is
     absent, this returns empty and logs. A ranking that silently ignored `provider_class`
@@ -412,13 +412,13 @@ def rank_providers() -> list[dict[str, Any]]:
                 WITH latest AS (
                     SELECT DISTINCT ON (provider_key)
                            provider_key, probe_kind, status, latency_ms, observed_model
-                      FROM contractor_health
+                      FROM engineer_health
                      ORDER BY provider_key, created_at DESC
                 ),
                 best_latency AS (
                     SELECT DISTINCT ON (provider_key)
                            provider_key, latency_ms
-                      FROM contractor_health
+                      FROM engineer_health
                      WHERE latency_ms IS NOT NULL
                     -- Restricted to the sampling cadences, NOT health.
                     --
@@ -432,7 +432,7 @@ def rank_providers() -> list[dict[str, Any]]:
                     -- failures becomes its 'best' latency, which is the opposite of what a ranking is for.
                     --
                     -- Barely changes anything today, because latency_ms is only recorded on an `ok` row
-                    -- and only 2 of 30 contractors serve at all. It is the difference between a ranking
+                    -- and only 2 of 30 engineers serve at all. It is the difference between a ranking
                     -- and a coin toss as soon as more of them do.
                        AND probe_kind IN ('latency', 'full')
                        AND latency_ms <= %s
@@ -441,7 +441,7 @@ def rank_providers() -> list[dict[str, Any]]:
                 SELECT cp.provider_key, cp.display_name, cp.provider_class,
                        cp.is_active, cp.dispatchable,
                        l.status, l.latency_ms, l.observed_model, b.latency_ms AS best_ms
-                  FROM contractor_providers cp
+                  FROM engineer_providers cp
              LEFT JOIN latest        l ON l.provider_key = cp.provider_key
              LEFT JOIN best_latency b ON b.provider_key = cp.provider_key
                 """,
@@ -452,7 +452,7 @@ def rank_providers() -> list[dict[str, Any]]:
         # Loudly empty rather than a partial ranking. The most likely cause is PR 1 not
         # being applied yet, and returning rows with a NULL class would hide that.
         logger.warning(
-            "contractor_health: rank query failed, returning empty (%s: %s). "
+            "engineer_health: rank query failed, returning empty (%s: %s). "
             "If PR 1 (#3640) is not applied this is expected.",
             exc.__class__.__name__,
             exc,
@@ -485,12 +485,12 @@ def prune(days: int = 30) -> int:
     try:
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
-                "DELETE FROM contractor_health WHERE created_at < NOW() - make_interval(days => %s)",
+                "DELETE FROM engineer_health WHERE created_at < NOW() - make_interval(days => %s)",
                 (days,),
             )
             return cur.rowcount
     except Exception as exc:  # noqa: BLE001
-        logger.warning("contractor_health: prune failed (%s: %s)", exc.__class__.__name__, exc)
+        logger.warning("engineer_health: prune failed (%s: %s)", exc.__class__.__name__, exc)
         return 0
 
 
@@ -502,17 +502,17 @@ def scan(
 ) -> dict[str, Any]:
     """Probe each provider once and record the outcome.
 
-    `providers` defaults to every configured contractor. `timeout_s` is per provider and
+    `providers` defaults to every configured engineer. `timeout_s` is per provider and
     deliberately short — see DEFAULT_HEALTH_TIMEOUT_S for why.
 
     `force` ignores the backoff window. It exists for one caller: the operator pressing
-    "probe now" in the Contractors tab after fixing a credential. Without it the 120-minute
+    "probe now" in the Engineers tab after fixing a credential. Without it the 120-minute
     `no_key` window becomes the operator's only refresh, which turns "I pasted a working
     key" into a two-hour wait and a support question. It is deliberately NOT exposed on any
     scheduled path — the scheduler must keep its hands off.
 
     A provider that raises is recorded as `error` with the exception text and the scan
-    CONTINUES. One wedged contractor must never prevent the other twenty-nine from being
+    CONTINUES. One wedged engineer must never prevent the other twenty-nine from being
     measured, which is the whole reason this is a loop with per-item isolation.
     """
     if timeout_s is None:
@@ -527,12 +527,12 @@ def scan(
                     """
                     SELECT provider_key, base_url, default_model,
                            auth_env_var, is_cloud_proxy, capabilities
-                      FROM contractor_providers
+                      FROM engineer_providers
                     """
                 )
                 providers = [dict(r) for r in cur.fetchall()]
         except Exception as exc:  # noqa: BLE001
-            logger.warning("contractor_health: could not list providers (%s)", exc)
+            logger.warning("engineer_health: could not list providers (%s)", exc)
             return {"ok": False, "error": str(exc), "probed": 0, "results": []}
 
     # Latest observation per provider, for the backoff decision. One query, not N.
@@ -580,7 +580,7 @@ def scan(
         # Never a silent skip. The log line the job prints includes this, so a provider that
         # stops being probed is visible rather than merely absent from the data.
         logger.info(
-            "contractor_health: skipped %d of %d (backoff): %s",
+            "engineer_health: skipped %d of %d (backoff): %s",
             len(skipped),
             len(providers),
             ", ".join(f"{s['provider_key']} ({s['reason']})" for s in skipped[:6]),
@@ -613,7 +613,7 @@ def _latest_observations(provider_keys):
             cur.execute(
                 """
                 SELECT DISTINCT ON (provider_key) provider_key, status, created_at
-                  FROM contractor_health
+                  FROM engineer_health
                  WHERE provider_key = ANY(%s)
                  ORDER BY provider_key, created_at DESC
                 """,
@@ -622,7 +622,7 @@ def _latest_observations(provider_keys):
             return {r["provider_key"]: dict(r) for r in cur.fetchall()}
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "contractor_health: backoff lookup failed (%s: %s) — probing everything this cycle",
+            "engineer_health: backoff lookup failed (%s: %s) — probing everything this cycle",
             exc.__class__.__name__,
             exc,
         )
@@ -651,7 +651,7 @@ def _enumerate_models(provider: dict[str, Any], api_key: Optional[str]) -> dict[
     exists to prevent — ranking the dead rows first. The status still comes from a real
     completion; this only ever contributes `detail`.
 
-    Never mutates `contractor_providers.models`. Drift is reported, not applied: the configured
+    Never mutates `engineer_providers.models`. Drift is reported, not applied: the configured
     model list is operator territory, and a probe silently rewriting it would change what the
     dispatcher routes to.
     """
@@ -739,7 +739,7 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
         # "sentinel value that is not a URL at all ... external by definition".
         #
         # Appending /chat/completions to it produced "ollama_cloud_proxy/chat/completions",
-        # which is a DNS failure, so BOTH cloud contractors reported `unreachable` — a
+        # which is a DNS failure, so BOTH cloud engineers reported `unreachable` — a
         # manufactured diagnosis. They were not unreachable; the probe had asked the wrong
         # question of them. `call_external` has always branched on is_cloud_proxy first and
         # delegated to call_ollama_cloud, which posts to ollama.com's NATIVE generate API.
@@ -801,7 +801,7 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
     # Read the body whenever there is one to read. It used to be read ONLY for the 400
     # image-generation case, so every 401/403/429/5xx recorded detail=NULL and the column
     # the migration was written for — "the upstream's own words ... without anyone having to
-    # guess at it again" — was empty for 20 of the 30 contractors on the first real run.
+    # guess at it again" — was empty for 20 of the 30 engineers on the first real run.
     # gemini's 403 says "Requests to this API ... has been disabled"; that is the entire
     # diagnosis, and it was being thrown away.
     detail_error = None
@@ -821,7 +821,7 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
 
     if not resp.ok:
         # Truncated, and with the credential redacted: this body is rendered into the
-        # Contractors tab's tooltip, and an upstream that echoes the Authorization header
+        # Engineers tab's tooltip, and an upstream that echoes the Authorization header
         # would otherwise persist a live key into a history table.
         detail_error = _redact(body, api_key)[:300] or None
         detail = detail_error
@@ -846,7 +846,7 @@ def _probe_one(provider: dict[str, Any], probe_kind: str, timeout_s: int) -> dic
             # The REAL value, not a hardcoded True. With `True` here, a provider with no
             # configured credential came back `auth_error` — as if a key had been rejected
             # when none was ever sent — and `no_key` was dead code that no probe could
-            # reach. Three contractors (deepseek, openrouter, replicate) have no
+            # reach. Three engineers (deepseek, openrouter, replicate) have no
             # auth_env_var at all, so all three were mislabelled that way.
             has_key=bool(api_key),
             reached=True,

@@ -1742,7 +1742,7 @@ def api_public_stats():
                 "total": total_agents,
                 "ai": agent_counts.get("ai", 0),
                 "internal": agent_counts.get("internal", 0),
-                "contractor": agent_counts.get("contractor", 0),
+                "engineer": agent_counts.get("contractor", 0),
                 "departments": dept_count,
             },
             "platform": {
@@ -4669,7 +4669,7 @@ def api_internal_dhq_chat():
             #
             # ⚠️ Additive only: existing keys are untouched, so a caller that ignores
             # these is byte-identical to before. Defaulted via getattr so an older
-            # DispatchResult (or a contractor path that never set them) yields 0 rather
+            # DispatchResult (or an engineer path that never set them) yields 0 rather
             # than a 500 — a missing count must degrade to "unknown", never to an error
             # on the inference path.
             return jsonify(
@@ -5044,7 +5044,7 @@ def api_internal_approvals_approve(approval_id):
     """Cockpit approve. Bearer INTERNAL_API_KEY; owner user_id from the body
     (default 2 = Kytran). Fail-closed: a non-ok executor result -> 409 and the
     queue row stays pending. Slice 1 targets autonomy:* (the red Code-Health
-    cards); contractor/bridge sources are 501 until a later slice wires them."""
+    cards); engineer/bridge sources are 501 until a later slice wires them."""
     from tools.department_hq.approvals_routes import _approve_autonomy, parse_approval_id
 
     user_id = (request.get_json(silent=True) or {}).get("user_id") or 2
@@ -6152,7 +6152,7 @@ def api_internal_cloud_code_run():
         return jsonify({"success": False, "error": "capability 'code' is not on the cloud allowlist"}), 409
     cfg = lane.active_provider(provider_key)
     if not cfg:
-        return jsonify({"success": False, "error": f"provider {provider_key!r} is not an active contractor"}), 404
+        return jsonify({"success": False, "error": f"provider {provider_key!r} is not an active engineer"}), 404
     model = (data.get("model") or cfg.get("default_model") or "").strip()
     if not model:
         return jsonify({"success": False, "error": "no model: pass one or set the provider's default_model"}), 400
@@ -6245,7 +6245,7 @@ def api_internal_cloud_code_run():
                 lane.MODULE_ID,
                 f"cloud code via {provider_key}:{model}",
                 "pending",
-                "CONTRACTOR→cloud",
+                "ENGINEER→cloud",
                 Json(meta),
             ),
         )
@@ -6298,7 +6298,7 @@ def _apply_approval_statuses(ids):
     tab) and every Telegram Deny (``telegram_gateway.py`` 1034/1149/1232/2127) all write
     ``rejected``. ``telegram_gateway.py:1150`` even sets ``rejected_reason='Denied via Telegram'``
     — the WORD "Denied" is in the row while the STATUS is ``rejected``. ``denied`` belongs to a
-    DIFFERENT table, ``contractor_approval_requests`` (``approvals_routes.py:307``).
+    DIFFERENT table, ``engineer_approval_requests`` (``approvals_routes.py:307``).
     Full set seen here: pending | approved | rejected | executed | failed | expired | cancelled.
     Getting this wrong is not cosmetic — a consumer that omits ``rejected`` treats the COMMON
     settle path as "still pending". Cross-check against
@@ -6502,7 +6502,7 @@ def api_internal_cloud_code_providers():
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT provider_key, display_name, default_model, models, is_active FROM contractor_providers "
+            "SELECT provider_key, display_name, default_model, models, is_active FROM engineer_providers "
             "WHERE is_active = true AND COALESCE(is_cloud_proxy, false) = false AND capabilities ? 'text_chat' "
             "ORDER BY tier_position, provider_key"
         )

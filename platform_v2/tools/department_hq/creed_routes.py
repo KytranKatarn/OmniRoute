@@ -3888,7 +3888,7 @@ _AIDA_SECTIONS = [
         "description": ("Establish measures to ensure appropriate human oversight of " "high-impact AI systems."),
         "status": "compliant",
         "evidence": [
-            "Tier-2 human approval via Telegram for contractor dispatch and mass activation",
+            "Tier-2 human approval via Telegram for engineer dispatch and mass activation",
             "Autonomy approval queue with approve/deny/escalate controls",
             "All agent actions logged to task_execution_log with full audit trail",
             "C.R.E.E.D. governance dashboard provides real-time oversight visibility",

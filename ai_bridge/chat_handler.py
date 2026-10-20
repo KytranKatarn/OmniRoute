@@ -280,12 +280,12 @@ class ProposalChatHandler:
                 """
                 SELECT
                     ip.id, ip.title, ip.escalation_status,
-                    ip.contractor_agent_id, ip.test_failure_context,
+                    ip.engineer_agent_id, ip.test_failure_context,
                     a.name as contractor_name,
                     a.api_provider, a.model, a.personality_prompt,
                     a.communication_style
                 FROM improvement_proposals ip
-                LEFT JOIN agents a ON ip.contractor_agent_id = a.id
+                LEFT JOIN agents a ON ip.engineer_agent_id = a.id
                 WHERE ip.id = %s
             """,
                 (proposal_id,),
@@ -301,7 +301,7 @@ class ProposalChatHandler:
                     "error": "Proposal not in contractor consultation",
                 }
 
-            if not proposal["contractor_agent_id"]:
+            if not proposal["engineer_agent_id"]:
                 return {"success": False, "error": "No contractor assigned"}
 
         except Exception as e:
@@ -352,7 +352,7 @@ Respond helpfully and in character. If they ask about code, provide specific sol
 
             # Get contractor response
             contractor_agent = {
-                "id": proposal["contractor_agent_id"],
+                "id": proposal["engineer_agent_id"],
                 "name": proposal["contractor_name"],
                 "api_provider": proposal["api_provider"],
                 "model": proposal["model"],
@@ -376,7 +376,7 @@ Respond helpfully and in character. If they ask about code, provide specific sol
                 proposal_id=proposal_id,
                 content=result["response"],
                 sender_type="contractor",
-                sender_id=proposal["contractor_agent_id"],
+                sender_id=proposal["engineer_agent_id"],
                 sender_name=proposal["contractor_name"],
                 metadata={
                     "tokens_used": result.get("tokens_used", 0),

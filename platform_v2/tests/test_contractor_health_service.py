@@ -1,4 +1,4 @@
-"""Contractor health probing (DS9 PR 3) — classification, ranking, and scan isolation.
+"""Engineer health probing (DS9 PR 3) — classification, ranking, and scan isolation.
 
 The probe sends real requests, so what is tested here is the part that must be right even
 when the network is not: how an outcome becomes a status, how status becomes a provider
@@ -31,7 +31,7 @@ from unittest import mock
 
 sys.path.insert(0, "/app")
 
-from services import contractor_health_service as chs  # noqa: E402
+from services import engineer_health_service as chs  # noqa: E402
 
 
 class RecordingCursor:
@@ -167,7 +167,7 @@ class TestClassifyProviderClass(unittest.TestCase):
         `classify_provider_class` used to end in `return "free_tier"`, so a provider
         answering 401/403/500/timeout was filed under `free_tier` — the bucket that IS
         auto-eligible. Run against the real roster that stamps `free_tier` on 13 of the 18
-        unmeasured contractors, turning "we could not measure this" into "safe to dispatch",
+        unmeasured engineers, turning "we could not measure this" into "safe to dispatch",
         after which the routing switch would happily enable providers that do not serve.
 
         A probe that was not served knows what the provider costs not at all.
@@ -401,7 +401,7 @@ class TestLatencyCadenceFilter(unittest.TestCase):
         )
 
     def test_the_health_read_in_the_listing_filters_too(self):
-        """The Contractors tab has its own copy of the query, with the same comment.
+        """The Engineers tab has its own copy of the query, with the same comment.
 
         Fixing only the ranking would leave the badge showing a health-probe latency while the
         ranking used a real one — two numbers for one provider, on the same screen.
@@ -664,9 +664,9 @@ class TestCadencesAreActuallyDifferent(unittest.TestCase):
     def test_enumeration_never_mutates_the_configured_model_list(self):
         """Drift is reported, not applied. The probe must not rewrite what dispatch routes to."""
         self.assertNotIn(
-            "UPDATE contractor_providers",
+            "UPDATE engineer_providers",
             self.src[self.src.index("def _enumerate_models") : self.src.index("def _full_detail")],
-            "enumeration must never write to contractor_providers",
+            "enumeration must never write to engineer_providers",
         )
 
     def test_retention_no_longer_depends_on_a_cadence_that_may_never_arrive(self):
@@ -676,7 +676,7 @@ class TestCadencesAreActuallyDifferent(unittest.TestCase):
             jobs = pathlib.Path("/mnt/archie_brain/platform_v2/tools/department_hq/jobs.py")
         self.assertTrue(jobs.exists(), "jobs.py not reachable")
         body = jobs.read_text(encoding="utf-8")
-        start = body.index("def contractor_health_job")
+        start = body.index("def engineer_health_job")
         block = body[start : body.index("def ", start + 10)]
         self.assertIn("prune(days=30)", block)
         self.assertNotIn(
@@ -693,7 +693,7 @@ class TestProbeBackoff(unittest.TestCase):
 
       * `rate_limited` means the upstream asked us to slow down. Continuing every 15 minutes
         after a 429 is how a free tier gets withdrawn. Backing off is obeying the response.
-      * 15 of 30 contractors are `no_key` or `auth_error`. No quantity of re-probing installs a
+      * 15 of 30 engineers are `no_key` or `auth_error`. No quantity of re-probing installs a
         credential. Those probes run 1,440 times a day and cannot change the answer.
     """
 
@@ -920,7 +920,7 @@ class TestProbeOne(unittest.TestCase):
     def test_a_cloud_proxy_is_probed_at_ollama_not_at_its_sentinel(self):
         """The bug: `ollama_cloud_proxy/chat/completions` is a DNS failure, not a verdict.
 
-        Both cloud contractors reported `unreachable` — a manufactured diagnosis. They were
+        Both cloud engineers reported `unreachable` — a manufactured diagnosis. They were
         reachable; the probe had asked the wrong question of them. `call_external` has always
         branched on is_cloud_proxy first and delegated to call_ollama_cloud.
         """
@@ -1040,7 +1040,7 @@ class TestProbeOne(unittest.TestCase):
         self.assertEqual(out["status"], "no_key")
 
     def test_a_rejection_records_the_upstreams_own_explanation(self):
-        """The column exists for this and was empty for 20 of 30 contractors.
+        """The column exists for this and was empty for 20 of 30 engineers.
 
         Measured 2026-10-05: gemini returns 403 with a body saying the API method "has been
         disabled" for this project. That sentence IS the diagnosis. `detail` was only ever
@@ -1062,7 +1062,7 @@ class TestProbeOne(unittest.TestCase):
             )
 
     def test_detail_redacts_the_credential_if_the_upstream_echoes_it(self):
-        """`detail` is rendered into the Contractors tab tooltip.
+        """`detail` is rendered into the Engineers tab tooltip.
 
         An upstream that reflects the Authorization header would otherwise persist a live key
         into a history table and then into the DOM.

@@ -40,7 +40,7 @@ def test_carve_out_is_case_insensitive_and_null_safe():
 # ---------------- id parsing (mirrors the single-approve route) ----------------
 def test_valid_ids_parse():
     assert B.parse_approval_id("autonomy:123") == ("autonomy", 123)
-    assert B.parse_approval_id("contractor:7") == ("contractor", 7)
+    assert B.parse_approval_id("engineer:7") == ("engineer", 7)
     assert B.parse_approval_id("bridge:99") == ("bridge", 99)
 
 
@@ -110,9 +110,9 @@ def test_approve_and_deny_helpers_have_DIFFERENT_shapes():
 
     from tools.department_hq import approvals_routes as R
 
-    for name in ("_approve_autonomy", "_approve_contractor", "_approve_bridge"):
+    for name in ("_approve_autonomy", "_approve_engineer", "_approve_bridge"):
         assert len(inspect.signature(getattr(R, name)).parameters) == 2, name
-    for name in ("_deny_autonomy", "_deny_contractor", "_deny_bridge"):
+    for name in ("_deny_autonomy", "_deny_engineer", "_deny_bridge"):
         assert len(inspect.signature(getattr(R, name)).parameters) == 3, name
 
 

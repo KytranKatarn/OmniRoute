@@ -916,7 +916,7 @@ You're having a natural conversation. Be personable and helpful."""
                 # Create approval request
                 cur.execute(
                     """
-                    INSERT INTO contractor_approval_requests
+                    INSERT INTO engineer_approval_requests
                     (agent_id, requested_by, task_type, task_description, estimated_cost, status)
                     VALUES (%s, %s, %s, %s, %s, 'pending')
                     RETURNING id

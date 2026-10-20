@@ -1916,7 +1916,7 @@
      breaks the moment a header is identified by class instead of order;
    - the square sizing re-creates the circular map box — the exact egg this
      change removed — and `!important` means it would win.
-   It also hid #fleetContractorSection outright, justified by "count shown in
+   It also hid #fleetEngineerSection outright, justified by "count shown in
    fleetStatProviders" — the count that read "26 providers active" beside six
    pins. Hiding the rows made the wrong number the only thing left to read.
    The breakpoints now live with the grid definition further down. */
@@ -2176,29 +2176,29 @@ div.ag-ok { font-weight: 600; }
 #fleetNodeIndex > .fleet-index-head,
 #fleetNodeIndex > #fleetMeshSection,
 #fleetNodeIndex > #fleetHostedSection,
-#fleetNodeIndex > #fleetContractorSection { grid-column: 1 / -1; }
+#fleetNodeIndex > #fleetEngineerSection { grid-column: 1 / -1; }
 
 #fleetMeshSection,
 #fleetHostedSection,
-#fleetContractorSection {
+#fleetEngineerSection {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px 14px;
 }
 #fleetMeshSection > .fleet-index-head,
 #fleetHostedSection > .fleet-index-head,
-#fleetContractorSection > .fleet-index-head { grid-column: 1 / -1; }
+#fleetEngineerSection > .fleet-index-head { grid-column: 1 / -1; }
 
 @media (max-width: 900px) {
     #fleetNodeIndex,
     #fleetMeshSection,
     #fleetHostedSection,
-    #fleetContractorSection { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #fleetEngineerSection { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
     #fleetNodeIndex,
     #fleetMeshSection,
     #fleetHostedSection,
-    #fleetContractorSection { grid-template-columns: 1fr; }
+    #fleetEngineerSection { grid-template-columns: 1fr; }
     .fleet-map-frame { height: clamp(260px, 40vh, 360px); }
 }

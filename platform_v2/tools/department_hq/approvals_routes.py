@@ -22,10 +22,10 @@ _code_fix_reason = _helpers._code_fix_reason
 _build_escalation_chain = _helpers._build_escalation_chain
 _already_approved = _helpers._already_approved
 _approve_autonomy = _helpers._approve_autonomy
-_approve_contractor = _helpers._approve_contractor
+_approve_engineer = _helpers._approve_engineer
 _approve_bridge = _helpers._approve_bridge
 _deny_autonomy = _helpers._deny_autonomy
-_deny_contractor = _helpers._deny_contractor
+_deny_engineer = _helpers._deny_engineer
 _deny_bridge = _helpers._deny_bridge
 parse_approval_id = _helpers.parse_approval_id
 
@@ -173,12 +173,12 @@ def register_approvals_routes(bp, admin_required_decorator):
     def approvals_approve(approval_id):
         """Approve a pending approval via web UI (mirrors Telegram approve).
 
-        Accepts source-prefixed IDs: `autonomy:123`, `contractor:456`, `bridge:789`.
+        Accepts source-prefixed IDs: `autonomy:123`, `engineer:456`, `bridge:789`.
         Dispatches to the appropriate per-source helper.
         """
         try:
             prefix, _, raw_id = approval_id.partition(":")
-            if not raw_id or prefix not in ("autonomy", "contractor", "bridge"):
+            if not raw_id or prefix not in ("autonomy", "engineer", "bridge"):
                 return jsonify({"success": False, "error": "Invalid approval ID format"}), 400
             try:
                 source_id = int(raw_id)
@@ -187,8 +187,8 @@ def register_approvals_routes(bp, admin_required_decorator):
 
             if prefix == "autonomy":
                 ok, action_type = _approve_autonomy(source_id, current_user.id)
-            elif prefix == "contractor":
-                ok, action_type = _approve_contractor(source_id, current_user.id)
+            elif prefix == "engineer":
+                ok, action_type = _approve_engineer(source_id, current_user.id)
             else:  # bridge
                 ok, action_type = _approve_bridge(source_id, current_user.id)
 
@@ -244,8 +244,8 @@ def register_approvals_routes(bp, admin_required_decorator):
                     if action == "approve":
                         if prefix == "autonomy":
                             ok, action_type = _approve_autonomy(source_id, current_user.id)
-                        elif prefix == "contractor":
-                            ok, action_type = _approve_contractor(source_id, current_user.id)
+                        elif prefix == "engineer":
+                            ok, action_type = _approve_engineer(source_id, current_user.id)
                         else:
                             ok, action_type = _approve_bridge(source_id, current_user.id)
                     else:
@@ -255,8 +255,8 @@ def register_approvals_routes(bp, admin_required_decorator):
                         action_type = None
                         if prefix == "autonomy":
                             ok = _deny_autonomy(source_id, current_user.id, reason)
-                        elif prefix == "contractor":
-                            ok = _deny_contractor(source_id, current_user.id, reason)
+                        elif prefix == "engineer":
+                            ok = _deny_engineer(source_id, current_user.id, reason)
                         else:
                             ok = _deny_bridge(source_id, current_user.id, reason)
                     if ok:
@@ -295,12 +295,12 @@ def register_approvals_routes(bp, admin_required_decorator):
     def approvals_deny(approval_id):
         """Deny a pending approval via web UI (mirrors Telegram deny).
 
-        Accepts source-prefixed IDs: `autonomy:123`, `contractor:456`, `bridge:789`.
+        Accepts source-prefixed IDs: `autonomy:123`, `engineer:456`, `bridge:789`.
         Dispatches to the appropriate per-source helper.
         """
         try:
             prefix, _, raw_id = approval_id.partition(":")
-            if not raw_id or prefix not in ("autonomy", "contractor", "bridge"):
+            if not raw_id or prefix not in ("autonomy", "engineer", "bridge"):
                 return jsonify({"success": False, "error": "Invalid approval ID format"}), 400
             try:
                 source_id = int(raw_id)
@@ -312,8 +312,8 @@ def register_approvals_routes(bp, admin_required_decorator):
 
             if prefix == "autonomy":
                 ok = _deny_autonomy(source_id, current_user.id, reason)
-            elif prefix == "contractor":
-                ok = _deny_contractor(source_id, current_user.id, reason)
+            elif prefix == "engineer":
+                ok = _deny_engineer(source_id, current_user.id, reason)
             else:
                 ok = _deny_bridge(source_id, current_user.id, reason)
 
@@ -491,7 +491,7 @@ def register_approvals_routes(bp, admin_required_decorator):
                               COALESCE(approved_at, denied_at, created_at) AS decided_at,
                               COALESCE(approved_by, denied_by) AS decided_by,
                               denial_reason AS reason
-                       FROM contractor_approval_requests
+                       FROM engineer_approval_requests
                        WHERE status != 'pending'
                        ORDER BY COALESCE(approved_at, denied_at, created_at) DESC NULLS LAST
                        LIMIT %s""",
@@ -501,8 +501,8 @@ def register_approvals_routes(bp, admin_required_decorator):
                     r = dict(r)
                     history.append(
                         {
-                            "id": f"contractor:{r['id']}",
-                            "source": "contractor_approval_requests",
+                            "id": f"engineer:{r['id']}",
+                            "source": "engineer_approval_requests",
                             "display_name": r["display_name"],
                             "status": r["status"],
                             "decided_at": r["decided_at"].isoformat() if r.get("decided_at") else None,

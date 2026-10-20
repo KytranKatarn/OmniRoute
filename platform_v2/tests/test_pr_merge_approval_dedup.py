@@ -6,7 +6,7 @@ While #2703's approval sat pending 19:32-22:41, the escalations for
 #2697/#2705/#2706/#2700/#2707 all evaporated — and were still marked as asked.
 
 Third occurrence of this trap; the docstring in _check_existing_approval already
-records it for contractor_dispatch and linkedin_post (#3944).
+records it for engineer_dispatch and linkedin_post (#3944).
 """
 
 import sys
@@ -56,7 +56,7 @@ def test_pr_number_is_compared_as_text():
 
 def test_missing_pr_number_falls_back_to_coarse_dedup_not_bypass():
     """A payload without pr_number must NOT skip dedup entirely — same fallback
-    rule contractor_dispatch uses. It falls through to the coarse query."""
+    rule engineer_dispatch uses. It falls through to the coarse query."""
     cur = _Cur(row=(1,))
     assert _check_existing_approval("pr_merge", {}, cur) is True
     assert "action_data->>'pr_number'" not in (cur.sql or "")

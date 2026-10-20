@@ -212,7 +212,7 @@ CAPABILITY_ROUTING = {
 }
 
 # Capability taxonomy — maps detected intent to normalized capability tags
-# Must match department_capability_profiles.required_capabilities and contractor_providers.capabilities
+# Must match department_capability_profiles.required_capabilities and engineer_providers.capabilities
 CAPABILITY_TAXONOMY = {
     "code_generation": ["code", "generate code", "implement", "build function", "create class", "write code"],
     "code_review": ["review code", "audit code", "check code", "code quality", "pr review"],
@@ -821,7 +821,7 @@ Original task:
         """Detect the primary capability needed from the prompt text.
 
         Returns a normalized capability tag matching department_capability_profiles
-        and contractor_providers.capabilities taxonomy.
+        and engineer_providers.capabilities taxonomy.
         """
         if not prompt:
             return "conversation"

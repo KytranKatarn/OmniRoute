@@ -344,7 +344,7 @@ def bulk_all_reason(action_type):
     return BULK_ALL_REASONS.get(key, _DEFAULT_BULK_ALL_REASON)
 
 
-_VALID_PREFIXES = ("autonomy", "contractor", "bridge")
+_VALID_PREFIXES = ("autonomy", "engineer", "bridge")
 
 
 def can_bulk_all(action_type):

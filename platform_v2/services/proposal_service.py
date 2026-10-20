@@ -159,7 +159,7 @@ def list_proposals_page(status=None, q=None, limit=50, offset=0):
                    a.model AS agent_model,
                    (ip.metadata->>'assigned_agent_name') AS md_agent_name,
                    (ip.metadata->>'agent_model')          AS md_agent_model,
-                   (ip.metadata->>'contractor_proposal')  AS md_contractor_proposal,
+                   (ip.metadata->>'engineer_proposal')  AS md_engineer_proposal,
                    (ip.metadata->>'code_applied')::text   AS md_code_applied,
                    (ip.metadata->>'pr_url')               AS md_pr_url,
                    (ip.code_diff IS NOT NULL AND length(ip.code_diff) > 0) AS has_diff
@@ -185,20 +185,20 @@ def list_proposals_page(status=None, q=None, limit=50, offset=0):
                 md["assigned_agent_name"] = d["md_agent_name"]
             if d.get("md_agent_model"):
                 md["agent_model"] = d["md_agent_model"]
-            # contractor_proposal presence — card only truthiness-checks it
-            if d.get("md_contractor_proposal"):
-                md["contractor_proposal"] = True
+            # engineer_proposal presence — card only truthiness-checks it
+            if d.get("md_engineer_proposal"):
+                md["engineer_proposal"] = True
             d["metadata"] = md
             # Top-level keys the card renderer reads directly
             d["code_applied"] = d.get("md_code_applied") == "true"
             d["pr_url"] = d.get("md_pr_url")
-            # hasReview = p.code_diff || metadata.contractor_proposal — both truthy/falsy
+            # hasReview = p.code_diff || metadata.engineer_proposal — both truthy/falsy
             d["code_diff"] = "1" if d.get("has_diff") else None
             # Strip internal md_* keys
             for _k in (
                 "md_agent_name",
                 "md_agent_model",
-                "md_contractor_proposal",
+                "md_engineer_proposal",
                 "md_code_applied",
                 "md_pr_url",
                 "has_diff",

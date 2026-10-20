@@ -1,6 +1,6 @@
 """
 External AI Provider Integration — Dynamic DB-Driven
-Supports any OpenAI-compatible provider via contractor_providers table.
+Supports any OpenAI-compatible provider via engineer_providers table.
 Legacy constants kept as fallback if DB is unreachable.
 
 All functions return: {success, response, model, provider, prompt_tokens, completion_tokens, cost_usd}
@@ -17,7 +17,7 @@ from typing import Optional, Dict, List
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# LEGACY FALLBACK CONSTANTS (used only if contractor_providers table unavailable)
+# LEGACY FALLBACK CONSTANTS (used only if engineer_providers table unavailable)
 # ============================================================================
 
 COST_PER_1K_TOKENS = {
@@ -34,7 +34,7 @@ PROVIDER_CONFIGS = {
 }
 
 # ============================================================================
-# DYNAMIC PROVIDER CACHE (from contractor_providers table)
+# DYNAMIC PROVIDER CACHE (from engineer_providers table)
 # ============================================================================
 
 _provider_cache: Dict[str, Dict] = {}
@@ -46,7 +46,7 @@ _model_provider_map: Dict[str, str] = {}
 
 
 def _load_all_providers() -> Dict[str, Dict]:
-    """Load all providers from contractor_providers table, cached for 60s."""
+    """Load all providers from engineer_providers table, cached for 60s."""
     global _provider_cache, _provider_cache_time, _model_provider_map
 
     now = time.time()
@@ -64,7 +64,7 @@ def _load_all_providers() -> Dict[str, Dict]:
                    auth_method, auth_env_var, is_cloud_proxy, tier_position,
                    models, rate_limits, is_active, capabilities,
                    dispatchable, provider_class
-            FROM contractor_providers
+            FROM engineer_providers
             ORDER BY tier_position
             """
         )
@@ -231,7 +231,7 @@ def get_all_capabilities() -> Dict[str, List[Dict]]:
 
 def _get_api_key(provider: str) -> Optional[str]:
     """Get API key for provider — dynamic env_var from DB, then external_api_keys fallback."""
-    # 1. Try dynamic env var from contractor_providers
+    # 1. Try dynamic env var from engineer_providers
     config = _get_provider_config(provider)
     if config and config.get("auth_env_var"):
         key = os.getenv(config["auth_env_var"], "")
@@ -778,7 +778,7 @@ def _call_openai_compatible(
             "success": False,
             "error": (
                 f"Provider {provider} is configured but not enabled for dispatch "
-                "(contractor_providers.dispatchable is false)"
+                "(engineer_providers.dispatchable is false)"
             ),
             "provider": provider,
             "dispatchable": False,
@@ -927,7 +927,7 @@ def call_external(
 # ============================================================================
 # WEEKLY FREE-TIER BUDGET GUARD + PROVIDER ROTATION (#3658)
 # Free cloud TEXT providers have a per-week request allowance on their free tier
-# (contractor_providers.rate_limits.free.weekly_limit). These helpers count the
+# (engineer_providers.rate_limits.free.weekly_limit). These helpers count the
 # last-7-day usage from cloud_model_usage, refuse a provider that has run out
 # (with a safety margin), and pick the free provider with the most headroom so a
 # caller can rotate across providers instead of blowing one free tier into
@@ -1128,7 +1128,7 @@ def generate_media(provider_key: str, request: dict) -> dict:
         if not _cfg.get("is_active", False):
             return {
                 "success": False,
-                "error": (f"Provider {provider_key} is not configured " "(contractor_providers.is_active is false)"),
+                "error": (f"Provider {provider_key} is not configured " "(engineer_providers.is_active is false)"),
                 "provider": provider_key,
                 "is_active": False,
             }
@@ -1137,7 +1137,7 @@ def generate_media(provider_key: str, request: dict) -> dict:
                 "success": False,
                 "error": (
                     f"Provider {provider_key} is configured but not enabled for dispatch "
-                    "(contractor_providers.dispatchable is false)"
+                    "(engineer_providers.dispatchable is false)"
                 ),
                 "provider": provider_key,
                 "dispatchable": False,

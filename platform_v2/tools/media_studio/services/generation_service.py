@@ -125,9 +125,9 @@ def submit_generation(
         )
         queue_id = cur.fetchone()["id"]
 
-    # Image gen — local ComfyUI and cloud contractors both go through the
+    # Image gen — local ComfyUI and cloud engineers both go through the
     # media_generation_worker loop. The worker calls generate_via_comfyui()
-    # which branches on params.provider (contractor) vs default (local ComfyUI).
+    # which branches on params.provider (engineer) vs default (local ComfyUI).
     # This avoids the dispatcher sync path which has an unrelated unbound-local
     # bug for image gen and would block the web thread anyway.
     if media_type == "image":
@@ -507,7 +507,7 @@ def on_generation_complete(
 
     # Callers hand us the finished file in three different shapes: an absolute
     # filesystem path (local ComfyUI), a path relative to MEDIA_ROOT
-    # (contractor providers), or a '/static/...' URL (the fleet path at
+    # (engineer providers), or a '/static/...' URL (the fleet path at
     # _generate_via_fleet). Normalise all three to a real filesystem path
     # BEFORE touching the disk.
     #
@@ -978,7 +978,7 @@ def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
     return counts
 
 
-def _log_image_contractor_usage(
+def _log_image_engineer_usage(
     provider: str,
     model: Optional[str],
     cost_usd: float,
@@ -987,7 +987,7 @@ def _log_image_contractor_usage(
     queue_row: Dict,
     error_message: Optional[str] = None,
 ) -> None:
-    """Append a row to cloud_model_usage for contractor image generation.
+    """Append a row to cloud_model_usage for engineer image generation.
 
     Mirrors the dispatcher's _log_cloud_image_usage shape (task_type='image_generation')
     but attributes user_id/agent_id from the queue row's owner. Free providers
@@ -1022,11 +1022,11 @@ def _log_image_contractor_usage(
                 ),
             )
     except Exception as e:
-        logger.debug("[Contractor] cost ledger insert failed: %s", e)
+        logger.debug("[Engineer] cost ledger insert failed: %s", e)
 
 
-def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provider_key: str) -> Optional[int]:
-    """Generate an image via an external cloud contractor (OpenAI, Pollinations, etc.).
+def _generate_via_engineer(queue_id: int, queue_row: Dict, params: Dict, provider_key: str) -> Optional[int]:
+    """Generate an image via an external cloud engineer (OpenAI, Pollinations, etc.).
 
     Mirrors the success shape of the ComfyUI path so the rest of the pipeline
     (gallery, badges, queue status) doesn't need to differ. On success, calls
@@ -1036,7 +1036,7 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
     """
     from ai_bridge.external_providers import generate_media
 
-    logger.info("[Contractor] Routing queue #%s to provider=%s", queue_id, provider_key)
+    logger.info("[Engineer] Routing queue #%s to provider=%s", queue_id, provider_key)
 
     # #6657 choke point 4 (#6653 sovereignty): the Media Studio cloud image path
     # is a FOURTH cloud egress outside the three dispatcher choke points — it
@@ -1055,16 +1055,16 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
         _disp = get_dispatcher()
         _reason = None
         if _disp._get_escalation_mode() == "local_only":
-            _reason = "cloud AI is off (escalation_mode local_only) — enable it in the Contractors tab"
+            _reason = "cloud AI is off (escalation_mode local_only) — enable it in the Engineers tab"
         elif not _disp._cloud_capability_allowed(_cap):
             _reason = f"capability '{_cap}' is not on the cloud allowlist"
         elif not _disp._cloud_budget_ok(provider_key, _cap):
             _reason = f"cloud provider {provider_key} is over the weekly free budget"
     except Exception as _gate_err:
-        logger.warning("[Contractor] sovereignty gate error (fail-closed): %s", _gate_err)
+        logger.warning("[Engineer] sovereignty gate error (fail-closed): %s", _gate_err)
         _reason = "cloud sovereignty gate error — staying local"
     if _reason:
-        logger.info("[Contractor] queue #%s refused: %s", queue_id, _reason)
+        logger.info("[Engineer] queue #%s refused: %s", queue_id, _reason)
         on_generation_failed(queue_id, f"cloud refused: {_reason}")
         return None
 
@@ -1091,9 +1091,9 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
     duration_ms = int((time.time() - start) * 1000)
 
     if not result.get("success"):
-        err = result.get("error", "Unknown contractor error")
-        logger.warning("[Contractor] queue #%s failed: %s", queue_id, err)
-        _log_image_contractor_usage(
+        err = result.get("error", "Unknown engineer error")
+        logger.warning("[Engineer] queue #%s failed: %s", queue_id, err)
+        _log_image_engineer_usage(
             provider=provider_key,
             model=params.get("model"),
             cost_usd=0.0,
@@ -1116,9 +1116,9 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
         file_path=file_rel_path,
         seed=params.get("seed"),
         duration_ms=meta.get("duration_ms", duration_ms),
-        provider=f"contractor:{provider_key}",
+        provider=f"engineer:{provider_key}",
     )
-    _log_image_contractor_usage(
+    _log_image_engineer_usage(
         provider=provider_key,
         model=meta.get("model") or params.get("model"),
         cost_usd=float(meta.get("cost_usd", 0.0)),
@@ -1127,7 +1127,7 @@ def _generate_via_contractor(queue_id: int, queue_row: Dict, params: Dict, provi
         queue_row=queue_row,
     )
     logger.info(
-        "[Contractor] queue #%s completed: media_id=%s cost=$%.4f",
+        "[Engineer] queue #%s completed: media_id=%s cost=$%.4f",
         queue_id,
         media_id,
         meta.get("cost_usd", 0.0),
@@ -1188,7 +1188,7 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
     Builds workflow, submits to ComfyUI API, polls for completion,
     retrieves output file, calls on_generation_complete.
 
-    If params.provider is set to a non-comfyui contractor (e.g. 'pollinations',
+    If params.provider is set to a non-comfyui engineer (e.g. 'pollinations',
     'openai', 'stability_ai'), routes through external_providers.generate_media
     instead of ComfyUI.
     """
@@ -1215,20 +1215,20 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         on_generation_failed(queue_id, str(exc))
         return None
 
-    # Contractor branch — if a cloud provider was selected, route through external_providers
+    # Engineer branch — if a cloud provider was selected, route through external_providers
     # instead of ComfyUI. Local checkpoint flow continues unchanged below when no provider set.
-    contractor_key = params.get("provider")
-    if contractor_key and contractor_key not in ("comfyui", "ollama_diffuser"):
+    engineer_key = params.get("provider")
+    if engineer_key and engineer_key not in ("comfyui", "ollama_diffuser"):
         if identity_mode != "prompt":
             message = "Character consistency requires a local ComfyUI provider"
             on_generation_failed(queue_id, message)
             return None
         # Validate against known providers before passing to adapter
-        if contractor_key not in PROVIDER_DEFAULT_MODEL:
-            logger.warning("[MediaStudio] Unknown provider '%s' — falling back to ComfyUI", contractor_key)
+        if engineer_key not in PROVIDER_DEFAULT_MODEL:
+            logger.warning("[MediaStudio] Unknown provider '%s' — falling back to ComfyUI", engineer_key)
             # fall through to comfyui path
         else:
-            return _generate_via_contractor(queue_id, queue_row, params, contractor_key)
+            return _generate_via_engineer(queue_id, queue_row, params, engineer_key)
 
     # Update status
     with get_db_cursor(commit=True) as (conn, cur):
@@ -1240,7 +1240,7 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
     # VRAM coordination state — set when a fleet GPU node is chosen below.
     # Starship-245/246 run Ollama with --gpus all, so ComfyUI must free that
     # node's Ollama VRAM first (via the DHQ dispatcher's node-aware swap) and
-    # restore it after, in the finally. No-op on hub/contractor paths. (T3438, ADR)
+    # restore it after, in the finally. No-op on hub/engineer paths. (T3438, ADR)
     _vram_disp = None
     _vram_unloaded = []
     _vram_node_id = None
@@ -1443,7 +1443,7 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         return None
     finally:
         # Restore the fleet node's Ollama GPU models after ComfyUI is done
-        # (the dispatcher frees ComfyUI VRAM first). No-op on hub/contractor
+        # (the dispatcher frees ComfyUI VRAM first). No-op on hub/engineer
         # paths where nothing was unloaded. Runs on success, timeout, and error. (T3438)
         if _vram_disp is not None and _vram_unloaded:
             try:
@@ -1764,7 +1764,7 @@ def get_video_providers() -> list:
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT provider_key, display_name, capabilities
-                   FROM contractor_providers
+                   FROM engineer_providers
                    WHERE is_active = true
                      AND capabilities ? 'video_generation'
                    ORDER BY display_name"""
@@ -1781,7 +1781,7 @@ def get_video_providers() -> list:
                     }
                 )
     except Exception:
-        pass  # contractor_providers may not exist
+        pass  # engineer_providers may not exist
 
     return providers
 
@@ -1967,7 +1967,7 @@ def get_audio_providers(audio_mode: str = "sfx") -> list:
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT provider_key, display_name, capabilities
-                   FROM contractor_providers
+                   FROM engineer_providers
                    WHERE is_active = true
                      AND capabilities ? %s
                    ORDER BY display_name""",
@@ -1980,7 +1980,7 @@ def get_audio_providers(audio_mode: str = "sfx") -> list:
     return providers
 
 
-# ─── Image providers (local checkpoints + cloud contractors) ──────────
+# ─── Image providers (local checkpoints + cloud engineers) ──────────
 
 IMAGE_CHECKPOINT_DIR = os.environ.get("COMFYUI_CHECKPOINTS_DIR", "/mnt/data2/comfyui/models/checkpoints")
 
@@ -2161,7 +2161,7 @@ def _provider_priority(provider_key: str) -> int:
 
 
 def get_image_providers() -> dict:
-    """Return merged list of local checkpoints + active image_gen contractors.
+    """Return merged list of local checkpoints + active image_gen engineers.
 
     Shape:
     {
@@ -2222,7 +2222,7 @@ def get_image_providers() -> dict:
 
             cur.execute(
                 """SELECT provider_key, display_name, auth_env_var, capabilities
-                   FROM contractor_providers
+                   FROM engineer_providers
                    WHERE is_active = true
                    ORDER BY display_name"""
             )

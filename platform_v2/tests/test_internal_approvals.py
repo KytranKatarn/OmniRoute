@@ -15,7 +15,7 @@ import importlib
 def test_parse_approval_id_splits_source_and_int():
     ar = importlib.import_module("tools.department_hq.approvals_routes")
     assert ar.parse_approval_id("autonomy:123") == ("autonomy", 123)
-    assert ar.parse_approval_id("contractor:7") == ("contractor", 7)
+    assert ar.parse_approval_id("engineer:7") == ("engineer", 7)
 
 
 def test_list_pending_approvals_is_callable_without_flask():
@@ -99,10 +99,10 @@ def test_internal_deny_routes_to_executor(client, monkeypatch):
 
 
 def test_internal_approve_non_autonomy_source_501(client, monkeypatch):
-    # Slice 1 targets the red autonomy cards; contractor/bridge are 501 for now.
+    # Slice 1 targets the red autonomy cards; engineer/bridge are 501 for now.
     monkeypatch.setenv("INTERNAL_API_KEY", "k")
     r = client.post(
-        "/api/internal/approvals/contractor:3/approve",
+        "/api/internal/approvals/engineer:3/approve",
         json={},
         headers={"Authorization": "Bearer k"},
     )
@@ -143,7 +143,7 @@ def test_parse_approval_id_rejects_the_other_malformed_shapes():
 
 def test_a_bare_id_is_NOT_silently_treated_as_autonomy():
     """Deliberate refusal, not an oversight. autonomy_approval_queue.id,
-    contractor_approval_requests.id and bridge_jobs.id are independent sequences, so
+    engineer_approval_requests.id and bridge_jobs.id are independent sequences, so
     a bare '5' is genuinely ambiguous — guessing on an APPROVE route could approve a
     different pending item than the caller meant. Callers already have the prefixed
     form: list_pending_approvals() returns source-prefixed ids.
@@ -159,5 +159,5 @@ def test_the_valid_form_still_parses():
     """The fix must not narrow what already worked."""
     ar = importlib.import_module("tools.department_hq.approvals_routes")
     assert ar.parse_approval_id("autonomy:123") == ("autonomy", 123)
-    assert ar.parse_approval_id("contractor:7") == ("contractor", 7)
+    assert ar.parse_approval_id("engineer:7") == ("engineer", 7)
     assert ar.parse_approval_id("bridge:99") == ("bridge", 99)

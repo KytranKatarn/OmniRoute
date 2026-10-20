@@ -187,7 +187,7 @@ def _seed_job(db, status="completed", meta=None):
         cur.execute(
             "INSERT INTO bridge_jobs (job_type, module_source, description, status, agent_name, metadata) "
             "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
-            (lane.JOB_TYPE, lane.MODULE_ID, f"p4b {tag}", status, "CONTRACTOR→cloud", json.dumps(meta or {})),
+            (lane.JOB_TYPE, lane.MODULE_ID, f"p4b {tag}", status, "ENGINEER→cloud", json.dumps(meta or {})),
         )
         return cur.fetchone()["id"]
 
@@ -529,7 +529,7 @@ def test_the_deny_paths_write_rejected_not_denied():
     The cockpit's APPLY_SETTLED omitted 'rejected' because two docstrings in app.py said the
     deny status was 'denied' — so every Deny rendered "apply waits for approval #N" forever with
     the Apply button suppressed, verbatim the failure the field exists to prevent. 'denied' is
-    `contractor_approval_requests`' word, a DIFFERENT table. If a deny path is ever reworded this
+    `engineer_approval_requests`' word, a DIFFERENT table. If a deny path is ever reworded this
     goes red, and the consumer gets updated with it instead of silently diverging again.
     """
     import os
@@ -549,7 +549,7 @@ def test_the_deny_paths_write_rejected_not_denied():
 
     assert "UPDATE autonomy_approval_queue" in routes and "SET status = 'rejected'" in routes
     assert gateway.count("SET status = 'rejected'") >= 2, "Telegram deny paths changed spelling"
-    # …and nothing writes 'denied' to THIS table (the contractor table is a separate vocabulary)
+    # …and nothing writes 'denied' to THIS table (the engineer table is a separate vocabulary)
     for name, chunk in (("approvals_routes", routes), ("telegram_gateway", gateway)):
         lines = chunk.splitlines()
         for i, line in enumerate(lines):

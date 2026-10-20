@@ -261,7 +261,7 @@ class CommandInterface:
                 """
                 INSERT INTO archie_command_log (
                     conversation_id, user_id, raw_input, parsed_intent, intent_type,
-                    confidence, routed_to, agent_used, station, escalated_to_contractor,
+                    confidence, routed_to, agent_used, station, escalated_to_engineer,
                     execution_result, success, error_message, duration_ms, tokens_used, cost
                 ) VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id

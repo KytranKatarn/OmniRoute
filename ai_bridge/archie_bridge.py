@@ -525,7 +525,7 @@ def _log_cloud_usage(
 # `minimax-m2.5` and every one died on a hard 410, then sat `blocked` for 33h.
 # #5706 (2026-08-17) had already changed the *default* here and removed the
 # name from the dispatcher's FREE_CLOUD_MODELS list — but the
-# `contractor_providers` row still carried it as its default_model, and
+# `engineer_providers` row still carried it as its default_model, and
 # `/api/tags` still ADVERTISES `minimax-m2.5:cloud`. Two independent sources
 # outlived the code fix, so editing the code alone could never have been
 # enough.
@@ -2992,8 +2992,8 @@ def check_contractor_approval(agent_id, task_type, estimated_cost, user_id=None)
             SELECT
                 id, name, worker_type,
                 auto_approve_threshold,
-                contractor_budget_monthly,
-                contractor_usage_this_month,
+                engineer_budget_monthly,
+                engineer_usage_this_month,
                 requires_api_approval
             FROM agents
             WHERE id = %s
@@ -3022,8 +3022,8 @@ def check_contractor_approval(agent_id, task_type, estimated_cost, user_id=None)
             }
 
         # Check budget remaining
-        budget = float(agent["contractor_budget_monthly"] or 50.0)
-        used = float(agent["contractor_usage_this_month"] or 0)
+        budget = float(agent["engineer_budget_monthly"] or 50.0)
+        used = float(agent["engineer_usage_this_month"] or 0)
         remaining = budget - used
 
         if remaining < estimated_cost:
@@ -3063,7 +3063,7 @@ def check_contractor_approval(agent_id, task_type, estimated_cost, user_id=None)
         cur.execute(
             """
             SELECT id, status, expires_at
-            FROM contractor_approval_requests
+            FROM engineer_approval_requests
             WHERE agent_id = %s
                 AND task_type = %s
                 AND status = 'approved'
@@ -3147,7 +3147,7 @@ def request_contractor_approval(
         # Use the database function
         cur.execute(
             """
-            SELECT * FROM request_contractor_approval(
+            SELECT * FROM request_engineer_approval(
                 %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         """,

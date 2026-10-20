@@ -1,9 +1,9 @@
 """#6653 Phase 3 — task_execution_log.model_used records the model that actually
-SERVED a contractor call, never an auto-router id like "auto/coding".
+SERVED a engineer call, never an auto-router id like "auto/coding".
 
 OmniRoute's whole value is quota-aware auto-fallback, so the served model differs
 from the requested one. Before this, the served model was discarded at THREE
-layers (external_providers._call_openai_compatible, dispatcher._dispatch_to_contractor,
+layers (external_providers._call_openai_compatible, dispatcher._dispatch_to_engineer,
 and the request_work result builder) and a default_model of "auto" would have logged
 the literal string "auto" into the accounting spine (ADR-034).
 
@@ -81,7 +81,7 @@ def _neutralise(monkeypatch, served):
             "base_url": "http://omniroute:20128/v1",
             "default_model": "auto/coding",
             # DS9: the call site refuses any provider whose dispatchable switch is
-            # off, and every contractor row defaults FALSE. A stub that omits the key
+            # off, and every engineer row defaults FALSE. A stub that omits the key
             # makes these white-box tests assert the refusal instead of the quota gate
             # they exist to cover.
             "dispatchable": True,
@@ -144,9 +144,9 @@ def test_served_or_requested_falls_back_when_served_is_an_auto_router_or_missing
     assert served_or_requested(None, "qwen2.5:7b") == "qwen2.5:7b"
 
 
-def test_every_model_used_site_on_the_contractor_and_hub_paths_uses_the_helper():
+def test_every_model_used_site_on_the_engineer_and_hub_paths_uses_the_helper():
     src = _DISPATCHER_SRC.read_text(encoding="utf-8")
-    # _dispatch_to_contractor: both branches
+    # _dispatch_to_engineer: both branches
     assert len(re.findall(r"model_used=served_or_requested\((llm_result|result), model or provider_key\)", src)) == 2
     # request_work success builder (the explicit model_override / A-B lane path)
     assert re.search(r"model_used=served_or_requested\(llm_result, model\)", src) is not None
@@ -154,7 +154,7 @@ def test_every_model_used_site_on_the_contractor_and_hub_paths_uses_the_helper()
     assert "model_used=model or provider_key," not in src
 
 
-def test_dispatch_to_contractor_records_the_served_model(monkeypatch):
+def test_dispatch_to_engineer_records_the_served_model(monkeypatch):
     from tools.department_hq.services import department_dispatcher as dd
 
     disp = dd.DepartmentDispatcher()
@@ -175,7 +175,7 @@ def test_dispatch_to_contractor_records_the_served_model(monkeypatch):
             "completion_tokens": 2,
         },
     )
-    contractor = {
+    engineer = {
         "provider_key": "omniroute",
         "display_name": "OmniRoute",
         "default_model": "auto/coding",
@@ -183,24 +183,24 @@ def test_dispatch_to_contractor_records_the_served_model(monkeypatch):
         "tier_position": 9,
         "creed_compliance_tier": 2,
     }
-    res = disp._dispatch_to_contractor(contractor, "write a fizzbuzz", "code", "cloud_code_lane")
+    res = disp._dispatch_to_engineer(engineer, "write a fizzbuzz", "code", "cloud_code_lane")
     assert res is not None and res.success
     assert res.model_used == "deepseek/deepseek-chat"
-    assert res.provider == "contractor:omniroute"
+    assert res.provider == "engineer:omniroute"
     assert res.metadata["served_model_resolved"] is True
     assert res.metadata["routing_decision"] == "provider=deepseek"
 
 
-# ── #6670: a contractor row is self-describing ───────────────────────────────
+# ── #6670: a engineer row is self-describing ───────────────────────────────
 
 
-def test_both_contractor_metadata_dicts_stamp_is_cloud():
-    """A task_execution_log row from a contractor must say so ITSELF, rather than
+def test_both_engineer_metadata_dicts_stamp_is_cloud():
+    """A task_execution_log row from a engineer must say so ITSELF, rather than
     depending on the provider-name allowlist in services/token_provenance.py to infer
     it. Measured motivation: failed cloud-code attempts landed with provider='ollama',
     which that allowlist classifies as LOCAL.
 
-    BOTH branches of _dispatch_to_contractor carry it — the cloud-proxy branch
+    BOTH branches of _dispatch_to_engineer carry it — the cloud-proxy branch
     (is_cloud_proxy=True) and the standard OpenAI-compatible branch
     (is_cloud_proxy=False). is_cloud_proxy says WHICH branch served it; is_cloud says
     it was cloud either way, so asserting only one branch would miss the other.
@@ -213,8 +213,8 @@ def test_both_contractor_metadata_dicts_stamp_is_cloud():
         idx = src.index(proxy_flag)
         window = src[idx : idx + 220]
         assert '"is_cloud": True' in window, (
-            f"the contractor metadata dict containing {proxy_flag.strip()} must also "
-            f'carry "is_cloud": True — a contractor row has to be self-describing'
+            f"the engineer metadata dict containing {proxy_flag.strip()} must also "
+            f'carry "is_cloud": True — a engineer row has to be self-describing'
         )
 
 

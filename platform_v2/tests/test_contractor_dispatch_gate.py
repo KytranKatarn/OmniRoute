@@ -1,4 +1,4 @@
-"""Contractor budget bands and dispatch gating (DS9 PR 2).
+"""Engineer budget bands and dispatch gating (DS9 PR 2).
 
 The behaviours pinned here are the ones that decide whether the platform spends money
 without being asked. Three, in order of consequence:
@@ -809,7 +809,7 @@ def _db_that_raises_on_insert():
 class TestOmniRouteCostClass(unittest.TestCase):
     """A row must not claim to be free when its own gateway asks for payment.
 
-    Five contractor rows share one OmniRoute gateway with different `auto/*` aliases. A
+    Five engineer rows share one OmniRoute gateway with different `auto/*` aliases. A
     verification pass found the gateway UP (HTTP 200, 540 models) and every configured alias
     present — so the failures are upstream model availability, not stale configuration, and
     nothing should be retired. But two rows were labelled `free_tier` while the gateway answered
@@ -876,7 +876,7 @@ class TestOmniRouteCostClass(unittest.TestCase):
         """If this ever changes, the migration stops being an operator decision and becomes a
         guess — which is what #3651 removed."""
         import ai_bridge.external_providers  # noqa: F401
-        from services.contractor_health_service import classify_provider_class
+        from services.engineer_health_service import classify_provider_class
 
         for status in ("error", "unreachable", "rate_limited", "auth_error", "no_key", "ok"):
             with mock.patch.dict(sys.modules, {"database": types.ModuleType("database")}):

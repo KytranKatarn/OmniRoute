@@ -105,7 +105,7 @@ def get_eligible_agents(capability: str) -> List[Dict]:
 # ---------------------------------------------------------------------------
 # Start a benchmark run
 # ---------------------------------------------------------------------------
-def start_benchmark(action_key: str, user_id: Optional[int] = None, include_contractors: bool = False) -> Dict:
+def start_benchmark(action_key: str, user_id: Optional[int] = None, include_engineers: bool = False) -> Dict:
     """Kick off a benchmark run for *action_key*.
 
     1. Load test_config from station_actions.
@@ -170,8 +170,8 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None, include_cont
             "error": f"No test_config for action '{action_key}'",
         }
     # Inject runtime setting from CTRL panel
-    if include_contractors:
-        test_config["include_contractors"] = True
+    if include_engineers:
+        test_config["include_engineers"] = True
     capability = test_config.get("capability", "general")
     benchmark_type = test_config.get("benchmark_type", "llm")
 
@@ -180,11 +180,11 @@ def start_benchmark(action_key: str, user_id: Optional[int] = None, include_cont
         prompts = test_config.get("prompts", [])
         if not prompts:
             return {"success": False, "error": "No prompts in image benchmark test_config"}
-        # Count contractors if enabled
-        contractor_count = 0
-        if test_config.get("include_contractors"):
-            contractor_count = len(_discover_image_contractors())
-        total_items = len(prompts) + (contractor_count * len(prompts))
+        # Count engineers if enabled
+        engineer_count = 0
+        if test_config.get("include_engineers"):
+            engineer_count = len(_discover_image_engineers())
+        total_items = len(prompts) + (engineer_count * len(prompts))
     else:
         agents = get_eligible_agents(capability)
         if not agents:
@@ -488,10 +488,10 @@ def _run_image_benchmark_thread(
     action: Dict,
     test_config: Dict,
 ):
-    """Test image generation across prompts/models via local + external contractors.
+    """Test image generation across prompts/models via local + external engineers.
 
     Each prompt in test_config["prompts"] is generated and timed.
-    When include_contractors is true, also tests configured external providers
+    When include_engineers is true, also tests configured external providers
     (Gemini Imagen, OpenAI DALL-E) for each prompt.
     Results are recorded as benchmark_results rows with the model as
     "agent_name" (since image gen doesn't use LLM agents).
@@ -502,7 +502,7 @@ def _run_image_benchmark_thread(
     default_width = test_config.get("width", 512)
     default_height = test_config.get("height", 512)
     default_steps = test_config.get("steps", 15)
-    include_contractors = test_config.get("include_contractors", False)
+    include_engineers = test_config.get("include_engineers", False)
 
     # Find Pixel (image gen agent) for the agent_id field
     pixel_id = None
@@ -518,17 +518,17 @@ def _run_image_benchmark_thread(
     except Exception:
         pass
 
-    # Build list of external contractor adapters to test
-    contractor_tests = []
-    if include_contractors:
-        contractor_tests = _discover_image_contractors()
+    # Build list of external engineer adapters to test
+    engineer_tests = []
+    if include_engineers:
+        engineer_tests = _discover_image_engineers()
 
     completed = 0
     failed = 0
     results = []
 
-    # Total items = local prompts + (contractor count × prompts)
-    total_items = len(prompts) + (len(contractor_tests) * len(prompts))
+    # Total items = local prompts + (engineer count × prompts)
+    total_items = len(prompts) + (len(engineer_tests) * len(prompts))
 
     try:
         db_conn = psycopg2.connect(
@@ -543,7 +543,7 @@ def _run_image_benchmark_thread(
         logger.error("Image benchmark thread %d: can't connect to DB: %s", run_id, e)
         return
 
-    # Update total_agents to include contractors
+    # Update total_agents to include engineers
     if total_items != len(prompts):
         try:
             cur = db_conn.cursor()
@@ -614,7 +614,7 @@ def _run_image_benchmark_thread(
                     cur = db_conn.cursor()
                     cur.execute(
                         "UPDATE action_benchmark_runs SET total_agents = %s WHERE id = %s",
-                        (total_items + (len(contractor_tests) * len(prompts)), run_id),
+                        (total_items + (len(engineer_tests) * len(prompts)), run_id),
                     )
                     cur.close()
                 except Exception:
@@ -716,19 +716,19 @@ def _run_image_benchmark_thread(
                         )
                         _update_progress(db_conn, run_id, completed, failed)
 
-        # ── Phase 2: External contractor tests ──
-        if contractor_tests:
+        # ── Phase 2: External engineer tests ──
+        if engineer_tests:
             logger.info(
-                "Image benchmark %d: testing %d external contractors",
+                "Image benchmark %d: testing %d external engineers",
                 run_id,
-                len(contractor_tests),
+                len(engineer_tests),
             )
 
-        for contractor in contractor_tests:
-            c_key = contractor["provider_key"]
-            c_name = contractor["display_name"]
-            c_model = contractor["model"]
-            c_adapter = contractor["adapter"]
+        for engineer in engineer_tests:
+            c_key = engineer["provider_key"]
+            c_name = engineer["display_name"]
+            c_model = engineer["model"]
+            c_adapter = engineer["adapter"]
 
             for i, prompt_cfg in enumerate(prompts):
                 prompt_text = prompt_cfg.get("prompt", "a cat")
@@ -736,7 +736,7 @@ def _run_image_benchmark_thread(
 
                 agent_label = f"{c_model} ({category})"
                 logger.info(
-                    "Image benchmark %d: contractor %s — %s",
+                    "Image benchmark %d: engineer %s — %s",
                     run_id,
                     c_key,
                     prompt_text[:60],
@@ -748,7 +748,7 @@ def _run_image_benchmark_thread(
                         {
                             "type": "image",
                             "prompt": prompt_text,
-                            "params": contractor.get("params", {}),
+                            "params": engineer.get("params", {}),
                         }
                     )
                     duration_ms = int(time.time() * 1000) - start_ms
@@ -775,7 +775,7 @@ def _run_image_benchmark_thread(
 
                 except Exception as e:
                     logger.warning(
-                        "Image benchmark contractor %s prompt %d failed: %s",
+                        "Image benchmark engineer %s prompt %d failed: %s",
                         c_key,
                         i,
                         e,
@@ -851,13 +851,13 @@ def _run_image_benchmark_thread(
             pass
 
 
-def _discover_image_contractors() -> list:
-    """Find external contractor providers that support image generation.
+def _discover_image_engineers() -> list:
+    """Find external engineer providers that support image generation.
 
-    Checks contractor_providers table for providers with image_gen capability,
+    Checks engineer_providers table for providers with image_gen capability,
     verifies their API key is configured, and returns adapter functions.
     """
-    contractors = []
+    engineers = []
 
     # Map provider_key → adapter function
     try:
@@ -890,7 +890,7 @@ def _discover_image_contractors() -> list:
             cur.execute(
                 """
                 SELECT provider_key, display_name, default_model, is_active
-                FROM contractor_providers
+                FROM engineer_providers
                 WHERE capabilities::text ILIKE '%%image%%'
                   AND is_active = TRUE
                   AND provider_key NOT IN ('ollama_diffuser', 'comfyui')
@@ -908,10 +908,10 @@ def _discover_image_contractors() -> list:
                 # Check if API key is configured
                 api_key = __import__("os").environ.get(info["env_var"], "")
                 if not api_key:
-                    logger.info("Skipping contractor %s: no API key (%s)", pk, info["env_var"])
+                    logger.info("Skipping engineer %s: no API key (%s)", pk, info["env_var"])
                     continue
 
-                contractors.append(
+                engineers.append(
                     {
                         "provider_key": pk,
                         "display_name": dn,
@@ -920,11 +920,11 @@ def _discover_image_contractors() -> list:
                         "params": info["params"],
                     }
                 )
-                logger.info("Image benchmark: including contractor %s (%s)", pk, dn)
+                logger.info("Image benchmark: including engineer %s (%s)", pk, dn)
     except Exception as e:
-        logger.error("Failed to discover image contractors: %s", e)
+        logger.error("Failed to discover image engineers: %s", e)
 
-    return contractors
+    return engineers
 
 
 def _compute_image_scores(run_id: int, results: List[Dict], conn=None):

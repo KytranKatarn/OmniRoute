@@ -1,6 +1,6 @@
 """Fleet Service — wraps fleet infrastructure: nodes, cloud providers, usage tracking.
 
-Reads from existing tables: remote_nodes, node_agents, contractor_providers,
+Reads from existing tables: remote_nodes, node_agents, engineer_providers,
 external_api_keys, cloud_model_usage, provider_pricing.
 
 Import:
@@ -35,11 +35,11 @@ PROVIDER_LOCATIONS = {
     "huggingface": {"city": "New York, NY", "lat": 40.7484, "lon": -73.9967},
     "cloudflare": {"city": "San Francisco, CA", "lat": 37.7806, "lon": -122.3900},
     # --- added 2026-09-11 ------------------------------------------------
-    # The A.R.M.A.D.A. map pinned 6 of 26 active contractors and said "26
+    # The A.R.M.A.D.A. map pinned 6 of 26 active engineers and said "26
     # providers active" next to them. Three of the twenty misses were pure KEY
     # mismatches — the coordinates were already sitting here under a name no
     # provider row uses. `anthropic`, `cloudflare`, `grok`, `google` and
-    # `ollama` above match NOTHING in contractor_providers; the real keys are:
+    # `ollama` above match NOTHING in engineer_providers; the real keys are:
     "claude": {"city": "San Francisco, CA", "lat": 37.7891, "lon": -122.4020},
     "cloudflare_ai": {"city": "San Francisco, CA", "lat": 37.7806, "lon": -122.3900},
     "xai": {"city": "San Francisco, CA", "lat": 37.7750, "lon": -122.4180},
@@ -73,7 +73,7 @@ PROVIDER_LOCATIONS = {
     # office would draw a fact that is not true. pollinations
     # (image.pollinations.ai) has no location I can confirm, and inventing one
     # for a map is fabricating data. They stay unmapped, and the panel's label
-    # says "N of M contractors mapped" instead of implying every row has a pin.
+    # says "N of M engineers mapped" instead of implying every row has a pin.
 }
 
 # ⚠️ A head office is NOT where inference runs — a US provider serves from
@@ -385,7 +385,7 @@ def get_node_agents(node_id):
 def list_providers():
     """Return all cloud providers with status, tier, capabilities, and usage.
 
-    Joins contractor_providers with external_api_keys for budget info.
+    Joins engineer_providers with external_api_keys for budget info.
     Returns list with: provider_key, base_url, default_model, tier_position,
     capabilities, is_active, monthly_budget_usd, current_month_cost_usd.
     """
@@ -395,7 +395,7 @@ def list_providers():
             SELECT cp.id, cp.provider_key, cp.base_url, cp.default_model,
                    cp.tier_position, cp.capabilities, cp.is_active,
                    eak.monthly_budget_usd, eak.current_month_cost_usd
-            FROM contractor_providers cp
+            FROM engineer_providers cp
             LEFT JOIN external_api_keys eak
                 ON eak.provider = cp.provider_key
             ORDER BY cp.tier_position, cp.provider_key
@@ -427,7 +427,7 @@ def get_provider_status(provider_key):
             SELECT cp.id, cp.provider_key, cp.base_url, cp.default_model,
                    cp.tier_position, cp.capabilities, cp.is_active,
                    eak.monthly_budget_usd, eak.current_month_cost_usd
-            FROM contractor_providers cp
+            FROM engineer_providers cp
             LEFT JOIN external_api_keys eak
                 ON eak.provider = cp.provider_key
             WHERE cp.provider_key = %s
@@ -535,7 +535,7 @@ def get_usage_summary(provider_key=None, days=30):
         result["distinct_providers"] = int(row2["cnt"]) if row2 else 0
 
         # Total registered providers
-        cur.execute("SELECT COUNT(*) AS cnt FROM contractor_providers")
+        cur.execute("SELECT COUNT(*) AS cnt FROM engineer_providers")
         row3 = cur.fetchone()
         result["registered_providers"] = int(row3["cnt"]) if row3 else 0
 

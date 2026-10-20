@@ -21,7 +21,7 @@ This is also the right shape on the merits: codex is reached by invoking the CLI
 directly. Codex lives *outside* Department-HQ by design — jobs.py records that "codex,
 opencode and the host codex CLI call the OmniRoute gateway directly over HTTP, so they
 never reach the DHQ dispatcher" — and there is no ``codex`` row in
-``contractor_providers``, so a DHQ dispatch to the Codex (CLI) contractor would resolve
+``engineer_providers``, so a DHQ dispatch to the Codex (CLI) engineer would resolve
 no provider and fail at execution.
 
 Safety

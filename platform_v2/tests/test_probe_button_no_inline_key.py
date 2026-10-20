@@ -15,7 +15,7 @@ JS = pathlib.Path(__file__).resolve().parents[1] / "tools" / "department_hq" / "
 
 
 def _button_source(src):
-    i = src.index('contractor-btn-probe" title=')
+    i = src.index('engineer-btn-probe" title=')
     return src[i : src.index("</button>';", i)]
 
 

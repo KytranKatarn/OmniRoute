@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def list_pending_approvals():
-    """Unified pending Tier-2 approvals (autonomy + contractor + bridge + hire)
+    """Unified pending Tier-2 approvals (autonomy + engineer + bridge + hire)
     as a plain list of dicts — no Flask/session. Shared by the @admin_required
     /api/approvals/pending route AND the @_require_internal_key cockpit endpoint.
     Row shaping (incl. the PR #2205 code-fix labels + escalation chain) is
@@ -77,8 +77,8 @@ def list_pending_approvals():
                 _pr = _ad.get("pr_number") if isinstance(_ad, dict) else None
                 _ptitle = (_ad.get("title") or "") if isinstance(_ad, dict) else ""
                 category, display = "pr_merge", f"🔀 Merge PR #{_pr} — {_ptitle[:60]}"
-            elif at == "contractor_dispatch":
-                category, display = "contractor_dispatch", "Contractor Dispatch"
+            elif at == "engineer_dispatch":
+                category, display = "engineer_dispatch", "Engineer Dispatch"
             elif at == "host_root_command":
                 # Host-root action awaiting the owner's signature. The label
                 # carries the literal argv, because "Host Root Command" alone
@@ -134,14 +134,14 @@ def list_pending_approvals():
                 }
             )
 
-        # 2. contractor_approval_requests — cost-gated contractor dispatch
+        # 2. engineer_approval_requests — cost-gated engineer dispatch
         cur.execute(
             """SELECT r.id, r.agent_id, r.task_type, r.task_description,
                       r.module_source, r.estimated_cost, r.estimated_tokens,
-                      r.contractor_provider, r.contractor_model,
+                      r.engineer_provider, r.engineer_model,
                       r.priority, r.created_at, r.expires_at,
                       a.name AS agent_name, a.display_name AS agent_display
-               FROM contractor_approval_requests r
+               FROM engineer_approval_requests r
                LEFT JOIN agents a ON a.id = r.agent_id
                WHERE r.status = 'pending'
                ORDER BY r.priority ASC NULLS LAST, r.created_at ASC"""
@@ -150,14 +150,14 @@ def list_pending_approvals():
             r = dict(r)
             approvals.append(
                 {
-                    "id": f"contractor:{r['id']}",
-                    "source": "contractor_approval_requests",
+                    "id": f"engineer:{r['id']}",
+                    "source": "engineer_approval_requests",
                     "source_id": r["id"],
-                    "category": "contractor_dispatch",
-                    "display_name": "Contractor Dispatch",
-                    "action_type": r.get("task_type") or "contractor_dispatch",
+                    "category": "engineer_dispatch",
+                    "display_name": "Engineer Dispatch",
+                    "action_type": r.get("task_type") or "engineer_dispatch",
                     "module_source": r.get("module_source"),
-                    "contractor": f"{r.get('contractor_provider') or ''}/{r.get('contractor_model') or ''}".strip("/"),
+                    "engineer": f"{r.get('engineer_provider') or ''}/{r.get('engineer_model') or ''}".strip("/"),
                     "estimated_cost": (float(r["estimated_cost"]) if r.get("estimated_cost") is not None else None),
                     "estimated_tokens": r.get("estimated_tokens"),
                     "priority": r.get("priority"),

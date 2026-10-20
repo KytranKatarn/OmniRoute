@@ -6,7 +6,7 @@ open door. Media was that open door.
 
 The Media Studio cloud path is not unguarded — it checks the master cloud toggle, the capability
 allowlist, and the weekly free budget. Three real gates. It then walked past the per-provider switch
-an operator flips in the Contractors tab. Turning routing OFF for `gemini` or `together` changed the
+an operator flips in the Engineers tab. Turning routing OFF for `gemini` or `together` changed the
 text fleet and left media spending.
 
 These tests are static. They read the function body and assert the gate is present and correctly
@@ -59,10 +59,10 @@ class TestMediaDispatchGate(unittest.TestCase):
     def test_the_dispatchable_refusal_names_the_column(self):
         """The operator reading this needs to know which switch to flip."""
         body = _body("generate_media")
-        self.assertIn("contractor_providers.dispatchable is false", body)
+        self.assertIn("engineer_providers.dispatchable is false", body)
 
     def test_the_inactive_refusal_names_the_column(self):
-        self.assertIn("contractor_providers.is_active is false", _body("generate_media"))
+        self.assertIn("engineer_providers.is_active is false", _body("generate_media"))
 
     # ---- ordering: the gate must precede any dispatch -------------------------
 
@@ -84,7 +84,7 @@ class TestMediaDispatchGate(unittest.TestCase):
     # ---- absence is not refusal ----------------------------------------------
 
     def test_a_provider_with_no_row_is_not_gated(self):
-        """`local_tts` has no contractor row: it is local and free.
+        """`local_tts` has no engineer row: it is local and free.
 
         Gating it on a config that does not exist would break local text-to-speech to enforce a
         switch it was never subject to. Mirrors `call_external`'s `_cfg is not None`.

@@ -4692,7 +4692,7 @@ function _prScopeBody(extra) {
   // value cannot leak between PRs — the same reason the server override is thread-local.
   // ── CODEX review ────────────────────────────────────────────────────────────
   // Codex is invoked as a CLI on the HOST, not dispatched through DHQ (there is no
-  // `codex` row in contractor_providers and the codex_cli lane has never run a job).
+  // `codex` row in engineer_providers and the codex_cli lane has never run a job).
   // The platform container cannot ssh to its host and /mnt/archie_brain is read-only
   // in there, so the request is dropped in a shared spool and scripts/codex_review_queue.sh
   // picks it up. That means the button QUEUES work — it is not synchronous, and it says so.

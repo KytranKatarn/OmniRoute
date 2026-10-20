@@ -1630,7 +1630,7 @@ def _delegation_max_attempts() -> int:
 def _capability_is_routable(capability: str) -> bool:
     """False ONLY when we are confident the delegate worker can't run this capability —
     it is neither a known-tool shortcut, nor mapped to a department, nor a skill any
-    active AI/contractor agent holds. Everything else (incl. ANY error) returns True so
+    active AI/engineer agent holds. Everything else (incl. ANY error) returns True so
     a legitimate delegation is never wrongly failed. Lets the worker fail-fast on dead
     capabilities (e.g. the stale 'translation_coverage_scan') instead of dispatching to
     the default dept and hanging to the per-capability deadline (#cont-103)."""

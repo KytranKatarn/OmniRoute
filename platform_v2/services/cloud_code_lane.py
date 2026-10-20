@@ -1,6 +1,6 @@
 """Cloud coding lane (#6653 Phase 3a) — pure helpers, no DB, no Flask.
 
-An explicit, ask-first path that sends ONE coding task to a cloud contractor
+An explicit, ask-first path that sends ONE coding task to a cloud engineer
 (OmniRoute) WITHOUT changing escalation_mode (it stays local_only — this is not
 auto-escalation). Mirrors the A/B Cloud Comparison lane (#4661): the job is a
 bridge_jobs row, the approval is an autonomy_approval_queue row linked by

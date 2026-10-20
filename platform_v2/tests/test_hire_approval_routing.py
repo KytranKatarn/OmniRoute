@@ -12,7 +12,7 @@ Six steps, each individually reasonable:
   4. the template branched on `a.category === 'hiring'` -> now false
   5. -> the else branch, `_dhqApproveApproval(a.id)`, POSTs the raw "hire:<id>" to the
      GENERIC endpoint
-  6. whose guard admits only autonomy/contractor/bridge -> "Invalid approval ID format"
+  6. whose guard admits only autonomy/engineer/bridge -> "Invalid approval ID format"
 
 The same break hit the REJECT path (approvals_routes ~1035) and the SHORTLIST renderer,
 which is why the cards rendered as bare text with no candidate picker.
@@ -123,7 +123,7 @@ def test_source_is_assigned_once_and_never_restamped():
 def test_the_generic_endpoint_still_refuses_a_hire_id():
     """Do NOT 'fix' this by adding 'hire' here.
 
-    The generic handler resolves autonomy/contractor/bridge rows. A hire needs
+    The generic handler resolves autonomy/engineer/bridge rows. A hire needs
     `/api/approvals/hire/<id>/approve`, which creates an agent. Admitting "hire:" would
     route a hire into a handler that cannot hire anyone — a silent wrong action, worse
     than the loud 400 the owner saw.

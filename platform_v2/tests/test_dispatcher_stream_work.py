@@ -193,7 +193,7 @@ def test_cloud_model_gates_before_token_and_does_not_stream(monkeypatch):
         lambda **k: {
             "success": True,
             "response": "cloud reply",
-            "provider": "contractor:anthropic",
+            "provider": "engineer:anthropic",
             "prompt_tokens": 5,
             "completion_tokens": 2,
         },

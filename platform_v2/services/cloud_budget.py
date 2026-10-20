@@ -2,7 +2,7 @@
 
 Read-only foundation for Cloud Dispatch Governance (Dev HQ #3661 / component A).
 Combines actual usage from ``cloud_model_usage`` with the per-provider free-tier
-limits declared in ``contractor_providers.rate_limits`` so the rest of the
+limits declared in ``engineer_providers.rate_limits`` so the rest of the
 governance stack can answer one question: *does this provider have headroom left
 this week?*
 
@@ -42,7 +42,7 @@ def cloud_budget_status(tier: str = "free") -> List[Dict]:
                        cp.is_cloud_proxy,
                        (cp.rate_limits -> %s ->> 'weekly_limit') AS weekly_limit,
                        COALESCE(u.used_7d, 0)                    AS used_7d
-                FROM contractor_providers cp
+                FROM engineer_providers cp
                 LEFT JOIN (
                     SELECT model_name, COUNT(*) AS used_7d
                     FROM cloud_model_usage

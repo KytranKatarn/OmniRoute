@@ -9,12 +9,12 @@ changed the default model and removed the name from the dispatcher's
 FREE_CLOUD_MODELS list. It changed nothing about the two things that actually
 selected the model:
 
-  * the ``contractor_providers`` row still carried it as ``default_model``
+  * the ``engineer_providers`` row still carried it as ``default_model``
   * ``/api/tags`` still ADVERTISES ``minimax-m2.5:cloud``
 
 Worse, the model #5706 installed as the replacement — ``qwen3-coder-next`` — is
 ALSO retired (2026-07-15, verified live on 2026-09-27). So the entire
-Ollama Cloud proxy tier was dead, and "fix the contractor row" alone would have
+Ollama Cloud proxy tier was dead, and "fix the engineer row" alone would have
 merely moved the 18 jobs onto the next dead model.
 
 The fix therefore lives at the choke point every cloud call passes through
@@ -213,7 +213,7 @@ def test_the_default_model_cannot_reach_the_wire_unnoticed():
 
 # ── the data half: no ACTIVE cloud proxy may point at a dead model ──────────
 def test_no_active_cloud_proxy_points_at_a_retired_model(guards):
-    """An active contractor on a dead model is exactly how the 33h stall
+    """An active engineer on a dead model is exactly how the 33h stall
     happened. Both were deactivated on 2026-09-27; this fails if someone
     re-enables one without fixing the model first.
 
@@ -225,21 +225,21 @@ def test_no_active_cloud_proxy_points_at_a_retired_model(guards):
     from database import get_db_cursor
 
     with get_db_cursor() as (conn, cur):
-        cur.execute("SELECT provider_key, default_model, is_active " "FROM contractor_providers WHERE is_cloud_proxy")
+        cur.execute("SELECT provider_key, default_model, is_active " "FROM engineer_providers WHERE is_cloud_proxy")
         rows = [dict(r) for r in cur.fetchall()]
     if not rows:
         # conftest points the suite at an ISOLATED test database that carries no
-        # contractor_providers seed, so this query is vacuous there. Skip
+        # engineer_providers seed, so this query is vacuous there. Skip
         # explicitly rather than report a green that proved nothing — an empty
         # table must never read as "the invariant holds".
         pytest.skip(
-            "contractor_providers has no cloud-proxy rows in the isolated test "
+            "engineer_providers has no cloud-proxy rows in the isolated test "
             "DB (no seed data); verified live instead — see handover"
         )
     for row in rows:
         if row.get("is_active"):
             assert not is_retired(row.get("default_model") or ""), (
-                f"contractor '{row.get('provider_key')}' is ACTIVE but its model "
+                f"engineer '{row.get('provider_key')}' is ACTIVE but its model "
                 f"'{row.get('default_model')}' is retired — it will 410 every time"
             )
 

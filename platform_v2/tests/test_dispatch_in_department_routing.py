@@ -4,7 +4,7 @@ What the investigation actually found, contradicting the initial hypothesis:
 
   * ``select_agent('translate', 'Documentation & Knowledge')`` returns
     R.O.S.E.T.T.A. — the selector is correct and the home-department path works.
-  * The contractor-escalation loop is gated on ``if not agent and
+  * The engineer-escalation loop is gated on ``if not agent and
     department_exhausted:`` and the code comments say so explicitly ("no single
     agent was ever matched here"). It cannot fire when an agent was found.
   * A real dispatch of ``capability='translate'`` completes on R.O.S.E.T.T.A.
@@ -23,7 +23,7 @@ broken.
 These tests exist to stop a future reader from "fixing" routing that works, and
 to keep the escalation gate honest. They assert CURRENT correct behaviour on
 purpose: a change that makes `translate` skip its home department would fail
-here rather than silently burning paid contractor quota.
+here rather than silently burning paid engineer quota.
 """
 
 from __future__ import annotations
@@ -67,18 +67,18 @@ def _skip_if_isolated_db() -> None:
 
 
 # ── the escalation gate ─────────────────────────────────────────────────────
-def test_contractor_escalation_requires_that_no_agent_was_found():
+def test_engineer_escalation_requires_that_no_agent_was_found():
     """The gate is the whole reason routing is safe. If this ever loosens to
     ``if department_exhausted:`` or moves above the agent search, a healthy
-    in-department agent gets bypassed for a paid contractor."""
+    in-department agent gets bypassed for a paid engineer."""
     src = _disp_src()
     gates = re.findall(r"if not agent and department_exhausted:", src)
     assert gates, "the 'not agent and department_exhausted' gate has disappeared"
-    # The contractor loop must sit inside one of those gates.
-    loop = src.index("for contractor in contractors:")
+    # The engineer loop must sit inside one of those gates.
+    loop = src.index("for engineer in engineers:")
     assert (
         src.rindex("if not agent and department_exhausted:", 0, loop) > 0
-    ), "the contractor loop is no longer inside a 'no agent was matched' gate"
+    ), "the engineer loop is no longer inside a 'no agent was matched' gate"
 
 
 def test_agent_search_precedes_the_escalation():
@@ -86,7 +86,7 @@ def test_agent_search_precedes_the_escalation():
     src = _disp_src()
     search = src.index("def select_agent") if "def select_agent" in src else -1
     assert src.index("if not agent and department_exhausted:") > 0
-    loop = src.index("for contractor in contractors:")
+    loop = src.index("for engineer in engineers:")
     assert loop > src.index("if not agent and department_exhausted:")
 
 

@@ -5221,7 +5221,7 @@ def api_settings_test(provider):
 
 
 # ============================================================================
-# TEST RETRY LOOP + CONTRACTOR ESCALATION ROUTES
+# TEST RETRY LOOP + ENGINEER ESCALATION ROUTES
 # ============================================================================
 
 
@@ -5300,7 +5300,7 @@ def reset_proposal_retries(proposal_id):
 @login_required
 @admin_required
 def get_escalated_proposals():
-    """Get all proposals that have been escalated to contractors"""
+    """Get all proposals that have been escalated to engineers"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -5310,11 +5310,11 @@ def get_escalated_proposals():
             SELECT
                 ip.id, ip.title, ip.category, ip.status,
                 ip.escalation_status, ip.escalated_at,
-                ip.test_retry_count, ip.contractor_agent_id,
-                a.name as contractor_name,
-                a.api_provider as contractor_provider
+                ip.test_retry_count, ip.engineer_agent_id,
+                a.name as engineer_name,
+                a.api_provider as engineer_provider
             FROM improvement_proposals ip
-            LEFT JOIN agents a ON ip.contractor_agent_id = a.id
+            LEFT JOIN agents a ON ip.engineer_agent_id = a.id
             WHERE ip.escalation_status IS NOT NULL
             AND ip.escalation_status != 'none'
             ORDER BY ip.escalated_at DESC
@@ -5337,11 +5337,11 @@ def get_escalated_proposals():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@improvements_bp.route("/proposals/<int:proposal_id>/contractor-chat", methods=["POST"])
+@improvements_bp.route("/proposals/<int:proposal_id>/engineer-chat", methods=["POST"])
 @login_required
 @admin_required
-def send_contractor_chat(proposal_id):
-    """Send a message to the contractor and get response"""
+def send_engineer_chat(proposal_id):
+    """Send a message to the engineer and get response"""
     try:
         from ai_bridge.chat_handler import get_chat_handler
 
@@ -5352,7 +5352,7 @@ def send_contractor_chat(proposal_id):
             return jsonify({"success": False, "error": "Message required"}), 400
 
         handler = get_chat_handler()
-        result = handler.send_to_contractor(
+        result = handler.send_to_engineer(
             proposal_id=proposal_id,
             message=message,
             user_id=current_user.id,
@@ -5386,19 +5386,19 @@ def get_proposal_chat_history(proposal_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@improvements_bp.route("/proposals/<int:proposal_id>/apply-contractor-fix", methods=["POST"])
+@improvements_bp.route("/proposals/<int:proposal_id>/apply-engineer-fix", methods=["POST"])
 @login_required
 @admin_required
-def apply_contractor_fix(proposal_id):
-    """Apply the contractor's proposed fix to the proposal"""
+def apply_engineer_fix(proposal_id):
+    """Apply the engineer's proposed fix to the proposal"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Get contractor proposal
+        # Get engineer proposal
         cur.execute(
             """
-            SELECT contractor_proposal, code_changes
+            SELECT engineer_proposal, code_changes
             FROM improvement_proposals
             WHERE id = %s
         """,
@@ -5411,22 +5411,22 @@ def apply_contractor_fix(proposal_id):
             conn.close()
             return jsonify({"success": False, "error": "Proposal not found"}), 404
 
-        contractor_proposal = proposal.get("contractor_proposal")
-        if not contractor_proposal:
+        engineer_proposal = proposal.get("engineer_proposal")
+        if not engineer_proposal:
             cur.close()
             conn.close()
             return (
-                jsonify({"success": False, "error": "No contractor proposal to apply"}),
+                jsonify({"success": False, "error": "No engineer proposal to apply"}),
                 400,
             )
 
-        # Extract code from contractor proposal
-        if isinstance(contractor_proposal, str):
-            contractor_proposal = json.loads(contractor_proposal)
+        # Extract code from engineer proposal
+        if isinstance(engineer_proposal, str):
+            engineer_proposal = json.loads(engineer_proposal)
 
-        new_code = contractor_proposal.get("code_suggestion") or contractor_proposal.get("proposal", "")
+        new_code = engineer_proposal.get("code_suggestion") or engineer_proposal.get("proposal", "")
 
-        # Update proposal with contractor's code
+        # Update proposal with engineer's code
         cur.execute(
             """
             UPDATE improvement_proposals
@@ -5444,7 +5444,7 @@ def apply_contractor_fix(proposal_id):
         from ai_bridge.chat_handler import get_chat_handler
 
         chat = get_chat_handler()
-        chat.add_system_message(proposal_id, "Contractor fix applied. Ready for re-testing.", "action")
+        chat.add_system_message(proposal_id, "Engineer fix applied. Ready for re-testing.", "action")
 
         conn.commit()
         cur.close()
@@ -5453,7 +5453,7 @@ def apply_contractor_fix(proposal_id):
         return jsonify(
             {
                 "success": True,
-                "message": "Contractor fix applied. Ready for re-testing.",
+                "message": "Engineer fix applied. Ready for re-testing.",
             }
         )
 
@@ -5505,11 +5505,11 @@ def escalate_to_human_only(proposal_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@improvements_bp.route("/proposals/<int:proposal_id>/try-another-contractor", methods=["POST"])
+@improvements_bp.route("/proposals/<int:proposal_id>/try-another-engineer", methods=["POST"])
 @login_required
 @admin_required
-def try_another_contractor(proposal_id):
-    """Switch to a different contractor for consultation"""
+def try_another_engineer(proposal_id):
+    """Switch to a different engineer for consultation"""
     try:
         data = request.get_json() or {}
         preferred_provider = data.get("provider")  # Optional: claude, openai, etc.
@@ -5517,10 +5517,10 @@ def try_another_contractor(proposal_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Get current contractor
+        # Get current engineer
         cur.execute(
             """
-            SELECT contractor_agent_id FROM improvement_proposals WHERE id = %s
+            SELECT engineer_agent_id FROM improvement_proposals WHERE id = %s
         """,
             (proposal_id,),
         )
@@ -5531,9 +5531,9 @@ def try_another_contractor(proposal_id):
             conn.close()
             return jsonify({"success": False, "error": "Proposal not found"}), 404
 
-        current_contractor = proposal.get("contractor_agent_id")
+        current_engineer = proposal.get("engineer_agent_id")
 
-        # Find another contractor
+        # Find another engineer
         query = """
             SELECT id, name, api_provider, model
             FROM agents
@@ -5543,9 +5543,9 @@ def try_another_contractor(proposal_id):
         """
         params = []
 
-        if current_contractor:
+        if current_engineer:
             query += " AND id != %s"
-            params.append(current_contractor)
+            params.append(current_engineer)
 
         if preferred_provider:
             query += " AND api_provider = %s"
@@ -5554,13 +5554,13 @@ def try_another_contractor(proposal_id):
         query += " ORDER BY last_used ASC NULLS FIRST LIMIT 1"
 
         cur.execute(query, params)
-        new_contractor = cur.fetchone()
+        new_engineer = cur.fetchone()
 
-        if not new_contractor:
+        if not new_engineer:
             cur.close()
             conn.close()
             return (
-                jsonify({"success": False, "error": "No other contractors available"}),
+                jsonify({"success": False, "error": "No other engineers available"}),
                 400,
             )
 
@@ -5568,10 +5568,10 @@ def try_another_contractor(proposal_id):
         cur.execute(
             """
             UPDATE improvement_proposals
-            SET contractor_agent_id = %s
+            SET engineer_agent_id = %s
             WHERE id = %s
         """,
-            (new_contractor["id"], proposal_id),
+            (new_engineer["id"], proposal_id),
         )
 
         conn.commit()
@@ -5584,15 +5584,15 @@ def try_another_contractor(proposal_id):
         chat = get_chat_handler()
         chat.add_system_message(
             proposal_id,
-            f"Switched to contractor: {new_contractor['name']} ({new_contractor['api_provider']})",
+            f"Switched to engineer: {new_engineer['name']} ({new_engineer['api_provider']})",
             "action",
         )
 
         return jsonify(
             {
                 "success": True,
-                "contractor": dict(new_contractor),
-                "message": f"Now consulting with {new_contractor['name']}",
+                "engineer": dict(new_engineer),
+                "message": f"Now consulting with {new_engineer['name']}",
             }
         )
 

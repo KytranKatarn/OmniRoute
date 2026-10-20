@@ -653,11 +653,11 @@ def api_portrait_identity_audit():
 @media_studio_bp.route("/api/image-providers")
 @login_required
 def api_image_providers():
-    """Merged list of local checkpoints + active cloud image-gen contractors.
+    """Merged list of local checkpoints + active cloud image-gen engineers.
 
     Returns {auto, local[], cloud_free[], cloud_paid[]} for the Media Studio
     model selector dropdown. Local entries enumerate the ComfyUI checkpoints
-    directory; cloud entries come from contractor_providers WHERE capabilities ?
+    directory; cloud entries come from engineer_providers WHERE capabilities ?
     'image_gen'. See spec ~/.claude/plans/2026-05-16-image-provider-selector.md.
     """
     from .services.generation_service import get_image_providers

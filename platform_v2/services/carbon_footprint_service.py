@@ -89,7 +89,7 @@ def co2_g_sql(model_col: str = "model_used", dur_col: str = "duration_ms", worke
     """SQL fragment (grams CO2 per row) for SUM() aggregations — IDENTICAL
     methodology to co2_g_for(), built from the python constants. Returns **NULL**
     (skipped by SUM) for non-inference rows so they never inflate a CO2 total:
-    cloud/contractor (worker_type='contract' — not our cluster) AND non-LLM model
+    cloud/engineer (worker_type='contract' — not our cluster) AND non-LLM model
     sentinels (markers bridge-managed/internal, scrape browser, image comfyui,
     embeddings batch/*embed* — their duration is cycle wall-clock, not model
     runtime). co2_g = watts * ms * grid / 3_600_000 for real LLM rows only."""
@@ -150,7 +150,7 @@ def per_agent_efficiency(hours: int = 24):
             WHERE created_at > NOW() - INTERVAL '%s hours'
               AND agent_id IS NOT NULL
               AND model_used IS NOT NULL
-              -- Exclude cloud/contractor rows: once cloud dispatch carries the real
+              -- Exclude cloud/engineer rows: once cloud dispatch carries the real
               -- escalating agent_id, the agent_id IS NOT NULL filter no longer excludes
               -- them, so guard explicitly or we'd fabricate local carbon for cloud calls.
               AND worker_type IS DISTINCT FROM 'contract'
@@ -238,7 +238,7 @@ def run_carbon_footprint_job() -> dict:
                 WHERE success = true
                   AND created_at >= NOW() - INTERVAL '1 hour'
                   AND duration_ms > 0
-                  -- Cloud/contractor inference does NOT run on our cluster, so applying
+                  -- Cloud/engineer inference does NOT run on our cluster, so applying
                   -- our GPU/CPU wattage to it would FABRICATE local carbon. Mirror the
                   -- A.R.M.A.D.A. feed (co2_g_sql) + per_agent_efficiency exclusion so the
                   -- public CREED environmental pillar reconciles across all consumers.

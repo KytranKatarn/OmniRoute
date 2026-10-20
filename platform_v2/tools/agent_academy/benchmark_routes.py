@@ -751,7 +751,7 @@ def register_benchmark_routes(bp, admin_required):
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     "SELECT provider_key, display_name, default_model, is_cloud_proxy, tier_position "
-                    "FROM contractor_providers WHERE capabilities ? 'text_chat' AND is_active = true "
+                    "FROM engineer_providers WHERE capabilities ? 'text_chat' AND is_active = true "
                     "ORDER BY display_name"
                 )
                 rows = cur.fetchall()

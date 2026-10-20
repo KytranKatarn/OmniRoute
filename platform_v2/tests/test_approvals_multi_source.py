@@ -2,7 +2,7 @@
 
 Strategy:
   - Five unit tests exercise the per-source helper functions
-    (_approve_autonomy, _approve_contractor, _approve_bridge) directly
+    (_approve_autonomy, _approve_engineer, _approve_bridge) directly
     against the real DB — fast, isolated, no HTTP overhead.
   - One HTTP-level test uses a minimal Flask app that mounts only the
     approvals blueprint (bypassing the full-app circular-import issue
@@ -52,11 +52,11 @@ def _get_helpers():
     """Import helpers from approvals_routes after path is set."""
     from tools.department_hq.approvals_routes import (
         _approve_autonomy,
-        _approve_contractor,
+        _approve_engineer,
         _approve_bridge,
     )
 
-    return _approve_autonomy, _approve_contractor, _approve_bridge
+    return _approve_autonomy, _approve_engineer, _approve_bridge
 
 
 def _seed_autonomy(db, action_type="test_action"):
@@ -71,12 +71,12 @@ def _seed_autonomy(db, action_type="test_action"):
         return cur.fetchone()["id"]
 
 
-def _seed_contractor(db):
+def _seed_engineer(db):
     with db.cursor() as cur:
         cur.execute(
-            """INSERT INTO contractor_approval_requests
+            """INSERT INTO engineer_approval_requests
                (agent_id, task_type, task_description, status, priority,
-                contractor_provider, contractor_model, estimated_cost, estimated_tokens)
+                engineer_provider, engineer_model, estimated_cost, estimated_tokens)
                VALUES (NULL, 'test_task', 'test desc', 'pending', 'normal',
                        'openai', 'gpt-4o-mini', 0.02, 1000)
                RETURNING id"""
@@ -178,22 +178,22 @@ class TestApprove:
         finally:
             _cleanup(db, "autonomy_approval_queue", row_id)
 
-    def test_approve_contractor_sets_14d_expiry(self, db):
-        _, _approve_contractor, _ = _get_helpers()
-        row_id = _seed_contractor(db)
+    def test_approve_engineer_sets_14d_expiry(self, db):
+        _, _approve_engineer, _ = _get_helpers()
+        row_id = _seed_engineer(db)
         try:
-            ok, task_type = _approve_contractor(row_id, TEST_USER_ID)
+            ok, task_type = _approve_engineer(row_id, TEST_USER_ID)
             assert ok is True
             assert task_type == "test_task"
             with db.cursor() as cur:
                 cur.execute(
-                    "SELECT status, approved_by, expires_at FROM contractor_approval_requests WHERE id=%s",
+                    "SELECT status, approved_by, expires_at FROM engineer_approval_requests WHERE id=%s",
                     (row_id,),
                 )
                 row = cur.fetchone()
             assert row["status"] == "approved"
             assert row["approved_by"] == TEST_USER_ID
-            # contractor_approval_requests.expires_at is `timestamp WITHOUT time zone`
+            # engineer_approval_requests.expires_at is `timestamp WITHOUT time zone`
             # (so is created_at), so psycopg2 hands back a NAIVE datetime. The old code
             # stripped tzinfo from the DB value — a no-op — and left `expected` AWARE, so
             # the subtraction raised:
@@ -206,7 +206,7 @@ class TestApprove:
             expected = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=14)
             assert abs((row["expires_at"] - expected).total_seconds()) < 3600
         finally:
-            _cleanup(db, "contractor_approval_requests", row_id)
+            _cleanup(db, "engineer_approval_requests", row_id)
 
     def test_approve_bridge_flips_status(self, db):
         _, _, _approve_bridge = _get_helpers()
@@ -256,11 +256,11 @@ def _get_deny_helpers():
     """Import deny helpers from approvals_routes after path is set."""
     from tools.department_hq.approvals_routes import (
         _deny_autonomy,
-        _deny_contractor,
+        _deny_engineer,
         _deny_bridge,
     )
 
-    return _deny_autonomy, _deny_contractor, _deny_bridge
+    return _deny_autonomy, _deny_engineer, _deny_bridge
 
 
 class TestDeny:
@@ -282,23 +282,23 @@ class TestDeny:
         finally:
             _cleanup(db, "autonomy_approval_queue", row_id)
 
-    def test_deny_contractor_records_reason(self, db):
-        _, _deny_contractor, _ = _get_deny_helpers()
-        row_id = _seed_contractor(db)
+    def test_deny_engineer_records_reason(self, db):
+        _, _deny_engineer, _ = _get_deny_helpers()
+        row_id = _seed_engineer(db)
         try:
-            ok = _deny_contractor(row_id, TEST_USER_ID, "contractor denial reason")
+            ok = _deny_engineer(row_id, TEST_USER_ID, "engineer denial reason")
             assert ok is True
             with db.cursor() as cur:
                 cur.execute(
-                    "SELECT status, denied_by, denial_reason FROM contractor_approval_requests WHERE id=%s",
+                    "SELECT status, denied_by, denial_reason FROM engineer_approval_requests WHERE id=%s",
                     (row_id,),
                 )
                 row = cur.fetchone()
             assert row["status"] == "denied"
             assert row["denied_by"] == TEST_USER_ID
-            assert row["denial_reason"] == "contractor denial reason"
+            assert row["denial_reason"] == "engineer denial reason"
         finally:
-            _cleanup(db, "contractor_approval_requests", row_id)
+            _cleanup(db, "engineer_approval_requests", row_id)
 
     def test_deny_bridge_cancels(self, db):
         _, _, _deny_bridge = _get_deny_helpers()
@@ -349,9 +349,9 @@ class TestPendingEscalationChain:
 
         with db.cursor() as cur:
             cur.execute(
-                """INSERT INTO contractor_approval_requests
+                """INSERT INTO engineer_approval_requests
                    (agent_id, task_type, task_description, status, priority,
-                    contractor_provider, contractor_model, estimated_cost, estimated_tokens)
+                    engineer_provider, engineer_model, estimated_cost, estimated_tokens)
                    VALUES (%s, 'chain_test', 'chain test', 'pending', 'normal',
                            'openai', 'gpt-4o-mini', 0.01, 500)
                    RETURNING id""",
@@ -363,7 +363,7 @@ class TestPendingEscalationChain:
             resp = approvals_client.get("/tools/department-hq/api/approvals/pending")
             assert resp.status_code == 200
             body = resp.get_json()
-            target = next((a for a in body["approvals"] if a["id"] == f"contractor:{row_id}"), None)
+            target = next((a for a in body["approvals"] if a["id"] == f"engineer:{row_id}"), None)
             assert target is not None, "Seeded row not returned in pending"
             chain = target.get("escalation_chain")
             assert chain is not None, f"Expected chain, got None for agent {display_name}"
@@ -371,16 +371,16 @@ class TestPendingEscalationChain:
             assert chain[-1] == "A.R.C.H.I.E."
             assert len(chain) >= 2
         finally:
-            _cleanup(db, "contractor_approval_requests", row_id)
+            _cleanup(db, "engineer_approval_requests", row_id)
 
     def test_pending_null_chain_when_agent_missing(self, db, approvals_client):
         """Row with agent_id=NULL → escalation_chain is null."""
         _login_as_admin(approvals_client)
         with db.cursor() as cur:
             cur.execute(
-                """INSERT INTO contractor_approval_requests
+                """INSERT INTO engineer_approval_requests
                    (agent_id, task_type, task_description, status, priority,
-                    contractor_provider, contractor_model, estimated_cost, estimated_tokens)
+                    engineer_provider, engineer_model, estimated_cost, estimated_tokens)
                    VALUES (NULL, 'chain_test_null', 'null agent', 'pending', 'normal',
                            'openai', 'gpt-4o-mini', 0.01, 500)
                    RETURNING id""",
@@ -390,29 +390,29 @@ class TestPendingEscalationChain:
             resp = approvals_client.get("/tools/department-hq/api/approvals/pending")
             assert resp.status_code == 200
             body = resp.get_json()
-            target = next((a for a in body["approvals"] if a["id"] == f"contractor:{row_id}"), None)
+            target = next((a for a in body["approvals"] if a["id"] == f"engineer:{row_id}"), None)
             assert target is not None
             assert target.get("escalation_chain") is None
         finally:
-            _cleanup(db, "contractor_approval_requests", row_id)
+            _cleanup(db, "engineer_approval_requests", row_id)
 
 
 class TestHistory:
     def test_history_unions_all_three_sources(self, db, approvals_client):
         """History endpoint returns rows from all 3 tables with source-prefixed IDs."""
         _login_as_admin(approvals_client)
-        _approve_autonomy, _approve_contractor, _approve_bridge = _get_helpers()
+        _approve_autonomy, _approve_engineer, _approve_bridge = _get_helpers()
         from tools.department_hq.approvals_routes import (
-            _deny_contractor,
+            _deny_engineer,
         )
 
         aut_id = _seed_autonomy(db)
-        con_id = _seed_contractor(db)
+        con_id = _seed_engineer(db)
         brd_id = _seed_bridge(db)
 
         # Resolve each via helpers (mixed approve/deny to cover both status branches).
         _approve_autonomy(aut_id, TEST_USER_ID)
-        _deny_contractor(con_id, TEST_USER_ID, "too expensive")
+        _deny_engineer(con_id, TEST_USER_ID, "too expensive")
         _approve_bridge(brd_id, TEST_USER_ID)
 
         try:
@@ -423,11 +423,11 @@ class TestHistory:
             history = body["history"]
             ids = {h["id"] for h in history}
             assert f"autonomy:{aut_id}" in ids
-            assert f"contractor:{con_id}" in ids
+            assert f"engineer:{con_id}" in ids
             assert f"bridge:{brd_id}" in ids
 
             auto_row = next(h for h in history if h["id"] == f"autonomy:{aut_id}")
-            con_row = next(h for h in history if h["id"] == f"contractor:{con_id}")
+            con_row = next(h for h in history if h["id"] == f"engineer:{con_id}")
             brd_row = next(h for h in history if h["id"] == f"bridge:{brd_id}")
 
             assert auto_row["status"] == "approved"
@@ -435,10 +435,10 @@ class TestHistory:
             assert brd_row["status"] == "approved"
             for r in (auto_row, con_row, brd_row):
                 assert r["decided_at"] is not None
-                assert r["source"] in ("autonomy_approval_queue", "contractor_approval_requests", "bridge_jobs")
+                assert r["source"] in ("autonomy_approval_queue", "engineer_approval_requests", "bridge_jobs")
         finally:
             _cleanup(db, "autonomy_approval_queue", aut_id)
-            _cleanup(db, "contractor_approval_requests", con_id)
+            _cleanup(db, "engineer_approval_requests", con_id)
             _cleanup(db, "bridge_jobs", brd_id)
 
 

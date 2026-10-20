@@ -1382,7 +1382,7 @@ def register_github_routes(bp, admin_required):
         """Queue a CODEX (CLI) review of this PR.
 
         Codex is invoked as a CLI on the HOST, not dispatched through DHQ: there is no
-        `codex` row in contractor_providers and the codex_cli lane has never run a
+        `codex` row in engineer_providers and the codex_cli lane has never run a
         bridge job, so a dispatch would resolve no provider and fail at execution. The
         platform container also cannot ssh to its own host (its mounted key is
         unauthorized) and cannot write to the repo (read-only mount), so the request

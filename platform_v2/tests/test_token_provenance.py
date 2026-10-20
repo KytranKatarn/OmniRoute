@@ -86,7 +86,7 @@ EXPECTED_LOCAL_PREFIXES = ("starship:",)
 EXPECTED_NEVER_DISPATCHED = ("cloud_pending",)
 EXPECTED_CLOUD_SUFFIXES = (":cloud", "-cloud")
 
-# Every cloud provider this platform knows about: contractor_providers.provider_key
+# Every cloud provider this platform knows about: engineer_providers.provider_key
 # (minus the two LOCAL entries in that table, comfyui and ollama_diffuser), plus
 # the names the pre-fix hardcoded tuple carried, plus the ones that write rows
 # today. Adding ANY of these to the local allowlist must be a red test.

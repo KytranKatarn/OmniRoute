@@ -134,22 +134,22 @@ tests:
     path: /tools/department-hq/api/coms/stats
     expect:
       status: [200, 301, 302, 304, 401]
-  - name: department_hq-tools-department-hq-api-contractor-providers
+  - name: department_hq-tools-department-hq-api-engineer-providers
     type: api
     method: GET
-    path: /tools/department-hq/api/contractor-providers
+    path: /tools/department-hq/api/engineer-providers
     expect:
       status: [200, 301, 302, 304, 401]
-  - name: department_hq-tools-department-hq-api-contractors-definitions
+  - name: department_hq-tools-department-hq-api-engineers-definitions
     type: api
     method: GET
-    path: /tools/department-hq/api/contractors/definitions
+    path: /tools/department-hq/api/engineers/definitions
     expect:
       status: [200, 301, 302, 304, 401]
-  - name: department_hq-tools-department-hq-api-contractors-providers
+  - name: department_hq-tools-department-hq-api-engineers-providers
     type: api
     method: GET
-    path: /tools/department-hq/api/contractors/providers
+    path: /tools/department-hq/api/engineers/providers
     expect:
       status: [200, 301, 302, 304, 401]
   - name: department_hq-tools-department-hq-api-coordinator-status

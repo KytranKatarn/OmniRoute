@@ -13535,7 +13535,7 @@ class AgentLoop:
             cur.execute(
                 """
                 UPDATE improvement_proposals
-                SET contractor_proposal = %s,
+                SET engineer_proposal = %s,
                     status = 'in_progress'
                 WHERE id = %s
             """,

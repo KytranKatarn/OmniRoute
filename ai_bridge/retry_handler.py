@@ -331,7 +331,7 @@ class TestRetryHandler:
             UPDATE improvement_proposals
             SET
                 escalation_status = 'contractor_consulting',
-                contractor_agent_id = %s,
+                engineer_agent_id = %s,
                 escalated_at = NOW(),
                 test_failure_context = %s,
                 status = 'escalated'
@@ -435,8 +435,8 @@ class TestRetryHandler:
 
         cur.execute(
             """
-            INSERT INTO contractor_consultations
-            (proposal_id, contractor_id, request_prompt, consultation_status)
+            INSERT INTO engineer_consultations
+            (proposal_id, engineer_id, request_prompt, consultation_status)
             VALUES (%s, %s, %s, 'pending')
             RETURNING id
         """,
@@ -562,12 +562,12 @@ Focus on what the internal team overlooked. Be specific and provide implementati
                     ip.test_retry_count,
                     ip.test_failure_context,
                     ip.escalation_status,
-                    ip.contractor_agent_id,
+                    ip.engineer_agent_id,
                     ip.escalated_at,
                     a.name as contractor_name,
                     a.api_provider as contractor_provider
                 FROM improvement_proposals ip
-                LEFT JOIN agents a ON ip.contractor_agent_id = a.id
+                LEFT JOIN agents a ON ip.engineer_agent_id = a.id
                 WHERE ip.id = %s
             """,
                 (proposal_id,),
@@ -587,11 +587,11 @@ Focus on what the internal team overlooked. Be specific and provide implementati
                 "escalated_at": (proposal["escalated_at"].isoformat() if proposal["escalated_at"] else None),
                 "contractor": (
                     {
-                        "id": proposal["contractor_agent_id"],
+                        "id": proposal["engineer_agent_id"],
                         "name": proposal["contractor_name"],
                         "provider": proposal["contractor_provider"],
                     }
-                    if proposal["contractor_agent_id"]
+                    if proposal["engineer_agent_id"]
                     else None
                 ),
                 "failure_context": proposal["test_failure_context"],
@@ -614,8 +614,8 @@ Focus on what the internal team overlooked. Be specific and provide implementati
                     test_retry_count = 0,
                     test_failure_context = NULL,
                     escalation_status = 'none',
-                    contractor_agent_id = NULL,
-                    contractor_proposal = NULL,
+                    engineer_agent_id = NULL,
+                    engineer_proposal = NULL,
                     escalated_at = NULL
                 WHERE id = %s
                 RETURNING id

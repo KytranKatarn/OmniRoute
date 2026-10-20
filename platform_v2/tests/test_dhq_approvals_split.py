@@ -112,7 +112,7 @@ def test_every_url_method_and_admin_guard_is_preserved(approvals_modules):
 def test_generic_routes_still_reject_invalid_source_or_id(approvals_modules, monkeypatch, approval_id, action):
     entry = approvals_modules["approvals_routes"]
     monkeypatch.setattr(entry, "current_user", SimpleNamespace(id=7))
-    for source in ("autonomy", "contractor", "bridge"):
+    for source in ("autonomy", "engineer", "bridge"):
         for operation in ("approve", "deny"):
             monkeypatch.setattr(
                 entry, "_" + operation + "_" + source, lambda *a, **k: pytest.fail("Invalid request reached executor")

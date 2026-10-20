@@ -191,8 +191,8 @@ def _approve_autonomy(source_id: int, user_id: int):
     return (True, action_type)
 
 
-def _approve_contractor(source_id: int, user_id: int):
-    """Approve a contractor_approval_requests row. Sets 14-day expiry window.
+def _approve_engineer(source_id: int, user_id: int):
+    """Approve a engineer_approval_requests row. Sets 14-day expiry window.
 
     The 14-day expires_at aligns with the re-check in
     archie_bridge.request_contractor_approval, which only honors approvals
@@ -202,7 +202,7 @@ def _approve_contractor(source_id: int, user_id: int):
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            """UPDATE contractor_approval_requests
+            """UPDATE engineer_approval_requests
                SET status = 'approved', approved_by = %s,
                    approved_at = NOW(),
                    expires_at = NOW() + INTERVAL '14 days'
@@ -302,12 +302,12 @@ def _deny_autonomy(source_id: int, user_id: int, reason: str) -> bool:
     return denied
 
 
-def _deny_contractor(source_id: int, user_id: int, reason: str) -> bool:
+def _deny_engineer(source_id: int, user_id: int, reason: str) -> bool:
     from database import get_db_cursor
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            """UPDATE contractor_approval_requests
+            """UPDATE engineer_approval_requests
                SET status = 'denied', denied_by = %s,
                    denied_at = NOW(), denial_reason = %s
                WHERE id = %s AND status = 'pending'""",
@@ -342,7 +342,7 @@ def parse_approval_id(approval_id):
     on the internal approve/deny routes (#6666, observed 2026-09-09 from archie_comms).
 
     ⚠️ A bare numeric id is NOT defaulted to 'autonomy'. Each source keeps its own id
-    sequence — autonomy_approval_queue.id, contractor_approval_requests.id and
+    sequence — autonomy_approval_queue.id, engineer_approval_requests.id and
     bridge_jobs.id can all be 5 — so guessing the source on an APPROVE route risks
     approving a different pending item than the caller meant. Callers already have the
     prefixed form: list_pending_approvals() returns source-prefixed ids.
@@ -352,6 +352,6 @@ def parse_approval_id(approval_id):
     if not sep or not source or not sid.strip().isdigit():
         raise ValueError(
             f"malformed approval id {raw!r} — expected '<source>:<int>' "
-            f"(e.g. 'autonomy:123'); sources: autonomy, contractor, bridge"
+            f"(e.g. 'autonomy:123'); sources: autonomy, engineer, bridge"
         )
     return source, int(sid)

@@ -45,14 +45,14 @@ def test_empty_capability_is_noop():
     assert _drop(cands, None) == cands
 
 
-def test_retains_ai_and_contractor_drops_only_internal():
+def test_retains_ai_and_engineer_drops_only_internal():
     cands = [
         _cand(3.0, "Nexus", "internal", ["x"]),
         _cand(1.0, "AIagent", "ai", ["x"]),
-        _cand(0.5, "Contractor", "contract", ["x"]),
+        _cand(0.5, "Engineer", "contract", ["x"]),
     ]
     names = {n for _s, n, _i in _drop(cands, "x")}
-    assert names == {"AIagent", "Contractor"}, "only worker_type='internal' is dropped"
+    assert names == {"AIagent", "Engineer"}, "only worker_type='internal' is dropped"
 
 
 def test_never_empties_when_ai_holds_skill():

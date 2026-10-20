@@ -1201,7 +1201,7 @@ def register_dashboard_routes(bp, auth_decorator):
                                eak.monthly_budget_usd, eak.current_month_cost_usd,
                                CASE WHEN eak.api_key_encrypted IS NOT NULL AND eak.api_key_encrypted != ''
                                     THEN TRUE ELSE FALSE END as has_key
-                        FROM contractor_providers cp
+                        FROM engineer_providers cp
                         LEFT JOIN external_api_keys eak ON cp.provider_key = eak.provider
                         WHERE cp.is_active = TRUE OR eak.is_active = TRUE
                         ORDER BY cp.tier_position
@@ -1236,7 +1236,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             entry["budget_pct"] = round(float(cost or 0) / float(budget) * 100, 1)
                         external.append(entry)
             except Exception as e:
-                logger.warning(f"Could not query contractor_providers: {e}")
+                logger.warning(f"Could not query engineer_providers: {e}")
 
             # 6. Get routing mode
             routing_mode = "full"

@@ -796,7 +796,7 @@ def served_or_requested(llm_result, requested):
     """model_used for a DispatchResult (#6653): the model the provider SAYS served the
     call, unless that is an auto-router id — then the requested id. Local Ollama
     results echo the requested model, so this is a no-op for them; it only changes
-    contractor/gateway rows, where the served model is the accounting truth (ADR-034).
+    engineer/gateway rows, where the served model is the accounting truth (ADR-034).
     """
     from ai_bridge.external_providers import is_auto_router
 
@@ -827,11 +827,11 @@ class DispatchResult:
     department: str = ""
     queued: bool = False  # True when task was deferred to dispatch_pending_queue
     queue_id: Optional[int] = None  # dispatch_pending_queue.id when queued (for async callbacks)
-    # C.R.E.E.D. accounting-integrity Fix #3 (KB #279350-family): cloud/contractor
+    # C.R.E.E.D. accounting-integrity Fix #3 (KB #279350-family): cloud/engineer
     # escalations happen when NO single internal agent was matched (department
     # capacity exhausted before any candidate was selected — see
     # resolve_department_escalation_owner()), so agent_id/agent_name are
-    # generic ("CONTRACTOR→x"/"CLOUD→x", agent_id=None) and every OTHER use of
+    # generic ("ENGINEER→x"/"CLOUD→x", agent_id=None) and every OTHER use of
     # those two fields in _log_execution (welfare update, agent memory,
     # performance metrics, Claude notify) must stay byte-for-byte unchanged.
     # These two carry the department-director proxy attribution used ONLY when
@@ -872,9 +872,9 @@ class DispatchResult:
 def resolve_department_escalation_owner(
     agent_cache: Dict[str, Dict], department: Optional[str]
 ) -> Tuple[Optional[int], Optional[str]]:
-    """Best-effort owner to attribute an orphaned cloud/contractor escalation to.
+    """Best-effort owner to attribute an orphaned cloud/engineer escalation to.
 
-    Cloud/contractor dispatch (see dispatch()'s "not agent and
+    Cloud/engineer dispatch (see dispatch()'s "not agent and
     department_exhausted" branch) only fires once department capacity is
     exhausted AND no single internal agent could be matched at all — there is
     no specific agent that "escalated". The department's AI director
@@ -1049,7 +1049,7 @@ def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     """
     if not _fleet_routing_enabled():
         return None
-    # Contractors (e.g. Codex, model='codex-cli') are external CLI tools, NOT Ollama
+    # Engineers (e.g. Codex, model='codex-cli') are external CLI tools, NOT Ollama
     # agents — never score-route them to a fleet Ollama node, which would 404 on a
     # model it can't possibly have (#4272). Covers worker_type 'contract'/'contractor'.
     if str((agent or {}).get("worker_type") or "").startswith("contract"):
@@ -1308,7 +1308,7 @@ class DepartmentDispatcher:
 
     def _get_station_slot_occupancy(self, department):
         """Count current slot occupancy for a department from active bridge_jobs.
-        Returns dict with primary/auxiliary/contractor counts and capacity config.
+        Returns dict with primary/auxiliary/engineer counts and capacity config.
         Department-based: fixed limits (max_primary=3, max_auxiliary=1, overflow=True).
         """
         try:
@@ -1337,7 +1337,7 @@ class DepartmentDispatcher:
                      WHERE status = 'running'
                      AND (metadata->>'department' = %s OR station_code = %s)
                      AND metadata->>'is_cloud' = 'true'
-                    ) AS contractor_count
+                    ) AS engineer_count
             """,
                 (department, department, department, department, department),
             )
@@ -1347,12 +1347,12 @@ class DepartmentDispatcher:
 
             primary = counts.get("primary_count", 0) or 0
             auxiliary = counts.get("auxiliary_count", 0) or 0
-            contractor = counts.get("contractor_count", 0) or 0
+            engineer = counts.get("engineer_count", 0) or 0
             return {
                 "primary": primary,
                 "auxiliary": auxiliary,
-                "contractor": contractor,
-                "total": primary + auxiliary + contractor,
+                "engineer": engineer,
+                "total": primary + auxiliary + engineer,
                 "max_primary": 3,
                 "max_auxiliary": 1,
                 "allow_overflow": True,
@@ -1362,7 +1362,7 @@ class DepartmentDispatcher:
             return {
                 "primary": 0,
                 "auxiliary": 0,
-                "contractor": 0,
+                "engineer": 0,
                 "total": 0,
                 "max_primary": 3,
                 "max_auxiliary": 1,
@@ -3530,14 +3530,14 @@ class DepartmentDispatcher:
         user_id: Optional[int] = None,
         job_id: Optional[int] = None,
     ) -> "DispatchResult":
-        """Escalate image gen to cloud: free contractors (Tier 1), then paid (Tier 2).
+        """Escalate image gen to cloud: free engineers (Tier 1), then paid (Tier 2).
 
         Free cloud providers auto-execute. Paid providers require async
-        Telegram approval via contractor_approval_requests.
+        Telegram approval via engineer_approval_requests.
         """
         agent_id = agent.get("id")
 
-        # --- Tier 1: Free cloud contractors (auto-approve) ---
+        # --- Tier 1: Free cloud engineers (auto-approve) ---
         try:
             from ai_bridge.external_providers import (
                 generate_media,
@@ -3584,7 +3584,7 @@ class DepartmentDispatcher:
         except ImportError:
             logger.warning("[ImageEscalation] external_providers not available")
 
-        # --- Tier 2: Paid cloud contractors (async Telegram approval) ---
+        # --- Tier 2: Paid cloud engineers (async Telegram approval) ---
         logger.info("[ImageEscalation] All free options exhausted, submitting Tier 2 approval")
 
         # Create pending bridge_job
@@ -3691,8 +3691,8 @@ class DepartmentDispatcher:
 
         1. Fleet node ComfyUI (fastest GPU) → free
         2. Hub ComfyUI (fallback) → free
-        3. Free cloud contractors (HuggingFace, Cloudflare) → free
-        4. Paid cloud contractors (DALL-E 3, Imagen 3) → Telegram approval
+        3. Free cloud engineers (HuggingFace, Cloudflare) → free
+        4. Paid cloud engineers (DALL-E 3, Imagen 3) → Telegram approval
 
         Handles VRAM management, creates bridge_job for tracking, returns DispatchResult.
         """
@@ -4426,7 +4426,7 @@ class DepartmentDispatcher:
                 call_ollama_cloud,
             )
 
-            # Route to external providers — dynamic lookup from contractor_providers DB
+            # Route to external providers — dynamic lookup from engineer_providers DB
             from ai_bridge.external_providers import (
                 get_provider_for_model,
                 call_external,
@@ -4464,9 +4464,9 @@ class DepartmentDispatcher:
                 if ext_config and ext_config.get("is_cloud_proxy"):
                     return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
                 if ext_config:
-                    # Phase 7 — contractor approval gate (Project #244)
+                    # Phase 7 — engineer approval gate (Project #244)
                     if agent_name:
-                        gate = self._contractor_approval_gate(
+                        gate = self._engineer_approval_gate(
                             agent_name=agent_name,
                             provider=ext_provider_key,
                             model=model,
@@ -4479,14 +4479,14 @@ class DepartmentDispatcher:
                         if gate == "rejected":
                             return {
                                 "success": False,
-                                "error": "Contractor dispatch rejected via Telegram approval",
+                                "error": "Engineer dispatch rejected via Telegram approval",
                                 "model": model,
                                 "provider": ext_provider_key,
                             }
                         if gate == "timeout":
                             return {
                                 "success": False,
-                                "error": "Contractor dispatch timed out waiting for Telegram approval",
+                                "error": "Engineer dispatch timed out waiting for Telegram approval",
                                 "model": model,
                                 "provider": ext_provider_key,
                             }
@@ -4629,11 +4629,11 @@ class DepartmentDispatcher:
             }
 
     # ------------------------------------------------------------------
-    # Phase 7 — contractor dispatch Telegram approval gate (Project #244)
+    # Phase 7 — engineer dispatch Telegram approval gate (Project #244)
     # ------------------------------------------------------------------
 
-    def _get_contractor_policy(self, agent_name: str) -> Optional[Dict]:
-        """Return contractor policy for an agent, or None if not a contract worker.
+    def _get_engineer_policy(self, agent_name: str) -> Optional[Dict]:
+        """Return engineer policy for an agent, or None if not a contract worker.
 
         Reads ``worker_type`` and ``auto_approve_threshold`` directly from the
         agents table. Any internal (``worker_type != 'contract'``) agent or
@@ -4658,10 +4658,10 @@ class DepartmentDispatcher:
                 "auto_approve_threshold": float(row[1] or 0.0),
             }
         except Exception as e:
-            logger.warning(f"[BridgeDispatcher] _get_contractor_policy({agent_name}) failed: {e}")
+            logger.warning(f"[BridgeDispatcher] _get_engineer_policy({agent_name}) failed: {e}")
             return None
 
-    def _estimate_contractor_cost(
+    def _estimate_engineer_cost(
         self,
         provider: str,
         model: str,
@@ -4693,7 +4693,7 @@ class DepartmentDispatcher:
                 or 0.0
             )
         except Exception as e:
-            logger.debug(f"[BridgeDispatcher] _estimate_contractor_cost failed: {e}")
+            logger.debug(f"[BridgeDispatcher] _estimate_engineer_cost failed: {e}")
             return 0.0
 
     def wait_for_approval(
@@ -4732,7 +4732,7 @@ class DepartmentDispatcher:
             _t.sleep(poll_interval)
         return None
 
-    def _contractor_approval_gate(
+    def _engineer_approval_gate(
         self,
         agent_name: str,
         provider: str,
@@ -4743,7 +4743,7 @@ class DepartmentDispatcher:
         module_id: str = "unknown",
         timeout: int = 300,
     ) -> Optional[str]:
-        """Gate external contractor dispatch behind Telegram approval.
+        """Gate external engineer dispatch behind Telegram approval.
 
         Returns:
             None: proceed. Agent is internal, or cost is within the agent's
@@ -4756,21 +4756,21 @@ class DepartmentDispatcher:
         approval submission fails, we return 'rejected' so we never charge
         the user for a dispatch we couldn't audit.
         """
-        policy = self._get_contractor_policy(agent_name)
+        policy = self._get_engineer_policy(agent_name)
         if not policy:
             return None  # not a contract worker — proceed
 
-        est_cost = self._estimate_contractor_cost(provider, model, prompt, system_prompt)
+        est_cost = self._estimate_engineer_cost(provider, model, prompt, system_prompt)
         threshold = policy["auto_approve_threshold"]
 
         if est_cost <= threshold:
             logger.info(
-                f"[BridgeDispatcher] Contractor {agent_name} auto-approved: " f"${est_cost:.4f} ≤ ${threshold:.4f}"
+                f"[BridgeDispatcher] Engineer {agent_name} auto-approved: " f"${est_cost:.4f} ≤ ${threshold:.4f}"
             )
             return None
 
         logger.info(
-            f"[BridgeDispatcher] Contractor {agent_name} requires Telegram approval: "
+            f"[BridgeDispatcher] Engineer {agent_name} requires Telegram approval: "
             f"${est_cost:.4f} > ${threshold:.4f}"
         )
         try:
@@ -4780,7 +4780,7 @@ class DepartmentDispatcher:
             return "rejected"
 
         approval_id = request_approval(
-            action_type="contractor_dispatch",
+            action_type="engineer_dispatch",
             action_data={
                 "agent": agent_name,
                 "provider": provider,
@@ -4792,7 +4792,7 @@ class DepartmentDispatcher:
                 "prompt_preview": (prompt or "")[:200],
             },
             reason=(
-                f"Contractor {agent_name} dispatch estimated at "
+                f"Engineer {agent_name} dispatch estimated at "
                 f"${est_cost:.4f} exceeds auto-approve threshold ${threshold:.4f}"
             ),
             requested_by="bridge_dispatcher",
@@ -4801,13 +4801,13 @@ class DepartmentDispatcher:
         )
         if not approval_id:
             logger.error(
-                f"[BridgeDispatcher] request_approval returned None for contractor {agent_name} — failing closed"
+                f"[BridgeDispatcher] request_approval returned None for engineer {agent_name} — failing closed"
             )
             return "rejected"
 
         result = self.wait_for_approval(approval_id, timeout=timeout)
         if result is None:
-            logger.warning(f"[BridgeDispatcher] Contractor approval #{approval_id} timed out")
+            logger.warning(f"[BridgeDispatcher] Engineer approval #{approval_id} timed out")
             return "timeout"
         return result
 
@@ -4834,7 +4834,7 @@ class DepartmentDispatcher:
           - agent_id absent -> warm-up/infra markers, which are unattributed ON
             PURPOSE (agent_id NULL, agent_name kept as a note of which model was
             warmed). Rewriting them would invent an owner.
-          - a composed escalation label already containing '→' (CONTRACTOR→x).
+          - a composed escalation label already containing '→' (ENGINEER→x).
           - an id the cache cannot resolve -> keep the caller's string. Fail-OPEN:
             a wrong-but-present name beats losing the row's only identifier.
         """
@@ -4880,14 +4880,14 @@ class DepartmentDispatcher:
             cur = conn.cursor()
             # Determine worker_type from escalation metadata
             meta = result.metadata or {}
-            is_contractor = meta.get("is_cloud", False)
-            worker_type = "contract" if is_contractor else "internal"
+            is_engineer = meta.get("is_cloud", False)
+            worker_type = "contract" if is_engineer else "internal"
 
             # C.R.E.E.D. accounting-integrity Fix #3 (KB #279350-family): a
-            # cloud/contractor row has no single internal "owner" — agent
+            # cloud/engineer row has no single internal "owner" — agent
             # selection failed entirely before the dispatcher escalated (see
             # resolve_department_escalation_owner()) — so it was historically
-            # logged as (agent_id=None, agent_name="CONTRACTOR→x"/"CLOUD→x"),
+            # logged as (agent_id=None, agent_name="ENGINEER→x"/"CLOUD→x"),
             # which silently drops that cloud spend from the escalating
             # department director's per-agent K.I.N./budget view (that view
             # is driven by task_execution_log.agent_id — see
@@ -4903,7 +4903,7 @@ class DepartmentDispatcher:
             # result.agent_name itself is left untouched so welfare update, agent
             # memory and performance crediting behave exactly as before.
             log_agent_name = self._canonical_agent_name(result.agent_id, result.agent_name)
-            if is_contractor and getattr(result, "escalating_agent_id", None):
+            if is_engineer and getattr(result, "escalating_agent_id", None):
                 log_agent_id = result.escalating_agent_id
                 # canonicalise BOTH halves of the composed label, not just one
                 esc_name = (
@@ -4921,7 +4921,7 @@ class DepartmentDispatcher:
             # accounting — all of which are keyed on task_execution_log.agent_id. This is the
             # SINGLE source-of-truth gate (covers sync + queue paths); the recal module_source
             # filter is belt-and-suspenders for the 30d window. Aggregate carbon/tokens are
-            # unaffected (real model, real energy). Mirrors the contractor override above.
+            # unaffected (real model, real energy). Mirrors the engineer override above.
             is_warmup = module_id in ("fleet_warmup", "kin_warmth")
             if is_warmup:
                 log_agent_id = None
@@ -4965,8 +4965,8 @@ class DepartmentDispatcher:
             # hub-local rows to the hub node so local + DHQ unify at the SOURCE (and the
             # dispatcher's recent_load sees honest hub load). Resolved ONCE by the stable
             # node_id "archie-starbase" (rename-safe; never literal 68), cached, fail-open.
-            # Cloud/contractor rows stay NULL (cloud is not a node); a fleet id always wins.
-            if node_id_used is None and not is_contractor:
+            # Cloud/engineer rows stay NULL (cloud is not a node); a fleet id always wins.
+            if node_id_used is None and not is_engineer:
                 hub_id = getattr(self, "_hub_node_db_id_cache", None)
                 if hub_id is None:
                     try:
@@ -5076,12 +5076,12 @@ class DepartmentDispatcher:
             # Notification hook for Claude MCP-initiated dispatches (Task #1299).
             # Always-on for in-platform; Telegram gated on failures or cost-bearing.
             if request_origin == "claude":
-                self._notify_claude_dispatch(result, mcp_tool, is_contractor)
+                self._notify_claude_dispatch(result, mcp_tool, is_engineer)
 
             # Also update agent-level performance summary via agent_service
-            # (Project #241 Track C.3). Skip when contractor did the work —
+            # (Project #241 Track C.3). Skip when engineer did the work —
             # don't credit the agent.
-            if result.agent_id and not is_contractor and not is_warmup:
+            if result.agent_id and not is_engineer and not is_warmup:
                 try:
                     from services import agent_service
 
@@ -5108,7 +5108,7 @@ class DepartmentDispatcher:
         self,
         result: "DispatchResult",
         mcp_tool: Optional[str],
-        is_contractor: bool,
+        is_engineer: bool,
     ):
         """Fire platform notification (and optionally Telegram) when a Claude
         MCP request completes a dispatch (Task #1299).
@@ -5116,13 +5116,13 @@ class DepartmentDispatcher:
         Routing:
         - Always: in-platform admin notification (DHQ alerts dropdown)
         - Telegram: only on failures or cost-bearing dispatches (cost > 0
-          or contractor tier), gated by env CLAUDE_DISPATCH_TELEGRAM=1.
-          The cost/contractor Tier-2 approval flow runs INSIDE dispatch()
+          or engineer tier), gated by env CLAUDE_DISPATCH_TELEGRAM=1.
+          The cost/engineer Tier-2 approval flow runs INSIDE dispatch()
           before this point — we only post-notify.
         """
         try:
             cost = float(getattr(result, "cost_usd", 0) or 0)
-            is_cost_bearing = is_contractor or cost > 0
+            is_cost_bearing = is_engineer or cost > 0
             status_emoji = "✓" if result.success else "✗"
             title = f"Claude → {mcp_tool or 'dispatch'}"
             parts = [
@@ -5198,7 +5198,7 @@ class DepartmentDispatcher:
         """
         if not result.agent_id:
             return
-        # Skip contractor/cloud work — memory belongs to internal agents
+        # Skip engineer/cloud work — memory belongs to internal agents
         meta = result.metadata or {}
         if meta.get("is_cloud"):
             return
@@ -5551,31 +5551,31 @@ class DepartmentDispatcher:
         except Exception:
             pass
 
-    # Cloud contractor models (free via OLLAMA_API_KEY) — legacy fallback.
-    # Prefer _find_contractors_for_capability() which queries contractor_providers table.
+    # Cloud engineer models (free via OLLAMA_API_KEY) — legacy fallback.
+    # Prefer _find_engineers_for_capability() which queries engineer_providers table.
     FREE_CLOUD_MODELS = [
         # minimax-m2.5:cloud RETIRED 2026-08-17 (#5706) — every dispatch 410'd after ~370s.
         "qwen3-coder-next:cloud",
     ]
 
-    def _find_contractors_for_capability(
+    def _find_engineers_for_capability(
         self, capability: str, max_tier: int = 28, exclude_restricted: bool = False
     ) -> list:
-        """Find contractors matching a capability, ordered by tier_position (cheapest first).
+        """Find engineers matching a capability, ordered by tier_position (cheapest first).
 
-        Queries contractor_providers table for active providers whose capabilities
+        Queries engineer_providers table for active providers whose capabilities
         JSONB array contains a matching tag. Falls back to text_chat if no exact match.
 
         Args:
             capability: Normalized capability tag (e.g., 'code_generation', 'image_gen')
             max_tier: Max tier_position to consider (for budget control)
-            exclude_restricted: If True, skip creed_compliance_tier=3 contractors
+            exclude_restricted: If True, skip creed_compliance_tier=3 engineers
 
         Returns:
             List of dicts: {provider_key, display_name, tier_position,
                            creed_compliance_tier, base_url, default_model, is_cloud_proxy}
         """
-        # Map CAPABILITY_TAXONOMY tags to contractor_providers.capabilities tags
+        # Map CAPABILITY_TAXONOMY tags to engineer_providers.capabilities tags
         capability_map = {
             "code_generation": "code",
             "code_review": "code",
@@ -5607,7 +5607,7 @@ class DepartmentDispatcher:
             query = """
                 SELECT provider_key, display_name, tier_position,
                        creed_compliance_tier, base_url, default_model, is_cloud_proxy
-                FROM contractor_providers
+                FROM engineer_providers
                 WHERE is_active = true
                   AND tier_position <= %s
                   AND capabilities @> %s::jsonb
@@ -5625,12 +5625,12 @@ class DepartmentDispatcher:
             conn.close()
             return results
         except Exception as e:
-            logger.warning(f"[DepartmentDispatcher] Contractor capability query failed: {e}")
+            logger.warning(f"[DepartmentDispatcher] Engineer capability query failed: {e}")
             return []
 
-    def _dispatch_to_contractor(
+    def _dispatch_to_engineer(
         self,
-        contractor: dict,
+        engineer: dict,
         prompt: str,
         capability: str,
         module_id: str,
@@ -5640,7 +5640,7 @@ class DepartmentDispatcher:
         escalating_agent_id: Optional[int] = None,
         escalating_agent_name: Optional[str] = None,
     ) -> Optional["DispatchResult"]:
-        """Dispatch work to a cloud contractor provider.
+        """Dispatch work to a cloud engineer provider.
 
         For cloud proxy providers (is_cloud_proxy=True), uses _execute_llm()
         which routes through Ollama cloud. For standard providers, uses
@@ -5655,17 +5655,17 @@ class DepartmentDispatcher:
 
         Returns DispatchResult on success, None on failure.
         """
-        provider_key = contractor["provider_key"]
-        model = contractor.get("default_model")
+        provider_key = engineer["provider_key"]
+        model = engineer.get("default_model")
 
         # #4659 sovereignty budget gate — skip a cloud provider that is over its
-        # weekly free tier so the escalation loop rotates to the next contractor
+        # weekly free tier so the escalation loop rotates to the next engineer
         # (and falls back to local when all are exhausted). Covers the non-proxy
         # call_external path, which does NOT flow through _execute_llm's gate.
         # #6653 sovereignty allowlist — before the budget gate (see site 1).
         if not self._cloud_capability_allowed(capability):
             logger.info(
-                "[DepartmentDispatcher] Skipping contractor %s — capability '%s' not on the "
+                "[DepartmentDispatcher] Skipping engineer %s — capability '%s' not on the "
                 "cloud allowlist (staying local).",
                 provider_key,
                 capability,
@@ -5674,16 +5674,16 @@ class DepartmentDispatcher:
 
         if not self._cloud_budget_ok(provider_key, capability):
             logger.info(
-                "[DepartmentDispatcher] Skipping contractor %s — over weekly free budget.",
+                "[DepartmentDispatcher] Skipping engineer %s — over weekly free budget.",
                 provider_key,
             )
             return None
 
         try:
-            if contractor.get("is_cloud_proxy"):
+            if engineer.get("is_cloud_proxy"):
                 # Cloud proxy (e.g. minimax, qwen3) — route through Ollama.
                 # Vision passes `images` through request_work → _execute_llm
-                # but contractor/cloud-proxy paths don't support vision yet
+                # but engineer/cloud-proxy paths don't support vision yet
                 # (each provider has a different image payload shape); left
                 # unthreaded on purpose until that work lands.
                 llm_result = self._execute_llm(
@@ -5697,20 +5697,20 @@ class DepartmentDispatcher:
                     return DispatchResult(
                         success=True,
                         response=llm_result.get("response", ""),
-                        agent_name=f"CONTRACTOR→{contractor['display_name']}",
+                        agent_name=f"ENGINEER→{engineer['display_name']}",
                         agent_id=None,
                         model_used=served_or_requested(llm_result, model or provider_key),
-                        department="Contractors",
+                        department="Engineers",
                         capability=capability,
                         duration_ms=0,  # caller sets this
                         prompt_tokens=llm_result.get("prompt_tokens", llm_result.get("prompt_eval_count", 0)),
                         completion_tokens=llm_result.get("completion_tokens", llm_result.get("eval_count", 0)),
-                        provider=f"contractor:{provider_key}",
+                        provider=f"engineer:{provider_key}",
                         metadata={
-                            "escalation": "contractor_capability",
-                            "contractor": provider_key,
-                            "tier_position": contractor["tier_position"],
-                            "creed_tier": contractor.get("creed_compliance_tier", 2),
+                            "escalation": "engineer_capability",
+                            "engineer": provider_key,
+                            "tier_position": engineer["tier_position"],
+                            "creed_tier": engineer.get("creed_compliance_tier", 2),
                             "is_cloud_proxy": True,
                             "is_cloud": True,
                             "served_model_resolved": bool(llm_result.get("served_model_resolved", True)),
@@ -5735,20 +5735,20 @@ class DepartmentDispatcher:
                     return DispatchResult(
                         success=True,
                         response=result.get("response", ""),
-                        agent_name=f"CONTRACTOR→{contractor['display_name']}",
+                        agent_name=f"ENGINEER→{engineer['display_name']}",
                         agent_id=None,
                         model_used=served_or_requested(result, model or provider_key),
-                        department="Contractors",
+                        department="Engineers",
                         capability=capability,
                         duration_ms=0,  # caller sets this
                         prompt_tokens=result.get("prompt_tokens", result.get("prompt_eval_count", 0)),
                         completion_tokens=result.get("completion_tokens", result.get("eval_count", 0)),
-                        provider=f"contractor:{provider_key}",
+                        provider=f"engineer:{provider_key}",
                         metadata={
-                            "escalation": "contractor_capability",
-                            "contractor": provider_key,
-                            "tier_position": contractor["tier_position"],
-                            "creed_tier": contractor.get("creed_compliance_tier", 2),
+                            "escalation": "engineer_capability",
+                            "engineer": provider_key,
+                            "tier_position": engineer["tier_position"],
+                            "creed_tier": engineer.get("creed_compliance_tier", 2),
                             "is_cloud_proxy": False,
                             "is_cloud": True,
                             "served_model_resolved": bool(result.get("served_model_resolved", True)),
@@ -5758,7 +5758,7 @@ class DepartmentDispatcher:
                         escalating_agent_name=escalating_agent_name,
                     )
         except Exception as e:
-            logger.warning(f"[DepartmentDispatcher] Contractor dispatch failed ({provider_key}): {e}")
+            logger.warning(f"[DepartmentDispatcher] Engineer dispatch failed ({provider_key}): {e}")
 
         return None
 
@@ -6772,7 +6772,7 @@ class DepartmentDispatcher:
             # Cloud model. Guard allowlist + budget BEFORE anything leaves the
             # cluster, then run the blocking path once (cloud does not stream).
             is_cloud = True
-            provider = f"contractor:{ext_provider_key}"
+            provider = f"engineer:{ext_provider_key}"
             if not self._cloud_capability_allowed(capability):
                 err_code, err_msg = (
                     "cloud_capability_blocked",
@@ -7991,7 +7991,7 @@ class DepartmentDispatcher:
 
             # C.R.E.E.D. accounting-integrity Fix #3: no single agent was ever
             # matched here (that's what department_exhausted means), so any
-            # cloud/contractor dispatch below has no specific "escalating
+            # cloud/engineer dispatch below has no specific "escalating
             # agent". Resolve the department's AI director as the best-effort
             # proxy owner ONCE — used only to attribute the eventual
             # task_execution_log row; routing/welfare/cost logic is untouched.
@@ -8033,7 +8033,7 @@ class DepartmentDispatcher:
                         },
                         reason=(
                             f"Department {blocked_department} at full capacity. "
-                            f"Approve cloud contractor for '{capability}'?"
+                            f"Approve cloud engineer for '{capability}'?"
                         ),
                         requested_by="bridge_dispatcher",
                         tier=2,
@@ -8053,45 +8053,45 @@ class DepartmentDispatcher:
                     ),
                 )
 
-            # 2d. Capability-aware contractor routing (only if escalation_mode is auto)
-            #     Queries contractor_providers by detected capability, tries in
+            # 2d. Capability-aware engineer routing (only if escalation_mode is auto)
+            #     Queries engineer_providers by detected capability, tries in
             #     tier_position order (cheapest first). Falls back to legacy
-            #     FREE_CLOUD_MODELS if no contractors match.
+            #     FREE_CLOUD_MODELS if no engineers match.
             escalation_mode = self._get_escalation_mode()
             if routing_mode != "local_only" and escalation_mode == "auto":
                 # Use detected_capability from SmartRouter, fall back to request capability
-                contractor_cap = detected_capability or capability
-                contractors = self._find_contractors_for_capability(contractor_cap, max_tier=13)  # free tier first
-                if not contractors:
+                engineer_cap = detected_capability or capability
+                engineers = self._find_engineers_for_capability(engineer_cap, max_tier=13)  # free tier first
+                if not engineers:
                     # Broaden: try with text_chat as generic fallback
-                    contractors = self._find_contractors_for_capability("conversation", max_tier=13)
+                    engineers = self._find_engineers_for_capability("conversation", max_tier=13)
 
-                contractor_succeeded = False
-                for contractor in contractors:
+                engineer_succeeded = False
+                for engineer in engineers:
                     # #4659 — skip over-budget cloud providers up front so we don't
                     # even create a cloud job for them; the loop rotates to the next,
                     # and falls through to local when all free tiers are exhausted.
                     # #6653 sovereignty allowlist — before the budget gate (see site 1).
-                    if not self._cloud_capability_allowed(contractor_cap):
+                    if not self._cloud_capability_allowed(engineer_cap):
                         continue
-                    if not self._cloud_budget_ok(contractor["provider_key"], contractor_cap):
+                    if not self._cloud_budget_ok(engineer["provider_key"], engineer_cap):
                         continue
                     logger.info(
                         f"[DepartmentDispatcher] Department {blocked_department} exhausted "
-                        f"for '{capability}' (cap={contractor_cap}). "
-                        f"Trying contractor: {contractor['display_name']} "
-                        f"(tier {contractor['tier_position']})"
+                        f"for '{capability}' (cap={engineer_cap}). "
+                        f"Trying engineer: {engineer['display_name']} "
+                        f"(tier {engineer['tier_position']})"
                     )
                     # Create visible bridge_job for 3D bridge view
                     cloud_job_id = self._create_cloud_job(
-                        contractor.get("default_model") or contractor["provider_key"],
-                        f"contractor:{contractor['provider_key']}",
+                        engineer.get("default_model") or engineer["provider_key"],
+                        f"engineer:{engineer['provider_key']}",
                         DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
                         capability,
                         module_id,
                     )
-                    contractor_result = self._dispatch_to_contractor(
-                        contractor=contractor,
+                    engineer_result = self._dispatch_to_engineer(
+                        engineer=engineer,
                         prompt=prompt,
                         capability=capability,
                         module_id=module_id,
@@ -8101,12 +8101,12 @@ class DepartmentDispatcher:
                         escalating_agent_id=_esc_agent_id,
                         escalating_agent_name=_esc_agent_name,
                     )
-                    if contractor_result:
+                    if engineer_result:
                         self._complete_cloud_job(cloud_job_id, success=True)
                         duration_ms = int((time.time() - start) * 1000)
-                        contractor_result.duration_ms = duration_ms
-                        contractor_result.department = blocked_department
-                        contractor_result.metadata.update(
+                        engineer_result.duration_ms = duration_ms
+                        engineer_result.department = blocked_department
+                        engineer_result.metadata.update(
                             {
                                 "blocked_department": blocked_department,
                                 "home_department": home_department,
@@ -8119,33 +8119,33 @@ class DepartmentDispatcher:
                             module_id=module_id,
                             capability=capability,
                             home_station=blocked_department,
-                            cloud_model=contractor.get("default_model") or contractor["provider_key"],
-                            cloud_provider=f"contractor:{contractor['provider_key']}",
+                            cloud_model=engineer.get("default_model") or engineer["provider_key"],
+                            cloud_provider=f"engineer:{engineer['provider_key']}",
                             reason=f"Department {blocked_department} at capacity",
                         )
                         self._log_capacity_event(
                             department=blocked_department,
-                            event_type="cloud_contractor",
-                            agent_name=contractor_result.agent_name,
+                            event_type="cloud_engineer",
+                            agent_name=engineer_result.agent_name,
                             capability=capability,
-                            reason=f"Contractor {contractor['display_name']} for {capability}",
+                            reason=f"Engineer {engineer['display_name']} for {capability}",
                             metadata={
-                                "contractor": contractor["provider_key"],
-                                "tier_position": contractor["tier_position"],
+                                "engineer": engineer["provider_key"],
+                                "tier_position": engineer["tier_position"],
                                 "module_id": module_id,
-                                "detected_capability": contractor_cap,
+                                "detected_capability": engineer_cap,
                             },
                         )
-                        self._log_execution(contractor_result, module_id, user_id, job_id=job_id)
-                        return contractor_result
+                        self._log_execution(engineer_result, module_id, user_id, job_id=job_id)
+                        return engineer_result
                     else:
                         self._complete_cloud_job(cloud_job_id, success=False)
 
-                # Legacy fallback: try FREE_CLOUD_MODELS if no contractors matched
-                if not contractors:
+                # Legacy fallback: try FREE_CLOUD_MODELS if no engineers matched
+                if not engineers:
                     for cloud_model in self.FREE_CLOUD_MODELS:
                         logger.info(
-                            f"[DepartmentDispatcher] No contractors for '{contractor_cap}'. "
+                            f"[DepartmentDispatcher] No engineers for '{engineer_cap}'. "
                             f"Legacy fallback: {cloud_model}"
                         )
                         cloud_job_id = self._create_cloud_job(
@@ -8436,7 +8436,7 @@ class DepartmentDispatcher:
                     error=f"Blocked: escalation_mode=local_only, model_override={model_override} is cloud",
                 )
 
-        # 3d. Throughput escalation — if agent is busy, try cloud contractors
+        # 3d. Throughput escalation — if agent is busy, try cloud engineers
         # Exclude the caller's own job_id so a batch operation doesn't
         # escalate its own sub-dispatches to cloud.
         busy_job = self._check_agent_busy(agent_name, exclude_job_id=job_id)
@@ -8970,14 +8970,14 @@ class DepartmentDispatcher:
         # Merge SmartRouter advisory info for observability
         if smart_route_info:
             result_metadata["smart_routing"] = smart_route_info
-        # Merge failure-escalation flags so Bridge Command tracks contractor work
+        # Merge failure-escalation flags so Bridge Command tracks engineer work
         if escalation_info:
             result_metadata.update(escalation_info)
         # Surface agentic tool-search provenance (#3534) for A.R.M.A.D.A. traffic
         if agentic_info:
             result_metadata["agentic"] = agentic_info
 
-        # #6653: carry served-model provenance from a gateway/contractor call into
+        # #6653: carry served-model provenance from a gateway/engineer call into
         # task_execution_log.request_metadata so the live proof can read it back.
         if isinstance(llm_result, dict) and "served_model_resolved" in llm_result:
             result_metadata["served_model_resolved"] = bool(llm_result.get("served_model_resolved"))
@@ -9271,7 +9271,7 @@ class DepartmentDispatcher:
                 ]
 
             elif advisory_type == "free_cloud":
-                title = "Free Cloud Contractor"
+                title = "Free Cloud Engineer"
                 message = f"{module_id} '{capability}' \u2192 {cloud_model} " f"({cloud_provider or 'cloud'})"
                 if reason:
                     message += f"\n{reason}"

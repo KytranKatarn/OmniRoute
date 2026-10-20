@@ -36,7 +36,23 @@ _GATE_MIN_CLUSTER_SIZE = int(os.environ.get("WTF_TIER2_GATE_MIN_CLUSTER_SIZE", "
 _TIER1_PREFER_NODE = os.environ.get("WTF_TIER1_PREFER_NODE", "outpost_us_001")
 
 _GATE_BIAS_BANDS = {"left", "right"}
-_GATE_SPECIAL_LEANS = {"right"}  # right-leaning balance bucket gets the full review
+
+
+def special_leans(symmetric: bool) -> set:
+    """Source leans that go to the full review regardless of body/claims/cluster (#7340).
+
+    Until now ONLY 'right' did, which in practice is ONE outlet (Le Journal de Montréal: 254 articles in 7
+    days, every one escalated purely because of its lean = ~28% of all deep-pass articles), while the six
+    'left' outlets (96 articles/7d) got no equivalent. Owner decision 2026-10-19: make it symmetric. The
+    mirror rule adds at most ~22 articles/week (~2.4% of the 914/week full-tier volume) - measured on the live
+    DB - and ships behind WTF_TIER2_GATE_SYMMETRIC_LEAN, default OFF, so enabling it is a deliberate step.
+    Only the extremes ('left'/'right') are special-cased; center-left/center-right never were.
+    """
+    return {"right", "left"} if symmetric else {"right"}
+
+
+_GATE_SYMMETRIC_LEAN = os.environ.get("WTF_TIER2_GATE_SYMMETRIC_LEAN", "").strip().lower() in {"1", "true", "yes", "on"}
+_GATE_SPECIAL_LEANS = special_leans(_GATE_SYMMETRIC_LEAN)  # read by BOTH _evaluate_gate and _factcheck_gate
 _GATE_SPECIAL_SLUGS = {"windspeaker", "indiginews", "kukukwes_news", "turtle_island_news"}
 
 

@@ -22,6 +22,18 @@ Usage pattern:
 
 All dispatch calls must remain local_only=True for privacy-sensitive work.
 Fleet nodes (Headscale mesh) are "local" — local_only does NOT disable fleet routing.
+
+DEFAULT OFF (task #7371). `_query_available_nodes` joined a relation `agent_welfare` that exists nowhere, so
+for months it failed every 5 min (logged as a warning) and returned [] — the hub-only fallback. The query now
+reads the real objects (v_agent_welfare for stress/energy/rest, agent_budgets for load), but a WORKING query would
+switch fleet fan-out ON for the first time, so it is gated by platform_settings:
+
+    fleet_batch_dispatch:enabled        'true' to enable (default: off; any read error also means off)
+    fleet_batch_dispatch:allowed_nodes  optional CSV of remote_nodes.node_id; empty = every approved online node
+
+⚠️ The only caller today is the Gmail memory-vault extract worker, so enabling this sends email-derived extraction
+work to fleet nodes. Eligible nodes include the rented VPSs (Citadel, Outpost-US) — set `allowed_nodes` to the LAN
+Starships unless the owner has accepted that.
 """
 
 import logging
@@ -35,6 +47,9 @@ from database import get_db_cursor
 logger = logging.getLogger(__name__)
 
 _CACHE_TTL = 30.0  # seconds — re-query after 30s to pick up new/failed nodes
+
+_FLAG_ENABLED = "fleet_batch_dispatch:enabled"
+_FLAG_ALLOWED_NODES = "fleet_batch_dispatch:allowed_nodes"
 
 _cache_lock = threading.Lock()
 _cache: dict = {}  # {capability: (monotonic_ts, [node_dicts])}
@@ -200,46 +215,74 @@ def fan_out(
 # ---------------------------------------------------------------------------
 
 
+def _setting(key: str) -> Optional[str]:
+    """platform_settings value, or None. FAIL CLOSED: any error reads as 'unset' (so the feature stays off)."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (key,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        return row["value"] if hasattr(row, "keys") else row[0]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("fleet_batch_dispatcher: could not read setting %s (%s); treating as unset", key, exc)
+        return None
+
+
+def is_enabled() -> bool:
+    return str(_setting(_FLAG_ENABLED) or "").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _allowed_nodes() -> List[str]:
+    return [t.strip() for t in str(_setting(_FLAG_ALLOWED_NODES) or "").split(",") if t.strip()]
+
+
+# One row per eligible (node, agent); the best-scoring agent per node is chosen in SQL.
+# Welfare comes from v_agent_welfare (stress/energy/rest cycles), load from agent_budgets. There is no
+# `agent_welfare` relation and v_agent_welfare has no utilization/is_resting columns, so utilization is
+# current_task_count / task_queue_limit and "resting" is an open agent_rest_cycles row (active_rest_cycles > 0).
+_NODE_QUERY = """
+    WITH cand AS (
+        SELECT rn.id AS rn_id, rn.node_name, rn.node_id, a.id AS agent_id,
+               COALESCE(w.stress_level, 0.3)::float AS stress,
+               COALESCE(w.energy_level, 0.7)::float AS energy,
+               LEAST(1.0, COALESCE(ab.current_task_count, 0)::float
+                          / GREATEST(COALESCE(ab.task_queue_limit, 50), 1)) AS util,
+               COALESCE(sk.proficiency_level, 3) AS prof
+        FROM remote_nodes rn
+        JOIN node_agents  na ON na.node_id = rn.id
+        JOIN agents       a  ON a.id = na.hub_agent_id
+        JOIN agent_skills sk ON sk.agent_id = a.id AND sk.skill_name = %s
+        LEFT JOIN v_agent_welfare w ON w.agent_id = a.id
+        LEFT JOIN agent_budgets  ab ON ab.agent_id = a.id
+        WHERE rn.last_heartbeat > now() - INTERVAL '3 minutes'
+          AND rn.approval_status = 'approved'
+          AND a.shift_state IN ('active', 'winding_down')
+          AND COALESCE(w.active_rest_cycles, 0) = 0
+          AND COALESCE(ab.current_task_count, 0) < COALESCE(ab.task_queue_limit, 50)
+          AND (%s::text[] IS NULL OR rn.node_id = ANY(%s::text[]))
+    )
+    SELECT DISTINCT ON (rn_id) node_name, node_id, agent_id, stress, energy, util
+    FROM cand
+    WHERE util < 0.95
+    ORDER BY rn_id, ((1 - stress) * 0.3 + energy * 0.2 - util * 0.5 + prof * 0.05) DESC
+"""
+
+
 def _query_available_nodes(capability: str, min_score: float) -> List[dict]:
     """
     Query DB for online fleet nodes (heartbeat < 3min) whose best-scoring agent
     has `capability` in agent_skills and passes K.I.N. welfare thresholds.
     Returns one entry per node (highest-scoring agent wins).
+
+    DEFAULT OFF: returns [] (hub-only fallback) unless `fleet_batch_dispatch:enabled` is set.
     """
+    if not is_enabled():
+        return []
+    allowed = _allowed_nodes() or None
     try:
         with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """
-                SELECT DISTINCT ON (rn.id)
-                    rn.node_name,
-                    rn.node_id,
-                    a.id                                       AS agent_id,
-                    COALESCE(aw.stress_level,    0.3)         AS stress,
-                    COALESCE(aw.energy_level,    0.7)         AS energy,
-                    COALESCE(aw.utilization_pct, 0.2)         AS util
-                FROM remote_nodes rn
-                JOIN node_agents  na  ON na.node_id      = rn.id
-                JOIN agents       a   ON a.id            = na.hub_agent_id
-                JOIN agent_skills sk  ON sk.agent_id     = a.id
-                                     AND sk.skill_name   = %s
-                LEFT JOIN agent_welfare  aw ON aw.agent_id = a.id
-                LEFT JOIN agent_budgets  ab ON ab.agent_id = a.id
-                WHERE rn.last_heartbeat > now() - INTERVAL '3 minutes'
-                  AND rn.approval_status = 'approved'
-                  AND a.shift_state IN ('active', 'winding_down')
-                  AND COALESCE(aw.is_resting,        FALSE) = FALSE
-                  AND COALESCE(aw.utilization_pct,   0.2)  < 0.95
-                  AND COALESCE(ab.current_task_count, 0)
-                      < COALESCE(ab.task_queue_limit, 50)
-                ORDER BY rn.id,
-                         (  (1 - COALESCE(aw.stress_level,    0.3)) * 0.3
-                          +      COALESCE(aw.energy_level,    0.7)  * 0.2
-                          -      COALESCE(aw.utilization_pct, 0.2)  * 0.5
-                          + COALESCE(sk.proficiency_level, 3) * 0.05
-                         ) DESC
-                """,
-                (capability,),
-            )
+            cur.execute(_NODE_QUERY, (capability, allowed, allowed))
             rows = cur.fetchall()
     except Exception as exc:
         logger.warning("fleet_batch_dispatcher: node query failed (%s): %s", capability, exc)
@@ -247,9 +290,9 @@ def _query_available_nodes(capability: str, min_score: float) -> List[dict]:
 
     result = []
     for row in rows:
-        stress = float(row["stress"] or 0.3)
-        energy = float(row["energy"] or 0.7)
-        util = float(row["util"] or 0.2)
+        stress = float(row["stress"] if row["stress"] is not None else 0.3)
+        energy = float(row["energy"] if row["energy"] is not None else 0.7)
+        util = float(row["util"] if row["util"] is not None else 0.2)
         score = (1 - stress) * 0.3 + energy * 0.2 - util * 0.5
         if score >= min_score:
             result.append(

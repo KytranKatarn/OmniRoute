@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 QUEUE_DIR = Path(os.getenv("CODEX_REVIEW_QUEUE", "/mnt/archie_sandbox/.codex-review-queue"))
 PENDING_DIR = QUEUE_DIR / "pending"
+RUNNING_DIR = QUEUE_DIR / "running"
 DONE_DIR = QUEUE_DIR / "done"
 
 # How long the UI should keep showing "in flight" before it stops claiming progress.
@@ -132,17 +133,29 @@ def pending_request_for(pr: int) -> Optional[str]:
     return None
 
 
+def running_request_for(pr: int) -> Optional[str]:
+    """A host claim remains active until its result is published."""
+    try:
+        for path in sorted(RUNNING_DIR.glob("*.json"), reverse=True):
+            data = _read_object(path)
+            if data is not None and data.get("pr") == pr:
+                return path.stem
+    except OSError:
+        pass
+    return None
+
+
 def enqueue_codex_review(pr_number: Any, repo: Optional[str] = None, dry_run: bool = False) -> Dict[str, Any]:
     """Drop a review request in the spool. Returns a result dict; never raises."""
     pr = _valid_pr(pr_number)
     if pr is None:
         return {"success": False, "error": f"invalid PR number: {pr_number!r}"}
 
-    existing = pending_request_for(pr)
+    existing = pending_request_for(pr) or running_request_for(pr)
     if existing:
         return {
             "success": False,
-            "error": f"PR #{pr} already has a review queued (request {existing}). "
+            "error": f"PR #{pr} already has a review queued or running (request {existing}). "
             f"Wait for it to finish rather than queueing a second.",
             "request_id": existing,
         }
@@ -201,6 +214,17 @@ def codex_review_status(pr_number: Any) -> Dict[str, Any]:
         return {"status": "invalid", "error": f"invalid PR number: {pr_number!r}"}
 
     pending = pending_request_for(pr)
+    running = running_request_for(pr)
+    if running:
+        log = DONE_DIR / f"{running}.log"
+        request = _read_object(RUNNING_DIR / f"{running}.json") or {}
+        return {
+            "status": "running",
+            "request_id": running,
+            "pr": pr,
+            "requested_at": request.get("requested_at"),
+            "log": str(log) if log.is_file() else None,
+        }
     newest: Optional[Dict[str, Any]] = None
     newest_id: Optional[str] = None
     try:
@@ -238,18 +262,10 @@ def read_review_log(pr_number: Any, max_chars: int = 8000) -> Optional[str]:
     pr = _valid_pr(pr_number)
     if pr is None:
         return None
-    newest_log: Optional[str] = None
-    try:
-        for path in sorted(DONE_DIR.glob("*.json")):
-            data = _read_object(path)
-            if data is None:
-                continue
-            log_ref = data.get("log")
-            if data.get("pr") == pr and isinstance(log_ref, str) and log_ref:
-                newest_log = log_ref
-    except Exception:  # noqa: BLE001
-        return None
-    if not newest_log:
+    # Resolve the same request as status(), including the currently running log.
+    # Otherwise a new run displays an older run's output, or no output at all.
+    newest_log = codex_review_status(pr).get("log")
+    if not isinstance(newest_log, str) or not newest_log:
         return None
     try:
         text = Path(newest_log).read_text(encoding="utf-8", errors="replace")

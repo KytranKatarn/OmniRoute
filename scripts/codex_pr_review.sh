@@ -48,7 +48,14 @@
 set -uo pipefail
 
 REPO="KytranKatarn/archie-platform"
-MAX_DIFF_CHARS="${MAX_DIFF_CHARS:-60000}"
+# GitHub owner/name is not a local Git directory.
+REPO_DIR="${CODEX_REVIEW_REPO_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Full diff by default. An explicit operator ceiling refuses oversized reviews;
+# it never turns a partial prefix into a purported whole-diff review.
+MAX_DIFF_CHARS="${MAX_DIFF_CHARS:-0}"
+case "$MAX_DIFF_CHARS" in
+  ''|*[!0-9]*) echo "FATAL: MAX_DIFF_CHARS must be a non-negative integer" >&2; exit 2 ;;
+esac
 
 PR=""
 POST_MODE="none"     # none | comment | approve
@@ -153,6 +160,7 @@ fi
 
 TITLE=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["title"])')
 AUTHOR=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["author"])')
+HEADSHA=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["sha"])')
 HEADREF=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["head"])')
 BASEREF=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["base"])')
 STATE=$(printf '%s' "$META" | python3 -c 'import sys,json;print(json.load(sys.stdin)["state"])')
@@ -170,19 +178,29 @@ fi
 
 # ---------------------------------------------------------------- diff
 WORKTREE=""
+DIFF_FILE=""
+PROMPT_FILE=""
 cleanup() {
+  [ -z "$DIFF_FILE" ] || rm -f "$DIFF_FILE"
+  [ -z "$PROMPT_FILE" ] || rm -f "$PROMPT_FILE"
   if [ -n "$WORKTREE" ] && [ -d "$WORKTREE" ]; then
-    git -C "$REPO" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
+    git -C "$REPO_DIR" worktree remove --force "$WORKTREE" >/dev/null 2>&1 || true
     rm -rf "$WORKTREE" 2>/dev/null || true
   fi
 }
 trap cleanup EXIT
 
-WORKTREE=$(mktemp -d "${TMPDIR:-/tmp}/codex-review-$PR-XXXXXX")
-git -C "$REPO" fetch -q origin "pull/$PR/head:refs/codex-review/$PR" 2>/dev/null
-git -C "$REPO" worktree add --detach "$WORKTREE" "refs/codex-review/$PR" >/dev/null 2>&1
-if [ ! -d "$WORKTREE" ]; then
-  echo "FATAL: could not create disposable worktree" >&2
+WORKTREE_ROOT="${CODEX_REVIEW_WORKTREE_ROOT:-$REPO_DIR/codex/worktrees}"
+mkdir -p "$WORKTREE_ROOT" || exit 1
+WORKTREE=$(mktemp -d "$WORKTREE_ROOT/codex-review-$PR-XXXXXX") || exit 1
+if ! git -C "$REPO_DIR" fetch -q origin "$HEADSHA" 2>/dev/null \
+   || ! git -C "$REPO_DIR" worktree add --detach "$WORKTREE" "$HEADSHA" >/dev/null 2>&1; then
+  echo "FATAL: could not create disposable worktree at reviewed head" >&2
+  exit 1
+fi
+if [ "$(git -C "$WORKTREE" rev-parse HEAD 2>/dev/null)" != "$HEADSHA" ] \
+   || [ "$(git -C "$WORKTREE" rev-parse --show-toplevel 2>/dev/null)" != "$WORKTREE" ]; then
+  echo "FATAL: disposable worktree does not match reviewed head" >&2
   exit 1
 fi
 
@@ -193,20 +211,28 @@ DIFF_FILE=$(mktemp)
 # PRs' changes to this one — measured at 17 files/383 lines for a 1-file PR, including
 # already-merged work. The empty-diff guard cannot catch that; it is not empty, it is wrong.
 # Local git is kept only as a fallback for when `gh` is unavailable.
-if ! gh api "repos/$REPO/pulls/$PR/files" --jq '.[] | "--- \(.filename)\n@@ \(.patch // "(binary or too large)")"' > "$DIFF_FILE" 2>/dev/null; then
+if ! gh api -H "Accept: application/vnd.github.diff" "repos/$REPO/pulls/$PR" > "$DIFF_FILE" 2>/dev/null; then
   : > "$DIFF_FILE"
 fi
 if [ ! -s "$DIFF_FILE" ] && [ -n "$BASEREF" ] && [ "$BASEREF" != "$HEADREF" ]; then
-  git -C "$REPO" fetch -q origin "$BASEREF:refs/codex-review/$PR-base" 2>/dev/null || true
+  git -C "$REPO_DIR" fetch -q origin "$BASEREF:refs/codex-review/$PR-base" 2>/dev/null || true
   git -C "$WORKTREE" diff --no-color "refs/codex-review/$PR-base...HEAD" > "$DIFF_FILE" 2>/dev/null || true
-  git -C "$REPO" update-ref -d "refs/codex-review/$PR-base" 2>/dev/null || true
+  git -C "$REPO_DIR" update-ref -d "refs/codex-review/$PR-base" 2>/dev/null || true
+fi
+
+# Refuse if the branch moved while the raw diff was fetched. The review posted
+# below is pinned to HEADSHA even if another push arrives during model execution.
+CURRENT_SHA=$(gh_json "repos/$REPO/pulls/$PR" --jq '.head.sha')
+if [ "$CURRENT_SHA" != "$HEADSHA" ]; then
+  echo "FATAL: PR head changed during diff retrieval; rerun against its new head." >&2
+  exit 1
 fi
 
 DIFF_SIZE=$(wc -c < "$DIFF_FILE" | tr -d ' ')
 echo "  diff  : ${DIFF_SIZE} bytes"
-if [ "$DIFF_SIZE" -gt "$MAX_DIFF_CHARS" ]; then
-  head -c "$MAX_DIFF_CHARS" "$DIFF_FILE" > "$DIFF_FILE.trunc" && mv "$DIFF_FILE.trunc" "$DIFF_FILE"
-  echo "  diff  : TRUNCATED to $MAX_DIFF_CHARS chars"
+if [ "$MAX_DIFF_CHARS" -gt 0 ] && [ "$DIFF_SIZE" -gt "$MAX_DIFF_CHARS" ]; then
+  echo "FATAL: full diff is $DIFF_SIZE bytes, above explicit MAX_DIFF_CHARS=$MAX_DIFF_CHARS. Nothing reviewed or posted." >&2
+  exit 1
 fi
 
 if [ "$DIFF_ONLY" = "1" ]; then
@@ -223,7 +249,8 @@ if [ "$DIFF_SIZE" -eq 0 ]; then
 fi
 
 # ---------------------------------------------------------------- review
-PROMPT=$(python3 - "$TITLE" "$DIFF_FILE" <<'PY'
+PROMPT_FILE=$(mktemp)
+python3 - "$TITLE" "$DIFF_FILE" > "$PROMPT_FILE" <<'PY'
 import sys
 title, diff_path = sys.argv[1], sys.argv[2]
 diff = open(diff_path, encoding="utf-8", errors="replace").read()
@@ -249,13 +276,17 @@ DIFF:
 {diff}
 """)
 PY
-)
 
 echo "  invoking codex (unsandboxed — container blocks user namespaces)..."
 REVIEW=$(cd "$WORKTREE" && timeout 900 codex exec \
   --dangerously-bypass-approvals-and-sandbox \
   -c model_provider="openai" \
-  "$PROMPT" 2>&1)
+  - < "$PROMPT_FILE" 2>&1)
+REVIEW_RC=$?
+if [ "$REVIEW_RC" -ne 0 ]; then
+  echo "FATAL: codex exited rc=$REVIEW_RC. No completed review will be posted." >&2
+  exit "$REVIEW_RC"
+fi
 
 # Strip codex's own chatter; keep the verdict block.
 BODY=$(printf '%s\n' "$REVIEW" \
@@ -306,14 +337,14 @@ if [ "$POST_MODE" != "none" ]; then
     fi
   fi
 
-  printf '%s' "$BODY" | gh pr review "$PR" --repo "$REPO" --request-changes --body-file - >/dev/null 2>&1 \
-    || printf '%s' "$BODY" | gh pr review "$PR" --repo "$REPO" --comment --body-file - >/dev/null 2>&1
-
-  if [ $? -eq 0 ]; then
+  if printf '%s' "$BODY" | python3 -c 'import json,sys; print(json.dumps({"body":sys.stdin.read(), "event":sys.argv[1], "commit_id":sys.argv[2]}))' "$STATE_ARG" "$HEADSHA" \
+      | gh api --method POST "repos/$REPO/pulls/$PR/reviews" --input - >/dev/null 2>&1; then
     echo "posted: https://github.com/$REPO/pull/$PR"
   else
-    echo "WARNING: post failed — review above was NOT sent to GitHub." >&2
+    echo "FATAL: review above was NOT sent to GitHub." >&2
+    exit 1
   fi
+
 else
   echo
   echo "not posted. Re-run with --post to add as COMMENT, or --approve to grant merge power."

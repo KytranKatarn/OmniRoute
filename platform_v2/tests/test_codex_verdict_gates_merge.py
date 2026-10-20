@@ -14,8 +14,7 @@ outcome:
     tip, and refusing there would outlive the fix) — which only holds because the verdict
     stores the commit the review COVERED, not the poll's branch tip;
   * it is read BEFORE the F.O.R.G.E. verdict, so it overrides an APPROVE — but a missing
-    summary is still `awaiting_review`, because reasoning about CODEX on a PR nothing has
-    reviewed would be the tail wagging the dog;
+    summary cannot hide a completed Codex request for changes;
   * BOTH attended merge routes refuse, not just the renderer. #5834 was a route that
     showed the refusal and merged anyway; the assertion is order — the check must run
     BEFORE `merge_pr`;
@@ -137,12 +136,16 @@ class TestMergeStateReadsIt(unittest.TestCase):
         self.assertEqual(base, merge_state("reviewed", _APPROVED, codex=None))
         self.assertEqual(merge_state("reviewed", _CHANGES), merge_state("reviewed", _CHANGES, codex=None))
 
-    def test_codex_does_not_dress_up_a_missing_verdict(self):
-        """No F.O.R.G.E. summary -> `awaiting_review` whatever CODEX says. Nothing has
-        reviewed the PR, and that is the louder fact."""
+    def test_codex_request_changes_is_visible_without_a_forge_verdict(self):
         for state in ("draft", "open", None):
             ms = merge_state("pending", "", pr_state=state, codex=_FRESH_BLOCK)
-            self.assertEqual(ms["state"], "awaiting_review")
+            self.assertEqual(ms["state"], "changes_requested")
+            self.assertIn("CODEX", ms["label"])
+            self.assertFalse(ms["mergeable"])
+
+    def test_stale_codex_leaves_pending_review_pending(self):
+        ms = merge_state("pending", "", codex=_STALE_BLOCK)
+        self.assertEqual(ms["state"], "awaiting_review")
 
     def test_a_closed_pr_is_still_closed(self):
         """pr_state is checked FIRST for the same reason it was added in #6792."""
@@ -150,9 +153,9 @@ class TestMergeStateReadsIt(unittest.TestCase):
         self.assertFalse(ms["mergeable"])
         self.assertEqual(ms["state"], "closed")
 
-    def test_an_in_progress_review_is_still_in_progress(self):
+    def test_codex_request_changes_remains_visible_during_forge_review(self):
         ms = merge_state("in_progress", _APPROVED, codex=_FRESH_BLOCK)
-        self.assertEqual(ms["state"], "reviewing")
+        self.assertEqual(ms["state"], "changes_requested")
 
     def test_a_stacked_pr_still_names_its_target(self):
         """Refusing must not lose the #5853 information that the merge would not ship."""

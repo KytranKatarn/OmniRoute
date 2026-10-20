@@ -449,7 +449,16 @@ def poll_open_prs(repo: str = None) -> dict:
         check_review_path_health()
     except Exception as _health_err:  # noqa: BLE001
         logger.debug("review-path health check skipped: %s", _health_err)
-    return {"polled": len(prs), "inserted": inserted, "updated": updated, "errors": errors}
+    # Both scheduled and manual polls must import the review body verdict. GitHub
+    # COMMENT is the transport used by Codex, not an absence of a review verdict.
+    try:
+        from .codex_verdicts import ingest_for_open_prs
+
+        codex = ingest_for_open_prs(repo=_repo)
+    except Exception as exc:  # noqa: BLE001 - retain successful PR synchronization
+        logger.warning("codex ingest failed for %s: %s", _repo, exc)
+        codex = {"checked": 0, "recorded": 0, "reasons": ["error: verdict sync failed"]}
+    return {"polled": len(prs), "inserted": inserted, "updated": updated, "errors": errors, "codex": codex}
 
 
 # #6820: how many just-departed PRs to probe for merged-vs-closed in one sync.
@@ -1627,6 +1636,25 @@ def merge_state(
             default_branch,
         )
 
+    # CODEX (whole-diff) BEFORE F.O.R.G.E.: #3627 made this advisory on purpose, and
+    # 2026-10-18 measured the cost — the reviewer that found #3921/#3927/#3930 was the
+    # one this gate could not see. It is read here, and only a fresh REQUEST_CHANGES
+    # fires (see codex_merge_refusal).
+    _codex_refusal = codex_merge_refusal(codex)
+    if _codex_refusal:
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_CHANGES,
+                "mergeable": False,
+                "label": "CHANGES REQUESTED · CODEX",
+                "hint": _codex_refusal,
+                "dropped_files": [],
+                "partial_files": [],
+            },
+            base_branch,
+            default_branch,
+        )
+
     if status == "in_progress":
         return _with_merge_target(
             {
@@ -1647,25 +1675,6 @@ def merge_state(
                 "mergeable": False,
                 "label": "WAITING FOR REVIEW",
                 "hint": "No stored verdict yet — nothing has reviewed this PR.",
-                "dropped_files": [],
-                "partial_files": [],
-            },
-            base_branch,
-            default_branch,
-        )
-
-    # CODEX (whole-diff) BEFORE F.O.R.G.E.: #3627 made this advisory on purpose, and
-    # 2026-10-18 measured the cost — the reviewer that found #3921/#3927/#3930 was the
-    # one this gate could not see. It is read here, and only a fresh REQUEST_CHANGES
-    # fires (see codex_merge_refusal).
-    _codex_refusal = codex_merge_refusal(codex)
-    if _codex_refusal:
-        return _with_merge_target(
-            {
-                "state": MERGE_STATE_CHANGES,
-                "mergeable": False,
-                "label": "CHANGES REQUESTED · CODEX",
-                "hint": _codex_refusal,
                 "dropped_files": [],
                 "partial_files": [],
             },

@@ -3972,11 +3972,8 @@ window.loadPRReviews = function(state) {
 
             header.appendChild(num); header.appendChild(title); header.appendChild(badge);
 
-            // CODEX (CLI) verdict — ADVISORY, rendered as its own badge and never folded into
-            // merge_state. It sits beside F.O.R.G.E.'s state, not inside it, because it must never
-            // gate a merge. The pairing worth noticing is F.O.R.G.E. APPROVE + CODEX REQUEST_CHANGES:
-            // that is a disagreement a human should see, and until now the row showed only the
-            // green APPROVED badge — on #3627 while CODEX held an open [high] finding.
+            // The server's merge_state includes fresh Codex requests for changes.
+            // Keep this badge to identify the review's source and staleness.
             var cx = pr.codex || null;
             if (cx && cx.verdict) {
             var cxB = document.createElement('span');
@@ -3990,8 +3987,7 @@ window.loadPRReviews = function(state) {
             var cxTxt = (cxBlocks ? 'CHANGES' : cxApproves ? 'APPROVE' : cx.verdict) + (cx.stale ? ' (old)' : '');
             cxB.textContent = 'CODEX ' + cxTxt + (cx.finding_count ? ' \u00b7 ' + cx.finding_count : '');
             cxB.title = 'Second opinion from a PR review whose body begins VERDICT: — almost always '
-            + 'CODEX (CLI). ADVISORY ONLY: it does not gate merges and is not part of the merge '
-            + 'decision.'
+            + 'CODEX (CLI). A current REQUEST_CHANGES blocks merging until addressed and re-reviewed.'
             + (cx.finding_count ? ' Findings: ' + cx.finding_count + '.' : '')
             + (cx.reviewed_at ? ' Reviewed ' + cx.reviewed_at + '.' : '')
             + (cx.stale ? ' STALE: the PR has moved on since this review, so it describes an older commit.' : '');
@@ -4700,6 +4696,38 @@ function _prScopeBody(extra) {
   // The platform container cannot ssh to its host and /mnt/archie_brain is read-only
   // in there, so the request is dropped in a shared spool and scripts/codex_review_queue.sh
   // picks it up. That means the button QUEUES work — it is not synchronous, and it says so.
+  var _codexWatchers = {};
+  function _prWatchCodexReview(prNumber, requestId) {
+      if (!requestId || _codexWatchers[prNumber]) return;
+      _codexWatchers[prNumber] = true;
+      var attempts = 0;
+      function stop() { delete _codexWatchers[prNumber]; }
+      function tick() {
+          attempts += 1;
+          fetch(API + '/forge/pr-reviews/' + prNumber + '/codex-review')
+          .then(function(r) { if (!r.ok) throw new Error('Review status unavailable'); return r.json(); })
+          .then(function(d) {
+              if (d.request_id && d.request_id !== requestId) { stop(); return; }
+              if (d.status === 'ok') {
+                  return fetch(API + '/forge/pr-reviews/poll', {method: 'POST'})
+                  .then(function(r) {
+                      if (!r.ok) throw new Error('Verdict sync unavailable');
+                      stop();
+                      window.loadPRReviews();
+                      if (typeof loadForgeStats === 'function') loadForgeStats();
+                  });
+              }
+              if (['failed', 'refused', 'error'].indexOf(d.status) !== -1) { stop(); return; }
+              if (attempts < 120) setTimeout(tick, 15000);
+              else stop();
+          }).catch(function() {
+              if (attempts < 120) setTimeout(tick, 15000);
+              else stop();
+          });
+      }
+      setTimeout(tick, 15000);
+  }
+
   function queueCodexReview(prNumber, repo, dryRun) {
       if (!prNumber) { return; }
       // CODEX REVIEW FIX: the success dialog used to be shown BEFORE the fetch, so a
@@ -4735,6 +4763,7 @@ function _prScopeBody(extra) {
               });
               return;
           }
+          if (!dryRun) _prWatchCodexReview(prNumber, body.request_id);
           // Echo the server's own message rather than asserting success from the browser.
           _rbLcarsAlert({
               title: (dryRun ? 'CODEX DRY RUN QUEUED' : 'CODEX REVIEW QUEUED'),
@@ -4742,7 +4771,7 @@ function _prScopeBody(extra) {
                   + '\n\nA full-diff review takes minutes, and the request is picked up by '
                   + 'codex_review_queue.sh on the host \u2014 not by this page.'
                   + (dryRun ? '\n\nDry run: the review is produced but NOT posted to GitHub.' : '')
-                  + '\n\nThis panel does not live-update \u2014 reopen the PR to see the result.',
+                  + (dryRun ? '\n\nReopen the PR to read the dry-run log.' : '\n\nThe PR list refreshes automatically when this review completes.'),
               okText: 'OK',
               accent: '#22d3ee',
               accentRgb: '34,211,238'

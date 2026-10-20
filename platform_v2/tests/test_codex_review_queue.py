@@ -186,6 +186,52 @@ class TestEnqueue(QueueTestBase):
 
 
 class TestStatus(QueueTestBase):
+    def _claim(self, pr):
+        rid = self.svc.enqueue_codex_review(pr)["request_id"]
+        self.svc.RUNNING_DIR.mkdir()
+        (self.svc.PENDING_DIR / f"{rid}.json").rename(self.svc.RUNNING_DIR / f"{rid}.json")
+        return rid
+
+    def test_claimed_request_stays_visible_and_blocks_duplicates(self):
+        rid = self._claim(3986)
+        state = self.svc.codex_review_status(3986)
+        self.assertEqual(state["status"], "running")
+        self.assertEqual(state["request_id"], rid)
+        duplicate = self.svc.enqueue_codex_review(3986)
+        self.assertFalse(duplicate["success"])
+        self.assertEqual(duplicate["request_id"], rid)
+
+    def test_active_log_wins_over_previous_completed_log(self):
+        old_log = self.svc.DONE_DIR / "previous.log"
+        old_log.write_text("old result")
+        (self.svc.DONE_DIR / "1000-3986.json").write_text(
+            json.dumps(
+                {
+                    "pr": 3986,
+                    "status": "ok",
+                    "log": str(old_log),
+                }
+            )
+        )
+        rid = self._claim(3986)
+        (self.svc.DONE_DIR / f"{rid}.log").write_text("new running output")
+        self.assertEqual(self.svc.read_review_log(3986), "new running output")
+
+    def test_pending_request_does_not_display_previous_log(self):
+        old_log = self.svc.DONE_DIR / "previous.log"
+        old_log.write_text("old result")
+        (self.svc.DONE_DIR / "1000-3986.json").write_text(
+            json.dumps(
+                {
+                    "pr": 3986,
+                    "status": "ok",
+                    "log": str(old_log),
+                }
+            )
+        )
+        self.svc.enqueue_codex_review(3986)
+        self.assertIsNone(self.svc.read_review_log(3986))
+
     def test_none_when_nothing_requested(self):
         self.assertEqual(self.svc.codex_review_status(3613)["status"], "none")
 
@@ -239,7 +285,6 @@ class TestStatus(QueueTestBase):
         self.assertEqual(self.svc.codex_review_status(3613)["status"], "none")
 
     def test_log_is_returned_and_truncated(self):
-        self.svc.enqueue_codex_review(42)
         self.svc.DONE_DIR.mkdir(parents=True, exist_ok=True)
         log = self.svc.DONE_DIR / "big.log"
         log.write_text("X" * 50_000, encoding="utf-8")

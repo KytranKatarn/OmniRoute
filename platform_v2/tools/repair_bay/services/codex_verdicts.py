@@ -238,7 +238,9 @@ def ingest_for_open_prs(
     checked = recorded = 0
     reasons: list[str] = []
 
-    prs = [r for r in (list_reviews(state="open", limit=100) or []) if r.get("state") == "open"]
+    prs = [
+        r for r in (list_reviews(state="open", limit=100) or []) if r.get("state") == "open" and r.get("repo") == repo
+    ]
     if not prs:
         return {"checked": 0, "recorded": 0, "reasons": ["skipped: no open PRs to check"]}
 

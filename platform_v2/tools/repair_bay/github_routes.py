@@ -1206,26 +1206,10 @@ def register_github_routes(bp, admin_required):
         poll_result = poll_open_prs()
         closed = sync_closed_prs()
 
-        # CODEX (CLI) verdicts, ingested here because this is the one moment we already
-        # know the open PRs. Without it a CODEX REQUEST_CHANGES is invisible in the list:
-        # F.O.R.G.E.'s ai_summary is all a row carries, so on 2026-10-05 #3627 showed a
-        # green APPROVED row while CODEX held an open [high] finding on it.
-        #
-        # Open PRs only, by decision — history is backfilled on demand rather than
-        # sweeping every merged row on every poll. It writes neither review_status nor
-        # ai_summary: the verdict lives in metadata->'codex' and the gate reads it from
-        # there (`codex_merge_refusal`), so an ingest failure can never fabricate a
-        # F.O.R.G.E. verdict — and never fail the poll.
-        codex = {"checked": 0, "recorded": 0, "reasons": ["skipped: nothing to check"]}
-        try:
-            from .services.codex_verdicts import ingest_for_open_prs
-
-            codex = ingest_for_open_prs()
-        except Exception as exc:  # noqa: BLE001 - never fail the poll over a side-channel
-            logger.warning("forge_pr_reviews_poll: codex ingest failed: %s", exc)
-            codex = {"checked": 0, "recorded": 0, "reasons": [f"error: {exc}"]}
-
-        return jsonify({**poll_result, "closed_synced": closed, "codex": codex})
+        _pr_reviews_cache.clear()
+        _codex_cache.clear()
+        # poll_open_prs imports Codex verdicts for scheduled and manual callers.
+        return jsonify({**poll_result, "closed_synced": closed})
 
     @bp.route("/api/forge/pr-reviews/<int:pr_number>/analyze", methods=["POST"])
     @login_required

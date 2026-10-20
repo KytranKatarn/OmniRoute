@@ -21,8 +21,9 @@ ROUTES = ROOT / "consumer" / "routes.py"
 CWFIS = ROOT / "ingest" / "weather" / "cwfis.py"
 AURORA_MAP = ROOT / "consumer" / "aurora_map.py"
 
-# Bodies we must never name unless we genuinely ingest them. CWFIS/NRCan is
-# absent because we DO ingest it — and even then only via the looped view.
+# Bodies we must never name in the A.U.R.O.R.A. layer attribution. Environment
+# Canada is also a genuine source for the separate forecast-accuracy feature,
+# so this assertion must stay scoped to the layer cards below.
 _UNBACKED_SOURCES = ["NASA", "EarthData", "NOAA", "Environment Canada"]
 
 
@@ -37,14 +38,23 @@ def _rendered_markup(path: pathlib.Path) -> str:
 
 
 def test_weather_template_names_no_data_source_directly():
-    """The page must not hardcode a source name; it loops aurora_layer_status."""
+    """A.U.R.O.R.A. layer attribution must come from aurora_layer_status."""
     html = _rendered_markup(WEATHER_HTML)
-    offenders = [s for s in _UNBACKED_SOURCES if s in html]
+    match = re.search(
+        r'<div class="wtf-wx-layercard-row">(.*?)\{%\s*if fire_summary\s*%\}',
+        html,
+        flags=re.S,
+    )
+    assert match, "weather.html must contain the A.U.R.O.R.A. layer-card block"
+    layer_cards = match.group(1)
+    offenders = [s for s in _UNBACKED_SOURCES if s in layer_cards]
     assert not offenders, (
-        f"weather.html names {offenders} directly. Source names must come from "
-        "the aurora_layer_status view so the page cannot outlive its data. "
+        f"A.U.R.O.R.A. layer cards name {offenders} directly. Source names must "
+        "come from the aurora_layer_status view so the page cannot outlive its data. "
         "See KB #290491."
     )
+    assert "{{ L.issuing_body }}" in layer_cards
+    assert "{{ L.dataset_id }}" in layer_cards
 
 
 def test_weather_template_loops_the_layer_view():

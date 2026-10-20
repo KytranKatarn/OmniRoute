@@ -2801,9 +2801,30 @@ def _newsroom_agents(S):
 #   I.N.K.      was `articles.ingested_at` (a second "articles ingested" beside F.A.C.T.),
 #               while its event-feed rows are story_clusters and /methodology says
 #               clustering is algorithmic. It now reads story_clusters, like its feed.
+# #7339 (owner decision 2026-10-19): V.E.R.I.F.Y. SHOWS BOTH - claims ASSESSED by the deeper pass are the
+# headline, claims EXTRACTED (any pass) stay visible beside it.
+#
+# A claim row is ASSESSED when a model actually judged it: the tier ends in 'full' (quick_v1+full,
+# quick_v1_failed+full) OR a NAMED newsroom agent wrote it (agent_name set; those rows carry no tier). It is NOT
+# assessed when it is: a quick-pass row ('quick_v1', 100% 'unverified' - extracted, never checked), a Google Fact
+# Check lookup that found nothing (checker 'GoogleFCT:*', 0 evidence chars - an external lookup, not an
+# assessment), or a heuristic row. Measured on the live DB 2026-10-19 (last 24h): 4,636 claim rows extracted,
+# 285 assessed (6.1%), 1,203 partner lookups, 81 heuristic; all-time 41,584 of 170,518 articles (24.4%) have an
+# assessed claim, 167,945 (98.5%) have any claim row.
+def _full_pass_claims_sql(alias: str = "") -> str:
+    """SQL predicate: this fact_checks row was ASSESSED by the deeper pass. Pass ``'f.'`` when the table is
+    aliased - ``articles`` has its own analysis_tier column, so an unqualified name is ambiguous."""
+    return f"({alias}analysis_tier LIKE '%full' OR {alias}agent_name IS NOT NULL)"
+
+
+_FULL_PASS_CLAIMS_SQL = _full_pass_claims_sql()
+
+# An optional 5th element is a SQL predicate that restricts the COUNT only (the window/partial logic still
+# reads the whole table, so rates stay comparable).
 _AGENT_SOURCES = (
     ("F.A.C.T.", "audit_trail", "created_at", "audit events recorded"),
-    ("V.E.R.I.F.Y.", "fact_checks", "checked_at", "claim rows recorded (quick + full)"),
+    ("V.E.R.I.F.Y.", "fact_checks", "checked_at", "claims assessed (full pass)", _FULL_PASS_CLAIMS_SQL),
+    ("V.E.R.I.F.Y.", "fact_checks", "checked_at", "claims extracted (quick + full)"),
     ("B.I.A.S.", "bias_scores", "computed_at", "articles scored"),
     ("D.R.A.F.T.", "summaries", "created_at", "summaries written"),
     ("I.N.K.", "story_clusters", "created_at", "clusters formed"),
@@ -2825,10 +2846,11 @@ def _activity_agent_throughput(S):
     itself.
     """
     parts = []
-    for name, table, col, what in _AGENT_SOURCES:
+    for name, table, col, what, *_pred in _AGENT_SOURCES:
+        extra = f" AND ({_pred[0]})" if _pred else ""
         parts.append(
             f"""SELECT '{name}' AS name, '{what}' AS what,
-                   count(*) FILTER (WHERE {col} > now() - interval '24 hours') AS events,
+                   count(*) FILTER (WHERE {col} > now() - interval '24 hours'{extra}) AS events,
                    GREATEST(now() - interval '24 hours', min({col})) AS win_start,
                    max({col}) AS last_at,
                    (min({col}) > now() - interval '24 hours') AS partial
@@ -2924,6 +2946,12 @@ def _activity_bundle(S, force: bool = False):
               (SELECT COUNT(DISTINCT f.article_id) FROM {S}.fact_checks f
                  JOIN {S}.articles a ON a.id = f.article_id
                 WHERE a.suppressed_reason IS NULL) AS fact_checked_articles,
+              -- #7339: articles with at least one claim ASSESSED by the deeper pass (the headline);
+              -- `f.` is required - articles also has an analysis_tier column.
+              (SELECT COUNT(DISTINCT f.article_id) FROM {S}.fact_checks f
+                 JOIN {S}.articles a ON a.id = f.article_id
+                WHERE a.suppressed_reason IS NULL
+                  AND {_full_pass_claims_sql('f.')}) AS fact_checked_full_articles,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested') AS fact_ingested,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested' AND created_at > NOW() - INTERVAL '24 hours') AS articles_24h,
               (SELECT COUNT(*) FROM {S}.bias_scores bs24

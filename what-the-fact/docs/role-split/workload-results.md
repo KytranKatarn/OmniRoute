@@ -18,3 +18,11 @@ See [workload-test-plan.md](workload-test-plan.md) for the matrix these results 
 4. `wtf_consumer` lacked SELECT on `wtf.beats` (checkout path; found by the static scan, not the crawl).
 
 **Still NOT covered:** parameterised GET routes (only the static scan sees them), every authenticated write (API-key lifecycle, alerts, newsletter, claims, dedup, snapshot caches), tech Deep Dive persistence + the `sync_article_latest_verdict` trigger, the securities job and four other market modules, the hub scraper login, DR fallback reads, and the EC scale gate. A clean crawl is read coverage only.
+
+### Write-path results (workload_writes.py, 14/15) and the scan extension
+
+Real code, real `wtf_consumer` / `wtf_tech` logins, every effect verified by an operator read: newsletter subscribe/unsubscribe, alert create/delete, article-view logging, admin claim create/update, dedup `distinct` and a real `same` merge (consumer); score flag, Deep Dive persistence (`bias_scores`, `fact_checks`, `articles`) and the `sync_article_latest_verdict` trigger (tech) all PASS.
+
+**OPEN (blocks cutover, needs an owner decision):** the consumer's `/api/upgrade-tier2` calls `ingest.tier2_upgrade.persist_upgrade`, which UPDATEs `bias_scores`, DELETE/INSERTs `fact_checks` and UPDATEs `articles`. `wtf_consumer` has none of those write grants and must not get them (public-facing role). Move the upgrade to the tech service or the tier-2 precompute worker. The harness case stays FAILING until this is resolved.
+
+`static_table_scan.py` now also checks WRITE rights against the helper modules each service imports, and found two further read gaps the crawl could not see because the helpers are fail-soft: `parliament.dept_contracts`, `parliament.cost_projection_snapshots` (now granted to the consumer).

@@ -17,7 +17,22 @@ ROOT = HERE.parents[1]
 manifest = json.loads((HERE / "permissions.json").read_text())
 audited = set(manifest["audited_relations"])
 schemas = {t.split(".")[0] for t in audited}
-SERVICES = {"wtf_consumer": ["consumer"], "wtf_tech": ["tech"], "wtf_ingest_api": ["consumer/entity_graph_routes.py"]}
+SERVICES = {
+    # code each service actually runs: its own package PLUS the ingest/ helpers it imports
+    "wtf_consumer": ["consumer", "ingest/tier2_upgrade.py", "ingest/entity_graph_dedup.py",
+                     "ingest/parliament/cost.py"],
+    "wtf_tech": ["tech"],
+    # entity_graph.py is imported only for normalize_name/name_to_slug/is_placeholder_name (pure functions)
+    "wtf_ingest_api": ["consumer/entity_graph_routes.py", "ingest/shared/entity_push_receipts.py"],
+}
+WRITE = re.compile(r"(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:(%s)|\{_?S\}|\{schema\})\.([a-z_][a-z0-9_]*)" % "|".join(sorted(schemas)), re.I)
+# Writes that live in helper functions the service never calls (scheduled-job entry points). Reviewed by hand 2026-10-20.
+UNREACHABLE_WRITES = {
+    ("wtf_consumer", "parliament.cost_projection_snapshots", "INSERT"): "cost.snapshot_projection (weekly job)",
+    ("wtf_consumer", "parliament.ingest_log", "INSERT"): "cost.run_cost_projection_snapshot (weekly job)",
+    ("wtf_consumer", "shared.entity_blocks", "INSERT"): "entity_graph_dedup.run (dedup job); consumer only calls decide()/_merge",
+}
+RIGHT = {"INSERT": "INSERT", "UPDATE": "UPDATE", "DELETE": "DELETE"}
 TOKEN = re.compile(r"(?<![\w.])(%s)\.([a-z_][a-z0-9_]*)" % "|".join(sorted(schemas)))
 TEMPLATED = re.compile(r"\{_?S\}\.([a-z_][a-z0-9_]*)")
 KNOWN_FALSE_POSITIVES = set()  # (role, table) mentioned only in prose; review each before adding (minister_travel looked like one and was REAL)
@@ -36,6 +51,18 @@ for role, paths in SERVICES.items():
         for t in found & audited:
             seen.setdefault(t, set()).add(f.relative_to(ROOT).as_posix())
     missing = {t: sorted(fs) for t, fs in seen.items() if t not in granted and (role, t) not in KNOWN_FALSE_POSITIVES}
+    wseen = {}
+    for f in files:
+        text = f.read_text(errors="ignore")
+        for kw, sch, tbl in WRITE.findall(text):
+            t = f"{sch or 'wtf'}.{tbl}"
+            if t in audited:
+                wseen.setdefault((t, RIGHT[kw.split()[0].upper()]), set()).add(f.relative_to(ROOT).as_posix())
+    wmissing = {k: v for k, v in wseen.items() if k[1] not in manifest["roles"][role]["write"].get(k[0], []) and (role, k[0], k[1]) not in UNREACHABLE_WRITES}
+    print(f"{role}: {len(wseen)} (table,right) writes in source; WITHOUT a write grant: {len(wmissing)}")
+    for (t, rt), fs in sorted(wmissing.items()):
+        print(f"   WRITE {rt} {t}  <- {', '.join(sorted(fs)[:3])}")
+    bad += len(wmissing)
     print(f"{role}: {len(seen)} audited tables referenced in source; granted {len(granted)}; NOT granted: {len(missing)}")
     for t, fs in sorted(missing.items()):
         print(f"   {t}  <- {', '.join(fs[:3])}")

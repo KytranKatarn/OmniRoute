@@ -162,6 +162,8 @@
         "market_watch.fx_rates",
         "market_watch.oda_canada_annual",
         "parliament.bills",
+        "parliament.cost_projection_snapshots",
+        "parliament.dept_contracts",
         "parliament.ec_contributions",
         "parliament.election_calendar",
         "parliament.election_candidates",
@@ -1096,6 +1098,12 @@
         ],
         "parliament.minister_travel": [
           "consumer/cost_routes.py"
+        ],
+        "parliament.dept_contracts": [
+          "ingest/parliament/cost.py:521 (fail-soft: a missing grant degrades silently)"
+        ],
+        "parliament.cost_projection_snapshots": [
+          "ingest/parliament/cost.py:927"
         ]
       },
       "write_source_refs": {

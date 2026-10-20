@@ -11,7 +11,7 @@ the container is that lane's boundary.
 
 ```sh
 codex            # interactive TUI — the approval path below is active
-codex resume     # resume a previous session, same policy
+codex resume     # ⚠ see the resume caveat below — may restore an old policy
 ```
 
 That's it. Do **not** add these on the host:
@@ -26,6 +26,25 @@ The effective policy comes from `~/.codex/config.toml`:
 ```toml
 approval_policy = "on-request"   # root key — must sit above the first [table]
 ```
+
+### ⚠ `codex resume` caveat — old sessions resurrect their stored policy
+
+`codex resume` restores the **session's persisted** approval policy, which
+**overrides** the config file. A session originally launched with
+`--ask-for-approval never` keeps `never` forever, no matter what the config
+says — MCP write tools will keep failing with *"MCP tool call requires
+approval, but approval policy is never"* even though the config is correct.
+
+**Fix — pass the flag on the resume itself:**
+
+```sh
+codex resume -a on-request
+```
+
+Verified 2026-10-20: resuming a `never`-era session with `-a on-request`
+switched its permissions instructions to approval-based execution. Without the
+flag, plain `codex resume` continued under the stored `never` policy (47
+persisted `"approval_policy":"never"` entries replayed into the session).
 
 ## What `on-request` means in practice
 
@@ -55,7 +74,8 @@ Both failures had one cause: sessions were launched as
 **Verified 2026-10-20** in a fresh session: `docker ps` ran after approving the
 sandbox-escape dialog (52 containers listed); a `github.create_branch` probe
 raised the approval dialog instead of erroring and was cancelled — no branch was
-created.
+created. Follow-up same day: a *resumed* `never`-era session still failed MCP
+writes until relaunched with `codex resume -a on-request` (see caveat above).
 
 ## Rollback
 
@@ -73,5 +93,7 @@ comment block next to the `approval_policy` key.)
   `--dangerously-bypass-approvals-and-sandbox` explicitly, so the config
   change does not affect them — the CLI flag wins, by design.
 - The owner's long-running session started before this change keeps
-  `--ask-for-approval never` until it is restarted. Relaunch with plain
-  `codex` to pick up the approval path.
+  `--ask-for-approval never` until it is restarted — and **`codex resume`
+  alone is not enough**: it restores the session's stored `never` policy over
+  the config. Relaunch with `codex resume -a on-request` (or start a fresh
+  plain `codex`) to pick up the approval path.

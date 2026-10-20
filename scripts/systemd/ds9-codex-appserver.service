@@ -1,0 +1,142 @@
+# DS9 Codex app-server — isolated upstream for the `codex-app-server` provider
+#
+# WHAT THIS IS
+#   A dedicated `codex app-server` process that DS9 drives over JSON-RPC/WebSocket
+#   instead of replaying a ChatGPT session token to the API. The CLI owns and
+#   self-refreshes its own OpenAI OAuth; DS9 never sees or replays the token.
+#
+# WHY A SYSTEMD UNIT AND NOT A COMPOSE SIDECAR
+#   The original operator plan assumed DS9 was the `omniroute` container on a
+#   private Compose network, reachable at ws://ds9-codex-appserver:1456 by DNS.
+#   That premise went stale on 2026-10-20: commit cbf519c23 removed the
+#   `omniroute` service from docker-compose.yml, and DS9 was redeployed at
+#   08:22 as a host-native systemd service (deep-space-9.service, v16.3.8,
+#   port 20129). A HOST process cannot resolve a private Docker network's DNS
+#   name, so the containerised transport was no longer applicable.
+#
+#   Running the app-server as a host unit with a LOOPBACK-ONLY listener keeps
+#   every security property the plan asked for, and is stricter than the
+#   Compose shape would have been:
+#     - the port is not published at all (no `ports:` mapping existed to abuse)
+#     - it is not on any shared network, container or LAN
+#     - a host process can reach loopback; a container could not have been
+#       reached by DNS name at all
+#
+# ISOLATION (all of it)
+#   - Dedicated system user `ds9-codex`. Not root, not `kytran`, not shared
+#     with any other service.
+#   - Dedicated CODEX_HOME (/var/lib/ds9-codex). The owner's own Codex login in
+#     ~/.codex is NEVER mounted, read, or written. The sidecar is the upstream,
+#     not another client of DS9.
+#   - Working directory /srv/ds9-codex/work, an empty scratch dir. No repo, no
+#     Docker socket, no SSH agent, no owner-home mount.
+#   - The WS capability token arrives as a systemd credential
+#     (LoadCredential), not a file the service can read from a world-readable
+#     path and not an environment variable in the unit file.
+#
+# The capability token is generated at install time by
+# scripts/systemd/install-ds9-codex-appserver.sh and never printed.
+
+[Unit]
+Description=DS9 Codex app-server (isolated upstream for the codex-app-server provider)
+Documentation=file:///mnt/archie_brain/docs/plans/2026-10-20-ds9-codex-operator-setup.md
+After=network-online.target
+Wants=network-online.target
+# Bounded restart: 5 starts per 5 minutes, then it stays down for a human.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ds9-codex
+Group=ds9-codex
+
+# Isolated Codex home: the app-server's own OAuth storage and config. Never the
+# owner's ~/.codex.
+Environment=CODEX_HOME=/var/lib/ds9-codex
+Environment=HOME=/var/lib/ds9-codex
+Environment=TZ=America/Toronto
+Environment=RUST_LOG=warn
+
+# The token is delivered as a systemd credential -> /run/credentials/ds9-codex-appserver.service/ws_token
+# (readable only by this service's user), not as an Environment= line.
+LoadCredential=ws_token:/etc/ds9-codex/ws.token
+
+WorkingDirectory=/srv/ds9-codex/work
+StateDirectory=ds9-codex
+RuntimeDirectory=ds9-codex-appserver
+
+# Loopback only. `--listen 0.0.0.0:1456` (the upstream Compose profile's shape)
+# would expose the listener on every interface; the host has no firewall
+# (ufw is not installed), so the bind address IS the access control.
+ExecStart=/usr/local/lib/ds9-codex/bin/codex app-server \
+  --listen ws://127.0.0.1:1456 \
+  --ws-auth capability-token \
+  --ws-token-file /run/credentials/ds9-codex-appserver.service/ws_token
+
+# --- hardening -------------------------------------------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+# ⚠️ MemoryDenyWriteExecute=yes IS DELIBERATELY NOT SET.
+# The app-server's tool path runs the upstream `codex-code-mode-host`, which
+# needs writable+executable memory for its code-execution host. With
+# MemoryDenyWriteExecute=yes that child dies immediately ("code-mode host
+# closed its stdout") and the model reports "the tool host crashed".
+#
+# This looks like a tool-path bug and is NOT one: the text path keeps working,
+# so the provider still looks healthy, and only a real tool call exposes it.
+# Verified by bisection: every other hardening directive in this unit
+# (including RestrictNamespaces=yes and SystemCallFilter=@system-service)
+# leaves the tool round trip working; this one alone broke it.
+#
+# The equivalent protection is retained in the two places that matter:
+#   - the upstream sandbox is pinned to read-only (OMNIROUTE_CODEX_APPSERVER_SANDBOX)
+#   - approvalPolicy is "never", so the upstream never self-approves an action
+#   - the service runs as a non-root user with no host mounts and a read-only
+#     rootfs, so writable+executable memory buys no host access
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# The service writes ONLY to its own state dir and scratch dir. /srv/ds9-codex/work
+# is ReadWritePaths because the app-server needs a writable cwd; everything else
+# under / is read-only.
+ReadWritePaths=/srv/ds9-codex/work
+ReadWritePaths=/var/lib/ds9-codex
+
+# The operator plan requires NO repository access. On a host unit the whole
+# rootfs is visible, so the live platform tree is denied explicitly — the
+# sidecar is the upstream, not another client of DS9, and it has no business
+# reading the platform it serves. ProtectHome=yes already denies every /home
+# (which is where the owner's ~/.codex lives).
+InaccessiblePaths=/mnt/archie_brain /mnt/standalone
+
+# Bounded resources, per the operator plan.
+MemoryMax=768M
+TasksMax=256
+CPUQuota=100%
+
+# Bounded restart. No login loop: if the CLI is not signed in the app-server
+# still starts and serves /readyz; it simply reports no account.
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

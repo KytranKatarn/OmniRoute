@@ -1,17 +1,17 @@
-"""Department HQ — External contractor/provider management routes.
+"""Department HQ — External engineer/provider management routes.
 
 Migrated from Starbase/Fleet provider_routes.py (2026-04-08).
 Manages external AI providers (outsourced work), API keys, budgets,
-and contractor provider definitions.
+and engineer provider definitions.
 
 ENDPOINTS:
-  /api/contractors/providers              GET  — List providers with 24h stats
-  /api/contractors/providers              POST — Add/update provider API key
-  /api/contractors/providers/<p>/toggle   POST — Enable/disable provider
-  /api/contractors/providers/<p>/models/<m>/toggle PUT — Toggle model routing
-  /api/contractors/definitions            GET  — List contractor definitions
-  /api/contractors/definitions            POST — Create/update contractor definition
-  /api/contractors/omniroute-quota        GET  — Latest DS9 throttle snapshot per provider
+  /api/engineers/providers              GET  — List providers with 24h stats
+  /api/engineers/providers              POST — Add/update provider API key
+  /api/engineers/providers/<p>/toggle   POST — Enable/disable provider
+  /api/engineers/providers/<p>/models/<m>/toggle PUT — Toggle model routing
+  /api/engineers/definitions            GET  — List engineer definitions
+  /api/engineers/definitions            POST — Create/update engineer definition
+  /api/engineers/omniroute-quota        GET  — Latest DS9 throttle snapshot per provider
 """
 
 import json
@@ -25,29 +25,29 @@ from database import get_db_cursor
 logger = logging.getLogger(__name__)
 
 
-def register_contractor_routes(bp, admin_required):
-    """Register contractor/external-provider routes on the department_hq blueprint."""
+def register_engineer_routes(bp, admin_required):
+    """Register engineer/external-provider routes on the department_hq blueprint."""
 
-    @bp.route("/api/contractors/providers", methods=["GET"])
+    @bp.route("/api/engineers/providers", methods=["GET"])
     @login_required
     def get_external_providers():
         """List external AI providers with 24h stats, model breakdowns, and tier positions.
-        All provider metadata comes from the contractor_providers table (dynamic)."""
+        All provider metadata comes from the engineer_providers table (dynamic)."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
 
-                # 1. Fetch all contractor_providers (single source of truth)
+                # 1. Fetch all engineer_providers (single source of truth)
                 cur.execute(
                     """
                     SELECT provider_key, display_name, base_url, default_model,
                            auth_method, auth_env_var, is_cloud_proxy, tier_position,
                            models, rate_limits, is_active
-                    FROM contractor_providers
+                    FROM engineer_providers
                     ORDER BY tier_position
                 """
                 )
                 cp_rows = cur.fetchall()
-                contractor_providers = {row["provider_key"]: dict(row) for row in cp_rows}
+                engineer_providers = {row["provider_key"]: dict(row) for row in cp_rows}
 
                 # 2. Fetch DB-managed API keys from external_api_keys
                 cur.execute(
@@ -157,9 +157,9 @@ def register_contractor_routes(bp, admin_required):
                 # 6. Ollama cloud API key check
                 ollama_api_key_set = bool(os.environ.get("OLLAMA_API_KEY", "").strip())
 
-                # 7. Build unified response — iterate all contractor_providers
+                # 7. Build unified response — iterate all engineer_providers
                 result = []
-                for provider_key, cp in contractor_providers.items():
+                for provider_key, cp in engineer_providers.items():
                     db_row = db_keys.get(provider_key)
                     models_def = cp.get("models") or []
                     if isinstance(models_def, str):
@@ -293,19 +293,19 @@ def register_contractor_routes(bp, admin_required):
             logger.error("Error listing external providers: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    @bp.route("/api/contractors/providers", methods=["POST"])
+    @bp.route("/api/engineers/providers", methods=["POST"])
     @admin_required
     def upsert_external_provider():
-        """Add or update an external AI provider API key. Validates against contractor_providers table."""
+        """Add or update an external AI provider API key. Validates against engineer_providers table."""
         data = request.get_json() or {}
         provider = data.get("provider", "").strip().lower()
         api_key = data.get("api_key", "").strip()
 
         try:
             with get_db_cursor() as (conn, cur):
-                # Validate provider exists in contractor_providers
+                # Validate provider exists in engineer_providers
                 cur.execute(
-                    "SELECT provider_key, is_cloud_proxy FROM contractor_providers WHERE provider_key = %s",
+                    "SELECT provider_key, is_cloud_proxy FROM engineer_providers WHERE provider_key = %s",
                     (provider,),
                 )
                 cp_row = cur.fetchone()
@@ -314,7 +314,7 @@ def register_contractor_routes(bp, admin_required):
                         jsonify(
                             {
                                 "success": False,
-                                "error": f"Unknown provider: {provider}. Add it to Contractor Providers first.",
+                                "error": f"Unknown provider: {provider}. Add it to Engineer Providers first.",
                             }
                         ),
                         400,
@@ -365,7 +365,7 @@ def register_contractor_routes(bp, admin_required):
             logger.error("Error upserting external provider: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    @bp.route("/api/contractors/providers/<provider>/toggle", methods=["POST"])
+    @bp.route("/api/engineers/providers/<provider>/toggle", methods=["POST"])
     @admin_required
     def toggle_external_provider(provider):
         """Enable/disable an external provider."""
@@ -381,7 +381,7 @@ def register_contractor_routes(bp, admin_required):
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route(
-        "/api/contractors/providers/<provider>/models/<path:model_name>/toggle",
+        "/api/engineers/providers/<provider>/models/<path:model_name>/toggle",
         methods=["PUT"],
     )
     @login_required
@@ -411,13 +411,13 @@ def register_contractor_routes(bp, admin_required):
             logger.error("Error toggling model: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    @bp.route("/api/contractors/omniroute-quota", methods=["GET"])
+    @bp.route("/api/engineers/omniroute-quota", methods=["GET"])
     @login_required
     def get_omniroute_quota():
         """DS9 Phase 2 — latest DS9 quota snapshot per upstream provider.
 
         Mirrors the get_external_providers() shape: one entry per provider with
-        its throttle rate, status band, and last-scan time. The Contractors
+        its throttle rate, status band, and last-scan time. The Engineers
         dashboard card renders this; it is observation-only, no routing change.
         """
         try:
@@ -443,10 +443,10 @@ def register_contractor_routes(bp, admin_required):
             logger.error("Error reading DS9 quota status: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    @bp.route("/api/contractors/definitions", methods=["GET"])
+    @bp.route("/api/engineers/definitions", methods=["GET"])
     @login_required
-    def list_contractor_providers():
-        """List all contractor provider definitions (for UI dropdowns and admin)."""
+    def list_engineer_providers():
+        """List all engineer provider definitions (for UI dropdowns and admin)."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute(
@@ -454,7 +454,7 @@ def register_contractor_routes(bp, admin_required):
                     SELECT id, provider_key, display_name, base_url, default_model,
                            auth_method, auth_env_var, is_cloud_proxy, tier_position,
                            models, rate_limits, is_active, created_at, updated_at
-                    FROM contractor_providers
+                    FROM engineer_providers
                     ORDER BY tier_position
                 """
                 )
@@ -467,13 +467,13 @@ def register_contractor_routes(bp, admin_required):
                     providers.append(d)
                 return jsonify({"success": True, "providers": providers})
         except Exception as e:
-            logger.error("Error listing contractor definitions: %s", e)
+            logger.error("Error listing engineer definitions: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
-    @bp.route("/api/contractors/definitions", methods=["POST"])
+    @bp.route("/api/engineers/definitions", methods=["POST"])
     @admin_required
-    def upsert_contractor_provider():
-        """Create or update a contractor provider definition."""
+    def upsert_engineer_provider():
+        """Create or update a engineer provider definition."""
         data = request.get_json() or {}
         provider_key = data.get("provider_key", "").strip().lower()
         if not provider_key:
@@ -497,7 +497,7 @@ def register_contractor_routes(bp, admin_required):
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
-                    INSERT INTO contractor_providers
+                    INSERT INTO engineer_providers
                         (provider_key, display_name, base_url, default_model, auth_method,
                          auth_env_var, is_cloud_proxy, tier_position, models, rate_limits, is_active)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -541,5 +541,5 @@ def register_contractor_routes(bp, admin_required):
 
                 return jsonify({"success": True, "provider": dict(row)})
         except Exception as e:
-            logger.error("Error upserting contractor definition: %s", e)
+            logger.error("Error upserting engineer definition: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500

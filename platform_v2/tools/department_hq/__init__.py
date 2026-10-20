@@ -12,7 +12,7 @@ Routes split per ADR-045:
 - roster_routes.py — Agent CRUD, assignments, shift management
 - work_routes.py — Work sessions, job tracking, performance, C.R.E.E.D.
 - crew_routes.py — Hub crew manifest + agent personality
-- contractor_routes.py — External AI provider management
+- engineer_routes.py — External AI provider management
 - fleet_*_routes.py — Fleet/node/mesh/OTA/provider/mission (from A.R.M.A.D.A.)
 """
 
@@ -66,7 +66,7 @@ from .knowledge_routes import register_knowledge_routes  # noqa: E402
 from .model_routes import register_model_routes  # noqa: E402
 from .dispatch_routes import register_dispatch_routes  # noqa: E402
 from .crew_routes import register_crew_routes  # noqa: E402
-from .contractor_routes import register_contractor_routes  # noqa: E402
+from .engineer_routes import register_engineer_routes  # noqa: E402
 from .approvals_routes import register_approvals_routes  # noqa: E402
 from .chat_routes import register_chat_routes as register_agent_chat  # noqa: E402
 from .creed_routes import register_creed_routes  # noqa: E402
@@ -103,7 +103,7 @@ register_knowledge_routes(department_hq_bp, admin_required)
 register_model_routes(department_hq_bp, admin_required)
 register_dispatch_routes(department_hq_bp, admin_required)
 register_crew_routes(department_hq_bp, admin_required)
-register_contractor_routes(department_hq_bp, admin_required)
+register_engineer_routes(department_hq_bp, admin_required)
 register_approvals_routes(department_hq_bp, admin_required)
 register_agent_chat(department_hq_bp, admin_required)
 register_creed_routes(department_hq_bp, admin_required)

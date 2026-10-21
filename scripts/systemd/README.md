@@ -67,3 +67,42 @@ Verify:
 systemctl is-active archie-mesh-ip-wait.service                       # active
 systemctl show docker.service -p After | tr ' ' '\n' | grep archie-mesh   # ordering applied
 ```
+
+## `deep-space-9.free-exploration.conf`
+
+Drop-in for the host-native DS9 gateway (`deep-space-9.service`). It sets
+`OMNIROUTE_AUTO_FREE_EXPLORATION_RATE=0.10` — how often a **free-tier** auto
+combo tries a model outside its current best.
+
+### Why
+
+The free tier's pool members are new upstreams with no quality history, and the
+quality signal is what decides the top tier. That is a cold-start trap: the one
+model that has been serving accumulates quality, wins the top tier, and
+therefore keeps serving — while every other model stays cold and can never
+overtake it. Exploration samples the pool uniformly, so cold candidates get
+tried and accumulate the signal they need to compete.
+
+Measured on the live DS9 over 20 free-tier requests each:
+
+| rate | distinct models served | latency |
+|---|---|---|
+| 25% | 6 | 4–26 s, with one 138 s outlier |
+| **10%** | **5** | **4–13 s, no outlier** |
+
+10% keeps the pool warm — roughly 1.4 calls a day per model at the probe's
+five-minute cadence — while keeping the latency tail tight. The free tier is the
+fallback for the app-server path, so its latency matters. `0` restores the
+code's 5% default.
+
+### Install
+
+```bash
+sudo install -m 644 scripts/systemd/deep-space-9.free-exploration.conf \
+     /etc/systemd/system/deep-space-9.service.d/90-free-exploration.conf
+sudo systemctl daemon-reload
+sudo systemctl restart deep-space-9.service
+```
+
+The value is read at use time, so changing it needs a restart of this service
+and no rebuild.

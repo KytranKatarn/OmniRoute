@@ -14,6 +14,7 @@ import {
   translateNotification,
   translateToolCall,
   type DynamicToolCallLike,
+  type AppServerNotificationState,
 } from "./codex/appServerEvents.ts";
 import { splitCodexReasoningSuffix } from "./codex/reasoningSuffix.ts";
 
@@ -35,8 +36,8 @@ interface CodexTextUserInput {
  * Flatten an OpenAI Responses request body into the plain prompt text the
  * app-server turn expects. The body's `input` is a string, a single message item,
  * or an array of message items with `content` parts; we concatenate the user-facing
- * text. This is intentionally lossless-enough for a text turn (images/tool parts are
- * out of scope for the initial app-server transport).
+ * text. Tool calls/results are identified JSON history, not new instructions to
+ * execute a tool. Image replay remains outside this text-only transport.
  */
 export function extractPromptText(body: unknown): string {
   if (!body || typeof body !== "object") return "";
@@ -58,6 +59,25 @@ function collectText(item: unknown, out: string[]): void {
   }
   if (!item || typeof item !== "object") return;
   const rec = item as Record<string, unknown>;
+  if (rec.type === "function_call" || rec.type === "custom_tool_call") {
+    out.push(`Tool call in conversation history: ${JSON.stringify(rec)}`);
+    return;
+  }
+  if (rec.type === "function_call_output" || rec.type === "custom_tool_call_output") {
+    // turn/start accepts text input, not Responses output items. Preserve the
+    // completed call's ID and output as data so the next turn can use the result.
+    // Do not serialize image bytes/URLs into a text prompt.
+    const output = Array.isArray(rec.output)
+      ? rec.output.map((part: unknown) => {
+          const value = asRecord(part);
+          if (!value || typeof value.type !== "string") return part;
+          if (["input_text", "output_text", "text"].includes(value.type)) return value;
+          return { type: value.type, unsupported: "non-text tool output" };
+        })
+      : rec.output;
+    out.push(`Completed tool result (conversation data): ${JSON.stringify({ ...rec, output })}`);
+    return;
+  }
   if (typeof rec.text === "string" && rec.text.length > 0) {
     out.push(rec.text);
     return;
@@ -262,6 +282,7 @@ export class CodexAppServerExecutor extends BaseExecutor {
 
     const run = async () => {
       let terminated = false;
+      const notificationState: AppServerNotificationState = {};
       // Resolves when the turn reaches a terminal state (turn/completed, error,
       // or an item/tool/call passthrough). `turn/start` resolving only means the
       // turn was ACCEPTED (status: inProgress) — the model's output arrives later
@@ -281,7 +302,7 @@ export class CodexAppServerExecutor extends BaseExecutor {
       };
       const finishTurn = () => {
         if (terminated) return;
-        events.push({ type: "done", endTurn: true });
+        events.push({ type: "done", usage: notificationState.usage, endTurn: true });
         events.close();
         markTerminated();
       };
@@ -289,7 +310,12 @@ export class CodexAppServerExecutor extends BaseExecutor {
         // Setup responses and socket closure can arrive in the same frame batch.
         client.onNotification((method, params) => {
           if (terminated) return;
-          const isTerminal = translateNotification(method, params, (event) => events.push(event));
+          const isTerminal = translateNotification(
+            method,
+            params,
+            (event) => events.push(event),
+            notificationState
+          );
           if (isTerminal) {
             events.close();
             markTerminated();

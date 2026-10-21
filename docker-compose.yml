@@ -770,6 +770,11 @@ services:
       # dlopen()s the cuda_utils.so it just compiled here — noexec turns that
       # into "failed to map segment from shared object".
       - /root/.triton:size=256m,exec
+      # ComfyUI-Manager's prestart runs `uv pip freeze`, which creates /root/.cache/uv. Under read_only:true
+      # that failed ("Failed to initialize cache ... Read-only file system"), the prestart script errored and
+      # ComfyUI exited before binding :8188 -> container unhealthy. Cache only; nothing to persist.
+      # Measured 2026-10-21 on a recreate; a read-only throwaway with this tmpfs started and reported the TITAN.
+      - /root/.cache:size=512m
     # 24g, not 8g: when Ollama still holds part of the card, ComfyUI loads SDXL partially and spills
     # weights to system RAM, and switching between two ~7GB checkpoints holds both in RAM. Measured
     # 2026-10-21: OOM-killed at 8g on the 2nd image AND at 12g on the first checkpoint switch.

@@ -2230,6 +2230,40 @@ def register_dashboard_routes(bp, auth_decorator):
             logger.error("api_fleet_gpu_leases: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
+    @bp.route("/api/fleet/gpu-leases/enforcement", methods=["POST"])
+    @auth_decorator
+    def api_fleet_gpu_lease_enforcement():
+        """Turn "LLM dispatch yields to image sessions" on or off (#7401).
+
+        Writes platform_settings ``dispatch:gpu_lease:enabled``. The reader caches it for ~15s per process, so
+        this process is cleared at once and the others follow within that window; no restart is needed.
+        """
+        try:
+            data = request.get_json(silent=True) or {}
+            enabled = data.get("enabled")
+            if not isinstance(enabled, bool):
+                return jsonify({"success": False, "error": "enabled must be true or false"}), 400
+            from services import node_gpu_lease
+
+            with get_db_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    """INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                       VALUES (%s, %s, 'string', %s, NOW())
+                       ON CONFLICT (key) DO UPDATE
+                         SET value=EXCLUDED.value, updated_at=NOW()""",
+                    (
+                        node_gpu_lease.SETTING_ENABLED,
+                        str(enabled).lower(),
+                        "LLM dispatch skips a node while an image session holds its GPU lease (#7401). "
+                        "Toggled from Department HQ > A.R.M.A.D.A. > Fleet Command.",
+                    ),
+                )
+            node_gpu_lease.clear_cache()
+            return jsonify({"success": True, "enforcement": enabled})
+        except Exception as exc:
+            logger.error("api_fleet_gpu_lease_enforcement: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/fleet/rest-mode", methods=["GET", "POST"])
     @auth_decorator
     def api_fleet_rest_mode():

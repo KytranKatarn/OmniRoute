@@ -6259,11 +6259,39 @@ function loadGpuLeases() {
     fetch('/tools/department-hq/api/fleet/gpu-leases')
         .then(function(r) { return r.json(); })
         .then(function(d) {
+            if (d.success) _applyGpuLeaseToggle(!!d.enforcement);
             if (!d.success || !d.leases || !d.leases.length) { el.textContent = ''; return; }
             var names = d.leases.map(function(l) { return l.node_name; }).join(', ');
             el.textContent = 'IMAGE LEASE: ' + names + (d.enforcement ? '' : ' (observing - LLM not yielding)');
         })
         .catch(function() { el.textContent = ''; });
+}
+
+function _applyGpuLeaseToggle(enabled) {
+    var cb = document.getElementById('gpuLeaseToggle');
+    var slider = document.getElementById('gpuLeaseSlider');
+    var thumb = document.getElementById('gpuLeaseThumb');
+    if (!cb) return;
+    cb.checked = enabled;
+    if (slider) slider.style.background = enabled ? '#10b981' : '#444';
+    if (thumb) thumb.style.left = enabled ? '19px' : '3px';
+}
+
+// IMAGE LEASE enforcement: LLM dispatch yields a node while an image session holds its GPU (#7401).
+function toggleGpuLeaseEnforcement(enabled) {
+    _applyGpuLeaseToggle(enabled);  // optimistic; reverted on any failure
+    fetch('/tools/department-hq/api/fleet/gpu-leases/enforcement', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: enabled})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (!d.success) { _applyGpuLeaseToggle(!enabled); return; }
+        _applyGpuLeaseToggle(!!d.enforcement);
+        loadGpuLeases();
+    })
+    .catch(function() { _applyGpuLeaseToggle(!enabled); });
 }
 
 function setFleetDispatchMode(mode) {

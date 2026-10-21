@@ -774,6 +774,14 @@
                 <option value="">— none —</option>
               </select>
             </span>
+            <span style="display:inline-flex;align-items:center;gap:5px;margin-left:10px;font-size:0.58rem;letter-spacing:1px;color:var(--dhq-text-dim);">
+              <span style="white-space:nowrap;" title="IMAGE LEASE ENFORCEMENT. ON: while a Media Studio image session holds a node's GPU, LLM jobs (reviews, agents) skip that node so the image model is not evicted. OFF: the lease is only observed and LLM work may share the card, which is slower for both.">IMAGE LEASE</span>
+              <label style="position:relative;display:inline-block;width:34px;height:18px;cursor:pointer;">
+                <input type="checkbox" id="gpuLeaseToggle" onchange="toggleGpuLeaseEnforcement(this.checked)" style="opacity:0;width:0;height:0;">
+                <span id="gpuLeaseSlider" style="position:absolute;inset:0;border-radius:18px;background:#444;transition:background 0.2s;"></span>
+                <span id="gpuLeaseThumb" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left 0.2s;"></span>
+              </label>
+            </span>
             <span id="fleetGpuLease" title="IMAGE LEASE — a node whose GPU is held by a Media Studio image session. When lease enforcement is on, LLM dispatch stays off it so SDXL is not evicted." style="margin-left:8px;font-size:0.58rem;letter-spacing:0;color:#22d3ee;text-transform:none;"></span>
             <span id="fleetModeStatus" style="margin-left:8px;font-size:0.58rem;letter-spacing:0;color:var(--dhq-text-dim);text-transform:none;"></span>
           </span>

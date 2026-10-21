@@ -361,15 +361,40 @@ class LKGPStrategyImpl implements RouterStrategy {
         (c) => c.provider === context.lastKnownGoodProvider && c.circuitBreakerState !== "OPEN"
       );
       if (candidates.length > 0) {
-        const best = candidates[0];
+        // #7397: choose the MODEL within the last-known-good provider on
+        // merit, not on pool order.
+        //
+        // This used to be `candidates[0]`, which is a REGISTRY-ORDER choice
+        // wearing the costume of a routing decision: the provider registry
+        // lists the flagship models first, so the first candidate of the
+        // provider was always the same model. Measured on the live DS9, the
+        // free tier's cloudflare-playground provider resolved to
+        // zai-org/glm-5.2 on every request while the other nineteen models
+        // in its pool were never tried — and because the choice bypassed
+        // scoring, no exploration rate and no weight could ever change it.
+        //
+        // Stickiness to the PROVIDER is the entire point of LKGP and is
+        // preserved: the provider that worked keeps the traffic. The MODEL
+        // within that provider is now scored, and the exploration rate
+        // decides how often a runner-up is tried — which is also what lets a
+        // cold model accumulate the quality signal it needs to compete.
+        const ranked = scorePool(candidates, context.taskType, context.weights, getTaskFitness);
+        const explorationRate = Math.min(1, Math.max(0, context.explorationRate ?? 0));
+        const isExploration =
+          explorationRate > 0 && ranked.length > 1 && Math.random() < explorationRate;
+        const selected = isExploration
+          ? ranked[Math.floor(Math.random() * ranked.length)]
+          : ranked[0];
         return {
-          provider: best.provider,
-          model: best.model,
+          provider: selected.provider,
+          model: selected.model,
           strategy: this.name,
-          reason: `LKGP: using last known good provider ${best.provider}`,
-          candidatesConsidered: 1,
-          finalScore: 1.0,
-          connectionId: best.connectionId,
+          reason: `LKGP: using last known good provider ${selected.provider}${
+            isExploration ? " (exploration)" : ""
+          }`,
+          candidatesConsidered: ranked.length,
+          finalScore: selected.score,
+          connectionId: selected.connectionId,
         };
       }
     }

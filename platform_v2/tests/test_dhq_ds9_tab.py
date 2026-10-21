@@ -26,11 +26,28 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-DHQ = REPO / "platform_v2" / "tools" / "department_hq"
+
+def _platform_root() -> Path:
+    """The platform_v2 root, in BOTH layouts this suite runs in.
+
+      host layout:      <repo>/platform_v2/tests/...   -> parents[2] is <repo>
+      container layout: /app/tests/...                 -> /app IS platform_v2
+
+    Deriving it from the filesystem instead of a fixed depth is what lets the
+    same test run on the host and inside the platform container.
+    """
+    here = Path(__file__).resolve()
+    for cand in (here.parents[1], here.parents[2] / "platform_v2"):
+        if (cand / "tools" / "department_hq").is_dir():
+            return cand
+    raise AssertionError(f"cannot locate platform_v2 from {here}")
+
+
+PLATFORM = _platform_root()
+DHQ = PLATFORM / "tools" / "department_hq"
 TEMPLATE = DHQ / "templates" / "department_hq.html"
 JS = DHQ / "static" / "js" / "department-hq.js"
-FLEET_CSS = REPO / "platform_v2" / "static" / "css" / "fleet.css"
+FLEET_CSS = PLATFORM / "static" / "css" / "fleet.css"
 
 # The DS9 tab's key, panel id, and the DOM ids inside it. The tab machinery
 # derives the panel id as "panel-" + <tab key>, so these three must agree.

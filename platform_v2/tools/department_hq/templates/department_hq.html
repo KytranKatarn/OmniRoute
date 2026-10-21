@@ -990,6 +990,12 @@
            painted by loadOmnirouteQuota(); empty/failed card reads "no data yet",
            never affects the providers grid below it. -->
       <div id="ds9QuotaCard" style="margin:0 0 16px 0;"></div>
+      <!-- DS9 — the Codex app-server CONNECTION. The providers grid below is the
+           PLATFORM's external upstreams; the app-server is a connection inside
+           DS9's own store, so without this card the operator cannot see who it
+           is authorized as or whether it is reachable. Painted by
+           loadAppServerConnections(); read-only, never affects the grid. -->
+      <div id="ds9AppServerCard" style="margin:0 0 16px 0;"></div>
       <div id="engineers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
       <div id="engineerProvidersContent"></div>
       <div id="engineerDefinitionsContent"></div>

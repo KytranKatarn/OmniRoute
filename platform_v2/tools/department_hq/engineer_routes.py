@@ -411,6 +411,42 @@ def register_engineer_routes(bp, admin_required):
             logger.error("Error toggling model: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
+    @bp.route("/api/engineers/app-server-connections", methods=["GET"])
+    @login_required
+    def get_app_server_connections():
+        """DS9 — the Codex app-server connections, as DS9 itself reports them.
+
+        The providers list below is the PLATFORM's external upstreams
+        (engineer_providers). The Codex app-server is not one of them: it is a
+        CONNECTION inside DS9's own store, and it is the upstream that lets DS9
+        drive the OpenAI Codex CLI directly instead of replaying a ChatGPT
+        session token.
+
+        This endpoint surfaces it in the DS9 tab so the operator can see, in
+        the platform's own pane: which account the sidecar is authorized as,
+        whether the upstream is reachable, and which models it offers.
+
+        Read-only. It reads DS9's store (mode=ro&immutable=1) and calls DS9's
+        own provider test for the live verdict - it never writes to DS9, and it
+        never mutates the connection.
+        """
+        try:
+            from services.ds9_app_server_service import get_app_server_status
+
+            return jsonify(get_app_server_status())
+        except Exception as e:
+            logger.error("Error reading DS9 app-server connections: %s", e)
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Internal server error",
+                        "connections": [],
+                    }
+                ),
+                500,
+            )
+
     @bp.route("/api/engineers/omniroute-quota", methods=["GET"])
     @login_required
     def get_omniroute_quota():

@@ -1187,6 +1187,84 @@ def dispatch_queue_reaper():
         logger.exception("dispatch_queue_reaper failed")
 
 
+def ds9_codex_appserver_health_job():
+    """Alarm when DS9's Codex app-server sidecar dies or loses its login (#7384).
+
+    The app-server is a HOST systemd unit (`ds9-codex-appserver.service`) that runs
+    the OpenAI Codex CLI's own app-server on 127.0.0.1:1456, and it is the upstream
+    that lets DS9 drive Codex directly instead of replaying a ChatGPT session token.
+    Until this job existed, NOTHING in the platform referenced it: the sidecar could
+    be dead (or signed out) and the only symptom would be a coder lane quietly
+    failing, hours later.
+
+    Why the platform cannot probe it directly: the sidecar listens on the HOST's
+    loopback only (a deliberate hardening choice), and the platform runs in a
+    container, so 127.0.0.1:1456 there is the container's own. DS9 is the one
+    service that talks to the sidecar, so we ask DS9 — its provider test probes the
+    sidecar's /readyz and its account/read, and distinguishes "up but signed out"
+    from "not configured" from "reachable". Asking DS9 rather than re-probing also
+    means there is ONE copy of the sidecar's auth logic, in DS9, where it lives.
+
+    Deterministic, no LLM in the alert path (same shape as omniroute_gateway_health).
+    Observes only: no task_execution_log rows, no locks, so it can never interfere
+    with the collector.
+
+    Deliberately does NOT alarm on a DISABLED connection (is_active=0): that is a
+    deliberate operator setting, and paging on something someone turned off is how
+    an alert channel gets muted (#6803).
+    Toggle: work-control key 'ds9_codex_appserver_health' (default ON).
+    """
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("ds9_codex_appserver_health", default=True):
+        return
+
+    try:
+        from services.ds9_app_server_service import get_app_server_health
+
+        res = get_app_server_health()
+    except Exception:
+        logger.exception("ds9_codex_appserver_health failed")
+        return
+
+    condition = res.get("condition")
+    if not condition or condition == "healthy":
+        return
+    # "absent" and "disabled" are not faults: a platform may simply not run
+    # DS9's app-server, and a disabled connection is somebody's decision.
+    if condition in ("absent", "disabled"):
+        return
+
+    detail = res.get("detail") or ""
+
+    # Dedup on the CONDITION, not on the counts: the numbers move every cycle, so
+    # fingerprinting them would re-page endlessly for one unchanged outage.
+    fingerprint = f"{condition}"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'ds9:appserver:health:last'")
+            row = cur.fetchone()
+            if row and row["value"] == fingerprint:
+                return
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, description)
+                   VALUES ('ds9:appserver:health:last', %s, 'ds9_codex_appserver_health dedup fingerprint')
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (fingerprint,),
+            )
+    except Exception as e:
+        logger.warning("ds9_codex_appserver_health dedup failed (alerting anyway): %s", e)
+
+    try:
+        from services.telegram_service import send_system
+
+        send_system(f"DS9 Codex app-server: {condition}", detail)
+    except Exception as e:
+        logger.warning("ds9_codex_appserver_health alert failed: %s", e)
+
+
 def omniroute_gateway_health_job():
     """Alarm when the OmniRoute gateway stops producing inference (#6763 follow-up).
 
@@ -2271,6 +2349,21 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
         id="omniroute_gateway_health",
         name="Agent Loop: DS9 Gateway Health",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # DS9 CODEX APP-SERVER HEALTH — every 15 min. The gateway health job above asks
+    # "is DS9 producing inference"; this asks "is the app-server SIDECAR alive and
+    # signed in" (#7384). The sidecar is a host systemd unit on 127.0.0.1:1456 that
+    # the platform container cannot reach, so the probe goes through DS9, which is
+    # the service that actually talks to it.
+    scheduler.add_job(
+        with_ctx(ds9_codex_appserver_health_job),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="ds9_codex_appserver_health",
+        name="Agent Loop: DS9 Codex App-Server Health",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

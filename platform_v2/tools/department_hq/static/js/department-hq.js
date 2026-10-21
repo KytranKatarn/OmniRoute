@@ -7655,10 +7655,84 @@ async function loadEngineers() {
         });
         loadFleetUsage();
         loadOmnirouteQuota();
+        loadAppServerConnections();
     } catch (e) {
         console.error('loadEngineers error:', e);
         var grid = document.getElementById('engineers-grid');
         if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load DS9 providers</span>';
+    }
+}
+
+// DS9 — the Codex app-server connection card.
+//
+// The providers grid below is the PLATFORM's external upstreams. The Codex
+// app-server is NOT one of them: it is a CONNECTION inside DS9's own store,
+// and it is the upstream that lets DS9 drive the OpenAI Codex CLI directly
+// instead of replaying a ChatGPT session token.
+//
+// Without this card the operator can see the app-server in the quota card (it
+// is being used) but cannot tell WHO it is authorized as, whether it is
+// reachable, or which models it offers - and the DS9 pane is where the owner
+// looks. Read-only: this only reads.
+async function loadAppServerConnections() {
+    var el = document.getElementById('ds9AppServerCard');
+    if (!el) return;
+    try {
+        var resp = await fetch('/tools/department-hq/api/engineers/app-server-connections');
+        var res = await resp.json();
+        if (!res || !res.success) {
+            el.innerHTML = '<span class="briefing-muted">DS9 app-server: unavailable</span>';
+            return;
+        }
+        var conns = res.connections || [];
+        if (conns.length === 0) {
+            el.innerHTML = '<span class="briefing-muted">DS9 app-server: none configured</span>';
+            return;
+        }
+        var AUTH = {
+            authenticated:  { label: 'AUTHENTICATED',  color: '#00ffcc' },
+            signed_out:     { label: 'SIGNED OUT',     color: '#f5a623' },
+            not_configured: { label: 'NOT CONFIGURED', color: '#ff6b6b' },
+            down:           { label: 'SIDECAR DOWN',   color: '#ff6b6b' },
+            not_ready:      { label: 'NOT READY',      color: '#f5a623' },
+            turn_failed:    { label: 'TURN FAILED',    color: '#ff6b6b' },
+            unknown:        { label: 'UNKNOWN',        color: 'var(--dhq-text-dim,#9aa)' }
+        };
+        var rows = conns.map(function(c) {
+            var a = AUTH[c.auth_state] || AUTH.unknown;
+            var models = (c.models || []).map(function(m) { return m.id; });
+            var modelLine = models.length
+                ? models.slice(0, 6).join(' · ') + (models.length > 6 ? ' · +' + (models.length - 6) + ' more' : '')
+                : '—';
+            if (c.variant_count) {
+                modelLine += '  (+' + c.variant_count + ' reasoning variants)';
+            }
+            var active = c.is_active
+                ? '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:#00ffcc;">ACTIVE</span>'
+                : '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:var(--dhq-text-dim,#9aa);">DISABLED</span>';
+            var latency = (c.health && c.health.latency_ms != null) ? c.health.latency_ms + ' ms' : '—';
+            return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.08);">' +
+                '<div style="display:flex;align-items:center;gap:12px;">' +
+                    '<span style="width:10px;height:10px;border-radius:50%;background:' + a.color + ';flex-shrink:0;"></span>' +
+                    '<span style="flex:1;font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;">' + escapeHtml(c.name || 'Codex app-server') + '</span>' +
+                    active +
+                    '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.75rem;color:' + a.color + ';">' + escapeHtml(a.label) + '</span>' +
+                    '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.7rem;color:var(--dhq-text-dim,#9aa);">' + escapeHtml(latency) + '</span>' +
+                '</div>' +
+                '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim,#9aa);padding:4px 0 0 22px;">' +
+                    escapeHtml(modelLine) +
+                '</div>' +
+            '</div>';
+        }).join('');
+        el.innerHTML =
+            '<div class="dhq-dispatch-section">' +
+              '<div class="dhq-section-title">CODEX APP-SERVER</div>' +
+              '<div style="font-size:0.68rem;color:var(--dhq-text-dim,#9aa);padding:2px 12px;">DS9 drives the OpenAI Codex CLI directly — no ChatGPT token is replayed. Health is DS9\'s own provider test.</div>' +
+              rows +
+            '</div>';
+    } catch (e) {
+        console.error('loadAppServerConnections error:', e);
+        if (el) el.innerHTML = '<span class="briefing-muted">DS9 app-server: unavailable</span>';
     }
 }
 

@@ -3,6 +3,8 @@ import { DEVIN_MODEL_CATALOG } from "../devin/catalog.ts";
 
 export const devin_cli_agenticProvider: RegistryEntry = {
   id: "devin-cli-agentic",
+  description:
+    "Devin's agentic models - each one drives a coding agent rather than answering a single prompt. Good for delegated multi-step work; not a drop-in chat replacement.",
   alias: "dva",
   format: "claude",
   executor: "devin-cli-agentic",

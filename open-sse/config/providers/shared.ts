@@ -151,6 +151,14 @@ export type ReasoningTransport = "plaintext" | "opaque" | "none";
 export interface RegistryEntry {
   id: string;
   alias?: string;
+  /**
+   * One line on what THIS PROVIDER is for, used as the fallback for any of
+   * its models that has no description of its own. A model list where the
+   * provider's models read as bare names is a list nobody can choose from, and
+   * a per-model line is not always worth writing for a bulk catalogue - a
+   * provider-level line covers those honestly.
+   */
+  description?: string;
   format: string;
   executor: string;
   baseUrl?: string;

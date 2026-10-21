@@ -17,6 +17,7 @@ import {
 } from "@/shared/constants/modelSpecs";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { PROVIDER_ID_TO_ALIAS, PROVIDER_MODELS } from "@/shared/constants/models";
+import { getRegistryEntry } from "@omniroute/open-sse/config/providerRegistry";
 import {
   getSyncStatus,
   getSyncedCapability,
@@ -260,7 +261,12 @@ export function getCanonicalModelMetadata(input: {
     model: resolved.model || modelId,
     qualifiedId: toQualifiedId(providerAlias, provider, resolved.model || modelId),
     displayName: registryModel?.name || resolved.model || modelId,
-    description: registryModel?.description?.trim() || null,
+    // A model's own line wins; the provider's line covers the models that do
+    // not have one of their own (a bulk catalogue, mostly).
+    description:
+      registryModel?.description?.trim() ||
+      getRegistryEntry(providerAlias || provider || "")?.description?.trim() ||
+      null,
     aliases: uniqueStrings([
       canonicalStaticAlias !== (resolved.model || modelId) ? canonicalStaticAlias : null,
       ...(staticSpec?.aliases || []),

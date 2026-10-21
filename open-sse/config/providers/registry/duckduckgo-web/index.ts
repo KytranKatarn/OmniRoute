@@ -2,6 +2,8 @@ import type { RegistryEntry } from "../../shared.ts";
 
 export const duckduckgo_webProvider: RegistryEntry = {
   id: "duckduckgo-web",
+  description:
+    "DuckDuckGo's web-backed models - they answer with search results, so they are for facts and lookups rather than for code or reasoning.",
   alias: "ddgw",
   format: "openai",
   executor: "duckduckgo-web",

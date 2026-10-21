@@ -2,6 +2,8 @@ import type { RegistryEntry } from "../../shared.ts";
 
 export const uncloseaiProvider: RegistryEntry = {
   id: "uncloseai",
+  description:
+    "A free, shared, keyless LLM relay. No account and no key, but it is shared and fair-use limited, so expect 429s under load.",
   alias: "unc",
   format: "openai",
   executor: "default",

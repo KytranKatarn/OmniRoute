@@ -26,6 +26,7 @@ export const ZCODE_MODELS = GLM_SHARED_MODELS.filter(
  */
 export const zcodeProvider: RegistryEntry = {
   id: "zcode",
+  description: "Zcode - a free code-focused endpoint. Handy for quick edits and completions.",
   alias: "zc",
   format: "openai",
   executor: "zcode",

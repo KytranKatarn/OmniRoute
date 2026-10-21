@@ -429,6 +429,7 @@ export function bridgeToResponsesSSE(
             name: currentToolCall.name,
             input: freeformInput(currentToolCall.args),
             status: "completed",
+            ...(currentToolCall.namespace ? { namespace: currentToolCall.namespace } : {}),
           }
         : {
             type: "function_call",
@@ -670,8 +671,8 @@ export function bridgeToResponsesSSE(
             const mapped = toolNsMap?.get(event.name);
             const realName = mapped?.name ?? event.name;
             const ns = mapped?.namespace;
-            const toolSearch = toolSearchToolNames?.has(realName) ?? false;
-            const freeform = !toolSearch && (freeformToolNames?.has(realName) ?? false);
+            const toolSearch = toolSearchToolNames?.has(event.name) ?? false;
+            const freeform = !toolSearch && (freeformToolNames?.has(event.name) ?? false);
             const itemId = `${toolSearch ? "tsc" : freeform ? "ctc" : "fc"}_${uuid()}`;
             const item = toolSearch
               ? {
@@ -690,6 +691,7 @@ export function bridgeToResponsesSSE(
                     name: realName,
                     input: "",
                     status: "in_progress",
+                    ...(ns ? { namespace: ns } : {}),
                   }
                 : {
                     type: "function_call",
@@ -1153,8 +1155,8 @@ export function buildResponseJSON(
     const mapped = options?.toolNsMap?.get(currentToolCallName);
     const realName = mapped?.name ?? currentToolCallName;
     const ns = mapped?.namespace;
-    const toolSearch = options?.toolSearchToolNames?.has(realName) ?? false;
-    const freeform = !toolSearch && (options?.freeformToolNames?.has(realName) ?? false);
+    const toolSearch = options?.toolSearchToolNames?.has(currentToolCallName) ?? false;
+    const freeform = !toolSearch && (options?.freeformToolNames?.has(currentToolCallName) ?? false);
     if (toolSearch) {
       output.push({
         type: "tool_search_call",
@@ -1172,6 +1174,7 @@ export function buildResponseJSON(
         name: realName,
         input: freeformInput(currentToolCallArgs),
         status: "completed",
+        ...(ns ? { namespace: ns } : {}),
       });
     } else {
       output.push({

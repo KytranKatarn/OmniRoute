@@ -6,14 +6,20 @@
 
 # Service Registry
 
-**Collected**: 2026-10-20 08:06:39 EDT · **Provenance measured**: 2026-10-20 03:40:08 EDT
+**Collected**: 2026-10-21 03:40:08 EDT · **Provenance measured**: 2026-10-21 03:40:08 EDT
 
-51/54 hub containers running · 9 image-baked products · 0 absent.
+51/53 hub containers running · 9 image-baked products · 1 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
 > as drift. Provenance and collection are timestamped separately because a cheap
 > container-only run does not re-measure drift.
+
+## 🚨 Absent — seen before, not in the latest collection
+
+| Service | Kind | Last seen |
+|---------|------|-----------|
+| `omniroute` | container | 2026-10-20 08:06:39 EDT |
 
 ## Image-baked products — deploy provenance
 
@@ -26,8 +32,8 @@
 | `legal_watch` | ⚪ fail_open | `unknown` | `4c85b6d15` | http://100.64.0.10:8100/version |
 | `market_watch` | ⚪ fail_open | `unknown` | `7b5116ee3` | http://100.64.0.10:8101/version |
 | `media_hub` | ⚪ fail_open | `unknown` | `9a2c0163d` | http://192.168.1.200:8105/version |
-| `wtf_consumer` | ✅ in_sync | `1b99b0e4b` | `1b99b0e4b` | http://100.64.0.10:8103/version |
-| `wtf_tech` | 🔴 DRIFT | `8cb3414bf` | `1b99b0e4b` | http://100.64.0.10:8104/version |
+| `wtf_consumer` | ✅ in_sync | `7e2278421` | `04d60622a` | http://100.64.0.10:8103/version |
+| `wtf_tech` | ✅ in_sync | `7e2278421` | `04d60622a` | http://100.64.0.10:8104/version |
 
 ## Hub containers
 
@@ -53,7 +59,6 @@
 | `archie_staging_db` | running | archie_brain | 5433->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_tailscale` | running | archie_brain | — | `tailscale/tailscale:v1.80.3` |
 | `archie_whisper` | running | archie_brain | — | `archie_brain-archie_whisper:latest` |
-| `omniroute` ⚠ | exited | archie_brain | — | `diegosouzapw/omniroute:3.8.50` |
 | `security_nikto` | running | archie_brain | — | `secfigo/nikto:latest` |
 | `security_nmap` | running | archie_brain | — | `instrumentisto/nmap:7.94` |
 | `security_nuclei` | running | archie_brain | — | `projectdiscovery/nuclei:latest` |

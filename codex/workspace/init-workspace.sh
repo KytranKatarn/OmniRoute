@@ -31,10 +31,7 @@ if [ ! -d "$REPO_DIR/.git" ]; then
   echo "[init-workspace] Cloning $REPO_SLUG into $REPO_DIR ..."
   git clone "https://github.com/$REPO_SLUG.git" "$REPO_DIR"
 else
-  echo "[init-workspace] Syncing existing clone to origin/main ..."
-  git -C "$REPO_DIR" fetch -q origin
-  git -C "$REPO_DIR" checkout -q main 2>/dev/null || git -C "$REPO_DIR" checkout -q -b main origin/main
-  git -C "$REPO_DIR" reset --hard origin/main
+  echo "[init-workspace] Preserving existing workspace branch and files."
 fi
 
 # Scope-guard hook is BAKED into the image at /opt/codex-guard (hook + allowlist),
@@ -42,4 +39,4 @@ fi
 # tree — so repo edits cannot loosen the guard. (codex-pr is baked on PATH too.)
 git -C "$REPO_DIR" config core.hooksPath /opt/codex-guard
 
-echo "[init-workspace] Ready. Workspace: $REPO_DIR (branch main, scope-guarded via /opt/codex-guard)."
+echo "[init-workspace] Ready. Workspace: $REPO_DIR (scope-guarded via /opt/codex-guard)."

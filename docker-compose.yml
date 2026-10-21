@@ -1431,13 +1431,15 @@ services:
       # Consumed by config.toml's `env_key`, so codex reads the key from the ENVIRONMENT
       # and it is never written into the config file. opencode stores the same credential
       # INLINE in opencode.json; this is the better half of that pair, not a copy of it.
-      OMNIROUTE_API_KEY: ${OMNIROUTE_API_KEY:-}
-      OMNIROUTE_BASE_URL: ${OMNIROUTE_BASE_URL:-http://host.docker.internal:20129/v1}
-      OMNIROUTE_MODEL: ${OMNIROUTE_MODEL:-auto/coding:free}
+      DS9_CODEX_BASE_URL: http://host.docker.internal:20129/v1
+      DS9_CODEX_MODEL: cxa/gpt-6.1-sol
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     secrets:
       - codex_kb_bearer
       - codex_auth
       - codex_github_token
+      - ds9_codex_gateway_api_key
     volumes:
       - codex_terminal_home:/codex-home
       - codex_terminal_work:/work
@@ -1474,6 +1476,8 @@ secrets:
     file: ./secrets/opencode/mcp_bearer.txt
   codex_auth:
     file: ./secrets/codex/codex_auth.json
+  ds9_codex_gateway_api_key:
+    file: ./secrets/codex/ds9_gateway_api_key.txt
   codex_github_token:
     file: ./secrets/codex/github_token.txt
   opencode_github_token:

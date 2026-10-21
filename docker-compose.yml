@@ -770,7 +770,11 @@ services:
       # dlopen()s the cuda_utils.so it just compiled here — noexec turns that
       # into "failed to map segment from shared object".
       - /root/.triton:size=256m,exec
-    mem_limit: 8g
+    # 24g, not 8g: when Ollama still holds part of the card, ComfyUI loads SDXL partially and spills
+    # weights to system RAM, and switching between two ~7GB checkpoints holds both in RAM. Measured
+    # 2026-10-21: OOM-killed at 8g on the 2nd image AND at 12g on the first checkpoint switch.
+    # The hub has 125GB RAM; this is a ceiling, not a reservation.
+    mem_limit: 24g
     cpus: 2.0
     cap_drop:
       - ALL
@@ -783,8 +787,11 @@ services:
       resources:
         reservations:
           devices:
+            # Pinned to the hub TITAN X (12GB) by UUID. `count: 1` took cuda:0 = the Quadro M4000, which
+            # Ollama keeps ~6.8GB busy, leaving ~1.2GB free: SDXL could not run there at all. Indexes can
+            # reorder across reboots, the UUID cannot (nvidia-smi -L).
             - driver: nvidia
-              count: 1
+              device_ids: ["GPU-93e51659-be75-1c64-2d85-30f084a29023"]
               capabilities: [gpu]
     ports:
       - "8188:8188"

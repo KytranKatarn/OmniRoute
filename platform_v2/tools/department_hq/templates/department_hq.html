@@ -1274,10 +1274,17 @@
         <div class="dhq-section-title">FLEET USAGE (30 DAYS)</div>
         <div style="display:flex;gap:24px;padding:8px 0;font-size:0.8rem;">
           <div>Calls: <strong id="fleetUsageCalls">--</strong></div>
+          <div>Tokens: <strong id="fleetUsageTokens">--</strong></div>
           <div>Cost: <strong id="fleetUsageCost">--</strong></div>
           <div>Providers: <strong id="fleetUsageProviders">--</strong></div>
         </div>
       </div>
+      <!-- USAGE BY APPLICATION - which application spent what on which EXTERNAL
+           upstream. The attribution has always existed (task_execution_log.
+           module_source); nothing on this tab read it, so the platform own
+           token spend was invisible here. Painted by loadFleetUsage() from the
+           same fetch, so the two cards can never disagree. -->
+      <div id="ds9UsageByAppCard" style="margin:0 0 16px 0;"></div>
 
       <!-- Budget Table (moved from Fleet — belongs with engineer definitions) -->
       <div class="dhq-dispatch-section" id="fleetBudgetSection">

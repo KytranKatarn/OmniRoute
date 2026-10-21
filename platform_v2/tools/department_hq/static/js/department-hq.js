@@ -7496,7 +7496,26 @@ async function loadFleetUsage() {
         const costEl = document.getElementById('fleetUsageCost');
         const provEl = document.getElementById('fleetUsageProviders');
         const callEl = document.getElementById('fleetUsageCalls');
-        if (costEl) costEl.textContent = '$' + (usage.total_cost || 0).toFixed(2);
+        const tokenEl = document.getElementById('fleetUsageTokens');
+        if (costEl) {
+            // Cost is genuinely untracked for platform traffic: the token
+            // ledger's cost column is 0 on every row. Say so, rather than
+            // printing $0.00 - which reads like a real spend of nothing.
+            costEl.textContent = usage.cost_tracked
+                ? '$' + (usage.total_cost || 0).toFixed(2)
+                : 'not tracked';
+            costEl.title = usage.cost_tracked
+                ? 'Recorded spend over the last 30 days.'
+                : "The platform does not record cost for these calls yet - the token ledger's cost column is empty.";
+        }
+        if (tokenEl) {
+            const tok = usage.total_tokens || 0;
+            tokenEl.textContent = tok >= 1000000
+                ? (tok / 1000000).toFixed(1) + 'M'
+                : tok >= 1000 ? Math.round(tok / 1000) + 'k' : String(tok);
+            tokenEl.title = tok.toLocaleString() + ' tokens over the last 30 days';
+        }
+        _dhqRenderUsageByApplication(usage.by_application || []);
         if (provEl) {
             // Show "N cloud used / M registered" — distinct providers actually called (excl. local fleet)
             var distinctUsed = usage.distinct_providers || 0;
@@ -7649,6 +7668,42 @@ async function toggleProvider(key) {
 }
 
 var escapeHtml = typeof esc === "function" ? esc : function(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; };
+
+// USAGE BY APPLICATION - which application sent what to the EXTERNAL upstreams.
+// The attribution has always existed (task_execution_log.module_source); nothing
+// on the DS9 tab read it, so the platform's own token spend was invisible there.
+function _dhqRenderUsageByApplication(rows) {
+    var el = document.getElementById('ds9UsageByAppCard');
+    if (!el) return;
+    if (!rows || rows.length === 0) {
+        el.innerHTML = '<span class="briefing-muted">Usage by application: no external usage recorded yet</span>';
+        return;
+    }
+    var max = rows.reduce(function(m, r) { return Math.max(m, r.tokens || 0); }, 0) || 1;
+    var body = rows.map(function(r) {
+        var pct = Math.max(2, Math.round(((r.tokens || 0) / max) * 100));
+        var tok = r.tokens || 0;
+        var tokLabel = tok >= 1000000 ? (tok / 1000000).toFixed(1) + 'M' : tok >= 1000 ? Math.round(tok / 1000) + 'k' : String(tok);
+        return '<div style="padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.06);">' +
+            '<div style="display:flex;gap:12px;align-items:center;font-size:0.75rem;">' +
+                '<span style="flex:1;font-family:\'IBM Plex Mono\',monospace;">' + escapeHtml(r.application || 'unknown') + '</span>' +
+                '<span style="color:var(--dhq-text-dim,#9aa);font-family:\'IBM Plex Mono\',monospace;">' + (r.providers || 0) + ' up</span>' +
+                '<span style="color:var(--dhq-text-dim,#9aa);font-family:\'IBM Plex Mono\',monospace;">' + (r.calls || 0) + ' calls</span>' +
+                '<span style="width:64px;text-align:right;font-family:\'IBM Plex Mono\',monospace;">' + tokLabel + '</span>' +
+            '</div>' +
+            '<div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;margin-top:4px;">' +
+                '<div style="height:4px;width:' + pct + '%;background:var(--cat-accent,#00ffff);border-radius:2px;"></div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+    el.innerHTML =
+        '<div class="dhq-dispatch-section">' +
+          '<div class="dhq-section-title">USAGE BY APPLICATION (30 DAYS)</div>' +
+          '<div style="font-size:0.68rem;color:var(--dhq-text-dim,#9aa);padding:2px 12px 8px;">Which application sent what to the external upstreams. Bars are proportional to tokens.</div>' +
+          body +
+        '</div>';
+}
+
 function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); }
 // CONTRACTORS (External Providers) — Crew Sub-Tab
 // ============================================================================

@@ -1887,7 +1887,21 @@ def register_fleet_routes(bp, auth_decorator):
                     models_out = []
                     tier_positions = {}
                     for m in models_def:
-                        m_name = m["name"]
+                        # The models column is MIXED-SHAPE: most providers store
+                        # objects ({"name": ..., "max_tokens": ...,
+                        # "cost_per_1k": {...}}), but some store a plain list
+                        # of model-id strings. Reading it as a dict only raised
+                        # TypeError on the string shape - and because that
+                        # happened inside this route's own try, ONE such
+                        # provider took the WHOLE external-providers listing
+                        # down with a 500: the DS9 tab's provider grid was
+                        # dead, with nothing in the log to say why.
+                        # opencode_zen (added 2026-10-19) is the row that
+                        # triggers it. An entry with no usable name is skipped
+                        # rather than allowed to take the listing down.
+                        m_name = m.get("name") if isinstance(m, dict) else m
+                        if not isinstance(m_name, str) or not m_name:
+                            continue
                         m_stats = stats_by_model.get(
                             m_name,
                             {"requests": 0, "cost": 0.0, "avg_latency_ms": 0.0, "success_rate": 100.0},
@@ -1985,7 +1999,10 @@ def register_fleet_routes(bp, auth_decorator):
                         "creed_blocked_24h": creed_blocked_24h,
                     }
                 )
-        except Exception:
+        except Exception as _exc:
+            # A 500 with no log is undebuggable: this route swallowed the error and the
+            # wire just said "Internal server error" with nothing in the log to explain it.
+            logger.error("external-providers: listing failed: %s", _exc, exc_info=True)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/external-providers", methods=["POST"])

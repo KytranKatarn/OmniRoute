@@ -465,10 +465,26 @@ def get_provider_status(provider_key):
 
 
 def get_usage_summary(provider_key=None, days=30):
-    """Get usage summary from cloud_model_usage.
+    """Get usage summary for the DS9 tab.
+
+    TWO LEDGERS, because they answer different questions:
+
+    * ``task_execution_log`` is the platform's REAL token ledger. It records
+      every inference with its prompt/completion tokens AND the APPLICATION that
+      asked for it (``module_source``). This is where the token totals come
+      from, and where the per-application breakdown comes from.
+    * ``cloud_model_usage`` is the per-provider/per-model ledger, and it is the
+      only one that has ever carried a cost. It records CALLS, but its token
+      columns were never populated - so reading tokens from it produced a card
+      that said "0 tokens" and "$0.00" while 474M tokens went unshown.
+
+    Cost is genuinely untracked for platform traffic: ``task_execution_log.cost``
+    is 0 on every row (all 2.1M of them). ``cost_tracked`` says so, rather
+    than letting the UI present a $0.00 that reads like a real spend.
 
     If provider_key given, filter to that provider.
-    Returns: total_calls, total_tokens, total_cost, by_model breakdown.
+    Returns: total_calls, total_tokens, total_cost, by_model breakdown,
+             by_application breakdown, distinct_providers, registered_providers.
     """
     with get_db_cursor() as (conn, cur):
         where_clause = "WHERE created_at >= NOW() - INTERVAL '%s days'"
@@ -478,7 +494,8 @@ def get_usage_summary(provider_key=None, days=30):
             where_clause += " AND provider = %s"
             params.append(provider_key)
 
-        # Totals
+        # Totals — calls and cost from the per-provider ledger, tokens from the
+        # ledger that actually records them.
         cur.execute(
             f"""
             SELECT
@@ -496,6 +513,72 @@ def get_usage_summary(provider_key=None, days=30):
             "total_tokens": int(row["total_tokens"]) if row else 0,
             "total_cost": float(row["total_cost"]) if row else 0.0,
         }
+
+        # Real tokens, from the ledger that records them.
+        token_where = "WHERE created_at >= NOW() - INTERVAL '%s days'"
+        token_params = [days]
+        if provider_key:
+            token_where += " AND provider = %s"
+            token_params.append(provider_key)
+        cur.execute(
+            f"""
+            SELECT
+                COUNT(*) AS calls,
+                COALESCE(SUM(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0) AS tokens
+            FROM task_execution_log
+            {token_where}
+            """,
+            token_params,
+        )
+        trow = cur.fetchone()
+        real_tokens = int(trow["tokens"]) if trow else 0
+        real_calls = int(trow["calls"]) if trow else 0
+        # The per-provider ledger is the caller's primary source for calls (it is
+        # what the provider budget view joins on), so only the TOKENS are
+        # replaced — and only when the primary has none, so a caller that
+        # filters to one provider still sees that provider's own calls.
+        if result["total_tokens"] == 0 and real_tokens:
+            result["total_tokens"] = real_tokens
+        result["tokens_tracked"] = bool(result["total_tokens"])
+        result["cost_tracked"] = bool(result["total_cost"])
+        result["ledger_calls"] = real_calls
+
+        # Per-application breakdown — which application spent what on which
+        # external upstream. This is the "tracking" the DS9 tab was missing:
+        # the data has always been here, attributed by module_source, but
+        # nothing on the tab read it.
+        app_where = (
+            "WHERE created_at >= NOW() - INTERVAL '%s days' "
+            "AND module_source IS NOT NULL AND module_source <> '' "
+            "AND provider NOT IN ('fleet_node', 'ollama', 'local', 'ollama_local')"
+        )
+        app_params = [days]
+        if provider_key:
+            app_where += " AND provider = %s"
+            app_params.append(provider_key)
+        cur.execute(
+            f"""
+            SELECT module_source,
+                   COUNT(*) AS calls,
+                   COALESCE(SUM(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0) AS tokens,
+                   COUNT(DISTINCT provider) AS providers
+            FROM task_execution_log
+            {app_where}
+            GROUP BY module_source
+            ORDER BY tokens DESC
+            LIMIT 25
+            """,
+            app_params,
+        )
+        result["by_application"] = [
+            {
+                "application": r["module_source"],
+                "calls": int(r["calls"]),
+                "tokens": int(r["tokens"]),
+                "providers": int(r["providers"]),
+            }
+            for r in cur.fetchall()
+        ]
 
         # By-model breakdown
         cur.execute(

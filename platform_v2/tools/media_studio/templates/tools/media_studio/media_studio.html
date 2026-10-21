@@ -288,6 +288,11 @@
         .sv-form-grid { padding: 12px; }
     }
 
+    /* Gallery subject sidebar: sticky, capped to the viewport, scrolls on its own */
+    .ms-gallery-sidebar-scroll{position:sticky;top:0;align-self:flex-start;max-height:calc(100vh - 150px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(236,72,153,.5) transparent;}
+    .ms-gallery-sidebar-scroll::-webkit-scrollbar{width:6px;}
+    .ms-gallery-sidebar-scroll::-webkit-scrollbar-thumb{background:rgba(236,72,153,.45);border-radius:3px;}
+    .ms-gallery-sidebar-scroll::-webkit-scrollbar-track{background:transparent;}
     /* Gallery subject sidebar */
     .ms-gallery-sidebar-section-label{font-family:'Antonio',sans-serif;font-size:.55rem;letter-spacing:2px;color:#555;text-transform:uppercase;margin:10px 0 5px;}
     .ms-gallery-subject-item{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:4px;cursor:pointer;margin-bottom:2px;}

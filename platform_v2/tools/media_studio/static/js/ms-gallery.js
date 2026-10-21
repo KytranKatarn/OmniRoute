@@ -183,6 +183,30 @@
       });
 
       msGallery._highlightSidebar();
+      var search = _el('msGallerySidebarSearch');
+      if (search && search.value) msGallery.filterSidebar(search.value);
+    },
+
+    // Narrow the long agent/brand list by name; section labels with no visible items are hidden too.
+    filterSidebar: function (query) {
+      var sidebar = _el('msGallerySidebarSubjects');
+      if (!sidebar) return;
+      var q = (query || '').trim().toLowerCase().replace(/\./g, '');
+      var label = null, labelHasMatch = false;
+      function _flush() { if (label) label.style.display = (!q || labelHasMatch) ? '' : 'none'; }
+      Array.prototype.forEach.call(sidebar.children, function (el) {
+        if (el.classList.contains('ms-gallery-sidebar-section-label')) {
+          _flush();
+          label = el; labelHasMatch = false;
+          return;
+        }
+        var nameEl = el.querySelector('.ms-gallery-subject-name');
+        var text = ((nameEl && nameEl.textContent) || '').toLowerCase().replace(/\./g, '');
+        var show = !q || text.indexOf(q) !== -1;
+        el.style.display = show ? '' : 'none';
+        if (show) labelHasMatch = true;
+      });
+      _flush();
     },
 
     loadAssets: function () {

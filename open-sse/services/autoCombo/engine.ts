@@ -96,6 +96,31 @@ function tierPreferencesForName(name: string): Record<TierName, number> {
 
 const SCORE_EPSILON = 1e-4;
 const CLEAR_WINNER_THRESHOLD = 0.1;
+// #7397: how close to the best a candidate must score to count as TIED with it.
+//
+// The top tier used to mean "within SCORE_EPSILON of the best" — a 0.0001
+// window. In practice that made the tier a strict-winner test: a single model
+// that out-scored the rest, even by a hair, became the ONLY member of the top
+// tier, and pickFromPool's round-robin then had nothing to spread across. The
+// observed effect was that one model answered effectively every request, which
+// defeats the point of a pool: if that model — or the provider behind it —
+// degrades, there is no warm alternative to fall back to.
+//
+// A candidate now counts as tied when it is within this fraction of the pool's
+// score RANGE. The existing round-robin then spreads across the tied set, with
+// no new randomness and no new state.
+//
+// Default 5%: wide enough to catch models that are genuinely comparable,
+// narrow enough that a clearly-better model still wins outright (the band is
+// relative to the range, so a big gap stays a big gap). Set
+// OMNIROUTE_AUTO_TOP_TIER_BAND=0 to restore the exact-epsilon behaviour.
+const TOP_TIER_BAND = (() => {
+  const raw = process.env.OMNIROUTE_AUTO_TOP_TIER_BAND;
+  if (raw === undefined || raw === "") return 0.05;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0.05;
+  return Math.min(parsed, 1);
+})();
 
 class ScoreTierRotator {
   private readonly tierCounters = new Map<TierName, number>();
@@ -163,7 +188,8 @@ function groupIntoTiers(candidates: ScoredProvider[]): Record<TierName, ScoredPr
 
   for (const c of candidates) {
     const delta = best - c.score;
-    if (delta <= SCORE_EPSILON) top.push(c);
+    // #7397: the top tier is a BAND, not an exact tie. See TOP_TIER_BAND.
+    if (delta <= Math.max(SCORE_EPSILON, range * TOP_TIER_BAND)) top.push(c);
     else if (range <= SCORE_EPSILON || delta <= range * 0.3) mid.push(c);
     else rest.push(c);
   }

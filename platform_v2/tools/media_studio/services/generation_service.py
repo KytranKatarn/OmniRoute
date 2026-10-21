@@ -910,6 +910,20 @@ def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
                         AND ltrim(COALESCE(approved.canonical_image_path, ''), '/') =
                             ltrim(COALESCE(ml.file_path, ''), '/')
                   )
+                  -- Only images NEWER than the approved canonical are pending review. Without this,
+                  -- approving the newest image made the next-older unapproved generation of the same
+                  -- agent the "pending" one, so accept/deny kept bringing the agent back.
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM agent_portraits ap2
+                      JOIN media_library cm
+                        ON cm.owner_type = 'agent' AND cm.owner_id = ap2.agent_id
+                       AND ltrim(COALESCE(cm.file_path, ''), '/') =
+                           ltrim(COALESCE(ap2.canonical_image_path, ''), '/')
+                      WHERE ap2.agent_id = ml.owner_id
+                        AND ap2.approved = true
+                        AND cm.created_at >= ml.created_at
+                  )
                 ORDER BY ml.owner_id, ml.created_at DESC NULLS LAST, ml.id DESC
             )
             SELECT a.id AS agent_id, a.name, a.display_name,

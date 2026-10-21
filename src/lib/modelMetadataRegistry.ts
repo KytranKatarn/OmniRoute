@@ -66,6 +66,11 @@ export interface CanonicalModelMetadata {
   model: string;
   qualifiedId: string | null;
   displayName: string;
+  /**
+   * The registry's own "what this model is practical for" line, when it has
+   * one. Null when the registry says nothing - callers must not invent one.
+   */
+  description: string | null;
   aliases: string[];
   capabilities: {
     toolCalling: boolean;
@@ -255,6 +260,7 @@ export function getCanonicalModelMetadata(input: {
     model: resolved.model || modelId,
     qualifiedId: toQualifiedId(providerAlias, provider, resolved.model || modelId),
     displayName: registryModel?.name || resolved.model || modelId,
+    description: registryModel?.description?.trim() || null,
     aliases: uniqueStrings([
       canonicalStaticAlias !== (resolved.model || modelId) ? canonicalStaticAlias : null,
       ...(staticSpec?.aliases || []),
@@ -493,6 +499,17 @@ export function enrichCatalogModelEntry<T extends JsonRecord>(
 
   const nextEntry: JsonRecord = { ...entry };
   const existingName = asNonEmptyString(entry.name);
+  // The registry's per-model "what it is practical for" line, advertised on
+  // /v1/models. A client that renders a model picker shows this instead of a
+  // generic "From gateway", so it is the difference between a model list a
+  // caller can choose from and a list they have to already know.
+  //
+  // Only filled in when the registry actually says something: an entry without
+  // one keeps its previous shape, exactly as before.
+  const existingDescription = asNonEmptyString(entry.description);
+  if (!existingDescription && metadata.description) {
+    nextEntry.description = metadata.description;
+  }
   const authoritativeContextWindow =
     getAuthoritativeProviderContextWindow(metadata.provider, metadata.model) ??
     getAuthoritativeProviderContextWindow(provider, model) ??

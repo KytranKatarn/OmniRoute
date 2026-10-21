@@ -542,19 +542,19 @@
             </div>
 
             <div class="ms-variant-actions">
-                <button class="ms-btn ms-btn-accent" id="ms-variant-btn" onclick="generateVariant()" style="display:none;" data-i18n="media_studio.generate_variant">Generate New</button>
+                <button class="ms-btn ms-btn-accent" id="ms-variant-btn" onclick="generateVariant()" disabled title="Generate or select a portrait first" data-i18n="media_studio.generate_variant">Generate New</button>
                 <select id="ms-variant-preset" class="ms-model-select" title="Variant preset">
                     <option value="">Default style</option>
                     <option value="ai">AI — subtle futuristic</option>
-                    <option value="ke_corporate">KE Corporate</option>
                     <option value="professional">Professional</option>
                     <option value="casual">Casual</option>
                     <option value="action">Action</option>
                     <option value="lcars">LCARS holographic</option>
                 </select>
-                <label class="ms-variant-ke-toggle" title="Stacks KE Corporate office background and business attire on top of the chosen style">
-                    <input type="checkbox" id="ms-variant-ke" /> KE background
+                <label class="ms-variant-ke-toggle" title="KE frame: adds the KE corporate office background and the KE name &amp; department plate with logo. Works with any style above.">
+                    <input type="checkbox" id="ms-variant-ke" /> KE frame
                 </label>
+                <span id="ms-variant-preview" style="font-size:.62rem;color:rgba(255,255,255,.45);flex-basis:100%;"></span>
                 <select id="ms-variant-model" class="ms-model-select" title="Image model" onchange="updateProviderModelPicker('ms-variant-model', 'ms-variant-provider-model'); updateIdentityControls()">
                     <option value="">Auto (fleet-aware)</option>
                 </select>
@@ -2915,7 +2915,14 @@
 
                 // Show/hide buttons
                 document.getElementById('ms-approve-btn').style.display = (hasPortrait && !data.approved) ? '' : 'none';
-                document.getElementById('ms-variant-btn').style.display = hasPortrait ? '' : 'none';
+                var _vb = document.getElementById('ms-variant-btn');
+                if (_vb) {
+                    var _vOk = !!(hasPortrait && data.approved);
+                    _vb.disabled = !_vOk;
+                    _vb.style.opacity = _vOk ? '1' : '0.4';
+                    _vb.title = _vOk ? 'Generate a variant in the chosen style' : (hasPortrait ? 'Approve the canonical portrait first - variants use its face as the reference' : 'Generate a portrait first');
+                }
+                _restoreVariantChoices(data);
 
                 // Identity prompt — show saved visual description, or empty with placeholder.
                 // default_identity_prompt is bio text (not a valid generation prompt).
@@ -3537,6 +3544,37 @@
         });
         try { localStorage.removeItem('ms_refine_input_' + _currentAgentId); } catch(_) {}
     };
+
+    // Remember the style + KE frame choice per agent kind (AI vs human) so it survives agent switches.
+    function _variantKind(data) {
+        return (!!(data && data.is_department_ai) || String((data && data.worker_type) || '').toLowerCase() === 'ai') ? 'ai' : 'human';
+    }
+    function _updateVariantPreview() {
+        var el = document.getElementById('ms-variant-preview');
+        var sel = document.getElementById('ms-variant-preset');
+        var ke = document.getElementById('ms-variant-ke');
+        if (!el || !sel) return;
+        var style = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : 'Default style';
+        el.textContent = 'Will generate: ' + style + (ke && ke.checked ? ' + KE frame (office background, name & department plate)' : ' (no KE frame)');
+    }
+    function _restoreVariantChoices(data) {
+        var kind = _variantKind(data);
+        var sel = document.getElementById('ms-variant-preset');
+        var ke = document.getElementById('ms-variant-ke');
+        try {
+            var saved = JSON.parse(localStorage.getItem('ms_variant_choice_' + kind) || 'null');
+            if (saved && sel && Array.prototype.some.call(sel.options, function(o) { return o.value === saved.preset; })) sel.value = saved.preset;
+            if (saved && ke) ke.checked = !!saved.ke;
+        } catch (_) {}
+        if (sel && !sel.value) sel.value = kind === 'ai' ? 'ai' : 'professional';
+        var save = function() {
+            try { localStorage.setItem('ms_variant_choice_' + kind, JSON.stringify({preset: sel.value, ke: !!(ke && ke.checked)})); } catch (_) {}
+            _updateVariantPreview();
+        };
+        if (sel) sel.onchange = save;
+        if (ke) ke.onchange = save;
+        _updateVariantPreview();
+    }
 
     window.generateVariant = function() {
         if (!_currentAgentId) return;

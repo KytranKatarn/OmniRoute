@@ -57,6 +57,17 @@ VARIANT_PRESET_PROMPTS = {
     "casual": "approachable casual portrait, relaxed natural setting and expression",
     "lcars": "subtle LCARS-inspired holographic interface accents, professional human portrait, preserve identity, no costume",
 }
+# AI agents are sci-fi androgynous android portraits, so the human-skin presets above
+# ("natural human skin, no costume") would fight their canonical look. Same keys,
+# android-appropriate wording. ke_corporate is deliberately absent: it is the KE frame
+# toggle (background + name/department plate), not a style, and applies to every style.
+VARIANT_PRESET_PROMPTS_AI = {
+    "ai": "subtle futuristic sci-fi android styling, restrained cyan and violet interface glow, preserve identity",
+    "action": "sci-fi android mid-action, dynamic pose, motion trails and holographic glow, expressive face, preserve identity",
+    "professional": "sci-fi android in a sleek formal high-collar uniform, composed neutral expression, clean studio rim lighting, preserve identity",
+    "casual": "sci-fi android in relaxed futuristic casual wear, approachable expression, softly lit lounge setting, preserve identity",
+    "lcars": "LCARS-style holographic interface panels glowing around the subject, sci-fi android, preserve identity",
+}
 VARIANT_FRAMING_PROMPTS = {
     "portrait": "head-and-shoulders portrait framing",
     "bust": "chest-up portrait framing",
@@ -67,17 +78,27 @@ DEFAULT_PORTRAIT_MODEL = os.getenv("MEDIA_STUDIO_PORTRAIT_MODEL", "RealVisXL_V4.
 
 
 def compose_variant_prompt(
-    preset=None, style=None, scene=None, action=None, framing=None, expression=None, ke_background=False
+    preset=None,
+    style=None,
+    scene=None,
+    action=None,
+    framing=None,
+    expression=None,
+    ke_background=False,
+    agent_kind="human",
 ):
+    presets = dict(VARIANT_PRESET_PROMPTS)
+    if str(agent_kind or "").lower() == "ai":
+        presets.update(VARIANT_PRESET_PROMPTS_AI)
     parts = []
     preset_key = str(preset or "").strip().lower()
     style_text = str(style or "").strip()[:500]
     style_key = style_text.lower()
-    if preset_key in VARIANT_PRESET_PROMPTS:
-        parts.append(VARIANT_PRESET_PROMPTS[preset_key])
-    if style_key in VARIANT_PRESET_PROMPTS and style_key != preset_key:
-        parts.append(VARIANT_PRESET_PROMPTS[style_key])
-    elif style_text and style_key not in VARIANT_PRESET_PROMPTS:
+    if preset_key in presets:
+        parts.append(presets[preset_key])
+    if style_key in presets and style_key != preset_key:
+        parts.append(presets[style_key])
+    elif style_text and style_key not in presets:
         parts.append(style_text)
     scene_text = str(scene or "").strip()[:500]
     action_text = str(action or "").strip()[:500]
@@ -908,7 +929,7 @@ def generate_variant(
                        AS identity_prompt,
                    p.ip_adapter_ref_path, p.canonical_image_path,
                    p.face_seed, p.approved, a.name, a.display_name,
-                   a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes
+                   a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes, a.worker_type
             FROM agents a
             LEFT JOIN LATERAL (
                 SELECT ap.identity_prompt, ap.ip_adapter_ref_path,
@@ -946,6 +967,7 @@ def generate_variant(
         framing=framing,
         expression=expression,
         ke_background=bool(ke_background),
+        agent_kind="ai" if str(row.get("worker_type") or "").lower() == "ai" else "human",
     )
     if pose:
         scene_prompt = ", ".join(part for part in (scene_prompt, str(pose) + " pose") if part)

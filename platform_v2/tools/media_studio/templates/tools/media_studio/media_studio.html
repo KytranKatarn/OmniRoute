@@ -389,6 +389,13 @@
                 <option value="portrait_first">Portrait first</option>
             </select>
             <span id="ms-portrait-count" class="ms-portrait-count"></span>
+            <!-- Publish approved portraits to the public sites (lives here, with the portraits it publishes) -->
+            <span style="display:inline-flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap;">
+                <button id="msPublishSitesBtn" onclick="msGallery.publishPortraits()"
+                        title="Queue a deploy of the public sites so approved portraits (and the director data) go live. Runs in the background; the site is also published automatically every 15 minutes."
+                        style="background:#ec4899;color:#010409;border:none;border-radius:4px;padding:7px 16px;font-size:0.72rem;font-family:Antonio,sans-serif;letter-spacing:1.5px;cursor:pointer;font-weight:600;">PUBLISH PORTRAITS</button>
+                <span id="msPublishSitesStatus" style="font-size:0.68rem;color:#9ca3af;font-family:'Share Tech Mono',monospace;">loading publish status…</span>
+            </span>
         </div>
 
         <div id="ms-portrait-grid" class="ms-portrait-grid">
@@ -950,7 +957,10 @@
         else if (tabId === "generate") {
             if (window.msGenerate) msGenerate.init();
         }
-        else if (tabId === "portraits") loadPortraits();
+        else if (tabId === "portraits") {
+            loadPortraits();
+            if (window.msGallery) msGallery.loadPublishStatus();
+        }
         else if (tabId === "social-video") {
             if (window.msSocialVideo) msSocialVideo.init();
         }

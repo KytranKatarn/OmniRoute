@@ -291,7 +291,9 @@ def api_gallery():
                 )
                 portrait_row = cur.fetchone()
                 if portrait_row:
-                    path = portrait_row["canonical_image_path"]
+                    from .services.gallery_service import normalize_static_path
+
+                    path = normalize_static_path(portrait_row["canonical_image_path"])
                     matched = False
                     for it in items:
                         if (it.get("url") or it.get("file_path")) == path:

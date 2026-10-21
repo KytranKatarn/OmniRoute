@@ -13,6 +13,23 @@
 
   function _el(id) { return document.getElementById(id); }
 
+  // Stored media paths come in two forms: "/static/media/..." and the bare "media/..." the thumbnail writer
+  // produces. A bare path in <img src> resolves against the page URL and never loads (every newly generated
+  // image showed as a broken tile), so normalise before use.
+  function _src(p) {
+    if (!p) return '';
+    if (/^(https?:|data:)/i.test(p) || p.charAt(0) === '/') return p;
+    if (p.indexOf('static/') === 0) return '/' + p;
+    return '/static/' + p;
+  }
+
+  // Every subject click starts a request; only the newest one may paint, so clicking quickly between subjects
+  // can never leave the previous subject's grid or header on screen.
+  var _loadSeq = 0;
+  var _subjectsCache = null;
+  var _knownCount = null;
+  var _pollTimer = null;
+
   // last_run is an ISO string that already carries its UTC offset, so blindly
   // appending 'Z' yields "…+00:00Z" — not a valid date. Only assume UTC when the
   // string has no offset at all.
@@ -38,13 +55,37 @@
         if (saved) _subject = JSON.parse(saved);
       } catch (e) {}
         msGallery.loadSubjects();
-        // Surface where the last publish landed, so an approved portrait's
-        // journey to the public site is visible from where it was approved.
-        msGallery.loadPublishStatus();
+        // (The publish button and its status now live in the Portraits tab; switchMsTab loads them there.)
+        msGallery._startPoll();
+    },
+
+    // Subject list (names, avatars, asset counts) is fetched once and reused for the header on every click,
+    // instead of re-downloading all 165 subjects per click; the poll below keeps it fresh.
+    _withSubjects: function (cb) {
+      if (_subjectsCache) { cb(_subjectsCache); return; }
+      _get('/api/agents/gallery-subjects').then(function (d) { _subjectsCache = d; cb(d); }).catch(function () {});
+    },
+
+    // While the Gallery is on screen, notice newly generated images without a manual re-click.
+    _startPoll: function () {
+      if (_pollTimer) return;
+      _pollTimer = setInterval(function () {
+        var grid = _el('msGallerySubjectGrid');
+        if (document.hidden || !grid || grid.offsetParent === null) return;
+        _get('/api/agents/gallery-subjects').then(function (d) {
+          _subjectsCache = d;
+          msGallery._renderSidebar(d);
+          if (!_subject || _subject.type !== 'agent') return;
+          var all = (d.humans || []).concat(d.ai_agents || []);
+          var cur = all.filter(function (a) { return String(a.id) === String(_subject.id); })[0];
+          if (cur && _knownCount !== null && cur.asset_count !== _knownCount) { msGallery.loadAssets(); }
+        }).catch(function () {});
+      }, 20000);
     },
 
     loadSubjects: function () {
       _get('/api/agents/gallery-subjects').then(function (data) {
+        _subjectsCache = data;
         msGallery._renderSidebar(data);
         if (!_subject && data.humans && data.humans.length) {
           msGallery.selectSubject('agent', data.humans[0].id);
@@ -93,7 +134,7 @@
           avatar.className = 'ms-gallery-subject-avatar';
           if (agent.avatar_thumb_url) {
             var img = document.createElement('img');
-            img.src = agent.avatar_thumb_url;
+            img.src = _src(agent.avatar_thumb_url);
             img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;';
             img.loading = 'lazy';
             avatar.appendChild(img);
@@ -171,14 +212,17 @@
         el.appendChild(loading);
       }
 
+      var seq = ++_loadSeq;
       var params = '?per_page=50';
       if (_subject.type === 'agent' && _subject.id) {
         params += '&owner_type=agent&owner_id=' + _subject.id;
-        _get('/api/agents/gallery-subjects').then(function (d) {
+        msGallery._withSubjects(function (d) {
+          if (seq !== _loadSeq) return;
           var all = (d.humans || []).concat(d.ai_agents || []);
           var agent = all.filter(function (a) { return String(a.id) === String(_subject.id); })[0];
+          if (agent) _knownCount = agent.asset_count;
           if (agent && headerEl) msGallery._renderSubjectHeader(agent);
-        }).catch(function () {});
+        });
       } else {
         params += '&owner_type=brand';
         if (_subject.id) params += '&owner_id=' + _subject.id;
@@ -189,8 +233,17 @@
       if (_sort && _sort !== 'newest') params += '&sort=' + _sort;
 
       _get('/api/gallery' + params).then(function (data) {
+        if (seq !== _loadSeq) return;  // a newer click superseded this response
         msGallery._renderGrid(data.items || []);
-      }).catch(function (err) { console.warn('[msGallery] loadAssets failed:', err); });
+      }).catch(function (err) {
+        console.warn('[msGallery] loadAssets failed:', err);
+        if (seq !== _loadSeq || !el) return;
+        el.textContent = '';
+        var failed = document.createElement('div');
+        failed.style.cssText = 'color:#ef4444;font-size:0.7rem;padding:12px;';
+        failed.textContent = 'Could not load this gallery (' + err.message + '). Click the subject again to retry.';
+        el.appendChild(failed);
+      });
     },
 
     _renderSubjectHeader: function (agent) {
@@ -203,7 +256,7 @@
       avatar.style.cssText = 'width:40px;height:40px;border-radius:50%;background:#1a2a3a;overflow:hidden;flex-shrink:0;border:1px solid rgba(34,197,94,0.3);';
       if (agent.avatar_thumb_url) {
         var img = document.createElement('img');
-        img.src = agent.avatar_thumb_url;
+        img.src = _src(agent.avatar_thumb_url);
         img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
         avatar.appendChild(img);
       }
@@ -257,8 +310,15 @@
         thumb.className = 'ms-gallery-subject-thumb';
         if (item.thumbnail_path || item.url) {
           var img = document.createElement('img');
-          img.src = item.thumbnail_path || item.url;
+          img.src = _src(item.thumbnail_path || item.url);
           img.loading = 'lazy';
+          // If the thumbnail itself is missing on disk, fall back once to the full image.
+          img.onerror = function () {
+            if (!img.dataset.fallback && item.url && _src(item.url) !== img.getAttribute('src')) {
+              img.dataset.fallback = '1';
+              img.src = _src(item.url);
+            }
+          };
           thumb.appendChild(img);
         }
         if (item.metadata && item.metadata.featured) {

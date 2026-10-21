@@ -17,11 +17,30 @@ _PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
 MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
 
 
+def normalize_static_path(p):
+    """Browser-ready path for a stored media path.
+
+    The thumbnail writer stores a bare ``media/agents/...`` (relative to the static root) while file_path is
+    ``/static/media/...``. A bare path in an <img src> resolves against the page URL and never loads, which is how
+    every newly generated agent image showed as a broken tile. Absolute URLs and /static paths pass through.
+    """
+    if not p or not isinstance(p, str):
+        return p
+    if p.startswith(("http://", "https://", "data:", "/")):
+        return p
+    if p.startswith("static/"):
+        return "/" + p
+    return "/static/" + p
+
+
 def _serialize_row(row: dict) -> dict:
     """Convert a media_library DB row to a JSON-safe dict with url alias."""
     import datetime
 
     d = dict(row)
+    for key in ("file_path", "thumbnail_path"):
+        if d.get(key):
+            d[key] = normalize_static_path(d[key])
     # Add url alias so JS item.url works (JS uses url, DB stores file_path)
     d["url"] = d.get("file_path") or ""
     # Extract steps/cfg_scale from metadata JSONB so JS item.steps works

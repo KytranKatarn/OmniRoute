@@ -215,8 +215,16 @@ def _get_warm_models_nodes() -> dict[str, int]:
                          rn.current_load ASC
                 """
             )
+            try:
+                from services.node_gpu_lease import leased_node_db_ids
+
+                _leased = leased_node_db_ids()  # #7401: empty unless lease enforcement is on
+            except Exception:
+                _leased = frozenset()
             for row in cur.fetchall():
                 name = row.get("model_name")
+                if row["id"] in _leased:
+                    continue
                 if name and name not in result:
                     result[name] = row["id"]
     except Exception as exc:
@@ -273,10 +281,18 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
                          rn.current_load ASC
                 """
             )
+            try:
+                from services.node_gpu_lease import leased_node_db_ids
+
+                _leased = leased_node_db_ids()  # #7401: empty unless lease enforcement is on
+            except Exception:
+                _leased = frozenset()
             for row in cur.fetchall():
                 name = row.get("model_name")
                 if not name:
                     continue
+                if row["id"] in _leased:
+                    continue  # an image session holds this node's GPU: LLM work stays off it (#7401)
                 # DRP guard: in DR mode shed CPU inference (keep GPU nodes only).
                 if dr_mode and not row.get("gpu_available"):
                     continue
@@ -1337,7 +1353,18 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                              AND last_heartbeat > NOW() - INTERVAL '3 minutes'""",
                         (preferred,),
                     )
-                    if _cur.fetchone():
+                    _online = _cur.fetchone()
+                    try:
+                        from services.node_gpu_lease import is_node_leased
+
+                        _leased_pin = bool(_online) and is_node_leased(preferred)
+                    except Exception:
+                        _leased_pin = False
+                    if _online and _leased_pin:
+                        # #7401: the pinned node is held by an image session — run on the hub instead of
+                        # evicting its resident SDXL (same fallback shape as the offline branch below).
+                        log.info("model_dispatch: preferred node %d holds an image GPU lease — using hub", preferred)
+                    elif _online:
                         node_id = preferred
                     else:
                         log.warning(

@@ -2662,6 +2662,19 @@ class DepartmentDispatcher:
         except Exception:
             return 0
 
+    def _node_gpu_leased(self, node_db_id) -> bool:
+        """True while an image session holds this node's GPU lease AND dispatch:gpu_lease:enabled (#7401).
+
+        LLM work yields the node so a model load cannot evict the resident SDXL checkpoint. Flag-off and any
+        error are False, so the call sites below are byte-identical to before until the flag is turned on.
+        """
+        try:
+            from services.node_gpu_lease import is_node_leased
+
+            return is_node_leased(node_db_id)
+        except Exception:
+            return False
+
     def _node_at_cap(self, node_db_id, reserve: int = 0) -> bool:
         """True only when a divertable FLEET node is at/over its (lane-adjusted) concurrency
         cap (#4343 P1c + P1b lane reserve).
@@ -2738,6 +2751,17 @@ class DepartmentDispatcher:
                     node_filter = "AND rn.bridge_priority IN (50, 100)"  # Starship or hub
             else:
                 node_filter = ""
+
+            # #7401: while an image session holds a node's GPU lease, LLM work stays off it. Integer ids
+            # from remote_nodes only (controlled values, no injection). Empty -> "" -> unchanged query.
+            try:
+                from services.node_gpu_lease import leased_node_db_ids
+
+                _leased_ids = sorted(int(i) for i in leased_node_db_ids())
+            except Exception:
+                _leased_ids = []
+            if _leased_ids:
+                node_filter += " AND rn.id NOT IN (" + ",".join(str(i) for i in _leased_ids) + ")"
 
             # ORDER BY — built from controlled values (not user input), no SQL injection risk
             # load_5m.task_count added as secondary sort: least-loaded node wins among ties.
@@ -7565,6 +7589,14 @@ class DepartmentDispatcher:
                     # candidate, then falls through to the normal flow below, so a dispatch
                     # is never dropped.
                     _pn_effective = max(_pn_max - _batch_reserve, 1)
+                    _pn_leased = bool(_pn_db_id) and self._node_gpu_leased(_pn_db_id)
+                    if _pn_leased:
+                        logger.info(
+                            "[BridgeDispatcher] preferred_node %s holds an image GPU lease for '%s' — skipping (#7401)",
+                            _pn_name,
+                            capability,
+                        )
+                        continue
                     if _pn_db_id and self._node_cap_enabled() and self._node_inflight_count(_pn_db_id) >= _pn_effective:
                         logger.info(
                             "[BridgeDispatcher] preferred_node %s at/over cap (eff=%s of max=%s, interactive=%s) "
@@ -7669,6 +7701,15 @@ class DepartmentDispatcher:
                 # one saturated node anyway). Gated + fail-open; hub is never
                 # skipped (bridge_priority>=100 -> _node_at_cap False), so
                 # local_only/prefer_hub is unaffected. Fall-through, never a drop.
+                if _node_assign and self._node_gpu_leased(_node_assign["node_id"]):
+                    logger.info(
+                        "[BridgeDispatcher] Node-preference: %s@%s holds an image GPU lease for '%s' "
+                        "— falling through to score-routing/hub (#7401)",
+                        _node_assign["agent_name"],
+                        _node_assign["node_name"],
+                        capability,
+                    )
+                    _node_assign = None
                 if (
                     _node_assign
                     and self._node_cap_enabled()
@@ -7808,6 +7849,14 @@ class DepartmentDispatcher:
             # _pick_fleet_node is colocation-biased + load-UNaware, so without this it
             # would re-pick the same full home node we just skipped. Treat a capped pick
             # as "hub" (overflow tier). Gated + fail-open; hub picks are never skipped.
+            if _wp_node_id is not None and self._node_gpu_leased(_wp_node_id):
+                logger.info(
+                    "[BridgeDispatcher] Score-routing pick (node id=%s) holds an image GPU lease for '%s' "
+                    "— staying on hub (#7401)",
+                    _wp_node_id,
+                    capability,
+                )
+                _wp_node_id = None
             if (
                 _wp_node_id is not None
                 and self._node_cap_enabled()

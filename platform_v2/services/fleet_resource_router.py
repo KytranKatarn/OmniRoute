@@ -614,8 +614,18 @@ def find_best_node_for_model(
     best_score: Optional[float] = None
     home_score: Optional[float] = None
 
+    # #7401: a node whose GPU is leased to an image session is skipped (empty set unless enforcement is on).
+    try:
+        from services.node_gpu_lease import leased_node_db_ids
+
+        _leased = leased_node_db_ids()
+    except Exception:
+        _leased = frozenset()
+
     for node in nodes:
         if node.get("deployment_mode") == "starship" and _rest_active:
+            continue
+        if node.get("id") in _leased:
             continue
         # P2a (#3802): admission = the FIT predicate (capacity-only, load-
         # independent), matching the async queue gate, so the sync path can't

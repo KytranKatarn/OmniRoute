@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir \
 ARG COMFYUI_REF=285a98944c397a4a81f15ac63d69fa3dbc0a27b9
 ARG COMFYUI_MANAGER_REF=bd88cffa7166484cbd16c3eba8a5a377a20b01dc
 ARG COMFYUI_LTXVIDEO_REF=aceeae9635f6d493f2893ba3c411a1c36031788a
+ARG COMFYUI_GGUF_REF=6ea2651e7df66d7585f6ffee804b20e92fb38b8a
 
 # Clone ComfyUI (pinned — see COMFYUI_REF above)
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git /comfyui \
@@ -40,6 +41,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN cd /comfyui/custom_nodes && \
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git && \
     git -C ComfyUI-Manager checkout --detach ${COMFYUI_MANAGER_REF}
+
+# Install GGUF loader node (city96, Apache-2.0): runs quantized FLUX/SD3 UNets (e.g. flux1-schnell-Q4_K_S.gguf, 6.8GB)
+# that fit a 12GB card. Pinned to a commit like the other nodes; its small deps are installed here, not at runtime
+# (the container is read_only). Files go in models/unet; node = "Unet Loader (GGUF)".
+RUN cd /comfyui/custom_nodes && \
+    git clone https://github.com/city96/ComfyUI-GGUF.git && \
+    git -C ComfyUI-GGUF checkout --detach ${COMFYUI_GGUF_REF} && \
+    pip install --no-cache-dir -r ComfyUI-GGUF/requirements.txt
 
 # Install LTX-Video node (Lightricks video generation)
 RUN cd /comfyui/custom_nodes && \

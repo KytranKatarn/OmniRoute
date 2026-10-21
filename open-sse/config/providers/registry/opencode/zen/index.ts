@@ -3,6 +3,8 @@ import { OPENCODE_ZEN_GO_SHARED_MODELS } from "../../../shared.ts";
 
 export const opencode_zenProvider: RegistryEntry = {
   id: "opencode-zen",
+  description:
+    "OpenCode Zen - OpenCode's own free model pool, served without a key. Good for quick everyday work; the models rotate as OpenCode refreshes them, and calls made from outside OpenCode itself are refused.",
   alias: "opencode-zen",
   format: "openai",
   executor: "opencode",

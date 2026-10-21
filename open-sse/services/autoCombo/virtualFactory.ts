@@ -941,6 +941,11 @@ export async function createVirtualAutoComboFromPrepared(
     spec?.family ? prepared.familyCandidates : prepared.regularCandidates
   );
 
+  // #7397: free-tier combos explore MORE of their pool (see the note at the
+  // tier check below). Computed ONCE, up front, so the empty-pool early
+  // return and the normal path carry the same rate.
+  const freeTierExplorationRate = spec?.tier === "free" ? freeExplorationRate() : 0.05;
+
   // #7819 (Level 2): per-API-key candidate exclusions. Fail-open — an absent
   // apiKeyId/autoChannel (every caller before #7819) or a DB lookup failure
   // both leave the pool untouched, so default (unconfigured) routing stays
@@ -971,7 +976,7 @@ export async function createVirtualAutoComboFromPrepared(
     const autoConfig = {
       candidatePool: emptyPool,
       weights: { ...DEFAULT_WEIGHTS },
-      explorationRate: 0.05,
+      explorationRate: freeTierExplorationRate,
       routerStrategy: "lkgp",
       ...failClosedAutoConfig(spec),
     };
@@ -1080,6 +1085,20 @@ export async function createVirtualAutoComboFromPrepared(
     }
   }
   let weights: ScoringWeights = { ...DEFAULT_WEIGHTS };
+  // #7397: the exploration rate for FREE-tier combos. See the note at the
+  // tier check below for why the free tier needs MORE exploration than the
+  // 5% default rather than less.
+  //
+  // Read at USE time, not at module load: an env var must not depend on when
+  // the module happened to be imported.
+  // OMNIROUTE_AUTO_FREE_EXPLORATION_RATE=0 restores the default rate.
+  function freeExplorationRate(): number {
+    const raw = process.env.OMNIROUTE_AUTO_FREE_EXPLORATION_RATE;
+    if (raw === undefined || raw === "") return 0.25;
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed) || parsed < 0) return 0.25;
+    return Math.min(parsed, 1);
+  }
   let explorationRate = 0.05; // Default exploration rate
   let routerStrategy = "lkgp"; // All auto variants use LKGP
 
@@ -1130,6 +1149,32 @@ export async function createVirtualAutoComboFromPrepared(
       weights = { ...MODE_PACKS["cost-saver"] };
     } else if (weightVariant === "reliability") {
       weights = { ...MODE_PACKS["reliability-first"] };
+    }
+    // #7397: the free tier needs MORE exploration, not less.
+    //
+    // The free pool's members are new upstreams with no quality history, and
+    // the quality signal is what decides the top tier. That is a cold-start
+    // trap: the one model that has been serving accumulates quality, wins the
+    // top tier, and therefore keeps serving - while every other model stays
+    // cold and can never overtake it.
+    //
+    // Measured on the live DS9: the free combo's pool was 21 candidates (20
+    // browser-backed models plus one relay) and ONE of them answered
+    // effectively every request. At the default 5% exploration each of the
+    // other 20 got well under one call a day - nowhere near enough to
+    // accumulate any signal, so the trap never broke.
+    //
+    // Exploration is the mechanism that breaks it: it samples the pool
+    // uniformly, so cold candidates get tried, accumulate quality, and become
+    // competitive. The wider top-tier band in engine.ts then lets several
+    // proven, comparable models share the top tier.
+    //
+    // The free tier is the right place for this. Its members cost nothing
+    // extra, and availability is the entire point of a free fallback.
+    //
+    // OMNIROUTE_AUTO_FREE_EXPLORATION_RATE=0 restores the default rate.
+    if (spec?.tier === "free") {
+      explorationRate = freeTierExplorationRate;
     }
   }
 

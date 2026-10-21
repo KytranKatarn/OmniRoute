@@ -326,6 +326,8 @@ export const BUILTIN_AUTO_COMBO_DESCRIPTIONS: Record<string, string> = {
   // ── the premium tier ─────────────────────────────────────────────────────
   "auto/pro-coding": "Coding on premium capacity only.",
   "auto/pro-reasoning": "Reasoning on premium capacity only.",
+  "auto/reasoning:pro":
+    "Reasoning on premium capacity only. The hardest problems, solved on paid capacity.",
   "auto/pro-vision": "Vision on premium capacity only.",
   "auto/pro-chat": "General chat on premium capacity only.",
   "auto/pro-fast": "Fast work on premium capacity only.",

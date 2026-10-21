@@ -93,6 +93,27 @@ describe("model descriptions: what each model is practical for", () => {
     expect(combo.description as string).toMatch(/free-tier capacity only/);
   });
 
+  it("falls back to the PROVIDER's line for a model that has none of its own", () => {
+    // A bulk catalogue - 165 anonymous AI Horde endpoints, 127 agentic models -
+    // is not worth a hand-written line each. The provider's line covers them
+    // honestly, and a model's own line still wins where it has one.
+    const horde = enrichCatalogModelEntry({
+      id: "aihorde/some-anonymous-endpoint",
+      owned_by: "aihorde",
+      root: "some-anonymous-endpoint",
+    });
+    expect(horde.description).toBeTruthy();
+    expect(horde.description as string).toMatch(/AI Horde/);
+
+    const own = enrichCatalogModelEntry({
+      id: "cfp/zai-org/glm-5.2",
+      owned_by: "cloudflare-playground",
+      root: "zai-org/glm-5.2",
+    });
+    expect(own.description as string).toMatch(/GLM 5\.2/);
+    expect(own.description as string).not.toMatch(/AI Horde/);
+  });
+
   it("invents nothing for a model that has no description", () => {
     // A model outside the curated set must keep its previous shape: no
     // description field at all, rather than an empty or invented one.

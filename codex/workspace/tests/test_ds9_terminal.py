@@ -13,6 +13,21 @@ spec.loader.exec_module(profile)
 
 
 class TerminalConfigurationTests(unittest.TestCase):
+    def test_launcher_supplies_mcp_bearer_to_independent_exec_sessions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            secrets = root / "secrets"
+            secrets.mkdir()
+            (secrets / "ds9_codex_gateway_api_key").write_text("fake-ds9")
+            (secrets / "codex_kb_bearer").write_text("fake-kb")
+            stub = root / "codex"
+            stub.write_text('#!/bin/sh\ntest "$DS9_CODEX_API_KEY" = fake-ds9 && test "$ARCHIE_KB_BEARER" = fake-kb\n')
+            stub.chmod(0o700)
+            script = (ROOT / "codex-ds9.sh").read_text().replace("/run/secrets", str(secrets))
+            env = {key: value for key, value in os.environ.items() if key != "ARCHIE_KB_BEARER"}
+            env["PATH"] = str(root) + ":" + env["PATH"]
+            subprocess.run(["sh"], input=script, text=True, env=env, check=True)
+
     def test_base_config_heredoc_produces_valid_toml(self):
         source = (ROOT.parents[1] / "scripts/start_codex_terminal.sh").read_text()
         content = source.split('cat > "$CODEX_HOME/config.toml" <<EOF\n', 1)[1].split('\nEOF', 1)[0]

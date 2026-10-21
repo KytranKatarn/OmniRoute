@@ -63,5 +63,13 @@ COPY codex/workspace/start-with-skills.sh /start-with-skills.sh
 COPY scripts/lane_gh_guard.sh /usr/local/bin/gh
 RUN chmod +x /usr/local/bin/codex-ds9 /start.sh /start-with-skills.sh /init-workspace.sh /usr/local/bin/codex-pr /opt/codex-guard/pre-push /usr/local/bin/gh
 
+# UID 0 with cap_drop=ALL cannot map root into a fresh user namespace on this
+# kernel. Keep the CLI unprivileged; do not add SYS_ADMIN/SETFCAP to compensate.
+# Existing persistent volumes require the reviewed ownership migration before
+# recreating this service. Image ownership initializes newly created volumes.
+ENV HOME=/home/node
+RUN install -d -o node -g node -m 0750 /codex-home /work
+USER node
+
 EXPOSE 7681
 ENTRYPOINT ["/start-with-skills.sh"]

@@ -35,8 +35,18 @@ function esc(s) {
 // Append cache-bust query param so an updated avatar replaces the cached
 // image immediately. Stable per-agent paths (/static/media/portraits/<name>.png)
 // would otherwise serve a stale browser-cache hit after re-upload/approve.
+// The thumbnail writer stores a bare `media/agents/...` (relative to the static root). In an <img src> that
+// resolves against the page URL (/tools/department-hq/media/...), which answers 200 with an HTML page, so the
+// avatar never draws. Absolute URLs and /static paths pass through unchanged.
+function staticUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    if (/^(https?:|data:|\/)/.test(url)) return url;
+    return '/' + (url.indexOf('static/') === 0 ? url : 'static/' + url);
+}
+
 function bust(url, ts) {
     if (!url) return '';
+    url = staticUrl(url);
     if (!ts) return url;
     var v = typeof ts === 'string' ? (Date.parse(ts) || ts) : ts;
     return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + v;
@@ -1308,7 +1318,7 @@ async function loadKinWelfare() {
                 var kinAvatar;
                 if (a.avatar_url) {
                     kinAvatar = document.createElement('img');
-                    kinAvatar.src = a.avatar_url;
+                    kinAvatar.src = staticUrl(a.avatar_url);
                     kinAvatar.alt = '';
                     kinAvatar.loading = 'lazy';
                     kinAvatar.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1px solid ' + statusColor + '66;';

@@ -13,7 +13,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { isCodexAppServerRequired } from "../../open-sse/executors/codex.ts";
-import { CodexAppServerExecutor } from "../../open-sse/executors/codex-app-server.ts";
+import {
+  CodexAppServerExecutor,
+  extractPromptText,
+} from "../../open-sse/executors/codex-app-server.ts";
 import {
   CodexAppServerClient,
   type CodexWreqWebSocket,
@@ -23,6 +26,7 @@ import {
   translateToolCall,
   dynamicToolWireName,
   mapUsage,
+  type AppServerNotificationState,
 } from "../../open-sse/executors/codex/appServerEvents.ts";
 import { resolveAppServerConfig } from "../../open-sse/executors/codex/appServerConfig.ts";
 import { probeCodexAppServerAuth } from "../../open-sse/executors/codex/appServerAuthProbe.ts";
@@ -1057,4 +1061,207 @@ test("CodexAppServerExecutor: registry loader injects codex websocket transport 
   } finally {
     __setCodexWebSocketTransportForTesting(undefined);
   }
+});
+
+// #7379: real app-server usage is separate from turn/completed.
+async function runUsageSnapshotTurn(
+  stream: boolean,
+  terminalUsage?: unknown,
+  withUpdates = true,
+  toolHandoff = false
+) {
+  const ctrl = makeFakeSocket();
+  const { fn } = fakeTransport(ctrl);
+  const executor = new CodexAppServerExecutor({ websocketFn: fn });
+  const originalSend = ctrl.socket.send;
+  ctrl.socket.send = (data: string) => {
+    originalSend(data);
+    const frame = JSON.parse(data) as Record<string, unknown>;
+    if (frame.id == null || !frame.method) return;
+    queueMicrotask(() => {
+      ctrl.emit({
+        id: frame.id,
+        result: frame.method === "thread/start" ? { threadId: "usage-thread" } : {},
+      });
+      if (frame.method !== "turn/start") return;
+      const turnInput = (frame.params as Record<string, unknown>).input as Array<
+        Record<string, unknown>
+      >;
+      assert.equal(turnInput[0].type, "text");
+      assert.match(String(turnInput[0].text), /REPLAY-RESULT-7379/);
+      assert.match(String(turnInput[0].text), /replay_call_7379/);
+      ctrl.emit({ method: "item/agentMessage/delta", params: { delta: "ok" } });
+      if (withUpdates) {
+        for (const outputTokens of [5, 9, 9]) {
+          ctrl.emit({
+            method: "thread/tokenUsage/updated",
+            params: {
+              threadId: "usage-thread",
+              turnId: "usage-turn",
+              tokenUsage: {
+                total: {
+                  inputTokens: 100,
+                  cachedInputTokens: 20,
+                  outputTokens,
+                  reasoningOutputTokens: 2,
+                  totalTokens: 100 + outputTokens,
+                },
+              },
+            },
+          });
+        }
+        // A malformed later update must not erase the good snapshot.
+        ctrl.emit({ method: "thread/tokenUsage/updated", params: { tokenUsage: { total: {} } } });
+      }
+      if (toolHandoff) {
+        ctrl.emit({
+          id: 7379,
+          method: "item/tool/call",
+          params: {
+            callId: "usage-tool",
+            tool: "functions.exec",
+            arguments: { command: "not executed" },
+          },
+        });
+      } else {
+        ctrl.emit({
+          method: "turn/completed",
+          params: { turn: { status: "completed", usage: terminalUsage } },
+        });
+      }
+    });
+  };
+  const result = await executor.execute(
+    makeExecuteInput({
+      stream,
+      body: {
+        input: [
+          {
+            type: "function_call_output",
+            call_id: "replay_call_7379",
+            output: "REPLAY-RESULT-7379",
+          },
+        ],
+      },
+    })
+  );
+  const response = "response" in result ? result.response : result;
+  const body = await response.text();
+  assert.equal(ctrl.closed, true);
+  if (!stream) return JSON.parse(body) as Record<string, unknown>;
+  const completed = body
+    .split("\n")
+    .filter((line) => line.startsWith("data: {"))
+    .map((line) => JSON.parse(line.slice(6)))
+    .find((event) => event.type === "response.completed");
+  assert.ok(completed);
+  return completed.response as Record<string, unknown>;
+}
+
+for (const stream of [false, true]) {
+  test(`#7379: ${stream ? "SSE" : "JSON"} retains latest camelCase usage without summing snapshots`, async () => {
+    const response = await runUsageSnapshotTurn(stream);
+    const usage = response.usage as Record<string, unknown>;
+    assert.equal(usage.input_tokens, 100);
+    assert.equal(usage.output_tokens, 9);
+    assert.equal((usage.input_tokens_details as Record<string, unknown>).cached_tokens, 20);
+  });
+}
+
+test("#7379: explicit terminal usage takes precedence over a prior notification", async () => {
+  const response = await runUsageSnapshotTurn(false, { input_tokens: 101, output_tokens: 12 });
+  assert.equal((response.usage as Record<string, unknown>).output_tokens, 12);
+});
+
+test("#7379: empty usage is unknown rather than a fabricated zero snapshot", () => {
+  assert.equal(mapUsage({}), undefined);
+  assert.equal(mapUsage({ outputTokens: -1 }), undefined);
+  assert.deepEqual(mapUsage({ inputTokens: 8, outputTokens: 0 }), {
+    inputTokens: 8,
+    outputTokens: 0,
+  });
+});
+
+test("#7379: structured function output keeps its call identity and data in text replay", () => {
+  const text = extractPromptText({
+    input: [
+      { role: "user", content: "Check the fixture" },
+      {
+        type: "function_call",
+        call_id: "call_fixture",
+        name: "functions.exec",
+        arguments: '{"cmd":"cat fixture"}',
+      },
+      { type: "function_call_output", call_id: "call_fixture", output: "FIXTURE-REPLY-7379" },
+      { role: "user", content: "Report the returned value" },
+    ],
+  });
+  assert.match(text, /functions.exec/);
+  assert.match(text, /call_fixture/);
+  assert.match(text, /FIXTURE-REPLY-7379/);
+  assert.ok(text.indexOf("FIXTURE-REPLY-7379") < text.indexOf("Report the returned value"));
+});
+
+test("#7379: custom outputs and empty/object values are not silently discarded", () => {
+  const text = extractPromptText({
+    input: [
+      { type: "custom_tool_call_output", call_id: "custom_1", output: "" },
+      { type: "function_call_output", call_id: "object_2", output: { ok: false, result: 0 } },
+      {
+        type: "function_call_output",
+        call_id: "parts_3",
+        output: [{ type: "input_text", text: "part result" }],
+      },
+    ],
+  });
+  assert.match(text, /custom_1/);
+  assert.match(text, /object_2/);
+  assert.match(text, /"ok":false/);
+  assert.match(text, /"result":0/);
+  assert.match(text, /part result/);
+});
+
+test("#7379: tool handoff retains consumption observed before the call", async () => {
+  const response = await runUsageSnapshotTurn(false, undefined, true, true);
+  assert.equal((response.usage as Record<string, unknown>).output_tokens, 9);
+  const output = response.output as Array<Record<string, unknown>>;
+  assert.ok(output.some((item) => item.type === "function_call" && item.call_id === "usage-tool"));
+});
+
+test("#7379: notification state is per request; last-only snapshots and zero are valid", () => {
+  const one: AppServerNotificationState = {};
+  const two: AppServerNotificationState = {};
+  translateNotification(
+    "thread/tokenUsage/updated",
+    {
+      tokenUsage: {
+        last: { inputTokens: 4, outputTokens: 0 },
+      },
+    },
+    () => {},
+    one
+  );
+  assert.deepEqual(one.usage, { inputTokens: 4, outputTokens: 0 });
+  const events: AdapterEvent[] = [];
+  translateNotification("turn/completed", { turn: {} }, (event) => events.push(event), two);
+  const done = events[0] as Extract<AdapterEvent, { type: "done" }>;
+  assert.equal(done.usage, undefined);
+});
+
+test("#7379: non-text result parts do not inject image bytes into the text replay", () => {
+  const text = extractPromptText({
+    input: [
+      {
+        type: "function_call_output",
+        call_id: "image-call",
+        output: [
+          { type: "input_text", text: "visible caption" },
+          { type: "input_image", image_url: "data:image/png;base64,NOT-TEXT-DATA" },
+        ],
+      },
+    ],
+  });
+  assert.match(text, /visible caption/);
+  assert.match(text, /non-text tool output/);
+  assert.doesNotMatch(text, /NOT-TEXT-DATA/);
 });

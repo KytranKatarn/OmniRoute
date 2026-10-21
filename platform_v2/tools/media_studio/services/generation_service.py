@@ -1302,9 +1302,10 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
     # Starship-245/246 run Ollama with --gpus all, so ComfyUI must free that
     # node's Ollama VRAM first (via the DHQ dispatcher's node-aware swap) and
     # restore it after, in the finally. No-op on hub/engineer paths. (T3438, ADR)
-    _vram_disp = None
-    _vram_unloaded = []
-    _vram_node_id = None
+    # Image sessions (#7400): the swap happens once per node session, and the node's SDXL stays
+    # resident between consecutive jobs. Restore runs from the worker once the queue has drained.
+    _session_node = None
+    _session_cold = True
 
     try:
         import requests as _http
@@ -1342,11 +1343,13 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
                     (json.dumps({"fleet_node": fleet_node}), queue_id),
                 )
 
-        # Free the chosen fleet node's Ollama VRAM before ComfyUI runs, so they
-        # don't contend on the shared GPU (Starship-245/246 = Ollama --gpus all).
-        # DHQ-coordinated via the dispatcher's node-aware swap; restored in finally.
+        # Free the chosen fleet node's Ollama VRAM before ComfyUI runs, so they don't contend on the
+        # shared GPU (Starship-245/246 = Ollama --gpus all). Done ONCE per image session, not per job:
+        # restoring after every job called ComfyUI /free and threw away the SDXL checkpoint (#7400).
         if is_fleet:
             try:
+                from tools.media_studio.services.image_session import get_sessions
+
                 with get_db_cursor() as (_c2, _cu2):
                     _cu2.execute(
                         "SELECT id FROM remote_nodes WHERE node_name = %s "
@@ -1355,19 +1358,10 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
                     )
                     _nrow = _cu2.fetchone()
                 if _nrow:
-                    _vram_node_id = _nrow["id"]
-                    from tools.department_hq.services.department_dispatcher import get_dispatcher
-
-                    _vram_disp = get_dispatcher()
-                    _vram_unloaded = _vram_disp._vram_swap_for_comfyui(_vram_node_id) or []
-                    if _vram_unloaded:
-                        logger.info(
-                            "[MediaStudio] VRAM swap on %s freed %d Ollama model(s) for ComfyUI",
-                            fleet_node,
-                            len(_vram_unloaded),
-                        )
+                    _session_cold = get_sessions().begin(fleet_node, _nrow["id"], queue_id)["cold"]
+                    _session_node = fleet_node
             except Exception as _se:
-                logger.warning("[MediaStudio] VRAM swap skipped on %s: %s", fleet_node, _se)
+                logger.warning("[MediaStudio] image session start skipped on %s: %s", fleet_node, _se)
 
         if is_fleet:
             if seed < 0:
@@ -1415,9 +1409,23 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
             resp.raise_for_status()
             prompt_id = resp.json()["prompt_id"]
 
-            # Poll for result — 600s to allow cold SDXL model load on fleet RTX nodes
-            # (sd_xl_base_1.0 ~6.9GB can take 7-8 min cold on RTX 3070 disk read)
-            max_wait, poll_interval, elapsed = 600, 3, 0
+            # Poll for result. The job that opens an image session pays the cold SDXL load
+            # (~7-8 min on an RTX 3070), so it gets a longer window; warm jobs keep 600s.
+            from tools.media_studio.services.image_session import (
+                DEFAULT_COLD_TIMEOUT_S,
+                DEFAULT_WARM_TIMEOUT_S,
+                SETTING_COLD_TIMEOUT_S,
+                SETTING_WARM_TIMEOUT_S,
+                requeue_or_fail,
+                setting_int,
+            )
+
+            max_wait = (
+                setting_int(SETTING_COLD_TIMEOUT_S, DEFAULT_COLD_TIMEOUT_S, 60, 7200)
+                if _session_cold
+                else setting_int(SETTING_WARM_TIMEOUT_S, DEFAULT_WARM_TIMEOUT_S, 60, 7200)
+            )
+            poll_interval, elapsed = 3, 0
             output_file = None
             while elapsed < max_wait:
                 import time as _t
@@ -1460,10 +1468,10 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
                 )
             else:
                 logger.warning("Fleet ComfyUI timed out after %ds — model may still be loading", max_wait)
-                on_generation_failed(
-                    queue_id,
-                    f"Fleet generation timed out after {max_wait}s — model cold-loading on node, will retry automatically",
-                )
+                # Actually retry (bounded): the old path marked the row failed while its message
+                # promised a retry, and the worker only ever claims 'pending' rows.
+                outcome = requeue_or_fail(queue_id, max_wait)
+                logger.warning("[MediaStudio] queue %s timed out after %ds -> %s", queue_id, max_wait, outcome)
                 return None
 
         if not is_fleet:
@@ -1503,14 +1511,15 @@ def generate_via_comfyui(queue_id: int) -> Optional[int]:
         on_generation_failed(queue_id, str(e))
         return None
     finally:
-        # Restore the fleet node's Ollama GPU models after ComfyUI is done
-        # (the dispatcher frees ComfyUI VRAM first). No-op on hub/engineer
-        # paths where nothing was unloaded. Runs on success, timeout, and error. (T3438)
-        if _vram_disp is not None and _vram_unloaded:
-            try:
-                _vram_disp._vram_restore_after_comfyui(_vram_unloaded, _vram_node_id)
-            except Exception as _re:
-                logger.warning("[MediaStudio] VRAM restore failed: %s", _re)
+        # End the job but keep the session (and the node's resident SDXL) open; the worker restores
+        # Ollama via image_session.restore_idle once the queue drains. Runs on success, timeout, error.
+        try:
+            # Imported here (not relied on from the try block above): this runs even when that block failed early.
+            from tools.media_studio.services.image_session import get_sessions
+
+            get_sessions().end(_session_node, queue_id)
+        except Exception as _re:
+            logger.warning("[MediaStudio] image session end failed: %s", _re)
 
 
 def generate_video_via_comfyui(queue_id: int) -> Optional[int]:

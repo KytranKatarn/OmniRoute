@@ -4491,39 +4491,32 @@ def _register_own_jobs(scheduler, flask_app):
     # Job #121: Media generation queue reaper — re-queue stuck generating jobs
     # -------------------------------------------------------------------------
     def _run_media_generation_reaper():
-        """Reset media_generation_queue rows stuck in 'generating' >15 min.
+        """Reset media_generation_queue rows stuck in 'generating' or 'dispatched'.
 
-        If a fleet node drops mid-generation, the queue entry stays at
-        'generating' forever. This reaper resets it to 'pending' so the
-        media_generation_worker re-dispatches to the next best available node.
+        If a fleet node drops mid-generation, the queue entry stays stuck forever. This reaper resets it to
+        'pending' so the media_generation_worker re-dispatches it, counts each reap in params.retry_count and
+        fails the row once it has exhausted media:max_retries. It skips rows the worker is actively running, and
+        its age threshold sits above the cold-load window so a slow cold SDXL load is not reaped mid-poll (#7400).
         """
         try:
-            from database import get_db_cursor
             from services.telegram_service import send_system
+            from tools.media_studio.services.image_session import reap_stuck
 
-            with get_db_cursor(commit=True) as (_, cur):
-                cur.execute(
-                    """
-                    UPDATE media_generation_queue
-                       SET status = 'pending', started_at = NULL
-                     WHERE status = 'generating'
-                       AND started_at < NOW() - INTERVAL '15 minutes'
-                    RETURNING id, media_type, params->>'model' AS model
-                    """
-                )
-                reaped = cur.fetchall() or []
+            reaped = reap_stuck()
 
             if reaped:
-                summary = ", ".join(f"#{r['id']} {r['media_type']}/{r.get('model', '?')}" for r in reaped[:5])
+                summary = ", ".join(
+                    f"#{r['id']} {r['media_type']}/{r.get('model', '?')} -> {r['status']}" for r in reaped[:5]
+                )
                 logger.warning(
-                    "[DeptHQ] Media reaper: reset %d stuck jobs → pending — %s",
+                    "[DeptHQ] Media reaper: reset %d stuck jobs — %s",
                     len(reaped),
                     summary,
                 )
                 try:
                     send_system(
                         "⚠️ Media generation reaper",
-                        f"{len(reaped)} stuck job(s) reset to pending (node may have dropped).\n{summary}",
+                        f"{len(reaped)} stuck job(s) reset (node may have dropped).\n{summary}",
                     )
                 except Exception:
                     pass
@@ -4536,7 +4529,7 @@ def _register_own_jobs(scheduler, flask_app):
         with_ctx(_run_media_generation_reaper),
         trigger=CronTrigger(minute="*/10", timezone="America/Toronto"),
         id="media_generation_reaper",
-        name="Queue: Reset stuck media generation jobs (>15 min)",
+        name="Queue: Reset stuck media generation jobs (generating/dispatched past the cold-load window)",
         replace_existing=True,
     )
     logger.info("[DeptHQ] Registered media_generation_reaper job (every 10 min)")

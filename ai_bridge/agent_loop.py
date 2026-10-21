@@ -3068,6 +3068,7 @@ class AgentLoop:
                     get_comfyui_service().stop_if_idle()
                 except Exception as _stop_err:
                     logger.debug("media_generation_worker: idle-stop skipped: %s", _stop_err)
+                self._media_restore_idle_sessions()
                 return
 
             for row in claimed:
@@ -3184,8 +3185,37 @@ class AgentLoop:
                                 pass
                     except Exception as _tel_err:
                         logger.debug("media_generation_worker: task_execution_log write failed: %s", _tel_err)
+            # After this tick's jobs: close image sessions whose queue has drained (#7400).
+            self._media_restore_idle_sessions()
         except Exception as e:
             logger.error("media_generation_worker error: %s", e)
+
+    def _media_restore_idle_sessions(self):
+        """Restore Ollama on fleet nodes whose image session is idle and whose queue is empty.
+
+        Image jobs keep SDXL resident between consecutive jobs (see image_session); this is the only place
+        the node's LLM models are brought back, so LLM work resumes there once portraits stop flowing.
+        Best-effort: never raises into the worker.
+        """
+        try:
+            from database import get_db_cursor
+            from tools.media_studio.services.image_session import get_sessions
+
+            sessions = get_sessions()
+            if not sessions.open_nodes():
+                return
+            with get_db_cursor() as (_, cur):
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM media_generation_queue "
+                    "WHERE status IN ('pending', 'dispatched', 'generating')"
+                )
+                row = cur.fetchone()
+            pending = int((row.get("n") if isinstance(row, dict) else row[0]) or 0)
+            closed = sessions.restore_idle(pending)
+            if closed:
+                logger.info("media_generation_worker: image session(s) closed, Ollama restored on %s", closed)
+        except Exception as exc:
+            logger.warning("media_generation_worker: idle-session restore skipped: %s", exc)
 
     def _website_deploy_worker(self):
         """Daily full-site deploy to Hostinger for all public websites.

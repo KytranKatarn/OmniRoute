@@ -389,12 +389,28 @@
                 <option value="portrait_first">Portrait first</option>
             </select>
             <span id="ms-portrait-count" class="ms-portrait-count"></span>
-            <!-- Publish approved portraits to the public sites (lives here, with the portraits it publishes) -->
-            <span style="display:inline-flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap;">
+            <!-- Publish approved portraits per public site (lives here, with the portraits it publishes) -->
+            <span style="display:inline-flex;align-items:flex-start;gap:12px;margin-left:auto;flex-wrap:wrap;">
+                <span class="ms-pub-site" data-domain="kytranempowerment.com" style="display:inline-flex;flex-direction:column;gap:2px;">
+                    <button type="button" id="msPublishBtn-kytranempowerment-com" onclick="msGallery.publishPortraits('kytranempowerment.com')"
+                            title="Queue a deploy of kytranempowerment.com only, so its approved portraits go live. Runs in the background."
+                            style="background:#ec4899;color:#010409;border:none;border-radius:4px;padding:6px 12px;font-size:0.68rem;font-family:Antonio,sans-serif;letter-spacing:1.2px;cursor:pointer;font-weight:600;">KYTRANEMPOWERMENT.COM</button>
+                    <span id="msPublishStatus-kytranempowerment-com" style="font-size:0.6rem;color:#9ca3af;font-family:'Share Tech Mono',monospace;">loading…</span>
+                </span>
+                <span class="ms-pub-site" data-domain="creed-ai.org" style="display:inline-flex;flex-direction:column;gap:2px;">
+                    <button type="button" id="msPublishBtn-creed-ai-org" onclick="msGallery.publishPortraits('creed-ai.org')"
+                            title="Queue a deploy of creed-ai.org only, so its approved portraits go live. Runs in the background."
+                            style="background:#ec4899;color:#010409;border:none;border-radius:4px;padding:6px 12px;font-size:0.68rem;font-family:Antonio,sans-serif;letter-spacing:1.2px;cursor:pointer;font-weight:600;">CREED-AI.ORG</button>
+                    <span id="msPublishStatus-creed-ai-org" style="font-size:0.6rem;color:#9ca3af;font-family:'Share Tech Mono',monospace;">loading…</span>
+                </span>
+                <span class="ms-pub-site" data-domain="what-the-fact.com" style="display:inline-flex;flex-direction:column;gap:2px;">
+                    <button type="button" disabled title="what-the-fact.com is deployed from Citadel, not the static-site pipeline; a publish path has not been built yet" style="background:#ec4899;color:#010409;border:none;border-radius:4px;padding:6px 12px;font-size:0.68rem;font-family:Antonio,sans-serif;letter-spacing:1.2px;cursor:pointer;font-weight:600;opacity:.4;cursor:not-allowed;">WHAT-THE-FACT.COM</button>
+                    <span style="font-size:0.6rem;color:#6b7280;font-family:'Share Tech Mono',monospace;">needs its own deploy path</span>
+                </span>
                 <button id="msPublishSitesBtn" onclick="msGallery.publishPortraits()"
-                        title="Queue a deploy of the public sites so approved portraits (and the director data) go live. Runs in the background; the site is also published automatically every 15 minutes."
-                        style="background:#ec4899;color:#010409;border:none;border-radius:4px;padding:7px 16px;font-size:0.72rem;font-family:Antonio,sans-serif;letter-spacing:1.5px;cursor:pointer;font-weight:600;">PUBLISH PORTRAITS</button>
-                <span id="msPublishSitesStatus" style="font-size:0.68rem;color:#9ca3af;font-family:'Share Tech Mono',monospace;">loading publish status…</span>
+                        title="Queue a deploy of every configured site at once. Runs in the background; sites are also published automatically every 15 minutes."
+                        style="background:transparent;color:#ec4899;border:1px solid #ec4899;border-radius:4px;padding:6px 12px;font-size:0.68rem;font-family:Antonio,sans-serif;letter-spacing:1.2px;cursor:pointer;font-weight:600;">PUBLISH ALL</button>
+                <span id="msPublishSitesStatus" style="font-size:0.65rem;color:#9ca3af;font-family:'Share Tech Mono',monospace;align-self:center;"></span>
             </span>
         </div>
 

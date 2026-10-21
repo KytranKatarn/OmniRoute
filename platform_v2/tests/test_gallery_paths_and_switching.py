@@ -98,3 +98,24 @@ def test_portraits_tab_loads_the_publish_status_and_gallery_init_does_not():
     init = JS.read_text(encoding="utf-8")
     body = init[init.index("init: function") : init.index("_withSubjects: function")]
     assert "loadPublishStatus" not in body
+
+
+def test_publish_has_one_button_per_site_and_wtf_is_disabled_until_it_has_a_deploy_path():
+    main = (TPL / "media_studio.html").read_text(encoding="utf-8")
+    start = main.index('id="ms-portrait-toolbar"')
+    toolbar = main[start : main.index('id="ms-portrait-grid"', start)]
+    for domain in ("kytranempowerment.com", "creed-ai.org"):
+        sid = domain.replace(".", "-")
+        assert f"msGallery.publishPortraits('{domain}')" in toolbar
+        assert f'id="msPublishStatus-{sid}"' in toolbar
+    wtf = toolbar[toolbar.index('data-domain="what-the-fact.com"') :][:400]
+    assert "disabled" in wtf and "publishPortraits" not in wtf  # a dead path must not be clickable
+    assert "msGallery.publishPortraits()" in toolbar  # PUBLISH ALL keeps the old no-arg behaviour
+
+
+def test_publish_sends_the_domain_only_when_one_is_given_and_status_is_filled_per_site():
+    js = JS.read_text(encoding="utf-8")
+    body = js[js.index("publishPortraits: function (domain)") : js.index("loadPublishStatus: function")]
+    assert "JSON.stringify(domain ? { domain: domain } : {})" in body
+    status = js[js.index("loadPublishStatus: function") :]
+    assert "'msPublishStatus-' + String(s.domain)" in status

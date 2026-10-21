@@ -428,8 +428,9 @@
     // configured domain. It runs in a background thread server-side, so this
     // returns as soon as the queue is accepted; the status poll below is how
     // you find out it landed.
-    publishPortraits: function () {
-      var btn = _el('msPublishSitesBtn');
+    publishPortraits: function (domain) {
+      var btn = _el(domain ? 'msPublishBtn-' + domain.replace(/\./g, '-') : 'msPublishSitesBtn');
+      var label = domain ? domain.toUpperCase() : 'PUBLISH ALL';
       var out = _el('msPublishSitesStatus');
       if (btn) { btn.disabled = true; btn.textContent = 'QUEUEING…'; }
       if (out) { out.textContent = 'Queueing deploy…'; out.style.color = '#9ca3af'; }
@@ -438,7 +439,7 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        body: JSON.stringify(domain ? { domain: domain } : {})
       })
         .then(function (r) {
           if (r.status === 403) { var e = new Error('forbidden'); e.forbidden = true; throw e; }
@@ -446,7 +447,7 @@
           return r.json();
         })
         .then(function (data) {
-          if (btn) { btn.disabled = false; btn.textContent = 'PUBLISH PORTRAITS'; }
+          if (btn) { btn.disabled = false; btn.textContent = label; }
           if (out) {
             out.textContent = data.success
               ? 'Queued: ' + (data.queued || []).join(', ')
@@ -458,7 +459,7 @@
           setTimeout(msGallery.loadPublishStatus, 3000);
         })
         .catch(function (err) {
-          if (btn) { btn.disabled = false; btn.textContent = 'PUBLISH PORTRAITS'; }
+          if (btn) { btn.disabled = false; btn.textContent = label; }
           if (out) {
             out.textContent = err.forbidden
               ? 'Admin only — ask the owner to queue the deploy'
@@ -475,29 +476,29 @@
     // mark_deploy_pushed), 'deploy_pending'/'dispatched' (queued, not pushed),
     // and 'failed'.
     loadPublishStatus: function () {
-      var out = _el('msPublishSitesStatus');
-      if (!out) return;
       fetch('/tools/repair-bay/api/deploy/website-status', { credentials: 'same-origin' })
         .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
         .then(function (data) {
-          var sites = data.sites || [];
-          if (!sites.length) { out.textContent = 'No sites configured.'; return; }
-          out.textContent = sites.map(function (s) {
+          (data.sites || []).forEach(function (s) {
+            var el = _el('msPublishStatus-' + String(s.domain).replace(/\./g, '-'));
+            if (!el) return;
             var label = s.last_status === 'deployed' ? 'deployed'
               : s.last_status === 'failed' ? 'FAILED'
               : (s.last_status === 'dispatched' || s.last_status === 'deploy_pending') ? 'queued (not pushed)'
               : (s.last_status || 'never');
-            var bits = [s.domain + ': ' + label];
+            var bits = [label];
             var run = _parseUtc(s.last_run);
-            if (run) { bits.push('last run ' + _ago(run)); }
-            if (s.pending_portraits) { bits.push(s.pending_portraits + ' portrait(s) since last run'); }
-            return bits.join(' · ');
-          }).join('   |   ');
-          out.style.color = sites.some(function (s) { return s.last_status === 'failed'; }) ? '#ef4444' : '#9ca3af';
+            if (run) { bits.push(_ago(run)); }
+            if (s.pending_portraits) { bits.push(s.pending_portraits + ' new'); }
+            el.textContent = bits.join(' · ');
+            el.style.color = s.last_status === 'failed' ? '#ef4444' : '#9ca3af';
+          });
         })
         .catch(function (err) {
-          out.textContent = 'status unavailable (' + err.message + ')';
-          out.style.color = '#6b7280';
+          document.querySelectorAll('[id^="msPublishStatus-"]').forEach(function (el) {
+            el.textContent = 'status unavailable (' + err.message + ')';
+            el.style.color = '#6b7280';
+          });
         });
     }
   };

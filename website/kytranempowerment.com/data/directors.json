@@ -39,6 +39,25 @@
       "agent_type": null
     },
     {
+      "id": 141,
+      "display_name": "S.I.G.N.A.L.",
+      "code_name": "S.I.G.N.A.L.",
+      "title": "Department Coordinator & AI Loop Manager",
+      "department": "Marketing & Communications",
+      "floor": "CREATIVE",
+      "acronym": "S.I.G.N.A.L.",
+      "acronym_expansion": "Strategic Information & Global Narrative Amplification Layer",
+      "bio": "Head of Marketing and Communications, amplifying the organization's voice. A confident broadcaster who ensures every communication is on-brand, on-time, and on-target across all channels.",
+      "avatar_url": "media/agents/141/2026-10-21/thumb_media_696_1792544956.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_696_1792544956.jpg",
+      "is_director": true,
+      "worker_type": "ai",
+      "visibility": "public",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 139,
       "display_name": "B.A.S.E.",
       "code_name": "B.A.S.E.",
@@ -48,8 +67,8 @@
       "acronym": "B.A.S.E.",
       "acronym_expansion": "Business Administration & Systems Executive",
       "bio": "Head of Operations and Infrastructure, ensuring every system runs at peak reliability. A pragmatic leader with military-grade discipline who believes that if it is not monitored, it is not running.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-16/media_studio_00025_.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00025_.jpg",
+      "avatar_url": "media/agents/139/2026-10-21/thumb_media_694_1792545192.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_694_1792545192.jpg",
       "is_director": true,
       "worker_type": "ai",
       "visibility": "public",
@@ -67,8 +86,8 @@
       "acronym": "S.P.E.C.T.R.A.",
       "acronym_expansion": "Systematic Pattern Extraction & Computational Trend Recognition Architecture",
       "bio": "Head of Analytics and Intelligence, seeing what others miss in massive datasets. A sharp analytical mind who identifies hidden patterns and turns raw numbers into actionable insights for every department.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-16/media_studio_00113_.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00113_.jpg",
+      "avatar_url": "media/agents/137/2026-10-21/thumb_media_692_1792544870.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_692_1792544870.jpg",
       "is_director": true,
       "worker_type": "ai",
       "visibility": "public",
@@ -113,25 +132,6 @@
       "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": "Security Sentinel"
-    },
-    {
-      "id": 141,
-      "display_name": "S.I.G.N.A.L.",
-      "code_name": "S.I.G.N.A.L.",
-      "title": "Department Coordinator & AI Loop Manager",
-      "department": "Marketing & Communications",
-      "floor": "CREATIVE",
-      "acronym": "S.I.G.N.A.L.",
-      "acronym_expansion": "Strategic Information & Global Narrative Amplification Layer",
-      "bio": "Head of Marketing and Communications, amplifying the organization's voice. A confident broadcaster who ensures every communication is on-brand, on-time, and on-target across all channels.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-16/media_studio_00119_.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00119_.jpg",
-      "is_director": true,
-      "worker_type": "ai",
-      "visibility": "public",
-      "shift_state": "active",
-      "pronouns": "they/them",
-      "agent_type": null
     },
     {
       "id": 149,
@@ -238,8 +238,8 @@
       "acronym": "D.A.R.W.I.N.",
       "acronym_expansion": "Data Analysis & Research for Wisdom & Innovation Network",
       "bio": "Head of Research and Development, driving platform evolution through experimentation. A curious and methodical scientist who runs experiments, evaluates new models, and pushes the boundaries of what the platform can achieve.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-16/media_studio_00038_.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00038_.jpg",
+      "avatar_url": "media/agents/140/2026-10-21/thumb_media_695_1792545078.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_695_1792545078.jpg",
       "is_director": true,
       "worker_type": "ai",
       "visibility": "public",
@@ -276,8 +276,8 @@
       "acronym": "R.E.S.O.L.V.E.",
       "acronym_expansion": "Responsive Engagement & Service Optimization for Loyalty & Value Enhancement",
       "bio": "Head of Customer Success and Support, never leaving a customer hanging. A patient and thorough leader who manages tickets, routes escalations, and tracks satisfaction metrics with genuine empathy.",
-      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-05-17/media_studio_00130_.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00130_.jpg",
+      "avatar_url": "media/agents/142/2026-10-21/thumb_media_697_1792545329.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_697_1792545329.jpg",
       "is_director": true,
       "worker_type": "ai",
       "visibility": "public",
@@ -324,5 +324,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-10-21T01:07:20.222035+00:00"
+  "generated_at": "2026-10-21T01:18:56.313581+00:00"
 }

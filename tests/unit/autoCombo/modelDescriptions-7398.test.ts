@@ -84,6 +84,15 @@ describe("model descriptions: what each model is practical for", () => {
     }
   });
 
+  it("gives the built-in combo entries a description in the catalog", async () => {
+    // The catalog builds a built-in combo's ENTRY itself (rather than reading
+    // it from the DB), so the description has to be copied across explicitly.
+    // This is the path that decides what a client picker actually shows.
+    const combo = await createBuiltinAutoCombo("auto/coding:free", "coding:free");
+    expect(combo.description).toBeTruthy();
+    expect(combo.description as string).toMatch(/free-tier capacity only/);
+  });
+
   it("invents nothing for a model that has no description", () => {
     // A model outside the curated set must keep its previous shape: no
     // description field at all, rather than an empty or invented one.

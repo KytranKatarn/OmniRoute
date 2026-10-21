@@ -186,7 +186,8 @@ def _portrait_negative_prompt() -> str:
         "busy background, low quality, different person, identity drift, changed gender, "
         "changed age, changed ethnicity, altered facial structure, plastic skin, waxy skin, "
         "over-smoothed skin, uncanny eyes, signature, caption, gibberish lettering, "
-        "fake logo, stock-photo overlay"
+        "fake logo, stock-photo overlay, group, group photo, multiple people, crowd, extra faces, "
+        "two people, duplicate face"
     )
 
 

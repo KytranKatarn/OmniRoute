@@ -45,6 +45,10 @@
 # resolve outside the network, and /run/secrets does not exist there. So the script
 # probes real candidates and substitutes the first that answers.
 #
+# ⚠️ "omniroute:20128" is a DOUBLE-STALE reference: the Compose service was removed
+# on 2026-10-20 (cbf519c23) and DS9 is now the host-native systemd gateway on 20129.
+# See the OR_CANDIDATES block below for the full address history.
+#
 # SAFETY
 # ------
 # Writes only under $HOME/.config/opencode and $HOME/.local. Never touches the live
@@ -156,10 +160,31 @@ say "  archie-kb gateway : $KB_URL"
 # first_ok exits non-zero by design (that is how DEGRADED gets set), and `set -e` +
 # `pipefail` would kill the script mid-install with no message. This is the third time
 # this exact trap has shipped in this session; both `|| true`s are load-bearing.
-OR_URL="$( { first_ok omniroute http://127.0.0.1:20128/v1/models http://localhost:20128/v1/models http://omniroute:20128/v1/models || true; } | cut -f2)"
-[ -n "$OR_URL" ] || OR_URL="http://127.0.0.1:20128/v1/models"
+#
+# DS9's address CHANGED on 2026-10-20 and this list was not updated with it.
+# DS9 is no longer the Compose `omniroute` container: commit cbf519c23 removed that
+# service from docker-compose.yml, and DS9 was redeployed at 08:22 as a HOST-NATIVE
+# systemd service (deep-space-9.service, v16.3.8) listening on port 20129.
+#
+# The old 20128 candidates are all DEAD FROM THE HOST and must not lead the list:
+#   http://127.0.0.1:20128/v1/models  -> connection refused (20128 was never published
+#                                        on loopback; only 192.168.1.200:20128 was)
+#   http://localhost:20128/v1/models  -> connection refused
+#   http://omniroute:20128/v1/models  -> connection refused (a compose service name
+#                                        never resolves on the host anyway)
+# With that list the installer fell through to its fallback and wrote a DEAD
+# baseURL into the host opencode config. Live 20129 answers 401 on all three
+# host-reachable spellings, which probe_http accepts (a status code IS an answer).
+#
+# NOTE the asymmetry, it is not a bug: from INSIDE a compose container the name
+# `omniroute` still resolves to the orphaned container's IP (Docker DNS keeps the
+# name for a running container), so the CONTAINER lane's own config is unaffected.
+# Only the HOST installer needs the host-native address.
+OR_CANDIDATES="http://127.0.0.1:20129/v1/models http://localhost:20129/v1/models http://192.168.1.200:20129/v1/models"
+OR_URL="$( { first_ok ds9 $OR_CANDIDATES http://127.0.0.1:20128/v1/models http://localhost:20128/v1/models http://omniroute:20128/v1/models || true; } | cut -f2)"
+[ -n "$OR_URL" ] || OR_URL="http://127.0.0.1:20129/v1/models"
 OR_BASE="${OR_URL%/models}"
-say "  omniroute baseURL : $OR_BASE"
+say "  DS9 baseURL       : $OR_BASE"
 
 # Secrets: on the host these live in the repo, not /run/secrets.
 HOSTINGER_SECRET="$SECRETS_REPO/hostinger_token.txt"
@@ -295,10 +320,24 @@ if "command" in hid:
         % os.environ["HOSTINGER_SECRET"]]
 mcp["hostinger-api"] = hid
 
-# --- providers: any baseURL pointing at a docker service name ---
+# --- providers: any baseURL pointing at a docker service name OR a stale DS9 port ---
+# The old match was only "http://omniroute:", which handled the compose service
+# name. It does NOT handle a config that already carries a host address for the
+# REMOVED container gateway (http://127.0.0.1:20128/... or the published
+# http://192.168.1.200:20128/...) - those are dead now too (DS9 is the host-native
+# systemd gateway on 20129), and a config carrying one would be left pointing at a
+# dead endpoint. Match on the SERVICE NAME and on the retired PORT, and replace
+# all of them with the probed live base.
+STALE_DS9_HOSTS = (
+    "http://omniroute:",
+    "http://127.0.0.1:20128",
+    "http://localhost:20128",
+    "http://192.168.1.200:20128",
+)
 for name, p in (c.get("provider") or {}).items():
     opts = p.get("options") or {}
-    if opts.get("baseURL", "").startswith("http://omniroute:"):
+    base = opts.get("baseURL", "") or ""
+    if any(base.startswith(stale) for stale in STALE_DS9_HOSTS):
         opts["baseURL"] = os.environ["OR_BASE"]
         p["options"] = opts
 
@@ -465,6 +504,25 @@ else
   say "  ✗ handover missing at $CFG_DIR/data/archie-handover.md"; fail=1
 fi
 probe_http "$KB_URL" && say "  ✓ archie-kb gateway reachable" || { say "  ✗ archie-kb gateway NOT reachable from the host ($KB_URL)"; fail=1; }
+
+# ⚠️ The DS9 endpoint MUST be verified here, not just probed during the
+# resolution above. Without this check the installer wrote a DEAD baseURL
+# (http://127.0.0.1:20128/v1) into the host config and still reported success:
+# the resolution step falls back to a default when nothing answers, the config
+# parses, and only the archie-kb gateway was ever re-probed. A config that
+# cannot reach its provider is a SILENT failure at model-call time, hours
+# later, in a different terminal.
+#
+# probe_http treats ANY HTTP status as "the server is there", which is what we
+# want: DS9 answers 401 without a key. A refused connection is the real fault.
+if probe_http "$OR_BASE/models"; then
+  say "  ✓ DS9 gateway reachable ($OR_BASE)"
+else
+  say "  ✗ DS9 gateway NOT reachable from the host ($OR_BASE)"
+  say "    The config was written with a dead provider URL. Check which DS9 is live:"
+  say "      systemctl is-active deep-space-9.service ; ss -ltnp | grep 20129"
+  fail=1
+fi
 
 echo
 if [ "$fail" = 0 ]; then

@@ -24,6 +24,20 @@ class Clock:
         return self.t
 
 
+class FakeLease:
+    def __init__(self):
+        self.calls = []
+
+    def acquire(self, node, holder):
+        self.calls.append(("acquire", node))
+
+    def heartbeat(self, node, holder):
+        self.calls.append(("heartbeat", node))
+
+    def release(self, node, holder):
+        self.calls.append(("release", node))
+
+
 def make(unloaded=("qwen2.5:7b",)):
     clock, swaps, restores = Clock(), [], []
 
@@ -34,7 +48,12 @@ def make(unloaded=("qwen2.5:7b",)):
     def restore(models, node_id):
         restores.append((tuple(models), node_id))
 
-    return im.ImageSessions(clock=clock, swap=swap, restore=restore), clock, swaps, restores
+    return (
+        im.ImageSessions(clock=clock, swap=swap, restore=restore, lease=FakeLease(), start_heartbeat=False),
+        clock,
+        swaps,
+        restores,
+    )
 
 
 # ── session lifecycle ────────────────────────────────────────────────────────────────────────────────
@@ -99,7 +118,9 @@ def test_swap_failure_does_not_block_generation_and_skips_restore():
     def boom(node_id):
         raise RuntimeError("node unreachable")
 
-    s = im.ImageSessions(clock=clock, swap=boom, restore=lambda m, n: restores.append(n))
+    s = im.ImageSessions(
+        clock=clock, swap=boom, restore=lambda m, n: restores.append(n), lease=FakeLease(), start_heartbeat=False
+    )
     assert s.begin("Defiant", 115, 1) == {"cold": True}
     s.end("Defiant", 1)
     clock.t += 500
@@ -112,7 +133,7 @@ def test_restore_failure_never_raises_and_still_closes_the_session():
     def boom(models, node_id):
         raise RuntimeError("restore failed")
 
-    s = im.ImageSessions(clock=clock, swap=lambda n: ["m"], restore=boom)
+    s = im.ImageSessions(clock=clock, swap=lambda n: ["m"], restore=boom, lease=FakeLease(), start_heartbeat=False)
     s.begin("Defiant", 115, 1)
     s.end("Defiant", 1)
     clock.t += 500

@@ -19,6 +19,7 @@ the self-inflicted per-job eviction; it does not arbitrate between image and LLM
 """
 
 import logging
+import os
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Set
@@ -75,17 +76,59 @@ class ImageSessions:
         clock: Callable[[], float] = time.monotonic,
         swap: Callable = _default_swap,
         restore: Callable = _default_restore,
+        lease=None,
+        holder: Optional[str] = None,
+        hb_interval_s: float = 30.0,
+        start_heartbeat: bool = True,
     ):
         self._clock = clock
         self._swap = swap
         self._restore = restore
+        # Per-node GPU lease (#7401): held while a session is open so the LLM dispatcher (when enforcing)
+        # stays off the node. lease is anything with acquire/heartbeat/release(node_name, holder).
+        self._lease = lease
+        self._holder = holder or f"media-worker:{os.getpid()}"
+        self._hb_interval_s = hb_interval_s
+        self._start_heartbeat = start_heartbeat
+        self._hb_thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
         self._sessions: Dict[str, dict] = {}
         self._running: Set[int] = set()
 
+    # -- GPU lease (best effort; never blocks generation) -----------------------------------
+    def _lease_call(self, name: str, node_name: str):
+        try:
+            lease = self._lease
+            if lease is None:
+                from services import node_gpu_lease as lease  # lazy: keeps this module importable standalone
+            getattr(lease, name)(node_name, self._holder)
+        except Exception as exc:
+            logger.warning("[MediaStudio] GPU lease %s failed for %s: %s", name, node_name, exc)
+
+    def _ensure_heartbeat(self) -> None:
+        if not self._start_heartbeat:
+            return
+        with self._lock:
+            if self._hb_thread is not None and self._hb_thread.is_alive():
+                return
+            self._hb_thread = threading.Thread(target=self._heartbeat_loop, name="image-session-lease", daemon=True)
+            self._hb_thread.start()
+
+    def _heartbeat_loop(self) -> None:
+        # One job can poll for 600-1200s with no other call into this module, so the lease needs its own pulse.
+        while True:
+            time.sleep(self._hb_interval_s)
+            with self._lock:
+                nodes = list(self._sessions)
+                if not nodes:
+                    self._hb_thread = None
+                    return
+            for name in nodes:
+                self._lease_call("heartbeat", name)
+
     # -- job lifecycle -------------------------------------------------------------------
     def begin(self, node_name: str, node_id, queue_id: Optional[int] = None) -> dict:
-        """Start a job on ``node_name``. ``cold`` is True only for the job that opens the session."""
+        """Start a job on node_name. cold is True only for the job that opens the session."""
         with self._lock:
             if queue_id is not None:
                 self._running.add(queue_id)
@@ -93,7 +136,9 @@ class ImageSessions:
             if session is not None:
                 session["last_end"] = None
                 session["jobs"] += 1
-                return {"cold": False}
+        if session is not None:
+            self._lease_call("heartbeat", node_name)
+            return {"cold": False}
         # Swap outside the lock: it makes HTTP calls to the node.
         try:
             unloaded = list(self._swap(node_id) or [])
@@ -108,18 +153,22 @@ class ImageSessions:
                 "last_end": None,
                 "jobs": 1,
             }
+        self._lease_call("acquire", node_name)
+        self._ensure_heartbeat()
         if unloaded:
             logger.info("[MediaStudio] image session opened on %s (freed %d Ollama model(s))", node_name, len(unloaded))
         return {"cold": True}
 
     def end(self, node_name: Optional[str], queue_id: Optional[int] = None) -> None:
-        """Finish a job. The session stays open (SDXL stays resident) until ``restore_idle`` closes it."""
+        """Finish a job. The session stays open (SDXL stays resident) until restore_idle closes it."""
         with self._lock:
             if queue_id is not None:
                 self._running.discard(queue_id)
             session = self._sessions.get(node_name) if node_name else None
             if session is not None:
                 session["last_end"] = self._clock()
+        if session is not None:
+            self._lease_call("heartbeat", node_name)
 
     # -- idle handling ---------------------------------------------------------------------
     def restore_idle(self, pending_total: int, grace_s: Optional[int] = None) -> List[str]:
@@ -142,6 +191,8 @@ class ImageSessions:
                     self._restore(session["unloaded"], session["node_id"])
             except Exception as exc:
                 logger.warning("[MediaStudio] image session restore failed on %s: %s", name, exc)
+            # Release only after Ollama is restored, so LLM dispatch never races the reload.
+            self._lease_call("release", name)
             closed.append(name)
             logger.info("[MediaStudio] image session closed on %s after %d job(s)", name, session["jobs"])
         return closed

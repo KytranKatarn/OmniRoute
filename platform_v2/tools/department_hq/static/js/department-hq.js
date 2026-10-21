@@ -6239,6 +6239,21 @@ function loadDispatchMode() {
             _applyDispatchMode(d.mode || 'auto', d.focus || '');
         })
         .catch(function() {});
+    loadGpuLeases();
+}
+
+// Which nodes an image session holds right now (#7401). Text only (textContent), never innerHTML.
+function loadGpuLeases() {
+    var el = document.getElementById('fleetGpuLease');
+    if (!el) return;
+    fetch('/tools/department-hq/api/fleet/gpu-leases')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.success || !d.leases || !d.leases.length) { el.textContent = ''; return; }
+            var names = d.leases.map(function(l) { return l.node_name; }).join(', ');
+            el.textContent = 'IMAGE LEASE: ' + names + (d.enforcement ? '' : ' (observing - LLM not yielding)');
+        })
+        .catch(function() { el.textContent = ''; });
 }
 
 function setFleetDispatchMode(mode) {

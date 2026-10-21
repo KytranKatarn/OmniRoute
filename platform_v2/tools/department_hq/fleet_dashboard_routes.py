@@ -2207,6 +2207,29 @@ def register_dashboard_routes(bp, auth_decorator):
             logger.error("api_fleet_dispatch_mode: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
+    @bp.route("/api/fleet/gpu-leases", methods=["GET"])
+    @auth_decorator
+    def api_fleet_gpu_leases():
+        """Read-only: which nodes an image session currently holds (#7401), and whether LLM dispatch
+        is enforcing it (dispatch:gpu_lease:enabled, default off)."""
+        try:
+            from services.node_gpu_lease import active_leases, enforcement_enabled
+
+            leases = []
+            for row in active_leases():
+                leases.append(
+                    {
+                        "node_name": row.get("node_name"),
+                        "holder_kind": row.get("holder_kind"),
+                        "acquired_at": row["acquired_at"].isoformat() if row.get("acquired_at") else None,
+                        "heartbeat_at": row["heartbeat_at"].isoformat() if row.get("heartbeat_at") else None,
+                    }
+                )
+            return jsonify({"success": True, "enforcement": bool(enforcement_enabled()), "leases": leases})
+        except Exception as exc:
+            logger.error("api_fleet_gpu_leases: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/fleet/rest-mode", methods=["GET", "POST"])
     @auth_decorator
     def api_fleet_rest_mode():

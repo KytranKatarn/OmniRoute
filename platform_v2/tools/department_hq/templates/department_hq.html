@@ -973,63 +973,12 @@
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
         </div>
       </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- DEEP SPACE 9 (DS9) TAB — External AI Providers (OmniRoute gateway) -->
-    <!-- ═══════════════════════════════════════════════════════════════ -->
-    <div class="dhq-panel" id="panel-engineers">
-      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
-        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
-        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
-          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">DEEP SPACE 9 (DS9)</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PROVIDERS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
-          <div style="flex:1 !important;padding:16px !important;">
-      <!-- #4659 — Cloud AI master toggle (Sovereign OFF / Ask-first ON) -->
-      <div id="cloudMasterToggle" style="margin-bottom:16px;"></div>
-      <div id="engineers-summary"></div>
-      <!-- DS9 Phase 2 — OmniRoute free-tier quota (per-upstream throttle). Card is
-           painted by loadOmnirouteQuota(); empty/failed card reads "no data yet",
-           never affects the providers grid below it. -->
-      <div id="ds9QuotaCard" style="margin:0 0 16px 0;"></div>
-      <!-- DS9 — the Codex app-server CONNECTION. The providers grid below is the
-           PLATFORM's external upstreams; the app-server is a connection inside
-           DS9's own store, so without this card the operator cannot see who it
-           is authorized as or whether it is reachable. Painted by
-           loadAppServerConnections(); read-only, never affects the grid. -->
-      <div id="ds9AppServerCard" style="margin:0 0 16px 0;"></div>
-      <div id="engineers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
-      <div id="engineerProvidersContent"></div>
-      <div id="engineerDefinitionsContent"></div>
-      <!-- FLEET USAGE — re-homed from the retired A.R.M.A.D.A. NETWORK sub-tab
-           (2026-09-11). It belongs beside PROVIDER BUDGETS, not on Cluster:
-           total_cost and distinct-cloud-providers-called are CONTRACTOR spend,
-           not node state. It complements the budget table rather than repeating
-           it — that table is per-provider, this is the roll-up.
-           Both are painted by the SAME loadFleetUsage() call, so they can never
-           disagree. ⚠️ That function is also what fills #fleetBudgetTableBody —
-           do not delete it if this panel is ever removed again. -->
-      <div class="dhq-dispatch-section">
-        <div class="dhq-section-title">FLEET USAGE (30 DAYS)</div>
-        <div style="display:flex;gap:24px;padding:8px 0;font-size:0.8rem;">
-          <div>Calls: <strong id="fleetUsageCalls">--</strong></div>
-          <div>Cost: <strong id="fleetUsageCost">--</strong></div>
-          <div>Providers: <strong id="fleetUsageProviders">--</strong></div>
-        </div>
-      </div>
-
-      <!-- Budget Table (moved from Fleet — belongs with engineer definitions) -->
-      <div class="dhq-dispatch-section" id="fleetBudgetSection">
-        <div class="dhq-section-title">PROVIDER BUDGETS</div>
-        <table style="width:100%;font-size:0.75rem;border-collapse:collapse;">
-          <tbody id="fleetBudgetTableBody"></tbody>
-        </table>
-      </div>
-          </div>
-          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
-        </div>
-      </div>
-    </div>
-
+      <!-- ── The fleet-node modals live HERE, in the FLEET tab, not in the
+           DS9 (external clients) tab. Their triggers are the two buttons in
+           the fleet header, and an inactive .dhq-panel is display:none - so
+           markup parked in the DS9 panel made these modals INVISIBLE when
+           opened from the fleet tab. Local node tooling, external-client tab:
+           they do not belong together. -->
     <!-- NODE DETAIL MODAL -->
     <div id="fleetNodeModal" class="bm-overlay" onclick="if(event.target===this)closeFleetDetail()" style="display:none;align-items:center;justify-content:center;">
       <div style="max-width:540px;width:95%;margin:auto;">
@@ -1202,7 +1151,6 @@
       });
     }
     </script>
-
     <!-- REPAIR NODE MODAL -->
     <div id="repairNodeModal" class="bm-overlay" onclick="if(event.target===this)closeRepairNodeModal()" style="display:none;">
       <div class="bm-shell" style="max-width:520px;width:90%;">
@@ -1288,6 +1236,63 @@
       btn.textContent = 'COPIED!'; setTimeout(() => btn.textContent = 'COPY', 2000);
     }
     </script>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- DEEP SPACE 9 (DS9) TAB — External AI Providers (OmniRoute gateway) -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="dhq-panel" id="panel-engineers">
+      <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
+        <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;"><div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent,#00ffff) !important;flex-shrink:0 !important;"></div><div style="height:28px !important;border-radius:0 8px 8px 0 !important;background:var(--cat-accent-dark,#00cccc) !important;opacity:0.6 !important;flex-shrink:0 !important;"></div><div style="flex:1 !important;background:rgba(var(--cat-accent-rgb,0,255,255),0.2) !important;border-radius:0 8px 8px 0 !important;min-height:20px !important;"></div><div style="height:36px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 0 20px !important;flex-shrink:0 !important;"></div></div>
+        <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
+          <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">DEEP SPACE 9 (DS9)</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">PROVIDERS</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
+          <div style="flex:1 !important;padding:16px !important;">
+      <!-- #4659 — Cloud AI master toggle (Sovereign OFF / Ask-first ON) -->
+      <div id="cloudMasterToggle" style="margin-bottom:16px;"></div>
+      <div id="engineers-summary"></div>
+      <!-- DS9 Phase 2 — OmniRoute free-tier quota (per-upstream throttle). Card is
+           painted by loadOmnirouteQuota(); empty/failed card reads "no data yet",
+           never affects the providers grid below it. -->
+      <div id="ds9QuotaCard" style="margin:0 0 16px 0;"></div>
+      <!-- DS9 — the Codex app-server CONNECTION. The providers grid below is the
+           PLATFORM's external upstreams; the app-server is a connection inside
+           DS9's own store, so without this card the operator cannot see who it
+           is authorized as or whether it is reachable. Painted by
+           loadAppServerConnections(); read-only, never affects the grid. -->
+      <div id="ds9AppServerCard" style="margin:0 0 16px 0;"></div>
+      <div id="engineers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;padding:8px 0;"></div>
+      <!-- FLEET USAGE — re-homed from the retired A.R.M.A.D.A. NETWORK sub-tab
+           (2026-09-11). It belongs beside PROVIDER BUDGETS, not on Cluster:
+           total_cost and distinct-cloud-providers-called are CONTRACTOR spend,
+           not node state. It complements the budget table rather than repeating
+           it — that table is per-provider, this is the roll-up.
+           Both are painted by the SAME loadFleetUsage() call, so they can never
+           disagree. ⚠️ That function is also what fills #fleetBudgetTableBody —
+           do not delete it if this panel is ever removed again. -->
+      <div class="dhq-dispatch-section">
+        <div class="dhq-section-title">FLEET USAGE (30 DAYS)</div>
+        <div style="display:flex;gap:24px;padding:8px 0;font-size:0.8rem;">
+          <div>Calls: <strong id="fleetUsageCalls">--</strong></div>
+          <div>Cost: <strong id="fleetUsageCost">--</strong></div>
+          <div>Providers: <strong id="fleetUsageProviders">--</strong></div>
+        </div>
+      </div>
+
+      <!-- Budget Table (moved from Fleet — belongs with engineer definitions) -->
+      <div class="dhq-dispatch-section" id="fleetBudgetSection">
+        <div class="dhq-section-title">PROVIDER BUDGETS</div>
+        <table style="width:100%;font-size:0.75rem;border-collapse:collapse;">
+          <tbody id="fleetBudgetTableBody"></tbody>
+        </table>
+      </div>
+          </div>
+          <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
+
+
 
     <!-- COMS TAB — A.R.C.H.I.E.'s cross-channel conversation feed -->
     <div class="dhq-panel" id="panel-coms">

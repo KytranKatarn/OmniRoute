@@ -238,15 +238,52 @@ _KE_ACCENT_BAR_WIDTH_RATIO = 0.006  # of image width
 _KE_ACCENT_BAR_HEIGHT_RATIO = 1.05  # of name size
 _KE_ACCENT_BAR_NUDGE_RATIO = 0.12  # of name size
 _KE_NAME_TEXT_GAP_RATIO = 0.42  # of name size — the gap between bar and name
-_KE_DEPT_LIFT_RATIO = 0.055  # of image height — lifts the dept line off the hem
-# The corner scrim behind the name: a ramp spanning this much of the frame from
-# the top-left, fading to nothing before it reaches the subject.
-_KE_CORNER_REACH_X_RATIO = 0.62  # of image width
-_KE_CORNER_REACH_Y_RATIO = 0.30  # of image height
-_KE_CORNER_FALLOFF_X = 1.2  # exponent — how fast it fades rightward
-_KE_CORNER_FALLOFF_Y = 1.6  # exponent — steeper downward, so the subject stays clean
-_KE_CORNER_OPACITY = 0.80
-_KE_CORNER_BLUR_RATIO = 0.005  # of image width — softens the ramp's hard edge
+# Layout (2026-10-21): name top-left, mark top-right (clear of the subject's shoulders), and a
+# larger title + department band along the bottom. The top strip and the bottom band each sit
+# on their own scrim, because text over a light background is unreadable.
+_KE_TOP_SCRIM_RATIO = 0.20  # of image height
+_KE_TOP_SCRIM_STRENGTH = 0.75
+_KE_TITLE_SIZE_RATIO = 0.046  # of image height — the job title, the main bottom line
+_KE_SUBTITLE_SIZE_RATIO = 0.030  # of image height — "DEPARTMENT · KYTRAN EMPOWERMENT"
+_KE_TITLE_TRACKING_RATIO = 0.09  # of title size
+_KE_SUBTITLE_TRACKING_RATIO = 0.12  # of subtitle size
+_KE_TITLE_RULE_GAP_RATIO = 0.018  # of image height — gap between the cyan rule and the title
+_KE_TITLE_RULE_LENGTH_RATIO = 0.12  # of image width
+_KE_TITLE_BAND_STRENGTH = 0.92
+_KE_BRAND_SUFFIX = "KYTRAN EMPOWERMENT"
+
+
+def _ke_vertical_scrim(size, height: int, top: bool, strength: float, exponent: float = 1.2):
+    """A full-width dark gradient strip, opaque at its outer edge and fading toward the subject."""
+    from PIL import Image
+
+    width = size[0]
+    ramp = Image.new("L", (1, height), 0)
+    px = ramp.load()
+    for y in range(height):
+        t = (1 - y / max(1, height - 1)) if top else (y / max(1, height - 1))
+        px[0, y] = int(255 * strength * (t**exponent))
+    layer = Image.new("RGBA", (width, height), (6, 10, 18, 255))
+    layer.putalpha(ramp.resize((width, height)))
+    return layer
+
+
+def _fit_tracked_size(draw, text, font_candidates, size: int, tracking_ratio: float, max_width: int, min_px: int):
+    """Largest font <= ``size`` whose tracked text fits ``max_width`` (shrinks 6% at a time).
+
+    At the minimum size an over-long string is truncated with an ellipsis rather than left to
+    run off the image. Returns ``(font, size, tracking, text)``.
+    """
+    while True:
+        font = _load_ke_font(font_candidates, size)
+        tracking = max(1, int(size * tracking_ratio))
+        if font is None or _text_width(draw, text, font, tracking) <= max_width:
+            return font, size, tracking, text
+        if size <= min_px:
+            while len(text) > 1 and _text_width(draw, text + "\u2026", font, tracking) > max_width:
+                text = text[:-1]
+            return font, size, tracking, text.rstrip() + "\u2026"
+        size = max(min_px, int(size * 0.94))
 
 
 def _load_ke_font(candidates, size: int):
@@ -306,9 +343,10 @@ def apply_ke_branding(
     margin_ratio: float = 0.035,
     scrim: bool = True,
     scrim_ratio: float = 0.26,
-    scrim_strength: float = 0.72,
+    scrim_strength: float = _KE_TITLE_BAND_STRENGTH,
     agent_name: str = "",
     department: str = "",
+    subtitle: str = "",
 ) -> bool:
     """Composite the KE mark and the agent identity onto a finished image.
 
@@ -317,12 +355,13 @@ def apply_ke_branding(
     gibberish on the subject's clothing.
 
     Layout (a name-plate, so the output reads as an official portrait card):
-      top-left     agent name, wide-tracked, over its own corner scrim
-      bottom-left  department, smaller and dimmer
-      bottom-right the mark, over the lower scrim
+      top-left     agent name, wide-tracked, with a cyan accent bar
+      top-right    the mark
+      bottom       cyan rule, the title (``department`` argument, large) and an optional
+                   ``subtitle`` line (department / brand), over a dark band
 
     Both scrims are load-bearing. Portraits are centre-framed, so a bare corner
-    mark lands on the subject's shoulder and reads as a lapel pin, and
+    mark at the bottom lands on the subject's shoulder and reads as a lapel pin, and
     unbacked text over a light background is unreadable.
 
     Returns True if the image was modified. Never raises — a branding failure
@@ -363,105 +402,109 @@ def apply_ke_branding(
             logo.putalpha(alpha)
 
         margin = max(1, int(round(base.width * margin_ratio)))
-        pos = (base.width - logo.width - margin, base.height - logo.height - margin)
+        pos = (base.width - logo.width - margin, margin)  # top-right
 
         out = base
+        name = (agent_name or "").strip()  # a NULL column reaches Python as None
+        title = (department or "").strip()
+        sub = (subtitle or "").strip()
 
-        # --- identity plate: agent name top-left, department bottom-left ---
-        # A NULL identity column reaches Python as None, so normalise once here
-        # rather than guarding every use of the two strings below.
-        name = (agent_name or "").strip()
-        dept = (department or "").strip()
-        if name or dept:
-            from PIL import ImageDraw
+        from PIL import ImageDraw
 
-            name_size = max(_KE_NAME_MIN_PX, int(round(base.height * _KE_NAME_SIZE_RATIO)))
-            dept_size = max(_KE_DEPT_MIN_PX, int(round(base.height * _KE_DEPT_SIZE_RATIO)))
-            name_font = _load_ke_font(_KE_FONT_CANDIDATES_BOLD, name_size) if name else None
-            dept_font = _load_ke_font(_KE_FONT_CANDIDATES_REGULAR, dept_size) if dept else None
-
-            if name_font or dept_font:
-                # Corner scrim behind the name: a linear ramp from the top-left,
-                # fading to nothing by the time it reaches the subject. Text over
-                # an unbacked light background is unreadable.
-                corner = Image.new("L", (base.width, base.height), 0)
-                cpx = corner.load()
-                reach_x = int(base.width * _KE_CORNER_REACH_X_RATIO)
-                reach_y = int(base.height * _KE_CORNER_REACH_Y_RATIO)
-                for y in range(reach_y):
-                    for x in range(reach_x):
-                        fx = 1.0 - (x / reach_x)
-                        fy = 1.0 - (y / reach_y)
-                        cpx[x, y] = int(
-                            255 * (fx**_KE_CORNER_FALLOFF_X) * (fy**_KE_CORNER_FALLOFF_Y) * _KE_CORNER_OPACITY
-                        )
-                corner = corner.filter(ImageFilter.GaussianBlur(radius=max(2, int(base.width * _KE_CORNER_BLUR_RATIO))))
-                corner_layer = Image.new("RGBA", base.size, (6, 10, 18, 255))
-                corner_layer.putalpha(corner)
-                out = Image.alpha_composite(out, corner_layer)
-
-                draw = ImageDraw.Draw(out)
-                pad = max(10, int(round(base.width * margin_ratio)))
-                x0 = pad
-                y0 = pad
-
-                if name_font:
-                    tracking = max(1, int(name_size * _KE_NAME_TRACKING_RATIO))
-                    # Accent bar to the left of the name, LCARS-style.
-                    bar_h = int(name_size * _KE_ACCENT_BAR_HEIGHT_RATIO)
-                    bar_w = max(3, int(round(base.width * _KE_ACCENT_BAR_WIDTH_RATIO)))
-                    bar_top = y0 + int(name_size * _KE_ACCENT_BAR_NUDGE_RATIO)
-                    draw.rectangle([x0, bar_top, x0 + bar_w, bar_top + bar_h], fill=(34, 211, 238, 255))
-                    _draw_tracked_text(
-                        draw,
-                        (x0 + bar_w + int(name_size * _KE_NAME_TEXT_GAP_RATIO), y0),
-                        name.upper(),
-                        name_font,
-                        (255, 255, 255, 255),
-                        tracking=tracking,
-                        shadow=(0, 0, 0, 170),
-                        shadow_offset=max(1, int(name_size * _KE_NAME_SHADOW_RATIO)),
-                    )
-
-                if dept_font:
-                    dtrack = max(1, int(dept_size * _KE_DEPT_TRACKING_RATIO))
-                    # Bottom-left, balancing the mark on the right. Lifted clear
-                    # of the very bottom edge so it does not sit on the hem.
-                    dy = base.height - pad - dept_size - int(base.height * _KE_DEPT_LIFT_RATIO)
-                    _draw_tracked_text(
-                        draw,
-                        (x0, dy),
-                        dept.upper(),
-                        dept_font,
-                        (34, 211, 238, 255),
-                        tracking=dtrack,
-                        shadow=(0, 0, 0, 190),
-                        shadow_offset=max(1, int(dept_size * _KE_DEPT_SHADOW_RATIO)),
-                    )
-
-        # Gradient scrim across the lower band, transparent above it.
+        # Top strip scrim: backs both the name and the mark.
+        top_h = max(1, int(round(base.height * _KE_TOP_SCRIM_RATIO)))
+        out.alpha_composite(_ke_vertical_scrim(base.size, top_h, True, _KE_TOP_SCRIM_STRENGTH), (0, 0))
+        # Bottom band scrim behind the title.
         if scrim:
             band_h = max(1, int(round(base.height * scrim_ratio)))
-            band_top = base.height - band_h
-            ramp = Image.new("L", (1, base.height), 0)
-            ramp_px = ramp.load()
-            for y in range(band_top, base.height):
-                t = (y - band_top) / max(1, band_h - 1)
-                ramp_px[0, y] = int(255 * (t**1.5) * scrim_strength)
-            ramp = ramp.resize((base.width, base.height))
-            scrim_layer = Image.new("RGBA", base.size, (6, 10, 18, 255))
-            scrim_layer.putalpha(ramp)
-            out = Image.alpha_composite(out, scrim_layer)
+            out.alpha_composite(_ke_vertical_scrim(base.size, band_h, False, scrim_strength), (0, base.height - band_h))
 
-        # Soft drop shadow: a blurred black silhouette of the mark, offset a
-        # few pixels, keeps the logo legible over a light backdrop.
+        draw = ImageDraw.Draw(out)
+        pad = max(10, int(round(base.width * margin_ratio)))
+        max_w = base.width - 2 * pad
+
+        if name:
+            name_size = max(_KE_NAME_MIN_PX, int(round(base.height * _KE_NAME_SIZE_RATIO)))
+            name_font = _load_ke_font(_KE_FONT_CANDIDATES_BOLD, name_size)
+            if name_font:
+                tracking = max(1, int(name_size * _KE_NAME_TRACKING_RATIO))
+                bar_h = int(name_size * _KE_ACCENT_BAR_HEIGHT_RATIO)
+                bar_w = max(3, int(round(base.width * _KE_ACCENT_BAR_WIDTH_RATIO)))
+                bar_top = pad + int(name_size * _KE_ACCENT_BAR_NUDGE_RATIO)
+                draw.rectangle([pad, bar_top, pad + bar_w, bar_top + bar_h], fill=(34, 211, 238, 255))
+                _draw_tracked_text(
+                    draw,
+                    (pad + bar_w + int(name_size * _KE_NAME_TEXT_GAP_RATIO), pad),
+                    name.upper(),
+                    name_font,
+                    (255, 255, 255, 255),
+                    tracking=tracking,
+                    shadow=(0, 0, 0, 170),
+                    shadow_offset=max(1, int(name_size * _KE_NAME_SHADOW_RATIO)),
+                )
+
+        # Bottom block, built upward from the lower margin: subtitle, then title, then the rule.
+        cursor = base.height - pad
+        if sub:
+            sub_text = sub.upper()
+            sub_font, sub_size, sub_track, sub_text = _fit_tracked_size(
+                draw,
+                sub_text,
+                _KE_FONT_CANDIDATES_REGULAR,
+                max(_KE_DEPT_MIN_PX, int(round(base.height * _KE_SUBTITLE_SIZE_RATIO))),
+                _KE_SUBTITLE_TRACKING_RATIO,
+                max_w,
+                _KE_DEPT_MIN_PX,
+            )
+            if sub_font:
+                cursor -= sub_size
+                _draw_tracked_text(
+                    draw,
+                    (pad, cursor),
+                    sub_text,
+                    sub_font,
+                    (34, 211, 238, 255),
+                    tracking=sub_track,
+                    shadow=(0, 0, 0, 190),
+                    shadow_offset=max(1, int(sub_size * _KE_DEPT_SHADOW_RATIO)),
+                )
+                cursor -= int(sub_size * 0.6)
+        if title:
+            title_text = title.upper()
+            title_font, title_size, title_track, title_text = _fit_tracked_size(
+                draw,
+                title_text,
+                _KE_FONT_CANDIDATES_BOLD,
+                max(_KE_NAME_MIN_PX, int(round(base.height * _KE_TITLE_SIZE_RATIO))),
+                _KE_TITLE_TRACKING_RATIO,
+                max_w,
+                _KE_NAME_MIN_PX,
+            )
+            if title_font:
+                cursor -= title_size
+                _draw_tracked_text(
+                    draw,
+                    (pad, cursor),
+                    title_text,
+                    title_font,
+                    (255, 255, 255, 255),
+                    tracking=title_track,
+                    shadow=(0, 0, 0, 200),
+                    shadow_offset=max(1, int(title_size * _KE_NAME_SHADOW_RATIO)),
+                )
+                rule_y = cursor - int(round(base.height * _KE_TITLE_RULE_GAP_RATIO))
+                rule_w = int(round(base.width * _KE_TITLE_RULE_LENGTH_RATIO))
+                draw.rectangle(
+                    [pad, rule_y, pad + rule_w, rule_y + max(2, int(base.height * 0.004))], fill=(34, 211, 238, 255)
+                )
+
+        # Soft drop shadow: a blurred black silhouette of the mark keeps it legible over a light backdrop.
         shadow = Image.new("RGBA", base.size, (0, 0, 0, 0))
         offset = max(2, int(round(base.width * 0.004)))
         shadow.paste((0, 0, 0, int(150 * opacity)), (pos[0] + offset, pos[1] + offset), logo)
         shadow = shadow.filter(ImageFilter.GaussianBlur(radius=max(2, offset)))
         out = Image.alpha_composite(out, shadow)
 
-        # Composite the logo at its position (alpha_composite needs full-size).
         logo_layer = Image.new("RGBA", base.size, (0, 0, 0, 0))
         logo_layer.paste(logo, pos, logo)
         out = Image.alpha_composite(out, logo_layer)
@@ -567,12 +610,14 @@ def on_generation_complete(
         # must not cost the mark, so this degrades to mark-only.
         agent_name = ""
         department = ""
+        dept_only = ""
         if queue_row.get("owner_type") == "agent" and queue_row.get("owner_id"):
             try:
                 with get_db_cursor(commit=False) as (_c, cur2):
                     cur2.execute(
                         """SELECT COALESCE(NULLIF(display_name,''), NULLIF(name,'')) AS n,
-                                  COALESCE(NULLIF(title,''), NULLIF(department,'')) AS d
+                                  COALESCE(NULLIF(title,''), NULLIF(department,'')) AS d,
+                                  NULLIF(department,'') AS dept
                            FROM agents WHERE id = %s""",
                         (queue_row["owner_id"],),
                     )
@@ -580,9 +625,11 @@ def on_generation_complete(
                 if row2:
                     agent_name = row2.get("n") or ""
                     department = row2.get("d") or ""
+                    dept_only = row2.get("dept") or ""
             except Exception as exc:
                 logger.warning("KE branding: agent lookup failed for %s: %s", queue_row["owner_id"], exc)
-        ke_logo_applied = apply_ke_branding(dest_path, agent_name=agent_name, department=department)
+        _subtitle = " · ".join(x for x in (dept_only if dept_only != department else "", _KE_BRAND_SUFFIX) if x)
+        ke_logo_applied = apply_ke_branding(dest_path, agent_name=agent_name, department=department, subtitle=_subtitle)
 
     # URL-friendly path for DB storage. Normalize to /static/<rel-to-static>
     # so avatar_url works directly as an <img src>. The old implementation

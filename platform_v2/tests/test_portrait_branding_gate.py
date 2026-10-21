@@ -824,7 +824,7 @@ def _gradient_png(path, size=(512, 512)):
     return path
 
 
-def test_apply_ke_branding_stamps_the_real_mark_in_the_corner(tmp_path):
+def test_apply_ke_branding_stamps_the_real_mark_top_right_and_tints_the_bottom_band(tmp_path):
     from PIL import Image, ImageChops
 
     logo = tmp_path / "logo.png"
@@ -834,16 +834,53 @@ def test_apply_ke_branding_stamps_the_real_mark_in_the_corner(tmp_path):
     before = Image.open(target).convert("RGB")
     assert apply_ke_branding(str(target), logo_path=str(logo)) is True
     after = Image.open(target).convert("RGB")
-
-    # The mark must land in the bottom-right corner...
     w, h = after.size
-    corner = after.crop((int(w * 0.6), int(h * 0.6), w, h))
-    corner_before = before.crop((int(w * 0.6), int(h * 0.6), w, h))
-    assert ImageChops.difference(corner, corner_before).getbbox() is not None
-    # ...and the top of the frame must stay untouched (scrim is bottom-only).
-    top = after.crop((0, 0, w, int(h * 0.4)))
-    top_before = before.crop((0, 0, w, int(h * 0.4)))
-    assert ImageChops.difference(top, top_before).getbbox() is None
+
+    def changed(box):
+        return ImageChops.difference(after.crop(box), before.crop(box)).getbbox() is not None
+
+    # The mark lands top-right, clear of the subject's shoulders...
+    assert changed((int(w * 0.7), 0, w, int(h * 0.25)))
+    # ...the bottom band is darkened for the title...
+    assert changed((0, int(h * 0.8), w, h))
+    # ...and the middle of the frame (the face) is untouched.
+    assert not changed((int(w * 0.2), int(h * 0.3), int(w * 0.8), int(h * 0.7)))
+
+
+def test_apply_ke_branding_title_and_subtitle_are_drawn_and_fit_the_width(tmp_path):
+    from PIL import Image, ImageChops
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (64, 76), (200, 30, 30, 255)).save(logo)
+    plain = _gradient_png(tmp_path / "plain.png")
+    texted = _gradient_png(tmp_path / "texted.png")
+    assert apply_ke_branding(str(plain), logo_path=str(logo)) is True
+    long_title = "SENIOR PRINCIPAL DISTRIBUTED SYSTEMS RELIABILITY ENGINEERING SPECIALIST"
+    assert (
+        apply_ke_branding(
+            str(texted),
+            logo_path=str(logo),
+            agent_name="S.I.F.T.",
+            department=long_title,
+            subtitle="NEWS & MEDIA \u00b7 KYTRAN EMPOWERMENT",
+        )
+        is True
+    )
+    a, b = Image.open(plain).convert("RGB"), Image.open(texted).convert("RGB")
+    w, h = a.size
+    # Text only differs in the bottom band; an over-long title must not run off the right edge.
+    assert ImageChops.difference(a.crop((0, int(h * 0.7), w, h)), b.crop((0, int(h * 0.7), w, h))).getbbox() is not None
+    right_margin = (w - int(w * 0.02), int(h * 0.7), w, h)
+    assert ImageChops.difference(a.crop(right_margin), b.crop(right_margin)).getbbox() is None
+
+
+def test_apply_ke_branding_tolerates_null_identity_columns(tmp_path):
+    from PIL import Image
+
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (64, 76), (200, 30, 30, 255)).save(logo)
+    target = _gradient_png(tmp_path / "n.png")
+    assert apply_ke_branding(str(target), logo_path=str(logo), agent_name=None, department=None, subtitle=None) is True
 
 
 def test_apply_ke_branding_is_silent_on_missing_assets(tmp_path):
@@ -997,12 +1034,7 @@ def _ms_z_layers():
     import re
 
     css = (
-        Path(__file__).resolve().parents[1]
-        / "tools"
-        / "media_studio"
-        / "static"
-        / "css"
-        / "media-studio.css"
+        Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "static" / "css" / "media-studio.css"
     ).read_text()
     tpl = (
         Path(__file__).resolve().parents[1]
@@ -1076,8 +1108,7 @@ def _ms_template() -> str:
 def test_queue_tab_has_exactly_one_poll_timer():
     src = _ms_template()
     assert src.count("queuePollTimer = setInterval(") == 1, (
-        "the Queue tab must start exactly one poll timer; more than one leaks a "
-        "handle that can never be cleared"
+        "the Queue tab must start exactly one poll timer; more than one leaks a " "handle that can never be cleared"
     )
     assert "clearInterval(queuePollTimer)" in src
 
@@ -1114,9 +1145,9 @@ def test_queue_card_thumbnail_falls_back_to_file_path():
     src = _ms_template()
     i = src.index("function _createQueueCard(")
     body = src[i : i + 2500]
-    assert "item.thumbnail_path || item.file_path" in body, (
-        "the queue card must fall back to file_path when thumbnail_path is NULL"
-    )
+    assert (
+        "item.thumbnail_path || item.file_path" in body
+    ), "the queue card must fall back to file_path when thumbnail_path is NULL"
 
 
 def test_history_pager_controls_exist():
@@ -1133,9 +1164,7 @@ def test_queue_api_supports_offset():
     assert "offset" in inspect.signature(get_queue_status).parameters
     assert "OFFSET" in inspect.getsource(get_queue_status)
 
-    routes = (
-        Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py"
-    ).read_text()
+    routes = (Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py").read_text()
     start = routes.index("def api_queue(")
     end = routes.index("@media_studio_bp.route", start + 1)
     body = routes[start:end]
@@ -1196,11 +1225,11 @@ def test_ke_branding_survives_missing_fonts():
     assert _load_ke_font(("/definitely/not/a/font.ttf",), 20) is None
 
 
-def test_ke_branding_does_not_require_identity_fields():
+def test_ke_branding_does_not_require_identity_fields(tmp_path):
     """Back-compat: mark-only branding (the pre-overlay call) must still work."""
-    import inspect
+    from PIL import Image
 
-    src = inspect.getsource(apply_ke_branding)
-    # Identity is an additive branch, not a precondition.
-    assert "if name or dept:" in src
-    assert "return False" not in src.split("if name or dept:")[1].split("if scrim:")[0]
+    logo = tmp_path / "logo.png"
+    Image.new("RGBA", (64, 76), (200, 30, 30, 255)).save(logo)
+    target = _gradient_png(tmp_path / "mark_only.png")
+    assert apply_ke_branding(str(target), logo_path=str(logo)) is True

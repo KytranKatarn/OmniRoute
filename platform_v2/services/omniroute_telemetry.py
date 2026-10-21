@@ -168,17 +168,29 @@ def _pg_timestamp(iso: str | None) -> str | None:
 
 def _select_rows(c, ts_mark: str, id_mark: str, max_batch: int):
     """Rows newer than the watermark, oldest first (see the id-is-a-string note)."""
+
+    # Rows come back as sqlite3.Row (the connection sets row_factory), and
+    # sqlite3.Row has no .get() - so _import_rows blew up on every call with
+    # "'sqlite3.Row' object has no attribute 'get'" and the mirror silently
+    # stopped. omniroute_health.read_window converts its rows to dicts for
+    # exactly this reason; do the same here so the row type matches what the
+    # importer expects.
+    def _as_dicts(rows):
+        return [dict(r) for r in rows]
+
     if ts_mark:
-        return c.execute(
-            "SELECT * FROM call_logs "
-            " WHERE timestamp > ? OR (timestamp = ? AND id > ?) "
-            " ORDER BY timestamp, id LIMIT ?",
-            (ts_mark, ts_mark, id_mark, max_batch),
-        ).fetchall()
+        return _as_dicts(
+            c.execute(
+                "SELECT * FROM call_logs "
+                " WHERE timestamp > ? OR (timestamp = ? AND id > ?) "
+                " ORDER BY timestamp, id LIMIT ?",
+                (ts_mark, ts_mark, id_mark, max_batch),
+            ).fetchall()
+        )
     # First run: walk from the beginning. This is a real backfill and it is SAFE
     # because created_at carries each call's own timestamp — the rows land in their
     # true historical buckets, not as a spike at import time.
-    return c.execute("SELECT * FROM call_logs ORDER BY timestamp, id LIMIT ?", (max_batch,)).fetchall()
+    return _as_dicts(c.execute("SELECT * FROM call_logs ORDER BY timestamp, id LIMIT ?", (max_batch,)).fetchall())
 
 
 def _import_rows(cur, rows, cols) -> tuple[int, int, int]:

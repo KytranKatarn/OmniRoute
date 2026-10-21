@@ -60,6 +60,9 @@ case "$MODE" in
         run_component gitbundle
         run_component config
         run_component volumes
+        # The DS9 gateway's own store: its live API keys (the codex lane's key
+        # exists ONLY there), the codex-app-server connection, and its settings.
+        run_component ds9
         ;;
     weekly)
         run_component db
@@ -68,6 +71,7 @@ case "$MODE" in
         run_component config
         run_component volumes
         run_component convlogs
+        run_component ds9
         run_component kb_export
         run_component vps_pull
         ;;

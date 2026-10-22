@@ -299,17 +299,29 @@ export const EMBEDDING_PROVIDERS: Record<string, EmbeddingProvider> = {
     authType: "apikey",
     authHeader: "bearer",
     models: [
+      // Current recommended models (v4 series)
       { id: "voyage-4-large", name: "Voyage 4 Large", dimensions: 1024 },
       { id: "voyage-4", name: "Voyage 4", dimensions: 1024 },
       { id: "voyage-4-lite", name: "Voyage 4 Lite", dimensions: 1024 },
+      { id: "voyage-code-4", name: "Voyage Code 4", dimensions: 1024 },
+      { id: "voyage-finance-2", name: "Voyage Finance 2", dimensions: 1024 },
+      { id: "voyage-law-2", name: "Voyage Law 2", dimensions: 1024 },
+      // Previous generation (v3 series)
       { id: "voyage-3-large", name: "Voyage 3 Large", dimensions: 1024 },
       { id: "voyage-3.5", name: "Voyage 3.5", dimensions: 1024 },
       { id: "voyage-3.5-lite", name: "Voyage 3.5 Lite", dimensions: 512 },
-      { id: "voyage-multilingual-2", name: "Voyage Multilingual 2", dimensions: 1024 },
+      { id: "voyage-3", name: "Voyage 3", dimensions: 1024 },
+      { id: "voyage-3-lite", name: "Voyage 3 Lite", dimensions: 512 },
       { id: "voyage-code-3", name: "Voyage Code 3", dimensions: 1024 },
+      { id: "voyage-multilingual-2", name: "Voyage Multilingual 2", dimensions: 1024 },
+      // Legacy models (still accessible per Voyage docs)
+      { id: "voyage-large-2-instruct", name: "Voyage Large 2 Instruct", dimensions: 1024 },
+      { id: "voyage-large-2", name: "Voyage Large 2", dimensions: 1536 },
       { id: "voyage-code-2", name: "Voyage Code 2", dimensions: 1536 },
       { id: "voyage-finance-2", name: "Voyage Finance 2", dimensions: 1024 },
       { id: "voyage-law-2", name: "Voyage Law 2", dimensions: 1024 },
+      // Open model
+      { id: "voyage-4-nano", name: "Voyage 4 Nano", dimensions: 1024 },
     ],
   },
 

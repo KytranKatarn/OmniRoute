@@ -14,6 +14,7 @@ import { getSettings, updateSettings } from "@/lib/db/settings";
 import { isConnectionUnavailableToAuxiliaryActivity } from "@/lib/exclusiveLeaseIsolation";
 import { getRuntimePorts } from "@/lib/runtime/ports";
 import { timingSafeCompare } from "@/shared/utils/timingSafeCompare";
+import { syncAihordeChatCatalog } from "@omniroute/open-sse/services/aihordeChatCatalog.ts";
 
 export const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 /** Cycle-wide in-flight cap. Heap cost is total catalog JSON, not one upstream. */
@@ -298,21 +299,30 @@ async function runSyncCycle(apiBaseUrl: string): Promise<void> {
 
     if (connections.length === 0) {
       console.log("[ModelSync] No connections with autoSync enabled — skipping cycle");
-      return;
+    } else {
+      console.log(`[ModelSync] Starting model sync cycle — ${connections.length} connection(s)`);
+
+      const results = await mapWithConcurrencySettled(
+        connections,
+        MODEL_SYNC_CYCLE_CONCURRENCY,
+        (conn) => syncConnectionModels(conn.id, conn.name || conn.provider, apiBaseUrl)
+      );
+
+      const succeeded = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
+      console.log(
+        `[ModelSync] Cycle complete: ${succeeded}/${connections.length} synced in ${Date.now() - start}ms`
+      );
     }
 
-    console.log(`[ModelSync] Starting model sync cycle — ${connections.length} connection(s)`);
-
-    const results = await mapWithConcurrencySettled(
-      connections,
-      MODEL_SYNC_CYCLE_CONCURRENCY,
-      (conn) => syncConnectionModels(conn.id, conn.name || conn.provider, apiBaseUrl)
-    );
-
-    const succeeded = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
-    console.log(
-      `[ModelSync] Cycle complete: ${succeeded}/${connections.length} synced in ${Date.now() - start}ms`
-    );
+    // Also sync AI Horde chat models (keyless provider with live catalog)
+    try {
+      const aihordeResult = await syncAihordeChatCatalog();
+      console.log(
+        `[ModelSync] AI Horde chat catalog: ${aihordeResult.modelCount} model(s)${aihordeResult.error ? ` — ${aihordeResult.error}` : ""}`
+      );
+    } catch (err) {
+      console.warn(`[ModelSync] AI Horde chat catalog sync failed:`, err);
+    }
 
     // Record last sync time
     try {

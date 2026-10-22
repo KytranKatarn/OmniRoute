@@ -98,9 +98,11 @@ def get_gallery(
     order_by = _GALLERY_SORTS.get((sort or "newest").lower(), _GALLERY_SORTS["newest"])
 
     with get_db_cursor() as (conn, cur):
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
         total = cur.fetchone()["total"]
 
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; ORDER BY comes from the _GALLERY_SORTS whitelist; values are bound
         cur.execute(
             f"""
             SELECT id, media_type, file_path, thumbnail_path, prompt, model,

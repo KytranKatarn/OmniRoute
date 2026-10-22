@@ -62,6 +62,7 @@ def get_realtime_stats(
     try:
         with get_db_cursor() as (conn, cur):
             # Generation count (media_library, not deleted)
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT COUNT(*) FROM media_library {_where(['is_deleted = false'])}",
                 _vals(),
@@ -70,6 +71,7 @@ def get_realtime_stats(
 
             # Edit count
             edit_completed = "status = 'completed'"
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT COUNT(*) FROM media_edits {_where([edit_completed])}",
                 _vals(),
@@ -77,6 +79,7 @@ def get_realtime_stats(
             edit_count = cur.fetchone()[0]
 
             # Batch count
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT COUNT(*) FROM media_batches {_where()}",
                 _vals(),
@@ -94,6 +97,7 @@ def get_realtime_stats(
                 pip_vals.append(date_to)
             pip_parts.append("status = 'running'")
             pip_where = "WHERE " + " AND ".join(pip_parts) if pip_parts else ""
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT COUNT(*) FROM media_pipeline_executions {pip_where}",
                 pip_vals,
@@ -140,6 +144,7 @@ def get_recent_activity(
 
     try:
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"""
                 SELECT id, model, media_type, owner_type, owner_id, created_at
@@ -202,6 +207,7 @@ def get_trend_data(
     where, vals = _snapshot_where(period_type, scope_type, scope_id, date_from, date_to)
     try:
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"""
                 SELECT period_start, metrics
@@ -235,6 +241,7 @@ def get_model_breakdown(
     by_edit_type: Dict[str, int] = {}
     try:
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT metrics FROM media_analytics_snapshots {where}",
                 vals,
@@ -266,6 +273,7 @@ def get_cost_summary(
 
     try:
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT metrics FROM media_analytics_snapshots {where}",
                 vals,
@@ -307,6 +315,7 @@ def get_agent_vs_user(
         totals: Dict[str, float] = {}
         try:
             with get_db_cursor() as (conn, cur):
+                # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
                 cur.execute(
                     f"SELECT metrics FROM media_analytics_snapshots {where}",
                     vals,
@@ -335,6 +344,7 @@ def get_template_stats(
     success_rates = []
     try:
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"SELECT metrics FROM media_analytics_snapshots {where}",
                 vals,

@@ -185,9 +185,11 @@ def list_batches(
             where += " AND status = %s"
             params.append(status)
 
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(f"SELECT COUNT(*) as total FROM media_batches {where}", params)
         total = cur.fetchone()["total"]
 
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(
             f"SELECT * FROM media_batches {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
             params + [per_page, offset],
@@ -429,9 +431,11 @@ def get_queue_entries(
             where += " AND q.status = %s"
             params.append(status)
 
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(f"SELECT COUNT(*) as total FROM media_generation_queue q {where}", params)
         total = cur.fetchone()["total"]
 
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(
             f"""
             SELECT q.id, q.batch_id, q.status, q.media_type, q.params, q.error_message,

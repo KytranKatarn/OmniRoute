@@ -44,6 +44,7 @@ def update_collection(collection_id: int, owner_type: str, owner_id: int, **fiel
     values = list(updates.values())
 
     with get_db_cursor(commit=True) as (conn, cur):
+        # sql-safe: column names come from an allow-list; values are bound
         cur.execute(
             f"""
             UPDATE media_collections SET {', '.join(set_parts)}

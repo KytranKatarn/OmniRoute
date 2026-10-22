@@ -262,8 +262,10 @@ def api_gallery():
             _GALLERY_SORTS["newest"],
         )
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
             total = cur.fetchone()["total"]
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; ORDER BY comes from the _GALLERY_SORTS whitelist; values are bound
             cur.execute(
                 f"""
                 SELECT id, media_type, file_path, thumbnail_path, prompt, model,
@@ -354,8 +356,10 @@ def api_gallery():
             _GALLERY_SORTS["newest"],
         )
         with get_db_cursor() as (conn, cur):
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
             total = cur.fetchone()["total"]
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; ORDER BY comes from the _GALLERY_SORTS whitelist; values are bound
             cur.execute(
                 f"""
                 SELECT id, media_type, file_path, thumbnail_path, prompt, model,
@@ -2239,6 +2243,7 @@ def api_update_agent_config(agent_name):
     vals.append(agent_name)
 
     with get_db_cursor(commit=True) as (conn, cur):
+        # sql-safe: column names come from an allow-list; values are bound
         cur.execute(
             f"UPDATE media_agent_config SET {', '.join(sets)} " f"WHERE agent_name = %s RETURNING id",
             vals,

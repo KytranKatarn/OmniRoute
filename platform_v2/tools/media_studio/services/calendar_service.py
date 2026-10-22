@@ -88,6 +88,7 @@ def upsert_calendar_slot(day_of_week: int, slot_order: int = 0, **kwargs) -> Dic
     placeholders = ", ".join(["%s"] * len(insert_vals))
     set_clause = ", ".join(f"{k} = EXCLUDED.{k}" for k in fields) if fields else "is_active = is_active"
     with get_db_cursor(commit=True) as (conn, cur):
+        # sql-safe: column names come from an allow-list; values are bound
         cur.execute(
             f"""
             INSERT INTO social_content_calendar ({', '.join(insert_cols)})
@@ -142,6 +143,7 @@ def upsert_agent_voice(agent_id: int, **kwargs) -> Dict:
     vals = [agent_id] + list(fields.values())
     set_clause = ", ".join(f"{k} = EXCLUDED.{k}" for k in cols)
     with get_db_cursor(commit=True) as (conn, cur):
+        # sql-safe: column names come from an allow-list; values are bound
         cur.execute(
             f"""
             INSERT INTO agent_social_voice (agent_id, {', '.join(cols)})

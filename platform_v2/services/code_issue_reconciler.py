@@ -46,6 +46,10 @@ logger = logging.getLogger(__name__)
 
 RESOLVED_STALE = "resolved_stale"
 
+# A reviewer writes `# sql-safe: <why>` on (or directly above) the execute() line once they have READ where every interpolated
+# fragment comes from. That is a recorded human disproof, so unlike an unmarked finding it may be closed.
+SQL_SAFE_MARKER = "sql-safe:"
+
 # File content cache with mtime-based invalidation (persists across hourly runs)
 # Format: {file_path: (content, mtime, reason)}
 _file_cache: dict[str, tuple[str | None, float | None, str]] = {}
@@ -700,6 +704,11 @@ def _check_sql_injection_at_line(file_text: str, line_number: int) -> bool | Non
         return None
 
     target_line = lines[line_number - 1].strip()
+
+    # An audited marker on the execute() line, or the line directly above it, is a recorded review of
+    # where each interpolated fragment comes from.
+    if SQL_SAFE_MARKER in target_line or (line_number > 1 and SQL_SAFE_MARKER in lines[line_number - 2]):
+        return False
 
     # Quick text-based check first for the exact line
     # Skip lines that are clearly parameterized queries (DB-API %s placeholders)

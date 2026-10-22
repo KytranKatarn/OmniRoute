@@ -259,6 +259,13 @@ def _is_non_production_path(file_path: str) -> bool:
     return any(p in _NON_PRODUCTION_DIRS for p in parts[:-1])
 
 
+# SQL assembled by string building (see static_analysis). Placeholders + params are NOT matched.
+_SQL_BUILT_RE = re.compile(
+    r"""execute(?:many)?\s*\(\s*(?:f["']|"[^"]*"\s*(?:%|\+|\.format\s*\()|'[^']*'\s*(?:%|\+|\.format\s*\())"""
+)
+SQL_SAFE_MARKER = "sql-safe:"
+
+
 def static_analysis(code_content, file_path):
     """Regex-based static analysis (Python, JS, HTML). No AI required.
 
@@ -287,8 +294,16 @@ def static_analysis(code_content, file_path):
                         }
                     )
 
-            # Security: SQL injection risk
-            if re.search(r'execute\s*\(\s*["\'].*%s|execute\s*\(\s*f["\']', line):
+            # Security: SQL injection risk = SQL text BUILT by interpolation: an f-string, a `%` / `+` on a literal,
+            # or `.format(`. A literal with `%s` placeholders and a separate params argument is the SAFE,
+            # parameterized form and is NOT flagged (the old rule matched any `%s`, i.e. flagged the safe form
+            # and filed 200+ false findings). A site reviewed by a human carries `# sql-safe: <reason>` on the
+            # execute() line or the line directly above it (see code_issue_reconciler.SQL_SAFE_MARKER).
+            if (
+                _SQL_BUILT_RE.search(line)
+                and SQL_SAFE_MARKER not in line
+                and not (i > 1 and SQL_SAFE_MARKER in lines[i - 2])
+            ):
                 if "parameterized" not in line.lower():
                     issues.append(
                         {

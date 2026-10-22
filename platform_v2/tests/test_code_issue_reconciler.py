@@ -252,3 +252,39 @@ def test_recognised_class_keeps_its_own_fallback_over_the_eof_rule():
 
 def test_non_integer_line_number_is_safe():
     assert finding_still_reproduces(_PROSE, _SHORT3, "not-a-number") is None
+
+
+# --- SQL findings: only an AUDITED marker may close one -----------------------------------
+
+_FSQL = 'def f(cur, where, p):\n    cur.execute(f"SELECT * FROM t {where}", p)\n'
+_FSQL_MARKED = (
+    "def f(cur, where, p):\n"
+    '    cur.execute(f"SELECT * FROM t {where}", p)  # sql-safe: where is fixed fragments, values bound\n'
+)
+
+
+def test_an_unmarked_interpolated_query_still_reproduces():
+    assert finding_still_reproduces(SQLI, _FSQL, 2) is True
+
+
+def test_a_marked_query_is_closed_as_reviewed():
+    assert finding_still_reproduces(SQLI, _FSQL_MARKED, 2) is False
+
+
+def test_the_marker_only_counts_on_the_cited_line():
+    """A marker elsewhere in the file must not close a finding on a different line."""
+    src = _FSQL + 'def g(cur, w):\n    cur.execute(f"DELETE FROM t {w}")  # sql-safe: reviewed\n'
+    assert finding_still_reproduces(SQLI, src, 2) is True
+    assert finding_still_reproduces(SQLI, src, 4) is False
+
+
+def test_without_a_marker_unverifiable_stays_unverifiable():
+    """The standing policy is unchanged: no marker, no closing — a drifted line is still None."""
+    assert finding_still_reproduces(SQLI, "x = 1\n", 1) is None
+
+
+def test_a_marker_on_the_line_above_closes_but_two_lines_above_does_not():
+    above = 'def f(cur, where, p):\n    # sql-safe: where is fixed fragments, values bound\n    cur.execute(f"SELECT {where}", p)\n'
+    far = 'def f(cur, where, p):\n    # sql-safe: reviewed\n    x = 1\n    cur.execute(f"SELECT {where}", p)\n'
+    assert finding_still_reproduces(SQLI, above, 3) is False
+    assert finding_still_reproduces(SQLI, far, 4) is True

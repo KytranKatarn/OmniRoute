@@ -464,12 +464,57 @@ export function serializeToolsToPrompt(tools: unknown): string {
  * `idSeed` makes generated ids deterministic for callers that need stability; when
  * omitted, ids are still unique within a single call (index-based).
  */
+/**
+ * Normalises the NAMED-BLOCK tool dialect into the canonical shape.
+ *
+ * Some free backends (measured 2026-10-22: AI Horde's `google/gemma-4-31b`)
+ * answer the plain-text tool contract by naming the tool in its own tag:
+ *
+ *     <tool>
+ *     <get_weather>
+ *     {"location": "Toronto"}
+ *     </tool>
+ *
+ * The canonical shape this parser expects puts the name INSIDE the JSON:
+ *
+ *     <tool>{"name":"get_weather","arguments":{...}}</tool>
+ *
+ * Without this the block is invisible — `parseToolCallsFromText` returns null
+ * and the caller gets prose where a tool call was meant. Rewriting the named
+ * form into the canonical form makes the EXISTING parser accept it, with no
+ * new parsing rules.
+ *
+ * ADDITIVE BY CONSTRUCTION: it only rewrites a `<tool>` block whose inner
+ * content is not already a JSON object carrying a "name" — i.e. text that
+ * currently parses to nothing. A canonical block is left byte-for-byte alone,
+ * so the twelve executors that already work are unaffected.
+ */
+const NAMED_BLOCK_TOOL_RE = /<tool>\s*<([A-Za-z0-9_.-]+)>\s*(\{[\s\S]*?\})\s*<\/tool>/g;
+export function normalizeNamedBlockToolCalls(text: string): string {
+  if (typeof text !== "string") return text;
+  if (!text.includes("<tool>")) return text;
+  return text.replace(NAMED_BLOCK_TOOL_RE, (match: string, name: string, json: string) => {
+    const trimmed = json.trim();
+    // A canonical block already carries "name" inside the JSON — leave it.
+    if (/"name"\s*:/.test(trimmed)) return match;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return match;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return match;
+    return `<tool>${JSON.stringify({ name, arguments: parsed })}</tool>`;
+  });
+}
+
 export function parseToolCallsFromText(
   text: string,
   idSeed = "call",
   requestedTools?: unknown
 ): { content: string; toolCalls: OpenAIToolCall[] | null } {
-  const normalizedText = typeof text === "string" ? normalizeDsmlToolCalls(text) : text;
+  const normalizedText =
+    typeof text === "string" ? normalizeNamedBlockToolCalls(normalizeDsmlToolCalls(text)) : text;
   const requestedToolNames = getRequestedToolNames(requestedTools);
   if (
     typeof normalizedText !== "string" ||

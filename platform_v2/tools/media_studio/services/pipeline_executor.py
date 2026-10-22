@@ -277,17 +277,23 @@ def _execute_step(
 # ---------------------------------------------------------------------------
 
 
+_ALLOWED_ID_COLS = {"id"}
+
+
 def _wait_for_completion(table: str, id_col: str, id_val: int, timeout: int = 300) -> Dict:
     """Poll a table row until status is completed/failed or timeout expires."""
     # Guard against unexpected table names
     allowed_tables = {"media_generation_queue", "media_edits", "media_batches"}
     if table not in allowed_tables:
         return {"error": f"Unknown table: {table}"}
+    if id_col not in _ALLOWED_ID_COLS:  # id_col is interpolated into the query, so it is checked like the table
+        return {"error": f"Unknown id column: {id_col}"}
 
     elapsed = 0
     while elapsed < timeout:
         try:
             with get_db_cursor() as (conn, cur):
+                # sql-safe: table and id_col are checked against allow-lists above; values are bound
                 cur.execute(
                     f"SELECT status, error_message FROM {table} WHERE {id_col} = %s",
                     (id_val,),
@@ -331,6 +337,7 @@ def _update_execution(
     values.append(execution_id)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
+            # sql-safe: column names come from an allow-list; values are bound
             cur.execute(
                 f"UPDATE media_pipeline_executions SET {', '.join(sets)} WHERE id = %s",
                 values,

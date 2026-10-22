@@ -822,6 +822,7 @@ def get_queue_status(
         where = "WHERE " + " AND ".join(conditions)
         params.append(max(0, int(limit)))
         params.append(max(0, int(offset)))
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(
             f"""
             SELECT q.*, ml.thumbnail_path,

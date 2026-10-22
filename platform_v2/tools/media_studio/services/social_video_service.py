@@ -208,6 +208,7 @@ def update_queue_item(item_id, **kwargs):
     values = list(fields.values()) + [item_id]
 
     with get_db_cursor(commit=True) as (conn, cur):
+        # sql-safe: column names come from an allow-list; values are bound
         cur.execute(
             f"""
             UPDATE social_content_queue

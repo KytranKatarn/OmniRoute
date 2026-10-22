@@ -346,6 +346,7 @@ def list_templates(
 
             where_sql = " AND ".join(where_clauses)
 
+            # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(
                 f"""
                 SELECT DISTINCT ON (COALESCE(t.parent_id, t.id)) t.*,

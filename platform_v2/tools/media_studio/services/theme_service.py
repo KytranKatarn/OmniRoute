@@ -77,6 +77,7 @@ def update_theme(theme_id: int, **kwargs) -> Optional[Dict]:
     set_clause = ", ".join(f"{col} = %s" for col in allowed)
     values = list(allowed.values()) + [theme_id]
     with get_db_cursor(commit=True) as (conn, cur):
+        # sql-safe: column names come from an allow-list; values are bound
         cur.execute(
             f"UPDATE social_content_themes SET {set_clause} WHERE id = %s",
             values,
@@ -99,6 +100,7 @@ def upsert_scene(theme_id: int, scene_id: Optional[int], **kwargs) -> Dict:
         set_clause = ", ".join(f"{col} = %s" for col in allowed)
         values = list(allowed.values()) + [scene_id, theme_id]
         with get_db_cursor(commit=True) as (conn, cur):
+            # sql-safe: column names come from an allow-list; values are bound
             cur.execute(
                 f"UPDATE social_content_scenes SET {set_clause} WHERE id = %s AND theme_id = %s RETURNING *",
                 values,
@@ -110,6 +112,7 @@ def upsert_scene(theme_id: int, scene_id: Optional[int], **kwargs) -> Dict:
         placeholders = ", ".join(["%s"] * len(cols))
         values = [theme_id] + list(allowed.values())
         with get_db_cursor(commit=True) as (conn, cur):
+            # sql-safe: column names come from an allow-list; values are bound
             cur.execute(
                 f"INSERT INTO social_content_scenes ({', '.join(cols)}) VALUES ({placeholders}) RETURNING *",
                 values,

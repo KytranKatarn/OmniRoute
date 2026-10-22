@@ -111,9 +111,11 @@ def search_media(
     where = " AND ".join(conditions)
 
     with get_db_cursor() as (conn, cur):
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(f"SELECT COUNT(*) as total FROM media_library ml WHERE {where}", params)
         total = cur.fetchone()["total"]
 
+        # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
         cur.execute(
             f"""
             SELECT ml.id, ml.media_type, ml.file_path, ml.thumbnail_path, ml.prompt,

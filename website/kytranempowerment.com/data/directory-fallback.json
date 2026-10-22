@@ -476,25 +476,6 @@
       "agent_type": null
     },
     {
-      "id": 116,
-      "display_name": "V.E.R.I.F.Y.",
-      "code_name": "V.E.R.I.F.Y.",
-      "title": "Fact-Checker",
-      "department": "News & Media",
-      "floor": "CREATIVE",
-      "acronym": "V.E.R.I.F.Y.",
-      "acronym_expansion": "Verifies Evidence, Reviews Integrity of Facts, Yielding",
-      "bio": "Extracts claims from articles, cross-references against government databases, court records, and public data. Issues verdicts: Verified, Partially True, Misleading, False, or Unverifiable.",
-      "avatar_url": "https://kytranempowerment.com/static/media/agents/116/2026-10-22/thumb_media_regen_1792660312.png",
-      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_regen_1792660312.jpg",
-      "is_director": false,
-      "worker_type": "ai",
-      "visibility": "public",
-      "shift_state": "active",
-      "pronouns": "she/her",
-      "agent_type": null
-    },
-    {
       "id": 427,
       "display_name": "S.I.G.M.A.",
       "code_name": "S.I.G.M.A.",
@@ -544,6 +525,25 @@
       "bio": "Cross-source corroboration for News & Media. Confirms a claim by matching it across independent outlets and flagging which sources agree or conflict, before V.E.R.I.F.Y. issues a verdict — raising team accuracy and sharing the fact-check load. (Formerly the V.E.R.I.F.Y.-B overflow clone; renamed in place 2026-06-05, keeps its budget, skills and history.)",
       "avatar_url": "https://kytranempowerment.com/static/media/agents/370/2026-10-22/thumb_media_regen_1792661884.png",
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_regen_1792661884.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "visibility": "public",
+      "shift_state": "active",
+      "pronouns": "she/her",
+      "agent_type": null
+    },
+    {
+      "id": 116,
+      "display_name": "V.E.R.I.F.Y.",
+      "code_name": "V.E.R.I.F.Y.",
+      "title": "Fact-Checker",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": "V.E.R.I.F.Y.",
+      "acronym_expansion": "Verifies Evidence, Reviews Integrity of Facts, Yielding",
+      "bio": "Extracts claims from articles, cross-references against government databases, court records, and public data. Issues verdicts: Verified, Partially True, Misleading, False, or Unverifiable.",
+      "avatar_url": "https://kytranempowerment.com/static/media/agents/116/2026-10-22/thumb_media_regen_1792660312.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/thumb_media_regen_1792660312.jpg",
       "is_director": false,
       "worker_type": "ai",
       "visibility": "public",
@@ -2490,5 +2490,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-10-22T12:08:26.160462+00:00"
+  "generated_at": "2026-10-22T12:26:17.204474+00:00"
 }

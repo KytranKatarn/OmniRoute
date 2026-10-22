@@ -2,6 +2,43 @@
 
 **Date:** 2026-10-22 · **Task:** #7424 · **Lane:** opencode
 
+## Outcome
+
+**The throat is broken, and proven in the live gateway's own proxy log.**
+
+```
+03:02:48 aihorde success | level=direct | upstream=200 | 44839ms | acct=noauth
+03:03:40 aihorde success | level=direct | upstream=200 | 51916ms | acct=noauth
+03:04:09 aihorde success | level=direct | upstream=200 | 16186ms | acct=noauth
+03:06:49 aihorde success | level=direct | upstream=200 | 103775ms | acct=noauth
+03:08:04 aihorde success | level=direct | upstream=200 | 33066ms | acct=noauth
+```
+
+Six successful calls through the **second transport** — plain anonymous HTTPS,
+no browser, no account, no owner subscription — while `cloudflare-playground`
+served 40 more over its Chromium page. Two transports, one free tier. The
+latencies (16 s–104 s) are the volunteer queue doing what a volunteer queue
+does.
+
+The free auto pool went from **42 candidates to 48**: 40 `cfp` + 2 `uncloseai`
++ **6 `aihorde`**.
+
+**Also proved:** a chat through aihorde against the deployed gateway returns a
+real completion (`"content":"ALOVE"`), and the tool-bearing path now reaches
+both the upstream and the parser — with **two** dialects handled, because the
+models vary (the same model emitted both shapes on consecutive calls).
+
+**The residual, unchanged:** `cfp` and `aihorde` both run on this host, so a
+*host* failure still takes out both. True host independence is a second gateway
+on a second node.
+
+**Still open:** a model sync, so `aihorde` contributes its ~30 *live* chat
+models rather than the 3 static fallbacks (a passthrough model that is not in
+the gateway's registry reaches the upstream as "Model None not known!"), and the
+tool-emission *rate* per model — AI Horde's own description calls it "a lottery
+ticket rather than a known quantity", and the #7397 spread machinery is what
+keeps a noisy pool from concentrating traffic on one bad model.
+
 ## The headline
 
 **The task's premise was wrong in three ways, and correcting it changes the fix.**
@@ -110,12 +147,41 @@ normalises DeepSeek's native dialect (`normalizeDsmlToolCalls`) before parsing.
 
 ## The change
 
-**Status: edit 1 of 3 is committed to the DS9 tree** (`ade51b321`, branch
-`release/v3.8.53`) — the dialect normalizer, with its own test file and the
-existing 69-check translator suite still green. **Edits 2 and 3 must ship
-together**: the catalog flag admits `aihorde` to the pool, and without the
-executor the auto-router would dispatch with tools, `aihorde` would strip them,
-and the leg would silently answer in prose instead of calling a tool.
+**Status: all three edits are committed to the DS9 tree** (`ade51b321` the
+dialect normalizer, `a8e21d16f` the executor + the catalog flag, `db829eb1e`
+the two defects the first live run found) on branch `release/v3.8.53`. The patch
+travels in PR #4040 as `scripts/patches/ds9-7424-aihorde-free-tier.patch`,
+verified to apply **cleanly** to a pristine checkout of the pre-change state.
+
+**Measured live against the deployed gateway:** a plain chat through aihorde
+returns a real completion (`"content":"ALOVE"`). The tool-bearing path is what
+the rebuild now bakes in — see "What the first live run found" below.
+
+### What the first live run found (both now fixed in `db829eb1e`)
+
+1. **The model id never reached the upstream.** The body arrived without a
+   model and AI Horde answered `"Model None not known!"`. The executor now
+   takes the id from `input.model` when the body has none, and strips **only**
+   the provider prefix — model ids legitimately contain `/`
+   (`aphrodite/TheDrummer/Cydonia-24B-v4.3`), so path segments must not be
+   touched. The same rule the default executor follows.
+
+2. **The gateway refused tool-bearing requests to aihorde.** `unsupportedParams`
+   drives *two* things: the outbound sanitizer, and the request-level gate that
+   refuses a direct tool-bearing request for a model declaring tools
+   unsupported (`chatCore/toolCallingRequiredCheck.ts`). That gate exists
+   because silently stripping tools yields a 200 that can never call anything —
+   the model narrates a fake action instead — and **it cited AI Horde as the
+   live incident**. It was right about the old behaviour: AI Horde had no tool
+   support at all. It has one now, via prompt emulation, so declaring `tools`
+   unsupported kept refusing exactly the requests the emulation exists to
+   serve. The declaration is removed and the upstream strip moved into the
+   executor, where it belongs — it is a property of the upstream, not of the
+   gateway's API.
+
+   Verified against the real resolver: `getUnsupportedParams()` for aihorde
+   returns `["thinking"]`, never `["tools"]`, for every id shape (bare,
+   provider-prefixed, alias-prefixed).
 
 ### 1. The dialect normalizer — DONE (`ade51b321`)
 
@@ -128,9 +194,10 @@ block is left byte-for-byte alone.
 
 Verified: the named form now parses; the canonical form is untouched; the DSML
 dialect still parses; prose still parses to nothing. New test file
-`tests/unit/aihorde-named-block-tool-dialect.test.ts` (5 checks).
+`tests/unit/aihorde-named-block-tool-dialect.test.ts` (5 checks), and the
+existing 69-check translator suite still green.
 
-### 2. The dedicated `aihorde` executor — NOT YET WRITTEN
+### 2. The dedicated `aihorde` executor — DONE (`a8e21d16f`, `db829eb1e`)
 
 **The shape**, following `open-sse/executors/maxai.ts` (the closest existing
 pattern: OpenAI-compatible HTTP + prompt-emulated tool calling):
@@ -141,33 +208,31 @@ pattern: OpenAI-compatible HTTP + prompt-emulated tool calling):
   `transformResponse`), so the response side is parsed in the executor.
 - Request: `POST https://oai.aihorde.net/v1/chat/completions`,
   `Authorization: Bearer 0000000000` (the `anonymousApiKey` the registry
-  already declares), body `{ ...input.body, messages: effectiveMessages }`
+  already declares), body `{ ...body, model, messages: effectiveMessages }`
   with `tools` / `tool_choice` / `parallel_tool_calls` **deleted** — AI Horde
-  500s on a `tools` array.
+  500s on a `tools` array, and the strip belongs to the executor.
 - Tool contract: `prepareToolMessages(body, body.messages)` gives
   `{ hasTools, requestedTools, effectiveMessages }`; the contract travels in the
   prompt only, which is the same shim the web-cookie providers use.
 - Response: `buildToolAwareResult(text, requestedTools, "aihorde")` →
   `{ content, toolCalls, finishReason }`, returned in the OpenAI
-  `chat.completion` shape (`choices[0].message.tool_calls`).
-- Register it in `open-sse/executors/index.ts` (`"aihorde": () => import("./aihorde.ts")...`)
-  and point the registry entry at it with `executor: "aihorde"`.
+  `chat.completion` shape.
+- Registered in `open-sse/executors/index.ts`; the registry entry points at it
+  with `executor: "aihorde"`.
 
-### 3. The catalog flag — MUST SHIP WITH (2)
+### 3. The catalog flag — DONE (`a8e21d16f`)
 
 `src/shared/constants/providers/noauth.ts` — `toolCalling: "emulated"` on the
-`aihorde` entry. The allowlist is *derived* from that flag
-(`getAutoRoutableEmulatedNoAuthProviders()`), so there is no id list to
-maintain.
+`aihorde` entry. The allowlist is *derived* from that flag, so there is no id
+list to maintain.
 
 ### Then
 
 A model sync so `aihorde` contributes its ~30 live models instead of its 3
-static fallbacks; a build (`NEXT_DIST_DIR=.build/<name> npm run build`,
-~25-35 min); a swap with the old build kept for rollback; and verification:
-the readiness/allowlist gates admit `aihorde`, a free-tier call routes to it
-and does **not** touch the browser, and the browser can be stopped to prove the
-free tier still answers.
+static fallbacks; the build; the swap with the old build kept for rollback;
+and verification: the readiness/allowlist gates admit `aihorde`, a free-tier
+call routes to it and does **not** touch the browser, and the browser can be
+stopped to prove the free tier still answers.
 
 ### One thing to decide before the build
 
@@ -177,6 +242,59 @@ The DS9 tree currently has **8 uncommitted files** from the branding work
 `src/lib/db/rootLayoutSettings.ts`, `tsconfig.json`). A build bakes whatever
 is in the tree, so the next build will carry those too. That is probably
 intended, but it is worth confirming before a gateway swap.
+
+### And a build trap worth recording
+
+`NEXT_DIST_DIR` alone does **not** aim the build. The `postbuild`
+`colocate-standalone` step writes its ESM-scope files and worker bundles to
+`OMNIROUTE_STANDALONE_DIR`, which defaults to `.build/next/standalone` — so a
+build aimed elsewhere still writes 10+ files into the LIVE artifact, and the
+new artifact comes out incomplete. The correct invocation is:
+
+```
+NEXT_DIST_DIR=.build/<name> OMNIROUTE_STANDALONE_DIR=.build/<name>/standalone npm run build
+```
+
+Measured the hard way: the first build wrote 10 files into the live
+`.build/next/standalone` and left `.build/next-aihorde` missing them.
+
+### And a second trap: the artifact carries the repo's `.build/`
+
+A DS9 artifact **contains a copy of the repository's whole `.build/`**. The
+standalone's `server.js` requires `./.build/<dist-name>` — the Next server
+output is addressed by the dist dir's basename — so the standalone must carry a
+nested copy of the build output, and the bundler brings every older artifact
+along with it. Measured: the live artifact was **18 G**, of which **8.2 G** was
+four nested previous builds (107,117 files against a fresh artifact's 81,676).
+
+**The trap inside the trap:** the nested `.build/next-aihorde/` (4.8 G) inside
+the live artifact is **not** junk — it *is* the running server's chunk
+directory. Deleting the "obviously stale" nested dirs would have deleted the
+code the gateway is serving.
+
+> **The rule:** in every `*/standalone/.build/`, keep exactly the directory
+> whose name matches the dist dir that artifact was built as, and delete the
+> rest. `.build/next/standalone/.build/` keeps `next-aihorde`;
+> `.build/next-pre-<name>/standalone/.build/` keeps `next`.
+
+### And a third: two load paths in one artifact
+
+Hot-patching the standalone's TypeScript works for the **executor** (it is
+imported dynamically) and does **not** work for the **provider registry** (it
+is bundled into the server chunks). That is exactly why the plain chat worked
+while the tool gate kept firing: the executor's fix was live, the registry's
+was not. A hot-patch is a diagnostic aid, not a deployment — but it is a fast
+one, and it isolates which half of the change is broken.
+
+### And a consequence: 100% full disk
+
+Two builds plus the bloat filled the 443 G filesystem to **0 bytes free**. That
+killed a build mid-flight *and* broke the shell's stdout capture — commands
+ran but reported nothing. The platform's Postgres shares that filesystem, so a
+100%-full disk is a platform-wide incident, not just a build problem.
+
+**Check the disk before a DS9 build**, and count the nested copies:
+`du -sh .build/*/` plus `du -sh .build/*/standalone/.build/*/`.
 
 ## The residual, stated plainly
 

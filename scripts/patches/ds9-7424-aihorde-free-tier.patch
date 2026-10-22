@@ -1,8 +1,8 @@
 diff --git a/open-sse/config/providers/registry/aihorde/index.ts b/open-sse/config/providers/registry/aihorde/index.ts
-index ae5916ae3..46ae48cb4 100644
+index ae5916ae3..25c751072 100644
 --- a/open-sse/config/providers/registry/aihorde/index.ts
 +++ b/open-sse/config/providers/registry/aihorde/index.ts
-@@ -26,46 +26,53 @@ import { buildOpenAiCompatibleRegistryEntry } from "../../shared.ts";
+@@ -26,46 +26,76 @@ import { buildOpenAiCompatibleRegistryEntry } from "../../shared.ts";
   * while `count > 0`. An optional registered API key is stored as a normal
   * connection and sent as the Horde `apikey` header for both chat and images.
   */
@@ -59,13 +59,30 @@ index ae5916ae3..46ae48cb4 100644
 +    passthroughModels: true,
 +    anonymousApiKey: "0000000000",
 +    timeoutMs: 120_000,
-+    // Provider-wide fallback (getUnsupportedParams() falls back to this when a
-+    // model has no per-model entry) — every model AI Horde serves shares this
-+    // limitation, not just the 3 statically catalogued below. Without it, any
-+    // live-discovered model (the roster changes as workers come/go) sends
-+    // `tools` straight through and gets a 500 from the raw text-completion
-+    // backend, which doesn't understand the field at all.
-+    unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++    // NOT `unsupportedParams: ["tools", ...]` — deliberately, and this is the
++    // opposite of what it was before #7424.
++    //
++    // `unsupportedParams` drives TWO things: the outbound sanitizer (strip the
++    // field before the upstream call) and the gateway's request-level gate that
++    // REFUSES a direct tool-bearing request for a model that declares tools
++    // unsupported (open-sse/handlers/chatCore/toolCallingRequiredCheck.ts).
++    //
++    // That gate exists because silently stripping tools yields a 200 that can
++    // never call anything — the model narrates a fake action instead. It
++    // cited AI Horde as the live incident, and it was right about the OLD
++    // behaviour: AI Horde had no tool support at all.
++    //
++    // It has one now: the aihorde executor prompt-EMULATES tool calling (the
++    // shared <tool> contract travels in the prompt, and the reply is parsed
++    // back into tool_calls), so the client's tool call DOES reach it. Declaring
++    // "tools" unsupported would keep refusing exactly the requests the
++    // emulation exists to serve.
++    //
++    // The upstream still 500s on a tools[] array — the raw text-completion
++    // backends do not understand the field — so the EXECUTOR deletes
++    // tools / tool_choice / parallel_tool_calls from the outbound body itself
++    // (see open-sse/executors/aihorde.ts). That is the right place for it:
++    // the strip is a property of the upstream, not of the gateway's API.
 +    // Aphrodite's OpenAI-compatible facade 500s on a single-text-part content array —
 +    // it only implements the plain-string form (see openai-responses.ts collapse logic).
 +    requiresPlainStringContent: true,
@@ -75,21 +92,27 @@ index ae5916ae3..46ae48cb4 100644
 +        name: "Cydonia 24B (AI Horde)",
 +        contextLength: 32768,
 +        toolCalling: false,
-+        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++        // The executor strips tools/tool_choice/parallel_tool_calls from the
++        // outbound body — AI Horde's facade 500s on them. See the provider-level
++        // note above for why they are not declared here.
 +      },
 +      {
 +        id: "aphrodite/TheDrummer/Skyfall-31B-v4.2",
 +        name: "Skyfall 31B (AI Horde)",
 +        contextLength: 32768,
 +        toolCalling: false,
-+        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++        // The executor strips tools/tool_choice/parallel_tool_calls from the
++        // outbound body — AI Horde's facade 500s on them. See the provider-level
++        // note above for why they are not declared here.
 +      },
 +      {
 +        id: "google/gemma-4-31b",
 +        name: "Gemma 4 31B (AI Horde)",
 +        contextLength: 32768,
 +        toolCalling: false,
-+        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++        // The executor strips tools/tool_choice/parallel_tool_calls from the
++        // outbound body — AI Horde's facade 500s on them. See the provider-level
++        // note above for why they are not declared here.
 +      },
 +    ],
 +  }),
@@ -101,10 +124,10 @@ index ae5916ae3..46ae48cb4 100644
 +};
 diff --git a/open-sse/executors/aihorde.ts b/open-sse/executors/aihorde.ts
 new file mode 100644
-index 000000000..380024b09
+index 000000000..37506a0a8
 --- /dev/null
 +++ b/open-sse/executors/aihorde.ts
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,282 @@
 +import { BaseExecutor, type ExecuteInput, type ExecutorExecuteResult } from "./base.ts";
 +import { PROVIDERS } from "../config/constants.ts";
 +import { errorResponse } from "../utils/error.ts";
@@ -243,8 +266,29 @@ index 000000000..380024b09
 +    // AI Horde 500s on a tools[] array, so the contract travels in the prompt
 +    // only. `stream: false` upstream keeps the reply in one buffer, which is
 +    // what the marker parser needs.
++    //
++    // The model id needs care. chatCore normally sets body.model to the bare
++    // id, but the body can arrive WITHOUT one, and AI Horde answers
++    // "Model None not known!" to a missing model. So the id is taken from
++    // input.model (the executor's target) when the body has none, and only
++    // the PROVIDER prefix is stripped -- model ids legitimately contain "/"
++    // ("aphrodite/TheDrummer/Cydonia-24B-v4.3"), so path segments must not
++    // be touched (the same rule the default executor follows).
++    const bodyModel =
++      typeof body.model === "string" && body.model.trim().length > 0
++        ? body.model.trim()
++        : String(input.model ?? "").trim();
++    let modelId = bodyModel;
++    for (const prefix of ["aihorde/", "horde/"]) {
++      if (modelId.startsWith(prefix)) {
++        modelId = modelId.slice(prefix.length);
++        break;
++      }
++    }
++
 +    const chatBody: Record<string, unknown> = {
 +      ...body,
++      model: modelId,
 +      messages: flattenMessages(effectiveMessages),
 +      stream: false,
 +    };
@@ -381,10 +425,10 @@ index ec107eed1..baab4ab51 100644
    freebuff: () => import("./freebuff.ts").then((m) => new m.FreebuffExecutor()),
    fb: () => import("./freebuff.ts").then((m) => new m.FreebuffExecutor()), // Alias
 diff --git a/open-sse/translator/webTools.ts b/open-sse/translator/webTools.ts
-index e96cadc84..533374fe2 100644
+index e96cadc84..1e43580c4 100644
 --- a/open-sse/translator/webTools.ts
 +++ b/open-sse/translator/webTools.ts
-@@ -464,12 +464,57 @@ export function serializeToolsToPrompt(tools: unknown): string {
+@@ -464,12 +464,98 @@ export function serializeToolsToPrompt(tools: unknown): string {
   * `idSeed` makes generated ids deterministic for callers that need stability; when
   * omitted, ids are still unique within a single call (index-based).
   */
@@ -414,10 +458,51 @@ index e96cadc84..533374fe2 100644
 + * so the twelve executors that already work are unaffected.
 + */
 +const NAMED_BLOCK_TOOL_RE = /<tool>\s*<([A-Za-z0-9_.-]+)>\s*(\{[\s\S]*?\})\s*<\/tool>/g;
++/**
++ * The SECOND named-block dialect, measured 2026-10-22 from the same model:
++ *
++ *     <tool>
++ *     <tool_name>get_weather</tool_name>
++ *     <city>Toronto</city>
++ *     </tool>
++ *
++ * The tool name sits in a `<tool_name>` tag and the arguments are XML-ish
++ * elements rather than a JSON object. Same problem as the first dialect: the
++ * shared parser cannot see it, so the tool call is lost.
++ */
++const TOOL_NAME_TAG_RE =
++  /<tool>\s*<tool_name>\s*([A-Za-z0-9_.-]+)\s*<\/tool_name>([\s\S]*?)\s*<\/tool>/g;
++const XML_ARG_RE = /<([A-Za-z0-9_.-]+)>\s*([\s\S]*?)\s*<\/\1>/g;
++
++function xmlArgsToObject(body: string): Record<string, unknown> | null {
++  const args: Record<string, unknown> = {};
++  let found = false;
++  let match: RegExpExecArray | null;
++  XML_ARG_RE.lastIndex = 0;
++  while ((match = XML_ARG_RE.exec(body)) !== null) {
++    found = true;
++    const raw = match[2].trim();
++    // A JSON-ish value keeps its type; anything else is a string.
++    if (raw === "true" || raw === "false") args[match[1]] = raw === "true";
++    else if (raw !== "" && !Number.isNaN(Number(raw)) && /^-?\d+(\.\d+)?$/.test(raw))
++      args[match[1]] = Number(raw);
++    else args[match[1]] = raw;
++  }
++  return found ? args : null;
++}
++
 +export function normalizeNamedBlockToolCalls(text: string): string {
 +  if (typeof text !== "string") return text;
 +  if (!text.includes("<tool>")) return text;
-+  return text.replace(NAMED_BLOCK_TOOL_RE, (match: string, name: string, json: string) => {
++  // Dialect 2 first: it contains a `<tool_name>` tag, which dialect 1's regex
++  // would not match anyway (it requires a JSON body), but running it first
++  // keeps the two passes independent.
++  const withToolName = text.replace(TOOL_NAME_TAG_RE, (match, name: string, body: string) => {
++    const args = xmlArgsToObject(body);
++    if (!args) return match;
++    return `<tool>${JSON.stringify({ name, arguments: args })}</tool>`;
++  });
++  return withToolName.replace(NAMED_BLOCK_TOOL_RE, (match: string, name: string, json: string) => {
 +    const trimmed = json.trim();
 +    // A canonical block already carries "name" inside the JSON — leave it.
 +    if (/"name"\s*:/.test(trimmed)) return match;
@@ -471,10 +556,10 @@ index 371dd64fc..e7bceb54f 100644
      freeNote:
 diff --git a/tests/unit/aihorde-named-block-tool-dialect.test.ts b/tests/unit/aihorde-named-block-tool-dialect.test.ts
 new file mode 100644
-index 000000000..2761fa009
+index 000000000..288461f60
 --- /dev/null
 +++ b/tests/unit/aihorde-named-block-tool-dialect.test.ts
-@@ -0,0 +1,91 @@
+@@ -0,0 +1,117 @@
 +/**
 + * The NAMED-BLOCK tool dialect (task #7424).
 + *
@@ -565,4 +650,30 @@ index 000000000..2761fa009
 +  assert.equal(toolCalls.length, 1);
 +  assert.ok(content.includes("Here you go."));
 +  assert.ok(!content.includes("<tool>"), "the tool block must be stripped from the content");
++});
++
++test("the SECOND dialect (tool_name tag + XML-ish args) also parses", () => {
++  // Measured 2026-10-22 from the same model: the tool name sits in a
++  // <tool_name> tag and the arguments are XML-ish elements, not a JSON object.
++  const raw = [
++    "<tool>",
++    "<tool_name>get_weather</tool_name>",
++    "<city>Toronto</city>",
++    "</tool>",
++  ].join("\n");
++
++  const { toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
++  assert.ok(toolCalls, "the <tool_name> dialect must produce a tool call");
++  assert.equal(toolCalls[0].function.name, "get_weather");
++  const args = JSON.parse(String(toolCalls[0].function.arguments));
++  assert.equal(args.city, "Toronto");
++});
++
++test("a numeric XML argument keeps its type", () => {
++  const raw = "<tool>\n<tool_name>get_weather</tool_name>\n<days>3</days>\n</tool>";
++  const { toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
++  assert.ok(toolCalls);
++  const args = JSON.parse(String(toolCalls[0].function.arguments));
++  assert.equal(args.days, 3);
++  assert.strictEqual(typeof args.days, "number");
 +});

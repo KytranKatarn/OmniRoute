@@ -33,11 +33,16 @@ echo "==> 1. the gateway is up"
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$DS9/api/health" || echo 000)
 if [ "$code" = "200" ]; then ok "GET /api/health -> 200"; else bad "GET /api/health -> $code"; fi
 
-echo "==> 2. the aihorde executor is in the built artifact"
+echo "==> 2. the artifact mentions aihorde"
+# A WEAK, smoke-level signal only: the aihorde base URL was already in the
+# gateway's provider catalogue before the aihorde executor existed, so this
+# cannot prove the executor is in the build. The authoritative check is #4 --
+# only a built gateway with the executor can answer a tool-bearing request
+# through aihorde.
 if grep -rq "oai.aihorde.net" "$ROOT/.build/next/standalone" 2>/dev/null; then
-  ok "the built artifact contains the aihorde executor"
+  ok "the artifact mentions aihorde (smoke signal; check 4 is the real one)"
 else
-  bad "the built artifact does NOT contain the aihorde executor"
+  bad "the artifact does NOT mention aihorde at all"
 fi
 
 if [ -z "$KEY" ]; then
@@ -45,7 +50,11 @@ if [ -z "$KEY" ]; then
   exit $fail
 fi
 
-MODEL="horde/google/gemma-4-31b"
+# The prefix is the PROVIDER ID ("aihorde"), not the alias ("horde"). The
+# gateway serves aihorde/<model-id>; asking for horde/<model-id> resolves no
+# provider and the model string is used as the target URL, which fails with a
+# misleading upstream error.
+MODEL="aihorde/google/gemma-4-31b"
 
 echo "==> 3. a plain chat through aihorde"
 body=$(curl -s --max-time 180 -X POST "$DS9/v1/chat/completions" \

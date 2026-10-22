@@ -360,7 +360,8 @@ def retry_single(queue_id: int, owner_type: str, owner_id: int) -> bool:
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT * FROM media_generation_queue WHERE id = %s AND owner_type = %s AND owner_id = %s AND status = 'failed'",
+            "SELECT * FROM media_generation_queue WHERE id = %s AND owner_type = %s AND owner_id = %s AND status = "
+            "'failed'",
             (queue_id, owner_type, owner_id),
         )
         item = cur.fetchone()
@@ -374,7 +375,8 @@ def retry_single(queue_id: int, owner_type: str, owner_id: int) -> bool:
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE media_generation_queue SET status = 'pending', error_message = NULL, completed_at = NULL, started_at = NULL WHERE id = %s",
+            "UPDATE media_generation_queue SET status = 'pending', error_message = NULL, completed_at = NULL, "
+            "started_at = NULL WHERE id = %s",
             (queue_id,),
         )
 

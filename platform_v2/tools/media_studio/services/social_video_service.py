@@ -319,7 +319,8 @@ def check_budget():
             """
             SELECT
                 COALESCE(SUM(cost) FILTER (WHERE created_at::date = CURRENT_DATE), 0) AS daily_spent,
-                COALESCE(SUM(cost) FILTER (WHERE date_trunc('month', created_at) = date_trunc('month', NOW())), 0) AS monthly_spent
+                COALESCE(SUM(cost) FILTER (WHERE date_trunc('month', created_at) = date_trunc('month', NOW())), 0) AS
+                    monthly_spent
             FROM cloud_gpu_usage
             """
         )

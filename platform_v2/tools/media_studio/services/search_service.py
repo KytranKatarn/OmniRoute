@@ -260,19 +260,22 @@ def get_search_facets(owner_type: str, owner_id: int) -> Dict:
     """Return distinct values for filter dropdowns."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT DISTINCT media_type FROM media_library WHERE owner_type = %s AND owner_id = %s AND is_deleted = false ORDER BY media_type",
+            "SELECT DISTINCT media_type FROM media_library WHERE owner_type = %s AND owner_id = %s AND is_deleted = "
+            "false ORDER BY media_type",
             (owner_type, owner_id),
         )
         types = [row["media_type"] for row in cur.fetchall()]
 
         cur.execute(
-            "SELECT DISTINCT model FROM media_library WHERE owner_type = %s AND owner_id = %s AND is_deleted = false AND model IS NOT NULL ORDER BY model",
+            "SELECT DISTINCT model FROM media_library WHERE owner_type = %s AND owner_id = %s AND is_deleted = false "
+            "AND model IS NOT NULL ORDER BY model",
             (owner_type, owner_id),
         )
         models = [row["model"] for row in cur.fetchall()]
 
         cur.execute(
-            "SELECT DISTINCT provider FROM media_library WHERE owner_type = %s AND owner_id = %s AND is_deleted = false AND provider IS NOT NULL ORDER BY provider",
+            "SELECT DISTINCT provider FROM media_library WHERE owner_type = %s AND owner_id = %s AND is_deleted = "
+            "false AND provider IS NOT NULL ORDER BY provider",
             (owner_type, owner_id),
         )
         providers = [row["provider"] for row in cur.fetchall()]

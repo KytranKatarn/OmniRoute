@@ -106,7 +106,8 @@ def add_to_collection(
     with get_db_cursor(commit=True) as (conn, cur):
         # Verify collection ownership or shared
         cur.execute(
-            "SELECT id FROM media_collections WHERE id = %s AND (owner_type = %s AND owner_id = %s OR is_shared = true)",
+            "SELECT id FROM media_collections WHERE id = %s AND (owner_type = %s AND owner_id = %s OR is_shared = "
+            "true)",
             (collection_id, owner_type, owner_id),
         )
         if not cur.fetchone():
@@ -130,7 +131,8 @@ def remove_from_collection(
     """Remove media items from a collection. Returns count removed."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "SELECT id FROM media_collections WHERE id = %s AND (owner_type = %s AND owner_id = %s OR is_shared = true)",
+            "SELECT id FROM media_collections WHERE id = %s AND (owner_type = %s AND owner_id = %s OR is_shared = "
+            "true)",
             (collection_id, owner_type, owner_id),
         )
         if not cur.fetchone():
@@ -155,7 +157,8 @@ def get_collection_items(
     with get_db_cursor() as (conn, cur):
         # Verify access
         cur.execute(
-            "SELECT id FROM media_collections WHERE id = %s AND (owner_type = %s AND owner_id = %s OR is_shared = true)",
+            "SELECT id FROM media_collections WHERE id = %s AND (owner_type = %s AND owner_id = %s OR is_shared = "
+            "true)",
             (collection_id, owner_type, owner_id),
         )
         if not cur.fetchone():
@@ -224,7 +227,8 @@ def list_smart_collections(owner_type: str, owner_id: int) -> List[Dict]:
     """List user's smart collections."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT id, name, filters, created_at FROM media_smart_collections WHERE owner_type = %s AND owner_id = %s ORDER BY name",
+            "SELECT id, name, filters, created_at FROM media_smart_collections WHERE owner_type = %s AND owner_id = "
+            "%s ORDER BY name",
             (owner_type, owner_id),
         )
         return [dict(row) for row in cur.fetchall()]

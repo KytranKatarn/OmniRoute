@@ -403,7 +403,8 @@ def update_cost_rate(
                 INSERT INTO media_cost_rates (model_name, cost_per_generation, vram_gb_per_sec)
                 VALUES (%s, %s, %s)
                 ON CONFLICT (model_name) DO UPDATE
-                    SET cost_per_generation = COALESCE(EXCLUDED.cost_per_generation, media_cost_rates.cost_per_generation),
+                    SET cost_per_generation = COALESCE(EXCLUDED.cost_per_generation,
+                        media_cost_rates.cost_per_generation),
                         vram_gb_per_sec     = COALESCE(EXCLUDED.vram_gb_per_sec,     media_cost_rates.vram_gb_per_sec)
                 """,
                 (model_name, cost_per_generation, vram_gb_per_sec),

@@ -121,7 +121,8 @@ def api_portrait_identity(agent_id):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, '')) "
+            "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), "
+            "NULLIF(ap.identity_prompt, '')) "
             "AS identity_prompt, a.display_name, a.name "
             "FROM agents a LEFT JOIN agent_portraits ap ON ap.agent_id = a.id "
             "WHERE a.id = %s",
@@ -696,7 +697,8 @@ def api_generate_canonical(agent_id):
     # Gate: block generation if agent has no identity_prompt
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, '')) "
+            "SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), "
+            "NULLIF(ap.identity_prompt, '')) "
             "AS identity_prompt "
             "FROM agents a LEFT JOIN agent_portraits ap ON ap.agent_id = a.id "
             "WHERE a.id = %s",
@@ -711,7 +713,10 @@ def api_generate_canonical(agent_id):
             jsonify(
                 {
                     "success": False,
-                    "error": "No identity prompt set for this agent. Add a prompt in the portrait editor before generating.",
+                    "error": (
+                        "No identity prompt set for this agent. Add a prompt in the portrait editor before "
+                        "generating."
+                    ),
                 }
             ),
             400,
@@ -734,7 +739,10 @@ def api_generate_canonical(agent_id):
             jsonify(
                 {
                     "success": False,
-                    "error": "A portrait generation is already queued for this agent. Wait for it to complete before submitting another.",
+                    "error": (
+                        "A portrait generation is already queued for this agent. Wait for it to complete before "
+                        "submitting another."
+                    ),
                 }
             ),
             409,
@@ -1060,7 +1068,9 @@ def api_refine_stream(agent_id):
             {
                 "step": "vision",
                 "status": "running",
-                "label": f"M.U.S.E. analyzing {agent_name}'s portrait... (DHQ booting vision model if cold — up to 90s)",
+                "label": (
+                    f"M.U.S.E. analyzing {agent_name}'s portrait... (DHQ booting vision model if cold — up to " f"90s)"
+                ),
             }
         )
         vision_desc = _step_vision_analysis(ctx.get("canonical_image_path") or "")
@@ -1331,7 +1341,8 @@ def api_suggest_identity_batch():
             cur.execute(
                 """UPDATE unified_tasks
                    SET status = 'completed',
-                       metadata = jsonb_set(jsonb_set(metadata::jsonb, '{results}', %s::jsonb, true), '{failed_count}', %s::jsonb, true)
+                       metadata = jsonb_set(jsonb_set(metadata::jsonb, '{results}', %s::jsonb, true),
+                           '{failed_count}', %s::jsonb, true)
                    WHERE id = %s""",
                 (psycopg2.extras.Json(results), psycopg2.extras.Json(failed), task_id),
             )

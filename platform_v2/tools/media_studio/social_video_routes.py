@@ -214,8 +214,12 @@ def register_social_video_routes(bp, admin_required):
             {
                 "stats": stats,
                 "budget": budget,
-                "daily_budget": f"${budget['daily_spent']:.2f} / ${budget['daily_spent'] + budget['daily_remaining']:.2f}",
-                "monthly_budget": f"${budget['monthly_spent']:.2f} / ${budget['monthly_spent'] + budget['monthly_remaining']:.2f}",
+                "daily_budget": (
+                    f"${budget['daily_spent']:.2f} / " f"${budget['daily_spent'] + budget['daily_remaining']:.2f}"
+                ),
+                "monthly_budget": (
+                    f"${budget['monthly_spent']:.2f} / " f"${budget['monthly_spent'] + budget['monthly_remaining']:.2f}"
+                ),
                 "posted_week": stats.get("posted_this_week", 0),
                 "awaiting_review": stats.get("status_counts", {}).get("ready", 0),
             }

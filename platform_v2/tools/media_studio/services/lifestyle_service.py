@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 _TYPE_SUFFIXES = {
     "lifestyle": ", environmental portrait, natural scene, photorealistic, cinematic depth of field",
-    "selfie": ", close-crop selfie photo, face-forward, natural expression, soft bokeh background, authentic, photorealistic",
+    "selfie": (
+        ", close-crop selfie photo, face-forward, natural expression, soft bokeh background, authentic, "
+        "photorealistic"
+    ),
     "announcement": ", professional headshot, confident pose, clean background, sharp focus, photorealistic",
 }
 

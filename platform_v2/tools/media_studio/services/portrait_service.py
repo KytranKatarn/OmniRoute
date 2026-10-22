@@ -50,12 +50,21 @@ KE_CORPORATE_BACKGROUND = (
     "clean uncluttered background"
 )
 VARIANT_PRESET_PROMPTS = {
-    "ai": "AI-inspired professional portrait, restrained futuristic cyan and violet interface accents, natural human skin and facial features, preserve identity, no costume, no cyberpunk makeup",
+    "ai": (
+        "AI-inspired professional portrait, restrained futuristic cyan and violet interface accents, natural human "
+        "skin and facial features, preserve identity, no costume, no cyberpunk makeup"
+    ),
     "ke_corporate": KE_CORPORATE_BACKGROUND,
-    "action": "natural mid-action professional portrait, candid gesture and movement, expressive face, realistic anatomy, preserve identity",
+    "action": (
+        "natural mid-action professional portrait, candid gesture and movement, expressive face, realistic anatomy, "
+        "preserve identity"
+    ),
     "professional": "professional corporate portrait, natural expression, clean lighting",
     "casual": "approachable casual portrait, relaxed natural setting and expression",
-    "lcars": "subtle LCARS-inspired holographic interface accents, professional human portrait, preserve identity, no costume",
+    "lcars": (
+        "subtle LCARS-inspired holographic interface accents, professional human portrait, preserve identity, no "
+        "costume"
+    ),
 }
 # AI agents are sci-fi androgynous android portraits, so the human-skin presets above
 # ("natural human skin, no costume") would fight their canonical look. Same keys,
@@ -63,9 +72,18 @@ VARIANT_PRESET_PROMPTS = {
 # toggle (background + name/department plate), not a style, and applies to every style.
 VARIANT_PRESET_PROMPTS_AI = {
     "ai": "subtle futuristic sci-fi android styling, restrained cyan and violet interface glow, preserve identity",
-    "action": "sci-fi android mid-action, dynamic pose, motion trails and holographic glow, expressive face, preserve identity",
-    "professional": "sci-fi android in a sleek formal high-collar uniform, composed neutral expression, clean studio rim lighting, preserve identity",
-    "casual": "sci-fi android in relaxed futuristic casual wear, approachable expression, softly lit lounge setting, preserve identity",
+    "action": (
+        "sci-fi android mid-action, dynamic pose, motion trails and holographic glow, expressive face, preserve "
+        "identity"
+    ),
+    "professional": (
+        "sci-fi android in a sleek formal high-collar uniform, composed neutral expression, clean studio rim "
+        "lighting, preserve identity"
+    ),
+    "casual": (
+        "sci-fi android in relaxed futuristic casual wear, approachable expression, softly lit lounge setting, "
+        "preserve identity"
+    ),
     "lcars": "LCARS-style holographic interface panels glowing around the subject, sci-fi android, preserve identity",
 }
 VARIANT_FRAMING_PROMPTS = {
@@ -511,7 +529,8 @@ def get_all_agent_portraits() -> List[Dict]:
                    a.title, a.department, a.worker_type, a.avatar_url,
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path,
-                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''),
+                       NULLIF(p.identity_prompt, ''))
                        AS identity_prompt,
                    p.face_seed, p.ip_adapter_ref_path, p.approved,
                    p.style_tags,
@@ -573,7 +592,8 @@ def get_identity_audit() -> Dict:
                    a.writing_tone, a.communication_style, a.personality_prompt,
                    a.appearance_notes, a.gender, a.ethnicity, a.age_range,
                    a.avatar_url, a.updated_at,
-                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(ap.identity_prompt, ''))
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''),
+                       NULLIF(ap.identity_prompt, ''))
                        AS identity_prompt,
                    ap.canonical_image_path, ap.ip_adapter_ref_path, ap.approved
             FROM agents a
@@ -666,7 +686,8 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
                    a.title, a.department, a.worker_type, a.is_department_ai,
                    a.updated_at AS avatar_updated_at,
                    p.id AS portrait_id, p.canonical_image_path,
-                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''),
+                       NULLIF(p.identity_prompt, ''))
                        AS identity_prompt,
                    a.pronouns, a.current_grade, a.bio, a.writing_tone,
                    a.communication_style, a.personality_prompt,
@@ -769,7 +790,8 @@ def generate_canonical(
             """
             SELECT a.name, a.display_name, a.first_name, a.last_name,
                    a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes,
-                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''),
+                       NULLIF(p.identity_prompt, ''))
                        AS identity_prompt,
                    p.face_seed, p.approved, p.ip_adapter_ref_path, p.canonical_image_path
             FROM agents a
@@ -925,7 +947,8 @@ def generate_variant(
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+            SELECT COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''),
+                NULLIF(p.identity_prompt, ''))
                        AS identity_prompt,
                    p.ip_adapter_ref_path, p.canonical_image_path,
                    p.face_seed, p.approved, a.name, a.display_name,
@@ -1051,7 +1074,8 @@ def generate_fanout(
             """
             SELECT a.name, a.display_name, a.first_name, a.last_name,
                    a.gender, a.pronouns, a.ethnicity, a.age_range, a.appearance_notes,
-                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''), NULLIF(p.identity_prompt, ''))
+                   COALESCE(NULLIF(a.avatar_generation_prompt, ''), NULLIF(a.portrait_prompt, ''),
+                       NULLIF(p.identity_prompt, ''))
                        AS identity_prompt,
                    p.face_seed, p.approved, p.ip_adapter_ref_path, p.canonical_image_path
             FROM agents a
@@ -1567,7 +1591,8 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         cur.execute(
             """
             INSERT INTO agent_portraits
-                (agent_id, canonical_image_path, ip_adapter_ref_path, face_seed, approved, generation_status, updated_at)
+                (agent_id, canonical_image_path, ip_adapter_ref_path, face_seed, approved, generation_status,
+                    updated_at)
             VALUES (%s, %s, %s, %s, true, 'completed', NOW())
             ON CONFLICT (agent_id) DO UPDATE SET
                 canonical_image_path = EXCLUDED.canonical_image_path,

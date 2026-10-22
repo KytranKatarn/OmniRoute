@@ -96,7 +96,8 @@ def bulk_tag(media_ids: List[int], tag_ids: List[int], owner_type: str, owner_id
     with get_db_cursor(commit=True) as (conn, cur):
         # Get owned media IDs
         cur.execute(
-            "SELECT id FROM media_library WHERE id = ANY(%s) AND owner_type = %s AND owner_id = %s AND is_deleted = false",
+            "SELECT id FROM media_library WHERE id = ANY(%s) AND owner_type = %s AND owner_id = %s AND is_deleted = "
+            "false",
             (media_ids, owner_type, owner_id),
         )
         owned_ids = [row["id"] for row in cur.fetchall()]

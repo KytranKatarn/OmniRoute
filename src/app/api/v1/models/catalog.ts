@@ -1,5 +1,9 @@
 import { createCatalogConnectionExclusionFilter } from "@/lib/providerModels/copilotCatalogRejections";
-import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS } from "@/shared/constants/models";
+import {
+  PROVIDER_MODELS,
+  PROVIDER_ID_TO_ALIAS,
+  PASSTHROUGH_PROVIDERS,
+} from "@/shared/constants/models";
 import { NOAUTH_PROVIDERS } from "@/shared/constants/providers";
 import { getCombos } from "@/lib/db/combos";
 import { createHiddenModelLookup } from "@/lib/hiddenModelLookup";
@@ -1498,6 +1502,14 @@ async function buildUnifiedModelsResponseCore(
         blockedProviders.has(provider)
       ) {
         return false;
+      }
+
+      // Passthrough providers (aihorde, freetheai, etc.) show if they have synced models
+      // even without an active connection row (keyless providers like aihorde)
+      if (PASSTHROUGH_PROVIDERS.has(provider)) {
+        const synced =
+          syncedModelsByProvider[provider] || syncedModelsByProvider[canonicalProviderId];
+        if (Array.isArray(synced) && synced.length > 0) return true;
       }
 
       return activeAliases.has(alias) || activeAliases.has(provider);

@@ -32,6 +32,7 @@
 import { wildcardMatch } from "../wildcardRouter.ts";
 import { getProviderModels } from "../../config/providerModels.ts";
 import { getActiveSyncedCatalog } from "../../../src/lib/db/models/activeSyncedCatalog.ts";
+import { PASSTHROUGH_PROVIDERS } from "@/shared/constants/models.ts";
 import { filterAlibabaFreeTierModels, isAlibabaModelStudioProvider } from "../alibabaFreeTier.ts";
 import {
   filterAlibabaFreeEligibleModels,
@@ -140,6 +141,11 @@ function parseWildcardEntry(entry: unknown): ProviderWildcardSpec | null {
  * Collect candidate model IDs using the active synced catalog as the
  * authoritative source when it is non-empty. Static registry models remain a
  * fail-open fallback when no active usable catalog exists.
+ *
+ * For passthrough providers (e.g., aihorde), also include synced models from
+ * the live catalog even when non-authoritative, since passthrough providers
+ * accept any model ID and the synced catalog represents live-discovered models
+ * that should be available for wildcard expansion.
  */
 async function collectProviderModelIds(providerId: string): Promise<string[]> {
   const liveCatalog = await getActiveSyncedCatalog(providerId);
@@ -148,7 +154,23 @@ async function collectProviderModelIds(providerId: string): Promise<string[]> {
     return liveCatalog.models.map((model) => model.id);
   }
 
-  return getProviderModels(providerId).map((model) => model.id);
+  const registryModels = getProviderModels(providerId).map((model) => model.id);
+
+  // For passthrough providers, also include synced models from the live catalog
+  // (non-authoritative but still valuable for wildcard expansion).
+  if (
+    !liveCatalog.authoritative &&
+    liveCatalog.models.length > 0 &&
+    PASSTHROUGH_PROVIDERS.has(providerId)
+  ) {
+    const syncedModelIds = liveCatalog.models.map((model) => model.id);
+    // Merge: registry models first, then synced models (deduplicated)
+    const merged = new Set(registryModels);
+    for (const id of syncedModelIds) merged.add(id);
+    return Array.from(merged);
+  }
+
+  return registryModels;
 }
 
 async function filterAlibabaFreeDrainedModelIds(

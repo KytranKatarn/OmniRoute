@@ -12,7 +12,8 @@ import { sanitizeErrorMessage } from "../../utils/error.ts";
  * The `*Notification` param TYPES referenced below (adapted from the ts-rs bindings):
  *   AgentMessageDeltaNotification   { threadId, turnId, itemId, delta }
  *   ReasoningTextDeltaNotification  { threadId, turnId, itemId, delta, contentIndex }
- *   TurnCompletedNotification       { threadId, turn }  (turn carries usage)
+ *   TurnCompletedNotification       { threadId, turn }
+ *   ThreadTokenUsageUpdatedNotification { threadId, turnId, tokenUsage: { total, last } }
  *   ErrorNotification               { error, willRetry, threadId, turnId }
  */
 
@@ -23,6 +24,7 @@ export const CODEX_APPSERVER_METHODS = {
   reasoningTextDelta: "item/reasoning/textDelta",
   reasoningSummaryTextDelta: "item/reasoning/summaryTextDelta",
   turnCompleted: "turn/completed",
+  tokenUsageUpdated: "thread/tokenUsage/updated",
   error: "error",
 } as const;
 
@@ -99,37 +101,32 @@ export function translateToolCall(
   push({ type: "tool_call_end" });
 }
 
-interface RawUsage {
-  input_tokens?: number;
-  cached_input_tokens?: number;
-  output_tokens?: number;
-  reasoning_output_tokens?: number;
-  total_tokens?: number;
+/** Request-local snapshot; a fresh thread is created for every execute() call. */
+export interface AppServerNotificationState {
+  usage?: CodexUsage;
 }
 
-/** Extract a numeric field defensively (the wire may omit or null it). */
+/** Invalid/missing counts must not overwrite a valid snapshot with fabricated zeros. */
 function num(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
-/**
- * Convert the app-server usage shape (snake_case token counts) into the canonical
- * CodexUsage the bridge expects. Returns undefined when nothing usable is present.
- */
+/** Accept both legacy snake_case counts and current app-server camelCase counts. */
 export function mapUsage(raw: unknown): CodexUsage | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const u = raw as RawUsage;
-  const inputTokens = num(u.input_tokens) ?? 0;
-  const outputTokens = num(u.output_tokens) ?? 0;
-  const usage: CodexUsage = { inputTokens, outputTokens };
-  const cached = num(u.cached_input_tokens);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const u = raw as Record<string, unknown>;
+  const input = num(u.input_tokens) ?? num(u.inputTokens);
+  const output = num(u.output_tokens) ?? num(u.outputTokens);
+  if (input === undefined && output === undefined) return undefined;
+  const usage: CodexUsage = { inputTokens: input ?? 0, outputTokens: output ?? 0 };
+  const cached = num(u.cached_input_tokens) ?? num(u.cachedInputTokens);
   if (cached !== undefined) {
     usage.cachedInputTokens = cached;
     usage.cacheReadInputTokens = cached;
   }
-  const reasoning = num(u.reasoning_output_tokens);
+  const reasoning = num(u.reasoning_output_tokens) ?? num(u.reasoningOutputTokens);
   if (reasoning !== undefined) usage.reasoningOutputTokens = reasoning;
-  const total = num(u.total_tokens);
+  const total = num(u.total_tokens) ?? num(u.totalTokens);
   if (total !== undefined) usage.totalTokens = total;
   return usage;
 }
@@ -186,7 +183,8 @@ function translateFailure(
 export function translateNotification(
   method: string,
   params: unknown,
-  push: (event: AdapterEvent) => void
+  push: (event: AdapterEvent) => void,
+  state: AppServerNotificationState = {}
 ): boolean {
   const p = (params && typeof params === "object" ? params : {}) as Record<string, unknown>;
 
@@ -206,8 +204,18 @@ export function translateNotification(
       }
       return false;
     }
+    case CODEX_APPSERVER_METHODS.tokenUsageUpdated: {
+      const tokenUsage = p.tokenUsage;
+      if (tokenUsage && typeof tokenUsage === "object") {
+        const snapshot = tokenUsage as Record<string, unknown>;
+        // Each request owns a fresh thread: total includes all work for this request.
+        // Updates are snapshots, never increments. Repeated notifications must not add.
+        state.usage = mapUsage(snapshot.total) ?? mapUsage(snapshot.last) ?? state.usage;
+      }
+      return false;
+    }
     case CODEX_APPSERVER_METHODS.turnCompleted: {
-      push({ type: "done", usage: extractTurnUsage(p), endTurn: true });
+      push({ type: "done", usage: extractTurnUsage(p) ?? state.usage, endTurn: true });
       return true;
     }
     case "__transport_closed__":

@@ -190,7 +190,7 @@ describe("CachePage", () => {
     render(<CachePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Prompt Cache (Provider-Side)")).toBeInTheDocument();
+      expect(screen.getByText("Breakdown by Provider")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Breakdown by Provider")).toBeInTheDocument();

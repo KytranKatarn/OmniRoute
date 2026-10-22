@@ -5797,6 +5797,7 @@
     "contextWindowOverridePlaceholder": "ex.: 131072",
     "contextWindowOverrideHint": "Define manualmente a janela de contexto real (tokens) deste modelo quando o provedor a reporta incorretamente. Tem prioridade sobre os valores detectados automaticamente/do catálogo e evita que o roteamento de combo descarte o modelo.",
     "contextWindowOverrideInvalid": "A substituição de janela de contexto deve ser um número inteiro positivo de tokens",
+    "maxOutputTokenOverrideInvalid": "A substituição do máximo de tokens de saída deve ser um número inteiro positivo de tokens",
     "visionCapableLabel": "Visão capaz",
     "visionCapableHint": "Marque manualmente este modelo como capaz de visão quando os metadados de descoberta do provedor não reportarem uma modalidade de entrada de imagem (comum para backends auto-hospedados/local).",
     "compatParamFiltersLabel": "Filtros de parâmetros",

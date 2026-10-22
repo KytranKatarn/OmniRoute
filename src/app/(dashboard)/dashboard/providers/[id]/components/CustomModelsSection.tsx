@@ -145,6 +145,13 @@ export default function CustomModelsSection({
   // #4125: manual context-window override (Feature 5004 table) — free text so the
   // field can be left blank (no override) without fighting a number input's "0".
   const [editingContextWindowOverride, setEditingContextWindowOverride] = useState("");
+  // Mirrors the context-window override above: the backend already persists
+  // maxOutputTokenOverride via PUT /api/provider-models (see
+  // outputTokenOverrides.ts / ModelOutputTokenEditor.tsx used on the
+  // synced/passthrough model rows), but this custom-models list never read or
+  // sent it, so a custom model's output-token limit could not be set from the
+  // dashboard. Free text for the same "blank = no override" reason.
+  const [editingMaxOutputTokenOverride, setEditingMaxOutputTokenOverride] = useState("");
   // #1904: manual vision-capability override — some self-hosted/local OpenAI-compatible
   // backends don't self-report an image input modality, so the user needs a way to flag
   // the model as vision-capable by hand (read back by getCustomVisionCapabilityFields()).
@@ -292,6 +299,9 @@ export default function CustomModelsSection({
     setEditingContextWindowOverride(
       typeof model.contextWindowOverride === "number" ? String(model.contextWindowOverride) : ""
     );
+    setEditingMaxOutputTokenOverride(
+      typeof model.maxOutputTokenOverride === "number" ? String(model.maxOutputTokenOverride) : ""
+    );
     setEditingSupportsVision(model.supportsVision === true);
     setEditingIsFree(model.isFree === true);
   };
@@ -302,6 +312,7 @@ export default function CustomModelsSection({
     setEditingEndpoints(["chat"]);
     setEditingTargetFormat("");
     setEditingContextWindowOverride("");
+    setEditingMaxOutputTokenOverride("");
     setEditingSupportsVision(false);
     setEditingIsFree(false);
     setSavingModelId(null);
@@ -342,7 +353,11 @@ export default function CustomModelsSection({
   // Split out of saveEdit (which only validates + delegates) so the #4125 context-window
   // validation stays a single early-return in the caller instead of adding a branch to
   // this already-large PUT/fetch/error-handling body.
-  const performSaveEdit = async (modelId: string, contextWindowOverride: number | null) => {
+  const performSaveEdit = async (
+    modelId: string,
+    contextWindowOverride: number | null,
+    maxOutputTokenOverride: number | null
+  ) => {
     setSavingModelId(modelId);
     try {
       const model = customModels.find((m) => m.id === modelId);
@@ -362,6 +377,9 @@ export default function CustomModelsSection({
           ...(editingTargetFormat ? { targetFormat: editingTargetFormat } : {}),
           // #4125: manual context-window override — number to set, null to clear.
           contextWindowOverride,
+          // Same contract as contextWindowOverride above: number to set, null to
+          // clear. Persisted by persistOutputTokenOverride() on the API side.
+          maxOutputTokenOverride,
           supportsVision: editingSupportsVision ? true : null,
           isFree: editingIsFree ? true : null,
         }),
@@ -416,7 +434,15 @@ export default function CustomModelsSection({
       return;
     }
 
-    await performSaveEdit(modelId, contextOverride.value);
+    // Reuses the same parser as the context-window field: both are optional
+    // positive-integer overrides with identical blank/invalid semantics.
+    const maxOutputTokenOverride = parseContextWindowOverrideInput(editingMaxOutputTokenOverride);
+    if (maxOutputTokenOverride.invalid) {
+      notify.error(t("maxOutputTokenOverrideInvalid"));
+      return;
+    }
+
+    await performSaveEdit(modelId, contextOverride.value, maxOutputTokenOverride.value);
   };
 
   return (
@@ -634,6 +660,15 @@ export default function CustomModelsSection({
                         {model.contextWindowOverride.toLocaleString()}
                       </CapabilityBadge>
                     )}
+                    {typeof model.maxOutputTokenOverride === "number" && (
+                      <CapabilityBadge
+                        icon="output"
+                        className="bg-blue-500/15 text-blue-400"
+                        title={t("maxOutputTokenOverrideHint")}
+                      >
+                        {model.maxOutputTokenOverride.toLocaleString()}
+                      </CapabilityBadge>
+                    )}
                     {model.supportsVision === true && (
                       <CapabilityBadge
                         icon="visibility"
@@ -768,6 +803,20 @@ export default function CustomModelsSection({
                             onChange={(e) => setEditingContextWindowOverride(e.target.value)}
                             placeholder={t("contextWindowOverridePlaceholder")}
                             title={t("contextWindowOverrideHint")}
+                            className="w-full px-2.5 py-2 text-xs border border-border rounded-lg bg-background text-text-main focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="min-w-0 lg:w-[10rem] lg:shrink-0">
+                          <label className="text-xs text-text-muted mb-1 block">
+                            {t("maxOutputTokenOverrideLabel")}
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={editingMaxOutputTokenOverride}
+                            onChange={(e) => setEditingMaxOutputTokenOverride(e.target.value)}
+                            placeholder="4096"
+                            title={t("maxOutputTokenOverrideHint")}
                             className="w-full px-2.5 py-2 text-xs border border-border rounded-lg bg-background text-text-main focus:outline-none focus:border-primary"
                           />
                         </div>

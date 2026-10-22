@@ -2,43 +2,8 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { csvToJsonl } from "@/lib/batches/csvToJsonl";
+import { csvToJsonl, parseCsvHeaders } from "@/lib/batches/csvToJsonl";
 import type { WizardCsvMapping, WizardDestination } from "@/lib/batches/types";
-
-// RFC 4180 minimal CSV row parser (inline — avoids coupling to csvToJsonl internals)
-function parseCsvRow(line: string): string[] {
-  const out: string[] = [];
-  let buf = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQuotes) {
-      if (ch === '"' && line[i + 1] === '"') {
-        buf += '"';
-        i++;
-        continue;
-      }
-      if (ch === '"') {
-        inQuotes = false;
-        continue;
-      }
-      buf += ch;
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-        continue;
-      }
-      if (ch === ",") {
-        out.push(buf);
-        buf = "";
-        continue;
-      }
-      buf += ch;
-    }
-  }
-  out.push(buf);
-  return out;
-}
 
 const MAPPING_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "" },
@@ -75,14 +40,12 @@ export default function CsvMappingStep({
   const t = useTranslations("common");
   const [conversionResult, setConversionResult] = useState<ConversionResult | null>(null);
 
-  // Detect columns from the first CSV line
-  const firstLine = csvContent.split(/\r?\n/)[0] ?? "";
-  const columns = parseCsvRow(firstLine);
+  const columns = parseCsvHeaders(csvContent);
 
   const mappingValues = Object.values(mapping);
   const hasCustomId = mappingValues.includes("custom_id");
   const hasContent =
-    mappingValues.some((v) => v.startsWith("body.messages[")) ||
+    mappingValues.some((v) => v.startsWith("body.messages[") && v.endsWith(".content")) ||
     mappingValues.includes("body.input") ||
     mappingValues.includes("body.prompt");
 

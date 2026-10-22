@@ -31,6 +31,26 @@ function mount(ui: React.ReactElement): HTMLElement {
   return container;
 }
 
+it("clears the saved-status timer on unmount", async () => {
+  vi.useFakeTimers();
+  try {
+    setupFetchMock();
+    const { default: CompressionPanel } =
+      await import("../../../src/app/(dashboard)/dashboard/context/settings/CompressionPanel");
+    const container = mount(<CompressionPanel />);
+    await flush();
+    const toggle = container.querySelector("button[role='switch']") as HTMLButtonElement;
+    expect(toggle).not.toBeNull();
+    await act(async () => toggle.click());
+    await flush();
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    await act(async () => roots.pop()?.unmount());
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 beforeEach(() => {
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }

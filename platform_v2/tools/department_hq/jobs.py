@@ -23,6 +23,17 @@ import time
 
 logger = logging.getLogger("agent_loop")
 
+
+def _job_audit_params(event_type: str, details: str) -> tuple[str, str]:
+    """Bind params for the ``job_governance`` INSERT into ``governance_audit_log``.
+
+    ``details`` is a JSONB column. The job ``_audit`` helpers used to bind the bare message string, which Postgres
+    rejects ("invalid input syntax for type json"); each helper swallowed that as a warning, so ForgePRPoll,
+    ForgePRAnalyze and BackupRetention wrote NO audit rows at all and their run history could not be read.
+    """
+    return (event_type, json.dumps({"message": details}))
+
+
 # ---------------------------------------------------------------------------
 # Shared helper: _log_cycle  (mirrors AgentLoop._log_cycle)
 # ---------------------------------------------------------------------------
@@ -2510,7 +2521,7 @@ def _register_own_jobs(scheduler, flask_app):
                         """INSERT INTO governance_audit_log
                            (event_category, event_type, action, details, timestamp)
                            VALUES ('job_governance', %s, 'scheduler', %s, NOW())""",
-                        (event_type, details),
+                        _job_audit_params(event_type, details),
                     )
             except Exception as ae:
                 logger.warning("[BackupRetention] audit_log write failed: %s", ae)
@@ -2627,7 +2638,7 @@ def _register_own_jobs(scheduler, flask_app):
                         """INSERT INTO governance_audit_log
                            (event_category, event_type, action, details, timestamp)
                            VALUES ('job_governance', %s, 'scheduler', %s, NOW())""",
-                        (event_type, details),
+                        _job_audit_params(event_type, details),
                     )
             except Exception as ae:
                 logger.warning("[ForgePRPoll] audit_log write failed: %s", ae)
@@ -2740,7 +2751,7 @@ def _register_own_jobs(scheduler, flask_app):
                         """INSERT INTO governance_audit_log
                            (event_category, event_type, action, details, timestamp)
                            VALUES ('job_governance', %s, 'scheduler', %s, NOW())""",
-                        (event_type, details),
+                        _job_audit_params(event_type, details),
                     )
             except Exception as ae:
                 logger.warning("[ForgePRAnalyze] audit_log write failed: %s", ae)

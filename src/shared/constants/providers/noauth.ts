@@ -172,6 +172,21 @@ export const NOAUTH_PROVIDERS = {
     hasFree: true,
     passthroughModels: true,
     serviceKinds: ["llm"],
+    // #7424 — AI Horde opts into prompt-emulated tool calling, which is what
+    // admits it to the keyless auto pool (the allowlist is DERIVED from this
+    // flag — see services/autoCombo/emulatedNoAuthAllowlist.ts).
+    //
+    // Why it matters: before this, the keyless auto pool had exactly ONE
+    // transport with real capacity — cloudflare-playground, whose executor
+    // keeps a SINGLE Chromium page that all forty of its models ride. One
+    // browser crash removed 95% of the free tier. AI Horde is the only free
+    // candidate that is genuinely independent: plain HTTPS, no account, no
+    // browser, no local CLI.
+    //
+    // Its models answer the plain-text tool contract in the named-block
+    // dialect (`<tool>\n<name>\n{json}\n</tool>`), which the shared parser
+    // sees after normalizeNamedBlockToolCalls (translator/webTools.ts).
+    toolCalling: "emulated",
     authHint:
       "No API key required — uses AI Horde's documented anonymous key. Adding a free aihorde.net key is optional and only buys higher queue priority (kudos).",
     freeNote:

@@ -89,12 +89,6 @@ def _row_to_user(row) -> Optional[User]:
     )
 
 
-_USER_SELECT_COLS = (
-    "id, username, password_hash, is_admin, is_active, created_at, last_login_at, "
-    "sso_sub, email, display_name, role"
-)
-
-
 def load_user(user_id: str) -> Optional[User]:
     """Flask-Login user_loader."""
     try:
@@ -103,7 +97,8 @@ def load_user(user_id: str) -> Optional[User]:
         return None
     with get_db_cursor() as (_conn, cur):
         cur.execute(
-            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users "
+            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at, "
+            "sso_sub, email, display_name, role FROM media_hub_users "
             "WHERE id = %s AND is_active = TRUE",
             (uid,),
         )
@@ -115,7 +110,8 @@ def authenticate(username: str, password: str) -> Optional[User]:
     can never authenticate this way — they must go through /auth/kytran/login."""
     with get_db_cursor(cursor_factory=None, commit=True) as (_conn, cur):
         cur.execute(
-            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users WHERE username = %s",
+            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at, "
+            "sso_sub, email, display_name, role FROM media_hub_users WHERE username = %s",
             (username,),
         )
         row = cur.fetchone()
@@ -200,8 +196,9 @@ def upsert_sso_user(sso_data: dict) -> Optional[User]:
                 product_tiers = EXCLUDED.product_tiers,
                 is_admin      = EXCLUDED.is_admin,
                 last_login_at = CURRENT_TIMESTAMP
-            RETURNING {cols}
-            """.format(cols=_USER_SELECT_COLS),
+            RETURNING id, username, password_hash, is_admin, is_active, created_at,
+                      last_login_at, sso_sub, email, display_name, role
+            """,
             (
                 username,
                 sub,
@@ -259,7 +256,8 @@ def count_admins() -> int:
 def get_user(user_id: int) -> Optional[User]:
     with get_db_cursor(cursor_factory=None) as (_c, cur):
         cur.execute(
-            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users WHERE id = %s",
+            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at, "
+            "sso_sub, email, display_name, role FROM media_hub_users WHERE id = %s",
             (user_id,),
         )
         return _row_to_user(cur.fetchone())
@@ -271,7 +269,8 @@ def get_user_by_username(username: str) -> Optional[User]:
     the user is missing or inactive."""
     with get_db_cursor(cursor_factory=None) as (_c, cur):
         cur.execute(
-            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users "
+            "SELECT id, username, password_hash, is_admin, is_active, created_at, last_login_at, "
+            "sso_sub, email, display_name, role FROM media_hub_users "
             "WHERE username = %s AND is_active = TRUE",
             (username,),
         )

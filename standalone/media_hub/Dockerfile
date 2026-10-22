@@ -35,7 +35,7 @@ COPY standalone/media_hub/users.py       /app/users.py
 COPY standalone/media_hub/user_routes.py        /app/user_routes.py
 COPY standalone/media_hub/watchlist_routes.py   /app/watchlist_routes.py
 COPY standalone/media_hub/preferences_routes.py /app/preferences_routes.py
-COPY standalone/media_hub/health_observer.py    /app/health_observer.py
+COPY standalone/media_hub/health_observer_*.py /app/
 COPY standalone/media_hub/archie_coordination.py /app/archie_coordination.py
 COPY standalone/media_hub/maven_manager.py       /app/maven_manager.py
 COPY standalone/media_hub/tdarr_client.py        /app/tdarr_client.py

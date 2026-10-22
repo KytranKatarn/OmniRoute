@@ -149,21 +149,10 @@ def validate_key(key: str) -> bool:
         return False
 
 
-# Self-test when run directly
+# Self-test when run directly. Never print encryption keys or ciphertext.
 if __name__ == "__main__":
-    print("Testing Media Hub encryption module...")
-
-    # Generate and display a new key
-    new_key = generate_key()
-    print(f"\nGenerated key (add to .env):\nMEDIA_HUB_ENCRYPTION_KEY={new_key}")
-
-    # Test encryption/decryption
+    logging.basicConfig(level=logging.INFO)
     test_key = "test_api_key_12345"
     encrypted = encrypt_api_key(test_key)
     decrypted = decrypt_api_key(encrypted)
-
-    print(f"\nOriginal: {test_key}")
-    print(f"Encrypted: {encrypted[:50]}...")
-    print(f"Decrypted: {decrypted}")
-    print(f"Match: {test_key == decrypted}")
-    print(f"Key source: {get_key_source()}")
+    logger.info("Media Hub encryption self-check %s", "passed" if decrypted == test_key else "failed")

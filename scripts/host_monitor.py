@@ -6915,6 +6915,7 @@ def fire_health_webhooks(event_type, severity, alert_data):
             "crash": "container_crash",
             "unhealthy": ("health_warning" if severity == "warning" else "health_critical"),
             "resource_threshold": ("health_warning" if severity == "warning" else "health_critical"),
+            "media_db_integrity": ("health_warning" if severity == "warning" else "health_critical"),
         }
         webhook_event = event_map.get(event_type, "health_warning")
 
@@ -7757,6 +7758,285 @@ def accept_hardware_baseline():
     return {"accepted": ok, "snapshot": snapshot}
 
 
+_MEDIA_DB_INTEGRITY_INTERVAL_SECONDS = 30 * 60
+_MEDIA_DB_INTEGRITY_STALE_BACKUP_HOURS = 10 * 24
+_MEDIA_DB_COMMANDS_WARNING_THRESHOLD = 100_000
+_MEDIA_DB_INTEGRITY_LAST_CHECK = 0.0
+_MEDIA_DB_INTEGRITY_CACHE = None
+_MEDIA_SQLITE_DATABASES = {
+    "sonarr": {
+        "container": "media_sonarr",
+        "databases": ["/mnt/data2/plex-config/sonarr/sonarr.db"],
+        "backup_dir": "/mnt/data2/plex-config/sonarr/Backups/scheduled",
+        "backup_database": "sonarr.db",
+        "watch_commands": True,
+    },
+    "radarr": {
+        "container": "media_radarr",
+        "databases": ["/mnt/data2/plex-config/radarr/radarr.db"],
+        "backup_dir": "/mnt/data2/plex-config/radarr/Backups/scheduled",
+        "backup_database": "radarr.db",
+        "watch_commands": True,
+    },
+    "prowlarr": {
+        "container": "media_prowlarr",
+        "databases": ["/mnt/data2/plex-config/prowlarr/prowlarr.db"],
+        "backup_dir": "/mnt/data2/plex-config/prowlarr/Backups/scheduled",
+        "backup_database": "prowlarr.db",
+        "watch_commands": True,
+    },
+    "plex": {
+        "container": "media_plex",
+        "databases": [
+            {
+                "host_path": "/mnt/fast/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db",
+                "container_path": "/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db",
+                "checker": "plex",
+            },
+            {
+                "host_path": "/mnt/fast/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.blobs.db",
+                "container_path": "/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.blobs.db",
+                "checker": "plex",
+            },
+            {
+                "host_path": "/mnt/fast/config/plex/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.dlna.db",
+                "container_path": "/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.dlna.db",
+                "checker": "plex",
+            },
+        ],
+    },
+    "jellyfin": {
+        "container": "media_jellyfin",
+        "databases": ["/mnt/fast/config/jellyfin/data/jellyfin.db"],
+    },
+    "overseerr": {
+        "container": "media_overseerr",
+        "databases": ["/mnt/fast/config/overseerr/db/db.sqlite3"],
+    },
+    "sabnzbd": {
+        "container": "media_sabnzbd",
+        "databases": ["/mnt/fast/config/sabnzbd/admin/history1.db"],
+    },
+    "tdarr": {
+        "container": "tdarr",
+        "databases": ["/mnt/data2/tdarr/server/Tdarr/DB2/SQL/database.db"],
+    },
+}
+
+
+def _sqlite_quick_check(connection):
+    issues = []
+    for row in connection.execute("PRAGMA quick_check"):
+        if row[0] != "ok":
+            issues.append(str(row[0]))
+            if len(issues) >= 5:
+                break
+    if not issues:
+        return True, "ok"
+    return False, "; ".join(issues)
+
+
+def _check_live_sqlite_database(path, checker=None, container_path=None):
+    import sqlite3
+
+    if not os.path.isfile(path):
+        return {"ok": False, "result": "database file not found", "commands_count": None}
+    if checker == "plex":
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "media_plex",
+                    "/usr/lib/plexmediaserver/Plex SQLite",
+                    "-readonly",
+                    container_path,
+                    "PRAGMA quick_check",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            output = result.stdout.strip()
+            if result.returncode != 0 or output != "ok":
+                detail = output or result.stderr.strip() or f"exit status {result.returncode}"
+                return {"ok": False, "result": detail[:240], "commands_count": None}
+            return {"ok": True, "result": "ok", "commands_count": None}
+        except Exception as exc:
+            return {
+                "ok": False,
+                "result": f"{type(exc).__name__}: {str(exc)[:240]}",
+                "commands_count": None,
+            }
+    connection = None
+    try:
+        uri = Path(path).as_uri() + "?mode=ro"
+        connection = sqlite3.connect(uri, uri=True, timeout=10)
+        connection.execute("PRAGMA query_only=ON")
+        ok, result = _sqlite_quick_check(connection)
+        commands_count = None
+        table = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='Commands'").fetchone()
+        if table:
+            commands_count = connection.execute("SELECT count(*) FROM Commands").fetchone()[0]
+        return {"ok": ok, "result": result, "commands_count": commands_count}
+    except Exception as exc:
+        return {
+            "ok": False,
+            "result": f"{type(exc).__name__}: {str(exc)[:240]}",
+            "commands_count": None,
+        }
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def _check_latest_arr_backup(backup_dir, database_name):
+    import sqlite3
+    import zipfile
+
+    archives = [path for path in glob.glob(os.path.join(backup_dir, "*.zip")) if os.path.isfile(path)]
+    if not archives:
+        return {"ok": False, "result": "no scheduled backup archive", "age_hours": None}
+    latest = max(archives, key=os.path.getmtime)
+    age_hours = max(0, round((time.time() - os.path.getmtime(latest)) / 3600, 1))
+    connection = None
+    try:
+        with zipfile.ZipFile(latest) as archive:
+            members = [
+                info for info in archive.infolist() if os.path.basename(info.filename).lower() == database_name.lower()
+            ]
+            if not members:
+                return {
+                    "ok": False,
+                    "result": f"{database_name} missing from newest scheduled archive",
+                    "archive": os.path.basename(latest),
+                    "age_hours": age_hours,
+                }
+            if members[0].file_size > 512 * 1024**2:
+                return {
+                    "ok": False,
+                    "result": "database member exceeds 512 MiB safety limit",
+                    "archive": os.path.basename(latest),
+                    "age_hours": age_hours,
+                }
+            connection = sqlite3.connect(":memory:")
+            connection.deserialize(archive.read(members[0]))
+            ok, result = _sqlite_quick_check(connection)
+        if age_hours > _MEDIA_DB_INTEGRITY_STALE_BACKUP_HOURS:
+            ok = False
+            result = f"scheduled backup is stale ({age_hours} hours); {result}"
+        return {
+            "ok": ok,
+            "result": result,
+            "archive": os.path.basename(latest),
+            "age_hours": age_hours,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "result": f"{type(exc).__name__}: {str(exc)[:240]}",
+            "archive": os.path.basename(latest),
+            "age_hours": age_hours,
+        }
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def get_media_db_integrity_status(force=False):
+    """Check live media SQLite DBs and scheduled *arr backups read-only.
+
+    This runs on the host because mediahub_app intentionally has no config-volume
+    mounts. It validates live DBs (including WAL state) and the newest scheduled
+    *arr backup; file existence and timestamps alone are not proof.
+    """
+    global _MEDIA_DB_INTEGRITY_LAST_CHECK, _MEDIA_DB_INTEGRITY_CACHE
+
+    now = time.time()
+    if (
+        not force
+        and _MEDIA_DB_INTEGRITY_CACHE is not None
+        and now - _MEDIA_DB_INTEGRITY_LAST_CHECK < _MEDIA_DB_INTEGRITY_INTERVAL_SECONDS
+    ):
+        return _MEDIA_DB_INTEGRITY_CACHE
+
+    checked_at = datetime.now().isoformat()
+    services = {}
+    for service, config in _MEDIA_SQLITE_DATABASES.items():
+        issues = []
+        live_databases = {}
+        commands_count = None
+        for database in config["databases"]:
+            if isinstance(database, dict):
+                path = database["host_path"]
+                check = _check_live_sqlite_database(
+                    path,
+                    checker=database.get("checker"),
+                    container_path=database.get("container_path"),
+                )
+            else:
+                path = database
+                check = _check_live_sqlite_database(path)
+            name = os.path.basename(path)
+            live_databases[name] = check
+            if not check["ok"]:
+                issues.append(f"live DB {name}: {check['result']}")
+            if check.get("commands_count") is not None:
+                commands_count = check["commands_count"]
+
+        live_ok = all(check["ok"] for check in live_databases.values())
+        live = {
+            "ok": live_ok,
+            "databases": live_databases,
+            "commands_count": commands_count,
+        }
+        backup = None
+        if config.get("backup_dir"):
+            backup = _check_latest_arr_backup(config["backup_dir"], config["backup_database"])
+            if not backup["ok"]:
+                issues.append(f"scheduled backup: {backup['result']}")
+        if (
+            config.get("watch_commands")
+            and commands_count is not None
+            and commands_count > _MEDIA_DB_COMMANDS_WARNING_THRESHOLD
+        ):
+            issues.append(f"Commands table has {commands_count} rows")
+        result = {
+            "ok": not issues,
+            "checked_at": checked_at,
+            "live": live,
+            "scheduled_backup": backup,
+            "issues": issues,
+        }
+        services[service] = result
+
+        if issues:
+            severity = "critical" if not live_ok else "warning"
+            message = f"{service} SQLite integrity check failed: " + "; ".join(issues)
+            if should_alert(config["container"], "media_db_integrity", 360):
+                create_alert(
+                    "media",
+                    config["container"],
+                    "media_db_integrity",
+                    severity,
+                    message[:1000],
+                    details=result,
+                )
+            print(f"[media-db] {message}", flush=True)
+        else:
+            checked_sources = "live DB and scheduled backup" if backup is not None else "live DBs"
+            command_detail = f" (Commands={commands_count})" if commands_count is not None else ""
+            print(
+                f"[media-db] {service} {checked_sources} pass quick_check{command_detail}",
+                flush=True,
+            )
+
+    _MEDIA_DB_INTEGRITY_CACHE = {"checked_at": checked_at, "services": services}
+    _MEDIA_DB_INTEGRITY_LAST_CHECK = now
+    return _MEDIA_DB_INTEGRITY_CACHE
+
+
 def collect_all_data():
     """Collect all host system data"""
     network = get_network_info()
@@ -7775,6 +8055,17 @@ def collect_all_data():
     # devices this cycle reports, and get_gpu_info() shells out to nvidia-smi.
     gpu = get_gpu_info()
 
+    # The media DB probe runs on the host because the Media Hub container has no config mounts.
+    try:
+        media_db_integrity = get_media_db_integrity_status()
+    except Exception as exc:
+        media_db_integrity = {
+            "checked_at": datetime.now().isoformat(),
+            "error": f"{type(exc).__name__}: {str(exc)[:240]}",
+            "services": {},
+        }
+        print(f"[media-db] integrity monitor failed: {media_db_integrity['error']}", flush=True)
+
     # Hardware change detection is fully guarded -- a fault in the detector
     # must never cost us the rest of the monitoring payload.
     try:
@@ -7789,6 +8080,7 @@ def collect_all_data():
         "cpu_hardware": get_cpu_hardware(),
         "gpu": gpu,
         "hardware": hardware,
+        "media_db_integrity": media_db_integrity,
         # Whether this host can actually DELIVER alerts. Published so a broken
         # alert path shows on the dashboard instead of looking like silence.
         "alerting": alerting_health(),

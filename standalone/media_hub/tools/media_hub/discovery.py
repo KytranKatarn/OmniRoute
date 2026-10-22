@@ -321,22 +321,13 @@ def discover_all_api_keys() -> Dict[str, Dict[str, Any]]:
 
 
 if __name__ == "__main__":
-    """Test discovery when run directly"""
-    print("Testing Media Hub Service Discovery...")
-    print("=" * 60)
-
+    logging.basicConfig(level=logging.INFO)
     results = discover_all_api_keys()
 
     for service, info in results.items():
-        status = "FOUND" if info["found"] else "NOT FOUND"
-        print(f"\n{service.upper()}:")
-        print(f"  Status: {status}")
-        print(f"  Config: {info['config_path']}")
-        print(f"  Port: {info['port']}")
-        if info.get("note"):
-            print(f"  Note: {info['note']}")
-        if info["found"] and info["api_key"]:
-            # Show only first/last 4 chars for security
-            key = info["api_key"]
-            masked = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "****"
-            print(f"  API Key: {masked}")
+        logger.info(
+            "%s discovery %s (port %s)",
+            service,
+            "found" if info["found"] else "not found",
+            info["port"],
+        )

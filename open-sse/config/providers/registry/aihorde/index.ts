@@ -36,13 +36,30 @@ export const aihordeProvider: RegistryEntry = {
     passthroughModels: true,
     anonymousApiKey: "0000000000",
     timeoutMs: 120_000,
-    // Provider-wide fallback (getUnsupportedParams() falls back to this when a
-    // model has no per-model entry) — every model AI Horde serves shares this
-    // limitation, not just the 3 statically catalogued below. Without it, any
-    // live-discovered model (the roster changes as workers come/go) sends
-    // `tools` straight through and gets a 500 from the raw text-completion
-    // backend, which doesn't understand the field at all.
-    unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+    // NOT `unsupportedParams: ["tools", ...]` — deliberately, and this is the
+    // opposite of what it was before #7424.
+    //
+    // `unsupportedParams` drives TWO things: the outbound sanitizer (strip the
+    // field before the upstream call) and the gateway's request-level gate that
+    // REFUSES a direct tool-bearing request for a model that declares tools
+    // unsupported (open-sse/handlers/chatCore/toolCallingRequiredCheck.ts).
+    //
+    // That gate exists because silently stripping tools yields a 200 that can
+    // never call anything — the model narrates a fake action instead. It
+    // cited AI Horde as the live incident, and it was right about the OLD
+    // behaviour: AI Horde had no tool support at all.
+    //
+    // It has one now: the aihorde executor prompt-EMULATES tool calling (the
+    // shared <tool> contract travels in the prompt, and the reply is parsed
+    // back into tool_calls), so the client's tool call DOES reach it. Declaring
+    // "tools" unsupported would keep refusing exactly the requests the
+    // emulation exists to serve.
+    //
+    // The upstream still 500s on a tools[] array — the raw text-completion
+    // backends do not understand the field — so the EXECUTOR deletes
+    // tools / tool_choice / parallel_tool_calls from the outbound body itself
+    // (see open-sse/executors/aihorde.ts). That is the right place for it:
+    // the strip is a property of the upstream, not of the gateway's API.
     // Aphrodite's OpenAI-compatible facade 500s on a single-text-part content array —
     // it only implements the plain-string form (see openai-responses.ts collapse logic).
     requiresPlainStringContent: true,
@@ -52,21 +69,27 @@ export const aihordeProvider: RegistryEntry = {
         name: "Cydonia 24B (AI Horde)",
         contextLength: 32768,
         toolCalling: false,
-        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+        // The executor strips tools/tool_choice/parallel_tool_calls from the
+        // outbound body — AI Horde's facade 500s on them. See the provider-level
+        // note above for why they are not declared here.
       },
       {
         id: "aphrodite/TheDrummer/Skyfall-31B-v4.2",
         name: "Skyfall 31B (AI Horde)",
         contextLength: 32768,
         toolCalling: false,
-        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+        // The executor strips tools/tool_choice/parallel_tool_calls from the
+        // outbound body — AI Horde's facade 500s on them. See the provider-level
+        // note above for why they are not declared here.
       },
       {
         id: "google/gemma-4-31b",
         name: "Gemma 4 31B (AI Horde)",
         contextLength: 32768,
         toolCalling: false,
-        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+        // The executor strips tools/tool_choice/parallel_tool_calls from the
+        // outbound body — AI Horde's facade 500s on them. See the provider-level
+        // note above for why they are not declared here.
       },
     ],
   }),

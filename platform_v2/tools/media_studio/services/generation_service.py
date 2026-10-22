@@ -857,12 +857,14 @@ def _dashboard_media_item(row) -> Dict:
     return item
 
 
-def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
+def get_dashboard_stats(user_id: int, include_dismissed: bool = False, include_tests: bool = False) -> Dict:
     """Aggregate live operational stats for the Media Studio dashboard.
 
     pending_approvals excludes portraits soft-dismissed by the owner
     (media_library.metadata->>'approval_dismissed' = true) unless
     include_dismissed is set, so the dashboard quick-review can re-list them.
+    It also excludes labelled TUNING TEST images (metadata.tuning_test = true) unless include_tests is set, so a
+    comparison burst does not flood the approval list with candidates nobody should approve.
     """
     with get_db_cursor() as (conn, cur):
         cur.execute(
@@ -905,6 +907,26 @@ def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
         counts["queue_active"] = counts["queue_pending"] + counts["queue_running"]
         counts["queue_failed"] = queue_counts.get("failed", 0)
         counts["queue_completed"] = queue_counts.get("completed", 0)
+
+        # Last-24h figures in the SAME scope as the Queue tab (agent jobs + this user's). The all-time failed
+        # count reads as an alarm when most of it is old test runs.
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE status = 'failed' AND COALESCE(completed_at, created_at) > NOW() - INTERVAL '24 hours'
+                ) AS failed_24h,
+                COUNT(*) FILTER (
+                    WHERE status = 'completed' AND completed_at > NOW() - INTERVAL '24 hours'
+                ) AS completed_24h
+            FROM media_generation_queue
+            WHERE owner_type = 'agent' OR (owner_type = 'user' AND owner_id = %s)
+            """,
+            (user_id,),
+        )
+        recent = dict(cur.fetchone())
+        counts["queue_failed_24h"] = int(recent["failed_24h"] or 0)
+        counts["queue_completed_24h"] = int(recent["completed_24h"] or 0)
 
         cur.execute(
             """
@@ -950,6 +972,7 @@ def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
                   AND ml.media_type = 'image'
                   AND ml.is_deleted = false
                   AND COALESCE(ml.metadata->>'asset_type', 'portrait') = 'portrait'
+                  AND (%(include_tests)s = true OR COALESCE(ml.metadata->>'tuning_test', 'false') <> 'true')
                   AND NOT EXISTS (
                       SELECT 1
                       FROM agent_portraits approved
@@ -993,7 +1016,7 @@ def get_dashboard_stats(user_id: int, include_dismissed: bool = False) -> Dict:
             ORDER BY c.created_at DESC NULLS LAST, c.media_id DESC
             LIMIT 5
             """,
-            {"include_dismissed": include_dismissed},
+            {"include_dismissed": include_dismissed, "include_tests": include_tests},
         )
         pending_rows = [dict(row) for row in cur.fetchall()]
         for item in pending_rows:

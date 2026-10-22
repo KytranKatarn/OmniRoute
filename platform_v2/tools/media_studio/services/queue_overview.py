@@ -228,3 +228,43 @@ def gpu_nodes_status(
         "running": sum(e["running"] for e in entries),
         "pending": sum(e["pending"] for e in entries),
     }
+
+
+# --- bulk retry (Dashboard "Failed (24h)" tile) ----------------------------------------------------------------
+
+
+def recent_failed(user_id: int, hours: int = 24, limit: int = 25, get_cursor=None) -> List[Dict]:
+    """Failed jobs from the last ``hours`` in the Queue tab's scope, newest first (capped: a retry re-runs the GPU)."""
+    if get_cursor is None:
+        from database import get_db_cursor as get_cursor
+    hours = max(1, min(int(hours), 168))
+    limit = max(1, min(int(limit), 50))
+    with get_cursor() as (_conn, cur):
+        cur.execute(
+            """
+            SELECT id, owner_type, owner_id
+              FROM media_generation_queue
+             WHERE status = 'failed'
+               AND (owner_type = 'agent' OR (owner_type = 'user' AND owner_id = %s))
+               AND COALESCE(completed_at, created_at) > NOW() - make_interval(hours => %s)
+             ORDER BY created_at DESC
+             LIMIT %s
+            """,
+            (user_id, hours, limit),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def retry_recent_failed(user_id: int, hours: int = 24, limit: int = 25, get_cursor=None, retry=None) -> Dict:
+    """Re-queue the recent failures one by one through the existing single-retry path. Returns what was done."""
+    if retry is None:
+        from .batch_service import retry_single as retry
+    rows = recent_failed(user_id, hours, limit, get_cursor)
+    retried = 0
+    for r in rows:
+        try:
+            if retry(r["id"], r["owner_type"], r["owner_id"]):
+                retried += 1
+        except Exception as exc:  # one bad row must not stop the rest
+            logger.warning("retry_recent_failed: job %s not retried: %s", r.get("id"), exc)
+    return {"found": len(rows), "retried": retried}

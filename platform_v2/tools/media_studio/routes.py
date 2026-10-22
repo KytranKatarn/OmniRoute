@@ -38,6 +38,7 @@ def api_dashboard():
     stats = get_dashboard_stats(
         current_user.id,
         include_dismissed=(request.args.get("include_dismissed") == "1"),
+        include_tests=(request.args.get("include_tests") == "1"),
     )
     try:
         fleet = get_fleet_comfyui_status()
@@ -2156,6 +2157,19 @@ def api_cancel_queue_item(queue_id):
     if not success:
         return jsonify({"error": "Item not found or not cancellable"}), 404
     return jsonify({"status": "cancelled"})
+
+
+@media_studio_bp.route("/api/queue/retry-failed", methods=["POST"])
+@login_required
+def api_queue_retry_failed():
+    """Re-queue this tab's recent failures (default last 24h, at most 25). The Dashboard asks for confirmation first."""
+    from .services.queue_overview import retry_recent_failed
+
+    data = request.get_json(silent=True) or {}
+    hours = data.get("hours", 24)
+    if not isinstance(hours, int) or isinstance(hours, bool) or not 1 <= hours <= 168:
+        return jsonify({"error": "hours must be an integer from 1 to 168"}), 400
+    return jsonify({"success": True, **retry_recent_failed(current_user.id, hours=hours)})
 
 
 @media_studio_bp.route("/api/queue/stats", methods=["GET"])

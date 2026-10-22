@@ -49,13 +49,17 @@
               <i data-lucide="layers" class="ms-stat-icon"></i>
             </div>
             <div class="ms-stat-card ms-jump" onclick="msDashboard.jumpTo('queue');" title="View failed jobs">
-               <div class="ms-stat-label">Failed (all)</div>
+               <div class="ms-stat-label">Failed (24h)</div>
 
               <div class="ms-stat-value" id="msDashStatFailed" style="color:#ef4444;">--</div>
               <div class="ms-stat-sub" id="msDashSubFailed"></div>
+              <a href="#" id="msDashRetryFailed" onclick="event.stopPropagation();msDashboard.retryFailed();return false;" title="Re-queue the failed jobs from the last 24 hours (re-runs the GPU)" style="display:none;margin-top:4px;color:#f59e0b;font-size:0.6rem;letter-spacing:1px;text-decoration:none;">&#x21BB; Retry failed</a>
               <i data-lucide="alert-triangle" class="ms-stat-icon"></i>
             </div>
           </div>
+
+          <!-- GPU strip: one chip per ComfyUI node (queue depth + IMAGE SESSION lease). Filled by ms-dashboard.js -->
+          <div id="msDashGpuStrip" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:#888;"></div>
 
           <!-- 3-column live ops panel -->
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
@@ -66,7 +70,10 @@
             <div style="background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.15);border-radius:6px;padding:12px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
                 <div style="color:#f59e0b;font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;">&#x2713; Needs Approval</div>
-                <a href="#" id="msDashShowDismissed" onclick="msDashboard.toggleDismissed();return false;" style="color:#555;font-size:0.6rem;text-decoration:none;cursor:pointer;">Show dismissed</a>
+                <span>
+                  <a href="#" id="msDashShowTests" onclick="msDashboard.toggleTests();return false;" title="Tuning-test images are hidden from approvals by default" style="color:#555;font-size:0.6rem;text-decoration:none;cursor:pointer;margin-right:8px;">Show tests</a>
+                  <a href="#" id="msDashShowDismissed" onclick="msDashboard.toggleDismissed();return false;" style="color:#555;font-size:0.6rem;text-decoration:none;cursor:pointer;">Show dismissed</a>
+                </span>
               </div>
               <div id="msDashApprovalList"></div>
             </div>

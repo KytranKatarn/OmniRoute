@@ -18,18 +18,37 @@
     return '/static/' + path;
   }
 
+  // "6:25 PM" for today, "Oct 21, 6:25 PM" otherwise: a bare time is ambiguous once a row is a day old.
+  function _when(iso) {
+    var d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d.getTime())) return '';
+    var time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    var now = new Date();
+    if (d.toDateString() === now.toDateString()) return time;
+    var opts = { month: 'short', day: 'numeric' };
+    if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+    return d.toLocaleDateString([], opts) + ', ' + time;
+  }
+
   window.msDashboard = {
     _showDismissed: false,
+    _showTests: false,
+    _failed24h: 0,
+    _retryArmed: false,
 
     load: function () {
-      var url = '/api/dashboard' + (msDashboard._showDismissed ? '?include_dismissed=1' : '');
+      var q = [];
+      if (msDashboard._showDismissed) q.push('include_dismissed=1');
+      if (msDashboard._showTests) q.push('include_tests=1');
+      var url = '/api/dashboard' + (q.length ? '?' + q.join('&') : '');
       _get(url).then(function (d) {
         _setText('msDashStatGenerating', d.queue_active != null ? d.queue_active : (d.active_jobs || []).length);
         var pendingCount = d.pending_approval_count != null ? d.pending_approval_count : (d.pending_approvals || []).length;
         _setText('msDashStatApprovals', pendingCount);
         _setText('msDashStatSocial', d.social_queue_count != null ? d.social_queue_count : (d.social_queue || []).length);
         _setText('msDashStatTotal', d.total_generated != null ? d.total_generated : 0);
-        _setText('msDashStatFailed', d.queue_failed != null ? d.queue_failed : 0);
+        msDashboard._failed24h = d.queue_failed_24h != null ? d.queue_failed_24h : (d.queue_failed || 0);
+        _setText('msDashStatFailed', msDashboard._failed24h);
         _setText('msDashUpdated', 'Updated ' + new Date().toLocaleTimeString());
         msDashboard._renderSubLabels(d);
         msDashboard._renderGenerating(d.active_jobs || []);
@@ -37,6 +56,8 @@
         msDashboard._renderSocialQueue(d.social_queue || []);
         msDashboard._renderRecent(d.recent || []);
         msDashboard._renderShowDismissedToggle();
+        msDashboard._renderRetryLink();
+        msDashboard._loadGpuStrip();
       }).catch(function (err) { console.warn('[msDashboard] load failed:', err); });
     },
 
@@ -52,7 +73,69 @@
       var sched = sq.scheduled || 0;
       _setText('msDashSubSocial', drafts + ' draft \u00b7 ' + sched + ' scheduled');
       _setText('msDashSubTotal', (d.images || 0) + ' img \u00b7 ' + (d.videos || 0) + ' vid \u00b7 ' + (d.audio || 0) + ' aud');
-      _setText('msDashSubFailed', (by.failed || 0) + ' failed');
+      _setText('msDashSubFailed', (by.failed || 0) + ' all-time \u00b7 ' + (d.queue_completed_24h || 0) + ' completed (24h)');
+    },
+
+    toggleTests: function () {
+      msDashboard._showTests = !msDashboard._showTests;
+      msDashboard.load();
+    },
+
+    // Two-step confirm without a modal: the first click arms it ("click again"), the second one re-queues.
+    _renderRetryLink: function () {
+      var link = _el('msDashRetryFailed');
+      if (!link) return;
+      link.style.display = msDashboard._failed24h > 0 ? 'inline-block' : 'none';
+      if (!msDashboard._retryArmed) link.textContent = '\u21BB Retry ' + msDashboard._failed24h + ' failed';
+    },
+
+    retryFailed: function () {
+      var link = _el('msDashRetryFailed');
+      if (!msDashboard._retryArmed) {
+        msDashboard._retryArmed = true;
+        if (link) link.textContent = 'Re-run ' + msDashboard._failed24h + ' jobs on the GPU? Click again to confirm';
+        setTimeout(function () { msDashboard._retryArmed = false; msDashboard._renderRetryLink(); }, 5000);
+        return;
+      }
+      msDashboard._retryArmed = false;
+      fetch(_API + '/api/queue/retry-failed', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hours: 24 })
+      }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (res) {
+        if (window.showMsToast) window.showMsToast('Re-queued ' + res.retried + ' of ' + res.found + ' failed jobs', 'success');
+        msDashboard.load();
+      }).catch(function (err) {
+        if (window.showMsToast) window.showMsToast('Retry failed: ' + err, 'error');
+      });
+    },
+
+    // One chip per GPU node: queue depth and the IMAGE SESSION tag. Text only (textContent), never innerHTML.
+    _loadGpuStrip: function () {
+      _get('/api/comfyui/queue').then(function (data) {
+        var el = _el('msDashGpuStrip');
+        if (!el) return;
+        while (el.firstChild) el.removeChild(el.firstChild);
+        (data.nodes || []).forEach(function (n) {
+          var chip = document.createElement('span');
+          chip.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.04);';
+          var dot = document.createElement('span');
+          var color = n.state === 'busy' ? '#22c55e' : (n.state === 'unreachable' ? '#ef4444' : '#6b7280');
+          dot.style.cssText = 'width:7px;height:7px;border-radius:50%;background:' + color + ';';
+          var label = String(n.name || '').replace(/^Starship - /, '').replace(/ - USS-\d+$/, '');
+          var text = document.createElement('span');
+          text.textContent = label + ' \u00b7 ' + (n.state === 'busy' ? (n.running + ' running, ' + n.pending + ' queued') : n.state);
+          chip.appendChild(dot);
+          chip.appendChild(text);
+          if (n.lease_holder) {
+            var tag = document.createElement('span');
+            tag.textContent = 'IMAGE SESSION';
+            tag.title = 'GPU leased to ' + n.lease_holder;
+            tag.style.cssText = 'color:#ec4899;border:1px solid rgba(236,72,153,0.4);border-radius:3px;padding:0 4px;font-size:0.58rem;';
+            chip.appendChild(tag);
+          }
+          el.appendChild(chip);
+        });
+      }).catch(function () {});
     },
 
     _renderShowDismissedToggle: function () {
@@ -66,6 +149,11 @@
         link.style.color = '#555';
       }
       link.style.display = 'inline';
+      var tests = _el('msDashShowTests');
+      if (tests) {
+        tests.textContent = msDashboard._showTests ? 'Hide tests' : 'Show tests';
+        tests.style.color = msDashboard._showTests ? '#22c55e' : '#555';
+      }
     },
 
     jumpTo: function (tab) {
@@ -154,7 +242,7 @@
         n.textContent = item.display_name || item.name || 'Agent';
         var t = document.createElement('div');
         t.style.cssText = 'color:#555;font-size:0.58rem;';
-        t.textContent = item.created_at ? new Date(item.created_at).toLocaleTimeString() : '';
+        t.textContent = _when(item.created_at);
         if (item.approval_dismissed) {
           t.textContent = (t.textContent ? t.textContent + ' · ' : '') + 'dismissed';
           t.style.color = '#ef4444';

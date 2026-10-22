@@ -1,0 +1,568 @@
+diff --git a/open-sse/config/providers/registry/aihorde/index.ts b/open-sse/config/providers/registry/aihorde/index.ts
+index ae5916ae3..46ae48cb4 100644
+--- a/open-sse/config/providers/registry/aihorde/index.ts
++++ b/open-sse/config/providers/registry/aihorde/index.ts
+@@ -26,46 +26,53 @@ import { buildOpenAiCompatibleRegistryEntry } from "../../shared.ts";
+  * while `count > 0`. An optional registered API key is stored as a normal
+  * connection and sent as the Horde `apikey` header for both chat and images.
+  */
+-export const aihordeProvider: RegistryEntry = buildOpenAiCompatibleRegistryEntry({
+-  id: "aihorde",
+-  description:
+-    "AI Horde - a free, anonymous, crowdsourced pool of open models. No key, no account; quality and speed vary by the endpoint's own model, so treat anything here as a lottery ticket rather than a known quantity.",
+-  baseUrl: "https://oai.aihorde.net/v1/chat/completions",
+-  modelsUrl: "https://oai.aihorde.net/v1/models",
+-  passthroughModels: true,
+-  anonymousApiKey: "0000000000",
+-  timeoutMs: 120_000,
+-  // Provider-wide fallback (getUnsupportedParams() falls back to this when a
+-  // model has no per-model entry) — every model AI Horde serves shares this
+-  // limitation, not just the 3 statically catalogued below. Without it, any
+-  // live-discovered model (the roster changes as workers come/go) sends
+-  // `tools` straight through and gets a 500 from the raw text-completion
+-  // backend, which doesn't understand the field at all.
+-  unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+-  // Aphrodite's OpenAI-compatible facade 500s on a single-text-part content array —
+-  // it only implements the plain-string form (see openai-responses.ts collapse logic).
+-  requiresPlainStringContent: true,
+-  models: [
+-    {
+-      id: "aphrodite/TheDrummer/Cydonia-24B-v4.3",
+-      name: "Cydonia 24B (AI Horde)",
+-      contextLength: 32768,
+-      toolCalling: false,
+-      unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+-    },
+-    {
+-      id: "aphrodite/TheDrummer/Skyfall-31B-v4.2",
+-      name: "Skyfall 31B (AI Horde)",
+-      contextLength: 32768,
+-      toolCalling: false,
+-      unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+-    },
+-    {
+-      id: "google/gemma-4-31b",
+-      name: "Gemma 4 31B (AI Horde)",
+-      contextLength: 32768,
+-      toolCalling: false,
+-      unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+-    },
+-  ],
+-});
++export const aihordeProvider: RegistryEntry = {
++  ...buildOpenAiCompatibleRegistryEntry({
++    id: "aihorde",
++    description:
++      "AI Horde - a free, anonymous, crowdsourced pool of open models. No key, no account; quality and speed vary by the endpoint's own model, so treat anything here as a lottery ticket rather than a known quantity.",
++    baseUrl: "https://oai.aihorde.net/v1/chat/completions",
++    modelsUrl: "https://oai.aihorde.net/v1/models",
++    passthroughModels: true,
++    anonymousApiKey: "0000000000",
++    timeoutMs: 120_000,
++    // Provider-wide fallback (getUnsupportedParams() falls back to this when a
++    // model has no per-model entry) — every model AI Horde serves shares this
++    // limitation, not just the 3 statically catalogued below. Without it, any
++    // live-discovered model (the roster changes as workers come/go) sends
++    // `tools` straight through and gets a 500 from the raw text-completion
++    // backend, which doesn't understand the field at all.
++    unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++    // Aphrodite's OpenAI-compatible facade 500s on a single-text-part content array —
++    // it only implements the plain-string form (see openai-responses.ts collapse logic).
++    requiresPlainStringContent: true,
++    models: [
++      {
++        id: "aphrodite/TheDrummer/Cydonia-24B-v4.3",
++        name: "Cydonia 24B (AI Horde)",
++        contextLength: 32768,
++        toolCalling: false,
++        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++      },
++      {
++        id: "aphrodite/TheDrummer/Skyfall-31B-v4.2",
++        name: "Skyfall 31B (AI Horde)",
++        contextLength: 32768,
++        toolCalling: false,
++        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++      },
++      {
++        id: "google/gemma-4-31b",
++        name: "Gemma 4 31B (AI Horde)",
++        contextLength: 32768,
++        toolCalling: false,
++        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
++      },
++    ],
++  }),
++  // #7424 — the default executor cannot prompt-emulate tool calling, so AI
++  // Horde gets its own: it strips the tools[] array AI Horde 500s on, injects the
++  // shared <tool> contract into the prompt, and parses the reply back into
++  // tool_calls (see open-sse/executors/aihorde.ts).
++  executor: "aihorde",
++};
+diff --git a/open-sse/executors/aihorde.ts b/open-sse/executors/aihorde.ts
+new file mode 100644
+index 000000000..380024b09
+--- /dev/null
++++ b/open-sse/executors/aihorde.ts
+@@ -0,0 +1,261 @@
++import { BaseExecutor, type ExecuteInput, type ExecutorExecuteResult } from "./base.ts";
++import { PROVIDERS } from "../config/constants.ts";
++import { errorResponse } from "../utils/error.ts";
++import { prepareToolMessages, buildToolAwareResult } from "../translator/webTools.ts";
++
++/**
++ * AihordeExecutor — AI Horde over its plain OpenAI-compatible endpoint.
++ *
++ * WHY THIS EXISTS (#7424)
++ * ----------------------
++ * The keyless (free) auto-combo pool had exactly ONE transport with real
++ * capacity: `cloudflare-playground`, whose executor keeps a SINGLE Chromium
++ * page (`private page: Page | null`) that all forty of its models ride. One
++ * browser crash removed 95% of the free tier at once.
++ *
++ * AI Horde is the only candidate in the catalogue that is free AND genuinely
++ * independent: plain HTTPS, no account, no browser, no local CLI, no owner
++ * subscription. Measured live 2026-10-22:
++ *
++ *   POST https://oai.aihorde.net/v1/chat/completions  -> 200, a real completion
++ *   GET  https://oai.aihorde.net/v1/models              -> 30 models offered
++ *
++ * AI Horde has NO native function calling, so its tool calls have to be
++ * prompt-emulated — the same shim the web-cookie providers use. The tool
++ * contract is injected into the messages by the shared `prepareToolMessages`,
++ * and the reply is parsed back out by the shared `buildToolAwareResult`.
++ *
++ * AI Horde's models answer the contract by naming the tool in its own tag:
++ *
++ *     <tool>
++ *     <get_weather>
++ *     {"location": "Toronto"}
++ *     </tool>
++ *
++ * which the shared parser only sees after the named-block normalisation added
++ * in translator/webTools.ts (normalizeNamedBlockToolCalls).
++ *
++ * TWO THINGS AI HORDE IS Fussy ABOUT, both handled here:
++ *
++ *  1. It 500s on a `tools` array — the raw text-completion backends do not
++ *     understand the field at all. The contract therefore travels in the
++ *     PROMPT only, and `tools` / `tool_choice` / `parallel_tool_calls` are
++ *     removed from the outbound body.
++ *  2. Its OpenAI-compatible facade rejects a content ARRAY that holds a single
++ *     text part (`requiresPlainStringContent` in the registry entry). Every
++ *     message is therefore flattened to a plain string before it goes out.
++ */
++
++const AIHORDE_BASE_URL = "https://oai.aihorde.net";
++const AIHORDE_CHAT_PATH = "/v1/chat/completions";
++const AIHORDE_MODELS_PATH = "/v1/models";
++
++/**
++ * AI Horde accepts an anonymous placeholder bearer — no account, no key. This
++ * is the same value the registry entry declares as `anonymousApiKey`.
++ */
++const AIHORDE_ANONYMOUS_KEY = "0000000000";
++
++const JSON_HEADERS: Record<string, string> = { "Content-Type": "application/json" };
++const SSE_HEADERS: Record<string, string> = {
++  "Content-Type": "text/event-stream",
++  "Cache-Control": "no-cache",
++  Connection: "keep-alive",
++};
++
++type ChatMessage = { role: string; content: unknown; tool_calls?: unknown };
++
++/** The subset of AI Horde's OpenAI-compatible completion we read. */
++type AihordeCompletion = {
++  id?: string;
++  created?: number;
++  usage?: unknown;
++  choices?: Array<{ message?: { content?: string } }>;
++};
++
++/** Flattens a message's content to the plain string AI Horde's facade accepts. */
++function flattenContent(content: unknown): string {
++  if (typeof content === "string") return content;
++  if (Array.isArray(content)) {
++    return content
++      .map((part) => {
++        if (typeof part === "string") return part;
++        if (!part || typeof part !== "object") return "";
++        const record = part as Record<string, unknown>;
++        return typeof record.text === "string" ? record.text : "";
++      })
++      .join("");
++  }
++  if (content === null || content === undefined) return "";
++  return String(content);
++}
++
++function flattenMessages(messages: unknown): ChatMessage[] {
++  if (!Array.isArray(messages)) return [];
++  const out: ChatMessage[] = [];
++  for (const message of messages) {
++    if (!message || typeof message !== "object") continue;
++    const record = message as Record<string, unknown>;
++    out.push({
++      role: typeof record.role === "string" ? record.role : "user",
++      content: flattenContent(record.content),
++    });
++  }
++  return out;
++}
++
++export class AihordeExecutor extends BaseExecutor {
++  constructor() {
++    super("aihorde", PROVIDERS["aihorde"] ?? { id: "aihorde", baseUrl: AIHORDE_BASE_URL });
++  }
++
++  buildUrl(_model: string, _stream: boolean, _urlIndex = 0): string {
++    return AIHORDE_BASE_URL + AIHORDE_CHAT_PATH;
++  }
++
++  buildHeaders(): Record<string, string> {
++    return {
++      ...JSON_HEADERS,
++      Authorization: `Bearer ${AIHORDE_ANONYMOUS_KEY}`,
++    };
++  }
++
++  override async execute(input: ExecuteInput): Promise<ExecutorExecuteResult> {
++    const url = AIHORDE_BASE_URL + AIHORDE_CHAT_PATH;
++    const headers = this.buildHeaders();
++    const body = (input.body ?? {}) as Record<string, unknown>;
++
++    // The shared prompt-emulated tool contract: injects the <tool> protocol
++    // into the messages so the model learns the client tools, and hands back
++    // the requested tool schemas for the response side.
++    const { hasTools, requestedTools, effectiveMessages } = prepareToolMessages(
++      body,
++      flattenMessages(body.messages)
++    );
++
++    // AI Horde 500s on a tools[] array, so the contract travels in the prompt
++    // only. `stream: false` upstream keeps the reply in one buffer, which is
++    // what the marker parser needs.
++    const chatBody: Record<string, unknown> = {
++      ...body,
++      messages: flattenMessages(effectiveMessages),
++      stream: false,
++    };
++    delete chatBody.tools;
++    delete chatBody.tool_choice;
++    delete chatBody.parallel_tool_calls;
++
++    let response: Response;
++    try {
++      response = await fetch(url, {
++        method: "POST",
++        headers,
++        body: JSON.stringify(chatBody),
++        signal: input.signal ?? undefined,
++      });
++    } catch (error) {
++      const message = error instanceof Error ? error.message : String(error);
++      return {
++        response: errorResponse(502, `AI Horde request failed: ${message}`),
++        url,
++        headers,
++        transformedBody: chatBody,
++      };
++    }
++
++    const raw = await response.text();
++    if (!response.ok) {
++      return {
++        response: errorResponse(
++          response.status,
++          `AI Horde ${response.status}: ${raw.slice(0, 400)}`
++        ),
++        url,
++        headers,
++        transformedBody: chatBody,
++      };
++    }
++
++    let parsed: AihordeCompletion | null = null;
++    try {
++      parsed = JSON.parse(raw) as AihordeCompletion;
++    } catch {
++      return {
++        response: errorResponse(502, "AI Horde returned a non-JSON body"),
++        url,
++        headers,
++        transformedBody: chatBody,
++      };
++    }
++
++    const upstreamContent: string = parsed?.choices?.[0]?.message?.content ?? "";
++    const { content, toolCalls, finishReason } = hasTools
++      ? buildToolAwareResult(upstreamContent, requestedTools, "aihorde")
++      : { content: upstreamContent, toolCalls: null, finishReason: "stop" };
++
++    const message: Record<string, unknown> = { role: "assistant", content };
++    if (toolCalls && toolCalls.length > 0) message.tool_calls = toolCalls;
++
++    const completion = {
++      id: typeof parsed?.id === "string" ? parsed.id : `aihorde-${Date.now()}`,
++      object: "chat.completion",
++      created: typeof parsed?.created === "number" ? parsed.created : Math.floor(Date.now() / 1000),
++      model: input.model,
++      choices: [{ index: 0, message, finish_reason: finishReason }],
++      ...(parsed?.usage ? { usage: parsed.usage } : {}),
++    };
++
++    if (input.stream) {
++      // A streaming client gets the single upstream completion replayed as SSE.
++      const chunks: string[] = [];
++      const base = {
++        id: completion.id,
++        object: "chat.completion.chunk",
++        created: completion.created,
++        model: completion.model,
++      };
++      chunks.push(
++        `data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }] })}\n\n`
++      );
++      chunks.push(
++        `data: ${JSON.stringify({
++          ...base,
++          choices: [
++            {
++              index: 0,
++              delta: toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : { content },
++              finish_reason: null,
++            },
++          ],
++        })}\n\n`
++      );
++      chunks.push(
++        `data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: finishReason }] })}\n\n`
++      );
++      chunks.push("data: [DONE]\n\n");
++      const sse = new ReadableStream<Uint8Array>({
++        start(controller) {
++          const encoder = new TextEncoder();
++          for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
++          controller.close();
++        },
++      });
++      return {
++        response: new Response(sse, { status: 200, headers: SSE_HEADERS }),
++        url,
++        headers,
++        transformedBody: chatBody,
++      };
++    }
++
++    return {
++      response: new Response(JSON.stringify(completion), { status: 200, headers: JSON_HEADERS }),
++      url,
++      headers,
++      transformedBody: chatBody,
++    };
++  }
++}
++
++export { AIHORDE_BASE_URL, AIHORDE_MODELS_PATH };
++export default AihordeExecutor;
+diff --git a/open-sse/executors/index.ts b/open-sse/executors/index.ts
+index ec107eed1..baab4ab51 100644
+--- a/open-sse/executors/index.ts
++++ b/open-sse/executors/index.ts
+@@ -70,6 +70,9 @@ const lazyExecutors: Record<string, () => Promise<BaseExecutor>> = {
+   pollinations: () => import("./pollinations.ts").then((m) => new m.PollinationsExecutor()),
+   pol: () => import("./pollinations.ts").then((m) => new m.PollinationsExecutor()), // Alias
+   "cloudflare-ai": () => import("./cloudflare-ai.ts").then((m) => new m.CloudflareAIExecutor()),
++  // #7424 — AI Horde: free, anonymous, plain HTTP. The default executor cannot
++  // prompt-emulate tool calling, so it has its own (see ./aihorde.ts).
++  aihorde: () => import("./aihorde.ts").then((m) => new m.AihordeExecutor()),
+   cf: () => import("./cloudflare-ai.ts").then((m) => new m.CloudflareAIExecutor()), // Alias
+   freebuff: () => import("./freebuff.ts").then((m) => new m.FreebuffExecutor()),
+   fb: () => import("./freebuff.ts").then((m) => new m.FreebuffExecutor()), // Alias
+diff --git a/open-sse/translator/webTools.ts b/open-sse/translator/webTools.ts
+index e96cadc84..533374fe2 100644
+--- a/open-sse/translator/webTools.ts
++++ b/open-sse/translator/webTools.ts
+@@ -464,12 +464,57 @@ export function serializeToolsToPrompt(tools: unknown): string {
+  * `idSeed` makes generated ids deterministic for callers that need stability; when
+  * omitted, ids are still unique within a single call (index-based).
+  */
++/**
++ * Normalises the NAMED-BLOCK tool dialect into the canonical shape.
++ *
++ * Some free backends (measured 2026-10-22: AI Horde's `google/gemma-4-31b`)
++ * answer the plain-text tool contract by naming the tool in its own tag:
++ *
++ *     <tool>
++ *     <get_weather>
++ *     {"location": "Toronto"}
++ *     </tool>
++ *
++ * The canonical shape this parser expects puts the name INSIDE the JSON:
++ *
++ *     <tool>{"name":"get_weather","arguments":{...}}</tool>
++ *
++ * Without this the block is invisible — `parseToolCallsFromText` returns null
++ * and the caller gets prose where a tool call was meant. Rewriting the named
++ * form into the canonical form makes the EXISTING parser accept it, with no
++ * new parsing rules.
++ *
++ * ADDITIVE BY CONSTRUCTION: it only rewrites a `<tool>` block whose inner
++ * content is not already a JSON object carrying a "name" — i.e. text that
++ * currently parses to nothing. A canonical block is left byte-for-byte alone,
++ * so the twelve executors that already work are unaffected.
++ */
++const NAMED_BLOCK_TOOL_RE = /<tool>\s*<([A-Za-z0-9_.-]+)>\s*(\{[\s\S]*?\})\s*<\/tool>/g;
++export function normalizeNamedBlockToolCalls(text: string): string {
++  if (typeof text !== "string") return text;
++  if (!text.includes("<tool>")) return text;
++  return text.replace(NAMED_BLOCK_TOOL_RE, (match: string, name: string, json: string) => {
++    const trimmed = json.trim();
++    // A canonical block already carries "name" inside the JSON — leave it.
++    if (/"name"\s*:/.test(trimmed)) return match;
++    let parsed: unknown;
++    try {
++      parsed = JSON.parse(trimmed);
++    } catch {
++      return match;
++    }
++    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return match;
++    return `<tool>${JSON.stringify({ name, arguments: parsed })}</tool>`;
++  });
++}
++
+ export function parseToolCallsFromText(
+   text: string,
+   idSeed = "call",
+   requestedTools?: unknown
+ ): { content: string; toolCalls: OpenAIToolCall[] | null } {
+-  const normalizedText = typeof text === "string" ? normalizeDsmlToolCalls(text) : text;
++  const normalizedText =
++    typeof text === "string" ? normalizeNamedBlockToolCalls(normalizeDsmlToolCalls(text)) : text;
+   const requestedToolNames = getRequestedToolNames(requestedTools);
+   if (
+     typeof normalizedText !== "string" ||
+diff --git a/src/shared/constants/providers/noauth.ts b/src/shared/constants/providers/noauth.ts
+index 371dd64fc..e7bceb54f 100644
+--- a/src/shared/constants/providers/noauth.ts
++++ b/src/shared/constants/providers/noauth.ts
+@@ -172,6 +172,21 @@ export const NOAUTH_PROVIDERS = {
+     hasFree: true,
+     passthroughModels: true,
+     serviceKinds: ["llm"],
++    // #7424 — AI Horde opts into prompt-emulated tool calling, which is what
++    // admits it to the keyless auto pool (the allowlist is DERIVED from this
++    // flag — see services/autoCombo/emulatedNoAuthAllowlist.ts).
++    //
++    // Why it matters: before this, the keyless auto pool had exactly ONE
++    // transport with real capacity — cloudflare-playground, whose executor
++    // keeps a SINGLE Chromium page that all forty of its models ride. One
++    // browser crash removed 95% of the free tier. AI Horde is the only free
++    // candidate that is genuinely independent: plain HTTPS, no account, no
++    // browser, no local CLI.
++    //
++    // Its models answer the plain-text tool contract in the named-block
++    // dialect (`<tool>\n<name>\n{json}\n</tool>`), which the shared parser
++    // sees after normalizeNamedBlockToolCalls (translator/webTools.ts).
++    toolCalling: "emulated",
+     authHint:
+       "No API key required — uses AI Horde's documented anonymous key. Adding a free aihorde.net key is optional and only buys higher queue priority (kudos).",
+     freeNote:
+diff --git a/tests/unit/aihorde-named-block-tool-dialect.test.ts b/tests/unit/aihorde-named-block-tool-dialect.test.ts
+new file mode 100644
+index 000000000..2761fa009
+--- /dev/null
++++ b/tests/unit/aihorde-named-block-tool-dialect.test.ts
+@@ -0,0 +1,91 @@
++/**
++ * The NAMED-BLOCK tool dialect (task #7424).
++ *
++ * Measured 2026-10-22 against AI Horde's `google/gemma-4-31b` with the
++ * gateway's own prompt contract (`prepareToolMessages`): the model answers the
++ * plain-text tool contract by naming the tool in its own tag —
++ *
++ *     <tool>
++ *     <get_weather>
++ *     {"location": "Toronto"}
++ *     </tool>
++ *
++ * The canonical shape the parser expects puts the name INSIDE the JSON. Without
++ * a normalizer the named form is invisible: `parseToolCallsFromText` returns
++ * null and the caller gets prose where a tool call was meant.
++ *
++ * These pin the normalizer's two properties: it makes the named form parse,
++ * and it leaves every other dialect byte-for-byte alone.
++ */
++
++import { strict as assert } from "node:assert";
++import { test } from "node:test";
++
++import {
++  normalizeNamedBlockToolCalls,
++  parseToolCallsFromText,
++} from "../../open-sse/translator/webTools.ts";
++
++const TOOLS = [
++  {
++    type: "function",
++    function: {
++      name: "get_weather",
++      description: "Get the weather for a city",
++      parameters: {
++        type: "object",
++        properties: { city: { type: "string" } },
++        required: ["city"],
++      },
++    },
++  },
++];
++
++test("the named-block dialect parses into a tool call", () => {
++  const raw = [
++    "<thinking>",
++    "I see a tool called get_weather. Let me call it.",
++    "</thinking>",
++    "",
++    "<tool>",
++    "<get_weather>",
++    '{"location": "Toronto"}',
++    "</tool>",
++  ].join("\n");
++
++  const { toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
++  assert.ok(toolCalls, "the named-block dialect must produce a tool call");
++  assert.equal(toolCalls.length, 1);
++  assert.equal(toolCalls[0].function.name, "get_weather");
++  assert.equal(toolCalls[0].type, "function");
++  const args = JSON.parse(String(toolCalls[0].function.arguments));
++  assert.equal(args.location, "Toronto");
++});
++
++test("a CANONICAL block is left byte-for-byte alone", () => {
++  const raw = `<tool>{"name":"get_weather","arguments":{"city":"Toronto"}}</tool>`;
++  assert.equal(normalizeNamedBlockToolCalls(raw), raw);
++  const { toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
++  assert.ok(toolCalls);
++  assert.equal(toolCalls[0].function.name, "get_weather");
++});
++
++test("prose with no tool block is still no tool call", () => {
++  const raw = "I cannot call tools right now.";
++  assert.equal(normalizeNamedBlockToolCalls(raw), raw);
++  assert.equal(parseToolCallsFromText(raw, "t", TOOLS).toolCalls, null);
++});
++
++test("a named block whose body is not JSON is left alone", () => {
++  const raw = "<tool>\n<get_weather>\nnot json at all\n</tool>";
++  assert.equal(normalizeNamedBlockToolCalls(raw), raw);
++});
++
++test("the named-block form survives a response that also has prose", () => {
++  const raw = 'Here you go.\n<tool>\n<get_weather>\n{"city":"Toronto"}\n</tool>\nHope that helps.';
++  const { content, toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
++  assert.ok(toolCalls);
++  assert.equal(toolCalls.length, 1);
++  assert.ok(content.includes("Here you go."));
++  assert.ok(!content.includes("<tool>"), "the tool block must be stripped from the content");
++});

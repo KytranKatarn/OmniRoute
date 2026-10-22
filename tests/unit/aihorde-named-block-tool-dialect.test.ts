@@ -89,3 +89,29 @@ test("the named-block form survives a response that also has prose", () => {
   assert.ok(content.includes("Here you go."));
   assert.ok(!content.includes("<tool>"), "the tool block must be stripped from the content");
 });
+
+test("the SECOND dialect (tool_name tag + XML-ish args) also parses", () => {
+  // Measured 2026-10-22 from the same model: the tool name sits in a
+  // <tool_name> tag and the arguments are XML-ish elements, not a JSON object.
+  const raw = [
+    "<tool>",
+    "<tool_name>get_weather</tool_name>",
+    "<city>Toronto</city>",
+    "</tool>",
+  ].join("\n");
+
+  const { toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
+  assert.ok(toolCalls, "the <tool_name> dialect must produce a tool call");
+  assert.equal(toolCalls[0].function.name, "get_weather");
+  const args = JSON.parse(String(toolCalls[0].function.arguments));
+  assert.equal(args.city, "Toronto");
+});
+
+test("a numeric XML argument keeps its type", () => {
+  const raw = "<tool>\n<tool_name>get_weather</tool_name>\n<days>3</days>\n</tool>";
+  const { toolCalls } = parseToolCallsFromText(raw, "t", TOOLS);
+  assert.ok(toolCalls);
+  const args = JSON.parse(String(toolCalls[0].function.arguments));
+  assert.equal(args.days, 3);
+  assert.strictEqual(typeof args.days, "number");
+});

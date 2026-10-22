@@ -265,7 +265,7 @@ def api_gallery():
             # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
             total = cur.fetchone()["total"]
-            # sql-safe: WHERE is built from fixed fragments with %s placeholders; ORDER BY comes from the _GALLERY_SORTS whitelist; values are bound
+            # sql-safe: WHERE = fixed fragments + %s; ORDER BY from the _GALLERY_SORTS whitelist; values bound
             cur.execute(
                 f"""
                 SELECT id, media_type, file_path, thumbnail_path, prompt, model,
@@ -359,7 +359,7 @@ def api_gallery():
             # sql-safe: WHERE is built from fixed fragments with %s placeholders; values are bound
             cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
             total = cur.fetchone()["total"]
-            # sql-safe: WHERE is built from fixed fragments with %s placeholders; ORDER BY comes from the _GALLERY_SORTS whitelist; values are bound
+            # sql-safe: WHERE = fixed fragments + %s; ORDER BY from the _GALLERY_SORTS whitelist; values bound
             cur.execute(
                 f"""
                 SELECT id, media_type, file_path, thumbnail_path, prompt, model,
@@ -1173,7 +1173,32 @@ def api_approve_canonical(agent_id):
     data = request.get_json()
     if not data or "media_id" not in data:
         return jsonify({"error": "media_id is required"}), 400
-    result = approve_canonical(agent_id, data["media_id"])
+    result = approve_canonical(agent_id, data["media_id"], actor=getattr(current_user, "username", None))
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/history", methods=["GET"])
+@login_required
+def api_portrait_history(agent_id):
+    """What this agent's portrait was before each approval (newest first), with a flag for which can be restored."""
+    from .services.portrait_history import list_history
+
+    return jsonify({"history": list_history(agent_id, request.args.get("limit", 10, type=int))})
+
+
+@media_studio_bp.route("/api/portraits/<int:agent_id>/revert", methods=["POST"])
+@login_required
+def api_portrait_revert(agent_id):
+    """Undo an approval by restoring the portrait a history entry replaced. Body: {history_id}. Itself undoable."""
+    from .services.portrait_service import revert_portrait
+
+    data = request.get_json(silent=True) or {}
+    history_id = data.get("history_id")
+    if not isinstance(history_id, int) or isinstance(history_id, bool):
+        return jsonify({"error": "history_id (integer) is required"}), 400
+    result = revert_portrait(agent_id, history_id, actor=getattr(current_user, "username", None))
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)

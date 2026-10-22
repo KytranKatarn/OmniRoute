@@ -1156,20 +1156,26 @@ def test_history_pager_controls_exist():
 
 
 def test_queue_api_supports_offset():
-    """The pager is a fake without it — limit alone always returns page 1."""
+    """The pager is a fake without it — limit alone always returns page 1.
+
+    Since the Queue-tab rewrite (#4038) the route makes ONE query in the shared scope (agent jobs + the user's) through
+    queue_overview.list_queue, so offset must reach that single query rather than two.
+    """
     import inspect
 
-    from tools.media_studio.services.generation_service import get_queue_status
+    from tools.media_studio.services import queue_overview
 
-    assert "offset" in inspect.signature(get_queue_status).parameters
-    assert "OFFSET" in inspect.getsource(get_queue_status)
+    assert "offset" in inspect.signature(queue_overview.list_queue).parameters
+    assert "OFFSET" in inspect.getsource(queue_overview.list_queue)
 
     routes = (Path(__file__).resolve().parents[1] / "tools" / "media_studio" / "routes.py").read_text()
     start = routes.index("def api_queue(")
     end = routes.index("@media_studio_bp.route", start + 1)
     body = routes[start:end]
     assert 'request.args.get("offset"' in body
-    assert body.count("offset=offset") == 2, "offset must reach BOTH user and agent queries"
+    assert (
+        'list_queue(current_user.id, parse_statuses(request.args.get("status")), limit, offset)' in body
+    ), "offset must reach the single shared-scope query"
 
 
 # --- KE identity plate (name + department) --------------------------------

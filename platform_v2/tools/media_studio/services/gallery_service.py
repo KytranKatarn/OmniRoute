@@ -89,7 +89,7 @@ def get_gallery(
         cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
         total = cur.fetchone()["total"]
 
-        # sql-safe: WHERE is built from fixed fragments with %s placeholders; ORDER BY comes from the _GALLERY_SORTS whitelist; values are bound
+        # sql-safe: WHERE = fixed fragments + %s; ORDER BY from the _GALLERY_SORTS whitelist; values bound
         cur.execute(
             f"""
             SELECT id, media_type, file_path, thumbnail_path, prompt, model,

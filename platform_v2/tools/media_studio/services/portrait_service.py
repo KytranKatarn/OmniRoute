@@ -15,6 +15,8 @@ from database import get_db_cursor
 from services import agent_service
 from services.deploy_service import run_deploy_pipeline
 
+from . import portrait_history
+
 logger = logging.getLogger(__name__)
 
 # Vision-model prompt for deriving an identity_prompt from an imported face.
@@ -538,7 +540,8 @@ def get_all_agent_portraits() -> List[Dict]:
                    p.updated_at AS portrait_updated_at,
                    COALESCE(p.updated_at, a.updated_at) AS updated_at,
                    latest.latest_media_at, latest.latest_model, latest.latest_provider,
-                   latest.latest_variant_name, latest.latest_media_thumbnail, latest.latest_media_path
+                   latest.latest_variant_name, latest.latest_media_thumbnail, latest.latest_media_path,
+                   canon.canonical_model, canon.canonical_provider
             FROM agents a
             LEFT JOIN LATERAL (
                 SELECT ap.id, ap.canonical_image_path, ap.identity_prompt,
@@ -563,6 +566,15 @@ def get_all_agent_portraits() -> List[Dict]:
                 ORDER BY ml.created_at DESC NULLS LAST, ml.id DESC
                 LIMIT 1
             ) latest ON TRUE
+            LEFT JOIN LATERAL (
+                -- provenance of the image that is actually APPROVED; "latest" above is just the newest generation
+                SELECT cm.model AS canonical_model, cm.provider AS canonical_provider
+                FROM media_library cm
+                WHERE cm.owner_type = 'agent' AND cm.owner_id = a.id AND cm.is_deleted = false
+                  AND ltrim(COALESCE(cm.file_path, ''), '/') = ltrim(COALESCE(p.canonical_image_path, ''), '/')
+                ORDER BY cm.id DESC
+                LIMIT 1
+            ) canon ON TRUE
             WHERE a.shift_state != 'decommissioned'
             ORDER BY COALESCE(latest.latest_media_at, p.updated_at, a.updated_at) DESC NULLS LAST,
                      a.id
@@ -747,6 +759,12 @@ def get_agent_portrait(agent_id: int) -> Optional[Dict]:
                 latest_metadata.get("variant_name") if isinstance(latest_metadata, dict) else None
             )
             result["latest_media_thumbnail"] = latest.get("thumbnail_path") or latest.get("file_path")
+        canonical = (result.get("canonical_image_path") or "").lstrip("/")
+        approved_variant = next(
+            (v for v in result["variants"] if canonical and (v.get("file_path") or "").lstrip("/") == canonical), None
+        )
+        result["canonical_model"] = approved_variant.get("model_name") if approved_variant else None
+        result["canonical_provider"] = approved_variant.get("provider") if approved_variant else None
         result["pending_review"] = bool(result["variants"] and not result.get("approved"))
         voice_profile = _get_voice_profile(agent_id)
         result["identity_context"] = _portrait_identity_context(result, voice_profile)
@@ -1565,11 +1583,12 @@ def set_approval_dismissed(agent_id: int, media_id: int, dismissed: bool = True)
     return {"status": "dismissed" if dismissed else "restored", "agent_id": agent_id, "media_id": media_id}
 
 
-def approve_canonical(agent_id: int, media_id: int) -> Dict:
+def approve_canonical(agent_id: int, media_id: int, actor: Optional[str] = None, action: str = "approve") -> Dict:
     """Approve image as canonical portrait, update agent avatar.
 
     Sets canonical_image_path, extracts face_seed from media metadata,
-    and updates agent avatar_url.
+    and updates agent avatar_url. The portrait it REPLACES is recorded in agent_portrait_history first, so the
+    approval can be undone (``revert_portrait``). ``action`` is 'approve', or 'revert' when undoing one.
     """
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -1587,6 +1606,7 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
 
         file_path = media["file_path"]
         seed = media.get("seed")
+        previous = portrait_history.snapshot_current(cur, agent_id)  # read BEFORE the upsert overwrites it
 
         cur.execute(
             """
@@ -1611,6 +1631,7 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
     # agent_service.update_agent so the agents table only has one
     # canonical mutation surface (Project #241 Track C.1).
     agent_service.update_agent(agent_id, avatar_url=thumb)
+    history_id = portrait_history.record_change(agent_id, previous, file_path, media_id, actor, action)
 
     # Sync portrait JPEG to all sites (kytranempowerment.com + creed-ai.org)
     # and dispatch deploy_service pipeline for each in a background thread.
@@ -1634,9 +1655,15 @@ def approve_canonical(agent_id: int, media_id: int) -> Dict:
         "status": "approved",
         "agent_id": agent_id,
         "media_id": media_id,
+        "history_id": history_id,
         "website_thumb": website_thumb,
         "sites_queued": sites_synced,
     }
+
+
+def revert_portrait(agent_id: int, history_id: int, actor: Optional[str] = None) -> Dict:
+    """Undo an approval: put back the portrait that history entry replaced (itself recorded, so it can be undone)."""
+    return portrait_history.revert(agent_id, history_id, actor, approve_canonical)
 
 
 def describe_portrait(image_source: str) -> Dict:

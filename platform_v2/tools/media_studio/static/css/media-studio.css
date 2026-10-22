@@ -2323,6 +2323,12 @@
 }
 .ms-queue-meta { color: #667; font-size: 0.75rem; white-space: nowrap; }
 .ms-queue-error { color: #cc4444; font-size: 0.75rem; }
+.ms-queue-thumb-slot {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
 .ms-queue-thumb {
     width: 32px;
     height: 32px;

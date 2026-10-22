@@ -2245,36 +2245,49 @@
 
     /* ── Queue ────────────────────────────────────── */
 
+    // One row per GPU node (fleet nodes + hub): queue depth and who holds the node's image lease. The old panel asked
+    // only the hub's ComfyUI and said "idle" while a fleet node was generating.
     function loadComfyQueue() {
         var el = document.getElementById('msComfyList');
         var stats = document.getElementById('msComfyStats');
         api('GET', '/api/comfyui/queue').then(function(data) {
-            if (stats) stats.textContent = data.running + ' running · ' + data.pending + ' pending';
+            if (stats) stats.textContent = (data.running || 0) + ' running \u00b7 ' + (data.pending || 0) + ' pending';
             if (!el) return;
-            if (!data.items || !data.items.length) {
-                el.textContent = 'GPU is idle — no jobs queued.';
+            var nodes = data.nodes || [];
+            if (!nodes.length) {
+                el.textContent = 'No GPU nodes reported.';
                 el.style.color = '#555';
                 return;
             }
             el.textContent = '';
-            data.items.forEach(function(item) {
+            nodes.forEach(function(n) {
                 var row = document.createElement('div');
-                row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;background:rgba(255,255,255,0.03);';
+                row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;background:rgba(255,255,255,0.03);margin-bottom:4px;';
+                var color = n.state === 'busy' ? '#22c55e' : (n.state === 'unreachable' ? '#ef4444' : '#6b7280');
                 var dot = document.createElement('span');
-                dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + (item.status === 'running' ? '#22c55e' : '#f59e0b') + ';';
-                var label = document.createElement('span');
-                label.style.cssText = 'font-size:0.78rem;color:#aaa;flex:1;';
-                label.textContent = '#' + item.position + ' — ' + (item.status === 'running' ? 'Generating' : 'Waiting');
-                var id = document.createElement('span');
-                id.style.cssText = 'font-size:0.7rem;color:#555;font-family:monospace;';
-                id.textContent = String(item.prompt_id).slice(0, 8);
+                dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + color + ';';
+                var name = document.createElement('span');
+                name.style.cssText = 'font-size:0.78rem;color:#ccc;flex:1;';
+                name.textContent = n.name;
+                var depth = document.createElement('span');
+                depth.style.cssText = 'font-size:0.72rem;color:#aaa;font-family:monospace;';
+                depth.textContent = n.state === 'unreachable' ? 'unreachable'
+                    : (n.state === 'idle' ? (n.note || 'idle') : (n.running + ' running \u00b7 ' + n.pending + ' pending'));
+                if (n.note && n.state === 'unreachable') depth.title = n.note;
                 row.appendChild(dot);
-                row.appendChild(label);
-                row.appendChild(id);
+                row.appendChild(name);
+                row.appendChild(depth);
+                if (n.lease_holder) {
+                    var lease = document.createElement('span');
+                    lease.style.cssText = 'font-size:0.62rem;letter-spacing:1px;color:#ec4899;border:1px solid rgba(236,72,153,0.4);border-radius:3px;padding:1px 5px;';
+                    lease.textContent = 'IMAGE SESSION';
+                    lease.title = 'GPU leased to ' + n.lease_holder + ' - LLM jobs avoid this node while the lease is on';
+                    row.appendChild(lease);
+                }
                 el.appendChild(row);
             });
         }).catch(function() {
-            if (el) { el.textContent = 'ComfyUI unreachable.'; el.style.color = '#ef4444'; }
+            if (el) { el.textContent = 'GPU status unavailable.'; el.style.color = '#ef4444'; }
         });
     }
 
@@ -3740,10 +3753,15 @@
         }
     };
 
+    // Counters share the list's scope (this user's jobs + agent jobs) and headline the LAST 24 HOURS: an all-time
+    // failure count reads as an alarm when most of it is old test runs. All-time totals are in the tooltip.
     window.loadQueueStats = function() {
         api('GET', '/api/queue/stats').then(function(stats) {
-            document.getElementById('msQueueStats').textContent =
-                (stats.pending || 0) + ' active / ' + (stats.failed || 0) + ' failed / ' + (stats.completed || 0) + ' completed';
+            var el = document.getElementById('msQueueStats');
+            el.textContent = (stats.pending || 0) + (stats.running || 0) + ' active / ' + (stats.failed_24h || 0)
+                + ' failed (24h) / ' + (stats.completed_24h || 0) + ' completed (24h)';
+            el.title = 'All time: ' + (stats.completed || 0) + ' completed, ' + (stats.failed || 0) + ' failed. '
+                + 'Average: waits ' + _fmtDur(stats.avg_wait_ms) + ', runs ' + _fmtDur(stats.avg_run_ms) + '.';
             document.getElementById('msQueueActiveCount').textContent = (stats.pending || 0) + (stats.running || 0);
         });
     };
@@ -3773,19 +3791,15 @@
         loadQueueItems();
     };
 
-    function _renderHistoryPager(shown, returned) {
+    function _renderHistoryPager(returned, total) {
         var label = document.getElementById('msQueueHistPage');
-        if (label) {
-            var from = returned ? ((_QUEUE_HISTORY_PAGE - 1) * _QUEUE_HISTORY_PER_PAGE + 1) : 0;
-            var to = from + Math.max(0, returned - 1);
-            label.textContent = returned ? (from + '–' + to) : 'none';
-        }
+        var from = returned ? ((_QUEUE_HISTORY_PAGE - 1) * _QUEUE_HISTORY_PER_PAGE + 1) : 0;
+        var to = from + Math.max(0, returned - 1);
+        if (label) label.textContent = returned ? (from + '\u2013' + to + ' of ' + total) : 'none';
         var prev = document.getElementById('msQueueHistPrev');
         var next = document.getElementById('msQueueHistNext');
         if (prev) prev.disabled = _QUEUE_HISTORY_PAGE <= 1;
-        // A short page means there is no next page; requesting beyond the end
-        // returns nothing, which would otherwise look like data loss.
-        if (next) next.disabled = returned < _QUEUE_HISTORY_PER_PAGE;
+        if (next) next.disabled = to >= total;
     }
 
     window.loadQueueItems = function() {
@@ -3810,18 +3824,13 @@
             }
         }).catch(function() {});
 
-        var histStatuses = _QUEUE_HISTORY_FILTER
-            ? [_QUEUE_HISTORY_FILTER]
-            : ['failed', 'completed', 'cancelled'];
+        // ONE request for the whole filter: the old code fetched each status separately and merged them, so "All"
+        // showed up to 3x the page size and the pager range was wrong.
+        var histStatus = _QUEUE_HISTORY_FILTER || 'failed,completed,cancelled';
         var histOffset = (_QUEUE_HISTORY_PAGE - 1) * _QUEUE_HISTORY_PER_PAGE;
-        Promise.all(histStatuses.map(function(s) {
-            return api('GET', '/api/queue?status=' + encodeURIComponent(s) +
-                             '&per_page=' + _QUEUE_HISTORY_PER_PAGE +
-                             '&offset=' + histOffset);
-        })).then(function(results) {
-            var history = [];
-            results.forEach(function(r) { history = history.concat(r.items || []); });
-            history.sort(function(a, b) { return (b.created_at || '') > (a.created_at || '') ? 1 : -1; });
+        api('GET', '/api/queue?status=' + encodeURIComponent(histStatus) +
+                   '&per_page=' + _QUEUE_HISTORY_PER_PAGE + '&offset=' + histOffset).then(function(r) {
+            var history = r.items || [];
             if (historyEl) {
                 _clearChildren(historyEl);
                 if (!history.length) {
@@ -3837,7 +3846,7 @@
                     });
                 }
             }
-            _renderHistoryPager(historyEl ? historyEl.children.length : 0, history.length);
+            _renderHistoryPager(history.length, r.total || 0);
         }).catch(function() {});
     };
 
@@ -3895,15 +3904,67 @@
         });
     }
 
+    // --- Queue card helpers (pure; no DOM) ---------------------------------------------------------------------
+    function _fmtDur(ms) {
+        if (ms === null || ms === undefined || isNaN(ms)) return '\u2014';
+        var s = Math.round(ms / 1000);
+        if (s < 60) return s + 's';
+        var m = Math.floor(s / 60);
+        if (m < 60) return m + 'm ' + (s % 60) + 's';
+        return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+    }
+
+    // Cut at a word boundary with an ellipsis (the old substring(0, 60) ended mid-word: "portrait of A.R.").
+    function _shortText(text, max) {
+        text = String(text || '').replace(/\s+/g, ' ').trim();
+        if (text.length <= max) return text;
+        var cut = text.lastIndexOf(' ', max);
+        return text.substring(0, cut > max * 0.6 ? cut : max).replace(/[\s,.;:\u2014-]+$/, '') + '\u2026';
+    }
+
+    function _timeAgo(iso) {
+        var t = iso ? new Date(iso).getTime() : NaN;
+        if (isNaN(t)) return '';
+        var s = Math.max(0, Math.round((Date.now() - t) / 1000));
+        if (s < 60) return 'just now';
+        if (s < 3600) return Math.floor(s / 60) + 'm ago';
+        if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+        return Math.floor(s / 86400) + 'd ago';
+    }
+
+    function _shortNode(node) {
+        return String(node || '').replace(/^Starship - /, '').replace(/ - USS-\d+$/, '');
+    }
+
+    function _shortModel(model) {
+        return String(model || '').replace(/\.(safetensors|ckpt|gguf)$/i, '').replace(/_V\d.*$|_v\d.*$/i, '');
+    }
+
+    // "waiting 2m" / "running 41s" while active; "waited 2m \u00b7 ran 41s" once finished (queue time and generation
+    // time are different things: the old card showed time since START, so a 40s job read "429m 55s" hours later).
+    function _queueTiming(item, type) {
+        if (type === 'active') {
+            return item.status === 'generating' ? 'running ' + _fmtDur(item.run_ms) : 'waiting ' + _fmtDur(item.wait_ms);
+        }
+        var parts = [];
+        if (item.wait_ms !== null && item.wait_ms !== undefined) parts.push('waited ' + _fmtDur(item.wait_ms));
+        if (item.run_ms !== null && item.run_ms !== undefined) parts.push('ran ' + _fmtDur(item.run_ms));
+        var ago = _timeAgo(item.completed_at || item.created_at);
+        if (ago) parts.push(ago);
+        return parts.join(' \u00b7 ');
+    }
+
     function _createQueueCard(item, type) {
         var card = document.createElement('div');
         card.className = 'ms-queue-card ms-queue-' + type;
         var prompt = (item.params && item.params.prompt) || item.prompt || '';
-        var elapsed = item.started_at ? _formatElapsed(item.started_at) : '';
 
         var body = document.createElement('div');
         body.className = 'ms-queue-card-body';
 
+        // Always render the slot so rows line up whether or not a preview exists.
+        var slot = document.createElement('span');
+        slot.className = 'ms-queue-thumb-slot';
         if (item.thumbnail_path || item.file_path) {
             var img = document.createElement('img');
             // thumbnail_path is NULL on every row generated before the fleet
@@ -3914,11 +3975,12 @@
             img.loading = 'lazy';
             img.alt = '';
             img.onerror = function() {
-                // Broken/absent asset: drop the slot rather than a torn image icon.
+                // Broken/absent asset: keep the empty slot, drop the torn image icon.
                 if (img.parentNode) img.parentNode.removeChild(img);
             };
-            body.appendChild(img);
+            slot.appendChild(img);
         }
+        body.appendChild(slot);
         if (item.agent_name) {
             var agentLabel = document.createElement('span');
             agentLabel.className = 'ms-queue-agent';
@@ -3933,12 +3995,14 @@
 
         var promptSpan = document.createElement('span');
         promptSpan.className = 'ms-queue-prompt';
-        promptSpan.textContent = prompt.substring(0, 60);
+        promptSpan.textContent = _shortText(prompt, 70);
+        promptSpan.title = prompt;
         body.appendChild(promptSpan);
 
+        var where = [_shortModel(item.model), _shortNode(item.node)].filter(Boolean).join(' @ ');
         var metaSpan = document.createElement('span');
         metaSpan.className = 'ms-queue-meta';
-        metaSpan.textContent = item.media_type + (elapsed ? ' \u00b7 ' + elapsed : '');
+        metaSpan.textContent = [item.media_type, where, _queueTiming(item, type)].filter(Boolean).join(' \u00b7 ');
         body.appendChild(metaSpan);
 
         if (item.error_message) {

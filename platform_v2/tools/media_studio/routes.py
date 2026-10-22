@@ -182,19 +182,17 @@ def api_generate():
 def api_queue():
     """Get generation queue — user jobs + agent portrait jobs (platform-wide for this tenant).
 
-    Supports ?status=pending|dispatched|generating|failed|completed|cancelled,
-    ?per_page=N and ?offset=N for the Queue tab's status-filtered, paged views.
+    ``?status=`` takes one status or a comma list (``failed,completed,cancelled``), ``?per_page=`` / ``?offset=``
+    page it, and ``total`` is the full count for that filter so the pager can be exact. Each item carries
+    ``wait_ms`` and ``run_ms`` (queue time vs generation time), ``model`` and ``node``.
     """
-    from .services.generation_service import get_queue_status
+    from .services.queue_overview import list_queue, parse_statuses
 
-    status = request.args.get("status") or None
     limit = request.args.get("per_page", request.args.get("limit", 20), type=int)
     offset = request.args.get("offset", 0, type=int)
-    user_jobs = get_queue_status(owner_type="user", owner_id=current_user.id, limit=limit, status=status, offset=offset)
-    agent_jobs = get_queue_status(owner_type="agent", owner_id=None, limit=limit, status=status, offset=offset)
-    all_jobs = sorted(user_jobs + agent_jobs, key=lambda j: j.get("created_at") or "", reverse=True)[:limit]
-    # Return both 'jobs' (legacy) and 'items' (Queue tab loadQueueItems expects items)
-    return jsonify({"jobs": all_jobs, "items": all_jobs})
+    result = list_queue(current_user.id, parse_statuses(request.args.get("status")), limit, offset)
+    # 'jobs' (legacy) and 'items' (Queue tab loadQueueItems expects items)
+    return jsonify({"jobs": result["items"], "items": result["items"], "total": result["total"]})
 
 
 @media_studio_bp.route("/api/queue/<int:queue_id>/cancel", methods=["POST"])
@@ -563,38 +561,17 @@ def api_comfyui_rescue():
 @media_studio_bp.route("/api/comfyui/queue")
 @login_required
 def api_comfyui_queue():
-    """Proxy ComfyUI /queue — returns running + pending job counts and items.
+    """GPU queue depth for EVERY ComfyUI (fleet nodes + hub) and who holds each node's image lease.
 
-    Routes through get_comfyui_service() for consistent host resolution
-    and future fleet node routing via Department HQ.
+    Replaces the hub-only proxy, which reported "idle" while a fleet node was generating. ``running`` and
+    ``pending`` are the totals across nodes; ``nodes`` has the per-node detail.
     """
-    from ai_bridge.comfyui_service import get_comfyui_service
-    import requests as _requests
+    from .services.queue_overview import gpu_nodes_status
 
     try:
-        svc = get_comfyui_service()
-        comfyui_url = svc.host
-        r = _requests.get(f"{comfyui_url}/queue", timeout=5)
-        data = r.json()
-        running = data.get("queue_running", [])
-        pending = data.get("queue_pending", [])
-
-        def _parse_item(item, status):
-            # ComfyUI format: [queue_number, prompt_id, workflow_dict, extra_data, ...]
-            if isinstance(item, (list, tuple)) and len(item) >= 2:
-                return {"position": item[0], "prompt_id": item[1], "status": status}
-            if isinstance(item, dict):
-                return {
-                    "position": item.get("queue_number", 0),
-                    "prompt_id": item.get("prompt_id", ""),
-                    "status": status,
-                }
-            return {"position": 0, "prompt_id": str(item), "status": status}
-
-        items = [_parse_item(i, "running") for i in running] + [_parse_item(i, "pending") for i in pending]
-        return jsonify({"running": len(running), "pending": len(pending), "items": items})
+        return jsonify(gpu_nodes_status())
     except Exception as exc:
-        return jsonify({"running": 0, "pending": 0, "items": [], "error": str(exc)})
+        return jsonify({"nodes": [], "running": 0, "pending": 0, "error": str(exc)})
 
 
 # ─── Assignments ────────────────────────────────────────────────────
@@ -2184,10 +2161,10 @@ def api_cancel_queue_item(queue_id):
 @media_studio_bp.route("/api/queue/stats", methods=["GET"])
 @login_required
 def api_queue_stats():
-    """Get queue statistics."""
-    from .services.batch_service import get_queue_stats
+    """Header counters, in the SAME scope as the list (this user's jobs + agent jobs), with 24h variants."""
+    from .services.queue_overview import get_overview
 
-    return jsonify(get_queue_stats("user", current_user.id))
+    return jsonify(get_overview(current_user.id))
 
 
 @media_studio_bp.route("/api/queue/clear-completed", methods=["POST"])

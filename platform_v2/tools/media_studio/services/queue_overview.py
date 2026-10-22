@@ -16,6 +16,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
+from .media_paths import normalize_static_path
+
 logger = logging.getLogger(__name__)
 
 VALID_STATUSES = ("pending", "dispatched", "generating", "completed", "failed", "cancelled")
@@ -114,6 +116,9 @@ def list_queue(user_id: int, statuses: List[str], limit: int, offset: int = 0, g
             (user_id, statuses, statuses, limit, offset),
         )
         rows = [annotate_timing(dict(r)) for r in cur.fetchall()]
+    for r in rows:  # thumbnail_path is stored bare ('media/agents/...'): without this the <img> never loads
+        r["thumbnail_path"] = normalize_static_path(r.get("thumbnail_path"))
+        r["file_path"] = normalize_static_path(r.get("file_path"))
     return {"items": rows, "total": total}
 
 

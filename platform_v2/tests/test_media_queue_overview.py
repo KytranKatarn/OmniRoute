@@ -341,3 +341,43 @@ def test_js_timing_text_for_active_and_finished_jobs():
 def test_js_short_node_and_model_labels():
     assert run_js("_shortNode('Starship - Defiant - USS-246')") == "Defiant"
     assert run_js("_shortModel('juggernautXL_v9.safetensors')") == "juggernautXL"
+
+
+# --- thumbnails (follow-up): the stored thumbnail path is bare and never loaded --------------------------------
+
+
+def test_the_queue_list_returns_browser_ready_thumbnail_and_file_paths():
+    bare = {
+        "id": 1,
+        **row(),
+        "thumbnail_path": "media/agents/2/x/thumb_1.png",
+        "file_path": "/static/media/agents/2/x/m_1.png",
+    }
+    out = qo.list_queue(7, [], 10, 0, get_cursor=cursor_factory(Cur(one={"total": 1}, rows=[bare])))
+    item = out["items"][0]
+    assert item["thumbnail_path"] == "/static/media/agents/2/x/thumb_1.png"  # was bare: the <img> never loaded
+    assert item["file_path"] == "/static/media/agents/2/x/m_1.png"  # already absolute: untouched
+
+
+def test_a_missing_path_stays_missing():
+    out = qo.list_queue(
+        7,
+        [],
+        10,
+        0,
+        get_cursor=cursor_factory(
+            Cur(one={"total": 1}, rows=[{"id": 1, **row(), "thumbnail_path": None, "file_path": None}])
+        ),
+    )
+    assert out["items"][0]["thumbnail_path"] is None
+
+
+def test_gallery_service_still_exposes_the_helper_for_its_existing_callers():
+    assert "from .media_paths import normalize_static_path" in (MS / "services" / "gallery_service.py").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_failed_thumbnail_falls_back_to_the_full_image_once_before_the_slot_is_emptied():
+    body = block(HTML, "function _createQueueCard", 2500)
+    assert "img.dataset.tried" in body and "img.src = item.file_path" in body and "removeChild(img)" in body

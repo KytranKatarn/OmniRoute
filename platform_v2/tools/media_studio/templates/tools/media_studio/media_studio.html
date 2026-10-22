@@ -3975,8 +3975,13 @@
             img.loading = 'lazy';
             img.alt = '';
             img.onerror = function() {
-                // Broken/absent asset: keep the empty slot, drop the torn image icon.
-                if (img.parentNode) img.parentNode.removeChild(img);
+                // Thumbnail failed: try the full image once; if that fails too, keep the empty slot.
+                if (item.file_path && !img.dataset.tried && img.getAttribute('src') !== item.file_path) {
+                    img.dataset.tried = '1';
+                    img.src = item.file_path;
+                } else if (img.parentNode) {
+                    img.parentNode.removeChild(img);
+                }
             };
             slot.appendChild(img);
         }

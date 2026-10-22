@@ -17,20 +17,7 @@ _PLATFORM_DIR = os.path.abspath(os.path.join(_THIS_DIR, "..", "..", ".."))
 MEDIA_ROOT = os.path.join(_PLATFORM_DIR, "static", "media")
 
 
-def normalize_static_path(p):
-    """Browser-ready path for a stored media path.
-
-    The thumbnail writer stores a bare ``media/agents/...`` (relative to the static root) while file_path is
-    ``/static/media/...``. A bare path in an <img src> resolves against the page URL and never loads, which is how
-    every newly generated agent image showed as a broken tile. Absolute URLs and /static paths pass through.
-    """
-    if not p or not isinstance(p, str):
-        return p
-    if p.startswith(("http://", "https://", "data:", "/")):
-        return p
-    if p.startswith("static/"):
-        return "/" + p
-    return "/static/" + p
+from .media_paths import normalize_static_path  # noqa: E402,F401  (re-exported: existing callers import it from here)
 
 
 def _serialize_row(row: dict) -> dict:

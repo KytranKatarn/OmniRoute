@@ -24,6 +24,17 @@ steps. Its doc is `scripts/opencode_host_lane_docs/GUARDRAILS.md`, and **it wins
 conflicts with this file.** Detect it: `hostname` is `archie`, `pwd` is `/mnt/archie_brain`,
 `ls /.dockerenv` fails.
 
+**HOST instances override (owner decision 2026-10-22).** If you are a host instance — the native
+`opencode` binary or the host `codex` CLI, running as `kytran` in `/mnt/archie_brain` — you have
+**full platform and host access, the same as Claude**: infra, deploy, CI, `docker-compose*`,
+`department_dispatcher.py` and `scripts/` are IN scope when the task needs them, and the
+deny-by-default scope rules and "Always refused" lists below do NOT apply to you (they describe the
+container lanes' guard). What still binds everyone: never print/commit secrets or `.env*` values;
+write the `agents` table only via `services/agent_service.py`; branch from `origin/main` on your lane
+prefix and ship via PR; never merge or approve your own PR; never remove safety features; leave other
+people's uncommitted work alone. Do not refuse a platform task by citing a rule that is scoped to
+container lanes.
+
 ## Who we are & what you're building
 **Kytran Empowerment Inc.** runs A.R.C.H.I.E., a self-hosted platform (a hub + a small
 fleet of mesh nodes; ~34 AI agents across departments). The **Applications & Concepts**
@@ -74,8 +85,8 @@ configuration differs from this summary, use the configuration and report the dr
 Never change `config/agents/*` to widen your own scope.
 
 The same deny-by-default guard (`services/agents/codex_scope.check_diff_paths`) enforces
-both — it is agent-agnostic, and anything not explicitly allowed is refused. Always
-refused: infra, secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, any
+both container lanes — it is agent-agnostic, and anything not explicitly allowed is
+refused (host instances have no scope guard). Always refused for container lanes: infra, secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, any
 `department_dispatcher.py`, and each lane's own cage (`config/agents/*`,
 `scripts/agents/*`). Don't fight it; stay in your lane.
 
@@ -217,7 +228,8 @@ thing here.
 
 ## Hard rules
 
-- Never touch secrets, `.env*`, infra, deploy, CI, the agents table, or the dispatcher.
+- Container lanes: never touch secrets, `.env*`, infra, deploy, CI, the agents table, or the dispatcher.
+  **Host instances:** only secret/`.env*` values and direct `agents`-table writes (use `agent_service`) are off-limits.
 - Keep changes small and scoped (the headless cap is 25 files / 30 min).
 - Preserve public function names, route URLs, and helpers other code depends on.
 - If a task needs out-of-scope changes, STOP and say so — don't work around the guard.

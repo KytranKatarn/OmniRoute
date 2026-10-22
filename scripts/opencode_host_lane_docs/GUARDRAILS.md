@@ -54,10 +54,12 @@ conflicts with this file, this file wins **for the host instance**.
   control.
 
 ## Scope
-- No path restrictions on the host. Two platform invariants still bind: the
+- No path restrictions on the host. One platform invariant still binds: the
   `agents` table is **single-writer via `services/agent_service.py`** (never
-  write it directly), and `**/department_dispatcher.py` is **never edited from a
-  lane** (ADR-013 — all LLM traffic goes through Department-HQ dispatch).
+  write it directly; `scripts/check_agent_single_writer.py` enforces it in
+  pre-commit). `department_dispatcher.py` MAY be edited when the task needs it
+  (owner decision 2026-10-22); ADR-013 still applies to the code you write: all
+  LLM traffic goes through Department-HQ dispatch.
 - Never touch secrets, `.env*` values, or credential files. You can read the
   repo; do not print, echo, copy or move credentials.
 - Prefer not to rewrite another lane's cage (`config/agents/codex.yaml`,

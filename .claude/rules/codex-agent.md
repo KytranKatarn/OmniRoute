@@ -7,6 +7,19 @@ paths:
 ---
 # Codex CLI Agent — Safety Policy, Task Template & Operating Guide
 
+## HOST Codex now runs full-access (owner decision 2026-10-22)
+
+The HOST `codex` CLI (`~/.codex/config.toml`) runs with `approval_policy = "never"` and
+`sandbox_mode = "danger-full-access"` — parity with Claude: full host, docker socket, network.
+Verified live: `docker ps` works, `archie/search_knowledge` succeeds. This **supersedes** the
+"do NOT run bare `codex exec` on the host with that flag" warning below *for the host
+instance only*; the CONTAINER task runner (`run-codex-task.sh`) is unchanged: its isolation is
+the container, its scope allowlist and kernel block still apply. Still binding for every lane:
+branch prefixes + per-lane git token, no self-merge/approve, no secrets in commits, safety
+features never removed, `agents` writes only via `agent_service`. Backup + undo:
+`~/.codex/config.toml.bak-*-fullaccess`. Not verified: approval-gated archie write tools
+(`store_memory`, `delegate_task_to_fleet`) and the ChatGPT GitHub connector under `never`.
+
 ## ⭐ ARCHITECTURE UPDATE (2026-06-05) — containerized + read-only KB MCP
 
 `run-codex-task.sh` now runs `codex exec` **inside a Docker container** (`codex/Dockerfile`,

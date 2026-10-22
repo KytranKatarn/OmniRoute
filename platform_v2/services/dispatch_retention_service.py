@@ -42,6 +42,8 @@ Tunables (``platform_settings``, no deploy needed — see ``DEFAULTS``):
   retention:enabled                 -> bool   (default true)
   retention:bridge_jobs:keep_days   -> int    (default 45; <=0 skips that table)
   retention:dpq:keep_days           -> int    (default 30; <=0 skips that table)
+  retention:governance_audit_log:keep_days -> int    (default 365; <=0 skips that table)
+  retention:task_execution_log:keep_days   -> int    (default 400; <=0 skips that table)
   retention:batch_size              -> int    (default 5000)
 """
 
@@ -103,6 +105,21 @@ DEFAULTS = {
     # Same MANDATORY pairing as above: _TABLES + this default + _PS_KEYS, or retention aborts
     # for every table.
     "model_residency_samples_keep_days": 30,
+    # task_execution_log = the TOKEN LEDGER (the platform's accounting record).
+    # Measured 2026-10-21: 2,127,074 rows / 1.25 GB, growing ~7k rows/day, with NO
+    # pruner — the only unbounded table of size on the platform.
+    #
+    # 400d, not 365: the widest reader is 365d (test_token_provenance's cloud-bucket
+    # invariant, and the dispatch_routes stats history), and the rule in this module is
+    # that a retention window EXCEEDS the largest read window. At 400d the 365-day
+    # reader sees exactly the rows it saw before.
+    #
+    # Deliberately longer than every other table: this is the accounting record the
+    # DS9 tab's token figures are computed FROM (fleet_service.get_usage_summary
+    # reads it), so it is the last thing anyone should want to prune short. The owner
+    # can widen it (or set 0 to skip the table) via
+    # platform_settings['retention:task_execution_log:keep_days'].
+    "task_execution_log_keep_days": 400,
     "batch_size": 5000,
 }
 
@@ -115,6 +132,7 @@ _PS_KEYS = {
     "retention:governance_audit_log:keep_days": "governance_audit_log_keep_days",
     "retention:model_placement_log:keep_days": "model_placement_log_keep_days",
     "retention:model_residency_samples:keep_days": "model_residency_samples_keep_days",
+    "retention:task_execution_log:keep_days": "task_execution_log_keep_days",
     "retention:batch_size": "batch_size",
 }
 
@@ -167,6 +185,21 @@ _TABLES = {
         "age_col": "sampled_at",
         "statuses": None,
         "keep_key": "model_residency_samples_keep_days",
+    },
+    # The TOKEN LEDGER. Append-only, one row per completed execution, nothing ever
+    # in flight — every row is a finished record. AGE-ONLY.
+    #
+    # Registered here ON PURPOSE, for the same reason model_placement_log is (#5616,
+    # #5092): a table with a retention POLICY and no PRUNER has shipped twice. This
+    # one had no policy at all — 1.25 GB and climbing with nothing bounding it.
+    #
+    # idx_task_execution_created (created_at DESC) makes the age filter an index
+    # scan; the delete is batched so a 2.1M-row table never sits under one lock.
+    # job_id is ON DELETE SET NULL from bridge_jobs, so pruning never cascades.
+    "task_execution_log": {
+        "age_col": "created_at",
+        "statuses": None,
+        "keep_key": "task_execution_log_keep_days",
     },
 }
 

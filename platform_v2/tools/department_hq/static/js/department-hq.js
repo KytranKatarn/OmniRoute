@@ -7526,15 +7526,30 @@ async function loadFleetUsage() {
         const callEl = document.getElementById('fleetUsageCalls');
         const tokenEl = document.getElementById('fleetUsageTokens');
         if (costEl) {
-            // Cost is genuinely untracked for platform traffic: the token
-            // ledger's cost column is 0 on every row. Say so, rather than
-            // printing $0.00 - which reads like a real spend of nothing.
-            costEl.textContent = usage.cost_tracked
-                ? '$' + (usage.total_cost || 0).toFixed(2)
-                : 'not tracked';
-            costEl.title = usage.cost_tracked
-                ? 'Recorded spend over the last 30 days.'
-                : "The platform does not record cost for these calls yet - the token ledger's cost column is empty.";
+            // Cost is PRICED against the gateway's own pricing table, not read
+            // from a column: the token ledger's cost column was 0 on every one
+            // of its 2.1M rows, so summing it reported a confident $0.00 for
+            // real spend.
+            //
+            // Three states, and they are genuinely different facts:
+            //   priced   -> every call's price is known
+            //   partial  -> some are priced; the figure is a LOWER BOUND
+            //   untracked -> nothing is priced; say so rather than print $0.00
+            const c = usage.total_cost || 0;
+            const money = (v) => (v > 0 && v < 0.01 ? '$' + v.toFixed(4) : '$' + v.toFixed(2));
+            if (usage.cost_tracked) {
+                costEl.textContent = money(c);
+                costEl.title = "Spend over the last 30 days, priced against the gateway's own pricing table.";
+            } else if (usage.cost_partial) {
+                costEl.textContent = money(c) + ' (partial)';
+                const unknown = (usage.cost_unpriced_models || []).join(', ');
+                costEl.title = 'Spend over the last 30 days for the calls whose price is published. '
+                    + (unknown ? 'No published price for: ' + unknown + '. ' : '')
+                    + 'This figure is a lower bound.';
+            } else {
+                costEl.textContent = 'not tracked';
+                costEl.title = 'No published price for these calls yet - spend cannot be computed.';
+            }
         }
         if (tokenEl) {
             const tok = usage.total_tokens || 0;

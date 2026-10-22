@@ -286,3 +286,54 @@ class TestRunRetention:
         assert res["deleted"]["dispatch_pending_queue"] == 5
         # last_run upsert was attempted
         assert any("platform_settings" in c[0] and c[0].strip().upper().startswith("INSERT") for c in cur.executed)
+
+
+# --------------------------------------------------------------------------- #
+# The token ledger (task_execution_log) — added 2026-10-21
+# --------------------------------------------------------------------------- #
+class TestTokenLedgerRetention:
+    """task_execution_log was the platform's ONLY unbounded table of size:
+    2,127,074 rows / 1.25 GB with no pruner at all. These pin that it now has a
+    pruner, and that the pruner cannot be wired up wrong."""
+
+    def test_token_ledger_is_registered_as_age_only(self):
+        spec = drs._TABLES.get("task_execution_log")
+        assert spec is not None, "task_execution_log has no retention spec"
+        # AGE-ONLY: every row is a finished execution record, nothing in flight.
+        assert spec["statuses"] is None
+        assert spec["age_col"] == "created_at"
+
+    def test_every_table_has_a_default_and_a_settings_key(self):
+        """The MANDATORY pairing: run_retention indexes cfg[keep_key] DIRECTLY
+        inside ONE outer try/except, so a table whose default is missing is a
+        KeyError that aborts retention for EVERY table."""
+        for table, spec in drs._TABLES.items():
+            key = spec["keep_key"]
+            assert key in drs.DEFAULTS, f"{table}: no default for {key}"
+            assert any(v == key for v in drs._PS_KEYS.values()), f"{table}: no platform_settings key maps to {key}"
+
+    def test_keep_window_exceeds_the_widest_reader(self):
+        """The widest reader of the token ledger is 365d (test_token_provenance's
+        cloud-bucket invariant). A keep window must EXCEED it, never equal it."""
+        widest_reader_days = 365
+        keep = drs.DEFAULTS["task_execution_log_keep_days"]
+        assert keep > widest_reader_days, f"keep_days={keep} does not exceed the widest reader ({widest_reader_days}d)"
+
+    def test_keep_is_generous_enough_for_the_accounting_record(self):
+        """The token ledger is the accounting record the DS9 tab computes token
+        figures FROM — it must outlive every other table's window."""
+        assert drs.DEFAULTS["task_execution_log_keep_days"] >= 365
+        for table, spec in drs._TABLES.items():
+            if table == "task_execution_log":
+                continue
+            assert drs.DEFAULTS[spec["keep_key"]] <= 365, f"{table} now out-lives the token ledger"
+
+    def test_zero_keep_days_skips_the_table(self):
+        """<=0 must skip, not delete everything."""
+        cur = _Cur(settings_rows=[{"key": "retention:task_execution_log:keep_days", "value": "0"}])
+        conn = _Conn()
+        with _patch_cursor(cur, conn):
+            res = drs.run_retention()
+        assert res["enabled"] is True
+        tel_deletes = [c for c in cur.executed if "DELETE FROM task_execution_log" in c[0]]
+        assert not tel_deletes, "keep_days=0 must skip the token ledger entirely"

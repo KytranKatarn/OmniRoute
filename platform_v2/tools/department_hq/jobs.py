@@ -1141,6 +1141,41 @@ def job_recovery_reaper():
         logger.exception("job_recovery_reaper failed")
 
 
+def model_pricing_backfill():
+    """Price the token ledger against the gateway's own pricing table.
+
+    WHY: ``task_execution_log.cost`` was 0 on every one of its 2,127,111 rows,
+    so eight views (the smart router's cost comparison, the consciousness cost
+    view, the dispatch history, the admin MCP tools, the media studio, the DS9
+    tab) all reported a confident $0.00 for real spend. A column that was never
+    written cannot be fixed by reading it differently — it has to be written.
+
+    The price comes from ``services.model_pricing_service``, which reads the
+    GATEWAY's pricing table (GET /api/pricing on the DS9): one table, both
+    sides of the fence. Rows whose model has no published price are set to
+    NULL — "unknown", not "free" — so a total over a mixed window is a lower
+    bound rather than a false zero.
+
+    A 3-day window is enough for a nightly run: it covers the rows written
+    since the last run, and the discovery query and the UPDATE use the SAME
+    window so the nightly pass does not re-scan the 2.1M-row table.
+    """
+    try:
+        from services.model_pricing_service import backfill_ledger_cost, mirror_to_db, refresh
+
+        n = refresh(force=True)
+        rows = mirror_to_db()
+        res = backfill_ledger_cost(since_days=3)
+        logger.info(
+            "model_pricing_backfill: %s pricing entries, %s mirrored row(s), %s",
+            n,
+            rows,
+            res,
+        )
+    except Exception:
+        logger.exception("model_pricing_backfill failed")
+
+
 def dispatch_retention_prune():
     """#4542 — nightly prune of OLD TERMINAL bridge_jobs + dispatch_pending_queue rows.
 
@@ -1280,6 +1315,9 @@ def omniroute_gateway_health_job():
 
     Deliberately does NOT alarm on an idle gateway -- a lane nobody called is not a
     broken lane, and paging on silence is how a channel gets muted (#6803).
+    That rule covers IDLE, not DEAD: a liveness probe against the gateway's own
+    health endpoint runs first, so a gateway that stops answering raises a
+    gateway_down alarm, while a live-but-unused gateway stays quiet.
     Toggle: work-control key 'omniroute_gateway_health' (default ON).
     """
     from services.work_control_service import is_enabled
@@ -1288,7 +1326,48 @@ def omniroute_gateway_health_job():
         return
 
     try:
-        from services.omniroute_health import check_gateway_health
+        from services.omniroute_health import check_gateway_health, check_gateway_liveness
+
+        # LIVENESS FIRST. The call_logs below cannot tell a DEAD gateway from
+        # an IDLE one - both produce no new rows - and this job deliberately
+        # stays quiet on silence (#6803: paging on silence mutes the channel).
+        # So a dead gateway was invisible: measured 2026-10-21, with
+        # deep-space-9.service stopped, nothing was raised for the whole outage.
+        #
+        # A live-but-idle gateway is still silent and still quiet. Only a
+        # gateway that is not answering is an outage, and it gets its own
+        # condition, its own dedup key, and its own alarm.
+        live = check_gateway_liveness()
+        if not live.get("reachable"):
+            detail = live.get("detail") or "gateway unreachable"
+            fingerprint = f"gateway_down:{detail[:80]}"
+            try:
+                from database import get_db_cursor
+
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute("SELECT value FROM platform_settings WHERE key = 'omniroute:health:down:last'")
+                    row = cur.fetchone()
+                    if row and row["value"] == fingerprint:
+                        return
+                    cur.execute(
+                        """INSERT INTO platform_settings (key, value, description)
+                           VALUES ('omniroute:health:down:last', %s, 'omniroute_gateway_health liveness dedup fingerprint')
+                           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                        (fingerprint,),
+                    )
+            except Exception as e:
+                logger.warning("omniroute_gateway_health liveness dedup failed (alerting anyway): %s", e)
+            try:
+                from services.telegram_service import send_system
+
+                send_system(
+                    "DS9 gateway: DOWN",
+                    f"{detail}. The gateway is not answering its health endpoint - "
+                    "this is an outage, not an idle gateway.",
+                )
+            except Exception as e:
+                logger.warning("omniroute_gateway_health liveness alert failed: %s", e)
+            return
 
         res = check_gateway_health()
     except Exception:
@@ -2309,6 +2388,20 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=4, minute=15, timezone="America/Toronto"),
         id="dispatch_retention_prune",
         name="Agent Loop: Dispatch Retention Prune",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Job — Model Pricing Backfill (4:30 AM, just after the retention prune).
+    # Prices the token ledger against the GATEWAY's pricing table. The ledger's
+    # cost column was 0 on every one of its 2.1M rows, so every view that
+    # summed it reported $0.00 for real spend.
+    scheduler.add_job(
+        with_ctx(model_pricing_backfill),
+        trigger=CronTrigger(hour=4, minute=30, timezone="America/Toronto"),
+        id="model_pricing_backfill",
+        name="Agent Loop: Model Pricing Backfill",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

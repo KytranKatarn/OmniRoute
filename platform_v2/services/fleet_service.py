@@ -478,14 +478,27 @@ def get_usage_summary(provider_key=None, days=30):
       columns were never populated - so reading tokens from it produced a card
       that said "0 tokens" and "$0.00" while 474M tokens went unshown.
 
-    Cost is genuinely untracked for platform traffic: ``task_execution_log.cost``
-    is 0 on every row (all 2.1M of them). ``cost_tracked`` says so, rather
-    than letting the UI present a $0.00 that reads like a real spend.
+    Cost is PRICED, not read from a column. ``task_execution_log.cost`` was 0 on
+    every one of its 2.1M rows, so it cannot be summed. Instead the ledger's
+    tokens are priced against ``services.model_pricing_service``, which reads
+    the GATEWAY's own pricing table (``GET /api/pricing`` on the DS9) — one
+    table, both sides of the fence. Groups whose price the gateway does not
+    know are reported as unpriced rather than counted as $0.00, so
+    ``cost_tracked`` means what it says.
 
     If provider_key given, filter to that provider.
     Returns: total_calls, total_tokens, total_cost, by_model breakdown,
              by_application breakdown, distinct_providers, registered_providers.
     """
+    # Pre-warm the pricing cache BEFORE opening the DB cursor, so the gateway
+    # fetch never happens while a connection is held.
+    try:
+        from services.model_pricing_service import refresh as _refresh_pricing
+
+        _refresh_pricing()
+    except Exception:
+        pass
+
     with get_db_cursor() as (conn, cur):
         where_clause = "WHERE created_at >= NOW() - INTERVAL '%s days'"
         params = [days]
@@ -540,8 +553,62 @@ def get_usage_summary(provider_key=None, days=30):
         if result["total_tokens"] == 0 and real_tokens:
             result["total_tokens"] = real_tokens
         result["tokens_tracked"] = bool(result["total_tokens"])
-        result["cost_tracked"] = bool(result["total_cost"])
         result["ledger_calls"] = real_calls
+
+        # COST: price the ledger's tokens against the gateway's pricing table.
+        # The ledger's own `cost` column is 0 on every row, so summing it would
+        # report a confident $0.00 for real spend.
+        #
+        # The query groups by (provider, model) so the pricing lookup happens
+        # once per distinct model rather than once per row — a 30-day window is
+        # ~2M rows and ~40 distinct models.
+        cost_where = "WHERE created_at >= NOW() - INTERVAL '%s days'"
+        cost_params = [days]
+        if provider_key:
+            cost_where += " AND provider = %s"
+            cost_params.append(provider_key)
+        cur.execute(
+            f"""
+            SELECT provider,
+                   model_used,
+                   COUNT(*) AS calls,
+                   COALESCE(SUM(COALESCE(prompt_tokens, 0)), 0) AS prompt_tokens,
+                   COALESCE(SUM(COALESCE(completion_tokens, 0)), 0) AS completion_tokens
+            FROM task_execution_log
+            {cost_where}
+            GROUP BY provider, model_used
+            """,
+            cost_params,
+        )
+        groups = [
+            (
+                r["provider"],
+                r["model_used"],
+                int(r["prompt_tokens"] or 0),
+                int(r["completion_tokens"] or 0),
+            )
+            for r in cur.fetchall()
+        ]
+        try:
+            from services.model_pricing_service import cost_for_groups
+
+            priced = cost_for_groups(groups)
+        except Exception:
+            priced = {
+                "cost": 0.0,
+                "priced_tokens": 0,
+                "unpriced_tokens": real_tokens,
+                "priced_calls": 0,
+                "unpriced_calls": real_calls,
+                "unpriced_models": [],
+            }
+        result["total_cost"] = float(priced["cost"])
+        result["cost_tracked"] = bool(priced["priced_tokens"]) and not priced["unpriced_tokens"]
+        result["cost_partial"] = bool(priced["priced_tokens"]) and bool(priced["unpriced_tokens"])
+        result["cost_priced_tokens"] = int(priced["priced_tokens"])
+        result["cost_unpriced_tokens"] = int(priced["unpriced_tokens"])
+        result["cost_unpriced_models"] = priced["unpriced_models"]
+        result["cost_source"] = "gateway-pricing-table"
 
         # Per-application breakdown — which application spent what on which
         # external upstream. This is the "tracking" the DS9 tab was missing:

@@ -236,3 +236,72 @@ class TestInferencePathFilter(unittest.TestCase):
         r = oh.summarize(rows, min_calls=10, hours=6)
         self.assertIsNone(r["condition"])
         self.assertIn("not enough", r["detail"])
+
+
+class TestGatewayLiveness(unittest.TestCase):
+    """Pin the DEAD-vs-IDLE distinction (added 2026-10-21).
+
+    Measured: with deep-space-9.service stopped, the platform raised NOTHING
+    for the whole outage, because the gateway-health job reads only call_logs —
+    and a dead gateway and an idle gateway look identical there (both produce
+    no new rows).
+
+    The rule that must not break: a live-but-IDLE gateway still never pages
+    (#6803). Liveness is a SEPARATE question with its own answer, and only the
+    'not answering' answer is an outage.
+    """
+
+    def _probe(self, side_effect=None, status=200):
+        from unittest import mock
+
+        import services.omniroute_health as oh
+
+        resp = mock.MagicMock()
+        resp.status = status
+        resp.read.return_value = b'{"ok":true}'
+        resp.__enter__.return_value = resp
+        resp.__exit__.return_value = False
+        with mock.patch(
+            "services.omniroute_health.urllib.request.urlopen",
+            side_effect=side_effect,
+            return_value=resp,
+        ):
+            return oh.check_gateway_liveness()
+
+    def test_a_healthy_gateway_is_reachable(self):
+        r = self._probe()
+        self.assertTrue(r["reachable"])
+        self.assertIn("200", r["detail"])
+        self.assertIsInstance(r["latency_ms"], int)
+
+    def test_an_unreachable_gateway_is_not_reachable(self):
+        import urllib.error
+
+        r = self._probe(side_effect=urllib.error.URLError("connection refused"))
+        self.assertFalse(r["reachable"])
+        self.assertIn("unreachable", r["detail"])
+
+    def test_an_http_error_still_means_something_answered(self):
+        """A 500 from the health endpoint is an unhealthy gateway, not a DEAD
+        one — something is listening. Conflating them would page for a gateway
+        that is up and merely sick."""
+        import urllib.error
+
+        r = self._probe(side_effect=urllib.error.HTTPError("u", 500, "boom", None, None))
+        self.assertTrue(r["reachable"])
+        self.assertIn("500", r["detail"])
+
+    def test_the_probe_never_raises(self):
+        r = self._probe(side_effect=RuntimeError("something unexpected"))
+        self.assertFalse(r["reachable"])
+        self.assertIn("RuntimeError", r["detail"])
+
+    def test_the_probe_has_a_timeout(self):
+        """No timeout means the health job can hang on a half-open socket."""
+        import inspect
+
+        import services.omniroute_health as oh
+
+        src = inspect.getsource(oh.check_gateway_liveness)
+        self.assertIn("timeout=timeout", src)
+        self.assertGreater(oh.OMNIROUTE_LIVENESS_TIMEOUT, 0)

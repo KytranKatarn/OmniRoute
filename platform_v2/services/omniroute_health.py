@@ -47,11 +47,20 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import time
+import urllib.error
+import urllib.request
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 OMNIROUTE_DB = os.getenv("ARCHIE_OMNIROUTE_DB", "/omniroute-data/storage.sqlite")
+
+# The gateway's own health endpoint. Used to tell a DEAD gateway from an IDLE
+# one - see check_gateway_liveness().
+OMNIROUTE_BASE_URL = os.getenv("DS9_API_BASE_URL", "http://host.docker.internal:20129").rstrip("/")
+OMNIROUTE_HEALTH_PATH = os.getenv("ARCHIE_OMNIROUTE_HEALTH_PATH", "/api/health")
+OMNIROUTE_LIVENESS_TIMEOUT = float(os.getenv("ARCHIE_OMNIROUTE_LIVENESS_TIMEOUT", "4"))
 
 # A window long enough that a briefly-idle gateway is not mistaken for a broken
 # one, short enough that three days never pass unnoticed again.
@@ -266,6 +275,60 @@ def read_window(hours: float = WINDOW_HOURS, db_path: str = OMNIROUTE_DB) -> Opt
     finally:
         if con is not None:
             con.close()
+
+
+def check_gateway_liveness(
+    timeout: float = OMNIROUTE_LIVENESS_TIMEOUT,
+) -> Dict[str, Any]:
+    """Is the gateway PROCESS alive? Probes its own health endpoint.
+
+    The gateway-health job reads the gateway's call_logs, and by design it
+    does NOT alarm on silence - a lane nobody called is not a broken lane, and
+    paging on silence is how a channel gets muted (#6803).
+
+    But a DEAD gateway and an IDLE gateway look identical from call_logs: both
+    produce no new rows. Measured 2026-10-21: with deep-space-9.service
+    stopped, the platform raised nothing for as long as the outage lasted.
+
+    So liveness is a separate question, answered here, and it is the only
+    thing that distinguishes the two. A live-but-idle gateway is still silent
+    and still quiet; a gateway that is not answering is an outage.
+
+    Never raises. Returns:
+        {"reachable": bool, "detail": str, "latency_ms": int | None}
+    """
+    url = f"{OMNIROUTE_BASE_URL}{OMNIROUTE_HEALTH_PATH}"
+    started = time.monotonic()
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read(200).decode("utf-8", "replace")
+            if resp.status >= 500:
+                return {
+                    "reachable": False,
+                    "detail": f"gateway health endpoint returned HTTP {resp.status}",
+                    "latency_ms": int((time.monotonic() - started) * 1000),
+                }
+            return {
+                "reachable": True,
+                "detail": f"gateway answered HTTP {resp.status}",
+                "latency_ms": int((time.monotonic() - started) * 1000),
+            }
+    except urllib.error.HTTPError as exc:
+        # An HTTP error still means SOMETHING answered - the gateway is up. Only
+        # a connection failure is an outage. A 500 from the health endpoint is
+        # reported as reachable-but-unhealthy rather than as a dead gateway.
+        return {
+            "reachable": True,
+            "detail": f"gateway health endpoint returned HTTP {exc.code}",
+            "latency_ms": int((time.monotonic() - started) * 1000),
+        }
+    except Exception as exc:  # noqa: BLE001 - a probe must never raise
+        return {
+            "reachable": False,
+            "detail": f"gateway unreachable at {url}: {exc.__class__.__name__}",
+            "latency_ms": int((time.monotonic() - started) * 1000),
+        }
 
 
 def check_gateway_health(hours: float = WINDOW_HOURS) -> Dict[str, Any]:

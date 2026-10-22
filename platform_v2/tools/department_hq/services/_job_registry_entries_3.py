@@ -130,6 +130,13 @@ JOB_ENTRIES = {
         "interval": "14d",
         "source_file": "platform_v2/tools/department_hq/jobs.py",
     },
+    "model_pricing_backfill": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Nightly price of the token ledger against the DS9 gateway's own pricing table (GET /api/pricing) — the ledger's cost column was 0 on all 2.1M rows, so every view summing it reported $0.00 for real spend. Rows with no published price become NULL (unknown), never a false zero.",
+        "interval": "daily 04:30",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
     "dispatch_retention_prune": {
         "department": "Operations & Infrastructure",
         "director": "B.A.S.E.",

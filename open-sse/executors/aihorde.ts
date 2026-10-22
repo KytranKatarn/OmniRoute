@@ -151,9 +151,29 @@ export class AihordeExecutor extends BaseExecutor {
     // AI Horde 500s on a tools[] array, so the contract travels in the prompt
     // only. `stream: false` upstream keeps the reply in one buffer, which is
     // what the marker parser needs.
+    //
+    // The model id needs care. chatCore normally sets body.model to the bare
+    // id, but the body can arrive WITHOUT one, and AI Horde answers
+    // "Model None not known!" to a missing model. So the id is taken from
+    // input.model (the executor's target) when the body has none, and only
+    // the PROVIDER prefix is stripped -- model ids legitimately contain "/"
+    // ("aphrodite/TheDrummer/Cydonia-24B-v4.3"), so path segments must not
+    // be touched (the same rule the default executor follows).
+    const bodyModel =
+      typeof body.model === "string" && body.model.trim().length > 0
+        ? body.model.trim()
+        : String(input.model ?? "").trim();
+    let modelId = bodyModel;
+    for (const prefix of ["aihorde/", "horde/"]) {
+      if (modelId.startsWith(prefix)) {
+        modelId = modelId.slice(prefix.length);
+        break;
+      }
+    }
+
     const chatBody: Record<string, unknown> = {
       ...body,
-      model: input.model,
+      model: modelId,
       messages: flattenMessages(effectiveMessages),
       stream: false,
     };

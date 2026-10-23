@@ -70,6 +70,9 @@ const lazyExecutors: Record<string, () => Promise<BaseExecutor>> = {
   pollinations: () => import("./pollinations.ts").then((m) => new m.PollinationsExecutor()),
   pol: () => import("./pollinations.ts").then((m) => new m.PollinationsExecutor()), // Alias
   "cloudflare-ai": () => import("./cloudflare-ai.ts").then((m) => new m.CloudflareAIExecutor()),
+  // #7424 — AI Horde: free, anonymous, plain HTTP. The default executor cannot
+  // prompt-emulate tool calling, so it has its own (see ./aihorde.ts).
+  aihorde: () => import("./aihorde.ts").then((m) => new m.AihordeExecutor()),
   cf: () => import("./cloudflare-ai.ts").then((m) => new m.CloudflareAIExecutor()), // Alias
   freebuff: () => import("./freebuff.ts").then((m) => new m.FreebuffExecutor()),
   fb: () => import("./freebuff.ts").then((m) => new m.FreebuffExecutor()), // Alias

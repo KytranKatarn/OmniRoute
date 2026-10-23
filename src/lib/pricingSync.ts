@@ -100,8 +100,11 @@ const LITELLM_PRICING_URL =
 // ─── Provider mapping: LiteLLM provider → OmniRoute aliases ─────
 
 const LITELLM_PROVIDER_MAP: Record<string, string[]> = {
-  openai: ["openai", "cx"],
-  anthropic: ["anthropic", "cc"],
+  // Source keys are LiteLLM providers; destinations are DS9 aliases AND ids.
+  // Keep the existing cx/cc reference prices available to canonical-id lookups.
+  // These are model list prices, not measured subscription/account charges.
+  openai: ["openai", "cx", "codex"],
+  anthropic: ["anthropic", "cc", "claude"],
   vertex_ai: ["gemini"],
   "vertex_ai-anthropic_models": ["anthropic"],
   google: ["gemini"],

@@ -122,7 +122,7 @@ import {
   stripIncompatibleMessageContent,
 } from "../services/modelStrip.ts";
 import { echoModelInObject } from "../services/responseModelEcho.ts";
-import { getUnsupportedParams, REGISTRY } from "../config/providerRegistry.ts";
+import { getUnsupportedParams, getRegistryEntry, REGISTRY } from "../config/providerRegistry.ts";
 
 import { checkToolCallingRequiredButUnsupported } from "./chatCore/toolCallingRequiredCheck.ts";
 import { buildExecutorClientHeaders } from "./chatCore/executorClientHeaders.ts";
@@ -2322,7 +2322,8 @@ async function handleChatCoreInner({
     translatedBody,
     unsupported,
     isCombo,
-    model
+    model,
+    getRegistryEntry(provider)?.toolCalling === "emulated"
   );
   if (toolCallingCheck.blocked) {
     trackPendingRequest(model, provider, pendingConnId, false, undefined, pendingRequestId);

@@ -20,9 +20,14 @@ export function checkToolCallingRequiredButUnsupported(
   body: Record<string, unknown>,
   unsupported: readonly string[],
   isCombo: boolean,
-  model: string
+  model: string,
+  emulatedToolCalling: boolean = false
 ): ToolCallingRequiredCheckResult {
   if (isCombo) return { blocked: false };
+  // Providers that prompt-emulate tool calling (e.g. AI Horde, #7424) handle
+  // `tools` in their executor even though the raw backend rejects the field,
+  // so a direct/pinned request must not be blocked here.
+  if (emulatedToolCalling) return { blocked: false };
   if (!unsupported.includes("tools")) return { blocked: false };
   if (!Array.isArray(body.tools) || body.tools.length === 0) return { blocked: false };
 

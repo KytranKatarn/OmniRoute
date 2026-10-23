@@ -26,44 +26,57 @@ import { buildOpenAiCompatibleRegistryEntry } from "../../shared.ts";
  * while `count > 0`. An optional registered API key is stored as a normal
  * connection and sent as the Horde `apikey` header for both chat and images.
  */
-export const aihordeProvider: RegistryEntry = buildOpenAiCompatibleRegistryEntry({
-  id: "aihorde",
-  baseUrl: "https://oai.aihorde.net/v1/chat/completions",
-  modelsUrl: "https://oai.aihorde.net/v1/models",
-  passthroughModels: true,
-  anonymousApiKey: "0000000000",
-  timeoutMs: 120_000,
-  // Provider-wide fallback (getUnsupportedParams() falls back to this when a
-  // model has no per-model entry) — every model AI Horde serves shares this
-  // limitation, not just the 3 statically catalogued below. Without it, any
-  // live-discovered model (the roster changes as workers come/go) sends
-  // `tools` straight through and gets a 500 from the raw text-completion
-  // backend, which doesn't understand the field at all.
-  unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
-  // Aphrodite's OpenAI-compatible facade 500s on a single-text-part content array —
-  // it only implements the plain-string form (see openai-responses.ts collapse logic).
-  requiresPlainStringContent: true,
-  models: [
-    {
-      id: "aphrodite/TheDrummer/Cydonia-24B-v4.3",
-      name: "Cydonia 24B (AI Horde)",
-      contextLength: 32768,
-      toolCalling: false,
-      unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
-    },
-    {
-      id: "aphrodite/TheDrummer/Skyfall-31B-v4.2",
-      name: "Skyfall 31B (AI Horde)",
-      contextLength: 32768,
-      toolCalling: false,
-      unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
-    },
-    {
-      id: "google/gemma-4-31b",
-      name: "Gemma 4 31B (AI Horde)",
-      contextLength: 32768,
-      toolCalling: false,
-      unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
-    },
-  ],
-});
+export const aihordeProvider: RegistryEntry = {
+  ...buildOpenAiCompatibleRegistryEntry({
+    id: "aihorde",
+    description:
+      "AI Horde - a free, anonymous, crowdsourced pool of open models. No key, no account; quality and speed vary by the endpoint's own model, so treat anything here as a lottery ticket rather than a known quantity.",
+    baseUrl: "https://oai.aihorde.net/v1/chat/completions",
+    modelsUrl: "https://oai.aihorde.net/v1/models",
+    passthroughModels: true,
+    anonymousApiKey: "0000000000",
+    // AI Horde's executor prompt-emulates tool calling (#7424) even though the
+    // raw text-completion backends have no native tool support, so the combo
+    // filter and the direct-request tool gate must treat it as capable.
+    toolCalling: "emulated",
+    timeoutMs: 120_000,
+    // Provider-wide fallback (getUnsupportedParams() falls back to this when a
+    // model has no per-model entry) — every model AI Horde serves shares this
+    // limitation, not just the 3 statically catalogued below. Without it, any
+    // live-discovered model (the roster changes as workers come/go) sends
+    // `tools` straight through and gets a 500 from the raw text-completion
+    // backend, which doesn't understand the field at all.
+    unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+    // Aphrodite's OpenAI-compatible facade 500s on a single-text-part content array —
+    // it only implements the plain-string form (see openai-responses.ts collapse logic).
+    requiresPlainStringContent: true,
+    models: [
+      {
+        id: "aphrodite/TheDrummer/Cydonia-24B-v4.3",
+        name: "Cydonia 24B (AI Horde)",
+        contextLength: 32768,
+        toolCalling: false,
+        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+      },
+      {
+        id: "aphrodite/TheDrummer/Skyfall-31B-v4.2",
+        name: "Skyfall 31B (AI Horde)",
+        contextLength: 32768,
+        toolCalling: false,
+        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+      },
+      {
+        id: "google/gemma-4-31b",
+        name: "Gemma 4 31B (AI Horde)",
+        contextLength: 32768,
+        toolCalling: false,
+        unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"],
+      },
+    ],
+  }),
+  // #7424 — the default executor cannot prompt-emulate tool calling, so AI
+  // Horde gets its own: it strips the tools[] array AI Horde 500s on, injects the
+  // shared <tool> contract into the prompt, and parses the reply back into
+  // tool_calls (see open-sse/executors/aihorde.ts).
+  executor: "aihorde",
+};

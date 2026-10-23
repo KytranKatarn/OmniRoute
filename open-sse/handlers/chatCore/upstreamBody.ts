@@ -35,7 +35,7 @@ import {
   isOpencodeGoProvider,
   stripBooleanReasoning,
 } from "../../services/opencodeReasoningSanitizer.ts";
-import { getUnsupportedParams } from "../../config/providerRegistry.ts";
+import { getUnsupportedParams, getRegistryEntry } from "../../config/providerRegistry.ts";
 import { stripUnsupportedParams } from "./unsupportedParamsStrip.ts";
 import {
   stripGpt5SamplingWhenReasoning,
@@ -371,7 +371,8 @@ function normalizeAttemptBody(opts: PrepareUpstreamBodyOptions): Body {
   if (isOpencodeGoProvider(provider)) bodyToSend = stripBooleanReasoning(bodyToSend);
   const { strippedParams } = stripUnsupportedParams(
     bodyToSend,
-    getUnsupportedParams(provider, modelToCall)
+    getUnsupportedParams(provider, modelToCall),
+    getRegistryEntry(provider)?.toolCalling === "emulated"
   );
   if (strippedParams.length > 0) {
     log?.warn?.(

@@ -141,7 +141,7 @@ test("syncPricingFromSources persists data and updates sync status", async () =>
 
   assert.equal(result.success, true);
   assert.ok(synced.openai["gpt-4o"]);
-  assert.equal(status.lastSyncModelCount, 4);
+  assert.equal(status.lastSyncModelCount, 6); // openai/cx/codex + anthropic/cc/claude
   assert.equal(status.lastSync !== null, true);
 });
 
@@ -157,7 +157,7 @@ test("startPeriodicSync, stopPeriodicSync, and initPricingSync manage the timer 
 
   let status = pricingSync.getSyncStatus();
   assert.equal(status.intervalMs, 25);
-  assert.equal(status.lastSyncModelCount, 4);
+  assert.equal(status.lastSyncModelCount, 6);
 
   pricingSync.stopPeriodicSync();
 
@@ -167,6 +167,6 @@ test("startPeriodicSync, stopPeriodicSync, and initPricingSync manage the timer 
 
   status = pricingSync.getSyncStatus();
   assert.equal(status.enabled, true);
-  assert.equal(status.lastSyncModelCount, 4);
+  assert.equal(status.lastSyncModelCount, 6);
   pricingSync.stopPeriodicSync();
 });

@@ -511,7 +511,9 @@ export function normalizeNamedBlockToolCalls(text: string): string {
 export function parseToolCallsFromText(
   text: string,
   idSeed = "call",
-  requestedTools?: unknown
+  requestedTools?: unknown,
+  // Opt-in for transports requiring nonce binding and requested-name checks.
+  strict = false
 ): { content: string; toolCalls: OpenAIToolCall[] | null } {
   const normalizedText =
     typeof text === "string" ? normalizeNamedBlockToolCalls(normalizeDsmlToolCalls(text)) : text;
@@ -536,7 +538,7 @@ export function parseToolCallsFromText(
       raw: block.inner.trim(),
       start: block.start,
       end: block.end,
-      requireRequestedTool: false,
+      requireRequestedTool: strict,
     });
   }
 
@@ -558,7 +560,9 @@ export function parseToolCallsFromText(
     // that any _nonce present in the JSON body matches. A wrong nonce (present but
     // does not match) means this is a copy-attack or hallucination — treat it as text
     // instead of executing it. A missing _nonce is tolerated for backward compatibility
-    // with models that do not (yet) follow the nonce instruction.
+    // with models that do not (yet) follow the nonce instruction. Strict
+    // transports require the nonce instead of using that compatibility path.
+    if (strict && (!nonce || parsed?._nonce !== nonce)) continue;
     if (nonce && parsed && parsed._nonce !== undefined && parsed._nonce !== nonce) continue;
 
     const name =
@@ -667,12 +671,14 @@ interface ToolCompletionResult {
 export function buildToolAwareResult(
   rawContent: string,
   requestedTools: unknown,
-  idSeed = "call"
+  idSeed = "call",
+  strict = false
 ): ToolCompletionResult {
   const { content, toolCalls } = parseToolCallsFromText(
     rawContent,
     `${idSeed}-${Date.now()}`,
-    requestedTools
+    requestedTools,
+    strict
   );
   return {
     content,

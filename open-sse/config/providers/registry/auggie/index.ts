@@ -7,6 +7,8 @@ import type { RegistryEntry } from "../../shared.ts";
 // Model IDs sourced from `auggie model list` on auggie v0.32.0.
 export const auggieProvider: RegistryEntry = {
   id: "auggie",
+  description:
+    "Auggie - a free public gateway to several model providers. Convenient for trying a model without wiring up a key; expect the usual rate limits.",
   alias: "aug",
   format: "openai",
   executor: "auggie",

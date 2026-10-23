@@ -47,6 +47,18 @@ import { buildGitLabOAuthEndpoints, GITLAB_DUO_DEFAULT_BASE_URL } from "@/lib/oa
 export interface RegistryModel {
   id: string;
   name: string;
+  /**
+   * One line on what this model is PRACTICAL FOR - "best for X", "good at Y",
+   * "avoid for Z". Advertised on /v1/models so a client that renders a model
+   * picker (Claude Code's gateway discovery, opencode, anything
+   * OpenAI-compatible) shows it instead of the generic "From gateway".
+   *
+   * Keep it to the model, not the marketing: a caller deciding between two
+   * models wants to know what each one is good at, and that is what belongs
+   * next to its name. Optional - a model without one simply emits no
+   * description field, exactly as before.
+   */
+  description?: string;
   aliases?: readonly string[];
   /**
    * Upstream model IDs that prove this static model is live when the provider
@@ -139,6 +151,14 @@ export type ReasoningTransport = "plaintext" | "opaque" | "none";
 export interface RegistryEntry {
   id: string;
   alias?: string;
+  /**
+   * One line on what THIS PROVIDER is for, used as the fallback for any of
+   * its models that has no description of its own. A model list where the
+   * provider's models read as bare names is a list nobody can choose from, and
+   * a per-model line is not always worth writing for a bulk catalogue - a
+   * provider-level line covers those honestly.
+   */
+  description?: string;
   format: string;
   executor: string;
   baseUrl?: string;

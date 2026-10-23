@@ -262,6 +262,95 @@ export async function prepareBuiltinAutoComboInputs(
 export type BuiltinAutoComboPreparedSource =
   PreparedVirtualAutoComboInputs | (() => Promise<PreparedVirtualAutoComboInputs>);
 
+/**
+ * What each built-in combo is PRACTICAL FOR.
+ *
+ * Advertised on /v1/models as the entry's `description`. Claude Code's gateway
+ * model discovery renders that field in its model picker - an entry without one
+ * reads "From gateway" - and other OpenAI-compatible clients surface it the
+ * same way. A combo list that only says "auto/coding" tells a caller nothing
+ * about whether to pick auto/coding, auto/coding:free or auto/coding:reliable.
+ * These one-liners are what make the list a menu rather than a guessing game.
+ *
+ * Each line answers two questions: what is this good for, and what does it cost
+ * you (speed, money, or a narrower pool). Keep them to one sentence.
+ */
+export const BUILTIN_AUTO_COMBO_DESCRIPTIONS: Record<string, string> = {
+  // ── the category presets: pick one when you know the job ──────────────────
+  "auto/coding":
+    "Routes to whichever connected model is best at code - generation, refactoring, review and debugging. The default pick for anything that writes or changes code.",
+  "auto/chat":
+    "General conversation and everyday assistant work. No coding or reasoning bias - the balanced default when the task is just a question.",
+  "auto/reasoning":
+    "For work that needs to think: multi-step problems, maths, analysis, planning. Prefers models that show their reasoning, at some cost in speed.",
+  "auto/vision":
+    "For anything with an image in it - reading a screenshot, a diagram, a photo. Only routes to models that actually accept images.",
+  "auto/multimodal":
+    "For mixed image-and-text work where both the picture and the words carry meaning. Needs a model that handles both at once.",
+
+  // ── the tier overlays: same job, a different trade-off ────────────────────
+  "auto/coding:fast":
+    "Coding at the lowest latency: quick completions, autocomplete, small edits. Pick this when you want the answer now rather than the best answer.",
+  "auto/coding:cheap":
+    "Coding with cost and quota headroom protected - prefers free and included-in-plan capacity, at some cost in answer quality.",
+  "auto/coding:free":
+    "Coding on free-tier capacity only. Never spends a paid credit, so it may be slower or less capable - the right pick for a free-only lane.",
+  "auto/coding:pro":
+    "Coding on premium capacity only, for the work that must be right. Fails closed rather than quietly dropping to a free model.",
+  "auto/coding:reliable":
+    "Coding weighted toward whichever model has been most dependable lately rather than the one that scores highest. For work that must not fail.",
+  "auto/best-free": "The best model available on free capacity right now, whatever the job.",
+  "auto/thrifty":
+    "Spends as little as it can: the cheapest capable model that can do the job, with free and included-in-plan capacity preferred.",
+  "auto/subscription":
+    "Only uses capacity your plan already includes, and only where there is quota headroom left. Fails rather than billing you.",
+
+  // ── the weight variants ──────────────────────────────────────────────────
+  "auto/fast": "The fastest capable model, whatever the job. For latency-sensitive work.",
+  "auto/cheap": "The cheapest capable model, whatever the job. For cost-sensitive work.",
+  "auto/smart":
+    "The best available model, weighted for quality over speed. The default when you are not sure.",
+  "auto/offline": "For when the network is not an option: prefers models that can run locally.",
+  "auto/chaos":
+    "Fans the same request out to several top models at once and returns every answer. Useful for comparing options, not for normal work.",
+  "auto/best-chaos": "The same parallel fan-out, restricted to the most stable models.",
+
+  // ── the 'best' aliases ───────────────────────────────────────────────────
+  "auto/best-coding": "The best coding model available right now.",
+  "auto/best-coding-fast": "The best coding model available right now, weighted for speed.",
+  "auto/best-chat": "The best general assistant model available right now.",
+  "auto/best-reasoning": "The best reasoning model available right now.",
+  "auto/best-fast": "The fastest model available right now.",
+  "auto/best-vision": "The best image-capable model available right now.",
+
+  // ── the premium tier ─────────────────────────────────────────────────────
+  "auto/pro-coding": "Coding on premium capacity only.",
+  "auto/pro-reasoning": "Reasoning on premium capacity only.",
+  "auto/reasoning:pro":
+    "Reasoning on premium capacity only. The hardest problems, solved on paid capacity.",
+  "auto/pro-vision": "Vision on premium capacity only.",
+  "auto/pro-chat": "General chat on premium capacity only.",
+  "auto/pro-fast": "Fast work on premium capacity only.",
+
+  // ── the family ids: pin a family, let the router choose within it ─────────
+  "auto/gpt":
+    "Any model in the GPT family. Use when you want GPT specifically, without pinning the exact version.",
+  "auto/claude-opus":
+    "Any model in the Claude Opus family - the strongest Claude models, for the hardest work.",
+  "auto/claude-sonnet":
+    "Any model in the Claude Sonnet family - the balanced Claude models, good at code and writing.",
+  "auto/gemini": "Any model in the Gemini family, for very long context and multimodal work.",
+  "auto/llama": "Any model in the Llama family, including ones you can run locally.",
+  "auto/qwen":
+    "Any model in the Qwen family: strong at code and reasoning, and several are small enough to run locally.",
+  "auto/glm": "Any model in the GLM family.",
+  "auto/kimi": "Any model in the Kimi family: long-context and code-focused.",
+  "auto/gemma": "Any model in the Gemma family: small, open, easy to run locally.",
+  "auto/mimo": "Any model in the MiMo family.",
+  "auto/deepseek":
+    "Any model in the DeepSeek family: strong reasoning and code, often at a low price.",
+};
+
 export async function createBuiltinAutoCombo(
   modelStr: string,
   suffix: string,
@@ -285,5 +374,11 @@ export async function createBuiltinAutoCombo(
     : await createVirtualAutoCombo(variant, spec);
   virtualCombo.name = modelStr;
   virtualCombo.id = modelStr;
+  // #13670: the catalog advertises a combo's own description, and a client
+  // that renders a model picker shows it. Without one the entry reads "From
+  // gateway", so the list tells a caller nothing about which combo to pick.
+  // Set it here so the materialised combo carries it into /v1/models.
+  const description = BUILTIN_AUTO_COMBO_DESCRIPTIONS[modelStr];
+  if (description) virtualCombo.description = description;
   return virtualCombo;
 }

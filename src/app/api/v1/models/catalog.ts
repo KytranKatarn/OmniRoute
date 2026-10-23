@@ -961,6 +961,12 @@ async function buildUnifiedModelsResponseCore(
         }
 
         models.push({
+          // What the combo is practical for. The catalog already advertises a
+          // DB combo's own description, but a BUILT-IN combo is built here
+          // rather than read from the DB, so its description has to be copied
+          // across explicitly - otherwise every auto/* entry reads "From
+          // gateway" in a client model picker.
+          ...(virtualCombo.description ? { description: virtualCombo.description } : {}),
           ...baseAutoEntry,
           context_length: contextLength,
           max_input_tokens: contextLength,

@@ -42,6 +42,12 @@ export async function GET(request: Request) {
       bucket.models.push({
         id: model.id,
         name: model.name || model.root || model.id,
+        // What this model is practical for. The dashboard's model list is a
+        // LIST OF NAMES otherwise, which tells a reader nothing about which one
+        // to pick. Forwarded only when there is one.
+        ...(typeof model.description === "string" && model.description.trim()
+          ? { description: model.description.trim() }
+          : {}),
         type: model.type || "chat",
         ...(typeof model.subtype === "string" ? { subtype: model.subtype } : {}),
         custom: model.custom === true,

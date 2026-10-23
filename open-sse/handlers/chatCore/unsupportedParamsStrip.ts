@@ -31,16 +31,25 @@ export interface UnsupportedParamsStripResult {
  */
 export function stripUnsupportedParams(
   body: Record<string, unknown>,
-  unsupported: readonly string[]
+  unsupported: readonly string[],
+  emulatedToolCalling: boolean = false
 ): UnsupportedParamsStripResult {
   const strippedParams: string[] = [];
   for (const param of unsupported) {
+    // Emulated-tool providers (e.g. AI Horde, #7424) handle `tools` in their
+    // executor even though the raw backend rejects the field, so keep `tools`
+    // on the body for the executor to consume (it strips it before sending).
+    // Every other unsupported param is still stripped.
+    if (param === "tools" && emulatedToolCalling) continue;
     if (Object.hasOwn(body, param)) {
       strippedParams.push(param);
       delete body[param];
     }
   }
 
+  // History flattening must still run for emulated providers: their raw
+  // backends reject role:"tool"/tool_calls message shapes regardless of
+  // whether this request carries a live `tools` param.
   if (unsupported.includes("tools") && Array.isArray(body.messages)) {
     body.messages = flattenToolHistory(body.messages as Record<string, unknown>[]);
   }

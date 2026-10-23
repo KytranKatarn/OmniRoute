@@ -155,6 +155,20 @@ function errorMessage(params: Record<string, unknown>): string {
   return "Codex app-server reported an error";
 }
 
+function isRateLimitError(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("rate limit") ||
+    lower.includes("rate_limit") ||
+    lower.includes("quota") ||
+    lower.includes("too many requests") ||
+    lower.includes("429") ||
+    lower.includes("account limit") ||
+    lower.includes("usage limit") ||
+    lower.includes("capacity")
+  );
+}
+
 function translateFailure(
   method: string,
   params: Record<string, unknown>,
@@ -162,14 +176,17 @@ function translateFailure(
 ): boolean {
   // Codex retries transient errors itself; output and turn/completed follow.
   if (method === CODEX_APPSERVER_METHODS.error && params.willRetry === true) return false;
+  const rawMessage = method === "__transport_closed__" ? params.reason : errorMessage(params);
+  const safeMessage = sanitizeErrorMessage(rawMessage);
+  const rateLimited = isRateLimitError(typeof rawMessage === "string" ? rawMessage : safeMessage);
   push({
     type: "error",
-    message: sanitizeErrorMessage(
-      method === "__transport_closed__" ? params.reason : errorMessage(params)
-    ),
-    status: 502,
+    message: rateLimited
+      ? `ChatGPT account rate limit exceeded: ${safeMessage}. Try again later or use a different account.`
+      : safeMessage,
+    status: rateLimited ? 429 : 502,
     errorType: "provider_error",
-    code: "codex_app_server_turn_failed",
+    code: rateLimited ? "codex_app_server_rate_limited" : "codex_app_server_turn_failed",
   });
   return true;
 }

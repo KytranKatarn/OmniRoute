@@ -2,6 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AihordeExecutor } from "../../open-sse/executors/aihorde.ts";
 import { getToolNonce } from "../../open-sse/translator/webTools.ts";
+import { NOAUTH_PROVIDERS } from "../../src/shared/constants/providers/noauth.ts";
+
+test("7424: AI Horde keeps its live emulated free-pool opt-in", () => {
+  assert.equal(NOAUTH_PROVIDERS.aihorde.toolCalling, "emulated");
+});
 
 function tools() {
   return [

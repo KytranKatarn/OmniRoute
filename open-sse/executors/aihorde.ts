@@ -133,11 +133,27 @@ export class AihordeExecutor extends BaseExecutor {
       flattenMessages(body.messages)
     );
 
+    // Scope this nudge to AI Horde: do not alter the contract used by other
+    // executors or relax nonce/name validation to accept narrated examples.
+    if (hasTools) {
+      effectiveMessages.push({
+        role: "system",
+        content:
+          "When the user's task needs an available client tool, your complete reply must be " +
+          "one <tool>JSON</tool> block using the name, arguments and exact _nonce from the " +
+          "client-tool contract above. Emit the block itself, not instructions or an example. " +
+          "Do not include planning, thinking text, markdown fences, simulated results or a " +
+          "claim that the tool is unavailable. The client will execute the tool and return " +
+          "its result in a later turn. If no tool is needed, answer normally.",
+      });
+    }
+
     // AI Horde 500s on a tools[] array, so the contract travels in the prompt
     // only. `stream: false` upstream keeps the reply in one buffer, which is
     // what the marker parser needs.
     const chatBody: Record<string, unknown> = {
       ...body,
+      model: input.model,
       messages: flattenMessages(effectiveMessages),
       stream: false,
     };
@@ -190,7 +206,7 @@ export class AihordeExecutor extends BaseExecutor {
 
     const upstreamContent: string = parsed?.choices?.[0]?.message?.content ?? "";
     const { content, toolCalls, finishReason } = hasTools
-      ? buildToolAwareResult(upstreamContent, requestedTools, "aihorde")
+      ? buildToolAwareResult(upstreamContent, requestedTools, "aihorde", true)
       : { content: upstreamContent, toolCalls: null, finishReason: "stop" };
 
     const message: Record<string, unknown> = { role: "assistant", content };

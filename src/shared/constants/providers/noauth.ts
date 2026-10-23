@@ -172,6 +172,9 @@ export const NOAUTH_PROVIDERS = {
     hasFree: true,
     passthroughModels: true,
     serviceKinds: ["llm"],
+    // Preserve the live free-pool opt-in; native tools are prompt-emulated by
+    // the dedicated executor and accepted only after nonce/name validation.
+    toolCalling: "emulated",
     authHint:
       "No API key required — uses AI Horde's documented anonymous key. Adding a free aihorde.net key is optional and only buys higher queue priority (kudos).",
     freeNote:

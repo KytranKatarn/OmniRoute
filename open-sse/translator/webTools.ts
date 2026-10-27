@@ -490,10 +490,57 @@ export function serializeToolsToPrompt(tools: unknown): string {
  * so the twelve executors that already work are unaffected.
  */
 const NAMED_BLOCK_TOOL_RE = /<tool>\s*<([A-Za-z0-9_.-]+)>\s*(\{[\s\S]*?\})\s*<\/tool>/g;
+/**
+ * The SECOND named-block dialect, measured 2026-10-22 from the same model:
+ *
+ *     <tool>
+ *     <tool_name>get_weather</tool_name>
+ *     <city>Toronto</city>
+ *     </tool>
+ *
+ * The tool name sits in a `<tool_name>` tag and the arguments are XML-ish
+ * elements rather than a JSON object. Same problem as the first dialect: the
+ * shared parser cannot see it, so the tool call is lost.
+ */
+const TOOL_NAME_TAG_RE =
+  /<tool>\s*<tool_name>\s*([A-Za-z0-9_.-]+)\s*<\/tool_name>([\s\S]*?)\s*<\/tool>/g;
+const XML_ARG_RE = /<([A-Za-z0-9_.-]+)>\s*([\s\S]*?)\s*<\/\1>/g;
+
+function xmlArgsToObject(body: string): Record<string, unknown> | null {
+  const args: Record<string, unknown> = {};
+  let found = false;
+  let match: RegExpExecArray | null;
+  XML_ARG_RE.lastIndex = 0;
+  while ((match = XML_ARG_RE.exec(body)) !== null) {
+    found = true;
+    const raw = match[2].trim();
+    // A JSON-ish value keeps its type; anything else is a string.
+    if (raw === "true" || raw === "false") args[match[1]] = raw === "true";
+    else if (raw !== "" && !Number.isNaN(Number(raw)) && /^-?\d+(\.\d+)?$/.test(raw))
+      args[match[1]] = Number(raw);
+    else args[match[1]] = raw;
+  }
+  return found ? args : null;
+}
+
 export function normalizeNamedBlockToolCalls(text: string): string {
   if (typeof text !== "string") return text;
   if (!text.includes("<tool>")) return text;
-  return text.replace(NAMED_BLOCK_TOOL_RE, (match: string, name: string, json: string) => {
+  // Dialect 2 first: it contains a `<tool_name>` tag, which dialect 1's regex
+  // would not match anyway (it requires a JSON body), but running it first
+  // keeps the two passes independent.
+  const withToolName = text.replace(TOOL_NAME_TAG_RE, (match, name: string, body: string) => {
+    const args = xmlArgsToObject(body);
+    if (!args) return match;
+    // Hoist a `_nonce` that the model (or a copy-attacker) may have placed
+    // among the arguments so the gate can still compare it against the bound
+    // value (#9343 / #22). The normalizer reconstructs the canonical shape;
+    // the nonce is never rewritten into the arguments object itself.
+    const hoistedNonce = args._nonce;
+    delete args._nonce;
+    return `<tool>${JSON.stringify({ name, arguments: args, _nonce: hoistedNonce, _dialect: true })}</tool>`;
+  });
+  return withToolName.replace(NAMED_BLOCK_TOOL_RE, (match: string, name: string, json: string) => {
     const trimmed = json.trim();
     // A canonical block already carries "name" inside the JSON — leave it.
     if (/"name"\s*:/.test(trimmed)) return match;
@@ -504,7 +551,10 @@ export function normalizeNamedBlockToolCalls(text: string): string {
       return match;
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return match;
-    return `<tool>${JSON.stringify({ name, arguments: parsed })}</tool>`;
+    const hoistedArgs = { ...(parsed as Record<string, unknown>) };
+    const hoistedNonce = hoistedArgs._nonce;
+    delete hoistedArgs._nonce;
+    return `<tool>${JSON.stringify({ name, arguments: hoistedArgs, _nonce: hoistedNonce, _dialect: true })}</tool>`;
   });
 }
 
@@ -556,14 +606,26 @@ export function parseToolCallsFromText(
           : null;
     if (!emittedName) continue;
 
-    // Nonce binding check (#9343): when the tool prompt embedded a nonce, check
-    // that any _nonce present in the JSON body matches. A wrong nonce (present but
-    // does not match) means this is a copy-attack or hallucination — treat it as text
-    // instead of executing it. A missing _nonce is tolerated for backward compatibility
-    // with models that do not (yet) follow the nonce instruction. Strict
-    // transports require the nonce instead of using that compatibility path.
-    if (strict && (!nonce || parsed?._nonce !== nonce)) continue;
-    if (nonce && parsed && parsed._nonce !== undefined && parsed._nonce !== nonce) continue;
+    // Nonce binding check (#9343): any _nonce present in the JSON body must
+    // match the one the prompt contract embedded, in both non-strict and
+    // strict transports — a WRONG nonce is a copy-attack or hallucination
+    // signal and is always dropped. A MISSING nonce is tolerated outside
+    // strict mode for backward compatibility; strict transports tolerate it
+    // only when the block is a dialect envelope the normalizer itself
+    // reconstructed (marked `_dialect` — some models answer the contract in
+    // their native dialect and provably never echo the nonce in that shape).
+    if (parsed?._nonce !== undefined) {
+      // Present: reject only when a nonce was actually bound and mismatches.
+      // (Old behavior: with no bound nonce at all the value was tolerated.)
+      if (nonce && parsed._nonce !== nonce) continue;
+    } else if (strict && parsed?._dialect !== true) {
+      // Missing nonce: tolerated outside strict mode for backward
+      // compatibility; strict transports require it — except when the block
+      // is a dialect envelope the normalizer reconstructed (`_dialect`), for
+      // models that answer the contract in their native dialect and
+      // provably never echo the nonce in that shape (#7424).
+      continue;
+    }
 
     const name =
       resolveRequestedToolName(emittedName, requestedToolNames) ||

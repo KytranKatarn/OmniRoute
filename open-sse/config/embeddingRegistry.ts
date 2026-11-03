@@ -182,6 +182,21 @@ export const EMBEDDING_PROVIDERS: Record<string, EmbeddingProvider> = {
     // required". Default to "query" when the client omits it (issue #1378).
     models: [
       {
+        // NVIDIA hosted Preview API: text queries and text/image passages.
+        // https://build.nvidia.com/nvidia/nemotron-3_5-embed-1b
+        id: "nvidia/nemotron-3.5-embed-1b",
+        name: "Nemotron 3.5 Embed 1B",
+        dimensions: 2048,
+        defaultParams: { input_type: "query" },
+      },
+      {
+        // https://build.nvidia.com/nvidia/nemotron-3_5-embed-8b
+        id: "nvidia/nemotron-3.5-embed-8b",
+        name: "Nemotron 3.5 Embed 8B",
+        dimensions: 4096,
+        defaultParams: { input_type: "query" },
+      },
+      {
         id: "nvidia/nv-embedqa-e5-v5",
         name: "NV EmbedQA E5 v5",
         dimensions: 1024,

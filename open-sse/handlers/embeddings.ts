@@ -30,7 +30,7 @@ import {
   prepareLlamaCppEmbeddingInput,
   prepareStructuredEmbeddingRequest,
 } from "./embeddingStructuredInput.ts";
-import { MAX_EMBEDDING_INLINE_ITEM_BYTES } from "@/shared/validation/schemas/apiV1";
+import { MAX_EMBEDDING_INLINE_ITEM_BYTES, MAX_EMBEDDING_INLINE_TOTAL_BYTES } from "@/shared/validation/schemas/apiV1";
 import { markAccountUnavailable } from "../../src/sse/services/auth.ts";
 import {
   collectJinaNativeModalities,
@@ -262,9 +262,11 @@ function validateRequestedModalities(runtime: EmbeddingRuntime): EmbeddingFailur
  */
 const MAX_EMBEDDING_INPUT_CHARS = 20_000;
 
-export function clampEmbeddingStringInput(input: unknown): unknown {
+export function clampEmbeddingStringInput(input: unknown, preserveImageData = false): unknown {
   const clampString = (s: string): string =>
-    s.length > MAX_EMBEDDING_INPUT_CHARS ? s.slice(0, MAX_EMBEDDING_INPUT_CHARS) : s;
+    preserveImageData && /^data:image\/(?:png|jpeg|webp);base64,/i.test(s)
+      ? s
+      : s.length > MAX_EMBEDDING_INPUT_CHARS ? s.slice(0, MAX_EMBEDDING_INPUT_CHARS) : s;
   if (typeof input === "string") return clampString(input);
   if (Array.isArray(input))
     return input.map((item) => (typeof item === "string" ? clampString(item) : item));
@@ -272,9 +274,11 @@ export function clampEmbeddingStringInput(input: unknown): unknown {
 }
 
 function buildUpstreamBody(runtime: EmbeddingRuntime): Record<string, unknown> {
+  const nvidiaImageModel = runtime.provider === "nvidia" &&
+    ["nvidia/nemotron-3.5-embed-1b", "nvidia/nemotron-3.5-embed-8b"].includes(runtime.model ?? "");
   const upstreamBody: Record<string, unknown> = {
     model: runtime.model,
-    input: clampEmbeddingStringInput(runtime.body.input),
+    input: clampEmbeddingStringInput(runtime.body.input, nvidiaImageModel),
   };
   if (runtime.body.dimensions !== undefined) upstreamBody.dimensions = runtime.body.dimensions;
   if (runtime.body.encoding_format !== undefined) {
@@ -747,6 +751,27 @@ export async function handleEmbedding(params: HandleEmbeddingParams): Promise<Em
   const resolved = resolveEmbedding(params);
   const runtime = await createEmbeddingRuntime(params, resolved);
   if ("success" in runtime) return runtime;
+  if (runtime.provider === "nvidia" &&
+      ["nvidia/nemotron-3.5-embed-1b", "nvidia/nemotron-3.5-embed-8b"].includes(runtime.model ?? "")) {
+    const items = Array.isArray(runtime.body.input) ? runtime.body.input : [runtime.body.input];
+    const images = items.filter((item): item is string => typeof item === "string" && /^data:image\//i.test(item));
+    if (images.length && runtime.body.input_type !== "passage") {
+      return failure(400, "NVIDIA image embeddings require input_type=passage");
+    }
+    let totalImageBytes = 0;
+    for (const image of images) {
+      const match = /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]*={0,2})$/i.exec(image);
+      if (!match || match[1].length === 0 || match[1].length % 4 !== 0) {
+        return failure(400, "NVIDIA image embedding input must be a valid PNG, JPEG, or WebP base64 data URL");
+      }
+      const payload = match[1];
+      const bytes = payload.length / 4 * 3 - (payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0);
+      totalImageBytes += bytes;
+      if (bytes > MAX_EMBEDDING_INLINE_ITEM_BYTES || totalImageBytes > MAX_EMBEDDING_INLINE_TOTAL_BYTES) {
+        return failure(400, "NVIDIA image embedding input exceeds size limits");
+      }
+    }
+  }
   const modalityFailure = validateRequestedModalities(runtime);
   if (modalityFailure) return modalityFailure;
   const prepared = await prepareEmbeddingRequest(runtime);
